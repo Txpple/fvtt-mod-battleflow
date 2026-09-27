@@ -392,8 +392,9 @@ async function maybeTrigger(behType, token, cause) {
  * tokenMoveIn only for a token that MOVED into the region — the ring sliding over a standing creature is
  * not an entry ("a creature that enters the reach"). The reminder is Hew's card and popup (`hewNotice`,
  * drawn by hew.js off the bus); once per movement, and not while the source's Reaction is spent or it is
- * Incapacitated. A creature that passes through the reach and out in one move is not seen (the region
- * compares where the move began and ended).
+ * Incapacitated. A creature passing THROUGH the reach in one move is caught too: Foundry splits a walked
+ * move at the edge of every region listening for entry (TokenDocument#splitMovementPath, measured 14.368,
+ * smoke-emanations §17e) — the entry is a checkpoint of its own. The move itself is never held.
  */
 const alerted = new Set();
 async function maybeAlert(behType, token, movement) {

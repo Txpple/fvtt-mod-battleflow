@@ -42,7 +42,7 @@ const SECTIONS = {
   14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
   15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration',
   16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
-  17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; the Glaive put away, the ring goes"
+  17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
 
@@ -702,9 +702,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const glaiveItem = lent.find(i => i.type === 'weapon');
       try {
         await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians, Polearm Master');
-        // Apart first: the Ranger home, the Victim six squares east of it.
-        const far = { x: rgrTok.x + 6 * grid, y: rgrTok.y };
-        const near = { x: rgrTok.x + 2 * grid, y: rgrTok.y };     // one square between: inside 10 ft
+        // An empty patch of the range, fixed squares (a move onto another token's square or off the map is
+        // refused without a word — the first cut aimed the Victim at the attacker's own square): the Ranger
+        // at (10, 5), the Victim six squares east of it, then two.
+        const spot = { x: 10 * grid, y: 5 * grid };
+        const far = { x: spot.x + 6 * grid, y: spot.y };
+        const near = { x: spot.x + 2 * grid, y: spot.y };     // one square between: inside 10 ft
+        await rgrTok.update(spot, mv());
         await vicTok.update(far, mv());
         await sleep(600);
         const t0 = Date.now();
@@ -740,7 +744,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await rgrTok.update({ x: far.x - 2 * grid, y: far.y }, mv());
         await sleep(2500);   // load-bearing: time for a WRONG reminder
         ok('17c. the Ranger stepping up to a standing Victim is no entry — no reminder', !notices(t2).length, `notices=${notices(t2).length}`);
-        await rgrTok.update(home[rgrTok.id], mv());
+        await rgrTok.update(spot, mv());
+        await sleep(600);
+        // PASSING THROUGH (the user, 2026-09-27: "on the gap…"): one WALKED move from six squares west
+        // to six squares east, a row above the Ranger — it ends outside the reach. Foundry splits a move
+        // at the edge of a region listening for move-in (TokenDocument#splitMovementPath), so the entry
+        // is a checkpoint of its own. Walls and tokens ignored so nothing stops the walk short.
+        await vicTok.update({ x: spot.x - 6 * grid, y: spot.y - grid }, mv());
+        await sleep(800);
+        const t3 = Date.now();
+        await vicTok.move([{ x: spot.x + 6 * grid, y: spot.y - grid, action: 'walk' }],
+          { constrainOptions: { ignoreWalls: true, ignoreTokens: true } });
+        const through = await waitFor(() => notices(t3)[0] ?? null, 8000);
+        // The move goes on past the checkpoint: wait for it to END, then read where it stands.
+        const arrived = await waitFor(() => vicTok.x === spot.x + 6 * grid, 10000);
+        const endedOutside = !!arrived && !featureRegion(rgrTok, 'Polearm Master')?.tokens?.has?.(vicTok);
+        ok('17e. a creature PASSING THROUGH the reach in one walked move raises the reminder too — the move is split at the edge',
+          !!through && endedOutside, `notice=${!!through} endedOutside=${endedOutside} at=(${vicTok.x},${vicTok.y})`);
+        await vicTok.update(home[vicTok.id], mv());
         await sleep(600);
         await glaiveItem.update({ 'system.equipped': false });
         const gone = await waitFor(() => !featureRegion(rgrTok, 'Polearm Master'), 8000);
