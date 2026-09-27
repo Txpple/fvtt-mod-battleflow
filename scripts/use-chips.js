@@ -369,7 +369,13 @@ async function spendCoat(message) {
     const offered = spent ? Object.keys(found.row.saves) : [];
     const ability = spent ? coatSaveAbility({ offered, assigned: asiAssigned(feature),
       mods: Object.fromEntries(offered.map(a => [a, attacker.system?.abilities?.[a]?.mod ?? 0])) }) : null;
-    const act = (feature && ability) ? activityNamed(feature, found.row.saves[ability]) : null;
+    // ⚠ THE SAVE IS A RIDER (measured live 2026-09-26: "Using this activity isn't currently
+    // possible"): the pack lists both saves as Apply Poison's `riders.activity`, and dnd5e hides a
+    // rider on its source item (Activity#isHidden → canUse false) — it is meant to run from the
+    // enchanted weapon. The coating enchants nothing, so the save runs from an in-memory copy of the
+    // feat with that list emptied: same id, same actor, nothing written to the sheet.
+    const source = feature ? feature.clone({ "flags.dnd5e.riders.activity": [] }, { keepId: true }) : null;
+    const act = (source && ability) ? activityNamed(source, found.row.saves[ability]) : null;
     let claimed = false;
     await queueFlagWrite(message, COAT_HIT, current => {
       if ( current.status !== "due" ) return false;
