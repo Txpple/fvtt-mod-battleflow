@@ -1,23 +1,15 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): the data plane's own stamps (ARCHITECTURE
- * *The data plane*), freight for the external stats reader:
- *   - `rollCtx` — every d20 test message carries `{combat, sourceUuid}`, stamped at roll time on
- *     the rolling client, so by-round meters need no timestamp inference.
- *   - `combatRoster` — a GM-whispered marker card per combat: combatants and order at the start,
- *     the final round at deletion. ⚠ STATIC: a snapshot and a closing count, never clock
- *     ownership (the BACKLOG fence). Late joiners are absent; their rolls carry `rollCtx`.
- * ⚠ Ungated by design (a toggle would punch holes in the ledger); no machine imports.
+ * Battle Flow — MACHINE layer: the data plane's stamps for the stats reader (ARCHITECTURE *The data
+ * plane*): `rollCtx` on every d20 test, and a GM-whispered `combatRoster` card per combat.
+ * ⚠ The roster is STATIC — a snapshot and a closing round, never clock ownership.
+ * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
 import { MODULE_ID, TITLE, isActiveGM, statContext } from "./core.js";
 import { bfCard } from "./decide/present.js";
-// A safe static edge: shared.js registers no hooks and evaluates first.
+// Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
 
-/**
- * The dispatched names (tools/dnd5e-hooks.json is the pin): checks and saves fire only the non-V2
- * names, death saves and concentration the V2. One roll can fire several through the hookNames
- * chain, hence never-re-stamp. NPC rolls stamp too; the flag keeps the message's visibility.
- */
+/** The dispatched names (pinned in tools/dnd5e-hooks.json); one roll can fire several. */
 const D20_TEST_HOOKS = [
   "dnd5e.rollAttackV2",
   "dnd5e.rollSavingThrow",
@@ -34,10 +26,9 @@ for ( const hook of D20_TEST_HOOKS ) {
       const subject = ctx?.subject;
       const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
       const message = rolls?.[0]?.parent;
-      if ( !(message instanceof ChatMessage) ) return;   // a roll without a message has no card to stamp
-      if ( message.getFlag(MODULE_ID, "rollCtx") ) return;   // the hookNames chain re-fires; first stamp wins
-      // ⚠ The MESSAGE's own actor leads (statSourceOf): the hook's subject is the WORLD actor, and
-      // an unlinked token's roll must match the identity of the receipt beside it.
+      if ( !(message instanceof ChatMessage) ) return;
+      if ( message.getFlag(MODULE_ID, "rollCtx") ) return;   // first stamp wins
+      // ⚠ The MESSAGE's actor leads: the hook's subject is the WORLD actor, not the unlinked token.
       void message.setFlag(MODULE_ID, "rollCtx", statContext(statSourceOf(message) ?? actor?.uuid ?? null))
         .catch(err => console.error(`${TITLE} | rollCtx stamp failed (${hook}).`, err));
     } catch(err) {
@@ -46,7 +37,7 @@ for ( const hook of D20_TEST_HOOKS ) {
   });
 }
 
-/* --- combatRoster — the marker card: stamped at start, closed at deletion, elder twin wins --- */
+// combatRoster: stamped at start, closed at deletion, the elder twin wins.
 const rosterMessageFor = combatId => game.messages.contents.findLast(
   m => m.getFlag(MODULE_ID, "combatRoster")?.combatId === combatId);
 
@@ -57,9 +48,8 @@ Hooks.on("combatStart", combat => {
 
 async function stampRoster(combat) {
   try {
-    if ( rosterMessageFor(combat.id) ) return;   // one roster per combat
-    // ⚠ A tracker-made encounter is scene-agnostic (combat.scene null): the first combatant's
-    // scene resolves it, the active scene the last guess.
+    if ( rosterMessageFor(combat.id) ) return;
+    // ⚠ A tracker-made encounter has no scene: the first combatant's, else the active one.
     const scene = combat.scene
       ?? game.scenes.get(combat.combatants.contents.find(c => c.sceneId)?.sceneId ?? "")
       ?? game.scenes.active ?? null;
@@ -67,7 +57,7 @@ async function stampRoster(combat) {
       .slice()
       .sort((a, b) => (b.initiative ?? -Infinity) - (a.initiative ?? -Infinity))
       .map(c => ({
-        // The token-synthetic uuid where one exists — the identity every other stamp uses.
+        // The token-synthetic uuid: the identity every other stamp uses.
         actorUuid: c.token?.actor?.uuid ?? c.actor?.uuid ?? null,
         tokenId: c.tokenId ?? null,
         name: c.name,
@@ -83,7 +73,6 @@ async function stampRoster(combat) {
         eyebrow: "Combat",
         title: scene?.name ?? "The field",
         subtitle: `${combatants.length} combatants`,
-        // The scene named on the begin line; the close adds its twin, bracketing the fight.
         lines: [`⚔ Begins on ${scene?.name ?? "the field"}`, ...order],
         tone: "neutral"
       }),
@@ -115,8 +104,7 @@ Hooks.on("createChatMessage", message => {
   if ( elder ) message.delete().catch(() => { /* the other twin got there first */ });
 });
 
-// Deletion is how encounters end, and the final round is the fact only this moment knows.
-// Best-effort — a roster that never closes is still a roster.
+// Deletion is when the final round is known. Best-effort.
 Hooks.on("deleteCombat", combat => {
   if ( !isActiveGM() ) return;
   void closeRoster(combat);
@@ -129,7 +117,7 @@ async function closeRoster(combat) {
     if ( !flag || (flag.endedRound != null) ) return;
     flag.endedRound = combat.round;
     flag.endedAt = Date.now();
-    // The closing bracket. Content and flag land in ONE update, so clients re-render once.
+    // Content and flag in ONE update: one re-render.
     const scene = flag.sceneName ?? "the field";
     const order = (flag.combatants ?? []).map(c =>
       `${(c.initiative ?? "—")} · ${c.name}${c.isPC ? "" : " (foe)"}`);

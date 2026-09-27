@@ -20,11 +20,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // Everyone sees WHO the damage landed on; only the GM sees the pool and the revert.
   const isGM = game.user.isGM;
 
-  // While an un-reverted application stands, every render collapses the damage tray as if Apply
-  // had been pressed (honouring the "manual" setting like the native handler). Stateless and per
-  // tree: a message renders into SEVERAL DOM trees, so a once-per-message latch misses some.
-  // ⚠ Toggle the ATTRIBUTE, never the property: the tree is detached and its custom elements are
-  // not upgraded yet, so `tray.open = false` would shadow the accessor and change nothing.
+  // An un-reverted application collapses the tray on every render (a message renders into SEVERAL
+  // trees). ⚠ The ATTRIBUTE: the detached tree's custom elements are not upgraded, so `.open` shadows.
   if ( receipt?.targets?.some(t => !t.reverted)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
     html.querySelector(SURFACES.damageTray)?.toggleAttribute("open", false);
@@ -39,8 +36,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   });
 
   for ( const t of receipt?.targets ?? [] ) {
-    // Mirrors the native tray's target entry: portrait, a STACKED name column, numbers right. The
-    // stack keeps a long reason from squeezing the name.
+    // The native tray's entry shape; the STACKED name column keeps a long reason from squeezing it.
     const line = document.createElement("div");
     Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0" });
 
@@ -182,8 +178,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
       line.append(icon, stack);
 
-      // What the effect DOES, on hover: stored on the entry at application so it survives the
-      // effect's deletion; older entries fall back to the live document.
+      // The hover text is stored on the entry, so it survives the effect's deletion.
       const tip = e.description || (() => {
         try { return fromUuidSync(t.uuid)?.effects?.get(e.id)?.description ?? ""; }
         catch { return ""; }
@@ -218,11 +213,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
-/**
- * Restore one receipt target to its pre-application HP. State is re-read from the flag at click
- * time, never the DOM, and the reverted marker written back (re-rendering every client). What
- * the revert owes is decide/receipt.js's `revertPlan`.
- */
+/** Restore one receipt target's pre-application HP, re-reading the flag (never the DOM). */
 export async function revertTarget(message, uuid) {
   const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
   const plan = revertPlan(receipt, uuid);
@@ -244,9 +235,8 @@ export async function revertTarget(message, uuid) {
 }
 
 /**
- * Mirror of combatplus's combatant matching, in reverse. ⚠ Every write here is best-effort: the
- * revert already happened, and raising HP above 0 makes dnd5e clear the same marks at the same
- * moment — a lost race must not cost the caller its marker write.
+ * combatplus's combatant matching, in reverse. ⚠ Best-effort: dnd5e races to clear the same marks,
+ * and a lost race must not cost the caller its marker write.
  */
 async function clearDefeated(actor) {
   for ( const combat of game.combats ) {

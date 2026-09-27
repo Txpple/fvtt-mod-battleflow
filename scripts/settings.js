@@ -6,10 +6,6 @@ import { MODULE_ID, TITLE, S, setting } from "./core.js";
 import { KIND_SETS, LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Settings registration
- * ------------------------------------------------------------------------------------------- */
-
 Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.autoDamage, {
     name: "Auto-Roll Damage on Hit",
@@ -25,7 +21,6 @@ Hooks.once("init", () => {
     range: { min: 0, max: 10, step: 0.5 }
   });
 
-  // Caps the wait for Dice So Nice before a verdict or a roll's question opens (ui.js dramaticVerdictPause).
   game.settings.register(MODULE_ID, S.diceWait, {
     name: "Wait for the Dice",
     hint: "Seconds, at most, that a verdict or a question about a roll (a failed concentration save, Topple's prone, Empowered Spell, Savage Attacker, Piercer) waits for Dice So Nice's dice to come to rest before it shows. 0 shows it at once, while the dice are still rolling. The Dramatic Beat, if any, comes after.",
@@ -33,9 +28,7 @@ Hooks.once("init", () => {
     range: { min: 0, max: 10, step: 0.5 }
   });
 
-  // ⚠ Per-CLIENT, and ON by default: a per-client setting nobody knows to look for means every
-  // new login starts wrong, and the buzzer keeps a missed popup from stalling the table.
-  // One switch across all three damage paths — attacks, save spells and areas.
+  // ⚠ Per-CLIENT and ON by default, or every new login starts wrong. Covers all three damage paths.
   game.settings.register(MODULE_ID, S.playerRollDamage, {
     name: "Roll Your Own Damage",
     hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is ON unless you turn it off.",
@@ -61,7 +54,6 @@ Hooks.once("init", () => {
     scope: "client", config: true, type: Boolean, default: true
   });
 
-  // The offered damage roll's bar is a table-wide clock, so it has its own knob.
   game.settings.register(MODULE_ID, S.damageTimer, {
     name: "Damage Roll Timer Seconds",
     hint: "How long an offered damage roll waits before the module rolls it. 0 waits indefinitely. Expiry ROLLS, never cancels — closing the popup does the same — so the timer only ever decides who pressed the button. The draining bar shows on the roller's popup AND on the card, so the whole table can see the dice everyone is waiting on.",
@@ -81,7 +73,6 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true
   });
 
-  // Every use posts its first card; this is the one card-shaping switch.
   game.settings.register(MODULE_ID, S.hideCardButtons, {
     name: "Hide Redundant Buttons",
     hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw, Place Template and the rest — leaving only Refund Resource. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray. An area is placed from the cast's own prompt or the canvas controls, and a waiting save spell finds its targets when it lands.",
@@ -91,7 +82,6 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.centerRollDialogs, {
     name: "Center Popups",
     hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client, and it is ON unless you turn it off.",
-    // Client-scoped so anyone can opt out, ON by default so a new login does not start wrong.
     scope: "client", config: true, type: Boolean, default: true
   });
 
@@ -116,22 +106,19 @@ Hooks.once("init", () => {
       + 'and taking the reaction means the spell\'s damage is never applied to them. Shield reads '
       + '"you take no damage from Magic Missile"; nothing else in 2024 content does this, so one '
       + 'entry is the whole list.',
-    // Keyed by the TRIGGERING SPELL, so the interrupt list stays untouched: Shield both raises AC
-    // and negates Magic Missile, which the `Name:kind` grammar cannot say in one entry.
+    // Keyed by the SPELL: Shield's two effects cannot share one `Name:kind` entry.
     scope: "world", config: true, type: String, default: LIST_SPECS.block.default
   });
 
   game.settings.register(MODULE_ID, S.holdReveal, {
     name: "Hold Shows the Math",
     hint: "On (default): the attack total against their AC, and whether the reaction would actually turn it into a miss — so a player can tell whether spending the slot is worth it. Off (RAW): they are told only that they were hit, and react on faith. Both surfaces obey this one setting.",
-    // Defaults ON: a reaction spends a real resource, and the table should see whether it pays.
     scope: "world", config: true, type: Boolean, default: true
   });
 
   game.settings.register(MODULE_ID, S.holdTimer, {
     name: "Hold Timer Seconds",
     hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. A draining bar shows the time left on both the popup and the card.",
-    // A popup that can pass itself needs a window a human can win.
     scope: "world", config: true, type: Number, default: 24,
     range: { min: 0, max: 60, step: 1 }
   });
@@ -164,9 +151,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.riderList, {
     name: "Rider Table",
     hint: 'Which marks add damage, as system identifiers separated by commas — "hunters-mark", not "Hunter\'s Mark". How MUCH is never listed here: it is read from the spell\'s own bonus-damage activity, so the number is always the one the content ships. Swept from official 2024 content by tools/scan-riders.mjs.',
-    // ⚠ Identifiers, not names: a Ranger's Favored Enemy casts are a separate item sharing the
-    // identifier but not the name. A list is still needed: the no-activation damage-activity shape
-    // is also worn by non-riders (Ensnaring Strike's start-of-turn damage would pay on every attack).
+    // ⚠ Identifiers: Favored Enemy's casts share the identifier, not the name. A list, because
+    // non-riders (Ensnaring Strike) wear the same damage-activity shape.
     scope: "world", config: true, type: String,
     default: LIST_SPECS.rider.default
   });
@@ -177,8 +163,7 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.riderUpgrade.default
   });
 
-  // THE REMINDER GATE: what KINDS of source it reads, and which condition rows count under
-  // `condition`. An empty Reminder Sources list turns the gate off.
+  // THE REMINDER GATE: an empty Reminder Sources list turns it off.
   game.settings.register(MODULE_ID, S.reminderList, {
     name: "Reminder Sources",
     hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the conditions in the Condition Sources list), "range" (a ranged attack beyond normal range or with an enemy within 5 feet — Disadvantage; beyond long range — cannot be made), "buy" (Advantage you buy with a use before the roll — Lucky: a box with a tick in the section of any attack, save, check or initiative dialog; ticked, it counts toward the net, and the use is spent when the roll goes out with the net pressed. A fast-forwarded roll meets no box). When any listed source applies, the system\'s own Attack Roll dialog opens — even on a fast-forward key — with a Battle Flow section: a box per source with its rule, and the net, which is the highlighted button. YOU press; nothing is ever applied for you. An empty list turns the gate off.',
@@ -209,13 +194,12 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.hitMenu.default
   });
 
-  // EMANATIONS: the platform's Region keeps the geometry and the clock; the module puts the
-  // pack's effect on it, with the source's numbers read in.
+  // EMANATIONS: the platform's Region keeps geometry and clock; the module adds the effect.
   game.settings.register(MODULE_ID, S.emanations, {
     name: "Emanations",
     hint: "An aura applies itself to the creatures inside it. A listed feature's emanation (the Paladin's auras) stands around its token wherever it goes, off while the Paladin is Incapacitated; a listed spell's emanation (Spirit Guardians) is the area the spell placed, attached to the caster, and ends with the spell. Creatures walking in receive the feature's own effect — with the SOURCE's numbers, the Paladin's Charisma and not theirs — and lose it walking out; a spell that demands a save on entering or on ending a turn inside asks for it through the save gate. Helpful auras reach allies and neutrals, harmful ones enemies. Drawn as a faint ring on the map.",
     scope: "world", config: true, type: Boolean, default: true,
-    // The machine sweeps on this (emanations.js): off lifts what stands, on raises it again.
+    // emanations.js sweeps on this: off lifts what stands, on raises it.
     onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
   });
 
@@ -387,7 +371,6 @@ Hooks.once("init", () => {
     choices: { ask: "Ask the attacker", auto: "Take them automatically" }
   });
 
-  // A reminder carrying a real choice (Arm the Cleave) needs a window a human can win.
   game.settings.register(MODULE_ID, S.noticeTimer, {
     name: "Reminder Timer Seconds",
     hint: "How long a weapon-mastery reminder (Vex, Sap, Cleave) stays up before it dismisses itself. 0 stays until dismissed. Expiry is a NON-EVENT for Vex and Sap — the chip is already applied and the card keeps the record either way — but Cleave's reminder carries a real choice (Arm the Cleave), so the window has to be one a human can win.",
@@ -398,9 +381,8 @@ Hooks.once("init", () => {
   game.settings.register(MODULE_ID, S.maneuverFolds, {
     name: "Maneuver Folds",
     hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other), "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage), "interpose" (you SAVE against a Dexterity half-damage effect holding a shield — the Reaction is offered and turns half into none), "bash" (your own listed save demand FAILS — choose the Prone press or the announced 5-foot push), "hew" (a crit or a kill with a melee weapon — a reminder card only, nothing automated; for Polearm Master, after an attack with a Quarterstaff, a Spear or a Heavy Reach weapon: Pole Strike, the other end, as a Bonus Action), or "shove" (an Unarmed Strike hit — once per turn, after the damage lands, Push 5 feet or Pass; the push is announced and the token moved by hand — Tavern Brawler). Names must match the item on the actor; dice and costs are read from the item, never typed here. An empty list turns every fold off. Unknown kinds are ignored, never guessed.',
-    // The LIST is the switch; the folds ride the hold family's clock and reveal settings.
-    // ⚠ Riposte lives HERE, never in the Interrupt Reactions list: the hold offers on HITS and
-    // treats unknown kinds as "ac". This parser is strict where that one is forgiving.
+    // ⚠ Riposte lives HERE, never in Interrupt Reactions: the hold offers on HITS and reads an
+    // unknown kind as "ac". The folds ride the hold's clock and reveal settings.
     scope: "world", config: true, type: String,
     default: LIST_SPECS.maneuverFolds.default
   });
@@ -418,8 +400,7 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true
   });
 
-  // Membership lives in volley-registry.js: content ships multi-projectile data too inconsistently
-  // to detect, so the few real volley spells are tracked by name. Unlisted is never a volley.
+  // Membership is by name in volley-registry.js: the content's multi-projectile data is inconsistent.
   game.settings.register(MODULE_ID, S.volleys, {
     name: "Volley Spells",
     hint: "Multi-projectile spells resolve as volleys: the caster gets one popup to aim every dart or ray, instead of the system rolling a single shot and forgetting the rest. Magic Missile's darts strike together — each target gets ONE aggregated damage roll (and so one concentration check). Scorching Ray's rays are separate attacks — each ray rolls its own attack at its own target through the ordinary pipeline, reactions and riders included. The window is the Damage Roll Timer; expiry fires the volley with an even spread, it never cancels. Rides the Attack Resolver's mode.",
@@ -477,9 +458,8 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: Boolean, default: true
   });
 
-  // Registries exposed READ-ONLY for tooling and the suites (ARCHITECTURE §6): live reader
-  // functions, so a suite that flips a setting sees what the module reads next. ⚠ `volleyRegistry`
-  // is deliberately absent and unfrozen — the suites mutate it; volley-registry.js exposes it.
+  // Registries READ-ONLY for the suites (ARCHITECTURE §6), as live readers. ⚠ `volleyRegistry` is
+  // absent on purpose: the suites mutate it, and volley-registry.js exposes it.
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { registries: Object.freeze({
     specs: LIST_SPECS,
@@ -493,8 +473,7 @@ Hooks.once("init", () => {
   }) });
 });
 
-// Settings-sheet polish: a divider per block, and dependent fields greyed live while their
-// governing setting is off.
+// Settings sheet: a divider per block; dependent fields grey while their governor is off.
 Hooks.on("renderSettingsConfig", (_app, element) => {
   const el = element instanceof HTMLElement ? element : element?.[0];
   if ( !el ) return;
@@ -532,8 +511,7 @@ Hooks.on("renderSettingsConfig", (_app, element) => {
   const saves = input(S.saves);
   const syncAll = () => {
     setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    // ⚠ Two owners: the popup fires for attacks under Auto-Roll Damage and for save spells under
-    // Saving Throws, so it is enabled while EITHER can reach it.
+    // ⚠ Two owners: attacks (Auto-Roll Damage) and save spells (Saving Throws) both reach it.
     setEnabled(input(S.playerRollDamage), (autoDamage?.value !== "off") || !!saves?.checked);
     setEnabled(input(S.damageTimer), (autoDamage?.value !== "off") || !!saves?.checked);
     for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
@@ -546,7 +524,6 @@ Hooks.on("renderSettingsConfig", (_app, element) => {
     for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
       setEnabled(input(key), conc?.value !== "off");
     setEnabled(input(S.saveTimer), !!saves?.checked);
-    // The volleys ride the resolver: with it off there is no path for them.
     setEnabled(input(S.volleys), autoDamage?.value !== "off");
   };
   syncAll();
@@ -558,18 +535,10 @@ Hooks.on("renderSettingsConfig", (_app, element) => {
   saves?.addEventListener("change", syncAll);
 });
 
-/* ---------------------------------------------------------------------------------------------
- * The list settings, read and parsed — edge wrappers over decide/registry.js's one parser, kept
- * with the settings surface so no machine has to import a feature to read a list. Every list
- * walks the one warn-once path (ARCHITECTURE §6 *Registry vs. settings list*).
- * ⚠ settings.js is imported ahead of every machine in battleflow.js, so importing it adds no
- * evaluation-order edge; re-read check-hook-order.mjs before moving it down the entry list.
- * ------------------------------------------------------------------------------------------- */
+// The list readers over decide/registry.js's parser (ARCHITECTURE §6 *Registry vs. settings list*).
+// ⚠ battleflow.js imports settings.js ahead of every machine; see check-hook-order.mjs before moving it.
 
-/**
- * Warned chunks, by list. A world setting is read on nearly every hook, so a bad entry warns once
- * per session, keyed by action too so a change from dropped to defaulted still says so.
- */
+/** `${setting}|${action}|${chunk}` warned once per session (lists are read on nearly every hook). */
 const warnedChunks = new Set();
 
 /** THE ONE LIST READ: read the setting, parse against the spec, warn once per bad chunk. */
@@ -592,10 +561,7 @@ export function interruptEntries() {
   return listEntries(LIST_SPECS.interrupt);
 }
 
-/**
- * Which spells a reaction stops outright — `{ spell, reaction }`. Keyed by the spell, so a
- * reaction can appear here and in the interrupt list independently.
- */
+/** Which spells a reaction stops outright — `{ spell, reaction }`. */
 export function blockEntries() {
   return listEntries(LIST_SPECS.block);
 }
@@ -605,10 +571,7 @@ export function maneuverFoldEntries() {
   return listEntries(LIST_SPECS.maneuverFolds);
 }
 
-/**
- * Which post-roll d20 folds are live — `{ name, kind }`. ⚠ `name` is a lookup key for `tactical`
- * (an item) and `bardic` (an effect), and a bare label for `heroic`.
- */
+/** Post-roll d20 folds — `{ name, kind }`. ⚠ `name` is a LOOKUP (item, or effect for `bardic`). */
 export function d20FoldEntries() {
   return listEntries(LIST_SPECS.d20Folds);
 }

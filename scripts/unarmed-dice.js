@@ -1,10 +1,7 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE — a feature whose owner's
- * Unarmed Strike deals a die "instead of the normal damage" (decide/registry.js UNARMED_DICE).
- * At `dnd5e.preRollDamageV2`, before the roll is built, the plain strike's flat parts become the
- * feature's own unarmed attack's formula, so crits double the die and every reader sees the new
- * total. A strike that already rolls a die, and the feature's own attack, are left alone. One line
- * on the damage card says the swap; nothing is asked, since the die is never worse than the flat.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE (registry UNARMED_DICE). At
+ * `preRollDamageV2` the plain strike's flat parts become the feature's own unarmed formula, so a
+ * crit doubles the die. Nothing is asked: the die is never worse than the flat.
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { lower } from "./lookup.js";
@@ -15,10 +12,8 @@ import { SURFACES } from "./surfaces.js";
 
 const UNARMED_FLAG = "unarmedDice";
 
-/** An Unarmed Strike — the attack's own classification. */
 const isUnarmed = activity => activity?.attack?.type?.classification === "unarmed";
 
-/** One unarmed attack activity's damage formula, as the content ships it — or null. */
 function activityFormula(activity) {
   const part = activity?.damage?.parts?.[0];
   if ( !part ) return null;
@@ -27,33 +22,26 @@ function activityFormula(activity) {
   return `${part.number ?? 1}d${part.denomination}${part.bonus ? ` + ${part.bonus}` : ""}`;
 }
 
-/** The feature's own unarmed attacks, each with its formula. */
 const unarmedAttacksOf = feature => [...(feature?.system?.activities ?? [])]
   .filter(a => (a.type === "attack") && isUnarmed(a))
   .map(a => ({ activity: a, formula: activityFormula(a) }))
   .filter(x => x.formula);
 
-/** A formula's largest roll — the one to keep when two rows would swap the same strike. */
+/** A formula's largest roll. */
 const DIE_OF = /(\d*)d(\d+)/i;
 function dieMax(formula) {
   const m = DIE_OF.exec(String(formula ?? ""));
   return m ? (Number(m[1] || 1) * Number(m[2])) : 0;
 }
 
-/**
- * No weapon (a natural one is not held) and no Shield equipped — Unarmed Fighting's "If you
- * aren't holding any weapons or a Shield".
- */
+/** No weapon (natural ones are not held) and no Shield equipped. */
 function handsEmpty(actor) {
   return !(actor?.items ?? []).some(i => (i.system?.equipped === true) && (
     ((i.type === "weapon") && (i.system?.type?.value !== "natural"))
     || ((i.type === "equipment") && (i.system?.type?.value === "shield"))));
 }
 
-/**
- * The formula a row swaps in, with why: the feature's own unarmed attack, or — a `hands` row
- * (Unarmed Fighting) — the larger of its two with the hands empty, the smaller otherwise.
- */
+/** The formula a row swaps in; a `hands` row takes the larger with hands empty, else the smaller. */
 function formulaFor(row, feature, actor) {
   const own = unarmedAttacksOf(feature);
   if ( !own.length ) return null;
@@ -63,10 +51,7 @@ function formulaFor(row, feature, actor) {
   return { formula: (empty ? sorted.at(-1) : sorted[0]).formula, why: empty ? "hands empty" : "a weapon or Shield held" };
 }
 
-/**
- * The listed row this actor holds, with its formula — or null. With two listed rows, the LARGER
- * die wins: both say "instead of the normal damage".
- */
+/** The listed row this actor holds, or null; with two, the LARGER die wins. */
 function rowFor(actor) {
   const on = listedNames(unarmedDiceEntries());
   let best = null;

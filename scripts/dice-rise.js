@@ -1,8 +1,6 @@
 /**
- * Battle Flow — SPINE (ARCHITECTURE.md §2): THE DICE THAT RISE — one renderer for every rule that
- * changes dice the table should see (RULINGS *Dice that rise*). Chips pop over a token, turn, drop
- * or flash, then rise and fade, drawn on the canvas interface like core's scrolling text and off
- * with its setting. Every client draws its own; nothing is stored, so a reload replays nothing.
+ * Battle Flow — SPINE: THE DICE THAT RISE (RULINGS *Dice that rise*) — chips over a token on the
+ * canvas interface, off with core's scrolling-text setting; per client, nothing stored.
  * A chip: `{label, was?, up?, flat?, drop?, lost?}` — `was` the face it turns FROM; `up` the gold
  * edge; `flat` a bonus, not a die; `drop` a die that no longer counts; `lost` a dropped critical.
  */
@@ -10,7 +8,6 @@
 import { MODULE_ID, TITLE } from "./core.js";
 import { changedDice } from "./decide/dice-chips.js";
 
-/** The canvas token for an actor uuid (geometry.js's one-line reader, kept here: same layer). */
 const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
 
 /** Above the tokens, where core's own scrolling text sits. */
@@ -26,7 +23,7 @@ const RED = 0xe06a5a;
 const Text = () => foundry.canvas.containers.PreciseText;
 
 /**
- * Raise the chips over a token. A token not visible to this client, or no chips, draws nothing.
+ * Raise the chips over a token visible to this client.
  * @param {Token|null} token
  * @param {{label: string, was?: string, up?: boolean, flat?: boolean, drop?: boolean, lost?: boolean}[]} chips
  */
@@ -76,7 +73,7 @@ export function riseDice(token, chips) {
     root.scale.set(s * (0.6 + (0.4 * pop)));
     root.position.y = y0 - (t > 1200 ? ((t - 1200) / 700) * 40 * s : 0);
     for ( const u of turns ) {
-      // 400–600 the turn: the chip folds, shows its new face, opens; the flash peaks at 550.
+      // 400–600 the turn; the flash peaks at 550.
       const k = (t - 400) / 200;
       if ( u.flips ) {
         if ( (k >= 0.5) && !u.turned ) { u.text.text = u.to; u.turned = true; }
@@ -96,8 +93,7 @@ export function riseDice(token, chips) {
 }
 
 /**
- * One chip that travels: pops over `from`, glides to `to` and pops there, then fades (a guard's
- * reduction landing on the ally). The same token at both ends pops it in place.
+ * One chip that glides from `from` to `to` (a guard's reduction landing on the ally).
  * @param {Token|null} from
  * @param {Token|null} to
  * @param {string} label
@@ -146,10 +142,7 @@ export function driftChip(from, to, label) {
   canvas.app.ticker.add(tick);
 }
 
-/**
- * THE RECORD ON A ROLL MESSAGE (`flags.<module>.diceRise`, decide/dice-chips.js): every client
- * plays it once as the message arrives — the chips over `on`, then the drift.
- */
+// Every client plays a roll message's `diceRise` record once, as it arrives.
 Hooks.on("createChatMessage", message => {
   const rise = message.getFlag?.(MODULE_ID, "diceRise");
   if ( !rise?.on ) { platformChanged(message); return; }
@@ -162,11 +155,7 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
-/**
- * Dice the PLATFORM changed (Halfling Luck, Reliable Talent, Tavern Brawler's reroll or floor)
- * turn over above the roller. A message the module already plays (a diceRise record, a Fighting
- * Style floor) is left alone.
- */
+/** Dice the PLATFORM changed (Halfling Luck, Reliable Talent) turn over above the roller. */
 function platformChanged(message) {
   try {
     if ( message.getFlag?.(MODULE_ID, "fightingStyle")?.styles?.some(e => e.raised?.length) ) return;

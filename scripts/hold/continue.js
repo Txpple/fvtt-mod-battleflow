@@ -1,8 +1,7 @@
 /**
- * Battle Flow — the reaction hold: THE CONTINUATION. Every held target answered → the continuing
- * client re-tests the attack against the LIVE AC after the settle window, writes the verdicts,
- * announces, and releases the dice rolled at attack time. Also closes answered popups — it sits
- * with the update watcher that calls it, keeping the parts a DAG (views → continue, never back).
+ * Battle Flow — the reaction hold: THE CONTINUATION. Every held target answered → re-test against
+ * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes
+ * answered popups (the parts stay a DAG: views → continue, never back).
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo } from "../core.js";
 import { chipClock } from "../decide/chips.js";
@@ -20,11 +19,9 @@ import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
 
-// ⚠ Reads the message's CURRENT state, not the update diff: setFlag issues a flattened
-// `flags.<module>.hold` key, so a nested-path test against `changed` never matches.
+// ⚠ Reads CURRENT state, not the diff: setFlag's flattened key never matches a nested test.
 Hooks.on("updateChatMessage", message => {
-  // Every client closes answered popups — before the continuing-client gate, because the popup is
-  // usually on a different client from the one driving.
+  // Every client, before the continuing-client gate: the popup is usually elsewhere.
   closeAnsweredHoldPopups(message);
 
   const hold = message.getFlag(MODULE_ID, "hold");
@@ -35,18 +32,12 @@ Hooks.on("updateChatMessage", message => {
 });
 
 /**
- * Continuations this client is driving. ⚠ The body awaits up to holdSettle seconds with the flag
- * still `pending`, and any other update in that window re-fires the watcher — a second run would
- * roll damage twice. So the claim is taken before the first await. In memory on purpose: a
- * persisted claim would strand the hold if this client died mid-continuation.
+ * ⚠ Claimed before the first await: the settle wait re-fires the watcher, and a second run rolls
+ * damage twice. In memory, so a client dying mid-run cannot strand the hold.
  */
 const continuationsInFlight = new Set();
 
-/**
- * Re-resolve a fully-answered hold and continue the chain. ⚠ The re-test reads the target's LIVE
- * AC, never the stored snapshot, and a cast is given a settle window: Shield's +5 arrives as an
- * effect that must land before the verdict.
- */
+/** Re-resolve a fully-answered hold against the LIVE AC (Shield's +5 must land first). */
 export async function continueHold(attackMessage) {
   if ( continuationsInFlight.has(attackMessage.id) ) return;
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold"));
@@ -61,23 +52,17 @@ export async function continueHold(attackMessage) {
 
 async function driveHoldContinuation(attackMessage, hold) {
 
-  // Safety net: make sure a cast reaction's effect is actually ON the actor, or the re-test reads
-  // the pre-reaction AC and calls a miss a hit. Idempotent. ⚠ It only catches what this client
-  // OWNS: on a PC attack that is the attacking player, so the monster side rests on the answering
-  // GM's applyReactionEffect (and monster reactions ship their effects disabled).
+  // Safety net: the cast reaction's effect must be ON the actor before the re-test. ⚠ Catches only
+  // what this client OWNS; the monster side rests on the answering GM's applyReactionEffect.
   if ( setting(S.holdApplyEffect) ) {
     for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
       const actor = await fromUuid(target.uuid);
       if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
-      // The reaction's ITEM matters, not the activity: applyReactionEffect falls back to the item's
-      // effects, the only place a statblock's Shield keeps its effect. The recorded itemId finds
-      // the cached spell rather than a worn shield.
+      // The ITEM, by recorded itemId: a statblock's Shield keeps its effect only on the item.
       const item = reactionItem(actor, target.reaction, target);
       const activity = item?.system.activities?.contents?.[0];
       const entries = await applyReactionEffect(activity, actor, target.reaction, target);
       if ( entries.length ) {
-        // The continuing client owns the held message, so the receipt lands there — through the
-        // serializer, since this loop is its own concurrent writer.
         await queueFlagWrite(attackMessage, "effectReceipt", flag => {
           for ( const entry of entries ) joinEffectReceipt(flag, entry);
         });
@@ -85,7 +70,7 @@ async function driveHoldContinuation(attackMessage, hold) {
     }
   }
 
-  // A negate hold has nothing to re-test (the reaction's effect above still went on).
+  // A negate hold has nothing to re-test.
   if ( hold.trigger === "spell" ) return continueSpellHold(attackMessage, hold);
 
   if ( hold.targets.some(t => t.answer === "cast") ) await settleForACChange(hold);
@@ -95,8 +80,7 @@ async function driveHoldContinuation(attackMessage, hold) {
   for ( const target of hold.targets ) {
     const actor = await fromUuid(target.uuid);
     const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
-    // A `roll` answer's bent d20 is a `replace` carrying its own crit and fumble, so the verdict is
-    // the fold arithmetic over it, never the raw total (decide/verdict.js).
+    // A `roll` answer's bent d20 is a `replace` with its own crit/fumble: fold it, never the raw total.
     const rolled = foldedRoll({ total: roll.total, isCritical: roll.isCritical, isFumble: roll.isFumble },
       bentFold(target));
     const hit = rolled.isCritical || (!rolled.isFumble && (rolled.total >= liveAC));
@@ -109,11 +93,8 @@ async function driveHoldContinuation(attackMessage, hold) {
     if ( target.answer !== "cast" ) continue;
     const img = reactionImg(actor, target.reaction, target);
     if ( target.kind === "ac" ) {
-      // The reaction's AC never arrived: say so rather than report a stale number as fact.
       if ( !reactionACArrived(actor, target) ) {
-        // ⚠ A FIXED AC (`ac.override`, or 5.x `calc: "flat"`) ignores every AC bonus — dnd5e
-        // returns before adding ac.bonus — so the effect landed and the system refuses to count
-        // it. Name that, so nobody hunts a module bug; it is a statblock to fix.
+        // ⚠ A FIXED AC (`ac.override` or `calc: "flat"`) ignores every AC bonus: a statblock to fix.
         const ac = actor?.system?.attributes?.ac;
         const flatAC = ((ac?.override !== null) && (ac?.override !== undefined) || (ac?.calc === "flat"))
           && hasReactionEffect(actor, target.reaction, target);
@@ -142,12 +123,10 @@ async function driveHoldContinuation(attackMessage, hold) {
         }));
       }
     } else {
-      // A damage-kind reaction the module can settle (Uncanny Dodge halves; Parry's roll reduces)
-      // is applied and receipted; the rest are reduced by hand.
+      // A damage-kind reaction the module can settle (halve, rolled reduction) is receipted; the rest by hand.
       const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
       const reduced = (Number(target.reduceBy) > 0) ? Number(target.reduceBy) : null;
       const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : reduced ? `reduced by <strong>${reduced}</strong>` : null;
-      // Parry and Stone's Endurance speak in their own row's eyebrow and spend, stamped on the flag.
       const maneuver = !!target.reduce;
       const r = target.reduce ?? {};
       announcements.push(bfCard({
@@ -163,32 +142,27 @@ async function driveHoldContinuation(attackMessage, hold) {
   }
 
   hold.status = "resolved";
-  disarmHoldTimer(attackMessage.id);   // resolved: the clock has nothing left to decide
+  disarmHoldTimer(attackMessage.id);
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
   if ( announcements.length ) await ChatMessage.create({
     content: announcements.join(`<div style="height:0.3rem;"></div>`),
     speaker: { alias: TITLE }
   });
 
-  // The dice were rolled at attack time (`attackHoldPending`); resolution RELEASES the claim. The
-  // applier re-reads hitTargets, whose verdicts drop every flipped target. A roll still in an open
-  // offer window reads the resolved hold at roll time and needs nothing here.
+  // Release the dice rolled at attack time; the applier's hitTargets drops every flipped target.
   for ( const dmg of game.messages.contents.filter(m =>
     (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)
     && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }
 
-  // A crit the hold could undo was never rolled (`critAtStake`): roll it now, once, on this client,
-  // crit or not as the answer left it, and only if anyone is still hit.
+  // A crit the hold could undo was never rolled: roll it now, as the answer left it.
   if ( hold.critAtStake ) await damageAfterHold(attackMessage);
 }
 
 /**
- * Protection's standing half (RULINGS *The fighting styles*): once a guard's answer bent the roll,
- * the pack's "Protected" lands on the protected creature as "Protected — <guard>", clocked to the
- * start of the GUARD's next turn. Landed once by the client that drives the protected creature —
- * recorded on the hold where it may write the card, an in-memory set where it may not.
+ * Protection's standing half (RULINGS *The fighting styles*): "Protected — <guard>" until the GUARD's
+ * next turn starts, landed once by the protected creature's driver.
  */
 const protectionsLanding = new Set();
 async function landProtection(message, hold) {
@@ -229,7 +203,7 @@ async function landProtection(message, hold) {
   }
 }
 
-/** A target's own bent roll as the fold contribution `foldedRoll` takes — none when unbent. */
+/** A target's bent roll as `foldedRoll`'s contribution. */
 function bentFold(target) {
   const b = target?.bent;
   return Number.isFinite(b?.total)
@@ -237,15 +211,11 @@ function bentFold(target) {
     : [];
 }
 
-/**
- * The defender's card after a `roll` answer: the row, its cost, and whether it turned the hit
- * (the attacker's view is the attack card's own row, views.js).
- */
+/** The defender's card after a `roll` answer: the row, its cost, whether it turned the hit. */
 function bentAnnouncement(actor, target, hit) {
   const found = Object.keys(INTERRUPT_ROLLS).find(k => k.toLowerCase() === String(target.rescue ?? "").toLowerCase());
   const row = found ? INTERRUPT_ROLLS[found] : null;
   const spend = rescueSpendText({ row, poolSpend: target.poolSpend ?? null });
-  // A guard's card says who protected whom.
   const by = target.guardedBy ?? null;
   const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
   return bfCard({
@@ -255,10 +225,7 @@ function bentAnnouncement(actor, target, hit) {
   });
 }
 
-/**
- * Wait (briefly) for every cast reaction's AC to arrive. Waits on arrival, not on a number moving
- * from a baseline: a baseline may be taken after the recompute, or moved by something unrelated.
- */
+/** Wait for every cast reaction's AC to ARRIVE (a baseline compare can race the recompute). */
 async function settleForACChange(hold) {
   const deadline = Date.now() + (Math.max(1, Number(setting(S.holdSettle)) || 8) * 1000);
   const casts = hold.targets.filter(t => t.answer === "cast");
@@ -273,18 +240,14 @@ async function settleForACChange(hold) {
   }
 }
 
-/**
- * ARCHITECTURE §5 law 4: a decision made ANYWHERE closes the popup asking for it. Per target —
- * one casting can answer many holds, and only the answered target's popup should go. The spine
- * must not know the hold flag, so this lives here.
- */
+/** ARCHITECTURE §5 law 4: a decision made ANYWHERE closes its popup — per target. */
 function closeAnsweredHoldPopups(message) {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
   for ( const target of hold.targets ) {
     const dialog = livePopups.get(popupKey(message.id, target.uuid));
     if ( dialog && ((hold.status !== "pending") || target.answer || target.selfPassed) ) void dialog.close();
-    // A guard's own popup (Protection): closed by any act on the target, or its own pass.
+    // A guard's own popup (Protection) also closes on its own pass.
     for ( const guard of (target.guards ?? []) ) {
       const own = livePopups.get(popupKey(message.id, `${target.uuid}|${guard.uuid}`));
       if ( own && ((hold.status !== "pending") || target.answer || guard.passed) ) void own.close();

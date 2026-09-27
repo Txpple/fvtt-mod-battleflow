@@ -1,8 +1,7 @@
 /**
- * Battle Flow — THE SPINE (ARCHITECTURE.md §5): popup lifecycle and cascade, the shown-latches,
- * the countdown bar's DOM half, the ACK, the moment clocks, and the relay / rescue / demand /
- * resumable / withhold registries.
- * ⚠ Imports NO machine: features depend on the spine, never the reverse (ARCHITECTURE §7).
+ * Battle Flow — THE SPINE (ARCHITECTURE.md §5): popups and their cascade, countdown bars, the ACK,
+ * moment clocks, and the relay / rescue / demand / resumable / withhold registries.
+ * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
   queueFlagWrite } from "./core.js";
@@ -12,33 +11,26 @@ import { pendingDemands, resolveDemand } from "./decide/demand.js";
 import { abilityOf, originIdOf, rollKindOf, subKindOf } from "./decide/card.js";
 import { SURFACES } from "./surfaces.js";
 
-/**
- * Popups this client has auto-shown, so a re-render never stacks a second one. The latch key IS
- * the popup key, so the one delete-sweep below cleans every machine's latches.
- */
+/** Popup keys this client has auto-shown, so a re-render never stacks a second one. */
 export const shownMoments = new Set();
 
-/** Popups on screen, keyed message+target. The popup decides; the card is the public record. */
+/** Popups on screen, by popup key. */
 export const livePopups = new Map();
 
-/** The cascade's live half: popup key → staircase slot, and the anchor (dies with the pile). */
 const popupSlots = new Map();       // popup key → staircase slot
-let cascadeAnchor = null;           // {left, top} the staircase grows from
+let cascadeAnchor = null;           // {left, top} the staircase grows from; dies with the pile
 
-/**
- * Register, render and lifecycle-manage a decision popup. Whatever closes it releases the card
- * row in one place; a failed render releases it at once — the card is always the fallback surface.
- */
+/** Render and lifecycle-manage a decision popup; a failed render leaves the card to answer from. */
 export async function openManagedPopup(key, message, dialog) {
   const close = dialog.close.bind(dialog);
   dialog.close = async (...args) => {
     livePopups.delete(key);
     popupSlots.delete(key);
-    if ( !popupSlots.size ) cascadeAnchor = null;   // the staircase dies with its pile
+    if ( !popupSlots.size ) cascadeAnchor = null;
     try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
     return close(...args);
   };
-  // ARCHITECTURE.md §5 law 7: the pile is a queue in event order; z-order is rank, then causal order.
+  // ARCHITECTURE.md §5 law 7: z-order is rank, then causal order.
   const slot = nextCascadeSlot(popupSlots.values());
   popupSlots.set(key, slot);
   livePopups.set(key, dialog);
@@ -53,14 +45,13 @@ export async function openManagedPopup(key, message, dialog) {
       if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
     }
     if ( popupSlots.size > 1 ) {
-      // Re-front the pile back to front (rank, then slot), the newcomer included.
       for ( const k of pileBackToFront(popupSlots) ) {
         const d = livePopups.get(k);
         if ( d?.rendered ) { try { d.bringToFront?.(); } catch { /* fronting is best-effort */ } }
       }
     }
     scheduleBarSync(dialog.element);
-    // Redraw the row so it defers to the popup instead of offering a second set of controls.
+    // The row redraws to defer to the popup.
     ui.chat?.updateMessage?.(message);
   } catch(err) {
     livePopups.delete(key);
@@ -70,10 +61,7 @@ export async function openManagedPopup(key, message, dialog) {
   }
 }
 
-/**
- * ⚠ A moment popup never takes the keyboard: DialogV2 autofocuses its default button, so a popup
- * opened by someone else's roll would take the next Enter or Space (NOTES *A dialog's DEFAULT button takes the keyboard*).
- */
+/** ⚠ Hand focus back: DialogV2 autofocuses its default (NOTES *A dialog's DEFAULT button takes the keyboard*). */
 function returnTheKeyboard(dialog, priorFocus) {
   const active = document.activeElement;
   if ( !active || !dialog.element?.contains?.(active) ) return;
@@ -84,21 +72,16 @@ function returnTheKeyboard(dialog, priorFocus) {
 }
 
 /**
- * ⚠ A plain object on a roll's `dialog.options` is copied twice (`deepClone`, then `mergeObject`),
- * so state stamped pre-roll is not what `app.options` holds later. Both copiers pass a class
- * instance through by reference — a gate that must stay one object wears this class.
+ * ⚠ A plain object on a roll's `dialog.options` is copied twice (`deepClone`, `mergeObject`); both
+ * pass a class instance by reference, so a gate that must stay one object wears this class.
  */
 export class DialogCarried {
   constructor(data = {}) { Object.assign(this, data); }
 }
 
 /**
- * The demand fieldset, for a machine that opens the SYSTEM's Saving Throw dialog in place of a
- * house popup, via a DialogCarried on `dialog.options.bfSaveDemand`:
- *   cardId, key (the livePopups key it is adopted under),
- *   owed(card) → false closes the dialog on render, present(card) → bfCard args,
- *   bar(card) → the flag holdBarHTML reads, failed (written by the gate's Fails button).
- * The saves machine paints the same `[data-bf-save-demand]` fieldset itself (saves.js).
+ * The demand fieldset in the SYSTEM's save dialog, from a DialogCarried `dialog.options.bfSaveDemand`:
+ * { cardId, key, owed(card) (false closes it), present(card) → bfCard args, bar(card), failed }.
  */
 function drawDemandFieldset(app, element, demand) {
   const card = game.messages.get(demand.cardId);
@@ -119,16 +102,13 @@ function drawDemandFieldset(app, element, demand) {
 }
 
 /**
- * Mark a system roll dialog's default button so it STAYS marked. ⚠ `autofocus` alone is lost to
- * any click, so the mark is a persistent style in the outcome's hue, plus focus for Enter.
- * @param {HTMLElement} element   the dialog's element
- * @param {string} action         the button's data-action: advantage | normal | disadvantage | bf-fails
+ * Mark a roll dialog's default button with a persistent style (⚠ `autofocus` is lost to any click).
+ * @param {HTMLElement} element
+ * @param {string} action         advantage | normal | disadvantage | bf-fails
  */
 export function markDefaultButton(element, action) {
-  // The look is settled: a mark that does not show is a marking problem, not a colour one.
   const hue = { advantage: TONE.good, disadvantage: TONE.bad, "bf-fails": TONE.bad }[action] ?? TONE.neutral;
-  // THE LOOK, in one place. ⚠ The outline is drawn by hand: a dialog opened on the GM's screen by
-  // someone else's hit loses focus, and with it the browser's ring.
+  // ⚠ Outline drawn by hand: a dialog opened by someone else's roll has no focus ring.
   const MARK = {
     background: `color-mix(in srgb, ${hue} 38%, transparent)`,
     borderColor: hue,
@@ -147,17 +127,16 @@ export function markDefaultButton(element, action) {
   }
 }
 
-// Every system roll dialog: mark its default, then paint a closure-carrying demand.
+// Every system roll dialog: mark its default (a gate re-marks after), then paint a demand.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
-    // The platform's default is marked first; a gate re-marks after (this hook registers first).
     const markOwn = () => {
       if ( element.querySelector("[data-bf-default]") ) return;   // a gate got there first
       const own = element.querySelector(`${SURFACES.dialogButtons} ${SURFACES.dialogDefault}`)?.dataset?.action;
       if ( own ) markDefaultButton(element, own);
     };
     markOwn();
-    // The buttons part can land a frame after the hook on some renders — mark again once painted.
+    // ⚠ The buttons part can land a frame after the hook.
     requestAnimationFrame(markOwn);
     const demand = app.options?.bfSaveDemand ?? null;
     if ( demand?.present ) drawDemandFieldset(app, element, demand);
@@ -167,8 +146,7 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
 });
 
 /**
- * ADOPT a dialog the platform is already rendering: `openManagedPopup` minus the render. The first
- * adoptee of an empty pile donates the anchor. Idempotent per key.
+ * Adopt a dialog the platform is already rendering (`openManagedPopup` minus the render); idempotent.
  * @param {string} key
  * @param {ChatMessage} message
  * @param {foundry.applications.api.ApplicationV2} dialog
@@ -197,11 +175,7 @@ export function adoptManagedPopup(key, message, dialog) {
   try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
 }
 
-/**
- * Open a machine popup: the canAnswerFor gate (`gate: false` skips it), the shared key, fronting a
- * live popup on recall, DialogV2 construction, the notice auto-close. Returns the dialog, or null
- * when gated off or already open.
- */
+/** Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted). */
 export async function openMomentPopup(message, sub, subject, {
   title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true
 } = {}) {
@@ -222,10 +196,7 @@ export async function openMomentPopup(message, sub, subject, {
   return dialog;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE ACK (ARCHITECTURE.md §5 law 3): a notice press resolves its card's pending presentation.
- * The card's owner writes the flag; anyone else latches locally and relays it to the owner.
- * ------------------------------------------------------------------------------------------- */
+// THE ACK (ARCHITECTURE.md §5 law 3): the card's owner writes it; anyone else latches and relays.
 
 const localAcks = new Set();
 
@@ -242,8 +213,7 @@ export async function acknowledgeMoment(message, flagKey) {
     await message.setFlag(MODULE_ID, flagKey, flag);   // the update re-renders every client
     return;
   }
-  // ⚠ The ack must TRAVEL: the reminder card belongs to the elect, so a player's press would
-  // otherwise close only their own popup while the GM's card drained to timeout.
+  // ⚠ The ack must TRAVEL, or the elect's card drains to timeout.
   localAcks.add(`${message.id}|${flagKey}`);
   try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
   try {
@@ -253,20 +223,17 @@ export async function acknowledgeMoment(message, flagKey) {
       flags: { [MODULE_ID]: { momentAck: { cardId: message.id, flagKey } } }
     });
   } catch(err) {
-    // The local latch already closed this client's popup; a failed relay costs only the others' bars.
     console.warn(`${TITLE} | Could not relay the acknowledgement.`, err);
   }
 }
 
-// The ack relay is registered below (`relays` is a const, in its dead zone here).
-// Test seam for smoke-twoclient, published on `init` like the other API seams (a `ready` hook
-// runs before a suite's ledger arms and would read as never fired).
+// The ack relay registers below `relays` (its dead zone here). Test seam, published on `init`:
+// ⚠ a `ready` hook runs before a suite's ledger arms.
 Hooks.once("init", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { acknowledgeMoment });
 });
 
-/** The one recall/answer button factory. */
 export function momentButton(label, onClick, style = {}) {
   const button = document.createElement("button");
   button.type = "button";
@@ -278,16 +245,9 @@ export function momentButton(label, onClick, style = {}) {
   return button;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The countdown bar, DOM half. ⚠ ZERO JS TICKING: one animation per bar, positioned from the
- * deadline on the flag, so every client and re-render agrees without counting.
- * ------------------------------------------------------------------------------------------- */
+// The countdown bar: ⚠ no JS ticking — one animation per bar, positioned from the flag's deadline.
 
-/**
- * Snap every bar to its deadline. ⚠ `animation-delay` drifts: an animation's clock starts when its
- * element begins rendering, and a chat message is inserted before its tree renders. `currentTime`
- * is absolute. Called more than once, since the first call can precede the render.
- */
+/** Snap every bar to its deadline via `currentTime` (⚠ `animation-delay` drifts before render). */
 function syncHoldBars(root) {
   const scope = root?.querySelectorAll ? root : document;
   for ( const bar of scope.querySelectorAll("[data-bf-deadline]") ) {
@@ -296,9 +256,7 @@ function syncHoldBars(root) {
     if ( !deadline || !seconds ) continue;
     const duration = seconds * 1000;
     const elapsed = Math.max(0, Math.min(duration, duration - (deadline - Date.now())));
-
-    // ⚠ Build the animation in JS: a CSS animation is not instantiated until its element renders
-    // (getAnimations() stays empty), while element.animate() runs on the document timeline at once.
+    // ⚠ In JS: a CSS animation does not exist until its element renders; animate() runs at once.
     let animations = bar.getAnimations?.() ?? [];
     if ( !animations.length ) animations = [
       bar.animate([{ width: "100%" }, { width: "0%" }],
@@ -315,18 +273,14 @@ function syncHoldBars(root) {
   }
 }
 
-/** Render, then correct — twice, because the first pass can precede the element rendering. */
+/** Sync now and twice more: the first pass can precede the render. */
 export function scheduleBarSync(root) {
   syncHoldBars(root);
   requestAnimationFrame(() => syncHoldBars(root));
   setTimeout(() => syncHoldBars(root), 400);
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE MOMENT CLOCKS. armDeadline/disarmDeadline: one timer per id, absolute deadline, re-arm a
- * no-op. Each machine builds its own gate and its own fire on it.
- * ------------------------------------------------------------------------------------------- */
-
+/** THE MOMENT CLOCKS: one timer per id on an absolute deadline; re-arming is a no-op. */
 export function armDeadline(timers, id, deadline, fire) {
   if ( !deadline || timers.has(id) ) return;
   // ⚠ A deadline past the staleness roof (core.js) would fire at once, and some buzzers roll dice.
@@ -344,10 +298,7 @@ export function disarmDeadline(timers, id) {
   timers.delete(id);
 }
 
-/**
- * The elect-owned single-answer clock; expiry re-checks the live flag. The hold keeps its own
- * (a different owner, per-target answers).
- */
+/** The elect-owned single-answer clock; expiry re-checks the live flag. */
 export function armAskTimer(timers, message, flagKey, expire) {
   const flag = message?.getFlag(MODULE_ID, flagKey);
   if ( !flag?.deadline || (flag.status !== "pending") || flag.answer || !isActiveGM() ) return;
@@ -363,27 +314,22 @@ export function disarmAskTimer(timers, messageId) {
   disarmDeadline(timers, messageId);
 }
 
-/**
- * Let the table SEE the roll before its verdict acts: wait out Dice So Nice (capped by a setting),
- * then the dramatic beat. Mechanics never wait — only the table-facing consequences do.
- */
+/** Wait out Dice So Nice, then the dramatic beat, before a table-facing verdict acts. */
 export async function dramaticVerdictPause(rollMessage) {
-  // ⚠ CAPPED, not just caught: a DSN promise that never resolves would hang everything behind it.
+  // ⚠ CAPPED: a DSN promise may never resolve.
   const wait = Math.max(0, Number(setting(S.diceWait)) || 0) * 1000;
   try {
     const dice = wait ? game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id) : null;
     if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, wait))]);
   }
-  catch { /* dice are cosmetic; never let them block a verdict */ }
+  catch { /* dice are cosmetic */ }
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
   if ( beat ) await new Promise(r => setTimeout(r, beat));
 }
 
-// ⚠ Card-row order is dnd5e.renderChatMessage registration order across files: this bar first,
-// because hold/index.js imports ui.js ahead of its parts (check-hook-order.mjs asserts it).
-// This bar views `damageOffer`, a flag this file does not own (a known layering smell).
+// ⚠ Card-row order is hook registration order: this bar draws first (check-hook-order.mjs).
+// Every client shows a live `damageOffer`'s bar (a flag this file does not own).
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
-  // Every client shows the offered damage roll's bar; gated on a live deadline, never stale.
   const offer = message.getFlag(MODULE_ID, "damageOffer");
   if ( (offer?.status === "pending") && (offer.deadline > Date.now()) ) {
     const row = document.createElement("div");
@@ -399,24 +345,17 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE CARD ROWS SEAM (NOTES §2): a roll against a usage card is drawn as a SUMMARY inside it and
- * its own card is hidden. A row that can land on a chained roll registers through `cardRow`, so
- * one drawer draws on whichever host is shown. ⚠ The origin re-renders only on the descendant's
- * create, delete and `system` update — a FLAG write is nudged to re-render it here.
- * ------------------------------------------------------------------------------------------- */
+// THE CARD ROWS SEAM (NOTES §2): a chained roll draws as a SUMMARY in its usage card; `cardRow`
+// draws on whichever host shows. ⚠ A FLAG write does not re-render the origin — nudged below.
 
 const summaryRows = [];
 
-/** The platform's own predicate for "this roll is drawn as a summary" (ChatMessage5e#renderHTML). */
+/** The platform's predicate (ChatMessage5e#renderHTML). */
 const rendersAsSummary = message => !!message?.system?.summaryTemplate
   && !!message.system.origin?.system?.rendersSummaries
   && game.settings.get("dnd5e", "chatCardSummary") === true;
 
-/**
- * Wrap a row drawer `(message, host, root)` for `dnd5e.renderChatMessage`; the platform's hidden
- * copy of a summarized roll (`html.hidden`) is skipped — its rows draw inside the summary.
- */
+/** Wrap a row drawer `(message, host, root)`; a summarized roll's hidden copy is skipped. */
 export function cardRow(draw) {
   summaryRows.push(draw);
   return (message, html) => {
@@ -426,7 +365,6 @@ export function cardRow(draw) {
   };
 }
 
-// Run each chained roll's drawers inside its summary.
 Hooks.on("dnd5e.renderChatMessage", (_message, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
   if ( !root ) return;
@@ -440,27 +378,21 @@ Hooks.on("dnd5e.renderChatMessage", (_message, html) => {
   }
 });
 
-// The nudge: this module's flags moved on a summarized roll → its origin re-renders the summary.
+// The nudge.
 Hooks.on("updateChatMessage", (message, changed) => {
   if ( !changed?.flags?.[MODULE_ID] || !rendersAsSummary(message) ) return;
   ui.chat?.updateMessage(message.system.origin);
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE RELAY (ARCHITECTURE.md §4.1): a player cannot write someone else's message, so an answer
- * travels as its own message carrying an ENVELOPE and the owning client folds it in.
- * ⚠⚠ The owner is a callback because it differs: the hold's fold belongs to the continuing
- * client, the others to the elect. ⚠ Envelope shapes stay per relay (`targetOf`): changing one is
- * a wire-format change, and an answer in flight across a deploy would stop folding.
- * ------------------------------------------------------------------------------------------- */
+// THE RELAY (ARCHITECTURE.md §4.1): an answer travels as its own message carrying an ENVELOPE;
+// the owning client folds it in. ⚠ An envelope's shape is wire format — answers in flight break.
 
-/** envelope flag key → { flagKey, targetOf, owns, fold } */
+/** envelope flag key → { flagKey, targetOf, owns, fold, cleanup } */
 const relays = new Map();
 
 /**
- * Declare a relay. `targetOf(envelope)` returns the message id the answer is FOR; `owns(flag)`
- * decides whether this client does the folding; `fold(current, envelope, message)` mutates the
- * flag inside the serializer and may return `false` to skip the write entirely.
+ * `targetOf(envelope)` → the card id; `owns(flag, target)` → this client folds; `fold(current,
+ * envelope, message)` mutates inside the serializer, `false` skips the write.
  */
 export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold, cleanup = false }) {
   relays.set(envelopeKey, { flagKey, targetOf, owns, fold, cleanup });
@@ -472,13 +404,10 @@ Hooks.on("createChatMessage", message => {
     const envelope = message.getFlag(MODULE_ID, envelopeKey);
     if ( !envelope ) continue;
     const target = game.messages.get(relay.targetOf(envelope));
-    // `flagKey` may be a function of the envelope (the ack relay carries the key it acknowledges).
     const flagKey = (typeof relay.flagKey === "function") ? relay.flagKey(envelope) : relay.flagKey;
     const flag = target?.getFlag(MODULE_ID, flagKey);
-    // `owns` also gets the target: an ack is owned by whoever can write the card.
     if ( !flag || !relay.owns(flag, target) ) continue;
     const written = queueFlagWrite(target, flagKey, current => relay.fold(current, envelope, message));
-    // A pure wire signal deletes itself once landed, so it never survives as a line in the log.
     if ( relay.cleanup ) {
       void Promise.resolve(written)
         .then(() => message.delete())
@@ -487,7 +416,6 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
-/* The ack relay: owned by whoever can write the card, idempotent, deleted once it lands. */
 registerRelay("momentAck", {
   flagKey: envelope => envelope.flagKey,
   targetOf: envelope => envelope.cardId,
@@ -499,19 +427,13 @@ registerRelay("momentAck", {
   }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE RESCUE REGISTRY — the relay's shape applied to a VIEW. Several sources may ask one roll the
- * same question (short by N, what do you burn?); the spine draws ONE window and routes each press
- * back to its source. Sources compose their own slices; the spine only concatenates.
- * ------------------------------------------------------------------------------------------- */
+// THE RESCUE REGISTRY: several sources ask one roll "what do you burn?"; ONE window concatenates
+// their slices and routes each press back to its source.
 
 /** flag key → { isPending, subject, view, answer } */
 const rescues = new Map();
 
-/**
- * Declare a rescue source: `isPending`, `subject` (the canAnswerFor gate), `view` (its composed
- * slice) and `answer(message, action)` (takes back the token its row carried).
- */
+/** `subject` feeds canAnswerFor; `answer(message, action)` takes back the token its row carried. */
 export function registerRescue(flagKey, { isPending, subject, view, answer }) {
   rescues.set(flagKey, { isPending, subject, view, answer });
 }
@@ -557,7 +479,6 @@ function mergedRescueView(message) {
     verdictKnown };
 }
 
-/** Route one row press back to the machine that supplied it. */
 async function answerRescue(message, flagKey, action) {
   const rescue = rescues.get(flagKey);
   if ( !rescue ) return;
@@ -573,10 +494,9 @@ async function passEveryRescue(message) {
   }
 }
 
-/** The window's listeners: the pane swap and the row presses. */
 function wireRescueWindow(root, message) {
   if ( !root?.querySelectorAll ) return;
-  // ⚠ A visibility flip over quotes stacked in one grid cell, so the pane never resizes.
+  // Quotes stack in one grid cell and flip visibility, so the pane never resizes.
   const quotes = [...root.querySelectorAll("[data-bf-rescue-quote]")];
   for ( const row of root.querySelectorAll("[data-bf-rescue-row]") ) {
     const key = row.dataset.bfRescueRow;
@@ -588,7 +508,7 @@ function wireRescueWindow(root, message) {
     };
     row.addEventListener("mouseenter", swap);
     row.addEventListener("focus", swap);
-    // A greyed row carries no action and gets no listener: a spent row is a record, not a control.
+    // A greyed (spent) row carries no action.
     const action = row.dataset.bfRescueAction;
     const flagKey = row.dataset.bfRescueFlag;
     if ( !action || !flagKey ) continue;
@@ -601,10 +521,7 @@ function wireRescueWindow(root, message) {
   }
 }
 
-/**
- * What the window last drew — popup key → content. ⚠ A redraw is close-and-reopen and this runs
- * on every chat re-render, so an unchanged string must be a no-op.
- */
+/** popup key → last drawn content. ⚠ A redraw is close-and-reopen, so unchanged must be a no-op. */
 const rescueContent = new Map();
 
 /** Draw, redraw or close the one rescue window this message owns. */
@@ -613,7 +530,6 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   const view = mergedRescueView(message);
   const open = livePopups.get(key);
 
-  // Nothing left asking: the window goes, and its signature with it.
   if ( !view.pending || !view.rows.length ) {
     rescueContent.delete(key);
     if ( open ) {
@@ -627,7 +543,6 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   const content = bfCard({
     img: view.subject?.img ?? null,
     eyebrow: "Rescue the roll", tone: "pending",
-    // The title asserts a verdict only where the module has one.
     title: view.verdictKnown ? "This roll is short — what do you burn?" : "What do you burn?",
     subtitle: view.subject?.name ?? "",
     lines: view.headerLines
@@ -636,7 +551,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
     + rescueRowsHTML(view.rows)
     + momentBarHTML({ deadline: view.earliestDeadline, window: view.clockWindow }, "to answer");
 
-  if ( open && (rescueContent.get(key) === content) ) return;   // unchanged — leave it alone
+  if ( open && (rescueContent.get(key) === content) ) return;
   // ⚠ A plain re-render must not reopen a window the player closed; a CHANGE must.
   if ( !open && !recall && shownMoments.has(key) && (rescueContent.get(key) === content) ) return;
 
@@ -659,16 +574,14 @@ async function drawRescueWindow(message, { recall = false } = {}) {
 }
 
 /**
- * ⚠ Draws are SERIALISED per message: a redraw is close-then-reopen, and a second draw in that gap
- * sees nothing to close, leaving a window nobody closes. `.then(run, run)` so one failure cannot
- * strand the queue.
+ * ⚠ Draws are SERIALISED per message: a second draw mid close-and-reopen would orphan a window.
+ * `.then(run, run)` so one failure cannot strand the queue.
  */
 const rescueDrawChain = new Map();
 function queueRescueDraw(message, opts) {
   const run = () => drawRescueWindow(message, opts);
   const prior = rescueDrawChain.get(message.id) ?? Promise.resolve();
   const next = prior.then(run, run);
-  // ⚠ Log the rejection: a swallowed one is a window that silently does nothing.
   const tail = next.catch(err =>
     console.error(`${TITLE} | The rescue window could not be drawn.`, err));
   rescueDrawChain.set(message.id, tail);
@@ -677,14 +590,10 @@ function queueRescueDraw(message, opts) {
   });
 }
 
-/**
- * ⚠ The spawn coalesce: sources stamp one roll milliseconds apart, so the draw waits a tick and
- * renders once instead of flickering. The tick coalesces; the chain orders.
- */
+/** ⚠ Sources stamp one roll milliseconds apart: wait a tick and draw once. A recall wins the tick. */
 const rescueDraws = new Map();
 export function syncRescuePopup(message, { recall = false } = {}) {
   if ( !(message instanceof ChatMessage) ) return;
-  // A recall in the same tick wins: the card's Answer button must never lose to a render.
   if ( rescueDraws.has(message.id) ) {
     if ( recall ) rescueDraws.set(message.id, true);
     return;
@@ -707,33 +616,28 @@ Hooks.on("deleteChatMessage", message => {
   const prefix = `${message.id}|`;
   for ( const key of [...shownMoments] ) if ( key.startsWith(prefix) ) shownMoments.delete(key);
   for ( const key of [...localAcks] ) if ( key.startsWith(prefix) ) localAcks.delete(key);
-  // A stale rescue signature would refuse to redraw for a message id Foundry later reuses.
   for ( const key of [...rescueContent.keys()] ) {
     if ( key.startsWith(prefix) ) rescueContent.delete(key);
   }
-  // ⚠ Timers are swept by their owning machines. Keep this sweep generic: the spine names no feature.
+  // Timers are swept by their owning machines; the spine names no feature.
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE DEMAND REGISTRY — which pending demand a roll answers, asked once, of one reader; the
- * arithmetic is pure (decide/demand.js). ⚠ `respondsTo` keeps every meaning (ARCHITECTURE §4).
- * ------------------------------------------------------------------------------------------- */
+// THE DEMAND REGISTRY: which pending demand a roll answers; the arithmetic is decide/demand.js.
+// ⚠ `respondsTo` keeps every meaning (ARCHITECTURE §4).
 
 /** flag key → { flagKey, priority, chained, answering, pendingEntry, pendingFor } */
 const demands = new Map();
 
 /**
- * Declare a demand. `priority` orders a BARE roll's claim (lower first); `chained` says a roll
- * chained to the card (`originatingMessage`) answers it; `answering(flag, facts)` is the entry a
- * stamped roll (`respondsTo`) answers, or null on the declaration for a machine that never takes
- * one; `pendingEntry(flag, facts)` the undone entry THIS roll would answer; `pendingFor(flag,
- * actorUuid)` the undone entry naming an actor with no roll in hand.
+ * `priority` orders a BARE roll's claim (lower first); `chained`: a roll chained to the card answers
+ * it; `answering(flag, facts)` the entry a `respondsTo` roll answers (null: never stamped);
+ * `pendingEntry(flag, facts)` / `pendingFor(flag, actorUuid)` the undone entry.
  */
 export function registerDemand(flagKey, { priority, chained = true, answering = null, pendingEntry, pendingFor }) {
   demands.set(flagKey, { flagKey, priority, chained, answering, pendingEntry, pendingFor });
 }
 
-/** The whole log once, as plain cards carrying only the registered flags — oldest first. */
+/** The log as plain cards carrying only the registered flags, oldest first. */
 function demandCards() {
   const keys = [...demands.keys()];
   const out = [];
@@ -752,10 +656,7 @@ function demandCards() {
 
 const withCards = matches => matches.map(x => ({ ...x, card: game.messages.get(x.cardId) })).filter(x => x.card);
 
-/**
- * Which demand this roll answers — `{ flagKey, matches: [{ card, entry }] }` or null. A bare roll
- * matches every pending card of the winning machine, oldest first.
- */
+/** Which demand this roll answers — `{ flagKey, matches: [{ card, entry }] }` or null. */
 export function demandAnsweredBy(rollMessage) {
   const facts = {
     respondsTo: rollMessage.getFlag(MODULE_ID, "respondsTo") ?? null,
@@ -775,24 +676,15 @@ export function pendingDemandsFor(actorUuid, { flagKey = null } = {}) {
   return withCards(pendingDemands(actorUuid, demandCards(), [...demands.values()], { flagKey }));
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE RESUMABLE REGISTRY — the resume floor, once:
- *   pending(flag, message, cause)  still work on this card? `cause` is "create" | "update" | "render"
- *   drives(flag, message)          does THIS client drive it
- *   drive(message)                 the work; the claim on the card stays the machine's
- * An in-flight latch `${flagKey}|${messageId}` runs a drive once per tick. ⚠ A drive does no DOM
- * work — card-row order is registration order, and these hooks sit ahead of every machine's.
- * ------------------------------------------------------------------------------------------- */
+// THE RESUMABLE REGISTRY: `pending(flag, message, cause)` (create | update | render), `drives`
+// (this client?), `drive(message)`. ⚠ A drive does no DOM work: these hooks run ahead of every row.
 
 /** flag key → { pending, drives, drive, flagless } */
 const resumables = new Map();
-/** `${flagKey}|${messageId}` — a drive in flight on this client */
+/** `${flagKey}|${messageId}` in flight on this client */
 const resuming = new Set();
 
-/**
- * Declare a resumable moment. `flagless: true` is for an arrival with no module flag (an attack's
- * damage roll); the machine then reads the message itself.
- */
+/** `flagless: true` for an arrival with no module flag (an attack's damage roll). */
 export function registerResumable(flagKey, { pending, drives, drive, flagless = false }) {
   resumables.set(flagKey, { pending, drives, drive, flagless });
 }
@@ -822,29 +714,23 @@ Hooks.on("createChatMessage", message => resume(message, "create"));
 Hooks.on("updateChatMessage", message => resume(message, "update"));
 Hooks.on("dnd5e.renderChatMessage", message => resume(message, "render"));
 
-/* ---------------------------------------------------------------------------------------------
- * THE WITHHOLD REGISTRY: a machine about to fold a verdict asks whether another wants to withhold
- * it (the d20 folds' offer on a failed, demanded save); the withholder hands it back via
- * `resumeWithheld` when its offer resolves. An offer FAILS OPEN. A resume without `by` falls to
- * the one machine registered.
- * ------------------------------------------------------------------------------------------- */
+// THE WITHHOLD REGISTRY: a withholder may pause another machine's verdict with an offer and hands
+// it back via `resumeWithheld`. An offer FAILS OPEN.
 
 /** flag key → { offer } */
 const withholders = new Map();
 /** name → { resume } */
 const withheldMachines = new Map();
 
-/** Declare a withholder — a machine that may pause another's verdict with an offer. */
 export function registerWithhold(flagKey, { offer }) {
   withholders.set(flagKey, { offer });
 }
 
-/** Declare a withheld machine — one whose verdicts may be paused, and how it finishes them. */
 export function registerWithheld(name, { resume }) {
   withheldMachines.set(name, { resume });
 }
 
-/** Does any withholder want this verdict paused? True means do not fold yet. Each offer fails open. */
+/** True: do not fold yet. */
 export async function withholds(rollMessage, ctx) {
   for ( const [flagKey, w] of withholders ) {
     try {
@@ -856,7 +742,7 @@ export async function withholds(rollMessage, ctx) {
   return false;
 }
 
-/** Hand a withheld verdict back to the machine that paused it. */
+/** Without `by`, falls to the one machine registered. */
 export async function resumeWithheld(by, ctx, rollMessage) {
   const machine = withheldMachines.get(by) ?? ((withheldMachines.size === 1) ? [...withheldMachines.values()][0] : null);
   if ( !machine ) { console.warn(`${TITLE} | No machine registered to resume a withheld verdict${by ? ` for ${by}` : ""}.`); return; }
@@ -864,8 +750,7 @@ export async function resumeWithheld(by, ctx, rollMessage) {
 }
 
 /**
- * Paint a dice chip picked or not — `!important` so no theme wins; the face keeps its number (the
- * suites read it) and `data-picked` is the truth the answer reads.
+ * Paint a dice chip picked or not (`!important` beats themes); `data-picked` is what the answer reads.
  * @param {HTMLElement} chip
  * @param {boolean} on
  */

@@ -1,45 +1,34 @@
 /**
- * Battle Flow — THE HOLD REGISTRY: "is anything keeping this quiet?" While the module asks its
- * caster a question the table cannot answer without (Careful Spell's who-to-spare), the cast's
- * card is held back, and a consumer keyed on the card (FX Studio) is told *not yet* without
- * knowing why. Contract: ARCHITECTURE *The public API* — holdFor, castHold (a permanent alias),
- * holds, and the hooks `battleflow.holdOpened` / `battleflow.castReleased`.
- * ⚠ A courtesy, never a liveness guarantee: consumers bound their own wait.
- * ⚠ CLIENT-LOCAL (the casting client's memory): elsewhere `holdFor()` is null, meaning "nothing
- * HERE can see one", not "nothing holds". ⚠ Refcounted, opaque-subject keys and an explicit
- * release are load-bearing for BACKLOG *The modal sequence*.
+ * Battle Flow — THE HOLD REGISTRY: while the module asks the caster a question (Careful Spell), the
+ * cast's card is held and a consumer (FX Studio) is told *not yet*. Contract: ARCHITECTURE *The
+ * public API*. ⚠ A courtesy: consumers bound their own wait. ⚠ CLIENT-LOCAL: elsewhere `holdFor()`
+ * is null. ⚠ Refcounts, opaque keys and explicit release serve BACKLOG *The modal sequence*.
  */
 
 import { MODULE_ID, TITLE } from "./core.js";
 
-/** The contract's version, read by other modules to tell this surface from the first one. */
+/** The contract's version, for other modules. */
 const HOLD_CONTRACT = Object.freeze({ version: 1, keys: ["activity", "message", "document"] });
 
 /**
- * The third outcome: *the hold lifted and nothing is known; carry on*. ⚠ Never collapse it into
- * `null` ("nothing was posted, play nothing"): a hold that outlives its clock is only a late
- * answer, and reading it as null would suppress the picture for good. Truthy, so it fails open.
+ * The third outcome: lifted, nothing known, carry on. ⚠ Never `null` ("nothing posted, play
+ * nothing"): a late answer must not suppress the picture. Truthy, so it fails open.
  */
 const HOLD_LIFTED = Object.freeze({ lifted: true });
 
 /**
- * subject key → the live hold. `count` is the refcount; `settled` guards a double release.
- * double release resolving a promise nobody is waiting on any more.
+ * subject key → the live hold; `count` is the refcount, `settled` guards a double release.
  * @type {Map<string, {promise: Promise<any>, resolve: (v:any)=>void, count: number, reason: string, timer: any, settled: boolean}>}
  */
 const holds = new Map();
 
-// No aliasing: every hold is raised on an activity uuid today, so a message id or document uuid
-// answers only when it IS that string. The contract accepts aliasing without a version bump.
-
-/** The subject a caller means, as the string this file keys by; anything document-shaped answers by uuid. */
+// No aliasing: a subject answers only by the exact string it was raised on (an activity uuid).
 function subjectKey(subject) {
   if ( !subject ) return "";
   if ( typeof subject === "string" ) return subject;
   return String(subject.uuid ?? subject.id ?? "");
 }
 
-/** The live hold a subject names, or null. */
 function holdEntry(subject) {
   const key = subjectKey(subject);
   if ( !key ) return null;
@@ -47,10 +36,8 @@ function holdEntry(subject) {
 }
 
 /**
- * RAISE a hold and get back its (idempotent) lowering function; every raise is matched by one
- * call. `bound` is a millisecond ceiling after which the hold LIFTS itself (the sentinel, never
- * `null`) — pass it whenever the moment carries a clock, and nothing when it deliberately has
- * none (ARCHITECTURE §5 law 11).
+ * RAISE a hold; returns its idempotent lowering function. `bound` (ms) lifts it by itself — pass it
+ * whenever the moment has a clock (ARCHITECTURE §5 law 11).
  */
 export function raiseHold(subject, { reason = "unspecified", bound = null } = {}) {
   const key = subjectKey(subject);
@@ -80,10 +67,7 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
   };
 }
 
-/**
- * Lower one raise; the hold settles when the last is lowered. With no card in hand it LIFTS
- * rather than cancels — only an explicit `releaseHold(subject, null)` says nothing was posted.
- */
+/** Settles on the last lower; with no card it LIFTS (only `releaseHold(subject, null)` cancels). */
 function lowerHold(key, message = null) {
   const entry = holds.get(key);
   if ( !entry ) return;
@@ -92,7 +76,6 @@ function lowerHold(key, message = null) {
   settle(key, message ?? HOLD_LIFTED);
 }
 
-/** Settle a hold and forget it, whatever its refcount — the terminal paths and the self-bound. */
 function settle(key, message) {
   const entry = holds.get(key);
   if ( !entry ) return;
@@ -104,21 +87,17 @@ function settle(key, message) {
   Hooks.callAll("battleflow.castReleased", { activityUuid: key, subject: key, message });
 }
 
-/**
- * Settle a subject's hold NOW, whatever its refcount — the card posted, the carrier deleted, the
- * cast cancelled. `message` is the card, or null for "nothing was posted".
- */
+/** Settle NOW, whatever the refcount; `message` is the card, or null for "nothing was posted". */
 export function releaseHold(subject, message = null) {
   const key = subjectKey(subject);
   if ( key && holds.has(key) ) settle(key, message);
 }
 
-/** Whether anything is holding this subject — the module's own read; other modules use the api. */
 export function isHeld(subject) {
   return !!holdEntry(subject);
 }
 
-/** The promise a subject's hold will settle with, or null when nothing here is holding it. */
+/** The promise the hold settles with, or null when nothing HERE holds it. */
 export function holdFor(subject) {
   return holdEntry(subject)?.promise ?? null;
 }
@@ -127,8 +106,7 @@ Hooks.once("init", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, {
     holdFor,
-    /** The first name of this surface, kept forever; `holdFor` is the general one. */
-    castHold: holdFor,
+    castHold: holdFor,   // permanent alias
     holds: HOLD_CONTRACT
   });
 });

@@ -1,13 +1,11 @@
 /**
- * Battle Flow — the shared constants and who/when facts: module id, title, setting keys, the
- * elect and flow-elect tests, combat identity, the deadline roof and the flag-write serializer.
- * A leaf — imports nothing.
+ * Battle Flow — shared constants and who/when facts: setting keys, the elects, combat identity, the
+ * deadline ceiling and the flag-write serializer. A leaf — imports nothing.
  */
 
 export const MODULE_ID = "fvtt-mod-battleflow";
 export const TITLE = "Battle Flow";
 
-/** Setting keys. */
 export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
@@ -82,55 +80,31 @@ export const setting = key => game.settings.get(MODULE_ID, key);
 /** Exactly one client may perform world-visible applications: the active GM's. */
 export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 
-/**
- * Whose client rolls for this actor: the first active non-GM owner (sorted by id, so every client
- * elects the same one), the active GM otherwise. Only the AUTOMATIC paths consult this; a human
- * pressing Roll is answered by `canAnswerFor`.
- */
+/** Whose client auto-rolls for this actor: the first active non-GM owner by id, else the active GM. */
 export const rollerUserFor = actor => game.users
   .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
   .sort((a, b) => a.id.localeCompare(b.id))[0] ?? game.users.activeGM;
 
-/* --- THE FLOW ELECT (ARCHITECTURE §4 *The flow elect*) -----------------------------------------
- * Presentation runs without a GM; consequence does not. A player client can create messages and
- * write its own attack message and actor, so every card, ask and popup is reachable; it cannot
- * write an unowned monster, so those consequences are skipped and the driver is told.
- * ⚠ ONE elect, never two: the fallback is the same question with the GM removed, and with a GM
- * active it answers exactly as `isActiveGM()` does.
- * ------------------------------------------------------------------------------------------- */
+// THE FLOW ELECT (ARCHITECTURE §4 *The flow elect*): the active GM, else the actor's own player.
+// ⚠ ONE elect, never two: with a GM on it answers exactly as `isActiveGM()`.
 
-/**
- * The client that drives world-visible flow for this actor: the active GM, else the actor's own
- * player. Actor-local on purpose: the chain writes to the attack message, which only its author
- * (the attacker's player) may update. Undefined when nobody can drive.
- */
 const flowElectFor = actor =>
   game.users.activeGM ?? (actor ? rollerUserFor(actor) : undefined);
 
-/** Is THIS client the flow elect for that actor? Identical to `isActiveGM()` whenever a GM is on. */
 const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
 
-/**
- * Does THIS client drive a moment whose subject is `subjectUuid`? With a GM on, exactly
- * `isActiveGM()`; with none, the subject's own player — an unresolvable subject drives nothing.
- */
+/** Does THIS client drive a moment whose subject is `subjectUuid`? */
 export function drivesMomentFor(subjectUuid) {
   if ( isActiveGM() ) return true;
-  if ( game.users.activeGM ) return false;   // a GM is on and it is not us — never two drivers
+  if ( game.users.activeGM ) return false;
   const actor = (() => { try { return fromUuidSync(subjectUuid); } catch { return null; } })();
   return !!actor && isFlowElectFor(actor);
 }
 
-/**
- * May this client WRITE to that actor (apply an effect, set a condition, move HP)? The guard that
- * turns a silent permission failure into a spoken one.
- */
+/** May this client WRITE to that actor? Turns a silent permission failure into a spoken one. */
 export const canApplyTo = actor => !!actor?.isOwner;
 
-/**
- * Tell the flow's driver what did NOT happen and what still stands — whispered to self, since it
- * is an operational notice, not a table moment. Best-effort.
- */
+/** Whisper to self what did NOT happen for lack of a GM, and what still stands. */
 export async function whisperNoGM(what, stands = null) {
   try {
     await ChatMessage.create({
@@ -148,15 +122,12 @@ export async function whisperNoGM(what, stands = null) {
 export function canAnswerFor(actor) {
   if ( !actor ) return false;
   if ( actor.isOwner && !game.user.isGM ) return true;
-  // GMs own everything, so they answer only for targets no player owns (the monster side).
+  // A GM answers only where no active player owns the actor.
   if ( game.user.isGM ) return !game.users.some(u => !u.isGM && u.active && actor.testUserPermission(u, "OWNER"));
   return false;
 }
 
-/**
- * Should THIS client drive the continuation? The attack's roller owns it; if that user is offline
- * the active GM takes over so a hold never strands the chain.
- */
+/** Does THIS client drive the continuation? The roller, or the active GM when they are offline. */
 export function isContinuingClient(hold) {
   const owner = game.users.get(hold?.continuedBy);
   return owner?.active ? owner.isSelf : isActiveGM();
@@ -169,11 +140,8 @@ export function inRunningCombat(actor) {
 }
 
 /**
- * The started combat this actor is in AND that is `game.combat`, or null.
- * ⚠ Not `inRunningCombat`: Foundry measures a `rounds` duration against the ACTIVE combat only,
- * so a round clock chosen off any other combat is born expired (dnd5e files it under Unavailable
- * Effects). ⚠ `getCombatantsByActor` matches a synthetic actor by TOKEN id — an actor-id compare
- * would match an untracked sibling token of the same base actor.
+ * `game.combat` if started and this actor is in it, else null. ⚠ A `rounds` duration off any other
+ * combat is born expired. ⚠ `getCombatantsByActor` matches synthetic actors by TOKEN, not actor id.
  */
 export function activeCombatFor(actor) {
   const combat = game.combat;
@@ -182,9 +150,8 @@ export function activeCombatFor(actor) {
 }
 
 /**
- * WHEN we are, as `${combat.id}:${round}:${turn}`, or null out of combat. The once-per-turn
- * idiom: a stamp is written beside what it governs and any mismatch at read time IS expiry — no
- * timer, no sweep, survives a reload. Out of combat, callers fall back to their own TTL.
+ * `${combat.id}:${round}:${turn}`, or null out of combat. Once-per-turn: a mismatch at read time IS
+ * expiry — no timer, no sweep.
  */
 export const combatStamp = () => {
   const c = game.combat;
@@ -192,18 +159,13 @@ export const combatStamp = () => {
 };
 
 /**
- * THE DATA-PLANE STAMP (ARCHITECTURE *The data plane*): every consequence carries WHEN
- * (`combat`, null out of combat) and WHO (`sourceUuid`, null when no actor can be named),
- * resolved at write time where both are still live. ⚠ Spread `...statContext(src)` at the write
- * site; never hand-roll it, never stamp post-hoc. Both fields are always present on a stamped
- * record — an absent field marks a record from before the plane.
+ * THE DATA-PLANE STAMP (ARCHITECTURE *The data plane*): WHEN and WHO on every consequence.
+ * ⚠ Spread `...statContext(src)` at the write site; never hand-roll it or stamp post-hoc.
  */
 export const statContext = (sourceUuid = null) => ({ combat: combatStamp(), sourceUuid });
 
 /**
- * The effects the sheet is applying (the system's `appliedEffects`: enabled, unsuppressed, item
- * effects only while equipped/attuned), as plain facts for decide/reminders.js. Each carries its
- * item's name, because the box names the item, not the effect's often-generic name.
+ * The sheet's `appliedEffects` as plain facts, each with its item's name (the box names the item).
  * @param {Actor} actor
  * @returns {{id: string, name: string, item: string|null, changes: {key: string, value: string}[]}[]}
  */
@@ -216,8 +178,7 @@ export function sheetModeEffects(actor) {
 }
 
 /**
- * The roll in the table's words ("Wisdom saving throws", "Stealth checks"): the system's labels
- * where it has them, the id otherwise.
+ * The roll in the table's words ("Wisdom saving throws", "Stealth checks").
  * @param {{kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean}} roll
  */
 export function rollLabelFor({ kind, ability = null, skill = null, tool = null, concentration = false }) {
@@ -233,34 +194,22 @@ export function rollLabelFor({ kind, ability = null, skill = null, tool = null, 
   return `${abl ?? "these"} checks`;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE DEADLINE CEILING. `armDeadline` fires a past deadline on the next tick — right for a reload
- * that ate the window, wrong without a bound: a card left pending is re-armed however old it is,
- * and some buzzers roll dice. ⚠ The bound cannot be a session epoch (session start is
- * per-client, so a reloaded player would refuse every live deadline); an absolute ceiling of ten
- * minutes clears the slowest cold boot.
- * ------------------------------------------------------------------------------------------- */
-
+// THE DEADLINE CEILING: a past deadline fires at once, and some buzzers roll dice, so an old card
+// must not re-arm. ⚠ Absolute, not a session epoch (per-client); ten minutes clears a cold boot.
 export const DEADLINE_CEILING_MS = 600_000;
 
-/** Is this deadline still this table's business, or is it history? No deadline ⇒ never arm. */
+/** No deadline ⇒ never arm. */
 export const deadlineIsLive = deadline =>
   !!deadline && ((Date.now() - deadline) <= DEADLINE_CEILING_MS);
 
-/* ---------------------------------------------------------------------------------------------
- * SERIALIZED FLAG WRITES — read-modify-write on a message flag with no other writer interleaving.
- * ⚠ Receipt flags are merged, and overlapping merges lose an entry (each clones, merges its own
- * target, and the last setFlag wins) — a lost receipt entry then reads as "not applied yet" and
- * the damage lands twice. Client-local is enough: every write comes from the one elect.
- * ------------------------------------------------------------------------------------------- */
+// SERIALIZED FLAG WRITES. ⚠ Overlapping merges lose an entry (last setFlag wins), and a lost
+// receipt entry lands the damage twice. Client-local suffices: every write comes from the elect.
 
 const flagWrites = new Map();
 
 /**
- * Apply `mutate` to `message`'s `key` flag under a per-(message, key) lock; `mutate` gets the
- * current value (deep-cloned, default `{ targets: [] }`) and edits it in place.
- * ⚠ Return `false` to SKIP the write: writers driven from a render hook need it, or they loop
- * write → render → write.
+ * Edit `message`'s `key` flag in place (deep clone, default `{ targets: [] }`) under a lock.
+ * ⚠ Return `false` to SKIP the write, or a render-hook writer loops.
  */
 export function queueFlagWrite(message, key, mutate) {
   const lock = `${message.id}|${key}`;
@@ -269,12 +218,12 @@ export function queueFlagWrite(message, key, mutate) {
     if ( mutate(current) === false ) return;
     await message.setFlag(MODULE_ID, key, current);
   };
-  // `.then(run, run)` on purpose: one write failing must not strand every write queued behind it.
+  // `.then(run, run)`: one failure must not strand the writes behind it.
   const prior = flagWrites.get(lock) ?? Promise.resolve();
   const next = prior.then(run, run);
-  const tail = next.catch(() => {});  // the STORED link never rejects, so the chain cannot break
+  const tail = next.catch(() => {});  // the stored link never rejects
   flagWrites.set(lock, tail);
   void tail.then(() => { if ( flagWrites.get(lock) === tail ) flagWrites.delete(lock); });
-  return next;                        // the CALLER still sees a failure, and logs it as before
+  return next;                        // the caller still sees a failure
 }
 

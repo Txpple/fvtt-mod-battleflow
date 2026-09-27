@@ -79,21 +79,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-/* =============================================================================================
- * THE SONG — a grant GIVEN to allies, asked after the rest (a row's `to: "allies"`: Musician,
- * Inspiring Leader, Chef). Careful Spell's picker is the shape (area-ask.js).
- *   - THE ASK: a card the resting client posts, naming the allies within the row's reach (same
- *     side, nearest edges; the owner too where the row says `self`), each marked if it already has
- *     the grant. Nobody who could take it: no card.
- *   - THE POPUP opens on whoever answers for the owner; no clock (a rest is nobody's wait). Those
- *     without it start ticked, Party first, up to the cap.
- *   - THE WRITE is to other actors, so it is the GM's: a player's answer is an envelope the elect
- *     folds. With no GM on, the player is told to give it by hand.
- * Temp HP grants are read off the feat's heal activity and given only above what a creature holds.
- * Chef's Replenishing Meal heals eaters who spent Hit Dice in the same Short Rest (RULINGS *Where
- * the table bends the rule*): an eater whose rest ended is judged off its rest card; one still
- * resting carries the meal (`mealFed`) and is healed as its own rest ends.
- * ========================================================================================== */
+/*
+ * THE SONG — a grant GIVEN to allies after the rest (`to: "allies"`), Careful Spell's picker shape:
+ * the resting client posts the ask (no card when nobody could take it); the popup has no clock (a
+ * rest is nobody's wait); the write to other actors is the elect's. Chef's meal heals eaters who
+ * spent Hit Dice that Short Rest (RULINGS *Where the table bends the rule*) — one still resting
+ * carries `mealFed` and heals as its rest ends.
+ */
 
 const SONG_FLAG = "restSong";
 const SPENT_FLAG = "restSpent";   // a Short Rest card's Hit Dice spent (the meal reads it)

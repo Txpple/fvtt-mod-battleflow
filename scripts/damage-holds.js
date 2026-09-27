@@ -1,14 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — a reduction "when you take damage"
- * (INTERRUPT_REDUCTIONS rows with `any: true`, Stone's Endurance) or a guard's (`ally`,
- * Interception) asked before ANY module-applied damage lands, not only an attack's.
- * The seam is the applier's claim (auto-apply.js `registerDamageClaim`): a claimed share is
- * stamped whole on its own card and WAITS; the owner answers in a popup (or the clock takes it),
- * then the keeper lands it, short by the roll, through the same applier (`held`, never claimed
- * twice). An attack hit the attack hold already asked about stays the hold's (one Reaction).
- * ⚠ Damage applied with the card's own buttons or typed on a sheet is never held (RULINGS
- * *Where the table bends the rule*). Order: the save's multiplier, then the reduction, then the
- * system's resistances.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — an `any` reduction (Stone's
+ * Endurance) or an `ally` guard's (Interception), asked before ANY module-applied damage lands.
+ * A share claimed at auto-apply.js `registerDamageClaim` WAITS on its own card; the keeper lands
+ * it short by the roll (`held`, never claimed twice). ⚠ Card buttons and sheet edits are never
+ * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
@@ -50,10 +45,8 @@ function anyReductionOf(actor) {
 }
 
 /**
- * THE GUARDS (Interception): the creatures within a row's `ally` reach of the one being hit who
- * could reduce the damage for it — its side, not the attacker, the feature on the sheet, the
- * Reaction free, holding what the row demands. Returns the row's key and
- * `[{ actorUuid, actorName, itemId, activityId, formula, passed }]`.
+ * THE GUARDS (Interception): allies within the row's `ally` reach able to reduce for the defender —
+ * `{ name, row, guards: [{ actorUuid, actorName, itemId, activityId, formula, passed }] }` or null.
  */
 function interceptorsFor(defender, attacker) {
   const guarded = tokenForUuid(defender?.uuid);
@@ -86,8 +79,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const own = listed(), guarded = guardsListed();
   if ( !own && !guarded ) return false;
   if ( !damages?.length || damages.every(d => NOT_DAMAGE.has(d.type)) ) return false;
-  // ONE CLAIM PER SHARE: a save's damage reaches the applier twice, and a claimed share has no
-  // receipt yet to stop the second pass — same receipt and target inside the window is the same share.
+  // ⚠ ONE CLAIM PER SHARE: a save's damage reaches the applier twice, before any receipt exists.
   const key = `${receiptMessage.id}|${target.uuid}`;
   const at = claimedShares.get(key);
   if ( at && ((Date.now() - at) < CLAIM_WINDOW_MS) ) return true;

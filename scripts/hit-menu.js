@@ -20,22 +20,12 @@ import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } f
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * The machine, in four parts (rows: decide/registry.js HIT_GROUPS / HIT_OPTIONS; membership: the
- * Hit Menu list):
- *   THE OFFER (auto-damage.js `registerOfferPart`) — a group per paying feature, a checkbox per
- *   granted option, one pick per group. An affordable row opens the offer even under auto damage.
- *   The picks are written on the attack message BEFORE the dice.
- *   THE RIDER (`preRollDamageV2`, on the roller's client) — the die, read off the option's damage
- *   activity, rides the roll as its own part; the pool the activity names is spent.
- *   THE CONSEQUENCES (the damage message landing, on the roller's client, which owns the items) —
- *   the option's save activity is used at the target through the saves machine; an unlinked item
- *   condition (Trip's Prone) is pressed on the failure; a no-save effect or press is applied on
- *   the elect, receipted; a line option says on the card what the table plays.
- *   THE SWEEP — the die is rolled apart at a second creature the attacker picks in a popup.
- * Every pick on one hit is a list entry (`picksOf` the one reader): a part, a spend and a card each.
- * Read, never typed: the die, the pool, the save and DC, the condition, the damage type, the size.
- * ------------------------------------------------------------------------------------------- */
+/*
+ * Four parts (rows: decide/registry.js HIT_GROUPS / HIT_OPTIONS): THE OFFER writes the picks on the
+ * attack message before the dice; THE RIDER adds the die and spends the pool (roller's client);
+ * THE CONSEQUENCES put the save through the saves machine, pressing an unlinked condition on the
+ * failure; THE SWEEP rolls the die apart at a second creature. `picksOf` is the one reader of picks.
+ */
 
 /** The die behind an option — its damage activity's first part, resolved on the sheet. "d8" reads as "1d8". */
 function dieFormulaOf(actor, activity) {
@@ -44,10 +34,7 @@ function dieFormulaOf(actor, activity) {
   return resolveDie(actor, raw);
 }
 
-/**
- * The menu for this hit, and the sheet facts behind every row: the option's item, its damage and
- * save activities, its resolved die, the pool it draws on, the weapon's damage type.
- */
+/** The menu for this hit, and the sheet facts behind every row. */
 function menuFor(attackMessage, activity) {
   const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
   const item = activity?.item;
@@ -90,10 +77,7 @@ function menuFor(attackMessage, activity) {
   return { attacker, menu, edge, type };
 }
 
-/**
- * Does every hit target fit `maxSize`, by the system's size ordering? False when one is larger;
- * null when a size cannot be read — the row stays open and the table judges.
- */
+/** Does every hit target fit `maxSize`? null when a size cannot be read (the table judges). */
 function sizeFits(hits, maxSize) {
   const sizes = CONFIG.DND5E?.actorSizes ?? {};
   const cap = sizes[maxSize]?.numerical;
@@ -108,13 +92,9 @@ function sizeFits(hits, maxSize) {
   return unknown ? null : true;
 }
 
-/* --- the pack's transfer flag, corrected on the sheet --------------------------------------- */
-
 /**
- * ⚠ The pack ships some target-facing effects (Goading Attack's Goaded) with `transfer: true`,
- * so Foundry puts them on the WIELDER, where expiry or a tidy deletes the item's only copy. Any
- * target-facing effect of a row (its save's, its damage activity's, its `onFail` status) carrying
- * the flag is corrected on the wielder's own item copy, by its owner, at ready and when the item lands.
+ * ⚠ The pack ships some target-facing effects (Goaded) with `transfer: true`, so they land on the
+ * WIELDER; the owner corrects the flag on their item copy at ready and when the item lands.
  */
 async function targetFacingEffects(row, item) {
   const out = [];
@@ -125,10 +105,7 @@ async function targetFacingEffects(row, item) {
   return out;
 }
 
-/**
- * The compendium's copy of an item on a sheet: its recorded source, else a premium pack's item of
- * the same name (a copy made from pack data records no source), SRD packs last.
- */
+/** The compendium's copy of an item: its recorded source, else a same-name pack item, SRD last. */
 async function compendiumCopyOf(item) {
   const src = item?._stats?.compendiumSource;
   if ( src ) { const doc = await fromUuid(src).catch(() => null); if ( doc ) return doc; }
@@ -317,7 +294,6 @@ async function runConsequences(damageMessage, record) {
     const hits = hitTargets(attackMessage);
     const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
     const notes = [];
-    // One pick at a time, in the order they rode.
     for ( const pick of picksOf(record) ) {
       const hm = { ...pick, attackId: record.attackId, attackRoll: record.attackRoll ?? pick.attackRoll ?? null };
       // live only: the paying feature is never used up, so the sheet is the truth
@@ -338,8 +314,7 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
     const act = activityOfType(item, "save");
     if ( act ) {
       await repairTransferEffects(attacker);
-      // A linked effect the item has lost is pressed on the failure from the compendium copy
-      // (same effect id on the source item).
+      // A linked effect the item lost is pressed on the failure from the compendium copy (same id).
       const missing = (await profileEffects(act.effects)).filter(({ profile, effect }) => !effect && !profile.onSave).map(({ profile }) => profile._id);
       const source = missing.length ? await compendiumCopyOf(item) : null;
       const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
@@ -422,7 +397,6 @@ async function pressOnHit(message, hm, hits, item, index = null) {
 
 /* --- the follow-up: what a FAILED save presses that the activity did not carry --------------- */
 
-/** Same-client latch per card+target. */
 const followups = new Set();
 
 async function settleHitFollowups(card) {
@@ -606,8 +580,7 @@ async function settleSweep(card) {
   }
 }
 
-// The three resume floors: the effects on arrival and reload (never an update); the follow-ups
-// and the sweep on the answer's write and on reload.
+// Effects resume on arrival and reload (never an update); follow-ups and the sweep on the answer.
 registerResumable("hitManeuver", {
   pending: (flag, _message, cause) => (cause !== "update") && picksOf(flag).some(p => p.effects || p.press) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),

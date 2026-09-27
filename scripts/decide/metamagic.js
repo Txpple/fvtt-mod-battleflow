@@ -1,20 +1,16 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: metamagic (RULINGS *Metamagic*). Which options the cast dialog offers
- * for THIS spell, which the points can pay for, whether a pick is legal, and what the card says
- * after. Pure functions over plain data (ARCHITECTURE.md §2). The reading and the arithmetic,
- * never the choice; the ask at the area lives in decide/area-ask.js.
+ * Battle Flow — DECISION: metamagic (RULINGS *Metamagic*): which options fit THIS spell, which the
+ * points pay for, whether a pick is legal, what the card says. Pure (ARCHITECTURE.md §2).
  */
 
-/** The flag the cast's card carries: `{ key, feature, cost, ... }` (metamagic.js writes it). */
+/** The cast card's flag: `{ key, feature, cost, ... }`. */
 export const METAMAGIC_FLAG = "metamagic";
 /**
- * The named predicates a registry row's `when` resolves to, over the facts of the spell being
- * cast. Unknown names fit nothing.
+ * A row's `when` predicate over the spell's facts; an unknown name fits nothing.
  * @typedef {{save: boolean, rangeFeet: number|null, touch: boolean, minutes: number,
  *            action: boolean, damageTypes: string[], damageRoll: boolean, spellAttack: boolean,
  *            scalesTargets: boolean, choosesTargets?: boolean}} SpellFacts
- *        `choosesTargets`: a listed area whose caster chooses who it affects (the Chosen Areas list)
  */
 const WHEN = {
   any: () => true,
@@ -28,7 +24,7 @@ const WHEN = {
   scalesTargets: f => !!f.scalesTargets
 };
 
-/** The words a greyed row wears when the spell does not fit it — the reason, short. */
+/** A greyed row's reason. */
 const WHY = {
   save: "no saving throw",
   range: "range Self",
@@ -40,10 +36,7 @@ const WHY = {
   scalesTargets: "does not add a target at a higher level"
 };
 
-/**
- * A row's `unless`: a spell its WHEN admits but where the option does nothing — Careful Spell on a
- * spell whose caster already chooses its targets.
- */
+/** A row's `unless`: WHEN admits the spell, but the option does nothing (Careful on a chosen area). */
 const UNLESS = {
   choosesTargets: f => !!f.choosesTargets
 };
@@ -52,7 +45,6 @@ const WHY_UNLESS = {
 };
 
 /**
- * Does this option fit this spell?
  * @param {{when: string, unless?: string}} row
  * @param {SpellFacts} facts
  * @param {{transmutedTypes?: readonly string[]}} [opts]
@@ -64,7 +56,6 @@ export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
   return !not?.(facts ?? {});
 }
 
-/** Why a row the spell does not fit greys — its WHEN's reason, else its UNLESS's. */
 function whyNot(row, facts, transmutedTypes) {
   const test = WHEN[row?.when];
   if ( !test?.(facts ?? {}, transmutedTypes) ) return WHY[row?.when] ?? "does not fit this spell";
@@ -72,16 +63,11 @@ function whyNot(row, facts, transmutedTypes) {
 }
 
 /**
- * The rows of the cast dialog's group, in table order: every listed option the sheet grants whose
- * moment is `cast`, with its fit and affordability.
- *
- *
+ * The dialog's rows in table order: every listed, known option of this `moment`, with fit and
+ * affordability. An unreadable cost is unaffordable, never free.
  * @param {{table: Readonly<Record<string, any>>, listed: Iterable<string>, known: Iterable<string>,
  *          facts: SpellFacts, points: number, costs: Record<string, number>,
  *          transmutedTypes?: readonly string[], moment?: string}} args
- *        `listed` = the Metamagic list's names; `known` = the feat names on the sheet;
- *        `costs` = per feat, the consumption value read off the sheet (unreadable = unaffordable,
- *        never free)
  * @returns {{key: string, feature: string, cost: number|null, picks: string|null, moment: string,
  *            eligible: boolean, why: string|null, affordable: boolean, tag: string}[]}
  */
@@ -118,8 +104,7 @@ export function metamagicPick({ menu, chosen = null }) {
 }
 
 /**
- * The option's rule, read off the feat's own description, the pack's cost line dropped (the cost
- * is the row's tag) and the tags stripped.
+ * The option's rule as plain text from the feat's description, the cost line dropped.
  * @param {string} html
  */
 export function metamagicRuleText(html) {
@@ -127,7 +112,7 @@ export function metamagicRuleText(html) {
     .replace(/<blockquote>[\s\S]*?<\/blockquote>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
-    // The pack's live lookups go, with the phrase that framed one ("currently [[lookup …]]").
+    // Drop live lookups, with a framing "currently".
     .replace(/,?\s*currently\s*\[\[\/?lookup[^\]]*\]\]/gi, "")
     .replace(/\[\[\/?lookup[^\]]*\]\]/g, "")
     .replace(/\s+/g, " ").trim();
@@ -135,8 +120,7 @@ export function metamagicRuleText(html) {
 }
 
 /**
- * The line the spell's card carries after the press — source, then result.
- * The line the spell's card carries after the press — source, then result (law 6).
+ * The spell card's line after the press — source, then result (law 6).
  * @param {{key: string, feature: string, rangeFeet?: number|null, protected?: {name: string}[], target?: {name: string}|null, type?: string|null}} record
  */
 export function metamagicCardLine(record) {
@@ -158,13 +142,10 @@ export function metamagicCardLine(record) {
 }
 
 /**
- * Twinned Spell's fit, read off the data: a spell that gains a target at a higher level carries
- * its target count as a FORMULA over the cast's level (`@item.level - 1`); a fixed count, a blank
- * one or a template does not.
+ * Twinned Spell's fit: a target count that is a FORMULA over the cast's level scales; the
+ * exceptions (registry.js TWINNED_EXCEPTIONS) override — `also` always fits, `except` never.
  * @param {string|number|null|undefined} countFormula the item's SOURCE `target.affects.count`
  * @param {{name?: string|null, exceptions?: {except?: readonly string[], also?: readonly string[]}|null}} [opts]
- *        the spell's name and the table's exceptions (registry.js TWINNED_EXCEPTIONS): `also` fits
- *        regardless of the data, `except` never fits
  */
 export function scalesTargetsFrom(countFormula, { name = null, exceptions = null } = {}) {
   const lower = s => String(s ?? "").toLowerCase();
@@ -175,8 +156,7 @@ export function scalesTargetsFrom(countFormula, { name = null, exceptions = null
 }
 
 /**
- * Extended Spell: the duration doubled, to a maximum of 24 hours. Rounds and turns double as they
- * are; an empty duration stays.
+ * Extended Spell: the duration doubled, seconds capped at 24 hours.
  * @param {{seconds?: number|null, rounds?: number|null, turns?: number|null}} duration
  * @returns {{seconds?: number, rounds?: number, turns?: number}} the fields that changed
  */
@@ -192,8 +172,7 @@ export function extendedDuration(duration) {
 }
 
 /**
- * Does Empowered Spell reach this roll? Damage only — dnd5e rolls healing through the same damage
- * roll, so a heal activity, or rolls all healing or temp HP, is out.
+ * Does Empowered Spell reach this roll? Damage only (healing shares dnd5e's damage roll).
  * @param {{activityType?: string|null, rollTypes?: (string|null|undefined)[]}} facts
  */
 export function empoweredReaches({ activityType = null, rollTypes = [] } = {}) {
@@ -203,7 +182,7 @@ export function empoweredReaches({ activityType = null, rollTypes = [] } = {}) {
 }
 
 /**
- * The reroll's arithmetic: the old total moved by every die's change, and the card's sentence.
+ * The reroll's new total and the card's sentence.
  * @param {{oldTotal: number, picks: {old: number, new: number}[]}} args
  */
 export function empoweredOutcome({ oldTotal, picks }) {
@@ -214,7 +193,7 @@ export function empoweredOutcome({ oldTotal, picks }) {
 }
 
 /**
- * Distant Spell's arithmetic: a Touch spell reaches 30 feet; any other range is doubled.
+ * Distant Spell: Touch becomes 30 feet; any other range doubles.
  * @param {SpellFacts} facts
  * @returns {number|null}
  */
