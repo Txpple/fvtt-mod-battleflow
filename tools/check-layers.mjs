@@ -27,7 +27,7 @@
 //   node tools/check-layers.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { dirname, join, normalize, relative, resolve, sep } from "node:path";
+import { dirname, join, normalize, relative, resolve } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SCRIPTS = join(ROOT, "scripts");
@@ -278,7 +278,8 @@ const ALLOW = [
 
 /* --- the graph ---------------------------------------------------------------------------- */
 
-export const toPosix = p => p.split(sep).join("/");
+/** A path with forward slashes on every platform: a Windows path arrives with backslashes even on Linux. */
+export const toPosix = p => String(p).replace(/\\/g, "/");
 
 /** Every .js file under scripts/, recursively, as a scripts-relative posix path. */
 export function jsFiles(dir) {

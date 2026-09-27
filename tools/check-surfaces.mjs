@@ -30,7 +30,7 @@
 //
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { SURFACES, SURFACE_SOURCES } from "../scripts/surfaces.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -62,7 +62,7 @@ const FRAGMENTS = {
 
 const collapse = s => s.replace(/\s+/g, " ");
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\\])\/\/[^\n]*/g, "$1");
-const toPosix = p => p.split(sep).join("/");
+const toPosix = p => String(p).replace(/\\/g, "/");
 
 function jsFiles(dir) {
   const out = [];
