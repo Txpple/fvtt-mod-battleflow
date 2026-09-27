@@ -55,7 +55,8 @@ const FRAGMENTS = {
   dialogDefault: ["button[autofocus]"],
   dialogRoll: ['data-action="roll"'],
   dialogFooter: [".form-footer"],
-  cardHeaderTitle: [".name-stacked .title"]
+  cardHeaderTitle: [".name-stacked .title"],
+  cardActivityRow: ["li.activity[data-activity-uuid]"]
 };
 
 const collapse = s => s.replace(/\s+/g, " ");

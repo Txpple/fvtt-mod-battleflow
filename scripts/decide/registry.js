@@ -1232,6 +1232,8 @@ export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
  *   activities  by ability — the activity that stands for the ability the feat raised (Inspiring
  *           Leader ships one per ability, "delete the other"): the feat's own Ability Score
  *           Improvement picks it, else the higher modifier (Poisoner's pick, decide/chips.js)
+ *   label   what the rest card calls the one activity it keeps of `activities` (the others dropped —
+ *           the walk, 2026-09-27: "Inspire with Performance is fine (just once)")
  *   rule    the feature's sentence, verbatim (law 8)
  */
 export const REST_GRANTS = Object.freeze({
@@ -1243,7 +1245,7 @@ export const REST_GRANTS = Object.freeze({
   // THE PHB FEATS, group 5 (2026-09-27, the rest grants — RULINGS *The PHB feats — groups 4–6*):
   // Musician's popup, a grant of Temporary Hit Points, the amount the pack's own heal activity's.
   "Inspiring Leader": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "temphp", to: "allies", self: true, reach: 30, cap: 6,
-    activities: Object.freeze({ wis: "Inspire with Wisdom", cha: "Inspire with Charisma" }),
+    activities: Object.freeze({ wis: "Inspire with Wisdom", cha: "Inspire with Charisma" }), label: "Inspire with Performance",
     rule: "Bolstering Performance. When you finish a Short or Long Rest, you can give an inspiring performance: a speech, song, or dance. When you do so, choose up to six allies (which can include yourself) within 30 feet of yourself who witness the performance. The chosen creatures each gain Temporary Hit Points equal to your character level plus the modifier of the ability you increased with this feat.",
     from: "General feat" }),
   // Chef's two benefits, one row each (the feat is `feature`). Bolstering Treats are HANDED OUT after

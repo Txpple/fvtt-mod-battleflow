@@ -284,6 +284,36 @@ Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   }
 });
 
+// THE REST CARD'S OWN ACTIVITY LIST (the walk, 2026-09-27 — Inspiring Leader's card listed "Inspire with
+// Wisdom" AND "Inspire with Charisma": "can just say inspiring performance. saying with wis or cha is
+// nonsensical"). The pack ships one activity per ability ("delete the other"); the feat raised ONE, and
+// the sheet settles which (grantActivityOf). The card keeps that one row, called by the row's `label`.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    if ( message.type !== "rest" ) return;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    const rows = root?.querySelectorAll?.(SURFACES.cardActivityRow);
+    if ( !rows?.length ) return;
+    const actor = ChatMessage.getSpeakerActor(message.speaker);
+    const restType = message.system?.type;
+    if ( !actor || !restType ) return;
+    for ( const { row, item } of songRowsFor(actor, restType) ) {
+      if ( !row.activities ) continue;
+      const kept = grantActivityOf(actor, item, row);
+      const others = new Set(Object.values(row.activities).map(n => activityNamed(item, n)?.uuid).filter(u => u && (u !== kept?.uuid)));
+      for ( const li of rows ) {
+        if ( others.has(li.dataset.activityUuid) ) li.remove();
+        else if ( kept && (li.dataset.activityUuid === kept.uuid) && row.label ) {
+          const sub = li.querySelector(".subtitle");
+          if ( sub ) sub.textContent = row.label;
+        }
+      }
+    }
+  } catch(err) {
+    console.warn(`${TITLE} | The rest card's activity list could not be trimmed.`, err);
+  }
+});
+
 /* --- the answer: the GM folds it, a player sends it ---------------------------------------------- */
 
 /** The picks a record allows — the offered allies without the grant, at most the cap. */

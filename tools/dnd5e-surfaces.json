@@ -66,6 +66,12 @@
       "file": "templates/chat/parts/card-header.hbs",
       "proof": "<span class=\"title\">{{ item.name }}</span>",
       "found": true
+    },
+    "cardActivityRow": {
+      "where": "dnd5e",
+      "file": "templates/chat/parts/card-activities.hbs",
+      "proof": "<li class=\"activity flexrow item-tooltip\" data-activity-uuid=\"{{ uuid }}\"",
+      "found": true
     }
   }
 }
