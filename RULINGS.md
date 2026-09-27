@@ -938,7 +938,12 @@ ONE popup per roll: Empowered Spell, Healer, Elemental Adept, Piercer, Savage At
 ## The PHB feats — groups 1–3 (2026-09-26)
 
 **Built in one autonomous pass** (the user: *"work autonomously til done with 1-3"*), off the scope
-above. ⚠ **The calls made while the user was away are marked ⓐ — the walk rules them.**
+above. The calls made while the user was away are marked ⓐ. **WALKED 2026-09-26 on Party Camp**
+(`tools/content/place-feats-walk.mjs`), feat by feat, all eight good; every ⓐ call stands, with one
+change: Elemental Adept's 1s become a CHOICE in the one dice popup (*One dice popup*, above, ruled,
+not built — until it is built, the floor below stands). The range feats keep no list of their own
+(the user: *"this is fine leave it to the table"*). Poisoner's Apply Poison became a Poison Coating on
+the character the same walk (*Bent by choice*).
 
 **Group 1 — the damage rules** (`fighting-styles.js`, two `FIGHTING_STYLES` rows, gate `always`).
 - **Elemental Adept**: the type is read off the feat's NAME — "Elemental Adept (Fire)", every copy
