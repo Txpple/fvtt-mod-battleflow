@@ -624,6 +624,40 @@ So `rerolled` alone does not mean *a second result follows*: `changedDice` pairs
 (`active: false`) result, and reads any live one by its `count`. The first cut paired every
 `rerolled` result and drew nothing for Reliable Talent.
 
+### The PHB feats groups 4–6, read against dnd5e 6.0.5 (2026-09-27, `tools/probe-pack-shapes.mjs` + the bundle)
+
+- **The pack**: Mage Slayer ships ONE activity, "Guard Mind" (a utility spending the item's own
+  use, 1 per Short Rest) — nothing for Concentration Breaker. Inspiring Leader ships TWO heal
+  activities, "Inspire with Wisdom" / "Inspire with Charisma" (`temphp`, `@details.level +
+  @abilities.<a>.mod`, 6 creatures, 30 ft; its note: delete the one you did not raise). Chef ships
+  "Replenishing Meal" (heal 1d8, target count **4** — the text says 4 plus your Proficiency Bonus),
+  "Bolstering Treats" (`temphp` `@prof`, consumption *restores* `@prof` uses) and "Eat Treat".
+  Sentinel ships NO activity — only "Halted" (`system.attributes.movement.walk` OVERRIDE 0, 1 turn,
+  `turnStart`). Polearm Master ships "Pole Strike" (a Bonus Action melee attack on the FEAT item,
+  1d4 + `@mod` Bludgeoning) and "Reactive Strike" (a Reaction utility with nothing in it). Each feat
+  carries an Ability Score Improvement advancement; a copy dropped on by hand has no assignment.
+- **`rollConcentration` combines `system.attributes.concentration.roll`** (War Caster's field — the
+  save gate's mode reader did not know it until group 4) into `config.rolls[0].options`, then
+  `rollSavingThrow` combines the ability's own save field and merges the two (`mergeConfigs` →
+  `mergeObject`). An explicit `{ disadvantage: true }` merges beside an `advantage: true` and dnd5e
+  rolls it plain (`D20Roll`: both true → NORMAL) — so Mage Slayer passes Disadvantage ALONE, never
+  `advantage: false`. Measured live: the Shielder fixture, whose sheet rolls its concentration saves
+  at Advantage (The Tideheart's effect, listed by the gate), rolls 0 with the breaker, 1 without
+  (`smoke-concentration` §16d).
+- **A save's roll message names its ability** — `message.system.ability` (`type: "save"`); the
+  `dnd5e.rollSavingThrow` hook's data is `{ ability, subject }`.
+- **The rest card records the Hit Dice spent in WORDS only** (`_displayRestResultMessage`: the
+  `dhd` is formatted into the content; `system` carries the deltas of the rest's own update, the
+  request and the type). `result.dhd` at `dnd5e.restCompleted` is the change in Hit Dice across the
+  dialog (negative when spent). A requested rest carries `config.request` (the request message),
+  and its card `system.request` / `flags.dnd5e.requestResult`. So the module stamps its own record
+  on each Short Rest card (`restSpent`, rest-grants.js) — the Chef's meal reads it.
+- **`autoHD`** (`initiateRest` config) spends Hit Dice with no dialog while missing HP stands at or
+  above `autoHDThreshold` — the suites' way to spend Hit Dice in a rest (`smoke-rest` §10).
+- **Nothing records a Disengage**: no status, no activity on a monster's statblock or the PHB's
+  actions (dnd5e 6.0.5's `CONFIG.statusEffects` lists none), so Sentinel's Disengage half is the
+  table's.
+
 ### Carried over from 5.3.x
 
 #### Activation: spells inherit it, features declare it (2026-09-02, the corpus scan over the 2024 packs)

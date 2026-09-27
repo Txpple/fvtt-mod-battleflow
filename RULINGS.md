@@ -46,6 +46,10 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Celestial Revelation's extra damage** on a spell with no attack roll: dealt "when you deal damage to it", with the spell | offered on the spell's card once its damage has landed; the pick lands as its OWN damage (its own card and receipt) — a concentrating target makes a second Constitution save for it | the extra goes to ONE of the spell's targets, the caster's pick, and the spell's damage is one roll applied to all of them: it cannot ride the roll, and the spell's receipt is keyed by creature, so an entry there would overwrite the spell's own (`clock-riders.js`) | 2026-09-25 |
 | **Heavy Weapon Mastery** (Great Weapon Master): "as part of the Attack action on your turn" | +Proficiency Bonus on every damage roll of a Heavy weapon's attack on the owner's own turn — Hew's Bonus Action swing included; a combat that holds the owner on another's turn (an Opportunity Attack) adds nothing and the card says "off — not your turn" | nothing on a damage roll says which action the attack was part of: Hew's swing is the same weapon's same attack activity (`fighting-styles.js` `ownTurnOf`, the `heavy` gate) | 2026-09-26 |
 | **Heavy Armor Master**: "when you're hit by an attack" | the cut is taken on damage from an ATTACK's damage card (its activity an attack, or a card answering one), through the module's applier or the card's own buttons; a save's, an area's or a rider's damage is never cut, and neither is a number typed on the token bar or the sheet. "Any Bludgeoning, Piercing, and Slashing damage … is reduced by" one Proficiency Bonus in all, not one per type | the damage application knows only the card it came from (`originatingMessage`); a bare number carries none (`fighting-styles.js`, `dnd5e.preCalculateDamage`) | 2026-09-26 |
+| **Mage Slayer**'s Concentration Breaker: "When you damage a creature that is concentrating" | the concentration save is at Disadvantage when the damage came from a CARD whose speaker holds the feat — the module's applier or the card's own buttons; damage typed on a sheet names no dealer and breaks nothing | `dnd5e.preApplyDamage` knows the dealer only through `originatingMessage` (`concentration.js` `breakerFor`, the rebukes' floor) | 2026-09-27 |
+| **Sentinel**'s Guardian: "Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack" | asked when the hit's DAMAGE lands, with the card it came from, of a bystander on another side of the map (token disposition); a hit that deals no damage, damage typed on a sheet, and a Disengage ask nothing; a friend's hit is not asked (ⓐ — noise) | the landing is where a hit is final (after any reaction that could still turn it) and where its card names the hitter (`rebukes.js` `stampWards`); nothing records a Disengage (NOTES §2) | 2026-09-27 |
+| **Sentinel**'s Halt: "When you hit a creature with an Opportunity Attack" | due on the Opportunity Attack the module drove (its cards say so) AND on any melee hit the Sentinel makes off its own turn in a running combat — ticked on the damage offer, with the caveat "only on an Opportunity Attack" | an Opportunity Attack made from the sheet is an ordinary attack roll: nothing marks it; off-turn melee is the fact the module can read (`clock-riders.js`, `judge: "opportunity"`) | 2026-09-27 |
+| **Chef**'s Replenishing Meal: food cooked "as part of a Short Rest"; "At the end of the Short Rest, any creature who eats the food and spends one or more Hit Dice" regains 1d8 | the Chef picks the eaters AFTER its own Short Rest; an eater whose Short Rest already ended in the same sitting (the same Rest request, else within two hours) is healed then if it spent a Hit Die; one still resting is healed as its own rest ends | every creature rests on its own client, in any order, and dnd5e's rest card states the Hit Dice spent only in words — the module stamps its own record on each Short Rest card (`rest-grants.js` `restSpent`, `decide/rest-grants.js` `mealStanding`) | 2026-09-27 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -59,6 +63,7 @@ as its code.**
 | --- | --- | --- | --- |
 | **Interpose Shield** (Shield Master): a Reaction when "subjected to an effect that allows you to make a Dexterity saving throw to take only half damage" — taken before the save is known | offered only AFTER the save SUCCEEDS (a Dexterity half-damage save, a Shield held, the Reaction free): Use turns the half into none and spends the Reaction; a failed save never asks (`saves/choices.js`, kind `interpose`) | the Reaction is never wasted on a save that fails, and the ask comes with the good news (ruled "B", 2026-09-26; built so since walk-5 (y)) | 2026-09-26 (built earlier; recorded as a choice this day) |
 | **Poisoner's Apply Poison**: a dose applied to ONE weapon or piece of ammunition, potent for 1 minute or until that item deals damage | the use puts a **Poison Coating** on the CHARACTER (no weapon picked — the pack's drop-a-weapon card is not drawn): a Bonus Action said on its own card, a dose spent, "+(Poison Coating)" floated; the NEXT weapon hit spends it — the feat's own save at the creatures struck, 2d8 and Poisoned (until the end of the Poisoner's next turn, `sourceEnd`) on a failure; a miss spends nothing (`use-chips.js` COATINGS; the switch is the Fighting Styles list's Poisoner) | no weapon bookkeeping, and the poison always meets the next thing the Poisoner hits (the user, 2026-09-26: *"make it a buff applied to the actor"*) | 2026-09-26 |
+| **Chef**'s Bolstering Treats: cooked "with 1 hour of work or when you finish a Long Rest", they last 8 hours, and "a creature can use a Bonus Action to eat one" for Temporary Hit Points equal to the Proficiency Bonus | after the Chef's Long Rest a popup hands them out: up to the Proficiency Bonus creatures on the scene (the Chef too) gain that many Temporary Hit Points at once — no treat to carry, no Bonus Action (`REST_GRANTS` "Bolstering Treats", `rest-grants.js`) | no treat bookkeeping, and the party starts the day with them (the user, 2026-09-26: Bolstering Treats as temp HP handed out after the Long Rest) | 2026-09-27 (ruled 2026-09-26) |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
@@ -912,7 +917,8 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
   Charger, Grappler's Punch and Grab, Mounted Combatant's rest and War Caster's Reactive Spell are
   PARKED. ⚠ Correction: Crusher's and Slasher's crit halves were NOT in — `EFFECT_BENDS` rows
   nothing applied, and the pack's "Slashed" is Hamstring's speed −10. The build is six groups;
-  1–3 are built (below), 4–6 wait in BACKLOG *The PHB feats, groups 4–6*.
+  1–3 are built (below), 4–6 since 2026-09-27 (*The PHB feats — groups 4–6*, Polearm Master's
+  options in BACKLOG *The PHB feats — Polearm Master, the options*).
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
 
@@ -1001,3 +1007,90 @@ the character the same walk (*Bent by choice*).
 - ⚠ **Stored lists**: a world keeps its own Fighting Styles, Clock Riders, Damage Rolled Twice and
   Maneuver Folds lists — the new names arrive with Reset Defaults or by hand (BACKLOG, the next
   release).
+
+## The PHB feats — groups 4–6 (2026-09-27)
+
+**Built in one autonomous pass** (the user: *"do a careful run of 4-6, working on each with full
+review and not guessing/memory as to the shape it should be"*), off BACKLOG's drawing of
+2026-09-26 — each feat measured on the pack first (`tools/probe-pack-shapes.mjs`, the sandbox,
+2026-09-27) and its precedent named before a table was chosen (SWEEP §1). The calls made while the
+user was away are marked ⓐ; nothing here is walked yet.
+
+**Group 4 — the saves: Mage Slayer.** The pack ships one activity, Guard Mind (a utility that
+spends the item's one use, back on a Short or Long Rest), and nothing for the breaker.
+- **Concentration Breaker** — a `FIGHTING_STYLES` row (gate `always`, `feat`, `breaks:
+  "concentration"`): the feat's face, and the Fighting Styles list its switch, as Elemental
+  Adept's and Poisoner's damage rules are. The precedent is Extended Spell's mark on a
+  concentration save: the concentration ask RECORDS the damage's dealer (the card that dealt it
+  names its actor — `concentration.js` `breakerFor`), the ask card and its dialog say
+  "Mage Slayer (Morgash) — the save is made at Disadvantage", and the save gate lists it, counted.
+  The roll carries `disadvantage` alone, so dnd5e nets it with the concentrator's own Advantage:
+  War Caster beside Mage Slayer is a plain roll. The buzzer and auto mode roll it too (Heightened
+  Spell's buzzer, the same shape). Damage with no card (a sheet edit) names no dealer — nothing.
+- **Found on the way, fixed with it:** the save gate never listed War Caster on a concentration
+  save — dnd5e 6.0.5's `rollConcentration` reads `system.attributes.concentration.roll.mode`,
+  a key the gate's mode reader did not know — so the net beside Mage Slayer would have been
+  Disadvantage where the roll is plain. `modeKeys` reads it now (`tests/decide-reminders.test.js`).
+- **Guarded Mind** — a new D20 fold kind, `succeed` (R4 pin 34 → 35): a failed Intelligence,
+  Wisdom or Charisma save made a success, paid through the pack's own Guard Mind activity (dnd5e
+  takes the use). No die and no reroll — the contribution is the VERDICT (`decide/verdict.js`,
+  the save side's `verdict`, the way a negate hold forces the attack side's). Its row is
+  `SAVE_SUCCEEDS` (the feat, the activity, the label, the three abilities, the rule verbatim); the
+  D20 Folds list's `Mage Slayer:succeed` is the switch. Offered where the fold machine already
+  offers: on a save the module DEMANDED, after the failure and before the verdict applies (the
+  withhold), the save's own verdict line then reading "saved (Guarded Mind)"; on a save rolled from
+  the sheet, as an offer the roller judges — no DC exists there (the DC finding).
+- ⚠ **Stored lists**: a world keeps its own Fighting Styles and D20 Folds lists — the two new
+  names arrive with Reset Defaults or by hand.
+- `smoke-concentration` §16, `smoke-saves` §27, `smoke-d20-folds` §11, `tests/decide-verdict.test.js`,
+  `tests/decide-reminders.test.js`, `tests/decide-present.test.js`, `tests/decide-registry.test.js`.
+
+**Group 5 — the rest grants: Inspiring Leader, Chef.** Musician's after-rest popup (`REST_GRANTS`
+`to: "allies"`, `rest-grants.js`), grown two grants; the amounts are the pack's own heal activities'
+(N1), never typed.
+- **Inspiring Leader** (`grant: "temphp"`): after a Short or Long Rest, up to six creatures within
+  30 ft, the owner too (`self`), each given Temporary Hit Points = the activity's formula (level + the
+  modifier). ⓐ The activity is the one for the ability the feat RAISED — its own Ability Score
+  Improvement record (`asiAssigned`, moved to `lookup.js` with this second customer), else the higher
+  modifier of the activities the sheet still carries (the Poisoner's pick). ⓐ Temporary Hit Points do
+  not stack, so a creature already holding as many is greyed "(has N temp HP)" and one holding fewer
+  is raised to the amount (`decide/rest-grants.js` `holdsTemp`).
+- **Chef — Bolstering Treats**: after a Long Rest, the Proficiency Bonus in Temporary Hit Points to
+  up to that many creatures — handed out, a bend by choice (ruled 2026-09-26; *Bent by choice*). ⓐ The
+  rule names no distance, so every ally on the scene is listed (`reach: null`); the owner too.
+- **Chef — Replenishing Meal** (`grant: "meal"`): after the Chef's Short Rest, up to 4 + the
+  Proficiency Bonus eaters (the text's number; the pack's activity targets 4). Every creature rests on
+  its own client in any order, so ⓐ the meal is judged per eater off its OWN Short Rest card — which
+  the module now stamps with the Hit Dice spent (`restSpent`; dnd5e writes it only in words, NOTES §2):
+  rested and spent Hit Dice → the activity's 1d8 is healed at once, the dice on one card; rested and
+  spent none → greyed "(spent no Hit Dice)"; still resting → the eater carries the meal (`mealFed`, an
+  actor flag) and its own rest's end heals it if it spent a Hit Die. ⓐ "The same rest" is the same
+  Rest request when both rests answer one, else ends within two hours of each other.
+- ⚠ **Stored list**: a world keeps its own Rest Grants list — "Inspiring Leader, Bolstering Treats,
+  Replenishing Meal" arrive with Reset Defaults or by hand.
+- `smoke-rest` §8–§11, `tests/decide-rest-grants.test.js`.
+
+**Group 6 — the reaction attacks: Sentinel (built); Polearm Master (options only, the user's
+call).** SWEEP §1's "Turn chit / the Reaction" family; the precedent is Retaliation's row on
+`REBUKES` — a Reaction taken when damage lands, answered with one melee attack with the weapon last
+swung (`rebukes.js`).
+- **Guardian** — a `REBUKES` row with `ward`: the bearer is a BYSTANDER. When an attack's damage lands
+  (`hit`: its card an attack's), every OTHER creature on the scene holding a listed ward — not the one
+  hit, not the one hitting — within 5 ft of the hitter is asked (`stampWards`), Riposte's popup and
+  card: "Hobgoblin hit Gren — strike?". Use drives the melee attack at the hitter, its cards marked
+  `opportunity`; the Reaction is spent. ⓐ Asked only when the hitter stands on ANOTHER side of the map
+  (token disposition): RAW any creature's hit triggers it, but a popup on every friend's hit is noise
+  — punishing a friend stays a sheet attack. ⓐ Offered when the hit's damage LANDS (the rebukes' seam:
+  after any reaction that could still turn the hit), so a hit dealing no damage asks nothing
+  (*Where the table bends the rule*). The **Disengage** half is not offered — nothing records a
+  Disengage (NOTES §2); the row's caveat says so.
+- **Halt** — a `CLOCK_RIDERS` row (`judge: "opportunity"`): the pack's own "Halted" (Speed 0) lands on
+  the hit (`lands`, group 3's path), for the rest of the CURRENT turn — the new `halt` clock, pinned to
+  the turn it lands in rather than the attacker's (`TURN_PINNED`, `effect-riders.js` `clockPlace`);
+  out of combat, the pack's own duration. Due on the Opportunity Attack the module drove, and ⓐ on any
+  melee hit the Sentinel makes off its own turn in a running combat — an Opportunity Attack made from
+  the sheet carries no mark of its own — ticked with the caveat "only on an Opportunity Attack".
+- ⚠ **Stored lists**: a world keeps its own Rebukes and Clock Riders lists — "Sentinel" joins both.
+- `smoke-goliath` §5, `tests/decide-rebukes.test.js`, `tests/decide-clock.test.js`.
+- **Polearm Master — not built; the options are BACKLOG's** (*The PHB feats — Polearm Master, the
+  options*), for the user to rule: its Reactive Strike is the first rule whose trigger is MOVEMENT.
