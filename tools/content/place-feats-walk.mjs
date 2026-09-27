@@ -82,6 +82,7 @@ const out = await f.evaluate(async () => {
     if (o.flags) delete o.flags.battleflow;
     foundry.utils.setProperty(o, 'system.traits.weaponProf.mastery.value', []);
     foundry.utils.setProperty(o, 'system.traits.dr.value', []);
+    foundry.utils.setProperty(o, 'system.attributes.inspiration', false);   // the base fixture's Heroic Inspiration would fold a missed attack
     o.folder = folder.id;
     return o;
   };
