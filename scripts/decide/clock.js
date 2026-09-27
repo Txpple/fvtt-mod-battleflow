@@ -1,25 +1,17 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: is a clock rider DUE on this hit, and what does its part read as?
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * A clock rider's condition is the ROUND or the TURN (decide/registry.js CLOCK_RIDERS), read by the
- * EDGE off the running combat. Decided here: whether the rules say it applies now, and why not.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): is a clock rider (registry.js CLOCK_RIDERS) DUE on
+ * this hit — its ROUND or TURN condition, read by the EDGE off the combat — and why not.
  */
 
-/**
+/** `opportunity`: "driven" (the module drove an Opportunity Attack), "offTurn" (a melee attack off
+ * the attacker's combat turn), or null.
  * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean,
  *          dealt?: string, crit?: boolean}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean, form?: string|null,
  *          dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null}} facts
- *          `form`: the transformation standing on the bearer, by name (a `transformed` row), or null;
- *          `dealt`: the damage types this hit deals; `critical`: a Critical Hit;
- *          `opportunity`: "driven" — the module drove this attack as an Opportunity Attack;
- *          "offTurn" — a melee attack off the attacker's own turn in combat; null — neither
- * @returns {{due: boolean, why: string}}
- */
+ * @returns {{due: boolean, why: string}} */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
   sneakArmed = false, raging = false, weapon = false, form = null, dealt = [], critical = false, opportunity = null } = {}) {
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
@@ -43,7 +35,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( chitStands ) return { due: false, why: "already used this turn" };
       if ( form ) return { due: true, why: inCombat ? `${form} — once this turn` : `${form} — out of combat, every hit` };
       return { due: true, why: inCombat ? "once this turn" : "out of combat — every hit" };
-    // Every hit, uses permitting (Fire's Burn, Frost's Chill): the use is the only clock, judged above.
+    // Every hit, uses permitting (Fire's Burn): the use is the only clock.
     case "any":
       if ( row.crit ) return { due: true, why: `a Critical Hit that deals ${row.dealt ?? "damage"}` };
       return { due: true, why: "on any hit, while its uses last" };
@@ -52,13 +44,9 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
   }
 }
 
-/**
- * A damage part's formula as the pack wrote it — plain dice, a custom formula, a bonus, or a
- * bonus alone (Assassinate's part is a blank die with `@classes.rogue.levels` as its bonus).
- * The EDGE resolves the tokens on the sheet and validates the result; null means no part.
+/** A damage part's formula as written: dice, custom, bonus, or a bonus alone (Assassinate); null = none.
  * @param {{number?: number|null, denomination?: number|null, custom?: {enabled?: boolean, formula?: string}|null, bonus?: string|null}} part
- * @returns {string|null}
- */
+ * @returns {string|null} */
 export function riderPartFormula({ number = null, denomination = null, custom = null, bonus = null } = {}) {
   let base = null;
   if ( custom?.enabled && String(custom.formula ?? "").trim() ) base = String(custom.formula).trim();
@@ -68,14 +56,10 @@ export function riderPartFormula({ number = null, denomination = null, custom = 
   return base ?? (extra || null);
 }
 
-/**
- * WHERE A RIDER'S USES LIVE: the ACTIVITY's own when it carries a max (Dreadful Strike), else —
- * for a `uses` row — the ITEM (the species packs put every use there). Null when neither carries a
- * max. The EDGE writes the spend back where `on` says.
+/** WHERE A RIDER'S USES LIVE: the ACTIVITY's with a max, else for a `uses` row the ITEM's (species packs).
  * @param {{activity?: {max?: unknown, value?: unknown, spent?: unknown}|null,
  *          item?: {max?: unknown, value?: unknown, spent?: unknown}|null, uses?: boolean}} facts
- * @returns {{left: number, max: number, spent: number, on: "activity"|"item"}|null}
- */
+ * @returns {{left: number, max: number, spent: number, on: "activity"|"item"}|null} */
 export function riderUsesFrom({ activity = null, item = null, uses = false } = {}) {
   const carries = u => !!u && !((u.max === "") || (u.max === null) || (u.max === undefined));
   const read = (u, on) => ({ left: Number(u.value ?? 0) || 0, max: Number(u.max) || 0, spent: Number(u.spent ?? 0) || 0, on });
@@ -84,16 +68,11 @@ export function riderUsesFrom({ activity = null, item = null, uses = false } = {
   return null;
 }
 
-/**
- * WHICH FORM STANDS (a `transformed` row, Celestial Revelation): the first of the row's forms whose
- * mark is on the bearer — the effect it lands on its bearer, by name; or, for a form that lands
- * nothing on its bearer (Necrotic Shroud), the module's form chip, never by name, so a creature
- * frightened BY a Shroud (an effect named the same) is not read as wearing one. Null when none.
+/** WHICH FORM STANDS (Celestial Revelation): by its effect's name, or by the module's form chip —
+ * never by name — for Necrotic Shroud, so one frightened BY a Shroud is not read as wearing one.
  * @param {{forms?: ReadonlyArray<{form: string, effect?: string, chip?: string, type: string}>}} row
- * @param {Array<{name: string, active: boolean, chip: string|null}>} effects   the bearer's effects;
- *        `chip` is the form a module form chip marks (lower-cased), null on every other effect
- * @returns {{form: string, effect?: string, chip?: string, type: string}|null}
- */
+ * @param {Array<{name: string, active: boolean, chip: string|null}>} effects
+ * @returns {{form: string, effect?: string, chip?: string, type: string}|null} */
 export function standingForm(row, effects) {
   const lc = v => String(v ?? "").toLowerCase();
   for ( const f of row?.forms ?? [] ) {

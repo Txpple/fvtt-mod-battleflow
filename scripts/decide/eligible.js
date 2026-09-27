@@ -1,32 +1,17 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the eligibility predicates — "does this
- * thing qualify?" from data alone. The eligibility that walks documents or awaits
- * (`usableReaction`, `ridersAgainst`, mastery) is EDGE and stays in its machine; this is the
- * arithmetic under it.
- *
- * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the eligibility predicates, from data alone;
+ * what walks documents or awaits stays EDGE. ⚠ Depend downward only (no machine, spine or core.js).
  */
 
-/**
- * Dead for a save demand: the dead status, or an NPC at 0 HP.
- *
- * ⚠⚠ DELIBERATELY NARROWER than mastery's skip (plain `hp <= 0`) and NOT SHARED WITH IT: a
- * dying PC at 0 HP must still be demanded (the damage and the death-save failures are real),
- * while a downed PC's mastery chips are noise. Do not merge the two.
- */
+/** Dead for a save demand: the dead status, or an NPC at 0 HP. ⚠⚠ NARROWER than mastery's skip
+ * and never merged with it: a dying PC at 0 HP must still be demanded. */
 export function isDeadForSaves(actor) {
   if ( actor.statuses?.has?.("dead") ) return true;
   return (actor.type === "npc") && ((actor.system.attributes?.hp?.value ?? 0) <= 0);
 }
 
-/**
- * The state of an item's OWN limited uses: "none" (it has no pool), "available" (a pool with
- * charges left) or "spent" (a pool, all used).
- *
- * A spell is paid by a slot or by the statblock's x/day pool, and a monster usually has only the
- * pool (NPC slot maxima usually sit at 0). Activity-level pools count too.
- */
+/** An item's OWN limited uses, activity pools included: "none", "available" or "spent". */
 export function limitedUses(item) {
   const pools = [item.system?.uses, ...(item.system?.activities?.contents ?? []).map(a => a.uses)];
   let pooled = false;
@@ -39,28 +24,17 @@ export function limitedUses(item) {
   return pooled ? "spent" : "none";
 }
 
-/**
- * Can this item actually be USED as a reaction?
- *
- * ⚠ A NAME MATCH IS NOT A REACTION: a worn "Shield" (equipment) matches the list by name. Worn
- * equipment has no activation, so requiring one drops it.
- * ⚠ Test the ITEM's activation too: spells keep their casting time at item level, and an
- * activity carries its own only when `activation.override` is set.
- */
+/** Can this item be USED as a reaction? ⚠ A name match is not: a worn "Shield" has no activation.
+ * ⚠ Spells keep their casting time on the ITEM; an activity's counts only with `override`. */
 export function isReactionItem(item) {
   if ( item?.system?.activation?.type === "reaction" ) return true;
-  // ⚠ SPELLS inherit; FEATURES declare (NOTES *Activation: spells inherit it, features declare
-  // it*): a feature's activity has its own activation and no override flag.
+  // ⚠ NOTES *Activation: spells inherit it, features declare it*.
   const spell = item?.type === "spell";
   return (item?.system?.activities?.contents ?? []).some(activity =>
     (activity.activation?.type === "reaction") && (!spell || activity.activation?.override));
 }
 
-/**
- * A feature the pack ships as TEXT ONLY — no activation, no activities (the 2024 Uncanny Dodge).
- * A list naming one means the feature by name. Features only: equipment and spells must still
- * declare an activation (the worn-Shield guard).
- */
+/** A feature shipped as TEXT ONLY (the 2024 Uncanny Dodge); features only (the worn-Shield guard). */
 export function isTextOnlyFeature(item) {
   if ( item?.type !== "feat" ) return false;
   if ( item?.system?.activation?.type ) return false;
@@ -70,12 +44,9 @@ export function isTextOnlyFeature(item) {
 }
 
 /**
- * The level a use was cast at, from the usage config. TWO channels, take the higher: the
- * chosen slot, and base + scaling — `_prepareUsageConfig` defaults `spell.slot` to the BASE
- * key even when scaling was passed bare, so neither channel alone answers both shapes.
- *
- * ⚠ At POST-use, prefer the message's own `system.spellLevel`: the system re-resolves scaling
- * during consume, and a bare `use({scaling})` reaches postUse with scaling 0.
+ * The cast level from the usage config: the higher of the slot and base + scaling (the system
+ * defaults `spell.slot` to the BASE key even with bare scaling). ⚠ At POST-use prefer the
+ * message's `system.spellLevel`: a bare `use({scaling})` reaches postUse with scaling 0.
  */
 export function castLevelOf(activity, usageConfig) {
   const base = activity.item?.system?.level ?? 0;
@@ -84,11 +55,7 @@ export function castLevelOf(activity, usageConfig) {
   return Math.max(m ? Number(m[1]) : 0, base + scaling);
 }
 
-/**
- * How many projectiles this volley actually throws, or null when it is not a volley after all.
- * A distinct-targets entry (Steel Wind Strike) clamps to the target count. Fewer than two is not
- * a volley — one projectile is just a damage roll.
- */
+/** The volley's projectile count, or null under two; a distinct-targets entry clamps to targets. */
 export function clampVolleyCount(count, targetCount, distinct = false) {
   let n = count;
   if ( distinct ) n = Math.min(n, targetCount);

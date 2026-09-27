@@ -1,22 +1,13 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: Sneak Attack, and what Cunning Strike does to its dice.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * The tick is at the GATE (ticked when what the module read says the conditions hold); Cunning
- * Strike is picked on the damage offer after the hit, its costs come off the sneak dice BEFORE
- * the roll, a crit doubles what is left, and once per turn is a turn chip. Decided here: the
- * arithmetic and the reading, never the choice.
+ * Battle Flow — DECISION: Sneak Attack, and what Cunning Strike does to its dice (ARCHITECTURE.md
+ * §2). Costs come off the dice BEFORE the roll, a crit doubles what is left. The arithmetic and the
+ * reading, never the choice.
  */
 
-/**
- * A dice formula the sheet resolved — "7d6" — as a number of dice and their faces, or null for
- * anything else (an unresolved `@scale` token rolls ZERO in silence, NOTES §2, so a formula
- * that is not plain dice is never armed).
+/** A resolved "7d6" as dice and faces, else null (an unresolved `@scale` rolls ZERO, NOTES §2).
  * @param {string|null|undefined} formula
- * @returns {{number: number, faces: number}|null}
- */
+ * @returns {{number: number, faces: number}|null} */
 export function parseDice(formula) {
   const m = /^\s*(\d+)\s*d\s*(\d+)\s*$/i.exec(String(formula ?? ""));
   if ( !m ) return null;
@@ -26,42 +17,27 @@ export function parseDice(formula) {
   return { number, faces };
 }
 
-/**
- * Does the WEAPON qualify? "the attack uses a Finesse or a Ranged weapon" — the two facts the
- * module can read off the item and the roll.
- * @param {{finesse?: boolean, ranged?: boolean}} weapon
- */
+/** Does the WEAPON qualify (Finesse or Ranged)?
+ * @param {{finesse?: boolean, ranged?: boolean}} weapon */
 export function sneakWeaponQualifies({ finesse = false, ranged = false } = {}) {
   return !!finesse || !!ranged;
 }
 
-/**
- * Do the ROLL's conditions hold, as far as the module can read them — the box's default tick?
- * "if you have Advantage on the roll", or without it "if at least one of your allies is within
- * 5 feet of the target, the ally doesn't have the Incapacitated condition, and you don't have
- * Disadvantage on the attack roll". `allyNear` is the map's fact: true only when measured for
- * every target; anything else leaves the second clause to the player, whose tick it stays.
- * @param {{net: "advantage"|"disadvantage"|"normal", allyNear?: boolean|null}} roll
- */
+/** The box's default tick: Advantage, or a MEASURED ally near (`allyNear` true) without
+ * Disadvantage; anything unmeasured stays the player's tick.
+ * @param {{net: "advantage"|"disadvantage"|"normal", allyNear?: boolean|null}} roll */
 export function sneakConditionsHold({ net, allyNear = null }) {
   if ( net === "advantage" ) return true;
   return (allyNear === true) && (net !== "disadvantage");
 }
 
-/**
- * The Cunning Strike MENU for one attack: every option the sheet grants, in table order, with
- * the activity the module will use, its cost, and whether the dice can pay for it. A row whose
- * feature is not on the sheet is absent; a row restricted to a weapon (Rend Mind — Psychic
- * Blades) is absent for any other; a row with an upgrade on the sheet (Envenom Weapons) carries
- * the upgrade's activity and what the failure applies on top.
- *
+/** The Cunning Strike MENU: the sheet's options in table order, weapon-restricted rows (Rend
+ * Mind) only for that weapon, an upgrade on the sheet (Envenom Weapons) carried.
  * @param {{options: Readonly<Record<string, any>>, features?: Iterable<string>, weaponName?: string,
  *          dice: number, improved?: string}} facts
- *        `features` = the names of the feat items on the sheet; `dice` = the sneak dice available
  * @returns {{rows: {key: string, label: string, feature: string, activity: string|string[]|null, cost: number,
  *            rule: string, caveat?: string, line: boolean, affordable: boolean,
- *            upgrade?: {feature: string, activity: string, onFail?: string, effectFrom?: string, rule: string}}[], max: number}}
- */
+ *            upgrade?: {feature: string, activity: string, onFail?: string, effectFrom?: string, rule: string}}[], max: number}} */
 export function cunningMenu({ options, features = [], weaponName = "", dice, improved = "Improved Cunning Strike" }) {
   const have = new Set([...features].map(f => String(f).toLowerCase()));
   const rows = [];
@@ -80,12 +56,9 @@ export function cunningMenu({ options, features = [], weaponName = "", dice, imp
   return { rows, max: have.has(String(improved).toLowerCase()) ? 2 : 1 };
 }
 
-/**
- * The PICK: which menu rows were ticked, what they cost together, what is left to roll, and
- * whether the pick is one the rules allow (at most `max`, affordable together).
+/** The PICK: its cost, the dice left, and whether the rules allow it (at most `max`, affordable).
  * @param {{rows: {key: string, cost: number}[], chosen?: Iterable<string>, dice: number, max: number}} facts
- * @returns {{chosen: any[], cost: number, remaining: number, tooMany: boolean, tooDear: boolean}}
- */
+ * @returns {{chosen: any[], cost: number, remaining: number, tooMany: boolean, tooDear: boolean}} */
 export function cunningPick({ rows, chosen = [], dice, max }) {
   const wanted = new Set(chosen);
   const picked = rows.filter(r => wanted.has(r.key));
@@ -93,11 +66,8 @@ export function cunningPick({ rows, chosen = [], dice, max }) {
   return { chosen: picked, cost, remaining: Math.max(0, dice - cost), tooMany: picked.length > max, tooDear: cost > dice };
 }
 
-/**
- * The damage part the sneak dice ride as, after the costs: "5d6", or null when nothing is left
- * (every die forgone — the effects still land; the rule spends the dice, not the hit).
- * @param {{number: number, faces: number, cost?: number}} dice
- */
+/** The sneak dice after the costs ("5d6"), or null when all are forgone (the effects still land).
+ * @param {{number: number, faces: number, cost?: number}} dice */
 export function sneakFormula({ number, faces, cost = 0 }) {
   const left = number - (Number(cost) || 0);
   return (left > 0) ? `${left}d${faces}` : null;

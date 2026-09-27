@@ -1,7 +1,6 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES, per
- * target, receipts throughout: effects per outcome, the SAVE_PRESSES status press, Evasion and
- * Circle of Power, the chained damage at the verdict's multiplier.
+ * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
+ * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { applicableProfiles, cardActivity, resolveUuid } from "../lookup.js";
@@ -19,16 +18,11 @@ import { applyEffectsWithReceipt } from "../effect-riders.js";
 import { gateSaveChoice, announceBashOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
 
-/* --- the consequences: per target, receipts throughout -------------------------------------- */
-
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
 const saveApplications = new Set();
 
-/**
- * One target's consequences, once: wait out the dice (the verdict pause), then effects per
- * outcome, then any already-rolled damage. ⚠ The flag is RE-READ after the pause: a
- * legendary-resistance flip landing mid-pause overturns the outcome before anything applied.
- */
+/** One target's consequences, once: the verdict pause, effects, then rolled damage. ⚠ RE-READ the
+ * flag after the pause: a legendary-resistance flip can land mid-pause. */
 export async function applySaveConsequences(card, uuid, rollMessage = null) {
   const key = `${card.id}|${uuid}`;
   if ( saveApplications.has(key) ) return;
@@ -44,8 +38,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
 
-    // ⚠ The consequence is a write to the SAVER. With no GM connected, a PC saver's own player
-    // can still apply; a monster's cannot, so say so — the verdict on the card stands.
+    // ⚠ A write to the SAVER: with no GM, a monster's cannot be made — say so.
     const saver = resolveUuid(uuid);
     if ( (saver instanceof Actor) && !canApplyTo(saver) ) {
       await whisperNoGM(`${entry.name ?? saver.name}'s save consequences`,
@@ -53,11 +46,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
       return;
     }
 
-    // No verdict card here: the usage card already carries the verdict, once.
-
-    // A fold CHOICE can hold this target's pass (Interpose on a successful DEX save, the bash's
-    // Prone-or-push on a failed listed save). `applied` stays false, so the update/render floors
-    // resume the pass when the answer (or the buzzer's default) lands.
+    // A fold CHOICE (Interpose, the bash) holds the pass; `applied` stays false so the floors resume it.
     if ( await gateSaveChoice(card, flag, entry) ) return;
     flag = card.getFlag(MODULE_ID, "saves");   // the choice write moved the flag — re-read
     entry = flag?.targets?.find(t => t.uuid === uuid);
@@ -68,8 +57,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
 
-    // ⚠ THROUGH THE SERIALIZER: two targets' passes run at once against this card, and a lost
-    // `applied` reads as "not applied yet" to the reconcile — the damage lands twice.
+    // ⚠ THROUGH THE SERIALIZER: a lost `applied` (two targets at once) lands the damage twice.
     await queueFlagWrite(card, "saves", current => {
       const done = current.targets?.find(t => t.uuid === uuid);
       if ( done && !done.applied ) done.applied = true;
@@ -82,29 +70,20 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
   }
 }
 
-/**
- * The activity's effects, filtered by the verdict: a failure applies them all, a success only
- * the entries whose own `onSave` says so (the system stores it; nothing native reads it).
- * Through the shared applier, with the caster's concentration effect as origin when the card
- * carries one, so the native dependentOn cascade rides along.
- */
+/** The activity's effects by verdict: all on a failure, on a success only `onSave` entries (stored
+ * by the system, read by nothing native). The concentration origin keeps the dependentOn cascade. */
 async function applySaveEffects(card, flag, entry) {
-  // A bash ANSWER replaces the generic pass: announceBashOutcome owns the push card and the
-  // standard Prone chip (never the item's own custom effect).
+  // A bash ANSWER replaces the generic pass (announceBashOutcome owns it).
   if ( (entry.choice?.kind === "bash") && entry.choice.answer ) return;
-  // An emanation's triggered demand: the activity's effect is the area's STANDING effect, kept
-  // by the region — applying it again would double it. Damage still lands.
+  // A triggered demand's effect is the area's STANDING effect — never doubled. Damage still lands.
   if ( flag.effectsHandled ) return;
-  // Through the CARD (lookup.js): an item the use deleted (a thrown vial, a scroll's last use)
-  // is read off the card's snapshot.
+  // Through the CARD: the use may have deleted the item (a thrown vial, a scroll's last use).
   const activity = cardActivity(card, flag.activityUuid);
   if ( !activity ) return;
-  // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const toApply = (await applicableProfiles(activity))
     .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)
     .map(({ effect }) => effect);
-  // A pack that brought NO effect for a failure the text names (Web's Restrained — SAVE_PRESSES):
-  // press the standard status, the caster as origin, receipted on the card so the revert is there.
+  // No pack effect for a failure the text names (Web's Restrained): press the standard status.
   if ( !toApply.length && (entry.outcome === "failed") ) {
     const press = SAVE_PRESSES[activity.item?.name] ?? null;
     if ( press?.onFail ) await pressSaveStatus(card, flag, entry, press);
@@ -120,11 +99,7 @@ async function applySaveEffects(card, flag, entry) {
   });
 }
 
-/**
- * EVASION applies to this demand for this saver (decide/registry.js EVASION): the feature on
- * the sheet by name, a Dexterity save, an effect that deals half on a success, the saver not
- * Incapacitated. Read at the fold and stamped on the entry; the multiplier and the row read it.
- */
+/** Does EVASION (registry.js) apply? Read at the fold and stamped on the entry. */
 export function evasionApplies(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return false;
   if ( !flag.abilities?.includes?.(EVASION.ability) ) return false;
@@ -132,8 +107,7 @@ export function evasionApplies(actor, flag) {
   return actor.items.some(i => (i.type === "feat") && (i.name.toLowerCase() === EVASION.feature.toLowerCase()));
 }
 
-/** A standing effect that turns this saver's SUCCESS against half-on-save damage into none
- * (the effect table's `halfToNone` — Circle of Power against a spell): the row's key, or null. */
+/** The key of a `halfToNone` effect (Circle of Power) on this saver, or null. */
 export function noneOnSuccessFor(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
   if ( !reminderEntries().some(e => e.kind === "effect") ) return null;
@@ -142,8 +116,7 @@ export function noneOnSuccessFor(actor, flag) {
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null });
 }
 
-/** The SAVE_PRESSES press: the canonical status on the failer, receipted as an applied effect
- * (the effect the status became — so the card's revert removes exactly it). */
+/** The SAVE_PRESSES status on the failer, receipted as the effect it became (so revert removes it). */
 async function pressSaveStatus(card, flag, entry, press) {
   const subject = await fromUuid(entry.uuid).catch(() => null);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
@@ -159,15 +132,14 @@ async function pressSaveStatus(card, flag, entry, press) {
   });
 }
 
-/** Every damage roll chained to the demand card (its origin is the card), across the whole log. */
+/** Every damage roll chained to the demand card, across the whole log. */
 export function saveDamageMessages(card) {
   return game.messages.contents.filter(m =>
     isCard(m, CARD.damage) && (originIdOf(m) === card.id));
 }
 
-/** Land one chained damage roll on one target at its verdict's multiplier — the receipt says
- * why. Shared by the reconcile pass (behind its guards) and the legendary-resistance unwind,
- * which reverts first and re-applies DIRECTLY past the reconcile's receipt guard. */
+/** One chained damage roll on one target at its verdict's multiplier. The legendary-resistance
+ * unwind calls it DIRECTLY, past the reconcile's receipt guard. */
 export async function applyOneSaveDamage(damageMessage, flag, entry) {
   const damageOnSave = onSaveOf(damageMessage) ?? flag.damageOnSave ?? "half";
   const multiplier = saveMultiplier(entry, damageOnSave);
@@ -188,30 +160,21 @@ export async function applyOneSaveDamage(damageMessage, flag, entry) {
 /** Per (damage message, target) latch — the fold path and the damage-arrival path share it. */
 const saveDamageApplications = new Set();
 
-/**
- * Land every chained damage roll on every DONE target with no receipt entry yet, at the
- * verdict's multiplier (the receipt records a non-1 multiplier). Order-independent: the receipt
- * gate makes every path idempotent. Gated on Auto-Apply Damage.
- */
+/** Every chained roll on every DONE, unreceipted target; the receipt gate makes it idempotent. */
 export async function reconcileSaveDamage(card, onlyUuid = null) {
   if ( !setting(S.autoApply) ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
-  // A demand with no damage dimension (no parts, or rider damage the save does not modulate)
-  // never applies chained damage by verdict: an enricher click chains to the card too, and the
-  // native tray owns those rolls.
+  // No damage dimension: an enricher click chains to the card too, and the native tray owns it.
   if ( !flag.hasDamage ) return;
   for ( const damageMessage of saveDamageMessages(card) ) {
     for ( const entry of flag.targets ) {
       if ( !entry.done ) continue;
-      // ⚠ The general passes apply only targets whose consequence pass FINISHED — the verdict
-      // pause gates damage too, and a reconcile racing ahead of it would land damage while the
-      // effects still wait. The explicit per-target path (`onlyUuid`) applies regardless.
+      // ⚠ Only FINISHED passes (the verdict pause gates damage too); `onlyUuid` applies regardless.
       if ( onlyUuid ? (entry.uuid !== onlyUuid) : !entry.applied ) continue;
       const key = `${damageMessage.id}|${entry.uuid}`;
       if ( saveDamageApplications.has(key) ) continue;
-      // ANY receipt entry — reverted included — means handled: a human's manual ↩ revert must
-      // stick, never be re-fought by the machine.
+      // ANY receipt entry, reverted included, is handled: a manual ↩ revert sticks.
       if ( damageMessage.getFlag(MODULE_ID, "receipt")?.targets
         ?.some(t => t.uuid === entry.uuid) ) continue;
       saveDamageApplications.add(key);

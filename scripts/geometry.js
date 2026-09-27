@@ -1,18 +1,11 @@
 /**
- * Battle Flow — EDGE layer (ARCHITECTURE.md §2): area containment, token distance and measured
- * cover — the half that needs Foundry (token documents, `canvas.grid`, wall collision). The pure
- * arithmetic lives in decide/geometry.js and decide/cover.js.
- *
- * ⚠ No hooks, no flags, no writes. Nothing here may be given any.
+ * Battle Flow — EDGE layer (ARCHITECTURE.md §2): containment, token distance in FEET and measured
+ * cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
+ * ⚠ No hooks, no flags, no writes.
  */
 import { TITLE } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
-
-/* ---------------------------------------------------------------------------------------------
- * Token distance, in FEET — shared by the reminder gate and the damage service (the 5-foot
- * automatic crit); here because a service may not import a machine.
- * ------------------------------------------------------------------------------------------- */
 
 /** The roller's own token for this actor: a controlled one first, else the first on the canvas. */
 export function tokenOfActor(actor) {
@@ -22,15 +15,12 @@ export function tokenOfActor(actor) {
   try { return actor.getActiveTokens?.(true, false)?.[0] ?? null; } catch { return null; }
 }
 
-/**
- * The creatures that could stand GUARD over a token (Interception, Protection): tokens on the
- * guarded one's side (friendly with friendly, hostile with hostile), alive and not Incapacitated,
- * within `feet`, bar the `exclude` actors. A neutral or secret guarded token has no side: nobody.
+/** Who could GUARD a token (Interception, Protection): its side, alive, not Incapacitated, within
+ * `feet`. A neutral or secret token has no side: nobody.
  * @param {Token} guarded
  * @param {number} feet
- * @param {string[]} [exclude]  actor uuids never asked
- * @returns {Token[]}
- */
+ * @param {string[]} [exclude]  actor uuids
+ * @returns {Token[]} */
 export function alliesWithin(guarded, feet, exclude = []) {
   const side = guarded?.document?.disposition;
   if ( !guarded || ((side !== 1) && (side !== -1)) ) return [];
@@ -47,25 +37,20 @@ export function alliesWithin(guarded, feet, exclude = []) {
   return out;
 }
 
-/** The canvas token whose actor carries this uuid — a linked actor's or a token's own synthetic one. */
+/** The canvas token whose actor (linked or synthetic) carries this uuid. */
 export function tokenForUuid(uuid) {
   return canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
 }
 
-/**
- * Every occupied square's center for a token, from its document's SOURCE — the committed
- * position, where the walk ends.
- * ⚠ While a token animates a move, its document's `x`/`y` are INTERIM (they follow the drawn
- * token); `_source.x`/`y` hold the destination as soon as the update resolves. Read the source.
- */
+/** Every occupied square's center, from the committed SOURCE. ⚠ While a token animates, the
+ * document's `x`/`y` are INTERIM; `_source` holds the destination. */
 function documentSquares(doc) {
   const grid = doc.parent?.grid?.size;
   if ( !grid ) return [];
   const x = doc._source?.x ?? doc.x, y = doc._source?.y ?? doc.y;
   const w = Math.max(1, Math.round(doc.width ?? 1)), h = Math.max(1, Math.round(doc.height ?? 1));
   if ( (w === 1) && (h === 1) ) return [{ x: x + grid / 2, y: y + grid / 2 }];
-  // The larger body's squares from the same committed corner — no `object`, so the pure reader
-  // never falls back to the drawn center.
+  // No `object`, so the pure reader never falls back to the drawn center.
   return tokenSamplePoints({ parent: doc.parent, width: doc.width, height: doc.height, x, y });
 }
 
@@ -78,12 +63,8 @@ export function feetOf(n, units) {
   return Number.isFinite(feet) ? feet : null;
 }
 
-/**
- * The shortest grid distance between two tokens, IN FEET — every occupied square of each, so a
- * Large body counts from its nearest edge, measured by the scene's grid.
- * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"); convert to feet. Null
- * when either side or the units cannot be read — the decision lists "distance unknown".
- */
+/** The shortest grid distance between two tokens' squares, IN FEET; null when unreadable.
+ * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"). */
 export function nearestFeet(a, b) {
   try {
     const pa = documentSquares(a.document), pb = documentSquares(b.document);
@@ -104,13 +85,8 @@ export function nearestFeet(a, b) {
 }
 
 
-/**
- * The actors standing in the given REGIONS, as demand-target entries — or null when no region
- * exists (distinct from "an area with nobody in it"). Containment is the platform's own
- * `TokenDocument#testInsideRegion`, which needs no canvas.
- * ⚠ Never `region.tokens`: a region just created has not computed its membership yet. Secret
- * tokens stay out.
- */
+/** The actors in the REGIONS (null = no region, unlike an empty area), by `testInsideRegion` (no
+ * canvas needed). ⚠ Never `region.tokens`: a new region has not computed its membership yet. */
 export function tokensInRegions(regions) {
   const docs = (regions ?? []).filter(r => r?.parent && (typeof r.parent.tokens?.filter === "function"));
   if ( !docs.length ) return null;
@@ -127,34 +103,22 @@ export function tokensInRegions(regions) {
       const uuid = tok.actor.uuid;
       if ( seen.has(uuid) ) continue;
       seen.add(uuid);
-      // The token's id and disposition ride along for the readers that filter by them (an
-      // emanation's reach); the demand's own entries keep only uuid and name.
       entries.push({ uuid, name: tok.name, tokenId: tok.id, disposition: tok.disposition });
     }
   }
   return entries;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * MEASURED COVER (RULINGS *Measured cover*): the DMG's corner lines between two tokens, counted
- * in decide/cover.js; the map's half read here. Walls are the platform's MOVE collision test — a
- * closed door blocks, an open one does not, a one-way wall from its side only, a window is cover.
- * The creatures are every other token with an actor, bar a hidden one and a dead one.
- * ------------------------------------------------------------------------------------------- */
-
-/** A token's space from its document's committed SOURCE (see documentSquares), in pixels. */
+/** A token's space from its committed SOURCE (see documentSquares), in pixels. */
 function spaceOf(doc, grid) {
   const x = doc._source?.x ?? doc.x, y = doc._source?.y ?? doc.y;
   return { x, y, w: (doc.width ?? 1) * grid, h: (doc.height ?? 1) * grid };
 }
 
-/**
- * The cover `target` has against `attacker`, by the DMG's corner lines — `{degree, by, lines}` from
- * decide/cover.js — or null when it cannot be measured: either token missing, the two on different
- * scenes, or a hex grid (not built — RULINGS *Measured cover*).
+/** MEASURED COVER (RULINGS *Measured cover*): walls by the MOVE collision test, creatures bar the
+ * hidden and dead; null off one scene or on hex.
  * @param {Token} attacker
- * @param {Token} target
- */
+ * @param {Token} target */
 export function measuredCoverBetween(attacker, target) {
   try {
     const a = attacker?.document, t = target?.document;

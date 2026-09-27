@@ -1,30 +1,26 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE FIGHTING STYLES' arithmetic — what the owner
- * holds, whether a style's face is live, whether a roll fits it, and what a damage floor raised.
- * Pure: plain facts in, plain answers out; fighting-styles.js reads the sheet and the roll.
- * The rows are decide/registry.js FIGHTING_STYLES; RULINGS *The fighting styles*.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE FIGHTING STYLES' arithmetic — what is held, a
+ * face's state, whether a roll fits, what a floor raised. Rows: registry.js FIGHTING_STYLES;
+ * RULINGS *The fighting styles*.
  */
 
-/** A melee weapon's types, as dnd5e names them (a natural weapon is never "held"). */
 const MELEE = new Set(["simpleM", "martialM"]);
 const ARMOR = new Set(["light", "medium", "heavy"]);
 
 /*
  * @typedef {object} ItemFact
  * @property {string} name
- * @property {string} type          the item's document type (weapon, equipment, …)
- * @property {string} [kind]        system.type.value (simpleM, martialR, natural, light, shield, …)
+ * @property {string} type
+ * @property {string} [kind]  system.type.value
  * @property {boolean} equipped
  * @property {string[]} [properties]
- * @property {string} [base]        system.type.baseItem (handcrossbow, …)
+ * @property {string} [base]  system.type.baseItem
  */
 
-/**
- * What the owner HOLDS and WEARS, off the sheet's Equipped boxes — held is equipped (RULINGS
- * *Where the table bends the rule*). A natural weapon (a claw, the Unarmed Strike) is never held.
+/** What the owner holds and wears: held is EQUIPPED (RULINGS *Where the table bends the rule*);
+ * a natural weapon is never held.
  * @param {ItemFact[]} items
- * @returns {{weapons: ItemFact[], armor: ItemFact|null, shield: ItemFact|null}}
- */
+ * @returns {{weapons: ItemFact[], armor: ItemFact|null, shield: ItemFact|null}} */
 export function heldOf(items) {
   const on = (items ?? []).filter(i => i?.equipped === true);
   return {
@@ -35,19 +31,15 @@ export function heldOf(items) {
 }
 
 const has = (item, prop) => (item?.properties ?? []).includes(prop);
-/** The three crossbows, by dnd5e's base item — decide/registry.js CROSSBOWS (this layer imports nothing). */
+/** registry.js CROSSBOWS (this layer imports nothing). */
 const CROSSBOW_IDS = new Set(["handcrossbow", "lightcrossbow", "heavycrossbow"]);
 const isMelee = item => MELEE.has(item?.kind);
 
-/**
- * A style's face: live, or off with the reason. `word` is the one-word state (the item, the
- * die, why it is off), kept on the face's record; the panel shows the name alone. `detail` is
- * the long line, the hover title ("a second weapon held (Dagger)").
+/** A style's face: live, or off; `word` is the one-word state, `detail` the hover line.
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held
- * @param {{small?: string, large?: string}} [dice]  Unarmed Fighting's two dice, as the feat ships them
- * @returns {{live: boolean, word: string, detail: string}}
- */
+ * @param {{small?: string, large?: string}} [dice]  Unarmed Fighting's dice
+ * @returns {{live: boolean, word: string, detail: string}} */
 export function faceState(gate, held, dice = {}) {
   const w = held?.weapons ?? [];
   const lc = item => String(item?.name ?? "").toLowerCase();
@@ -57,8 +49,7 @@ export function faceState(gate, held, dice = {}) {
       return big ? { live: true, word: lc(big), detail: `${big.name}, two hands` }
         : { live: false, word: "unequipped", detail: "no Two-Handed or Versatile melee weapon equipped" };
     }
-    // always on: the attack's thrown mode is the whole gate, and a thrown weapon need not be
-    // equipped to be thrown
+    // always on: a thrown weapon need not be equipped; the attack's mode is the gate
     case "thrown": return { live: true, word: "", detail: "thrown attacks" };
     case "offhand": {
       const light = w.filter(i => has(i, "lgt"));
@@ -103,16 +94,11 @@ export function faceState(gate, held, dice = {}) {
   }
 }
 
-/**
- * Does THIS roll fit the style? The attack's own mode (dnd5e's attackModes) decides the grip;
- * with no mode on the roll (a damage roll made without its attack), a Two-Handed weapon is two
- * hands and anything else one.
+/** Does THIS roll fit? The attack's mode decides the grip (none: Two-Handed is two hands). `ownTurn`
+ * is false only on someone else's combat turn (Heavy Weapon Mastery's "on your turn").
  * @param {string} gate
- * `ownTurn` is false only when a combat runs and it is someone else's turn (an Opportunity Attack):
- * Heavy Weapon Mastery's "as part of the Attack action on your turn".
  * @param {{kind?: string, properties?: string[], mode?: string|null, mod?: number, faceLive?: boolean, ownTurn?: boolean}} roll
- * @returns {boolean}
- */
+ * @returns {boolean} */
 export function rollFits(gate, roll) {
   const mode = roll?.mode || (has(roll, "two") ? "twoHanded" : "oneHanded");
   switch ( gate ) {
@@ -127,15 +113,11 @@ export function rollFits(gate, roll) {
   }
 }
 
-/**
- * The damage types a `typed` row reads off the feat's NAME — "Elemental Adept (Fire)",
- * "Elemental Adept (Fire, Cold)" — every copy on the sheet adding its own.
- * Only a real damage type counts; a copy with no type in its name adds nothing.
- * @param {string[]} names        the feat copies' names
- * @param {string} base           the row's name
- * @param {Iterable<string>} known the damage type keys (CONFIG.DND5E.damageTypes)
- * @returns {string[]}            lower-case keys, each once, in order met
- */
+/** The damage types a `typed` row reads off each copy's NAME ("Elemental Adept (Fire, Cold)").
+ * @param {string[]} names
+ * @param {string} base  the row's name
+ * @param {Iterable<string>} known  CONFIG.DND5E.damageTypes keys
+ * @returns {string[]}  lower-case, each once */
 export function typesInNames(names, base, known) {
   const ok = new Set([...(known ?? [])].map(k => String(k).toLowerCase()));
   const out = [];
@@ -152,39 +134,31 @@ export function typesInNames(names, base, known) {
   return out;
 }
 
-/**
- * THE TYPE PICK: the choices a new copy of a typed feat may still take — the
- * row's own, less the types the actor's other copies already name (Elemental Adept is repeatable,
- * "a different damage type each time").
- * @param {string[]} choices   the row's `choices`
- * @param {string[]} held      the types the other copies name
- * @returns {string[]}
- */
+/** THE TYPE PICK: the row's choices less those other copies name ("a different damage type each time").
+ * @param {string[]} choices
+ * @param {string[]} held
+ * @returns {string[]} */
 export function typeChoicesLeft(choices, held) {
   const have = new Set((held ?? []).map(t => String(t).toLowerCase()));
   return (choices ?? []).filter(t => !have.has(String(t).toLowerCase()));
 }
 
-/**
- * A typed row's face: the types it reads, or off with how to fix it.
- * @param {string} name   the row's name
+/** A typed row's face: the types it reads, or off with how to fix it.
+ * @param {string} name
  * @param {string[]} types
- * @returns {{live: boolean, word: string, detail: string}}
- */
+ * @returns {{live: boolean, word: string, detail: string}} */
 export function typedFace(name, types) {
   if ( !types?.length ) return { live: false, word: "no type", detail: `no damage type chosen — use Choose type on its card, or rename it "${name} (Fire)"` };
   const title = t => t.charAt(0).toUpperCase() + t.slice(1);
   return { live: true, word: types.join(", "), detail: types.map(title).join(" and ") };
 }
 
-/**
- * THE IGNORED RESISTANCE (Elemental Adept, Poisoner): the row's types this damage carries that the
- * target actually resists — the ones worth saying on the receipt. The ignoring itself is dnd5e's.
+/** THE IGNORED RESISTANCE: the row's types this damage carries that the target resists, for the
+ * receipt (the ignoring itself is dnd5e's).
  * @param {{type?: string|null, value?: number}[]} damages
- * @param {string[]} types      the row's types
- * @param {Iterable<string>} resisted  the target's Resistance types
- * @returns {string[]}
- */
+ * @param {string[]} types
+ * @param {Iterable<string>} resisted
+ * @returns {string[]} */
 export function ignoredResistances(damages, types, resisted) {
   const dr = new Set(resisted ?? []);
   const kinds = new Set(types ?? []);
@@ -196,15 +170,12 @@ export function ignoredResistances(damages, types, resisted) {
   return out;
 }
 
-/**
- * THE BLOCK (Heavy Armor Master): the attack's parts of the listed types cut by `amount` in all —
- * "any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by" one
- * number, not one per type — taken from the parts in order, never below 0. Other types stand.
+/** THE BLOCK (Heavy Armor Master): the listed types cut by `amount` IN ALL (one number, not one per
+ * type), from the parts in order, never below 0.
  * @param {{value: number, type?: string|null}[]} damages
  * @param {string[]} types
  * @param {number} amount
- * @returns {{values: number[], cut: number}}  each part's new value, in order, and what was taken
- */
+ * @returns {{values: number[], cut: number}} */
 export function blockDamages(damages, types, amount) {
   let left = Math.max(0, Math.floor(Number(amount) || 0));
   const kinds = new Set(types ?? []);
@@ -218,13 +189,10 @@ export function blockDamages(damages, types, amount) {
   return { values, cut: Math.max(0, Math.floor(Number(amount) || 0)) - left };
 }
 
-/**
- * What a damage floor raised, off the evaluated rolls' JSON: every die result below the floor that
- * the `min` modifier lifted (Foundry keeps the face in `result` and the counted value in `count`).
- * @param {object[]} rolls    evaluated rolls, as JSON
+/** What a `min` floor raised (Foundry keeps the face in `result`, the counted value in `count`).
+ * @param {object[]} rolls  evaluated rolls, as JSON
  * @param {number} minimum
- * @returns {{raised: {from: number, to: number}[], gain: number}}
- */
+ * @returns {{raised: {from: number, to: number}[], gain: number}} */
 export function raisedOf(rolls, minimum) {
   const raised = [];
   const walk = terms => {
@@ -245,11 +213,9 @@ export function raisedOf(rolls, minimum) {
   return { raised, gain: raised.reduce((sum, r) => sum + (r.to - r.from), 0) };
 }
 
-/**
- * The damage card's line for one style that changed a roll.
+/** The damage card's line for one style that changed a roll.
  * @param {{feature: string, gain: number, raised?: {from: number, to: number}[], note?: string}} entry
- * @returns {string}
- */
+ * @returns {string} */
 export function styleLine(entry) {
   if ( entry?.raised?.length ) {
     const faces = [...new Set(entry.raised.map(r => r.from))].sort((a, b) => a - b).join(" and ");
@@ -258,22 +224,15 @@ export function styleLine(entry) {
   return `${entry.feature} — +${entry.gain}${entry.note ? ` ${entry.note}` : ""}`;
 }
 
-/*
- * THE DICE (RULINGS *The dice that rise*): the card line and the canvas show the damage dice as
- * chips; a die Great Weapon Fighting raised turns over from its face to what it counts, and a
- * flat bonus (Dueling, Thrown, Two-Weapon) is one more chip. Nothing is invented for the show.
- */
+// THE DICE as chips (RULINGS *The dice that rise*): a raised die turns over, a flat bonus is a chip.
 
-/** Chips at most: a crit of 4d6 is 8; anything past this is summed into the row's own total. */
+/** Chips at most; past this the row's own total carries it. */
 export const DICE_CAP = 12;
 
-/**
- * Every die the damage rolled, in order, off the evaluated rolls' JSON: its size, what it counts,
- * and the face it showed when a floor raised it (the same test as raisedOf).
- * @param {object[]} rolls    evaluated rolls, as JSON
+/** Every die rolled, in order: size, count, and the face a floor raised it from (as raisedOf).
+ * @param {object[]} rolls  evaluated rolls, as JSON
  * @param {number|null} [minimum]
- * @returns {{faces: number, v: number, was?: number}[]}
- */
+ * @returns {{faces: number, v: number, was?: number}[]} */
 export function diceOf(rolls, minimum = null) {
   const dice = [];
   const walk = terms => {
@@ -295,13 +254,10 @@ export function diceOf(rolls, minimum = null) {
   return dice.slice(0, DICE_CAP);
 }
 
-/**
- * One style's chips: the dice (the raised ones marked), then a flat bonus as its own chip. A style
- * that raised dice shows its gain after them; a flat one IS its chip.
+/** One style's chips: the dice, then a flat bonus as its own chip; a floor's gain follows the dice.
  * @param {{gain: number, raised?: object[]}} entry
  * @param {{faces: number, v: number, was?: number}[]} dice
- * @returns {{chips: {label: string, was?: string, up?: boolean, flat?: boolean, faces?: number}[], after: string}}
- */
+ * @returns {{chips: {label: string, was?: string, up?: boolean, flat?: boolean, faces?: number}[], after: string}} */
 export function chipsOf(entry, dice) {
   const floor = !!entry?.raised?.length;
   const chips = (dice ?? []).map(d => (floor && Number.isFinite(d.was))

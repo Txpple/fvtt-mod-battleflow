@@ -1,40 +1,30 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: what bends an attack roll, and what it nets to.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports. The gate lists
- * every source of Advantage or Disadvantage and shows the net; a human presses the mode (DESIGN
- * R1). Any Advantage against any Disadvantage is a normal roll, however many of each; a source
- * whose bend is unknown is listed and does not vote. The condition table is `CONDITION_BENDS`
- * (decide/registry.js), handed in as a parameter.
+ * Battle Flow — DECISION: what bends a d20 roll, and what it nets to. Pure, no imports
+ * (ARCHITECTURE.md §2); the tables come in as parameters. The gate lists every source and the net;
+ * a human presses the mode (DESIGN R1). A source whose bend is unknown is listed and does not vote.
  */
 
 /** The flag the gate stamps on the attack message it re-issued (`flags.<module>.reminder`). */
 export const REMINDER_FLAG = "reminder";
 
-/** The condition's name as the table says it. */
 const conditionName = key => key.charAt(0).toUpperCase() + key.slice(1);
 
-/**
- * Does an effect on a sheet answer to a table row's name? Exactly, or as the emanation machine
- * names what it applies — the pack's name with the source appended ("Aura of Purity — Thomas").
+/** Does an effect answer to a row's name? Exactly, or as the emanation machine names it
+ * ("Aura of Purity — Thomas").
  * @param {string|null|undefined} effectName
- * @param {string} key
- */
+ * @param {string} key */
 export const effectNamedAs = (effectName, key) => {
   const name = String(effectName ?? "").toLowerCase();
   const k = String(key ?? "").toLowerCase();
   return !!k && ((name === k) || name.startsWith(`${k} — `));
 };
 
-/**
- * Does this worn effect stand for the row? By name, and — when both the row and the effect name
- * their ITEM — by that item too: two pack effects share the name "Protected" (Aura of Protection,
- * Protection from Evil and Good). An effect whose item is unknown still matches by name.
+/** Does this effect stand for the row? By name, and by ITEM when both name one: two pack effects
+ * are "Protected" (Aura of Protection, Protection from Evil and Good).
  * @param {{name?: string, item?: string|null}} effect
  * @param {string} key
- * @param {{item?: string}|null} [row]
- */
+ * @param {{item?: string}|null} [row] */
 export const effectCarriesRow = (effect, key, row = null) => {
   if ( !effectNamedAs(effect?.name, key) ) return false;
   const want = row?.item ? String(row.item).toLowerCase() : "";
@@ -42,27 +32,18 @@ export const effectCarriesRow = (effect, key, row = null) => {
   return !want || !have || (want === have);
 };
 
-/**
- * The caveat that rides a label: a "listed — …" caveat is why the row bends nothing, so it
- * stays; a "counted — …" caveat only restates the quoted rule, so it is dropped.
- * @param {{caveat?: string}|undefined} row
- */
+/** A "listed — …" caveat rides the label (it is why the row bends nothing); "counted — …" is dropped.
+ * @param {{caveat?: string}|undefined} row */
 const labelCaveat = row => (row?.caveat && !/^counted — /.test(row.caveat)) ? ` (${row.caveat})` : "";
 
-/**
- * The sources the condition table yields for one roll. A row with a bend on that side counts; a
- * row with only a note is listed (bend null).
- * ⚠ `enabled` and `table` are REQUIRED and never default: a caller that forgets the list must
- * read nothing, never everything.
- *
+/** The condition table's sources for one roll; a row with only a note is listed (bend null).
+ * ⚠ `enabled` and `table` never default: a caller that forgets the list reads nothing, not everything.
  * @param {{attackerStatuses?: Iterable<string>, targetStatuses?: Iterable<string>,
  *          enabled: Iterable<string>,
  *          table: Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>,
  *          attackerName?: string, targetName?: string,
  *          attackerSeenBy?: {sense: string, range: number, sees: string[]}|null,
- *          targetSeenBy?: {sense: string, range: number, sees: string[]}|null}} facts
- *        `enabled` = the Condition Sources list; `table` = `CONDITION_BENDS`, in reading order.
- */
+ *          targetSeenBy?: {sense: string, range: number, sees: string[]}|null}} facts */
 export function conditionSources({ attackerStatuses = [], targetStatuses = [], enabled, table,
   attackerName = "You", targetName = "the target", attackerSeenBy = null, targetSeenBy = null }) {
   const on = new Set(enabled ?? []);
@@ -76,7 +57,6 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
     const name = conditionName(key);
     if ( mine.has(key) ) {
       if ( row.attacker && attackerSeenBy?.sees?.includes(key) ) {
-        // the rule's own "If a creature can somehow see you": the target does — listed, not counted
         out.push(reminderSource("condition", null,
           `${attackerName} — ${name}: ${targetName} sees you (${attackerSeenBy.sense} ${attackerSeenBy.range} ft)`, row.rule));
       } else if ( row.attacker ) {
@@ -97,14 +77,11 @@ export function conditionSources({ attackerStatuses = [], targetStatuses = [], e
   return out;
 }
 
-/**
- * Does the observer's Blindsight or Truesight reach the other creature? Invisible's own clause —
- * "If a creature can somehow see you" — then lists the bend instead of counting it. Blindsight
- * finds the hidden too; Truesight answers Invisible only (it does not see past cover).
- * @param {{blindsight?: number, truesight?: number}} senses  the observer's ranges, in feet
- * @param {number|null} feet  the distance between the two
- * @returns {{sense: string, range: number, sees: string[]}|null}
- */
+/** Does the observer's Blindsight or Truesight reach? Then Invisible's "if a creature can somehow
+ * see you" lists the bend instead. Blindsight finds the hidden too; Truesight answers Invisible only.
+ * @param {{blindsight?: number, truesight?: number}} senses  in feet
+ * @param {number|null} feet
+ * @returns {{sense: string, range: number, sees: string[]}|null} */
 export function sightOf(senses, feet) {
   if ( (typeof feet !== "number") || !Number.isFinite(feet) ) return null;
   const blind = Number(senses?.blindsight) || 0, tru = Number(senses?.truesight) || 0;
@@ -113,17 +90,12 @@ export function sightOf(senses, feet) {
   return null;
 }
 
-/**
- * The save gate's sources: the roller's statuses against the save table for THIS ability. A row
- * with a bend counts; a row with `autoFail` is listed and marks the save "cannot succeed", which
- * the dialog draws as a fourth button. The human still presses (DESIGN R1).
- *
+/** The save gate's sources for THIS ability. An `autoFail` row is listed and marks the save
+ * "cannot succeed" (the dialog's fourth button).
  * @param {{statuses?: Iterable<string>, ability: string, enabled: Iterable<string>,
  *          table: Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: string, caveat?: string}>>>,
  *          name?: string}} facts
- *        `enabled` = the Condition Sources list; `table` = `SAVE_BENDS` (decide/registry.js)
- * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, autoFail?: boolean}[]}
- */
+ * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, autoFail?: boolean}[]} */
 export function saveSources({ statuses = [], ability, enabled, table, name = "You" }) {
   const on = new Set(enabled ?? []);
   const mine = new Set(statuses);
@@ -143,12 +115,10 @@ export function saveSources({ statuses = [], ability, enabled, table, name = "Yo
   return out;
 }
 
-/**
- * The save gate's judgement: the attack arithmetic, unless a source says the save cannot
- * succeed (`fails`) or cannot fail (`succeeds`); an automatic failure stands over a success.
+/** The save gate's net: the attack arithmetic, unless the save cannot succeed (`fails`, which wins)
+ * or cannot fail (`succeeds`).
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string, autoFail?: boolean, autoSucceed?: boolean}[]} sources
- * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal"|"fails"|"succeeds", autoFail: boolean, autoSucceed: boolean, view: object}}
- */
+ * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal"|"fails"|"succeeds", autoFail: boolean, autoSucceed: boolean, view: object}} */
 export function saveGate(sources) {
   const autoFail = sources.some(s => s.autoFail);
   const autoSucceed = !autoFail && sources.some(s => s.autoSucceed);
@@ -159,11 +129,8 @@ export function saveGate(sources) {
   return { sources, net, autoFail, autoSucceed, view };
 }
 
-/**
- * The check gate's sources: the roller's statuses against `CHECK_BENDS`. Every row is a plain
- * bend — no 2024 rule fails a check automatically.
- * @param {{statuses?: Iterable<string>, enabled: Iterable<string>, table: Readonly<Record<string, any>>, name?: string}} facts
- */
+/** The check gate's sources against `CHECK_BENDS` (no 2024 rule fails a check automatically).
+ * @param {{statuses?: Iterable<string>, enabled: Iterable<string>, table: Readonly<Record<string, any>>, name?: string}} facts */
 export function checkSources({ statuses = [], enabled, table, name = "You" }) {
   const on = new Set(enabled ?? []);
   const mine = new Set(statuses);
@@ -177,15 +144,12 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
   return out;
 }
 
-/**
- * What carries a row on the roller's sheet: the worn effects named as the row, or — for a
- * `match: "feature"` row (text-only features such as Brave) — one carrier with no effect id.
+/** The row's carriers: effects named as it, or one id-less carrier for a `match: "feature"` row (Brave).
  * @param {any} row
  * @param {string} key
  * @param {{id?: string|null, name: string}[]} [effects]
  * @param {string[]} [features]
- * @returns {{id?: string|null, name?: string}[]}
- */
+ * @returns {{id?: string|null, name?: string}[]} */
 function rowCarriers(row, key, effects = [], features = []) {
   if ( row?.match === "feature" ) {
     return (features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [];
@@ -193,12 +157,9 @@ function rowCarriers(row, key, effects = [], features = []) {
   return (effects ?? []).filter(e => effectNamedAs(e?.name, key));
 }
 
-/**
- * Effect-table rows whose `checks` facet bends ABILITY CHECKS (Heated Metal, Averse). A row with
- * `checksWhen` counts only on the statuses and skills it names.
+/** Effect rows whose `checks` facet bends ability checks; `checksWhen` narrows to statuses/skills.
  * @param {{effects?: {id?: string|null, name: string}[], features?: string[], enabled: Iterable<string>,
- *          table: Readonly<Record<string, any>>, name?: string, statuses?: Iterable<string>, skill?: string|null}} facts
- */
+ *          table: Readonly<Record<string, any>>, name?: string, statuses?: Iterable<string>, skill?: string|null}} facts */
 export function effectCheckSources({ effects = [], features = [], enabled, table, name = "You", statuses = [], skill = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   const mine = new Set(statuses ?? []);
@@ -216,16 +177,11 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
   return out;
 }
 
-/**
- * Effects on the roller's own sheet whose row carries a `saves` facet, read against the DEMAND
- * (what the save is against): a `statuses` row fires when the demand imposes one of them, a
- * `spells` row when a spell demands it. With no demand (a bare sheet roll, including a repeat
- * save to end a condition) every row is LISTED — the module never guesses what a roll is against.
- * A `succeeds` row makes the save unable to fail (`autoSucceed`).
+/** Effect rows with a `saves` facet, read against the DEMAND (what the save is against). With no
+ * demand (a bare sheet roll) every row is LISTED — never guess what a roll is against.
  * @param {{effects?: {id: string, name: string}[], features?: string[], enabled: Iterable<string>,
  *          table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null}|null, name?: string}} facts
- */
+ *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null}|null, name?: string}} facts */
 export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   const out = [];
@@ -269,13 +225,10 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
   return out;
 }
 
-/**
- * Does a standing effect turn a SUCCESS against half-on-save damage into none (Circle of
- * Power's `halfToNone`, against a spell)? The row's key when one does, for the receipt's note.
+/** The key of a row that turns a half-on-save SUCCESS into none (`halfToNone`, Circle of Power).
  * @param {{effects?: {name: string}[], features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          demand?: {spell?: boolean|null}|null}} facts
- * @returns {string|null}
- */
+ * @returns {string|null} */
 export function saveNoneOnSuccess({ effects = [], features = [], enabled, table, demand = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   for ( const [key, row] of Object.entries(table ?? {}) ) {
@@ -287,31 +240,19 @@ export function saveNoneOnSuccess({ effects = [], features = [], enabled, table,
   return null;
 }
 
-/** The check gate's judgement: the attack arithmetic over its sources (no check fails before the dice). */
+/** The check gate's net: the attack arithmetic. */
 export function checkGate(sources) {
   const net = netMode(sources);
   return { sources, net, view: reminderView(sources, net) };
 }
 
-/**
- * Effects on the roller's own sheet whose CHANGES set the platform's roll mode for this roll.
- * ⚠ dnd5e sums every such change into one mode and the dialog opens with `1d20adv` and no word
- * about who; only the changes can say. The sign of the value decides (+ Advantage, − Disadvantage,
- * whatever the change mode). The dialog's own default is the platform's and is never re-set.
- *
- * The keys, as dnd5e writes them (AdvantageModeField):
- *   save  → `system.abilities.<ability>.save.roll.mode`; a Concentration save also
- *           `system.attributes.concentration.roll.mode` (War Caster — `rollConcentration`
- *           combines that field alone, and Mage Slayer nets against it)
- *   check → `system.abilities.<ability>.check.roll.mode`, `system.skills.<skill>.roll.mode`,
- *           `system.tools.<tool>.roll.mode`
- *
+/** Effects whose CHANGES set the platform's roll mode (keys: `modeKeys`); the value's sign decides.
+ * ⚠ dnd5e sums them into one mode and the dialog opens `1d20adv` with no word of who; only the
+ * changes can say. The dialog's own default is never re-set.
  * @param {{effects?: {id?: string, name: string, item?: string|null, changes?: {key: string, value: string|number}[]}[],
  *          roll: {kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean},
  *          rollLabel?: string, name?: string}} facts
- *        `rollLabel` = the roll in the table's words ("Wisdom saving throws", "Stealth checks")
- * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, effectId?: string, effectName: string, item: string|null}[]}
- */
+ * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, effectId?: string, effectName: string, item: string|null}[]} */
 export function modeSources({ effects = [], roll, rollLabel = "this roll", name = "You" }) {
   const keys = modeKeys(roll);
   if ( !keys.length ) return [];
@@ -334,11 +275,10 @@ export function modeSources({ effects = [], roll, rollLabel = "this roll", name 
   return out;
 }
 
-/**
- * The sheet paths whose change sets the mode of this roll — see `modeSources`.
+/** The dnd5e AdvantageModeField paths for this roll. A Concentration save adds
+ * `concentration.roll.mode` (`rollConcentration` combines that field alone; Mage Slayer nets against it).
  * @param {{kind?: string|null, ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean}} [roll]
- * @returns {string[]}
- */
+ * @returns {string[]} */
 export function modeKeys({ kind = null, ability = null, skill = null, tool = null, concentration = false } = {}) {
   const keys = [];
   if ( kind === "save" ) {
@@ -352,28 +292,18 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
   return keys;
 }
 
-/**
- * The abilities on either sheet that bend this roll, against `EFFECT_BENDS`. An attacker-side row
- * fires when the attacker carries it and the roll is in scope; a target-side row when the target
- * does. Row facets: `judge` (a fact that must hold), `counted: false` (listed), `spend` (the
- * effect's id rides along to be used up), `except: "source"` (against all but the creature that
- * applied it — Goaded), `only: "source"` (for that creature alone — Feinting Attack),
- * `sourceWithin` (only while the source is within reach). `allyNear` is three-valued: only a
- * measured false skips; null counts — the gate never guesses an exemption.
- *
+/** The `EFFECT_BENDS` rows either sheet carries for this roll. Facets: `judge`, `counted: false`,
+ * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`.
+ * `allyNear` is three-valued: only a measured false skips — never guess an exemption.
  * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean},
  *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null},
- *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts
- *        `enabled` = the Effect Sources list (names, any case); `scope` = the attack's own
- *        classification ("weapon" | "spell" | "unarmed") and type ("melee" | "ranged").
- */
+ *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts */
 export function effectSources({ attacker = {}, target = {}, enabled, table, scope = {},
   attackerName = "You", targetName = "the target", pass = "both" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
-  // The EDGE reads the attacker once and each target in turn: an attacker-side row that hinges
-  // on the TARGET belongs to the target pass, the rest to the attacker's.
+  // The EDGE reads the attacker once, then each target: a row hinging on the TARGET is the target pass's.
   const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget"]);
   const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source");
   const notOnlyFor = (row, e, otherUuid) => (row.only === "source") && (!e?.sourceUuid || !otherUuid || (e.sourceUuid !== otherUuid));
@@ -392,7 +322,6 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       case "targetBloodied": return !!target.bloodied;
       case "targetDamaged": return !!target.damaged;
       case "targetGrappled": return !!target.grappled;
-      // Assassinate: round one and the target has not acted; out of combat, false.
       case "targetNotActed": return !!target.notActed;
       case "allyNearTarget": return target.allyNear !== false;
       default: return true;
@@ -437,18 +366,13 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   return out;
 }
 
-/**
- * The automatic Critical Hit: a hit from within a condition's `critWithinFeet` (Paralyzed,
- * Unconscious) is a crit. An outcome, not a reminder — the caller makes the damage critical. An
- * unmeasured distance yields nothing. The Condition Sources list is NOT consulted: it switches
- * what the gate nags about, and a rule that changes the dice applies regardless.
- *
+/** The automatic Critical Hit from within `critWithinFeet` (Paralyzed, Unconscious) — an outcome,
+ * not a reminder. The Condition Sources list is NOT consulted: a rule that changes dice always applies.
  * @param {{targetStatuses?: Iterable<string>, distanceFeet?: number|null, targetName?: string,
  *          table: Readonly<Record<string, Readonly<{rule: string, critWithinFeet?: number}>>>}} facts
- * @returns {{status: string, label: string, rule: string}[]}
- */
+ * @returns {{status: string, label: string, rule: string}[]} */
 export function autoCritSources({ targetStatuses = [], distanceFeet = null, targetName = "the target", table }) {
-  // null is "could not measure" (geometry.js nearestFeet), and Number(null) is 0 — never a crit.
+  // null is "could not measure"; Number(null) is 0 — never a crit.
   if ( (distanceFeet === null) || (distanceFeet === undefined) ) return [];
   const d = Number(distanceFeet);
   if ( !Number.isFinite(d) ) return [];
@@ -462,23 +386,18 @@ export function autoCritSources({ targetStatuses = [], distanceFeet = null, targ
   return out;
 }
 
-/**
- * One source of Advantage or Disadvantage on a roll.
- * @param {string} kind          a REMINDER_KINDS key (decide/registry.js)
- * @param {"advantage"|"disadvantage"|null} bend   what it does to the roll; null = listed, not counted
- * @param {string} label         the one-line fact, in the table's names ("You Vexed Hobgoblin")
- * @param {string} [detail]      the rule line under it
- */
+/** One source of Advantage or Disadvantage on a roll.
+ * @param {string} kind  a REMINDER_KINDS key
+ * @param {"advantage"|"disadvantage"|null} bend  null = listed, not counted
+ * @param {string} label
+ * @param {string} [detail]  the rule line */
 export function reminderSource(kind, bend, label, detail = "") {
   return { kind, bend, label, detail };
 }
 
-/**
- * THE NET. Any Advantage against any Disadvantage is a normal roll, however many of each;
- * otherwise whichever side is present; nothing present is normal.
+/** THE NET: any Advantage against any Disadvantage is a normal roll, however many of each.
  * @param {{bend?: string|null}[]} sources
- * @returns {"advantage"|"disadvantage"|"normal"}
- */
+ * @returns {"advantage"|"disadvantage"|"normal"} */
 export function netMode(sources) {
   const adv = sources.some(s => s.bend === "advantage");
   const dis = sources.some(s => s.bend === "disadvantage");
@@ -488,22 +407,16 @@ export function netMode(sources) {
   return "normal";
 }
 
-/** The mode, as a title or a button reads it. */
 export const modeTitle = mode => (mode === "advantage") ? "Advantage"
   : (mode === "disadvantage") ? "Disadvantage" : (mode === "fails") ? "Fails" : (mode === "succeeds") ? "Succeeds" : "Normal roll";
 
-/**
- * How a roll went out, in a sentence — "with Advantage", "flat". One vocabulary for every line
- * on the same attack card.
- * @param {"advantage"|"disadvantage"|"normal"|null|undefined} mode
- */
+/** How a roll went out — "with Advantage", "flat"; one vocabulary for every line on the card.
+ * @param {"advantage"|"disadvantage"|"normal"|null|undefined} mode */
 export const rolledWith = mode => (mode === "advantage") ? "with Advantage"
   : (mode === "disadvantage") ? "with Disadvantage" : "flat";
 
-/**
- * The resolution sentence — why the net is what it is, in one line.
- * @param {{bend?: string|null}[]} sources
- */
+/** Why the net is what it is, in one line.
+ * @param {{bend?: string|null}[]} sources */
 export function resolutionLine(sources) {
   const adv = sources.filter(s => s.bend === "advantage").length;
   const dis = sources.filter(s => s.bend === "disadvantage").length;
@@ -517,19 +430,14 @@ export function resolutionLine(sources) {
   return unknown ? `Nothing counted.${tail}` : "Nothing bends this roll.";
 }
 
-/**
- * Prone, both roles: the attacker prone is Disadvantage; the target prone is Advantage from
- * within 5 feet, Disadvantage from beyond. A null distance lists the target's Prone without
- * counting it. `distanceFeet` is FEET — the EDGE converts the scene's units.
- *
+/** Prone, both roles. A null distance lists the target's Prone without counting it. Distances are
+ * FEET — the EDGE converts the scene's units.
  * @param {{attackerProne?: boolean, targetProne?: boolean, distanceFeet?: number|null,
- *          attackerName?: string, targetName?: string, targetProneBy?: string|null}} facts
- */
+ *          attackerName?: string, targetName?: string, targetProneBy?: string|null}} facts */
 export function proneSources({ attackerProne = false, targetProne = false, distanceFeet = null,
   attackerName = "You", targetName = "the target", targetProneBy = null } = {}) {
   const out = [];
-  // The effect that put the target Prone when it is not the plain status (a Trip's own effect
-  // shows no icon on the token) — named on the label so the reader can find it.
+  // A non-status Prone (a Trip's effect shows no token icon) is named so the reader can find it.
   const by = (targetProneBy && (String(targetProneBy).toLowerCase() !== "prone")) ? ` (${targetProneBy})` : "";
   if ( attackerProne ) {
     out.push(reminderSource("prone", "disadvantage", `${attackerName} — Prone`,
@@ -550,24 +458,13 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
   return out;
 }
 
-/**
- * RANGE, for any ranged attack roll (weapon, thrown or spell):
- *
- *   beyond normal range, within long              → Disadvantage
- *   beyond long range (or beyond a single range)  → cannot be made: LISTED, not counted
- *   an enemy within 5 feet of the attacker        → Disadvantage
- *
- * A melee attack yields nothing; an unmeasured distance skips the range rows. A feat that cancels
- * a row (`rangeFeatsFor`) leaves it listed with the feat named; ignored cover is listed the same
- * way. Distances are FEET.
- *
+/** RANGE for a ranged attack: beyond normal → Disadvantage; beyond long → cannot be made (listed);
+ * an enemy within 5 feet → Disadvantage. A cancelling feat or ignored cover is listed, named. FEET.
  * @param {{ranged?: boolean, distanceFeet?: number|null, normalFeet?: number|null, longFeet?: number|null,
  *          closeEnemies?: string[], targetName?: string,
  *          cancels?: {feature: string, rows: string[], rule: string}[],
  *          coverBonus?: number, coverFeat?: {feature: string, rule: string}|null,
- *          rules: {long: string, single: string, close: string}}} facts
- *        `rules` = `RANGE_RULES` (decide/registry.js) — handed in because this layer imports nothing
- */
+ *          rules: {long: string, single: string, close: string}}} facts  `rules` = `RANGE_RULES` */
 export function rangeSources({ ranged = false, distanceFeet = null, normalFeet = null, longFeet = null,
   closeEnemies = [], targetName = "the target", cancels = [], coverBonus = 0, coverFeat = null, rules }) {
   const out = [];
@@ -598,15 +495,12 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
   return out;
 }
 
-/**
- * The RANGE_FEATS rows on the attacker's sheet whose scope takes in this attack — what they
- * cancel, whether cover is ignored, and the reach a spell gains.
- * @param {string[]} features  the attacker's feat names
+/** The attacker's RANGE_FEATS rows that fit this attack: what they cancel, cover ignored, spell reach.
+ * @param {string[]} features
  * @param {{rangedWeapon?: boolean, spell?: boolean, crossbow?: boolean}} attack
  * @param {Readonly<Record<string, {scope: string, cancels?: readonly string[], cover?: boolean, reach?: number, rule: string}>>} table
  * @returns {{cancels: {feature: string, rows: string[], rule: string}[], cover: {feature: string, rule: string}|null,
- *            reach: {feature: string, feet: number}|null}}
- */
+ *            reach: {feature: string, feet: number}|null}} */
 export function rangeFeatsFor(features, attack, table) {
   const have = new Set((features ?? []).map(n => String(n).toLowerCase()));
   const fits = scope => ((scope === "rangedWeapon") && !!attack?.rangedWeapon) || ((scope === "spell") && !!attack?.spell)
@@ -622,37 +516,28 @@ export function rangeFeatsFor(features, attack, table) {
   return out;
 }
 
-/**
- * A spell's range with Spell Sniper's reach: "a range of at least 10 feet" gains the feet; a range
- * under 10, a Touch or Self spell, or a weapon's two-band range stands.
+/** Spell Sniper's reach on a spell range of at least 10 feet; a two-band weapon range stands.
  * @param {{normalFeet?: number|null, longFeet?: number|null}} range
- * @param {{feet: number}|null} reach
- */
+ * @param {{feet: number}|null} reach */
 export function reachedRange(range, reach) {
   const normal = Number(range?.normalFeet);
   if ( !reach || !(normal >= 10) || (Number(range?.longFeet) > 0) ) return range;
   return { ...range, normalFeet: normal + reach.feet, reachedBy: reach.feet };
 }
 
-/**
- * The AC an attack records against a target whose cover the attacker ignores: its AC less the cover
- * bonus dnd5e folded in. Total Cover (no AC recorded) stays null.
+/** The AC less the cover bonus dnd5e folded in, for an attacker who ignores cover; null stays null.
  * @param {number|null} ac
  * @param {number} cover
- * @returns {number|null}
- */
+ * @returns {number|null} */
 export function acWithoutCover(ac, cover) {
   if ( (ac === null) || (ac === undefined) || !Number.isFinite(Number(ac)) ) return ac ?? null;
   return Number(ac) - Math.max(0, Number(cover) || 0);
 }
 
-/**
- * The gate's view of one roll's sources (decide/present.js `reminderSectionHTML`): one header
- * line — the count and the net, drawn as a tag — and a box per source. The arithmetic
- * (`resolutionLine`) rides the header as its tooltip.
+/** The gate's view (present.js `reminderSectionHTML`): a header with the count and net, the
+ * arithmetic as its tooltip, and a box per source.
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string}[]} sources
- * @param {"advantage"|"disadvantage"|"normal"|"fails"|"succeeds"} net   "fails" is the save gate's fourth answer ("succeeds" its mirror)
- */
+ * @param {"advantage"|"disadvantage"|"normal"|"fails"|"succeeds"} net */
 export function reminderView(sources, net) {
   const n = sources.length;
   return {
@@ -661,15 +546,10 @@ export function reminderView(sources, net) {
   };
 }
 
-/**
- * The record stamped on the attack message the gate re-issued — what was shown, what it netted
- * to, what the human pressed, and whether the press matched the net. The EDGE spreads the
- * data-plane context at the flag level.
- *
+/** The record on the re-issued attack message: shown, net, pressed, and whether they matched.
  * @param {{sources: {kind: string, bend: string|null, label: string}[],
  *          net: "advantage"|"disadvantage"|"normal", mode: "advantage"|"disadvantage"|"normal",
- *          answeredAt: number}} answer
- */
+ *          answeredAt: number}} answer */
 export function reminderRecord({ sources, net, mode, answeredAt }) {
   return {
     sources: sources.map(({ kind, bend, label }) => ({ kind, bend: bend ?? null, label })),

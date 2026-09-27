@@ -19,23 +19,10 @@ import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";
 
-/* ---------------------------------------------------------------------------------------------
- * The system stamps the mastery used onto the attack message (`masteryOf`), and only when the
- * wielder has it with that weapon, so eligibility is pre-solved. Masteries live on character
- * actors only, so the ask's owner is always the attacking player.
- *
- *   Vex, Sap        automatic — an authored chip.
- *   Slow            "you can", needs damage dealt — an authored −10 speed chip.
- *   Topple          "you can" — a card with the native [[/save]] and a GM prone button.
- *   Push            "you can" — announce only; tokens are never moved.
- *   Graze           pays on a MISS — ability-mod damage, receipt on the ATTACK card.
- *   Cleave          a reminder plus an optional arm; Nick stays native (action economy).
- *
- * Nothing here modifies a d20 (DESIGN R1): the chip is the reminder, the roll dialog honours it.
- * Chip windows are v14 expiry data (RULINGS
- * *Chips and clocks*). The ask is a miniature hold: a `mastery` flag, a Use/Pass popup where
- * canAnswerFor the attacker, the answer as a flag flip, the elect executes; expiry = Pass.
- * ------------------------------------------------------------------------------------------- */
+// The system stamps a mastery on the attack message only when the wielder has it (eligibility is
+// pre-solved; the owner is always the attacking player). Vex/Sap/Slow = chips, Topple = save card,
+// Push = announce, Graze = pays on a MISS, Cleave = reminder + arm; Nick stays native. No d20 is
+// touched (DESIGN R1); chip windows: RULINGS *Chips and clocks*. The ask is a miniature hold.
 
 /** Masteries already warned about — once per session, not once per swing. */
 const warnedMasteries = new Set();
@@ -69,10 +56,7 @@ function masteryContext(attackMessage) {
   return { activity, weapon, attacker, ability: activity.ability || "str" };
 }
 
-/**
- * What this target TOOK from the damage roll — the Vex/Slow "dealt damage" gate. The receipt
- * when auto-apply ran; otherwise the roll total, which cannot see a target's immunity.
- */
+/** What this target TOOK (Vex/Slow's gate): the receipt, else the roll total (blind to immunity). */
 function dealtFor(damageMessage, uuid) {
   const entry = damageMessage?.getFlag(MODULE_ID, "receipt")?.targets?.find(t => t.uuid === uuid);
   if ( entry ) return takenOf(entry);
@@ -87,8 +71,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
 
-    // The dead are skipped — except for Cleave, whose reminder is about the attacker's next
-    // swing: a kill is exactly when it matters.
+    // The dead are skipped — except for Cleave, where a kill is exactly when it matters.
     const struck = [];
     for ( const t of hits ) {
       const actor = await fromUuid(t.uuid);
@@ -108,8 +91,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
         await applyMasteryEffect(damageMessage ?? attackMessage, ctx, "sap", live);
         return postMasteryNotice(ctx, "sap", live);
       case "cleave": {
-        // A reminder, not a payout (ARCHITECTURE.md §6): the extra attack stays native. Once per
-        // turn via a chit on the attacker; out of combat every hit reminds.
+        // A reminder once per turn (a chit on the attacker); the extra attack stays native.
         if ( !struck.length ) return;
         if ( await cleaveChitStands(ctx) ) return;
         // `struck`, not `live` — the corpse still anchors "within 5 feet of".
@@ -128,8 +110,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
       case "push":
         return askOrTake(attackMessage, damageMessage, ctx, "push", live);
       default:
-        // Nick is native by design. ⚠ Anything else is a mastery the system added that this
-        // module has never seen — warn loudly (the DESIGN R4 tripwire), never swallow it.
+        // Nick is native. ⚠ Anything else is a NEW system mastery — warn loudly (DESIGN R4 tripwire).
         if ( !MASTERY_NATIVE.has(key) && !warnedMasteries.has(key) ) {
           warnedMasteries.add(key);
           console.warn(`${TITLE} | Weapon mastery "${key}" is not one this module resolves (${[...MASTERY_KINDS].join("/")}) — left native. If the system added it, that is a NEW KIND against the R4 tripwire (DESIGN.md R4).`);
@@ -141,8 +122,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
   }
 }
 
-// Graze pays on the MISS, where no damage message exists, so it hangs on the attack message.
-// It reads the attack as rolled: a later Shield turning a hit to a miss does not re-open Graze
+// Graze pays on the MISS (no damage message), read as rolled: a later Shield does not re-open it
 // (RULINGS *Where the table bends the rule*).
 Hooks.on("createChatMessage", message => {
   if ( !setting(S.masteryRiders) ) return;
@@ -156,8 +136,7 @@ async function resolveMissMastery(attackMessage) {
   try {
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
-    // Graze alone rides the RESOLVER mode: a miss has no damage button, so with the resolver
-    // off there is no manual path, and paying anyway would apply damage the table did not ask for.
+    // Graze alone rides the RESOLVER mode: a miss has no damage button to fall back on.
     if ( !modeAllows(ctx.attacker) ) return;
     if ( (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0) <= 0 ) return;
 
@@ -194,16 +173,12 @@ async function executeMasteryPayout(key, attackMessage, damageMessage, ctx, targ
   }
 }
 
-/**
- * Apply one authored mastery chip to each target and join the effect receipt. A same-origin
- * copy (this weapon) is refreshed, never stacked. Not routed through applyEffectsTo: these
- * chips are authored data with no source document, keyed on the mastery flag + weapon origin.
- */
+/** Apply one authored chip per target and join the effect receipt; a same-weapon copy is refreshed,
+ * never stacked. Not applyEffectsTo: these chips have no source document. */
 async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
   const def = MASTERY_EFFECTS[key];
   if ( !def ) return;
-  // ⚠ The chip is a write to the monster; with no GM connected it cannot be made. The reminder
-  // card still posts, which for Vex and Sap is nearly the whole feature.
+  // ⚠ With no GM connected the chip cannot be written; the reminder card still posts.
   const blocked = targets.filter(t => {
     try { return !canApplyTo(t.actor ?? fromUuidSync(t.uuid)); } catch { return true; }
   });
@@ -211,25 +186,19 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
     return whisperNoGM(`the ${masteryLabel(key)} chip on ${blocked.map(t => t.name).join(", ")}`,
       "The reminder card still stands, and the gate still meets the next roll.");
   }
-  // ⚠ The clock is pinned to the ATTACKER's combatant explicitly: the platform judges expiry
-  // against `start.combatant`, and its own stamp is whoever's turn it is — wrong for an
-  // opportunity attack. `placeOf` reads `activeCombatFor`: a chip clocked against a combat that is
-  // not `game.combat` is born Unavailable, so out of that combat there is no clock at all.
+  // ⚠ Pinned to the ATTACKER's combatant: the platform's own stamp is whoever's turn it is (wrong
+  // for an opportunity attack). A clock on a combat that is not `game.combat` is born Unavailable.
   const clock = chipClock(key, placeOf(ctx.attacker));
   if ( !clock ) return;
-  // ⚠ Entries accumulate locally and merge inside the serializer at the end — reading the flag
-  // before the per-target awaits would let another chip writer be overwritten.
+  // ⚠ Entries merge inside the serializer at the end; reading the flag earlier loses other writers.
   const context = statContext(ctx.attacker.uuid); // the data-plane stamp, once per payout
   const entries = [];
   for ( const t of targets ) {
     const actor = (t.actor instanceof Actor) ? t.actor : await fromUuid(t.uuid);
     if ( !(actor instanceof Actor) ) continue;
 
-    // Sweep this actor's dead chips before adding one: an expired chip stays on the sheet under
-    // Unavailable Effects forever and hides the live one. Dead = `chipIsDead`; a chip with no
-    // clock is left alone.
-    // ⚠ ONE batched delete: a synthetic (unlinked-token) actor rebuilds its collections from
-    // the delta on every write, so deleting one at a time throws on the second (NOTES §1).
+    // Sweep dead chips first: an expired chip stays under Unavailable Effects and hides the live one.
+    // ⚠ ONE batched delete: a synthetic actor rebuilds from the delta per write (NOTES §1).
     const dead = actor.effects.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) && chipIsDead(e.duration ?? {}));
     if ( dead.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", dead.map(e => e.id));
 
@@ -237,9 +206,7 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
       (e.getFlag(MODULE_ID, CHIP_FLAG) === key) && (e.origin === ctx.weapon.uuid));
     let applied;
     if ( existing ) {
-      // ⚠ `?? existing`: Document#update returns UNDEFINED on an empty diff (a re-clock that
-      // changes nothing), and the receipt entry must still be written. The re-clock rewrites
-      // `start` too: a refreshed window runs from THIS swing.
+      // ⚠ `?? existing`: Document#update returns UNDEFINED on an empty diff. The window restarts here.
       applied = (await existing.update({ ...chipData(clock), disabled: false })) ?? existing;
     } else {
       applied = await ActiveEffect.implementation.create({
@@ -264,13 +231,9 @@ async function applyMasteryEffect(receiptMessage, ctx, key, targets) {
 }
 
 /**
- * Does a Cleave chit already stand on the attacker this turn? If not, write one and answer
- * false (remind). Counts only for a combatant in the running combat (RULINGS *The gate before
- * the roll*); a chit nobody can write just means the reminder repeats.
- *
- * ⚠ The chit lives by STAMP COMPARISON with the running turn (`combatStamp`), not by the
- * platform's `expired` mark: that mark is GM-written, so on a no-GM table a mark-based chit
- * would stand forever. The `turnEnd` expiry is only the tidy that removes the document.
+ * Does a Cleave chit stand this turn? If not, write one and answer false (remind).
+ * ⚠ Live by STAMP COMPARISON (`combatStamp`), not the GM-written `expired` mark — on a no-GM table
+ * that mark never lands. The `turnEnd` expiry only tidies the document.
  */
 async function cleaveChitStands(ctx) {
   const attacker = ctx.attacker;
@@ -298,8 +261,7 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
   const dc = 8 + (ctx.attacker.system.attributes?.prof ?? 0)
     + (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0);
   const names = targets.map(t => t.name).join(", ");
-  // The demand rides the SAVE timer: a demanded save is mandatory, so expiry rolls. 0 waits
-  // indefinitely; the GM prone button is the paper-roll backstop.
+  // The SAVE timer: a demanded save is mandatory, so expiry rolls; 0 waits indefinitely.
   const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
@@ -313,8 +275,7 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
       dc, ability: "con",
       attackerUuid: ctx.attacker.uuid,
       ...statContext(ctx.attacker.uuid), // the data-plane stamp
-      // Which damage message earned this demand — one swing asks once, however many clients
-      // think they are the elect (topple.js supersedes twins).
+      // One swing asks once, however many clients think they are the elect (topple.js supersedes twins).
       sourceMessageId: sourceMessage?.id ?? null,
       weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
@@ -341,7 +302,6 @@ async function pushCard(ctx, targets) {
 async function grazePayout(attackMessage, ctx, targets) {
   const mod = ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0;
   if ( mod <= 0 ) return;
-  // Graze's payout IS damage on the target, so with no GM there is nothing to degrade to — say so.
   const writable = targets.filter(t => {
     try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
   });
@@ -356,10 +316,7 @@ async function grazePayout(attackMessage, ctx, targets) {
   }], { note: "Graze — the miss still pays" });
 }
 
-/* --- the reminder: an informational table moment ------------------------------------------ */
-
-/** What each reminder says — the fact in the mastery's own words. The roll dialog's gate does
- * the reminding at the next roll, so the card carries no "claim it in the dialog" line. */
+/** What each reminder card says; the roll gate does the reminding at the next roll. */
 const NOTICE_TEXT = {
   vex: (_ctx, names) => ({
     title: "Vex — Advantage on your next attack",
@@ -373,17 +330,12 @@ const NOTICE_TEXT = {
   }),
   cleave: (ctx, _names) => ({
     title: "Cleave — one extra attack available",
-    // The sheet cannot drop the ability modifier from a roll, so the card offers the ARM: the
-    // next damage roll with this weapon drops the flat modifier itself.
     lines: [ruleLine(MASTERY_RULES.cleave),
       `Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
   })
 };
 
-/**
- * The elect posts the reminder card — the durable record, and the bus the popup rides: the
- * card replicates everywhere, and the client that canAnswerFor the attacker pops the view.
- */
+/** The elect posts the reminder card: the record, and the bus the owner's popup rides. */
 async function postMasteryNotice(ctx, key, targets) {
   const names = targets.map(t => t.name).join(", ");
   const { title, lines } = NOTICE_TEXT[key](ctx, names);
@@ -406,15 +358,11 @@ async function postMasteryNotice(ctx, key, targets) {
   });
 }
 
-/**
- * The reminder popup: one control (OK) and an auto-dismiss on S.noticeTimer with the drain bar
- * — a reminder has nothing to decide (ARCHITECTURE.md §6). Cleave is the exception: "is my next
- * attack the Cleave?" is a decision, so it carries Arm the Cleave / Dismiss. Dismissal arms nothing.
- */
+/** The reminder popup: OK and a drain bar (ARCHITECTURE.md §6); Cleave's is a decision, so it
+ * carries Arm the Cleave / Dismiss. */
 async function showMasteryNotice(message, notice) {
   const attacker = resolveUuid(notice.attackerUuid);
-  // Any button acknowledges the moment (ARCHITECTURE.md §5 law 3); closing with the X is a
-  // non-event and the bar drains out.
+  // Any button acknowledges (ARCHITECTURE.md §5 law 3); the X is a non-event.
   const buttons = (notice.key === "cleave")
     ? [
       { action: "arm", label: "Arm the Cleave", default: true,
@@ -436,13 +384,8 @@ async function showMasteryNotice(message, notice) {
   });
 }
 
-/* --- the Cleave arm -------------------------------------------------------------------------
- * The player DECLARES the cleave; the machine drops the flat ability-modifier part from that one
- * damage roll. Never detected silently: with Extra Attack, "second swing, same weapon, other
- * target" is an ordinary turn. The arm is an actor flag, one-shot, stale by STAMP COMPARISON —
- * in combat it carries the combat stamp and any mismatch is expiry (survives a reload); out of
- * combat it expires after 60s or on use.
- * ------------------------------------------------------------------------------------------- */
+// The Cleave arm: the player DECLARES it (with Extra Attack a second swing is ordinary, never
+// detected); one-shot actor flag, stale by combat-stamp mismatch, or after 60s out of combat.
 
 const CLEAVE_ARM_TTL_MS = 60_000;   // out-of-combat only; in combat the turn stamp governs
 
@@ -472,8 +415,7 @@ function liveCleaveArm(actor) {
   return arm;
 }
 
-/** The arm that will bite THIS item's next damage roll, or null. Read-only; the strip below is
- * the only consumer. */
+/** The arm on THIS item, or null. Read-only; the strip is the only consumer. */
 function cleaveArmedFor(item) {
   if ( item?.type !== "weapon" ) return null;
   const arm = liveCleaveArm(item.actor);
@@ -488,10 +430,8 @@ registerOfferPart({
     : null
 });
 
-// THE STRIP. Runs on whichever client rolls the damage (auto-roll, the offer's button or a
-// native press), before the dice exist. The arm is consumed either way; a NEGATIVE modifier is
-// kept (removing a minus would raise the damage — the system's own off-hand predicate does the
-// same, AttackActivity#_processDamagePart).
+// THE STRIP, on whichever client rolls the damage, before the dice. A NEGATIVE modifier stays (as
+// dnd5e's own off-hand rule, AttackActivity#_processDamagePart).
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
@@ -508,8 +448,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const ix = (base.parts ?? []).findIndex(p => String(p).includes("@mod"));
     if ( ix < 0 ) return;                                 // nothing to drop (thrown natural, offhand…)
     base.parts.splice(ix, 1);                             // "@mod" only — @magicalBonus/@ammoBonus stay
-    // Message-data mutations at this hook persist onto the damage message, so the card can
-    // say the modifier was dropped.
+    // Message-data mutations here persist onto the damage message.
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.cleaveStripped`,
       { itemName: arm.itemName ?? item.name });
   } catch(err) {
@@ -517,7 +456,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-/* --- the ask: stamp → row → popup → answer → execute -------------------------------------- */
+// The ask: stamp → row → popup → answer → execute.
 
 const masteryTimers = new Map();
 
@@ -545,12 +484,8 @@ async function answerMastery(message, answer, { timedOut = false } = {}) {
   await message.setFlag(MODULE_ID, "mastery", m);
 }
 
-/**
- * The elect claims the answer, then pays it out. ⚠ The claim-first write only stops SEQUENTIAL
- * re-fires: the render hook's resume check and the update watcher can both call this in the
- * same tick before the claim lands, and each would pay (stacked Slowed chips). The in-memory
- * latch closes that same-client race; the elect gate serializes across clients.
- */
+/** The elect claims the answer, then pays it out. ⚠ The render resume and the update watcher can
+ * both call this in one tick before the claim lands (stacked chips); this latch closes that race. */
 const masteryExecutions = new Set();
 
 async function executeMasteryAnswer(message) {
@@ -573,8 +508,7 @@ async function executeMasteryAnswer(message) {
   }
 }
 
-// The answer channel: every client closes an answered popup; the elect executes. The topple
-// demand's watcher lives in topple.js.
+// The answer channel: every client closes an answered popup; the elect executes.
 Hooks.on("updateChatMessage", message => {
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
@@ -583,7 +517,6 @@ Hooks.on("updateChatMessage", message => {
     if ( drivesMomentFor(m?.attackerUuid) && (m.status === "pending") && m.answer ) void executeMasteryAnswer(message);
   }
 
-  // A durably-acknowledged notice closes its popup wherever it lives.
   if ( message.getFlag(MODULE_ID, "masteryNotice")?.acknowledged ) {
     const dialog = livePopups.get(popupKey(message.id, "notice"));
     if ( dialog ) void dialog.close();
@@ -621,8 +554,7 @@ async function showMasteryPopup(message, m) {
   });
 }
 
-// The card rows: the mastery ask (pending: bar + Answer; done: the outcome), the notice and
-// the strip's receipt. Stateless like every render hook here.
+// The card rows: the ask, the notice and the strip's receipt. Stateless.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
@@ -644,8 +576,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     if ( pending ) {
       armMasteryTimer(message);
-      // Resume an ask answered while nobody could execute (the elect reloaded or came up
-      // later); executeMasteryAnswer is claim-first.
+      // Resume an ask answered while nobody could execute; executeMasteryAnswer is claim-first.
       if ( m.answer && drivesMomentFor(m?.attackerUuid) ) void executeMasteryAnswer(message);
       const attacker = resolveUuid(m.attackerUuid);
       if ( canAnswerFor(attacker) && !m.answer ) {
@@ -662,13 +593,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
   }
 
-  // The reminder popup rides the notice card: the deadline gates staleness (an old log render
-  // must never nag), the shown-set gates re-pops, canAnswerFor picks the owning client.
+  // The reminder popup rides the notice card; the deadline keeps an old log render from nagging.
   const notice = message.getFlag(MODULE_ID, "masteryNotice");
   if ( notice ) {
-    // A notice is live while its window drains and nobody has acknowledged it.
-    // ⚠ A WINDOWLESS notice (noticeTimer 0) has no deadline and is live until acknowledged —
-    // testing the deadline alone would make "stays until dismissed" mean "never appears".
+    // ⚠ A WINDOWLESS notice (noticeTimer 0) is live until acknowledged — never test the deadline alone.
     const live = (!notice.deadline || (notice.deadline > Date.now()))
       && !momentAcknowledged(message, "masteryNotice");
     if ( live ) {
@@ -685,8 +613,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       shownMoments.add(shownKey);
       void showMasteryNotice(message, notice);
     }
-    // Cleave: the card states a standing arm, or recalls the decision popup while live.
-    // Read-only here — display must never consume a stale arm; the strip owns that.
+    // Read-only: display must never consume a stale arm; the strip owns that.
     if ( notice.key === "cleave" ) {
       const arm = (attacker instanceof Actor) ? attacker.getFlag(MODULE_ID, "cleaveArm") : null;
       if ( cleaveArmFresh(arm) && (arm.itemId === notice.weapon?.id) ) {
@@ -705,8 +632,6 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
   }
 
-  // The strip's receipt: the damage card says the modifier was dropped, from the flag the
-  // strip stamped at preRollDamageV2.
   const stripped = message.getFlag(MODULE_ID, "cleaveStripped");
   if ( stripped ) {
     const line = document.createElement("div");

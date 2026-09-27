@@ -1,32 +1,17 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the ask at the area — the question put to the caster about the
- * creatures in a placed area: the defaults each kind ticks, its words, the outcome an answer
- * makes, and the readers of a spell's own text that size a choice. Pure functions over plain
- * data (ARCHITECTURE.md §2). Three kinds: Careful (who is spared) and Heightened (who saves at
- * Disadvantage), RULINGS *Metamagic*; and a spell that chooses its targets, RULINGS *Spells that
- * choose their targets*. The machine that draws it is `scripts/area-ask.js`.
+ * Battle Flow — DECISION: the ask at the area — the caster's question about the creatures in a
+ * placed area: defaults, words, outcome, and the spell-text readers (ARCHITECTURE.md §2). Kinds:
+ * Careful, Heightened (RULINGS *Metamagic*) and a spell that chooses (RULINGS *Spells that choose
+ * their targets*). Drawn by `scripts/area-ask.js`.
  */
 
-/**
- * The flag a pending ask rides, on the cast's own card or on a carrier that stands in for it:
- * `{ status, kind, feature, spell?, cap?, rule?, itemImg?, heightened?, candidates, casterUuid,
- * casterDisposition, casterName, window?, deadline?, answer? }`.
- * ⚠ The key says "metamagic" but serves every kind: it is stored on cards and read by name
- * (suites, the moment registry), so a rename is a migration.
- */
+/** The pending ask's flag, on the cast's card or a carrier. ⚠ Named "metamagic" but serves every
+ * kind; it is read by name (suites, the moment registry), so a rename is a migration. */
 export const AREA_ASK_FLAG = "metamagicAsk";
 
-/**
- * A spell that chooses its targets: who its area affects, on the spell's card — `{ spell, chosen,
- * left, asked, cap }` (the demand's reach; written by the ask's answer, or by the stamp when there
- * was nothing to choose).
- */
+/** Who a choosing spell's area affects, on its card: `{ spell, chosen, left, asked, cap }`. */
 export const AREA_CHOICE_FLAG = "areaChoice";
-
-/* ---------------------------------------------------------------------------------------------
- * Careful's protected set and Heightened's mark
- * ------------------------------------------------------------------------------------------- */
 
 /**
  * @typedef {{uuid: string, name: string, disposition?: number|null, tokenId?: string|null, party?: boolean}} Candidate
@@ -35,13 +20,10 @@ export const AREA_CHOICE_FLAG = "areaChoice";
  *            candidates: Candidate[], casterUuid: string|null, casterDisposition: number|null,
  *            casterName?: string|null, window?: number, deadline?: number}} Ask
  *
- * CAREFUL SPELL'S PROTECTED SET: up to `cap` (Charisma modifier, minimum one) of the creatures
- * the save reaches, non-hostile by default — the caster, the party, the caster's side, then the
- * neutrals; never a secret token. A player's `chosen` list (uuids) stands instead, in tick order,
- * capped the same way. Sight and willingness are never judged.
+ * CAREFUL'S PROTECTED SET: up to `cap`, by default the non-hostiles — caster, party, side, then
+ * neutrals, never a secret token; a `chosen` list stands instead. Sight and willingness never judged.
  * @param {{contained: Candidate[], casterUuid: string|null, casterDisposition: number|null, cap: number, chosen?: string[]|null}} args
- * @returns {{uuid: string, name: string}[]}
- */
+ * @returns {{uuid: string, name: string}[]} */
 export function carefulProtects({ contained, casterUuid = null, casterDisposition = null, cap, chosen = null }) {
   const limit = Math.max(1, Number(cap) || 1);
   const list = Array.isArray(contained) ? contained : [];
@@ -57,13 +39,9 @@ export function carefulProtects({ contained, casterUuid = null, casterDispositio
   return friends.slice(0, limit).map(entry);
 }
 
-/**
- * HEIGHTENED SPELL'S MARK: one target of the spell whose saves against it are at Disadvantage —
- * the player's pick when made (`chosen`), else the FIRST creature the save reaches that is not
- * the caster's ally (an enemy of the caster's side; a neutral when no enemy stands there).
+/** HEIGHTENED'S MARK: the pick, else the first enemy of the caster's side (a neutral when none).
  * @param {{contained: Candidate[], casterUuid: string|null, casterDisposition: number|null, chosen?: string|null}} args
- * @returns {{uuid: string, name: string}|null}
- */
+ * @returns {{uuid: string, name: string}|null} */
 export function heightenedMark({ contained, casterUuid = null, casterDisposition = null, chosen = null }) {
   const list = Array.isArray(contained) ? contained : [];
   const entry = c => ({ uuid: c.uuid, name: c.name });
@@ -74,17 +52,10 @@ export function heightenedMark({ contained, casterUuid = null, casterDisposition
   return pick ? entry(pick) : null;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * A spell that chooses its targets (the Chosen Areas list)
- * ------------------------------------------------------------------------------------------- */
-
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 });
 
-/**
- * A spell's text as the table reads it: the markup gone, an enricher reduced to its label
- * (`&Reference[incapacitated]{Incapacitated}` → Incapacitated; an inline roll → its label or nothing).
- * @param {string} html
- */
+/** A spell's text as the table reads it: markup gone, an enricher reduced to its label.
+ * @param {string} html */
 export function spellProse(html) {
   return String(html ?? "")
     .replace(/<section class="secret"[\s\S]*?<\/section>/gi, " ")
@@ -95,11 +66,8 @@ export function spellProse(html) {
     .replace(/\s+/g, " ").trim();
 }
 
-/**
- * How many creatures a spell that chooses may choose — its own number ("up to six creatures of
- * your choice"), or null when the text sets none (Sleep). Read from the content, never copied (N1).
- * @param {string} html the spell's description
- */
+/** The spell's own "up to six creatures of your choice", or null (Sleep). Read, never copied (N1).
+ * @param {string} html */
 export function choiceCapFrom(html) {
   const word = spellProse(html).match(/\bup to (\w+) (?:creatures?|targets?) of (?:your|its|their) choice/i)?.[1] ?? "";
   if ( !word ) return null;
@@ -107,11 +75,9 @@ export function choiceCapFrom(html) {
   return (Number.isFinite(n) && (n > 0)) ? n : null;
 }
 
-/**
- * The sentence that grants the choice — the popup's quote, in the spell's own words (law 8).
- * @param {string} html the spell's description
- * @returns {string|null}
- */
+/** The sentence that grants the choice — the popup's quote (law 8).
+ * @param {string} html
+ * @returns {string|null} */
 export function choiceRuleFrom(html) {
   const text = spellProse(html);
   const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text];
@@ -122,13 +88,9 @@ export function choiceRuleFrom(html) {
 /** The disposition hostile to a caster's side — null for a caster with none (neutral, secret). */
 const hostileTo = d => (d === 1) ? -1 : (d === -1) ? 1 : null;
 
-/**
- * Who a spell that chooses affects by default: the creatures hostile to the caster, in area
- * order, up to the spell's own number — never the caster, its side, a neutral or a secret token.
- * The clock keeps this; so does a cast with no choice to make.
+/** A choosing spell's default (and the clock's): the caster's hostiles, in area order, up to the cap.
  * @param {{candidates: Candidate[], casterUuid?: string|null, casterDisposition?: number|null, cap?: number|null}} args
- * @returns {{uuid: string, name: string}[]}
- */
+ * @returns {{uuid: string, name: string}[]} */
 export function chosenByDefault({ candidates, casterUuid = null, casterDisposition = null, cap = null }) {
   const hostile = hostileTo(casterDisposition);
   const list = (Array.isArray(candidates) ? candidates : []).filter(c => c.uuid !== casterUuid);
@@ -137,11 +99,8 @@ export function chosenByDefault({ candidates, casterUuid = null, casterDispositi
   return picked.slice(0, limit).map(c => ({ uuid: c.uuid, name: c.name }));
 }
 
-/**
- * Is there a real choice? The area holds someone not hostile to the caster, or more hostiles than
- * the spell lets the caster choose. Otherwise the default IS the answer and nobody is asked.
- * @param {{candidates: {uuid: string, disposition?: number|null}[], casterUuid?: string|null, casterDisposition?: number|null, cap?: number|null}} args
- */
+/** Is there a real choice — a non-hostile in the area, or more hostiles than the cap? Else no ask.
+ * @param {{candidates: {uuid: string, disposition?: number|null}[], casterUuid?: string|null, casterDisposition?: number|null, cap?: number|null}} args */
 export function choiceNeedsAsk({ candidates, casterUuid = null, casterDisposition = null, cap = null }) {
   const list = (Array.isArray(candidates) ? candidates : []).filter(c => c.uuid !== casterUuid);
   if ( !list.length ) return false;
@@ -151,10 +110,8 @@ export function choiceNeedsAsk({ candidates, casterUuid = null, casterDispositio
   return (Number(cap) > 0) && (hostiles.length > Number(cap));
 }
 
-/**
- * The line the spell's card carries once the choice stands — source, then result (law 6).
- * @param {{spell?: string|null, chosen?: {name: string}[], left?: {name: string}[]}} record
- */
+/** The line the spell's card carries once the choice stands — source, then result (law 6).
+ * @param {{spell?: string|null, chosen?: {name: string}[], left?: {name: string}[]}} record */
 export function areaChoiceLine(record) {
   const spell = record?.spell ?? "The spell";
   const chosen = (record?.chosen ?? []).map(c => c.name).filter(Boolean);
@@ -163,16 +120,9 @@ export function areaChoiceLine(record) {
   return left.length ? `${head} · not chosen: ${left.join(", ")}` : head;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The ask itself: its defaults, its words, its outcome
- * ------------------------------------------------------------------------------------------- */
-
-/**
- * The ask's defaults: Careful's non-hostiles up to the cap, a chosen area's hostiles up to the
- * spell's number, Heightened's nearest hostile.
+/** The ask's defaults, per kind.
  * @param {Ask} ask
- * @returns {{uuid: string, name: string}[]}
- */
+ * @returns {{uuid: string, name: string}[]} */
 export function askDefaults(ask) {
   const facts = { contained: ask?.candidates ?? [], casterUuid: ask?.casterUuid ?? null, casterDisposition: ask?.casterDisposition ?? null };
   if ( ask?.kind === "careful" ) return carefulProtects({ ...facts, cap: ask.cap ?? 1 });
@@ -181,13 +131,10 @@ export function askDefaults(ask) {
   return mark ? [mark] : [];
 }
 
-/**
- * The merged ask's Disadvantage mark (a spell that chooses, cast with Heightened Spell): the
- * player's radio when it names a creature they also chose, else Heightened's default over the chosen.
+/** A choosing spell cast Heightened: the radio pick if also chosen, else the default over the chosen.
  * @param {Ask} ask
  * @param {string[]} chosenUuids
- * @param {string|null} [picked]
- */
+ * @param {string|null} [picked] */
 export function askMark(ask, chosenUuids, picked = null) {
   const chosen = new Set(chosenUuids ?? []);
   const among = (ask?.candidates ?? []).filter(c => chosen.has(c.uuid));
@@ -200,11 +147,8 @@ export function askTicks(ask) {
   return (ask?.kind === "careful") || (ask?.kind === "choose");
 }
 
-/**
- * The words an ask wears — the card's line, the popup's eyebrow, title and subtitle — one set per
- * kind, so the machine that draws it knows no kind by name.
- * @param {Ask} ask
- */
+/** The words an ask wears, per kind, so the machine knows no kind by name.
+ * @param {Ask} ask */
 export function askWords(ask) {
   const spell = ask?.spell ?? ask?.feature ?? "the spell";
   const n = (ask?.candidates ?? []).length;
@@ -226,14 +170,10 @@ export function askWords(ask) {
   };
 }
 
-/**
- * The outcome of an answer (the ticks, or the defaults when the clock ran out) as the records it
- * makes: Careful's protected list, a chosen area's choice, Heightened's mark; and `stays`, which
- * creatures of the area keep their save.
+/** An answer's records (protected list, area choice, mark) and `stays`: who keeps their save.
  * @param {Ask} ask
- * @param {string[]|null} picked the ticked uuids, or null for the defaults
- * @param {{mark?: string|null, timedOut?: boolean}} [opts]
- */
+ * @param {string[]|null} picked  null for the defaults
+ * @param {{mark?: string|null, timedOut?: boolean}} [opts] */
 export function askOutcome(ask, picked, { mark: markPick = null, timedOut = false } = {}) {
   const chosen = Array.isArray(picked) ? picked : askDefaults(ask).map(c => c.uuid);
   const named = uuid => (ask.candidates ?? []).find(c => c.uuid === uuid) ?? null;

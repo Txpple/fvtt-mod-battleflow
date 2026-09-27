@@ -1,8 +1,6 @@
 /**
- * Battle Flow — the reaction hold, part 1 of the `hold/` machine: THE READERS. Eligibility, the
- * item a reaction IS on an actor, its artwork, the AC it grants, whether its effect and its AC
- * have landed, and the one applier for the reaction's own self-cast effect. No hooks, no flag
- * writes. The `hold/` parts import in one direction (ARCHITECTURE.md §7); `index.js` is the face.
+ * Battle Flow — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
+ * item a reaction IS, its AC and art, whether it landed, and the self-cast effect applier. No hooks.
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
@@ -19,8 +17,7 @@ import { applyEffectsTo } from "../effect-riders.js";
 function hasSpellSlot(actor, level) {
   if ( !level ) return true; // cantrip / at-will
   for ( const [key, slot] of Object.entries(actor.system.spells ?? {}) ) {
-    // ⚠ Both must be real: an NPC's slot maxima are derived and can recompute to 0, leaving a
-    // stale `value` that would advertise slots it cannot spend.
+    // ⚠ Both: an NPC's derived max can recompute to 0 under a stale `value`.
     if ( !slot?.value || !slot?.max ) continue;
     const numbered = /^spell(\d+)$/.exec(key);
     const slotLevel = numbered ? Number(numbered[1]) : slot.level;
@@ -29,14 +26,8 @@ function hasSpellSlot(actor, level) {
   return false;
 }
 
-/**
- * The item that IS this reaction on this actor — where its effect lives, its art, its AC bonus.
- *
- * ⚠ ONE NAME CAN MATCH SEVERAL ITEMS, and the wrong match is silent: an armoured statblock
- * caster owns a mundane "Shield" and, via its cast activity's cached copy, a Shield SPELL; on an
- * unlinked token the equipment sorts first. Preference: the cached spell of the recorded cast
- * activity, then a usable reaction with effects, then any usable reaction, then one with effects.
- */
+/** The item that IS this reaction on this actor. ⚠ One name can match several items silently
+ * (a worn "Shield" and a cast activity's cached Shield SPELL), hence the preference order. */
 export function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
   if ( !actor || !reactionName ) return null;
   const cached = activityId
@@ -50,22 +41,17 @@ export function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
     ?? matches[0] ?? null;
 }
 
-/**
- * Can this actor use the named reaction RIGHT NOW — and through which item and activity?
- * `{ item, activity }` or null. Conservative: a hold the target cannot answer is a false stop.
- */
+/** `{ item, activity }` through which this actor can use the named reaction now, or null.
+ * Conservative: a hold the target cannot answer is a false stop. */
 export async function usableReaction(actor, name) {
   if ( !actor || !name ) return null;
 
-  // ⚠ The monster pattern first: a 2024 statblock casts through a "Spellcasting" feature's
-  // `cast` ACTIVITY, whose uses are the resource; the linked spell item reports no uses and
-  // would read as uncastable.
+  // ⚠ Statblock first: its "Spellcasting" `cast` ACTIVITY holds the uses; the linked spell has none.
   const cast = await findCastActivity(actor, name);
   if ( cast ) return { item: cast.item, activity: cast.activity };
-  // ⚠ EVERY item of that name, not the first — a worn shield and the Shield spell share it.
+  // ⚠ EVERY item of that name — a worn shield and the Shield spell share it.
   for ( const item of actor.items.filter(i => i.name.toLowerCase() === name.toLowerCase()) ) {
-    // A text-only feature (the 2024 Uncanny Dodge) counts: it has no activity, and the answer
-    // spends the Reaction chip itself.
+    // A text-only feature (Uncanny Dodge) counts; the answer spends the Reaction chip itself.
     if ( !isReactionItem(item) && !isTextOnlyFeature(item) ) continue;
 
     const uses = limitedUses(item);
@@ -73,8 +59,7 @@ export async function usableReaction(actor, name) {
     if ( item.type === "spell" ) {
       // ⚠ `prepared` is a PC concept: every levelled spell on a 2024 statblock reads prepared 0.
       if ( (actor.type === "character") && !item.system.prepared ) continue;
-      // ⚠ A spell can be paid by its OWN uses instead of a slot (a statblock's x/day pool);
-      // monster slot maxima usually sit at 0.
+      // ⚠ A statblock spell can be paid by its OWN x/day uses instead of a slot.
       if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
     }
     return { item, activity: null };
@@ -82,10 +67,7 @@ export async function usableReaction(actor, name) {
   return null;
 }
 
-/**
- * The first listed interrupt this actor can use right now, or null. `spentOk` looks past a spent
- * Reaction — only for the greyed row the rescue popup shows beside a live `roll` row.
- */
+/** The first listed interrupt usable now; `spentOk` looks past a spent Reaction (a greyed row). */
 export async function findInterrupt(actor, { isCritical, spentOk = false }) {
   if ( !actor || (!spentOk && reactionSpent(actor)) ) return null;
   for ( const entry of interruptEntries() ) {
@@ -93,26 +75,23 @@ export async function findInterrupt(actor, { isCritical, spentOk = false }) {
     if ( entry.kind === "roll" ) continue;
     const found = await usableReaction(actor, entry.name);
     if ( !found ) continue;
-    // A reduction row makes the reaction a `damage` interrupt whatever the list's kind says.
     const reduce = reductionFor(found.item, entry.name);
-    // A reduction for ANOTHER creature (Interception) is asked of the guards (damage-holds.js).
+    // A reduction for ANOTHER creature (Interception) is the guards' (damage-holds.js).
     if ( reduce?.row?.ally ) continue;
     const kind = reduce ? "damage" : entry.kind;
-    // A natural 20 hits regardless of AC, so an AC-type reaction cannot save it — no pause.
+    // A natural 20 hits regardless of AC.
     if ( isCritical && (kind === "ac") ) continue;
     if ( reduce ) {
       const pool = reduce.row.pool ? poolOf(actor, reduce.activity) : null;
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
-      // The row's voice rides the hold flag so views and announcements need no lookup;
-      // `maneuver` decides whether the resolve also publishes the `maneuver` word.
+      // The row's voice rides the hold flag; `maneuver` decides the resolve's `maneuver` word.
       const row = reduce.row;
       return { entry: { ...entry, kind }, ...found, reduce: { formula: reduce.formula, activityId: reduce.activity.id,
         eyebrow: row.eyebrow ?? "Maneuver", spend: row.spend ?? "Superiority Die", hit: row.hit ?? "melee attack",
         by: row.by ?? "the die plus your modifier", maneuver: (row.eyebrow ?? "Maneuver") === "Maneuver" } };
     }
-    // An `ac` reaction already standing is not offered again — an AC bonus does not stack. Only
-    // `ac` (a damage reaction answers each trigger), and only here: the spell trigger keeps
-    // asking, since skipping it would apply damage a standing Shield negates.
+    // A standing `ac` reaction is not re-offered (no stacking) — here only: the spell trigger
+    // keeps asking, or damage a standing Shield negates would apply.
     if ( (entry.kind === "ac") && hasReactionEffect(actor, entry.name,
       { itemId: found.item.id, activityId: found.activity?.id }) ) continue;
     return { entry, ...found };
@@ -121,11 +100,8 @@ export async function findInterrupt(actor, { isCritical, spentOk = false }) {
 }
 
 /**
- * The `roll` rows this actor holds: every Interrupt-list entry of kind `roll` whose feature is on
- * the sheet, with its cost shape (INTERRUPT_ROLLS) and uses read live off the item. Spent rows
- * included — the popup greys them (decide/rescue-hit.js `rescueRows`).
- * ⚠ A row that spends uses demands the item carry them: the 2014 Halfling "Lucky" shares the
- * name and has none (dnd5e plays that reroll itself).
+ * The `roll` rows on this sheet with live uses, spent ones included (greyed). ⚠ A uses row needs
+ * uses on the item: the 2014 Halfling "Lucky" shares the name and has none.
  * @returns {{name: string, row: object, item: Item, activity: object|null, left: number|null, max: number|null}[]}
  */
 export function rollRescuesOf(actor) {
@@ -148,9 +124,7 @@ export function rollRescuesOf(actor) {
 }
 
 /**
- * The guards: creatures within reach of the one being hit that could answer with a `roll` row
- * whose rule is for ANOTHER creature (Protection) — its ally, not the attacker, the feat on the
- * sheet, its Reaction free and holding what the row demands. Each is asked in its own popup.
+ * The guards: allies in reach who could answer with a `roll` row for ANOTHER creature (Protection).
  * @returns {{uuid: string, name: string, row: string, itemId: string, activityId: string|null, passed: boolean}[]}
  */
 export function protectionGuardsOf(defender, attacker) {
@@ -175,7 +149,6 @@ export function protectionGuardsOf(defender, attacker) {
   return out;
 }
 
-/** The facts a rescue row is judged on, read off the actor and the attack roll. */
 function rescueFactsOf(actor, roll) {
   const d20 = roll?.dice?.[0] ?? null;
   return { reactionSpent: reactionSpent(actor), isCritical: !!roll?.isCritical,
@@ -189,8 +162,7 @@ function primaryFacts(actor, found) {
   const spell = (item?.type === "spell") || (found.activity?.type === "cast");
   const max = Number(item?.system?.uses?.max);
   const multiplierKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(found.entry.name));
-  // A reduction's pool in its own words and count — the die pool for Parry, the feature's own
-  // uses for Stone's Endurance.
+  // The pool: Parry's dice, or the feature's own uses (Stone's Endurance).
   const reduceActivity = found.reduce ? item?.system?.activities?.get(found.reduce.activityId) : null;
   const poolItem = reduceActivity ? poolOf(actor, reduceActivity) : null;
   const pool = found.reduce ? { spend: found.reduce.spend ?? "Superiority Die",
@@ -201,17 +173,11 @@ function primaryFacts(actor, found) {
     uses: (!spell && (max > 0)) ? { left: Number(item.system.uses.value ?? 0), max } : null };
 }
 
-/** A `roll` record as the plain facts its row is drawn from. */
 const rollFacts = r => ({ name: r.name, reaction: r.row.reaction, uses: r.row.uses, point: r.row.point ?? null, left: r.left });
 
 /**
- * What the popup that rescues a hit would hold for this defender now: the rows, the records the
- * hold stamps, and whether any row is live. Null when the defender holds no `roll` row — the
- * hold is then the plain one-reaction popup.
- *
- * With no live reaction (`found` null), a held one is still SHOWN greyed when the reason is
- * visible to the table — the Reaction spent, or a natural 20 against an AC reaction — and never
- * otherwise (`hidePrimary`: a Shield already standing, a hopeless one).
+ * The rescue popup's rows, records and liveness for this defender; null with no `roll` row. A dead
+ * reaction shows greyed only for a visible reason (Reaction spent, a nat 20 against AC).
  * @param {Actor} actor
  * @param {object} roll  the attack's D20Roll
  * @param {{found?: object|null, hidePrimary?: boolean}} [opts]
@@ -232,9 +198,7 @@ export async function rescueStateOf(actor, roll, { found = null, hidePrimary = f
 }
 
 /**
- * The rows as the popup draws them NOW: the stamped rows with the `roll` rows' costs re-read live
- * (a point spent elsewhere, the Reaction taken), each with its rule verbatim — a `roll` row's off
- * INTERRUPT_ROLLS, the reaction's off its own item's text.
+ * The stamped rows with `roll` costs re-read live, each with its rule verbatim.
  * @param {Actor} actor
  * @param {{rows?: object[], reaction?: string, itemId?: string, activityId?: string|null}} target
  * @param {object} roll
@@ -252,7 +216,7 @@ export function rescueRowsNow(actor, target, roll) {
   });
 }
 
-/** The spell a `cast` activity casts — the activity's own name is decoration, the link is truth. */
+/** The spell a `cast` activity casts — the link, never the activity's own name. */
 async function castSpellName(activity) {
   if ( activity?.type !== "cast" ) return null;
   const uuid = activity.spell?.uuid;
@@ -265,11 +229,7 @@ export async function reactionNameFor(activity) {
   return (await castSpellName(activity)) ?? activity?.item?.name ?? null;
 }
 
-/**
- * A feature's `cast` activity for the named spell, if this actor can use it as a reaction.
- * ⚠ No pool means AT-WILL here (a statblock's at-will spells carry `uses.max: ""`); a pool that
- * exists and is empty disqualifies.
- */
+/** A reaction `cast` activity for the named spell. ⚠ No pool is AT-WILL (`uses.max: ""`). */
 async function findCastActivity(actor, spellName) {
   const wanted = spellName?.toLowerCase();
   for ( const item of actor.items ) {
@@ -286,12 +246,8 @@ async function findCastActivity(actor, spellName) {
   return null;
 }
 
-/**
- * Is the named reaction's effect already on this actor? Matched by NAME as well as origin: the
- * casting client applies from an item CLONE, so its origin uuid differs.
- * ⚠ `active`, never `!disabled`: v14 MARKS an expired effect instead of deleting it, and an
- * expired Shield still on the sheet grants nothing — reading it as standing skipped the next hold.
- */
+/** Is the reaction's effect on this actor? By NAME too: the caster applies from an item CLONE.
+ * ⚠ `active`, never `!disabled`: v14 MARKS an expired effect instead of deleting it. */
 export function hasReactionEffect(actor, reactionName, ids) {
   if ( !actor || !reactionName ) return false;
   const item = reactionItem(actor, reactionName, ids);
@@ -300,16 +256,11 @@ export function hasReactionEffect(actor, reactionName, ids) {
     || (e.origin && item && e.origin.includes(item.id))));
 }
 
-/**
- * Put a cast reaction's own effect on its caster — only the reaction that answered a hold, only
- * onto the caster. Without it the hold reads a stale AC: Shield's +5 lives in a non-transfer
- * effect, so a cast alone moves nothing. Runs through the shared applier (applyEffectsTo) with
- * name matching and the `reactionEffect` marker. Returns receipt-shaped entries; [] on nothing.
- */
+/** Put the answering reaction's own effect on its caster (Shield's +5 is a non-transfer effect; a
+ * cast alone moves no AC). Receipt-shaped entries, [] on nothing. */
 export async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
-    // ⚠ A cast activity has no effects of its own — they live on the linked spell; fall back to
-    // the reaction's item via reactionItem, never a bare name match (the worn shield).
+    // ⚠ A cast activity's effects live on the linked spell: reactionItem, never a bare name match.
     const own = (await activity?.getApplicableEffects?.()) ?? [];   // 6.0: profiles resolve asynchronously
     let effects = own;
     if ( !effects.length && reactionName ) {
@@ -317,10 +268,8 @@ export async function applyReactionEffect(activity, actor, reactionName, ids) {
       effects = (spell?.effects?.contents ?? []).filter(e => !e.transfer);
     }
     if ( !effects.length ) return [];
-    // ⚠ The pack writes "until the start of your next turn" as `turnStart`, and the platform
-    // stamps `start` with whoever's turn it is — the attacker's. Such an effect takes the
-    // Reaction chip's clock, pinned to the reactor (RULINGS *Chips and clocks*); out of combat
-    // the pack's own clock stands.
+    // ⚠ A `turnStart` effect would be stamped on the ATTACKER's turn: it takes the Reaction chip's
+    // clock, pinned to the reactor (RULINGS *Chips and clocks*).
     const sameSentence = effects.every(e => (e._source?.duration?.expiry ?? e.duration?.expiry) === "turnStart");
     const clock = sameSentence ? chipClock("reaction", placeOf(actor)) : null;
     return await applyEffectsTo([{ uuid: actor.uuid, name: actor.name }], effects, {
@@ -336,14 +285,10 @@ export async function applyReactionEffect(activity, actor, reactionName, ids) {
   }
 }
 
-/**
- * Has the reaction's AC actually ARRIVED — not merely its effect row?
- * ⚠ An effect exists the instant it is created; the AC it grants appears only once derived data
- * recomputes, a beat later and per client. A verdict must wait on the NUMBER.
- */
+/** Has the reaction's AC ARRIVED? ⚠ The derived AC lags the effect row, per client — wait on the NUMBER. */
 export function reactionACArrived(actor, target) {
   if ( !hasReactionEffect(actor, target.reaction, target) ) return false;
-  // Already applied when stamped: the snapshot contains the bonus, so there is no delta to see.
+  // Applied before the stamp: the snapshot already holds the bonus.
   if ( target.hadEffect ) return true;
   const bonus = reactionACBonus(target.reaction, actor, target);
   if ( bonus == null ) return true; // proficiency-scaled or formula bonus: not measurable here
@@ -351,15 +296,11 @@ export function reactionACArrived(actor, target) {
   return Number.isFinite(liveAC) && (liveAC >= ((target.ac ?? 0) + bonus));
 }
 
-/** The reaction's own artwork, for cards that talk about it. */
 export function reactionImg(actor, reactionName, ids) {
   return reactionItem(actor, reactionName, ids)?.img ?? null;
 }
 
-/**
- * The AC a listed reaction grants, read from its own effect (the list is editable, so never
- * Shield's +5). Null for a non-numeric bonus (Defensive Duelist's proficiency).
- */
+/** The AC the reaction's own effect grants; null for a non-numeric bonus (Defensive Duelist). */
 export function reactionACBonus(reactionName, actor, ids) {
   const item = reactionItem(actor, reactionName, ids);
   for ( const effect of item?.effects ?? [] ) {

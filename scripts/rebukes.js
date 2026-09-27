@@ -1,13 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the REBUKE — a Reaction to taking damage, aimed at
- * the creature that dealt it (decide/registry.js REBUKES, arithmetic in decide/rebukes.js). The
- * shape is Riposte's: a popup, a card with the bar, a clock that passes; Use drives the REAL use at
- * the damager on the answering client, and the ordinary pipeline does the rest.
- *
- * The trigger is `dnd5e.applyDamage` — the one seam that knows the ORIGINATING card, and so the
- * damager. Native buttons pass it too; a raw HP edit names no source and offers nothing. The
- * applying client stamps the card and folds answers (or the active GM, with the author gone).
- * The gate (decide/rebukes.js rebukeBlocked) reads facts only; "that you can see" is the table's.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the REBUKE — a Reaction to taking damage, at the
+ * damager (registry.js REBUKES, decide/rebukes.js). Riposte's shape; Use drives the REAL use on the
+ * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
+ * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
@@ -46,11 +41,8 @@ function reactionActivity(item, row) {
   return [...(item?.system?.activities ?? [])].find(a => a.activation?.type === "reaction") ?? null;
 }
 
-/**
- * Every listed rebuke this bearer may take at this damager, right now — the options its popup offers.
- * `ward`: the WARD rows only (Sentinel — the bearer a bystander to a hit on someone else), else the
- * bearer's own rebukes only; `attackHit`: the damage came from an attack (a `hit` row's need).
- */
+/** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
+ * bystander to the hit); `attackHit`: the damage came from an attack. */
 function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
@@ -66,9 +58,7 @@ function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
     const activity = reactionActivity(item, row);
     if ( !activity && !row.attack ) continue;
     const pool = activity ? poolOf(actor, activity) : null;
-    // A SPELL WITH USES OF ITS OWN (Fiendish Legacy's Hellish Rebuke "once without a spell slot"):
-    // while a free cast is left no slot is asked for — the drive casts slotless and the use pays
-    // (`free`). With none left, a slot is.
+    // A spell with uses of its own (Fiendish Legacy): while a free cast is left, no slot is asked.
     const ownUses = (item.type === "spell") && (Number(item.system?.uses?.max) > 0);
     const usesMax = Number((pool ?? (ownUses ? item : null))?.system?.uses?.max ?? 0);
     const usesLeft = (usesMax > 0) ? Number((pool ?? item).system.uses.value ?? 0) : null;
@@ -141,12 +131,8 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
   if ( message ) armTimer(message);
 }
 
-/**
- * THE WARDS (Sentinel's Guardian: an Opportunity Attack when a creature within 5 feet hits a
- * target other than you): the same damage landing, asked of every OTHER creature holding a listed
- * ward row, within reach of the hitter and on another side from it (offersFor). One ask per bearer
- * per dealing card — a second application of the same damage asks nothing more.
- */
+/** THE WARDS (Sentinel's Guardian): asked of every OTHER holder in reach of the hitter, on another
+ * side; one ask per bearer per dealing card. */
 const wardsAsked = new Set();
 async function stampWards(hurt, source, amount, origin) {
   const listed = listedNames(rebukeEntries());
@@ -200,8 +186,7 @@ async function answerRebuke(message, answer, index = null) {
     if ( claimed && option ) await driveRebuke(message, option);
     return;
   }
-  // The relay: the answer travels as the answerer's own card and the keeper folds it; the drive
-  // runs here at once — waiting for the round trip would idle their dice.
+  // The relay carries the answer to the keeper; the drive runs here at once.
   const actor = resolveUuid(flag.actorUuid);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -222,11 +207,8 @@ registerRelay("rebukeAnswer", {
   }
 });
 
-/**
- * THE DRIVE — the real use at the damager, on the answering client: aimed first, so every card in
- * the sequence names it; the Reaction spent after. An attack row rolls the attack (Advantage where
- * the row says so) and auto-damage carries it; any other activity's use is the ordinary pipeline's.
- */
+/** THE DRIVE: the real use at the damager, aimed first so every card names it; the Reaction spent
+ * after. An attack row rolls the attack; anything else is the ordinary pipeline's. */
 async function driveRebuke(message, option) {
   const key = `${message.id}|${option.name}`;
   if ( driving.has(key) ) return;
@@ -247,8 +229,7 @@ async function driveRebuke(message, option) {
       } else {
         const activity = item?.system?.activities?.get(option.activityId) ?? null;
         if ( activity?.type !== "attack" ) {
-          // The free cast: no slot; the use pays — through the activity's own item-use target when
-          // it has one, by hand when the uses sit on the spell with no target naming them.
+          // The free cast: the activity's item-use target pays, else the spell's uses by hand.
           const usage = option.free ? { consume: { spellSlot: false } } : {};
           if ( activity ) {
             const done = await activity.use(usage, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
