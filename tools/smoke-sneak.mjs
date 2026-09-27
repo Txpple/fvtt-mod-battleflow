@@ -18,7 +18,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 export const COVERS = [
   'sneak.js',               // the box, the menu, the dice, the crit, the chit
   'reminders.js',           // §1 / §11 — the Sneak Attack box under the gate's sources
-  'use-chips.js',           // §10 — Steady Aim written as a chip on use
+  'use-chips.js',           // §10 — Steady Aim written as a chip on use; §12 — the Poisoner's Poison Coating (COATINGS)
   'saves/index.js',         // §4 / §7 / §8 — the Cunning Strike effects through the saves machine
   'saves/demand.js',
   'saves/ask.js',
@@ -39,7 +39,8 @@ const SECTIONS = {
   8: 'Death Strike: round one, the Con save, the damage again',
   9: 'the registration FIRED (§11): preRollDamageV2 moved',
   10: 'Steady Aim (a use chip): the use writes the chip, the gate reads it as Advantage, the roll spends it',
-  11: 'the ally clause off the map (2026-09-22): an ally beside the target ticks the box at Normal; none, or Disadvantage, does not'
+  11: 'the ally clause off the map (2026-09-22): an ally beside the target ticks the box at Normal; none, or Disadvantage, does not',
+  12: 'the Poison Coating (the PHB feats walk, 2026-09-26 — a rule of cool): Apply Poison writes the chip on the rogue (60 s, the dagger icon), a dose spent, the card, no enchantment card; no dose left writes nothing; a MISS leaves the chip; a HIT spends it — the feat\'s own save at the victim, a failure deals 2d8 poison NOT halved by Poison Resistance (Potent Poison) and presses Poisoned until the end of the rogue\'s next turn (sourceEnd)'
 };
 const DEPENDS = { 4: ['3'], 9: ['4'] };
 
@@ -80,7 +81,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',
-    'concMode', 'reminderList', 'conditionList', 'effectList'];
+    'concMode', 'reminderList', 'conditionList', 'effectList', 'fightingStyleList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -605,6 +606,94 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (await waitFor(offerEl, 6000))?.querySelector('button[data-action="roll"]')?.click();
         await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 12000);
         await clearChips();
+      }
+    }
+
+    // ================================================== 12. the Poison Coating
+    if (want(12)) {
+      await clearChips();
+      const featPack = game.packs.get('dnd-players-handbook.feats');
+      const fsrc = featPack ? (await featPack.getIndex()).find(e => e.name === 'Poisoner') : null;
+      const fdata = fsrc ? (await featPack.getDocument(fsrc._id)).toObject() : null;
+      if (!fdata) { skips.push('§12: Poisoner not in the PHB feats pack'); }
+      else {
+        delete fdata._id;
+        const [poisoner] = await rogue.createEmbeddedDocuments('Item', [fdata]);
+        created.items.push({ actorId: rogue.id, id: poisoner.id });
+        await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? prior.fightingStyleList);
+        const drBefore = [...(victim.system._source.traits?.dr?.value ?? [])];
+        const coat = () => rogue.effects.find(e => e.getFlag(MOD, 'coat')) ?? null;
+        const apply = () => poisoner.system.activities.find(a => a.name === 'Apply Poison');
+        const useCards = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'coatUse'));
+        const enchantCards = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getAssociatedActivity?.()?.type === 'enchant'));
+        try {
+          const max = Number(poisoner.system.uses.max) || 0;
+          // no dose left: nothing is written
+          await poisoner.update({ 'system.uses.spent': max });
+          await apply()?.use({}, { configure: false }, {});
+          await sleep(1200);
+          ok('12a. no dose left: no chip, no card, the doses untouched', !coat() && !useCards().length && (Number(poisoner.system.uses.spent) === max),
+            `chip=${!!coat()} cards=${useCards().length} spent=${poisoner.system.uses.spent}/${max}`);
+          await poisoner.update({ 'system.uses.spent': 0 });
+          await apply()?.use({}, { configure: false }, {});
+          const chip = await waitFor(coat, 6000);
+          const card = await waitFor(() => useCards().at(-1) ?? null, 6000);
+          ok('12b. Apply Poison: the Poison Coating on the ROGUE (60 s, the poisoned dagger), a dose spent, the card says Bonus Action — no enchantment card',
+            !!chip && (chip.name === 'Poison Coating') && (chip.img === 'icons/weapons/daggers/dagger-poisoned.webp')
+              && (Number(chip.duration?.seconds ?? chip._source.duration?.value) === 60) && (Number(poisoner.system.uses.spent) === 1)
+              && !!card && (card.getFlag(MOD, 'coatUse')?.left === max - 1) && !enchantCards().length,
+            `chip=${chip?.name} img=${chip?.img} duration=${JSON.stringify(chip?._source?.duration)} spent=${poisoner.system.uses.spent} card=${!!card} enchant=${enchantCards().length}`);
+          // a MISS: the natural 1 misses, and the coating stands
+          await healFull();
+          target(victimToken);
+          await sleep(80);
+          face(1);
+          const act = attackOf(rapier);
+          const u1 = await act.use({ subsequentActions: false }, { configure: false }, {});
+          await act.rollAttack({}, { configure: false }, u1?.message?.id ? { data: { 'system.origin': u1.message.id } } : {});
+          await sleep(2500);
+          ok('12c. a MISS spends nothing: the coating stands', !!coat(), `chip=${!!coat()}`);
+          // a HIT: the coating is spent through the feat's own save
+          await victim.update({ 'system.traits.dr.value': ['poison'] });
+          await healFull();
+          face(19);
+          const u2 = await act.use({ subsequentActions: false }, { configure: false }, {});
+          const rolls = await act.rollAttack({}, { configure: false }, u2?.message?.id ? { data: { 'system.origin': u2.message.id } } : {});
+          const attackMsg = rolls?.[0]?.parent ?? null;
+          const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
+          const dmg = await waitFor(() => damageFor(originId), 10000);
+          const spentFlag = await waitFor(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, 10000);
+          const saveCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'saves')
+            && (m.getAssociatedItem?.()?.name === 'Poisoner')) ?? null, 10000);
+          const gone = await waitFor(() => !coat(), 6000);
+          ok('12d. a HIT spends it: the chip gone, the damage card says so, the feat\'s own Constitution save demanded of the victim',
+            gone && !!spentFlag && spentFlag.targets?.some(t => t.uuid === victim.uuid) && !!saveCard
+              && (saveCard.getFlag(MOD, 'saves')?.abilities?.join() === 'con'),
+            `gone=${gone} flag=${JSON.stringify(spentFlag ? { status: spentFlag.status, ability: spentFlag.ability } : null)} save=${!!saveCard} abilities=${saveCard?.getFlag(MOD, 'saves')?.abilities?.join()}`);
+          await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 10000);
+          const hpBefore = Number(victim.system.attributes.hp.value);
+          face(1);   // the save a natural 1 (its 2d8 was rolled with the demand)
+          await answerSave();
+          await waitFor(() => saveCard?.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000);
+          const poisonDmg = await waitFor(() => damageFor(saveCard?.id)?.getFlag(MOD, 'receipt') ? damageFor(saveCard.id) : null, 10000);
+          const poisoned = await waitFor(() => victim.effects.find(e => e.statuses?.has?.('poisoned')) ?? null, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const dealt = hpBefore - Number(victim.system.attributes.hp.value);
+          const rolled = Number(poisonDmg?.rolls?.[0]?.total);
+          ok('12e. the failure: the 2d8 poison lands WHOLE through Poison Resistance (Potent Poison — dealt equals rolled, not half)',
+            !!poisonDmg && (rolled > 1) && (dealt === rolled),
+            `rolled=${rolled} dealt=${dealt} dr=${JSON.stringify([...(victim.system.traits.dr.value ?? [])])}`);
+          ok('12f. …and Poisoned, until the end of the rogue\'s next turn (the platform\'s sourceEnd)',
+            !!poisoned && (poisoned._source.duration?.expiry === 'sourceEnd'),
+            `poisoned=${!!poisoned} duration=${JSON.stringify(poisoned?._source?.duration)}`);
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG;
+          await victim.update({ 'system.traits.dr.value': drBefore }).catch(() => {});
+          const c = coat();
+          if (c) await c.delete().catch(() => {});
+          await rogue.deleteEmbeddedDocuments('Item', [poisoner.id]).catch(() => {});
+          await clearChips();
+        }
       }
     }
 

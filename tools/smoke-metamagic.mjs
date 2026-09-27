@@ -61,6 +61,7 @@ const SECTIONS = {
   19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle and Transmuted fit, Careful, Heightened, Extended and Twinned (no slot to raise) do not; Transmuted\'s type radios are inert until Transmuted is ticked',
   20: 'a spell that chooses its targets (2026-09-24, Session 8\'s Slow): Careful greys in Slow\'s window ("you choose its targets") and stays live on Fireball; the cast raises the picture\'s hold and the stamp lowers it; the cube over the Sorcerer, the Ranger and both goblins asks WHO IT AFFECTS — three rows, never the caster, the goblins ticked, the Ranger not, in the spell\'s own words — while the demand waits; OK → the goblins owe the save, the Ranger does not, the card names both sides, one "choice" moment',
   21: '…and asks nobody when there is nothing to choose: the cube over the two goblins alone chooses them both with no popup; the default rides the card (not asked) and publishes no moment',
+  23: 'Empowered after Elemental Adept (the PHB feats walk, 2026-09-26 — Gren): Fire Bolt pinned [1, 7] — the chip shows 2 (rolled 1, counts 2) and the total is 9; the 1 rerolled to another 1 still counts 2 (the die keeps its min2 floor), the total stands at 9',
   22: 'Slow with Heightened Spell: ONE popup — the choice ticks with a Disadvantage radio beside each row, live only on the ticked; the second goblin picked is the one the demand and the record mark; the Ranger never owes the save',
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
@@ -95,7 +96,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.metamagicList`)) return { fatal: 'metamagicList not registered — OLD code (deploy --local, wait out the cache, or restart the box)' };
 
-  const SETTING_KEYS = ['metamagicList', 'reminderList', 'requireTarget', 'saves', 'autoApply', 'saveTimer', 'd20Folds', 'd20FoldAsk', 'holdTimer'];
+  const SETTING_KEYS = ['metamagicList', 'reminderList', 'requireTarget', 'saves', 'autoApply', 'saveTimer', 'd20Folds', 'd20FoldAsk', 'holdTimer', 'fightingStyleList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -939,6 +940,57 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await scatter();
       }
     } else if (want(20) || want(21) || want(22)) ok('20-22. fixtures', false, 'BF Test Ranger or BF Test Victim missing');
+
+    if (want(23)) {
+      const pack23 = game.packs.get('dnd-players-handbook.feats');
+      const src23 = pack23 ? (await pack23.getIndex()).find(e => e.name === 'Elemental Adept') : null;
+      const data23 = src23 ? (await pack23.getDocument(src23._id)).toObject() : null;
+      if (!data23 || !spellAct('Fire Bolt')) { ok('23. the fixtures: the PHB Elemental Adept and the Sorcerer\'s Fire Bolt', false, `feat=${!!data23} bolt=${!!spellAct('Fire Bolt')}`); }
+      else {
+        delete data23._id;
+        data23.name = 'Elemental Adept (Fire)';   // typed at birth: no type pick
+        const [adept] = await sorc.createEmbeddedDocuments('Item', [data23]);
+        const realPRNG23 = CONFIG.Dice.randomUniform;
+        const pin = (values, faces) => { let i = 0; CONFIG.Dice.randomUniform = () => 1 - ((values[Math.min(i++, values.length - 1)] - 0.5) / faces); };
+        try {
+          await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? prior.fightingStyleList);
+          await set('holdTimer', 0);
+          const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
+          await sleep(600);
+          game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+          const before = new Set(game.messages.map(m => m.id));
+          await spellAct('Fire Bolt').use({ create: { measuredTemplate: false } }, { configure: false }, {});
+          const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
+          await closeDialogs();
+          pin([1, 7], 10);
+          await spellAct('Fire Bolt').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
+          CONFIG.Dice.randomUniform = realPRNG23;
+          const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && m.getFlag(MOD, 'empowered')) ?? null, 8000);
+          const flag = dmg?.getFlag(MOD, 'empowered');
+          const lifted = (flag?.dice ?? []).find(d => d.rolled === 1);
+          ok('23a. the floored die reads what it COUNTS: 2 (rolled 1), the total 9',
+            !!lifted && (lifted.result === 2) && (dmg?.rolls?.[0]?.total === 9) && (flag?.oldTotal === 9),
+            `dice=${JSON.stringify(flag?.dice?.map(d => ({ r: d.result, rolled: d.rolled })))} total=${dmg?.rolls?.[0]?.total} old=${flag?.oldTotal}`);
+          const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 12000);
+          const chip = popup?.element?.querySelector(`[data-bf-die="${lifted?.key}"]`);
+          ok('23b. the chip shows 2, its tooltip says rolled 1', (chip?.textContent?.trim() === '2') && /rolled 1, counts 2/.test(chip?.dataset?.tooltip ?? ''),
+            `text=${chip?.textContent?.trim()} tooltip=${chip?.dataset?.tooltip}`);
+          chip?.click(); await sleep(50);
+          pin([1], 10);
+          popup?.element?.querySelector('button[data-action="reroll"]')?.click();
+          const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 12000);
+          CONFIG.Dice.randomUniform = realPRNG23;
+          const roll = game.messages.get(dmg.id)?.rolls?.[0];
+          ok('23c. rerolled into another 1, the die still counts 2: the pick 2 → 2 (face 1), the total stands at 9',
+            !!used && (used.picks?.[0]?.old === 2) && (used.picks?.[0]?.new === 2) && (used.picks?.[0]?.face === 1) && (roll?.total === 9) && (used.newTotal === 9),
+            `picks=${JSON.stringify(used?.picks)} total=${roll?.total} new=${used?.newTotal}`);
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG23;
+          await closeDialogs();
+          await sorc.deleteEmbeddedDocuments('Item', [adept.id]).catch(() => {});
+        }
+      }
+    }
 
     if (want(8)) {
       ok('8a. renderActivityUsageDialog fired', count('renderActivityUsageDialog') > 0, `count=${count('renderActivityUsageDialog')}`);

@@ -17,7 +17,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1); §14 Crossbow Expert's Dual Wielding (group 2)
+  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1); §14 Crossbow Expert's Dual Wielding (group 2); §15 Elemental Adept's type pick
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
@@ -36,6 +36,7 @@ const SECTIONS = {
   12: `Heavy Armor Master: its face live in Chain Mail and the pack's own reduction switched off; an attack's 9 slashing lands 9 − PB (the calculation says "blocked", the actor's update carries the pop); a bare 9 (no attack card) lands whole; out of the armor the attack's 9 lands whole`,
   13: `Elemental Adept and Poisoner (the PHB feats, group 1, 2026-09-26): "Elemental Adept (Fire)" — its face live "Fire"; Fire Bolt's 1s count as 2 ("1 → 2"), the record; its fire damage ignores the victim's Fire Resistance (the calculation says so), a weapon's fire damage does not; renamed with no type the face is off and says how; Poisoner — a weapon card's poison ignores Resistance to Poison`,
   14: `Crossbow Expert's Dual Wielding (group 2): a Hand Crossbow and a Dagger held — its face live; the Hand Crossbow's off-hand damage adds the modifier back ("Crossbow Expert — +N on the off-hand"); beside Two-Weapon Fighting the modifier is added ONCE`,
+  15: `Elemental Adept's type pick (the walk, 2026-09-26): a typeless copy landing posts the pick card and opens the popup (five types); Cold renames it "Elemental Adept (Cold)" and the card says chosen; a second copy is offered four (no Cold); renamed by hand "(Acid)" the card settles and the popup closes; a third copy's own card (a click on the sheet) asks too`,
   10: 'Unarmed Fighting at the start of the turn: the fighter grapples the victim — a card and a popup "Deal 1d4 …?"; Deal it lands the damage; next turn Skip deals nothing; with a clock, the clock deals it'
 };
 const DEPENDS = {};
@@ -591,6 +592,67 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const it of [adept, poisoner, bolt]) {
           if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }
         }
+        await sleep(600);
+      }
+    }
+
+    // ================================================== 15. Elemental Adept's type pick
+    if (want(15)) {
+      const waitFor = async (test, timeout = 8000) => { const until = Date.now() + timeout; while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); } return test(); };
+      const source = await findPHB('Elemental Adept', 'feat');
+      const pickCard = item => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'typePick')?.itemUuid === item?.uuid)).at(-1) ?? null;
+      const pickPopup = () => [...foundry.applications.instances.values()]
+        .find(app => app.rendered && /Elemental Adept/.test(app.title ?? '') && app.element?.querySelector?.('button[data-action="later"]')) ?? null;
+      const closePicks = async () => { for (const app of [...foundry.applications.instances.values()]) if (app.element?.querySelector?.('button[data-action="later"]') && /Elemental Adept/.test(app.title ?? '')) { try { await app.close(); } catch { /* gone */ } } };
+      const copies = [];
+      const land = async () => {
+        const data = source.toObject();
+        const [item] = await actor.createEmbeddedDocuments('Item', [data]);
+        lent.push(item.id); copies.push(item);
+        return item;
+      };
+      try {
+        if (!source) throw new Error('the PHB ships no Elemental Adept this box can find');
+        await closePicks();
+        const first = await land();
+        const card1 = await waitFor(() => pickCard(first), 6000);
+        const pop1 = await waitFor(pickPopup, 6000);
+        const buttons = [...(pop1?.element?.querySelectorAll('button[data-action]') ?? [])].map(b => b.dataset.action);
+        ok('15a. a typeless copy lands: the pick card (five types left) and the popup (a button each, and Later)',
+          !!card1 && (card1.getFlag(MOD, 'typePick')?.left?.length === 5) && ['acid', 'cold', 'fire', 'lightning', 'thunder', 'later'].every(a => buttons.includes(a)),
+          `card=${!!card1} left=${JSON.stringify(card1?.getFlag(MOD, 'typePick')?.left)} buttons=${buttons.join(',')}`);
+        pop1?.element?.querySelector('button[data-action="cold"]')?.click();
+        const chosen = await waitFor(() => (pickCard(first)?.getFlag(MOD, 'typePick')?.chosen === 'cold') && (actor.items.get(first.id)?.name === 'Elemental Adept (Cold)'), 6000);
+        await sleep(400);
+        ok('15b. Cold: the copy renamed "Elemental Adept (Cold)", the card says chosen, the popup closed',
+          !!chosen && !pickPopup(), `name="${actor.items.get(first.id)?.name}" chosen=${pickCard(first)?.getFlag(MOD, 'typePick')?.chosen} popup=${!!pickPopup()}`);
+        const second = await land();
+        const card2 = await waitFor(() => pickCard(second), 6000);
+        const left2 = card2?.getFlag(MOD, 'typePick')?.left ?? [];
+        ok('15c. a second copy is offered four — Cold is already held', (left2.length === 4) && !left2.includes('cold'), `left=${JSON.stringify(left2)}`);
+        await waitFor(pickPopup, 4000);
+        await second.update({ name: 'Elemental Adept (Acid)' });
+        const settled = await waitFor(() => pickCard(second)?.getFlag(MOD, 'typePick')?.chosen === 'acid', 6000);
+        await sleep(400);
+        ok('15d. renamed by hand "(Acid)": the card settles (chosen acid) and the popup closes', !!settled && !pickPopup(),
+          `chosen=${pickCard(second)?.getFlag(MOD, 'typePick')?.chosen} popup=${!!pickPopup()}`);
+        const third = await land();
+        await waitFor(() => pickCard(third), 6000);
+        await closePicks();
+        const before = pickCard(third)?.id;
+        await actor.items.get(third.id)?.displayCard?.();
+        const own = await waitFor(() => { const c = pickCard(third); return (c && (c.id !== before)) ? c : null; }, 6000);
+        const pop3 = await waitFor(pickPopup, 6000);
+        ok('15e. the third copy\'s own card (a click on the sheet) carries the pick and asks: two left, the popup open',
+          !!own && (own.getFlag(MOD, 'typePick')?.left?.length === 3) && !!pop3,
+          `card=${!!own} left=${JSON.stringify(own?.getFlag(MOD, 'typePick')?.left)} popup=${!!pop3}`);
+      } catch (err) {
+        ok('15. the type pick ran', false, String(err?.message ?? err));
+      } finally {
+        await closePicks();
+        const gone = copies.map(c => c.id).filter(id => actor.items.get(id));
+        if (gone.length) await actor.deleteEmbeddedDocuments('Item', gone).catch(() => {});
+        for (const c of copies) if (lent.includes(c.id)) lent.splice(lent.indexOf(c.id), 1);
         await sleep(600);
       }
     }
