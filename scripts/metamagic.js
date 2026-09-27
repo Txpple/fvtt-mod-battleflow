@@ -588,7 +588,11 @@ function empoweredDice(rolls) {
       if ( !Number.isFinite(term?.faces) || !Array.isArray(term.results) ) return;
       term.results.forEach((r, k) => {
         if ( r.active === false ) return;
-        out.push({ key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces: term.faces, result: r.result });
+        // What the die COUNTS, not what it showed (the walk, 2026-09-26: Gren's Fireball showed a 1 that
+        // Elemental Adept's min2 had made a 2) — a floored face keeps its roll for the tooltip.
+        const counted = Number(r.count ?? r.result);
+        out.push({ key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces: term.faces, result: counted,
+          ...(counted !== Number(r.result) ? { rolled: r.result } : {}) });
       });
     });
   });
@@ -648,7 +652,7 @@ async function showEmpoweredPopup(message) {
   if ( !actor ) return;
   const pool = actor.items?.get(flag.poolId) ?? null;
   // Eight to a row (user, 2026-09-09: "make this horizontal rows, 8 die per row").
-  const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}"
+  const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}${(d.rolled !== undefined) ? ` · rolled ${d.rolled}, counts ${d.result}` : ""}"
       style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
   const dialog = await openMomentPopup(message, EMPOWERED_FLAG, actor, {
     title: `Empowered Spell — ${actor.name}`, icon: "fa-solid fa-wand-sparkles", width: 460,
