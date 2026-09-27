@@ -1187,8 +1187,8 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   seam Bypass Cover already uses): the most protective degree applies and degrees never add — a
   cover status set by hand stands when it is higher; Total records no AC (a miss, as dnd5e records a
   `coverTotal` target). The card says the cover on EVERY attack while it is measured (the user, 2026-09-27: "a card
-  should have the cover status on its attack roll"): "Cover — the Goblin: Half Cover (+2 AC)", "…: No
-  Cover", "…: Total Cover"; a hand-set status that wins is the one named. It is a ROW directly under the card's header
+  should have the cover status on its attack roll"): "Cover — the Goblin: Half Cover (+2 AC)", "…: Total
+  Cover" — and nothing for No Cover ("you dont need to put no cover on the card"); a hand-set status that wins is the one named. It is a ROW directly under the card's header
   (the user: "its not very prominent", "cover is like an important thing, it should be up above"):
   the degree's picture and colour, "Half Cover (+2 AC)" in bold, "vs Sharran Acolyte" under it —
   "· Sharpshooter ignores it" on the same row when a feat took it off. Then Sharpshooter and

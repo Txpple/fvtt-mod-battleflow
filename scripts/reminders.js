@@ -191,7 +191,8 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
         if ( total ) { t.ac = null; measured.push({ name, key: m.degree.key, label: m.degree.label, bonus: null }); continue; }
         if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; }
         const stands = raise ? m.degree : degreeOf(carried);
-        measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus });
+        // No Cover draws no row (the user, 2026-09-27: "you dont need to put no cover on the card")
+        if ( stands.key !== "none" ) measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus });
       }
       if ( !feat || !carried ) continue;
       t.ac = acWithoutCover(t.ac, carried);

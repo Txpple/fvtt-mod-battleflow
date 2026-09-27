@@ -1291,8 +1291,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const text = await hoverText();
           const shot = await shoot();
-          ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC and its card says "…: No Cover"',
-            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && /the .*: No Cover$/.test(lineOf(shot)),
+          ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC and its card draws NO cover row',
+            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured') && !lineOf(shot),
             `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         // 14d — a wall across the whole row between them: Total, the attack records no AC, Sharpshooter or not
