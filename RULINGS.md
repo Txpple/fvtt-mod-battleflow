@@ -1268,3 +1268,66 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   under sections about something else. `smoke-reminders` §14 turns it on.
 - `tests/decide-cover.test.js`, `smoke-reminders` §14 (written 2026-09-27 while the sandbox ran the
   release battery; its first live run is owed).
+
+## Rulings the code carried
+
+The code built these as ruled, but RULINGS never recorded them; they lived only in code
+comments until the comment pass of 2026-09-27 moved them here. Each belongs under its
+feature's own heading when that section is next recut.
+
+### Chips, clocks and the disposition cue
+
+- The disposition cue on every dialog row is the token's ABSOLUTE disposition (as the canvas border draws it), never relative to whoever is rolling; a GM rolling for a monster sees its enemies' friendly tokens as allies, accepted.
+- A once-per-turn chit (Cleave, Sneak Attack, clock riders) counts turns only in the attacker's OWN running combat; an actor outside any combat never meets "used this turn".
+
+### Lucky's bought Advantage
+
+- A bought Advantage (Lucky's box) is spent only when the roll goes out with the box ticked AND the pressed mode matches the net; a press against the net buys nothing, a roll with no dialog (shift-click) meets no box and spends nothing, and beside a Disadvantage the tick nets Normal and the use still goes
+
+### Resource notices
+
+- A resource spend flashes a notice only when its pool recovers on a rest or a day (the rhythm gate, no name list), only for player-owned actors, shown to every client; refunds and spell slots never flash.
+- The ledger's spend stamp is unconditional — no setting gates it — and is written only at the spend's creation, never recovered later.
+
+### Save demands and their areas
+
+- Save presses deliberately leave out Command (Prone only on Grovel, a choice), Sleep (the Unconscious is a second save), Flesh to Stone (three failures) and Elemental Attunement / Mind Spike (a condition mentioned in passing)
+- An area whose data misstates its life (the activity's duration is an effect's clock, or an imported copy lost its concentration flag) — Noxious Miasma, Hypnotic Pattern, and the concentration spells whose area only chooses targets at the cast (Slow, Fear, Confusion, Sleep, Calm Emotions, Faerie Fire) — is spent the moment its last verdict lands; an area that genuinely persists (Grease, Web, Cloudkill) is never listed
+- An instantaneous area placed with nobody inside stamps its demand DONE (spent), so the floor sweeps it like a resolved one; only an area not yet placed waits clockless, and a duration area keeps its wait.
+- Damage a save does not modulate (`onSave: "full"`, e.g. Web's burn) is never auto-rolled or applied by the demand; the card's own enricher stays for the GM to use when the situation arises.
+- A demanded save runs as a popup the player presses (a per-player client setting opts out to a silent roll); a multi-ability save auto-rolls the FIRST listed ability, and the fold accepts any listed one.
+- Dead targets are skipped at the save demand's stamp — dead status, or an NPC at 0 HP — while a dying PC (0 HP, death saves ahead) is still demanded and takes the damage.
+- A placed area is the save demand's authority in both directions: a creature inside joins the demand, a pending target outside drops, done verdicts stand; a corpse never joins.
+- A spent area leaves the canvas: an instantaneous spell's area at its last consequence, a concentration spell's area when the concentration ends, a Spent Areas-listed spell's area at its last verdict whatever its data says; any other duration area stays for the GM to clear.
+
+### The hit menu
+
+- Sweeping Attack's second creature must be within 5 feet of the original target AND within the attacker's weapon reach (read off the sheet; 5 feet, 10 with Reach), and the popup names the ones out of reach
+- Hovering a creature's button in the Sweeping Attack popup pings that token on the map and lights its hover state
+
+### The maneuvers and the rescue window
+
+- A d20 fold's re-offer after a spend keeps the ORIGINAL deadline — one clock resolves the whole moment, and no spend ever extends it.
+- A scoped tactical fold (Ambush, Tactical Assessment) armed from the sheet raises a notice whose buttons ARE the checks the scope names (plus Initiative when a combat runs); pressing one rolls that check, and the choice is the acknowledgement.
+- A tactical fold's cards (Ambush, Tactical Assessment) wear the maneuver family's eyebrow ("Maneuver — <name>"), not the D20 Fold one.
+- In the rescue window (d20 folds + Precision), a spent or withdrawn row stays on screen greyed with its outcome on its face, a live row's button carries only the feature's name, and the die and cost are said in the single rule pane beside the hovered row's quote
+- A rescue on a raw ability check (no DC anywhere in dnd5e) states the arithmetic and says "ask your DM whether that lands" instead of a verdict, and the offer stands until a human passes; an initiative rescue states just the number
+- Precision Attack is offered only when the attack hit none of its targets; a mixed hit-and-miss swing gets no offer, since one damage roll serves every target
+- When Precision Attack turns a miss into a hit after Graze already paid on the miss, the card announces the conflict and nothing is unwound
+
+### The reaction hold
+
+- An `ac`-kind reaction whose effect already stands on the defender is not offered again on the attack trigger (an AC bonus does not stack); a `damage` reaction and the spell/negate trigger keep asking.
+
+### The table's small defaults
+
+- A drunk healing potion with no target defaults to the drinker; a real target always wins (a DEFAULT, never a force), decided structurally (consumable + `heal` + `creature` + no template), with no setting.
+- The roll/usage dialog's target block is display-only (no untarget checkbox, since every machine reads the message snapshot), carries no setting, and shows each row's disposition as neutral information — never an alarm flag, because many spells legitimately aim at allies.
+
+### What a table leaves out, or narrows
+
+- Hunter's Prey, Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal and Foe Slayer are deliberately NOT clock riders — each is a choice the sheet does not record or a judgment the module cannot make
+- A rebuke spell answers at the lowest slot the sheet holds — there is no slot picker inside a Reaction's window; a player who wants to upcast casts from the sheet
+- Twinned Spell is not offered on Animate Dead, Create Undead, Cordon of Arrows or Tasha's Mind Whip — their growing count is a corpse or an arrow, not a target (RULINGS names only Magic Missile, Scorching Ray and Jump)
+- The unarmed-dice swap leaves a strike that already rolls a die (a Monk's Martial Arts) alone — "can … instead" makes that choice the table's
+- The Poisoner's coating save uses the ability the feat's own Ability Score Improvement assigned, else the higher modifier of the abilities the pack offers (the first on a tie).
