@@ -34,7 +34,8 @@ readable its code is.
 - **Comments first**, after the clean start.
 - **Code-only content tables:** no per-world list and no per-row switch.
 - **The cover branch merged first.**
-- **Still open:** the final settings list, drafted for the user at the start of Phase 2.
+- **The settings list, ruled** (the user, 2026-09-27, *"this is fine for now"*): ten settings,
+  listed under Phase 2.
 
 ## Ground rules
 
@@ -104,7 +105,24 @@ The plan as written:
 - **The tables are the only list:** the 31 list settings go, after prod's saved lists are
   compared with the defaults (read only) so no house row is lost. The list parsers,
   `tools/verify-settings.mjs` and the release's "settings clean" step retire with them.
-- **Settings:** down to about ten, one decision timer in place of eight; the list is the user's.
+- **Settings:** 65 down to ten, as ruled. Every other setting's behaviour becomes the default,
+  always on; Hold Settle becomes a constant.
+
+  | Setting | Scope | Choices | Replaces |
+  | --- | --- | --- | --- |
+  | Decision Timer | world | seconds, 0 waits (24) | the damage, hold, concentration, save and reminder timers |
+  | Dramatic Beat | world | seconds (0) | Dramatic Beat; Wait for the Dice becomes automatic |
+  | Players Roll Their Own Saves | world | Prompt / Roll automatically | Concentration Checks' mode, widened to the saves the module demands |
+  | Concentration Checks Are Public | world | on / off | unchanged |
+  | Hold Shows the Math | world | on / off | Hold Shows the Math; Skip Hopeless Holds follows it |
+  | Optional Masteries | world | Ask the attacker / Take automatically | Mastery: Ask First |
+  | Resource Use Notices | world | on / off | unchanged |
+  | Roll Your Own Damage | client | on / off (on) | unchanged |
+  | Effect Bar | client | on / off (on) | unchanged |
+  | Effect Cards on Hover and Alt | client | on / off (on) | unchanged |
+
+  Auto-Roll Damage's NPC/PC split goes (Roll Your Own Damage covers the player who rolls), and
+  Measured Cover is always on.
 - **Rule text:** read from the item's own description, or dnd5e's rules reference for the
   glossary rows. The "the rule ▸" fold changes, so it gets a prototype first.
 - **Proof:** a CI check that every row resolves in the snapshot; the full battery; a walk.
