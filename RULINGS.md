@@ -1082,8 +1082,7 @@ spends the item's one use, back on a Short or Long Rest), and nothing for the br
   Replenishing Meal" arrive with Reset Defaults or by hand.
 - `smoke-rest` §8–§11, `tests/decide-rest-grants.test.js`.
 
-**Group 6 — the reaction attacks: Sentinel (built); Polearm Master (options only, the user's
-call).** SWEEP §1's "Turn chit / the Reaction" family; the precedent is Retaliation's row on
+**Group 6 — the reaction attacks: Sentinel; Polearm Master (ruled off options, below).** SWEEP §1's "Turn chit / the Reaction" family; the precedent is Retaliation's row on
 `REBUKES` — a Reaction taken when damage lands, answered with one melee attack with the weapon last
 swung (`rebukes.js`).
 - **Guardian** — a `REBUKES` row with `ward`: the bearer is a BYSTANDER. When an attack's damage lands
