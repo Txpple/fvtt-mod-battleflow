@@ -1,6 +1,6 @@
 /**
- * Battle Flow — the cast path: the caster's flow elect executes a stamped cast payload - utility effects and healing, receipts throughout.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — the cast path: the caster's flow elect lands a stamped cast's utility effects and
+ * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
 import { cardActivity, cardItem } from "./lookup.js";
@@ -13,42 +13,27 @@ import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Auto-apply on cast (ARCHITECTURE.md §6). A used activity with no outcome gate resolves at cast,
- * on the elect: a utility activity's effects land on every snapshot target, and a heal activity's
- * self-rolled healing lands through the shared applier (calculateDamage negates healing-typed
- * entries natively; "maximum"/"temphp" ride the treatAs plumbing off the roll message passed as
- * originatingMessage). Receipts and revert everywhere.
- * The STAMP is the trigger, never the setting: the initiating client stamps `castApply` on a
- * qualifying usage card and `healPending` on a targeted healing roll at preCreate, and the elect
- * reacts on arrival and on render (reload resume) — an unstamped message can never be applied, so
- * rendering an old log is inert by construction.
- * Deliberately OUT: save activities (their cards are load-bearing), bare damage activities (Magic
- * Missile is the negate hold's seam — auto-apply would beat a pending hold's verdict), and
- * enchant/summon/forward (not effects-on-target casts).
- * ------------------------------------------------------------------------------------------- */
+// Auto-apply on cast (ARCHITECTURE.md §6). The STAMP is the trigger, never the setting: `castApply` and
+// `healPending` are stamped at preCreate, so an old log re-rendered is inert. Left out on purpose: save
+// activities (their cards are load-bearing), bare damage (Magic Missile is the negate hold's seam), and
+// enchant/summon/forward.
 
 async function executeCastApply(message) {
   try {
     const payload = message.getFlag(MODULE_ID, "castApply");
     if ( !payload?.targets?.length ) return;
     if ( message.getFlag(MODULE_ID, "effectReceipt")?.castDone ) return;
-    // Through the CARD (lookup.js): an item the use consumed (a potion) is gone by now, and the
-    // card's snapshot is where its effect still lives.
+    // Through the CARD: a consumed item (a potion) lives on only in the card's snapshot.
     const activity = cardActivity(message, payload.activityUuid);
-    // dnd5e 6: the activity's list holds PROFILES; the effects resolve asynchronously (lookup.js).
+    // dnd5e 6: the list holds PROFILES; the effects resolve asynchronously.
     const applicable = (await activity?.getApplicableEffects?.()) ?? [];
-    // A cast with a CHOICE between alternative effects waits on the card until the caster answers;
-    // then only the pick lands.
     const names = effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
     if ( names === null ) return;   // pending — the caster's popup is open on their client
     const wanted = new Set(names.map(n => String(n).toLowerCase()));
     const effects = applicable.filter(e => wanted.has(String(e.name).toLowerCase()));
     if ( !effects.length ) return;
-    // This client applies what it MAY — the caster's own sheet always, another PC's when it owns
-    // it, a monster's only as the GM — and the driver is TOLD what did not land (core.js "THE FLOW
-    // ELECT"). The marker still writes, so the card is asked once: a GM rejoining re-pays nothing,
-    // and the whisper is the record of what to put on by hand.
+    // Apply what this client MAY; the driver is told the rest (core.js "THE FLOW ELECT"). The marker
+    // still writes, so a rejoining GM re-pays nothing.
     const writable = payload.targets.filter(t => {
       try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
     });
@@ -57,8 +42,7 @@ async function executeCastApply(message) {
       await whisperNoGM(`${effects.map(e => e.name).join(", ")} on ${blocked.map(t => t.name).join(", ")}`,
         "The card stands — put the effect on by hand.");
     }
-    // The caster's concentration effect, for origin linkage (concentration ?? effect); the
-    // riders' origin walk handles both shapes downstream.
+    // The caster's concentration effect, for origin linkage.
     const concentration = payload.concentration
       ? (activity?.actor?.effects.get(payload.concentration) ?? null) : null;
     await applyEffectsWithReceipt(message, effects, writable, {
@@ -73,9 +57,8 @@ async function executeCastApply(message) {
   }
 }
 
-// ⚠ A CLAIM ON THE HEALING: a healing roll born with `healReroll` due waits for its dice to be
-// read, and a pending one for the owner's answer (heal-rerolls.js), so the healing lands ONCE with
-// the faces that stood — the damage's claim in auto-apply.js EITHER_WAITS, the same shape.
+// ⚠ A CLAIM ON THE HEALING: it waits on the Healer's rerolls (heal-rerolls.js) so it lands ONCE, as
+// auto-apply.js EITHER_WAITS does for damage.
 const HEAL_REROLL_WAITS = new Set(["due", "pending", "answering"]);
 const healRerollWaits = message => HEAL_REROLL_WAITS.has(message.getFlag(MODULE_ID, "healReroll")?.status);
 
@@ -83,8 +66,7 @@ async function applyCastHealing(message) {
   try {
     if ( message.getFlag(MODULE_ID, "receipt") ) return; // applied (or reverted) already
     if ( healRerollWaits(message) ) return;               // the Healer's answer first (the claim above)
-    // A SELF-aimed heal carries its target ON the stamp — the dnd5e targets snapshot is incidental
-    // UI targeting for a range-self activity.
+    // A SELF-aimed heal carries its target on the stamp; the dnd5e snapshot is incidental there.
     const stamp = message.getFlag(MODULE_ID, "healPending");
     const targets = stamp?.selfAim
       ? [{ uuid: stamp.uuid, name: stamp.name }]
@@ -98,10 +80,8 @@ async function applyCastHealing(message) {
   }
 }
 
-// The CASTER's flow elect drives stamped casts — on arrival, and on render for reload resume; the
-// answered choice is the one UPDATE that resumes the cast. The subject is the caster, so a table
-// with no GM lands its own casts; with a GM on, `drivesMomentFor` is `isActiveGM()`
-// (ARCHITECTURE §3, the driver table).
+// The CASTER's flow elect drives these (ARCHITECTURE §3, the driver table); the answered choice is the
+// one update that resumes a cast.
 const castSubject = message => message?.getAssociatedActor?.()?.uuid ?? null;
 registerResumable("castApply", {
   pending: (flag, _message, cause) => (cause !== "update") || !!flag.choice?.chosen,
@@ -116,12 +96,8 @@ registerResumable("healPending", {
   drive: applyCastHealing
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE CHOICE (EFFECT_CHOICES, the Effect Choices list): polish.js stamps the pending choice at
- * birth; the popup opens on the caster's client (a GM answers for an unowned caster), the answer
- * is a fold onto the caster's OWN card, which the caster can always write, and the elect applies
- * only the pick. No clock: nobody else waits on a cast, and the card's button reopens the popup.
- * ------------------------------------------------------------------------------------------- */
+// THE CHOICE (EFFECT_CHOICES): the popup opens on the caster's client and the answer folds onto the
+// caster's own card; no clock — the card's button reopens it.
 
 async function chooseEffect(card, name) {
   const choice = card.getFlag(MODULE_ID, "castApply")?.choice;

@@ -1,32 +1,14 @@
 /**
- * Battle Flow — the volley registry: which spells volley, and how each one's projectiles resolve.
- *
- * ⚠ THE REGISTRY IS VOLLEY MEMBERSHIP, because content data is wrong in both directions
- * (tools/scan-volley-spells.mjs): the premium pack ships Scorching Ray with NO count field,
- * Eldritch Blast with count "1" (its beams live only in prose), and Dimension Door with count "2"
- * AND a damage activity (a false positive that would volley its mishap damage). So a spell volleys
- * iff its NAME is listed here, with the listed handling, whatever its data says; adding a spell is
- * one entry.
- *   kind             "damage" (darts — simultaneous by RAW, aggregated per target) | "attack"
- *                    (rays — independent attacks, one real rollAttack each). The USED activity
- *                    must be of this type too, so a listed spell's other activities stay native.
- *   count            a formula (@item.level = cast level, @scaling provided) or a function
- *                    ({ activity, castLevel, rollData }) => n. Below 2 at this cast is the native
- *                    path (Eldritch Blast at character level 4 is one beam).
- *   distinctTargets  at most ONE projectile per creature by RAW — n clamps to the target count
- *                    and the popup refuses duplicate picks.
- * Not volleys: Prismatic Spray, Chain Lightning and Acid Splash are multi-target but SAVE-shaped —
- * nothing to aim per projectile; the saves pipeline owns them.
- * Exposed at `game.modules.get(MODULE_ID).api.volleyRegistry` so the smoke suites can register
- * scratch fixtures; the shipped list IS the supported scope.
+ * Battle Flow — the volley registry. A spell volleys by NAME alone (⚠ the pack's counts are wrong both
+ * ways: Scorching Ray has none, Eldritch Blast says 1, Dimension Door says 2 — tools/scan-volley-spells.mjs).
+ *   kind   "damage" (darts, aggregated per target) | "attack" (rays, a rollAttack each); the used activity must match
+ *   count  a formula (@item.level the cast level, @scaling) or ({ activity, castLevel, rollData }) => n; under 2 is native
+ *   distinctTargets  one projectile per creature, clamped to the target count
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { VOLLEY_KINDS } from "./decide/registry.js";
 
-/**
- * Eldritch Blast's beams band by CHARACTER level (5/11/17), not by the cast: PC rollData carries
- * details.level, NPC rollData details.cr with details.level 0. An unreadable level gets 0 — native.
- */
+/** Eldritch Blast's beams band by CHARACTER level (an NPC's CR stands in); unreadable → 0, native. */
 function eldritchBlastBeams({ rollData }) {
   const level = Number(rollData?.details?.level) || Math.ceil(Number(rollData?.details?.cr) || 0);
   return (level > 0) ? 1 + Math.floor((level + 1) / 6) : 0;
@@ -42,11 +24,7 @@ export const VOLLEY_REGISTRY = new Map([
 /** Names already warned about an unknown kind — once per session, not once per attack. */
 const warnedEntries = new Set();
 
-/**
- * The registry entry for this item, or null — membership is name-keyed, spells only.
- * ⚠ An entry whose `kind` is not in the closed set is REFUSED, not guessed (ARCHITECTURE §6 rule
- * 6), so the shipped list and a runtime-added one (the smoke suites' fixtures) obey one contract.
- */
+/** This spell's entry, or null; ⚠ an unknown `kind` is refused, never guessed (ARCHITECTURE §6). */
 export function volleyEntryFor(item) {
   if ( item?.type !== "spell" ) return null;
   const entry = VOLLEY_REGISTRY.get(item.name) ?? null;
@@ -60,10 +38,7 @@ export function volleyEntryFor(item) {
   return entry;
 }
 
-/**
- * The projectile count for this use: deterministic rollData, the cast level riding in as both
- * `@item.level` and `@scaling` so either authoring convention evaluates.
- */
+/** The projectile count at this cast level, offered as both `@item.level` and `@scaling`. */
 export function resolveVolleyCount(entry, activity, castLevel) {
   let rollData = {};
   try { rollData = activity.getRollData({ deterministic: true }) ?? {}; } catch { rollData = {}; }

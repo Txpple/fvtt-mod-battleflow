@@ -1,15 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE EFFECT VIEW — a creature's buffs and debuffs,
- * visible on demand (RULINGS *The effect view*). Three surfaces, one renderer, no state of its own
- * — every row is read off the sheet at draw time:
- *   the hover card  point at a token, its list appears beside it (`hoverToken`)
- *   the held key    Foundry's highlight gesture (Alt → `highlightObjects`) shows every list at once
- *   the bar         a strip above the hotbar for the controlled token (else the player's character),
- *                   always on; the ONE interactive surface — the name opens the full list, a chip
- *                   opens a fold with its one action (Remove, Disable, Clear) for an owner
- * The bar and the hover card each have a CLIENT switch.
- * ⚠ It writes nothing of its own: the bar's fold deletes or disables an ActiveEffect, or zeroes
- * temp HP / inspiration, on a click through the platform's own permission.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE EFFECT VIEW — a creature's buffs and debuffs on demand
+ * (RULINGS *The effect view*), every row read off the sheet at draw time. Three surfaces, one renderer:
+ * the hover card (`hoverToken`), the held key (Alt → `highlightObjects`), and the bar above the hotbar —
+ * the ONE interactive surface, whose chip folds offer Remove, Disable or Clear to an owner.
+ * ⚠ It writes nothing of its own: a fold's click goes through the platform's own permission.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
@@ -53,13 +47,8 @@ function hostileOriginOf(effect) {
 
 const { rowNamed: emanationRow } = tableIndex(EMANATIONS);
 
-/**
- * Is this effect the bearer's OWN standing aura — the pack's transfer effect on a FEATURE the
- * emanation table names, while the module runs that row? Read the way the floor (emanations.js,
- * featureSpec) reads it: the item by the row's key, the effect by the row's `effect` name, the
- * row on the Emanations list with the switch on. A spell's emanation never lands here: its effect
- * is transfer:false and the caster wears the ring's copy like everyone inside.
- */
+/** Is this the bearer's OWN standing feature aura — the pack's transfer effect on a FEATURE the Emanations
+ * row names, read as emanations.js `featureSpec` reads it? A spell's emanation effect never lands here. */
 function ownAuraOf(effect) {
   const item = effect.parent;
   if ( !(item instanceof Item) || (effect.transfer !== true) ) return false;
@@ -69,11 +58,8 @@ function ownAuraOf(effect) {
   return !!setting(S.emanations) && listedNames(emanationEntries()).has(lower(row.key));
 }
 
-/**
- * A fighting style's FACE (fighting-styles.js): kept by the module off the equipped items, so it
- * reads as a worn passive — the panel, never the bar — with its line (what is held, or why it is
- * off); the pack effect it took over is not shown at all.
- */
+/** A fighting style's FACE (fighting-styles.js) reads as a worn passive — the panel, never the bar; the
+ * pack effect it took over is not shown at all. */
 const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
 const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;
 
@@ -231,12 +217,9 @@ function showHover(token) {
 }
 
 /**
- * The cover the hovered token has against the ONE token this client controls, by the 2024 DMG's corner
- * lines (geometry.js) — the same measure the attack puts on its AC (reminders.js), in a section of
- * its own at the top (RULINGS *Measured cover*). Nothing when no single token is controlled, the
- * setting is off, or the grid cannot be measured (hexes). A feat of the controlled creature that
- * ignores the cover (RANGE_FEATS' `cover` rows) says so, with the attacks it covers: the card
- * cannot know which attack comes next.
+ * The hovered token's cover against the ONE controlled token, by the 2024 DMG's corner lines — the attack's
+ * own measure (RULINGS *Measured cover*). Nothing with no single control, the setting off, or a hex grid.
+ * A feat that ignores the cover (RANGE_FEATS `cover`) says so: the card cannot know the next attack.
  */
 function coverHTML(token) {
   if ( !setting(S.measuredCover) ) return "";
@@ -245,8 +228,7 @@ function coverHTML(token) {
   const m = measuredCoverBetween(controlled[0], token);
   if ( !m ) return "";
   const d = m.degree;
-  // Two lines: "Half Cover (+2 AC)", then what is in the way and any feat that ignores it. No Cover
-  // and Total Cover are the one line alone.
+  // "Half Cover (+2 AC)", then what is in the way and any feat ignoring it; No and Total Cover stand alone.
   const amount = (d.bonus ? `${d.label} (+${d.bonus} AC)` : d.label);
   const names = new Set(controlled[0].actor?.items?.filter(i => i.type === "feat").map(i => i.name.toLowerCase()) ?? []);
   const ignores = ((d.key === "half") || (d.key === "threeQuarters"))
@@ -387,8 +369,7 @@ function openPanel(bar, who, actor) {
   // ALL of them, grouped as the sheet groups them — the bar's rule is for the bar.
   const groups = panelGroups(factsOf(actor), sheetOf(actor));
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
-  // Last, the marks this creature holds on others: plain chips, since the fold's one action
-  // belongs to the bearer's owner.
+  // Last, the marks it holds on others: plain chips — the fold's action is the bearer owner's.
   const marks = marksOf(actor);
   const held = marks.length
     ? `<div class="bf-ev-lbl">On others</div><div class="bf-ev-list">${marks.map(m => chipHTML({ ...m, name: `${m.name} → ${m.bearer}` })).join("")}</div>`

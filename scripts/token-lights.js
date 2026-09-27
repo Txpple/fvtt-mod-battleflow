@@ -1,6 +1,5 @@
 /**
- * Battle Flow — Token lights: a use whose text sheds light carries it as the token's own light, on an effect.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
@@ -14,19 +13,10 @@ import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * TOKEN LIGHTS — decide/registry.js TOKEN_LIGHTS; membership is the Token Lights list. The
- * platform carries the light: an effect change keyed `token.*` is applied to the bearer's TOKENS
- * (TokenDocument#applyActiveEffects — `light` is targetable), so the light is two changes on an
- * effect and lives the effect's life. No token document is written; nothing remembers an old light.
- *   self     the pack ships Searing Radiance on a DAMAGE activity, which nothing lands on its
- *            user, so this machine lands it — the pack's effect, its clock, the light added. The
- *            ring and pulse (emanations.js) and the Revelation rider (clock-riders.js) read it.
- *   targets  every creature targeted at the cast wears a "Light" effect of the module's making;
- *            a recast puts the caster's earlier light out. Nobody targeted: the pack's use stands.
- * The casting client stamps the payload on the use's card; the flow elect applies it (with no GM,
- * the caster's client lands what it owns and says what it could not). The card says it (R5).
- * ------------------------------------------------------------------------------------------- */
+// TOKEN LIGHTS (registry TOKEN_LIGHTS): a `token.*` change on an effect lights the bearer's tokens and
+// lives the effect's life; no token document is written. `self`: the pack's Searing Radiance sits on a
+// DAMAGE activity that lands nothing, so it is landed here (emanations.js and clock-riders.js read it).
+// The caster's client stamps the use's card; the flow elect applies it.
 
 const LIGHT_FLAG = "tokenLight";
 const listed = () => listedNames(tokenLightEntries());
@@ -186,12 +176,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
-/* ---------------------------------------------------------------------------------------------
- * TOKEN SENSES — decide/registry.js TOKEN_SENSES; membership is the Token Senses list. The
- * light's carrier, but the effect is the PACK's own, so nothing is landed here: the changes are
- * added AS IT IS CREATED on a sheet, on whichever client creates it, and the sense lives and dies
- * with the pack's effect.
- * ------------------------------------------------------------------------------------------- */
+// TOKEN SENSES (registry TOKEN_SENSES): the pack's own effect gains the changes as it is created, on
+// whichever client creates it.
 
 Hooks.on("preCreateActiveEffect", (effect, data) => {
   try {
@@ -204,12 +190,8 @@ Hooks.on("preCreateActiveEffect", (effect, data) => {
   } catch(err) { console.warn(`${TITLE} | Could not add the token sense — set the token's vision by hand.`, err); }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * TOKEN SIZES — decide/registry.js TOKEN_SIZES; the senses' shape: the pack's own effect gains
- * the actor's size and the token's width and height as it is created, which Foundry applies to
- * the bearer's tokens and takes back when the effect goes. A step is measured from the bearer's
- * size as the effect lands.
- * ------------------------------------------------------------------------------------------- */
+// TOKEN SIZES: the senses' shape — size, width and height added as the pack's effect is created; a step
+// counts from the bearer's size at that moment.
 
 Hooks.on("preCreateActiveEffect", (effect, data) => {
   try {

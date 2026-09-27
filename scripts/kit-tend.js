@@ -1,15 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE KIT TENDING — a feature that turns a kit's use on
- * a creature within reach into healing paid from THAT creature's Hit Point Dice (decide/registry.js
- * KIT_TENDS). The pack ships Battle Medic as bare activities per die size and a note.
- *   the moment  the kit's use (`dnd5e.postUseActivity`, the using client) by a listed feature's
- *               owner with ONE target within reach: the usage card is stamped `kitTend` pending,
- *               with the target's Hit Dice by size
- *   the popup   on whoever answers for the kit's user: one row per size, "Tend" / "Pass" (the clock
- *               passes; a Pass leaves the kit's own use as it was)
- *   the landing the flow elect's: the target's die spent on its class, then the feature's OWN heal
- *               activity of that size rolled at the target — so the healing rerolls
- *               (heal-rerolls.js) and the cast applier carry the rest, unchanged
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): KIT TENDING (registry KIT_TENDS) — a kit's use on ONE
+ * creature in reach, by a listed feature's owner, stamps `kitTend` on the usage card; a popup picks the
+ * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
+ * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor,
   statContext, whisperNoGM } from "./core.js";
@@ -50,10 +43,8 @@ function healDieOf(activity) {
 const healActivityFor = (feature, faces) =>
   [...(feature?.system?.activities ?? [])].find(a => (a.type === "heal") && (healDieOf(a) === faces)) ?? null;
 
-/**
- * The creature's Hit Point Dice by size — a character's per class (dnd5e's own `hd` on each class
- * item), an NPC's from its own attributes. `{ key, faces, label, value, max }[]`.
- */
+/** The creature's Hit Point Dice by size — a character's per class item (`hd`), an NPC's from its
+ * attributes. `{ key, faces, label, value, max }[]`. */
 function hitDiceOf(actor) {
   const classes = Object.values(actor?.classes ?? {});
   if ( classes.length ) {
@@ -148,8 +139,7 @@ async function landTend(message) {
     const activity = healActivityFor(actor?.items?.get(flag.featureId), pool?.faces);
     const token = tokenForUuid(flag.targetUuid);
     if ( !(target instanceof Actor) || !pool || !activity || !token ) return;
-    // The die first — the rule's order. A client that may not write the creature says so, and
-    // rolls anyway.
+    // The die first — the rule's order; a client that may not write the creature says so, and rolls anyway.
     if ( canApplyTo(target) ) {
       if ( pool.key === "npc" ) {
         await target.update({ "system.attributes.hd.spent": (Number(target.system.attributes.hd.spent) || 0) + 1 });
