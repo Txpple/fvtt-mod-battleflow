@@ -1,26 +1,11 @@
 /**
  * Battle Flow — CORE (ARCHITECTURE.md §7, a leaf beside core.js): THE SURFACES MAP — every HTML
- * anchor this module reads off the PLATFORM's own markup, in one place.
- *
- * THE POSTURE (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass* §3b, user-ruled 2026-09-15). At 6.0 the card's
- * DATA became the stable part and its HTML the unstable part — dnd5e treats `message.system` as
- * API and says outright not to rely on the card's markup, which now renders from templates that
- * will move through 6.x. This module's HTML dependencies are FEW against ~90 data reads, and the
- * rule for them is the hook-dispatch gate's rule applied to selectors:
- *
- *   1. every anchor lives HERE — no selector string for a platform element anywhere else
- *      (`tools/check-surfaces.mjs` fails the build on one);
- *   2. the same gate reads dnd5e's SHIPPED templates and bundle and fails when an anchor no
- *      longer appears there, pinned to the verified version like `dnd5e-hooks.json` — template
- *      churn becomes a build failure at the pin bump, not a row that silently never draws;
- *   3. data over anchors wherever the platform offers it (after 6.0, most places).
- *
- * ⚠ Imports nothing, touches nothing. The module's OWN markup (`[data-bf-*]`, `.bf-*`) is not
- * here — that is ours to move, and no gate can go stale on it.
- *
- * `core` anchors are Foundry's own and NOT checked against a file — core's templates are not in
- * the dnd5e install, and the hook gate found core's bundle unreadable for the same purpose (its
- * header says why). They are listed so the count is honest and the literal rule still holds.
+ * anchor this module reads off the PLATFORM's own markup (NOTES §2 *the 6.0 pass*). dnd5e's card
+ * DATA is API; its markup is not, so: every anchor lives HERE (`tools/check-surfaces.mjs` fails
+ * the build on a platform selector elsewhere, and on an anchor missing from dnd5e's shipped
+ * templates at the pinned version); prefer data wherever the platform offers it.
+ * ⚠ Imports nothing. The module's own markup (`[data-bf-*]`) is not here. `core` anchors are
+ * listed but not checked — core's templates are not in the dnd5e install.
  */
 
 export const SURFACES = Object.freeze({
@@ -33,17 +18,14 @@ export const SURFACES = Object.freeze({
   /** dnd5e's damage tray on a damage card — closed once the module has applied (receipts.js). */
   damageTray: "damage-application",
   /**
-   * dnd5e's SUMMARY of a chained roll inside its usage card (chat/usage-card.hbs): a save or
-   * check rolled against the card is drawn here and its own card is hidden (client setting
-   * `chatCardSummary`), so every row this module draws on such a roll draws here too (ui.js
-   * `cardRow`, the 6.0 pass phase 4). The usage card's BUTTONS are data since 6.0
-   * (`system.buttons[]`, filtered at birth in polish.js) — no anchor for them any more.
+   * dnd5e's SUMMARY of a chained roll inside its usage card: a save rolled against the card is
+   * drawn here and its own card hidden (client setting `chatCardSummary`), so rows on such a roll
+   * draw here too (ui.js `cardRow`).
    */
   cardSummary: ".card-summary[data-message-id]",
   /**
-   * The ROW dnd5e draws inside that summary for a save (chat/save-summary.hbs): the die, the
-   * target's pill, the roll's total, the resist buttons. Battle Flow writes the verdict's tail
-   * beside the total (saves/views.js, user ruling 2026-09-18) instead of drawing its own line.
+   * The ROW dnd5e draws inside that summary for a save; the verdict's tail is written beside its
+   * total (saves/views.js).
    */
   summaryRow: ".save-summary",
   /** The roll configuration dialog's two parts (dnd5e's RollConfigurationDialog PARTS): the
@@ -57,13 +39,10 @@ export const SURFACES = Object.freeze({
   /** The activity usage dialog's footer — the metamagic and emanation rows are inserted before
    * it. dnd5e's Dialog5e renders core's generic form footer as its `footer` part. */
   dialogFooter: "footer, .form-footer",
-  /** A roll card's header title (chat/parts/card-header.hbs) — the LIVE item's name (the attack and
-   * damage cards read `getAssociatedItem()`, not their snapshot), so a swing's own label is drawn here
-   * (hew.js — "Quarterstaff — Pole Strike", the walk 2026-09-27). */
+  /** A roll card's header title — the LIVE item's name, so a swing's own label is drawn here
+   * (hew.js — "Quarterstaff — Pole Strike"). */
   cardHeaderTitle: ".card-header .name-stacked .title",
-  /** A roll card's header (chat/parts/card-header.hbs) — the attack's cover row is drawn directly
-   * under it, above everything else on the card (the user, 2026-09-27: "cover is like an important
-   * thing, it should be up above"). */
+  /** A roll card's header — the attack's cover row is drawn directly under it. */
   cardHeader: ".card-header",
   /** A card's listed activity row (chat/parts/card-activities.hbs) — the rest card lists a feat's
    * rest-period activities here; rest-grants.js drops the ones its own after-rest popup gives. */

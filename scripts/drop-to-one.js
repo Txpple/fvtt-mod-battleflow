@@ -1,23 +1,13 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): DROP TO 1 HP — a feature or an effect that turns a
- * drop to 0 Hit Points into a drop to 1 (decide/registry.js DROP_TO_ONE). The Orc walk, 2026-09-25
- * (user: "endurance we want to add here for this slice. if sometihng takes them to zero, then a
- * popup should ask to use the feat. same shape as death ward which you should do now too"):
- *
- *   - Relentless Endurance ASKS ("you can drop to 1 Hit Point instead"): the HP is held at 1 while
- *     the owner answers in a popup; Drop to 1 HP spends the use, Drop to 0 (or the clock) lands the
- *     0. Not offered when the damage kills outright (the remainder ≥ the Hit Point maximum).
- *   - Death Ward is AUTOMATIC ("the target instead drops to 1 Hit Point, and the spell ends" — the
- *     rule leaves no choice, R1): the HP stops at 1, the spell's effect is removed, a card says so.
- *
- * THE SEAM is `dnd5e.preApplyDamage` — synchronous, on whichever client applies, with the actor's
- * update in hand: every application goes through it, the module's applier AND the card's own
- * buttons, so the 1 is written in the same update and the creature never touches 0 (no Unconscious,
- * no death save, no flash). Only an HP typed on a sheet goes around it (RULINGS' register).
- *
- * THE KEEPER of an ask is the client that applied the damage (it could write the HP) — or the GM
- * when that client has gone; an answer from anyone else is relayed to it (the damage-holds shape).
- * ------------------------------------------------------------------------------------------- */
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): DROP TO 1 HP (DROP_TO_ONE; RULINGS *Where the table
+ * bends the rule*). A row that ASKS (Relentless Endurance) holds the HP at 1 while its popup asks
+ * — not offered when the damage kills outright; an automatic row (Death Ward) stops at 1 and ends
+ * its effect.
+ * THE SEAM is `dnd5e.preApplyDamage` — synchronous, with the update in hand, on every application
+ * path — so the 1 is written in the same update and the creature never touches 0.
+ * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
+ * other answer is relayed to it.
+ */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
 import { dropToOneEntries, listedNames } from "./settings.js";

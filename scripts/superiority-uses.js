@@ -1,6 +1,9 @@
 /**
- * Battle Flow — Superiority uses: the Battle Master's Bonus Action maneuvers — a rolled bonus, a chip or a marker at the use, and the die riding the hit that follows.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the Battle Master's Bonus Action maneuvers (RULINGS
+ * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet (a rolled bonus, a
+ * chip, a marker), and for Lunging and Feinting a die that rides the next hit. The die is read off
+ * the sheet and resolved on the fighter; the pool is spent by the activity's own consumption; the
+ * chips wear the platform's clocks.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
@@ -15,40 +18,6 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
-
-/* ---------------------------------------------------------------------------------------------
- * SUPERIORITY USES (user, 2026-09-04: "do the rest of maneuvers"). The Battle Master's Bonus
- * Action maneuvers are neither folds (Precision, Riposte) nor on-hit picks (the hit menu): each
- * is a USE whose consequence lands on a sheet, and — for two of them — a die that rides the hit
- * that follows. Measured on the 2024 PHB pack 2026-09-04 (tools/probe-pack-shapes.mjs):
- *
- *   Evasive Footwork   "Evade" (Bonus Action; a roll of the Superiority Die named "AC Bonus"), an
- *                      effect "Evasive AC" that carries NO change — the bonus is the number rolled.
- *                      The module rolls the die in the open and writes a chip with that number on
- *                      the fighter's AC until the start of their next turn (Sap's window).
- *   Bait and Switch    "Switch Places" (a willing creature within 5 feet; a roll named "Armor Class
- *                      Bonus") and TWELVE effects, "Baited AC +1" … "+12", one per face. The die is
- *                      rolled and the matching PACK effect applied to whoever the fighter chooses —
- *                      "you or the other creature (your choice)": a popup, the hold family's clock,
- *                      the fighter by default. The switch of places is the table's.
- *   Lunging Attack     "Damage" (Bonus Action, no target): Dash, and the die on the next melee hit
- *                      this turn IF the fighter moved 5 feet in a straight line first — the player's
- *                      fact, so the die is a TICKED checkbox on the damage offer (the clock riders'
- *                      ruling). A chip until the end of the turn; the hit spends it.
- *   Feinting Attack    "Damage" (Bonus Action, one creature within 5 feet) and the pack's effect
- *                      "Feinting Attack" — "for tracking the target", says the pack, "it does not
- *                      automate the Advantage". The module puts that marker on the target with the
- *                      fighter as its source; the GATE reads it as Advantage for the fighter alone
- *                      (EFFECT_BENDS `only: "source"`), the fighter's next attack roll at that target
- *                      SPENDS it (the chip-spend receipt), and the die rides the hit's damage.
- *
- * The die is READ off the sheet — the activity's roll formula, or its damage part
- * (`@scale.battle-master.superiority.die`, resolved on the fighter) — and the POOL is the
- * system's: `use()` consumes the Superiority Die through the activity's own consumption. The
- * native follow-up of the two damage-typed uses (dnd5e would open a damage dialog) is switched
- * off at the use — the die belongs to the hit, not to the Bonus Action. Membership is the
- * Superiority Uses list. Nothing here counts turns: the chips wear the platform's clocks.
- * ------------------------------------------------------------------------------------------- */
 
 const listed = () => listedNames(superiorityUseEntries());
 const { rowNamed } = tableIndex(SUPERIORITY_USES);
@@ -70,11 +39,8 @@ const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, 
 
 /* --- the use: the native follow-up off, the consequence on ---------------------------------- */
 
-// ⚠ THE CAST SLICE MUST NOT APPLY A MANEUVER'S EFFECTS. Bait and Switch ships TWELVE "Baited AC"
-// effects (one per face of the die) on its utility activity, and the cast slice — reading a
-// utility with effects and a target — applied all twelve to the Ranger (AC 13 → 91, first live
-// run). Evasive Footwork's "Evasive AC" is a changeless placeholder. Every maneuver's consequence
-// is this machine's (or the hit menu's, or the hold's), so the birth stamp polish.js writes is
+// ⚠ THE CAST SLICE MUST NOT APPLY A MANEUVER'S EFFECTS: Bait and Switch ships TWELVE "Baited AC"
+// effects (one per die face) and the cast slice would apply them all. polish.js's birth stamp is
 // removed here, one hook later, for every Battle Master maneuver card.
 Hooks.on("preCreateChatMessage", doc => {
   try {
@@ -85,8 +51,8 @@ Hooks.on("preCreateChatMessage", doc => {
   } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
 });
 
-// A damage-typed use (Feinting, Lunging) would be followed by dnd5e's own damage dialog — the
-// die is the HIT's, not the Bonus Action's, so the follow-up is switched off at the use.
+// A damage-typed use (Feinting, Lunging): the die is the HIT's, so dnd5e's follow-up damage
+// dialog is switched off at the use.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     if ( useRowFor(activity) && (activity.type === "damage") ) usageConfig.subsequentActions = false;
@@ -132,8 +98,8 @@ async function drive(row, activity, actor, message) {
     return;
   }
   if ( row.choice ) {
-    // Bait and Switch: the die rolled now; WHO wears it is the fighter's choice (a popup with the
-    // hold family's clock, the fighter by default); the pack's own "+N" effect is applied on the answer.
+    // Bait and Switch: WHO wears the die is the fighter's choice (a popup, the fighter by
+    // default); the pack's own "+N" effect is applied on the answer.
     const roll = die ? await new Roll(die).evaluate() : null;
     if ( roll ) await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${item.name} — the die` });
     const other = targets.find(t => t.uuid !== actor.uuid) ?? null;
@@ -142,7 +108,7 @@ async function drive(row, activity, actor, message) {
     await message.setFlag(MODULE_ID, "superiorityUse", { ...base, total: roll?.total ?? null,
       line: roll ? `${row.choice.what} +${roll.total} until the start of your next turn — yours or the other creature's` : "the die could not be read — apply the bonus by hand" });
     if ( !roll ) return;
-    // ⚠ `rule` rides this flag too: the popup and the card quote it (a first live run printed “undefined”).
+    // ⚠ `rule` rides this flag too: the popup and the card quote it.
     await message.setFlag(MODULE_ID, "baitSwitch", { ...statContext(actor.uuid), status: "pending", key: row.key, rule: row.rule, itemUuid: item.uuid, itemImg: item.img ?? null,
       total: roll.total, effectName: `${row.choice.effectPrefix}${roll.total}`, options, chosen: null, resolved: null,
       ...(window && other ? { window, deadline: Date.now() + (window * 1000) } : {}) });
@@ -166,7 +132,8 @@ async function drive(row, activity, actor, message) {
     return;
   }
   if ( row.marker ) {
-    // Feinting Attack: the pack's marker on the target, the fighter as its source.
+    // Feinting Attack: the pack's marker on the target, the fighter as its source; the gate reads
+    // it as Advantage for the fighter alone, and the next attack at that target spends it.
     const effect = [...(activity.effects ?? [])].map(e => e.effect).find(e => e && (lower(e.name) === lower(row.marker.effect)))
       ?? item.effects.find(e => lower(e.name) === lower(row.marker.effect)) ?? null;
     const target = targets.find(t => t.uuid !== actor.uuid) ?? null;
@@ -245,16 +212,14 @@ async function settleBait(card) {
   }
 }
 
-// The answer's write (or the timer's) settles it; a render is the reload resume. Declared to the
-// spine's resumable registry (Stage 3, 2026-09-05) — its update registration, its render-time
-// resume line and its own in-flight latch (baitRuns) were this file's.
+// The answer's write (or the timer's) settles it; the spine's resumable registry resumes it on render.
 registerResumable("baitSwitch", {
   pending: flag => !!flag.chosen && !flag.resolved,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleBait
 });
 
-/* --- the offer: Lunging Attack's die is a ticked checkbox (the player's fact) ---------------- */
+/* --- the offer: Lunging Attack's die is a ticked checkbox — "moved 5 feet first" is the player's fact */
 
 const lungingRow = () => { const k = Object.keys(SUPERIORITY_USES).find(x => SUPERIORITY_USES[x].chip && SUPERIORITY_USES[x].rider); return k ? { key: k, ...SUPERIORITY_USES[k] } : null; };
 function lungeFor(_attackMessage, activity) {
@@ -277,7 +242,6 @@ registerOfferPart({
     if ( !l ) return null;
     let ticked = !!l.die;
     return {
-      // The tick, the name and the dice, then the fold — nothing above the rule (user, 2026-09-05).
       html: l.die ? riderMenuHTML([{ key: "lunge", label: l.row.key, formula: l.die, type: l.type, why: l.row.rider.caveat, rule: l.row.rule }]) : "",
       lines: l.die ? [] : [`<strong>${l.row.key}</strong> stands, but its die could not be read off the sheet — add it by hand.`],
       wire(element) {
@@ -304,7 +268,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     if ( !attacker ) return;
     const names = listed();
     const type = [...(activity.item?.system?.damage?.base?.types ?? [])][0] ?? null;
-    // 6.0: per-roll damage rules WRITE into a roll's data — each rider gets its own copy (hit-riders' rule).
+    // ⚠ Per-roll damage rules WRITE into a roll's data, so each rider gets its own copy.
     const push = formula => config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
     const rode = [];
     // Lunging: the chip on the attacker, a melee hit, the offer's tick (absent: rides).
@@ -333,9 +297,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       if ( !die ) continue;
       push(die);
       rode.push({ key, formula: die, type, why: `the feint at ${hits.map(t => t.name).join(", ")}`, rule: row.rule });
-      // ⚠ The marker is NOT deleted here: the attack roll SPENDS it through the chip-spend
-      // machine (EFFECT_BENDS `spend: "attack"`, the receipt first, the document second), and a
-      // second delete here raced it (measured: "ActiveEffect does not exist", first live run).
+      // ⚠ The marker is NOT deleted here: the attack roll already SPENDS it through the chip-spend
+      // machine, and a second delete races it.
     }
     if ( rode.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.superiorityRide`, { ...statContext(attacker.uuid), attackId: attackMessage.id, rode });
   } catch(err) {
@@ -349,9 +312,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const su = message.getFlag(MODULE_ID, "superiorityUse");
   if ( su ) {
     const line = document.createElement("div");
-    // The maneuver card's one shape (user, 2026-09-05: "the same UI language and design as
-    // Riposte"): the feature's art, `Maneuver — Name`, `Name — what happened`, who and the cost.
-    // The spend, worded the one way (spendPhrase — the flash and the card line say the same).
+    // The maneuver card's one shape: the art, `Maneuver — Name`, `Name — what happened`, the cost.
     const spend = spendPhrase(poolSpendsOn(message));
     line.innerHTML = bfCard({ img: su.itemImg ?? null, eyebrow: `Maneuver — ${su.key}`, tone: su.die ? "good" : "neutral",
       title: su.total !== undefined && su.total !== null ? `${su.key} — the die rolled ${su.total}` : `${su.key} — ${su.die ?? "the die"} armed`,

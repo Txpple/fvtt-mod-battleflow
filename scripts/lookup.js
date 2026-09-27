@@ -1,21 +1,9 @@
 /**
- * Battle Flow — SPINE (ARCHITECTURE.md §7): the shared sheet and document readers.
- *
- * The machine-tier pass, Stage 1 (2026-09-05). Nine machines carried their own lower-case
- * helper, four their own feature-by-name, three their own activity-by-name, thirty sites the
- * same inline `try { fromUuidSync } catch` and five the same replace-and-validate die idiom —
- * the copy-the-last-machine growth of 2026-09-04/05, measured by grep before this file was
- * written. One home, the same bodies. **Nothing here decides anything**: every function reads a
- * document the caller already holds and answers a lookup question about it.
- *
- * ⚠ SPINE, NOT DECISION. `fromUuidSync` and `Roll` are Foundry globals, and `actor.items` is a
- * document collection — EDGE by §2's test, so this cannot live in decide/. It imports nothing
- * and owns no hook, no flag, no write; keep it that way (its imports are pure and downward: the
- * card seam, decide/card.js, and the reductions table, decide/registry.js, for `reductionFor`). `core.js` and `shared.js` keep their own copies of the uuid guard
- * on purpose: core is the leaf and shared is this file's own layer.
- *
- * ⚠ Names match CASE-INSENSITIVELY everywhere here, because that is what every copy did: the
- * packs' names are the tables' keys and the tables are typed by hand.
+ * Battle Flow — SPINE (ARCHITECTURE.md §7): the shared sheet and document readers. Nothing here
+ * decides anything; every function answers a lookup about a document the caller holds.
+ * ⚠ Spine, not decision: it touches Foundry globals. It owns no hook, flag or write, and imports
+ * only pure modules (decide/card.js, decide/registry.js); keep it that way.
+ * ⚠ Names match CASE-INSENSITIVELY: the tables' keys are pack names typed by hand.
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
@@ -31,9 +19,8 @@ const sameName = (a, b) => lower(a) === lower(b);
 export const itemNamed = (actor, name) => actor?.items?.find(i => sameName(i.name, name)) ?? null;
 
 /**
- * The damage types an attack deals, before its dice (the PHB feats, group 3, 2026-09-26 — "an attack
- * that deals Slashing damage"): the activity's own parts and, where it takes them, the weapon's base
- * damage (a Versatile or a two-type weapon names every type it may deal).
+ * The damage types an attack deals, before its dice: the activity's parts and, where it takes
+ * them, the weapon's base damage (a two-type weapon names every type it may deal).
  */
 export function dealtTypesOf(activity) {
   const out = new Set();
@@ -49,9 +36,8 @@ export const featureNamed = (actor, name) =>
   actor?.items?.find(i => (i.type === "feat") && sameName(i.name, name)) ?? null;
 
 /**
- * Does this creature hold what a guard's row demands (the fighting styles, 2026-09-26)? Holding is
- * EQUIPPED (the ruling off the prototype): "shield" a Shield; "shieldOrWeapon" a Shield or a Simple
- * or Martial weapon (Interception). No demand, always.
+ * Does this creature hold what a guard's row demands? Holding is EQUIPPED: "shield" a Shield;
+ * "shieldOrWeapon" a Shield or a Simple or Martial weapon. No demand, always.
  */
 export function holdsFor(actor, holding) {
   if ( !holding ) return true;
@@ -67,10 +53,8 @@ export const activityNamed = (item, name) =>
   [...(item?.system?.activities ?? [])].find(a => sameName(a.name, name)) ?? null;
 
 /**
- * The abilities a feat's own Ability Score Improvement assigned (dnd5e's record on the item), or
- * null when the feat came without its advancement (dropped on by hand). Moved here from use-chips.js
- * with its second customer (2026-09-27, the PHB feats group 5: Inspiring Leader's amount is "the
- * modifier of the ability you increased with this feat", as the Poisoner's save DC is).
+ * The abilities a feat's own Ability Score Improvement assigned ("the ability you increased with
+ * this feat"), or null when the feat came without its advancement (dropped on by hand).
  */
 export function asiAssigned(feature) {
   try {
@@ -88,9 +72,8 @@ export const activityOfType = (item, type) =>
   [...(item?.system?.activities ?? [])].find(a => a.type === type) ?? null;
 
 /**
- * The document behind a uuid, or null — never a throw. `fromUuidSync` THROWS on a uuid whose
- * pack is not loaded and on a malformed one (polish.js measured it), and a flag written weeks
- * ago may name a document that has since gone; every caller wants "not here" for both.
+ * The document behind a uuid, or null — never a throw. ⚠ `fromUuidSync` THROWS on an unloaded
+ * pack's uuid and on a malformed one.
  */
 export function resolveUuid(uuid) {
   if ( !uuid ) return null;
@@ -98,18 +81,10 @@ export function resolveUuid(uuid) {
   catch { return null; }
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE CARD'S ITEM AND ACTIVITY (user, 2026-09-22: "in sandbox i have a potion of resistence on
- * gren, but it doesnt auto apply … when drnk/used"). A use SPENDS before it posts: dnd5e 6.0
- * `Activity#use` applies the consumption — deleting an item whose last use it was (a potion, a
- * scroll: `uses.autoDestroy`) — and only then creates the card, so a uuid stamped for the used
- * thing names a document that is already gone. The card keeps a SNAPSHOT of the deleted item
- * (`system.deltas.deleted`), and the platform's own read rebuilds it
- * (`ChatMessage5e#getAssociatedItem` / `getAssociatedActivity`, parented to the speaker) — the
- * read the card's own buttons use. These two are that read, behind the live one: the document
- * while it stands, else the card's copy when it is the SAME item. `tools/check-card-reads.mjs`
- * fails the build on a bare uuid read of an activity or item anywhere else.
- * ------------------------------------------------------------------------------------------- */
+/* THE CARD'S ITEM AND ACTIVITY. ⚠ A use SPENDS before it posts: a potion's last use deletes the
+ * item before its card exists (NOTES §2). The card keeps a snapshot the platform's own read
+ * rebuilds (`getAssociatedItem` / `getAssociatedActivity`); these read the live document first,
+ * else that copy. `tools/check-card-reads.mjs` fails the build on a bare uuid read elsewhere. */
 
 /**
  * The ITEM behind a card: the live document by `uuid` when it stands, else the card's own item
@@ -144,10 +119,9 @@ export function cardActivity(message, uuid = null) {
 }
 
 /**
- * A die formula resolved on THIS actor's roll data, or null when it does not resolve: a scale
- * value (`@scale.battle-master.superiority.die`) read on the wrong sheet collapses to "0" in
- * silence (NOTES §2; d20-folds.js measured it), so an `@` left standing is a refusal, and a bare
- * "d8" reads as "1d8" so the Roll parser and the card agree.
+ * A die formula resolved on THIS actor's roll data, or null. ⚠ A scale value read on the wrong
+ * sheet collapses to "0" in silence (NOTES §2), so an `@` left standing is a refusal; a bare "d8"
+ * reads as "1d8".
  */
 export function resolveDie(actor, raw) {
   if ( !raw || !actor ) return null;
@@ -157,19 +131,11 @@ export function resolveDie(actor, raw) {
   } catch { return null; }
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE MANEUVER READERS (the machine-tier pass, Stage 4a, 2026-09-05) — moved here from
- * maneuvers.js when it split by moment. Two customers already: the five fold machines and
- * saves.js (the OPEN pin `saves -> maneuvers` came out with the move). Sheet reads and one log
- * read, nothing decided.
- * ------------------------------------------------------------------------------------------- */
+/* THE MANEUVER READERS — sheet reads and one log read, for the fold machines and saves.js. */
 
 /**
- * The folds entry of `kind` this actor actually carries — the listed item, by name, over the
- * ENTRIES the caller read (`maneuverFoldEntries()` — this file reads no world setting). The
- * pool-drawing kinds (precision/riposte) still go through usableManeuver for consumption;
- * interpose/bash/hew have no pool of their own, so the item's PRESENCE is the capability
- * and everything past that (shield in hand, verdict, melee) belongs to the caller.
+ * The folds entry of `kind` this actor carries, over the ENTRIES the caller read (this file
+ * reads no world setting). For a kind with no pool the item's presence is the capability.
  */
 export function foldEntryFor(actor, kind, entries) {
   for ( const entry of entries ) {
@@ -186,10 +152,8 @@ export const equippedShield = actor =>
   !!actor?.itemTypes?.equipment?.some(i => (i.system.type?.value === "shield") && i.system.equipped);
 
 /**
- * The actor's usable copy of a listed maneuver: the item by name (case-insensitive), its
- * first activity, and the consumption check — every itemUses consumption target must have a
- * use left (Precision/Riposte both draw on the Combat Superiority pool, measured by probe
- * P2). An activity with no consumption is simply usable.
+ * The actor's usable copy of a listed maneuver: the item by name, its first activity, and every
+ * itemUses consumption target with a use left. No consumption: simply usable.
  */
 export function usableManeuver(actor, name) {
   const item = itemNamed(actor, name);
@@ -203,19 +167,16 @@ export function usableManeuver(actor, name) {
   return { item, activity };
 }
 
-/** The die formula behind a maneuver — read from the item's own data, never typed anywhere:
- * a utility activity's roll formula (Precision) or a damage activity's first part (Riposte). */
+/** The die formula behind a maneuver, from the item's own data: a utility activity's roll
+ * formula (Precision) or a damage activity's first part (Riposte). */
 export function maneuverDieFormula(activity) {
   return activity.roll?.formula
     || activity.damage?.parts?.[0]?.formula
     || null;
 }
 
-/** The reactor's melee options — every melee weapon CARRIED, not just equipped (v1.19.x
- * finding (i)): 2024's weapon-swap rides any attack, so equipped-state bookkeeping must
- * not hide the greatsword or eat the offer. Equipped first, stowed ones say so, and the
- * sheet is never mutated — the resolved card names what swung; the bookkeeping stays
- * human. (P3: the discriminator is activity.attack.type.value.) */
+/** The reactor's melee options — every melee weapon CARRIED, not just equipped (2024's
+ * weapon-swap rides any attack). Equipped first, stowed ones say so; the sheet is never mutated. */
 export function meleeOptions(actor) {
   const out = [];
   for ( const item of actor.items.filter(i => i.type === "weapon") ) {
@@ -230,15 +191,9 @@ export function meleeOptions(actor) {
   return out;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE EFFECT PROFILES (the dnd5e 6.0 pass, phase 2 — NOTES §2 *the 6.0 pass* §2 G). An activity's `effects`
- * list holds PROFILES — `{_id, uuid, level, onSave, …}` with a `getEffect()` that resolves the
- * document (the item's own embedded effect by `_id`, an external one by `uuid` — asynchronously)
- * — and `applicableEffects` is that list filtered to the cast level. The 5.x `profile.effect`
- * getter is deprecated (until 6.2), warns on every read, and returns a PROMISE, so every
- * `e.effect && applicable.has(e.effect.id)` test qualified nothing. These read the profile
- * BESIDE its effect, so a customer keeps the profile's own facts (`onSave`, `_id`).
- * ------------------------------------------------------------------------------------------- */
+/* THE EFFECT PROFILES (NOTES §2 *the 6.0 pass*): an activity's `effects` list holds PROFILES whose
+ * `getEffect()` resolves the document asynchronously. ⚠ The deprecated `profile.effect` returns a
+ * PROMISE. These return the profile BESIDE its effect, keeping `onSave` and `_id`. */
 
 /**
  * Every profile in `list` beside the effect it resolves to (null when gone).
@@ -273,9 +228,8 @@ export function profileEffectSync(profile, item) {
   return item?.effects?.get?.(profile._id) ?? null;
 }
 
-/** The weapon this reactor last ATTACKED with, off the log (v1.19.x finding ④ — the walk's
- * "how is the weapon picked?"): newest attack message by this actor whose activity names an
- * item still among the options. Inventory order was the old default and told nobody anything. */
+/** The weapon this reactor last ATTACKED with, off the log: the newest attack message by this
+ * actor whose item is still among the options, else the first option. */
 export function preferredMeleeOption(actor, options) {
   if ( options.length <= 1 ) return options[0] ?? null;
   const mine = game.messages.contents.slice(-100).reverse().filter(m =>
@@ -289,20 +243,16 @@ export function preferredMeleeOption(actor, options) {
 }
 
 /**
- * A listed reaction whose effect is a REDUCTION the module can roll (decide/registry.js
- * INTERRUPT_REDUCTIONS — the Battle Master's Parry): the found item carries the row's activity,
- * whose healing formula is the number. Null for anything else — the Monster Manual's Parry is an
- * AC reaction of the same name and carries no such activity, so it stays `ac`. Moved here from
- * hold/lookup.js on its second reader (the Goliath walk, 2026-09-25: damage-holds.js, Stone's
- * Endurance on any damage); a machine may not import a machine.
+ * A listed reaction whose effect is a REDUCTION the module can roll (INTERRUPT_REDUCTIONS — the
+ * Battle Master's Parry): the row's activity, whose healing formula is the number. Null otherwise
+ * — the Monster Manual's Parry is an AC reaction of the same name, with no such activity.
  */
 export function reductionFor(item, reactionName) {
   const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(reactionName ?? "").toLowerCase());
   const row = key ? INTERRUPT_REDUCTIONS[key] : null;
   if ( !row ) return null;
-  // By name — or, LOCALE-PROOF (Slice A, 2026-09-24), the first heal activity whose STORED name
-  // is empty: Stone's Endurance's is "", which dnd5e displays as the type's localized title, so
-  // "Heal" matched in English only.
+  // By name, or (locale-proof) the first heal activity whose STORED name is empty — dnd5e shows
+  // an empty name as the type's localized title.
   const activities = [...(item?.system?.activities ?? [])];
   const activity = activities.find(a => a.name?.toLowerCase() === row.activity.toLowerCase())
     ?? activities.find(a => (a.type === "heal") && !a._source?.name)

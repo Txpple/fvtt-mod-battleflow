@@ -1,6 +1,10 @@
 /**
- * Battle Flow — Phase 2.5: the concentration assist - damage, ask, roll, verdict, break.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — the concentration assist (a machine, ARCHITECTURE.md §7): damage → ask → roll →
+ * verdict → break. The save is mandatory, so the popup has one answer (roll) and the clock's
+ * expiry rolls rather than passes. The ask is stamped off `dnd5e.damageActor` for ALL damage; the
+ * concentrator's driver rolls with the ask's DC as `target`, and a failure presses
+ * `endConcentration`, whose `dependentOn` cascade strips every riding effect.
+ * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
@@ -15,47 +19,17 @@ import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Phase 2.5 — the concentration assist: damage → ask → roll → verdict → break.
- *
- * The moment has NO decision in it. A concentration save is mandatory — RAW offers no decline —
- * so the popup carries exactly ONE control (Roll; the two-control rule governs decisions, and a
- * fake second choice is the Skip button again), and the timer's expiry action is the roll
- * itself, never a pass (DESIGN.md N3/§5). What the popup offers is dice agency: the save that
- * might drop the party's Bless belongs in its owner's hand.
- *
- * The chat log is the bus, as everywhere. The GM elect stamps an ASK message off
- * dnd5e.damageActor under the native prompt's exact guard — so ALL damage qualifies, whether
- * this module applied it, the native tray did, or the GM dragged a number on a sheet. The
- * owning player's client volunteers the roll (first-active-owner election, GM elect for NPCs
- * and offline owners — their character, their dice, §4.1) through rollConcentration with the
- * ask's DC as `target`, so the system's own success test marks the save card and the verdict
- * below can never disagree with it. The roll message answers the ask (the module's rolls carry
- * respondsTo; a save rolled straight from the sheet is detected like a sheet-cast answers a
- * hold — the roll is the answer, the button is convenience). The elect folds the verdict and,
- * on a failure, presses the button the system never presses itself: endConcentration, whose
- * native dependentOn cascade strips every riding effect across the table.
- *
- * Zero HP is not a save: unconscious ⇒ incapacitated ⇒ concentration simply ends (a determined
- * outcome, §2.1), and the system does NOT do this natively — verified 5.3.3, nothing links HP
- * or statuses to endConcentration. Straight to the break, no ask.
- * ------------------------------------------------------------------------------------------- */
-
 /**
- * What last hit whom — best-effort cause enrichment for the ask card, captured on the applying
- * client at dnd5e.preApplyDamage (the one seam that still knows the originating message) and
- * read back moments later by the damageActor handler. Damage applied outside applyDamage (a
- * sheet edit) has no cause and the ask says only how much, which is the honest floor.
- * ⚠ Healing rides the same hook (roll.type "healing" — the veto ground truth), hence the
- * amount > 0 guard: a Cure Wounds must never be remembered as what "hit" someone.
+ * What last hit whom — best-effort cause for the ask card, captured at dnd5e.preApplyDamage (the
+ * one seam that knows the originating message). A sheet edit has no cause. ⚠ Healing rides the
+ * same hook, hence the amount > 0 guard.
  */
 const recentDamageCauses = new Map();
 
 /**
  * The GM-private roll mode, by Foundry 14's own id. ⚠ `CONST.DICE_ROLL_MODES.PRIVATE` still reads
- * "gmroll" (deprecated, until v16) — but dnd5e 6.0 hands the mode straight to `ChatMessage.create`
- * as `messageMode`, which knows only the configured ids (`CONFIG.ChatMessage.modes`: public, gm,
- * blind, self), so the legacy word fell through to a PUBLIC roll (smoke-concentration §10b, 2026-09-16).
+ * "gmroll", which dnd5e hands to `ChatMessage.create` as `messageMode` — an unknown id there
+ * makes the roll PUBLIC (NOTES §2).
  */
 const PRIVATE_ROLL_MODE = "gm";
 
@@ -64,14 +38,11 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, _updates, options) => {
   if ( !(Number(amount) > 0) || !actor?.uuid ) return;
   const message = options?.originatingMessage;
   if ( !(message instanceof ChatMessage) ) return;
-  // Every usage AND damage card names its item (`system.item`, the card seam), so the item
-  // behind the damage is one read — through the card, so a used-up item still names itself;
-  // the speaker names the attacker.
+  // The card names its item (so a used-up item still names itself); the speaker the attacker.
   const source = cardItem(message)?.name ?? null;
   const dealer = message.getAssociatedActor?.() ?? null;
   const attacker = dealer?.name ?? null;
   if ( actor.concentration?.effects?.size ) {
-    // The dealer's ACTOR rides too (the PHB feats, group 4): Mage Slayer is read off its sheet.
     recentDamageCauses.set(actor.uuid, { at: Date.now(), source, attacker, dealerUuid: dealer?.uuid ?? null });
   }
 });
@@ -85,13 +56,9 @@ function takeRecentCause(actorUuid) {
 }
 
 /**
- * MAGE SLAYER'S CONCENTRATION BREAKER (the PHB feats, group 4, 2026-09-27 — RULINGS *The PHB feats —
- * groups 4–6*): "When you damage a creature that is concentrating, it has Disadvantage on the saving
- * throw it makes to maintain Concentration." The damage's dealer — the card that dealt it names its
- * actor (the cause above) — holds a listed FIGHTING_STYLES row that `breaks` concentration: the ask
- * records who and why, the gate says it (reminders.js), and every roll of the ask carries the
- * Disadvantage, netted by dnd5e with the concentrator's own Advantage (War Caster: both, a plain roll).
- * Damage with no card behind it (a sheet edit) names no dealer and breaks nothing — the honest floor.
+ * The concentration BREAKER (Mage Slayer — RULINGS *The PHB feats — groups 4–6*): the damage's
+ * dealer holds a listed FIGHTING_STYLES row that `breaks` concentration, so every roll of the ask
+ * carries Disadvantage, netted by dnd5e with the concentrator's own Advantage.
  * @param {Actor|null} concentrator
  * @param {string|null} dealerUuid
  * @returns {{feat: string, by: string, uuid: string, rule: string}|null}
@@ -108,8 +75,8 @@ function breakerFor(concentrator, dealerUuid) {
   return null;
 }
 
-/** The roll's own Disadvantage when a breaker stands — `options.disadvantage` alone, so dnd5e nets
- * it with any Advantage the sheet carries (never `advantage: false`, which would out-vote War Caster). */
+/** The roll's own Disadvantage when a breaker stands. ⚠ `disadvantage` alone, never
+ * `advantage: false`, which would out-vote War Caster instead of netting with it. */
 const breakerRolls = ask => ask?.breaker ? { rolls: [{ options: { disadvantage: true } }] } : {};
 
 /** What the actor is concentrating on, by name — the system's own fallback chain. */
@@ -121,20 +88,12 @@ function concentratingOn(actor) {
 }
 
 /**
- * The trigger. Mirrors the native prompt's guard exactly (attributes.mjs:548-551): a net HP
- * loss where either temp went down or the pool sits below its effective max — the case that
- * excludes is an hp.value drop caused by a max-HP reduction, which is not damage. Rest and
- * advancement never reach this hook at all (onUpdateHP returns before firing it). The one
- * native nicety not visible here is options.dnd5e.concentrationCheck === false (an API
- * courtesy no system code sets); a module opting out of the native prompt still gets ours.
+ * The trigger. Mirrors the native prompt's guard (attributes.mjs): a net HP loss where temp went
+ * down or the pool sits below its effective max — a max-HP reduction is not damage.
  */
 Hooks.on("dnd5e.damageActor", (actor, changes) => {
   if ( setting(S.concMode) === "off" ) return;
-  // ⚠ WITH NO GM, THE CONCENTRATOR'S OWN CLIENT STAMPS IT (v1.27.2). This is the machine that
-  // loses least when the GM drops: the subject is almost always a PC, so the ask card, the
-  // save, and even the consequence (ending concentration is a write to their OWN sheet) are
-  // all things that player may do. Gated on the SUBJECT rather than the room, so two players
-  // taking damage in the same tick each drive only their own ask.
+  // Gated on the SUBJECT: with no GM the concentrator's own client stamps, rolls and breaks.
   if ( !drivesMomentFor(actor?.uuid) ) return;              // single writer stamps the ask
   if ( !(actor instanceof Actor) ) return;
   if ( !actor.concentration?.effects?.size ) return;
@@ -144,13 +103,8 @@ Hooks.on("dnd5e.damageActor", (actor, changes) => {
   void stampConcentrationAsk(actor, changes);
 });
 
-/* --- Incapacitated breaks concentration (user, 2026-09-02) ----------------------------------
- * The glossary: "No Concentration. Your Concentration is broken." Paralyzed, Stunned,
- * Unconscious and Petrified all carry Incapacitated, and dnd5e 5.3 does NOT end concentration
- * when the status lands (measured at the table: Hypnotized on a ranger left Hunter's Mark up).
- * An OUTCOME with no save in it (R1) — the same break the 0-HP path takes, off the effect that
- * brought the condition, on the client that drives the concentrator's moments.
- * ------------------------------------------------------------------------------------------- */
+/* --- Incapacitated breaks concentration — no save (the glossary: "Your Concentration is broken").
+ * dnd5e does not end it when the status lands; this breaks off the effect that brought it. */
 
 function breakOnIncapacitated(effect) {
   try {
@@ -181,7 +135,6 @@ async function stampConcentrationAsk(actor, changes) {
   const damage = -changes.total;
   const names = concentratingOn(actor);
 
-  // Zero HP is not a save (see the section banner). The concentrator is down; end it.
   if ( (actor.system.attributes.hp.value ?? 0) <= 0 ) {
     await breakConcentration(actor, { names, reason: "down" });
     return;
@@ -208,14 +161,11 @@ async function stampConcentrationAsk(actor, changes) {
       status: "pending",
       actorUuid: actor.uuid,
       actorName: actor.name,
-      // The data-plane stamp. Source = the CONCENTRATOR (whose check this is; the flag's own
-      // actor, the d20fold semantics) — the damage's dealer is `cause`, recorded by name only.
+      // The stat stamp's source is the CONCENTRATOR; the damage's dealer is `cause`.
       ...statContext(actor.uuid),
       ability: concAbility(actor),
       dc, damage, names,
-      // Which effects were at stake, snapshotted now: the break ends exactly these, and
-      // endConcentration tolerates one already gone (the spell may end while the save is
-      // in the air).
+      // The effects at stake, snapshotted: the break ends exactly these.
       effectIds: [...actor.concentration.effects].map(e => e.id),
       ...(cause ? { cause } : {}),
       ...(breaker ? { breaker } : {}),
@@ -242,20 +192,11 @@ function causeLine(cause, damage) {
 const concRollsInFlight = new Set();
 
 /**
- * Roll the save that answers an ask. The DC rides as `target`, so the system's own success
- * test (basic-roll.mjs:221) marks the save card; the dialog is always skipped
- * (configure: false) because the POPUP is the configuration surface — it carries the native
- * dialog's own controls (situational bonus, Advantage/Normal/Disadvantage; user call
- * 2026-08-16, "since it's so important to players"), delivered here as `mode` and `bonus`.
- * The buzzer and auto mode pass neither: a straight data-driven roll, where sheet-borne
- * modifiers (War Caster's advantage via concentration.roll.mode, save bonuses) still apply
- * themselves — only the ad-hoc inputs expire with the timer.
- *
- * The mode is forced through the roll's own advantage/disadvantage booleans — exactly the
- * pair applyKeybindings resolves into advantageMode (d20-roll.mjs:96), which it recomputes
- * unconditionally, so setting advantageMode directly would be overwritten. mergeConfigs lets
- * an explicit boolean override the data-driven one (basic-roll.mjs:465), which is precisely
- * how clicking Normal on the native dialog out-votes War Caster for one roll.
+ * Roll the save that answers an ask, with no dialog. The DC rides as `target`, so the system
+ * marks the save card. The buzzer and auto mode pass no `mode`/`bonus`: a straight roll where
+ * sheet modifiers (War Caster) still apply.
+ * ⚠ The mode goes through the advantage/disadvantage booleans: dnd5e recomputes `advantageMode`
+ * from them, so setting it directly is overwritten.
  */
 async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = null, bonus = null } = {}) {
   if ( concRollsInFlight.has(askMessage.id) ) return;
@@ -263,15 +204,12 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
   try {
     const ask = askMessage.getFlag(MODULE_ID, "concentration");
     if ( !ask || (ask.status !== "pending") ) return;
-    // An answer that already landed wins, even though the ask still reads pending — the fold
-    // is the elect's job and may not have caught up. Whole-log by flag, never a tail window.
-    // Closes the re-render double-roll: the flag flips to done only after the fold, and the
-    // in-flight latch above cannot see across that gap.
+    // ⚠ An answer that already landed wins though the ask still reads pending (the fold may lag);
+    // whole-log by flag, never a tail window. Closes the re-render double roll.
     if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id) ) return;
     const actor = await fromUuid(ask.actorUuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    // Mage Slayer's Disadvantage rides the straight roll too (the buzzer, auto mode) — unless a mode
-    // was pressed, which is the roller's own call over every source (the dialog's buttons).
+    // A breaker's Disadvantage rides the straight roll too, unless a mode was pressed.
     const config = rollConfigFor(mode, bonus);
     if ( ask.breaker && !mode ) {
       config.rolls ??= [{}];
@@ -283,8 +221,6 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
       { configure: false },
       {
         data: { flags: { [MODULE_ID]: {
-          // The hold's answer-channel key, reused with the same meaning: this message
-          // answers that one. The hold's own watcher no-ops on it (no hold flag there).
           respondsTo: askMessage.id,
           ...(timedOut ? { timedOut: true } : {})
         } } },
@@ -309,12 +245,9 @@ function pendingConcAsks(actorUuid) {
 }
 
 /**
- * Which pending ask a message answers, if any: the module's own respondsTo stamp, or a bare
- * sheet-rolled save matching a pending ask's actor and ability — no originatingMessage,
- * because a save belonging to an activity chain (a spell's save, Phase 2's territory) must
- * never be mistaken for a concentration answer. Declared to the spine's demand registry
- * (Stage 2, 2026-09-05): priority 0 — a bare roll is concentration's before it is anyone's,
- * the ship order kept as ruling 1. The bare match takes the OLDEST pending ask, as before.
+ * Which pending ask a message answers: the `respondsTo` stamp, or a bare sheet-rolled save
+ * matching a pending ask's actor and ability (never one in an activity chain). Priority 0: a bare
+ * roll is concentration's before anyone's; it answers the OLDEST pending ask.
  */
 registerDemand("concentration", {
   priority: 0, chained: false,
@@ -332,11 +265,8 @@ function concAskAnsweredBy(message) {
 const concFolds = new Set();
 
 /**
- * The elect folds a roll into its ask and acts on the verdict. Success is the ask's DC against
- * the roll total — the ask is the authority, not the roll's own target: a sheet-rolled save
- * carries rollConcentration's default target of 10, and 12 vs a DC 14 ask must break. (The
- * system's test is total >= target with no nat-1/nat-20 override on saves at 5.3.3, so the
- * module-rolled card and this verdict are always the same fact.)
+ * Fold a roll into its ask and act on the verdict. ⚠ The ask's DC is the authority, not the
+ * roll's target: a sheet-rolled save carries rollConcentration's default target of 10.
  */
 async function foldConcentrationRoll(askMessage, rollMessage) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
@@ -347,12 +277,9 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     const roll = rollMessage.rolls?.[0];
     if ( !roll ) return;
 
-    // THE D20 FOLD OFFER — WITHHELD, the saves machine's own protocol (the user, 2026-09-27: "on the
-    // concentration save offer, you have the dc, so i dont think you need offer heroic inspiration if
-    // it passes"). The ask OWNS the DC, so a rescue (Heroic Inspiration, a Bardic die) is offered only on
-    // a FAILURE, and the verdict waits for it instead of breaking the spell first. The clock's own roll
-    // is never withheld (nobody is at the keyboard). The ask records the paused roll, so its buzzer folds
-    // that one rather than rolling a second save.
+    // WITHHELD: the ask owns the DC, so a rescue is offered only on a FAILURE and the verdict
+    // waits for it. The clock's own roll is never withheld. The ask records the paused roll so
+    // its buzzer folds that one rather than rolling a second save.
     if ( !rollMessage.getFlag(MODULE_ID, "timedOut")
       && await withholds(rollMessage, { by: "concentration", card: askMessage, uuid: ask.actorUuid, total: roll.total, dc: ask.dc }) ) {
       if ( ask.withheld !== rollMessage.id ) await askMessage.setFlag(MODULE_ID, "concentration", { ...ask, withheld: rollMessage.id });
@@ -362,10 +289,8 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     const judged = foldedSave({ total: roll.total, dc: ask.dc, folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS) });
 
     const actor = await fromUuid(ask.actorUuid);
-    // Freeze the visibility choice AT VERDICT TIME — the pause below must not let a
-    // setting flip re-address the announcement (bit smoke-conc 10c the day the pause
-    // landed: the suite restored visibility while the dice were still tumbling). Stored on
-    // the outcome so a crash-resume announces to the same ears.
+    // ⚠ Freeze visibility AT VERDICT TIME: a setting flip during the pause below must not
+    // re-address the announcement. Stored so a crash-resume announces to the same ears.
     const whisper = setting(S.concVisibility) ? null : concRecipients(actor);
 
     ask.status = "done";
@@ -374,24 +299,17 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
       success: judged.outcome === "saved",
       ...(rollMessage.getFlag(MODULE_ID, "timedOut") ? { timedOut: true } : {}),
       rollMessageId: rollMessage.id,
-      // The crash-resume contract (the saves machine's `applied` discipline): the
-      // consequence sets `applied` when it finishes, and a done-but-unapplied outcome older
-      // than the resume horizon gets re-driven by any GM render. answeredAt is both the
-      // horizon's clock and the new-era marker — an outcome without it predates this
-      // contract and stays untouched history.
+      // The crash-resume contract: the consequence sets `applied`; a stale done-but-unapplied
+      // outcome is re-driven on render. An outcome without `answeredAt` is never re-driven.
       answeredAt: Date.now(),
       ...(whisper ? { whisperIds: whisper } : {})
     };
     disarmAskTimer(concTimers, askMessage.id);
     await askMessage.setFlag(MODULE_ID, "concentration", ask);
 
-    // Claimed above; now let the dice land before the drama (the icons stripping mid-roll
-    // was the report — the row's verdict text updating early is accepted).
     await dramaticVerdictPause(rollMessage);
 
     if ( ask.outcome.success ) {
-      // "Holds" is only true while there is something held — the spell may have ended by
-      // itself (duration, a manual right-click) while the save was in the air.
       if ( actor?.concentration?.effects?.size ) await announceConcentrationHolds(actor, ask, whisper);
     } else {
       await breakConcentration(actor, { names: ask.names, effectIds: ask.effectIds, ask });
@@ -423,13 +341,9 @@ async function markConcApplied(askMessage) {
 const concResumes = new Set();
 
 /**
- * Crash-resume: the fold flipped the flag to done, then its client died inside the verdict
- * pause — the cascade and the break card never happened, and nothing would ever re-drive
- * them (the done status is exactly what every other path checks before acting). Any GM
- * render re-drives a done-but-unapplied outcome once it is stale enough that no live fold
- * can still be inside its pause. Idempotent: endConcentration on already-gone effects
- * no-ops into its catch, and the announcement re-posts — a duplicate card after a real
- * crash is self-explaining, where silence was the bug.
+ * Crash-resume: the fold marked the flag done, then its client died inside the verdict pause, so
+ * the break never happened. Re-drives a stale done-but-unapplied outcome. Idempotent enough:
+ * ending gone effects no-ops; a duplicate card after a real crash beats silence.
  */
 async function resumeConcOutcome(askMessage) {
   if ( concResumes.has(askMessage.id) ) return;
@@ -470,18 +384,12 @@ async function announceConcentrationHolds(actor, ask, whisper = null) {
 }
 
 /**
- * End concentration the way the system would — endConcentration → effect.delete → the native
- * dependentOn cascade strips every riding effect on every actor — and say so LOUDLY, always
- * in public: the cascade just removed icons across the whole table, and an icon vanishing
- * must never be a mystery (DESIGN.md R5). With Failure Breaks Concentration off, this
- * announces and leaves the ending to the GM.
+ * End concentration the system's way (endConcentration → the `dependentOn` cascade) and say so
+ * in public: icons just vanished across the table (DESIGN.md R5). With breaking off, announce only.
  */
 async function breakConcentration(actor, { names = [], effectIds = null, ask = null, reason = null } = {}) {
   const breaks = setting(S.concBreak);
-  // ⚠ ENDING CONCENTRATION IS A WRITE TO THE CONCENTRATOR (v1.27.2). For a PC that is their
-  // OWN sheet, so with no GM the player breaks their own concentration and nothing is lost —
-  // this machine degrades further than any other. An NPC concentrator is the exception: the
-  // card still announces the break publicly, and the driver is told the effect is still on.
+  // Ending is a write to the concentrator: a PC's own client may do it; an NPC with no GM cannot.
   const blocked = breaks && (actor instanceof Actor) && !canApplyTo(actor);
   if ( breaks && (actor instanceof Actor) && !blocked ) {
     const targets = effectIds ?? [...(actor.concentration?.effects ?? [])].map(e => e.id);
@@ -518,9 +426,7 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
 const concTimers = new Map();
 
 /**
- * Expiry ROLLS — the save always happens; the timer only decides who pressed the button. The
- * buzzer re-checks for an answer that already landed (an unfolded roll must beat the clock,
- * not race it), then rolls on the elect, who owns everything.
+ * Expiry ROLLS — the save always happens. The buzzer first folds an answer that already landed.
  */
 const armConcTimer = message => armAskTimer(concTimers, message, "concentration", fireConcTimer);
 
@@ -534,7 +440,6 @@ async function fireConcTimer(askMessage) {
   const ask = askMessage.getFlag(MODULE_ID, "concentration");
   const actor = await fromUuid(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) {
-    // The concentrator no longer exists; there is nothing to roll and nothing to break.
     const gone = foundry.utils.deepClone(ask ?? {});
     gone.status = "done";
     gone.outcome = { voided: true };
@@ -548,15 +453,13 @@ async function fireConcTimer(askMessage) {
 // rolls and bare sheet-rolls alike. Everyone else's client just watches the flags change.
 Hooks.on("createChatMessage", message => {
   {
-    // The fold is driven by whoever drives THAT ask's subject (v1.27.2), resolved from the ask
-    // itself — this hook sees only the answering roll, so the subject has to be looked up.
+    // The fold is driven by whoever drives the ask's subject, looked up from the ask.
     const askId = concAskAnsweredBy(message);
     const askMsg = askId ? game.messages.get(askId) : null;
     const subject = askMsg?.getFlag(MODULE_ID, "concentration")?.actorUuid ?? null;
     if ( askMsg && drivesMomentFor(subject) ) void foldConcentrationRoll(askMsg, message);
   }
-  // A fresh ask: arm the clock (elect-gated inside), and in auto mode the elected roller
-  // volunteers — their character, their dice, no popup.
+  // A fresh ask: arm the clock; in auto mode the elected roller rolls, no popup.
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( ask?.status === "pending" ) {
     armConcTimer(message);
@@ -595,18 +498,14 @@ Hooks.on("deleteChatMessage", message => {
 });
 
 /**
- * The ask's row: pending = the draining bar plus a Roll control for whoever may answer
- * (prompt mode recalls the popup — one input surface; auto mode needs no control at all);
- * done = the outcome in one line. Stateless like every render hook here, with the same resume
- * discipline as the hold and the mastery ask: a pending ask re-arms its clock, an answered-
- * but-unfolded ask gets folded by the elect, and auto mode re-volunteers the roller.
+ * The ask's row: pending = the bar plus a Roll control (prompt mode); done = the outcome in one
+ * line. Stateless, and the resume point: re-arms the clock, folds a landed answer, re-volunteers.
  */
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( !ask ) return;
 
-  // The crash-resume: done-but-unapplied, stale past any live pause, new-era stamps only
-  // (answeredAt is the marker — pre-contract history stays history).
+  // The crash-resume: done-but-unapplied and stale past any live pause.
   if ( (ask.status === "done") && ask.outcome?.answeredAt && !ask.outcome.applied
     && drivesMomentFor(ask.actorUuid) && (Date.now() - ask.outcome.answeredAt > 20_000) ) void resumeConcOutcome(message);
 
@@ -618,8 +517,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     scheduleBarSync(row);
     armConcTimer(message);
 
-    // Resume: an answer landed while nobody could fold it (the elect reloaded between the
-    // roll message and the fold). Whole-log by flag — never a tail window.
+    // Resume: an answer landed while nobody could fold it. Whole-log by flag.
     if ( drivesMomentFor(ask.actorUuid) ) {
       const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === message.id);
       if ( landed ) void foldConcentrationRoll(message, landed);
@@ -628,8 +526,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     const actor = resolveUuid(ask.actorUuid);
     if ( (setting(S.concMode) === "prompt") && canAnswerFor(actor) ) {
-      // Auto-show only for the OLDEST pending ask (multiple damage instances queue rather
-      // than stack popups); the button recalls this ask's popup regardless.
+      // Auto-show only the OLDEST pending ask (asks queue); the button recalls any.
       const shownKey = popupKey(message.id, "concentration");
       if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownMoments.has(shownKey) ) {
         shownMoments.add(shownKey);
@@ -659,26 +556,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 const concDialogsOpening = new Set();
 
 /**
- * The popup — the ask's story over the native roll dialog's own controls: a situational
- * bonus field and the Advantage/Normal/Disadvantage buttons, in the system's design language
- * (user call, 2026-08-16 — a save this important gets the full surface, not a bare
- * confirm). Every button is the same answer, roll, so this is still not a decision; the
- * default button is hinted from actor data exactly as the native dialog hints it
- * (_prepareButtonsContext, d20-configuration-dialog.mjs:29 — War Caster pre-selects
- * Advantage). Dismissing is not an answer: the card keeps the bar and the Roll control, and
- * the buzzer rolls regardless — without any of these inputs.
+ * The popup IS the system's own saving throw dialog (`rollConcentration`, `configure: true`),
+ * the ask riding `dialog.options` as a DialogCarried the spine paints and adopts under the popup
+ * key (RULINGS *The gate before the roll*). Dismissing is not an answer: the buzzer still rolls.
  */
-// ⚠ SINCE 2026-09-03 THIS IS THE SYSTEM'S OWN SAVING THROW DIALOG, not a house popup — the
-// save demand's option E, applied here (RULINGS *The gate before the roll*, the save gate): `rollConcentration` with
-// `configure: true` (the system builds the concentration save — its ability, its bonus, War
-// Caster's Advantage as the dialog's default — and opens its dialog), the ask riding
-// `dialog.options` as a DialogCarried the spine paints (ui.js drawDemandFieldset) and adopts
-// under the popup key the recall, the queue's close and the delete-sweep already use. The
-// answer channel is unchanged: the roll's message carries `respondsTo`, the fold reads it.
-// The save gate's section draws on it too. ⚠ Its Fails button is honoured below
-// (foldConcentrationAutoFail) but cannot stand here today: the check is a Constitution save,
-// the table's automatic failures name Strength and Dexterity only, and every status that
-// carries one implies Incapacitated — which breakOnIncapacitated has already acted on.
 async function showConcPopup(message, ask) {
   if ( !ask || (ask.status !== "pending") ) return;
   const key = popupKey(message.id, "concentration");
@@ -709,8 +590,7 @@ async function showConcPopup(message, ask) {
       }),
       bar: card => card.getFlag(MODULE_ID, "concentration")
     });
-    // The breaker's Disadvantage is the roll's own (the dialog opens on it, netted with War Caster);
-    // the gate's box says why and marks the net (reminders.js judgeSave).
+    // The breaker's Disadvantage is the roll's own; the gate's box says why (reminders.js).
     const rolls = await actor.rollConcentration(
       { target: ask.dc, ...breakerRolls(ask) },
       { configure: true, options: { bfSaveDemand: demand } },
@@ -728,11 +608,8 @@ async function showConcPopup(message, ask) {
 }
 
 /**
- * The fold without a die: a concentration check the rules fail before it is rolled (the
- * concentrator Paralyzed, Stunned, Unconscious, Petrified — the save table's automatic
- * failures; Incapacitated alone already broke it, breakOnIncapacitated). Recorded as the
- * failure it is — `total` null, the condition where the number would be — and the break
- * follows exactly as for a rolled failure. Same claim discipline as foldConcentrationRoll.
+ * The fold without a die: a save the rules fail before it is rolled (the dialog's Fails). Recorded
+ * with `total` null and the condition named; the break follows as for a rolled failure.
  */
 async function foldConcentrationAutoFail(askMessage, sources = []) {
   if ( !askMessage || concFolds.has(askMessage.id) ) return;
@@ -759,24 +636,9 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
 }
 
 /**
- * THE PLATFORM'S CONCENTRATION PROMPTS ARE VETOED — both of them (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass*
- * §5 ruling 2, user 2026-09-15): **the platform's prompt is a reminder, Battle Flow's machine is
- * a resolution.** The platform whispers the owner a card with a button and stops — nobody waits
- * on it, nothing expires, an unpressed button leaves the spell running; at 0 HP or incapacitated
- * it still asks, on a rule with no choice in it. Battle Flow asks on the right client with a
- * draining bar, rolls for a player who walks away, breaks the spell and cascades its effects on
- * a failure, writes the card that says why, and at 0 HP or incapacitated ends concentration
- * because the rule says so (DESIGN R1, "a determined outcome plays"). Running both is two asks
- * for one save and a race: a player who presses the platform's button rolls a save the machine
- * never sees while its bar drains toward a second roll.
- *
- * At 6.0 the prompt is `type: "prompt"` with its buttons as DATA (`system.buttons[{type}]`) and
- * no content — `challengeConcentration`'s roll request on damage, and `promptConcentrationEnd`'s
- * "end it" when a dead or incapacitated effect lands (new in 6.0, beside this file's own outright
- * break). Matched by TYPE (decide/card.js `isConcentrationPrompt`), never by content. Vetoed on
- * the creating client, and ONLY while an active GM exists to stamp asks: a GM-less table
- * degrades to native behavior, not to silence. A GM's own [[/concentration]] enricher request
- * is a `base` message and passes. Revisit only if a 6.x prompt gains a timer and a consequence.
+ * THE PLATFORM'S CONCENTRATION PROMPTS ARE VETOED (NOTES §2 *the 6.0 pass*): both asking would be
+ * two asks for one save, racing. Matched by TYPE (`isConcentrationPrompt`), never by content, and
+ * only while an active GM exists — a GM-less table falls back to the native prompt, not silence.
  */
 Hooks.on("preCreateChatMessage", doc => {
   if ( setting(S.concMode) === "off" ) return;

@@ -1,30 +1,13 @@
 /**
  * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE ADVANTAGE BUYS — Advantage on your own D20
- * Test, bought with one of an item's uses BEFORE the roll (decide/registry.js ADVANTAGE_BUYS; Lucky
- * the first row). The Halfling walk, 2026-09-25 (user: "we need to unpark the advantage on our own
- * d20"), ruled off the prototype lucky-advantage.html ("looks good"):
- *
- *   - ONE BOX per row the roller holds, the Sneak Attack box's shape (a tick where the gate's other
- *     boxes carry a tag), in the gate's "Before you roll" section of the system's OWN dialog — an
- *     attack, a save (a demanded one too), a check, and initiative's dialog. No gate section on the
- *     dialog: the box brings the section with it.
- *   - The tick COUNTS as an Advantage source: the header's net and the highlighted button move with
- *     it. Beside a Disadvantage it nets Normal and the use still goes (the rule allows it — ruled).
- *   - The use is spent when the roll goes out with the box ticked and the NET pressed; a press
- *     against the net bought nothing. The record is the gate's own (the Lucky source among the
- *     others) and the uniform spend (`poolSpend` — the flash and the card line).
- *   - A roll with no dialog (a shift-click) meets no box and spends nothing (ruled: the dialog is
- *     never forced open for a choice nobody is being warned about).
- *   - Initiative with NO dialog (the carousel, Roll All — `Combat#rollInitiative` has no pause before
- *     its dice): the `advantage` D20 fold offers the same buy after the roll (d20-folds.js). A roll
- *     whose dialog showed the box carries `bfBuyShown` on its options, so the fold stands aside.
- *
- * WHERE IT RUNS: the roller's client — the pre-roll hooks, the dialog and the record all fire where
- * the dice are rolled. It sets no mode (R-A): the human presses one of the dialog's own buttons.
- *
- * ⚠ HOOK ORDER: imported AFTER reminders.js, so on every render the gate has drawn (or redrawn) its
- * section before this adds the box and re-nets the header, and on `postRollConfiguration` the gate's
- * record is written before this one overwrites it with the Lucky source included.
+ * Test bought with an item's use BEFORE the roll (ADVANTAGE_BUYS; Lucky's row in RULINGS
+ * *Where the table bends the rule*). One box per held row in the gate's section of the system's own dialog (the box
+ * brings the section if the gate drew none); the tick counts in the net and the default button.
+ * The use is spent only when the roll goes out ticked AND the net was pressed; a roll with no
+ * dialog meets no box and spends nothing. Initiative with no dialog is d20-folds.js's
+ * (`bfBuyShown` makes it stand aside). Runs on the roller's client; sets no mode (R-A).
+ * ⚠ HOOK ORDER: imported AFTER reminders.js, so the gate draws its section and writes its record
+ * first, and this re-nets and rewrites it with the buy included.
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { lower } from "./lookup.js";
@@ -99,7 +82,7 @@ const openBuys = new Set();
 
 /**
  * Draw — or redraw — the boxes and re-net the header. Idempotent: the gate may have replaced its
- * whole section on this render (a dagger switched to Thrown), so the boxes are re-added each time.
+ * whole section on this render, so the boxes are re-added each time.
  */
 function drawBuy(app) {
   const buy = app.options?.bfBuy;
@@ -166,10 +149,9 @@ Hooks.on("targetToken", () => {
 });
 
 /**
- * THE SPEND AND THE RECORD — once, after the dialog closes with rolls in hand. The use goes only
- * when the box was ticked and the NET was pressed; the gate's record is rewritten with the buy
- * among its sources, and the spend rides the uniform `poolSpend` record. An initiative roll carries
- * the facts on its own options instead: its message is made later, by the combat, from a clone.
+ * THE SPEND AND THE RECORD — once, after the dialog closes with rolls in hand: the gate's record
+ * rewritten with the buy among its sources, the spend as `poolSpend`. ⚠ An initiative roll carries
+ * the facts on its own options: the combat makes its message later, from a clone.
  */
 Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
@@ -202,8 +184,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   }
 });
 
-// An initiative bought through its dialog: the combat makes the message from the roll's clone, so
-// the line reads the roll's own options — the one card that carries no gate record of its own.
+// An initiative bought through its dialog: the line reads the roll's own options (no gate record).
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const bought = message?.rolls?.[0]?.options?.bfBought;

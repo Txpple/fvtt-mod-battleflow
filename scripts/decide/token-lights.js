@@ -1,20 +1,14 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: which use sheds a token light, and the changes that carry it.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * A light is carried on an EFFECT (the Aasimar walk, 2026-09-25 — decide/registry.js
- * TOKEN_LIGHTS): Foundry 14 applies an effect change keyed `token.*` to the bearer's tokens
- * (TokenDocument#applyActiveEffects; `light` is among its targetable keys — measured on 14.368),
- * so the light lives and dies with the effect and no token document is written. What is decided
- * here: which row a use answers to, and the change list the effect wears.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): token lights, senses and sizes carried on an
+ * EFFECT. Foundry 14 applies an effect change keyed `token.*` to the bearer's tokens
+ * (TokenDocument#applyActiveEffects), so the change lives and dies with the effect and no token
+ * document is written. Pure; no imports.
  */
 
 /**
- * The token-light row this use answers to, or null. A row keyed by its FORM names the pack item it
- * lives on (`item`) and the activity (`activity`) — Inner Radiance on Celestial Revelation; a row
- * keyed by the item's own name with no activity answers to any use of it (the Light spell).
+ * The token-light row this use answers to, or null. A row may name its pack `item` and
+ * `activity`; with no activity it answers to any use of the item.
  * @param {Record<string, {item?: string, activity?: string|null}>} table
  * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use
  * @param {Set<string>} listed   the Token Lights list, lower-cased row names
@@ -34,9 +28,8 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 }
 
 /**
- * The effect changes that carry a row's light: the token's Bright and Dim radii, overriding
- * whatever light the token has while the effect stands (Foundry's `dim` is the OUTER radius — the
- * row already holds it that way). The change shape is Foundry 14's (`type`, `phase`).
+ * The effect changes that carry a row's light, overriding the token's own. Foundry's `dim` is the
+ * OUTER radius. Foundry 14's change shape (`type`, `phase`).
  * @param {{ bright: number, dim: number }} row
  * @returns {Array<{ key: string, type: string, value: number, phase: string }>}
  */
@@ -50,9 +43,8 @@ export function lightChanges(row) {
 }
 
 /**
- * Who a row's light lands on at this use: the user themself (`self`), or every creature targeted
- * at the use (`targets`); none targeted for a `targets` row is no light at all — the pack's own
- * use stands (the Light spell's summoned light).
+ * Who a row's light lands on: the one using it (`self`) or every creature targeted; a `targets` row with
+ * none targeted lands nothing and the pack's own use stands.
  * @param {{ on: "self"|"targets" }} row
  * @param {{ self?: {uuid: string, name: string}|null, targets?: Array<{uuid: string, name: string}> }} facts
  * @returns {Array<{uuid: string, name: string}>}
@@ -66,8 +58,7 @@ export function lightTargets(row, { self = null, targets = [] } = {}) {
 /* --- token senses: the same carrier, on the pack's own effect ----------------------------------- */
 
 /**
- * The token-sense row an effect answers to, by the effect's name (the row's `effect`, else its
- * key), or null.
+ * The token-sense row an effect answers to, by name (the row's `effect`, else its key), or null.
  * @param {Record<string, {effect?: string}>} table
  * @param {string|null|undefined} effectName
  * @param {Set<string>} listed   the Token Senses list, lower-cased row names
@@ -84,9 +75,8 @@ export function senseRowKey(table, effectName, listed) {
 }
 
 /**
- * The effect changes that carry a row's sense: the vision mode the token takes (Foundry inflates
- * the mode's own defaults from the override), the sight range, and the detection mode enabled at
- * its range. Foundry 14's change shape, as lightChanges.
+ * The effect changes that carry a row's sense: the vision mode (Foundry inflates its defaults),
+ * the sight range, and the detection mode enabled at its range.
  * @param {{ vision?: string|null, range?: number|null, detect?: {mode: string, range: number}|null }} row
  * @returns {Array<{ key: string, type: string, value: any, phase: string }>}
  */
@@ -103,8 +93,7 @@ export function senseChanges(row) {
 }
 
 /**
- * Does this change list already carry the row's sense? (An effect copied from one that wore it —
- * a duplicate, a re-landed copy — is not given it twice.)
+ * Does this change list already carry a sense (a copy of an effect that wore one)?
  * @param {Array<{key?: string}>} changes
  * @returns {boolean}
  */
@@ -114,8 +103,7 @@ export function carriesSense(changes) {
 }
 
 /**
- * TOKEN SIZES (the Goliath walk, 2026-09-25): the row and the entry an effect's name answers to,
- * among the listed rows — `{ key, entry }` or null. Case-insensitive on the effect's name.
+ * TOKEN SIZES: the listed row and entry an effect's name answers to — `{ key, entry }` or null.
  * @param {Record<string, {effects: Record<string, {size?: string, step?: number}>}>} table
  * @param {string} effectName
  * @param {Set<string>} listed  the listed row names, lower-cased
@@ -133,9 +121,8 @@ export function sizeRowFor(table, effectName, listed) {
 }
 
 /**
- * The size an entry makes of the bearer's current size: `size` is absolute, `step` moves along
- * the system's own ordering (`numerical`), clamped at both ends. Null when nothing can be read or
- * nothing would change.
+ * The size an entry makes of the bearer's: `size` absolute, `step` along the system's ordering,
+ * clamped. Null when nothing would change.
  * @param {{size?: string, step?: number}} entry
  * @param {string} current  the bearer's size key ("med")
  * @param {Record<string, {numerical: number, token?: number}>} sizes  CONFIG.DND5E.actorSizes
@@ -156,9 +143,8 @@ export function sizeAfter(entry, current, sizes) {
 }
 
 /**
- * The effect changes that carry a size: the actor's size, and the token's footprint in grid units
- * (the system's own `token` for the size, 1 when it has none — Small and Medium). Foundry 14's
- * change shape, as lightChanges.
+ * The effect changes that carry a size: the actor's size and the token's footprint (the system's
+ * `token` for the size, 1 when it has none).
  * @param {string} size  the size key
  * @param {Record<string, {token?: number}>} sizes  CONFIG.DND5E.actorSizes
  */

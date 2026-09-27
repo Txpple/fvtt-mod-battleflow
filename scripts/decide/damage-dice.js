@@ -1,20 +1,12 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the damage-dice folds' pure half — what a
- * rerolled die does to a damage message's own roll data. Two customers, one shape of patch:
- *   Empowered Spell (dice-changers.js, 2026-09-09)  PER DIE: the ticked faces struck, a new face each
- *   Savage Attacker (dice-changers.js since 2026-09-27; Slice A, ruled 2026-09-24 off prototypes/slice-a.html)
- *                                                 PER SET: the weapon's dice rolled again as one
- *                                                 set, the two set totals compared, the higher stands
- * Lifted out of metamagic.js on 2026-09-24 when the second customer arrived (the brief: generalise
- * Empowered's feature-neutral pieces if the diff stays readable). The EDGE halves — rebuilding a
- * Roll from its data (shared.js `rebuildRolls`) and moving damage already applied (auto-apply.js
- * `moveAppliedDamage`) — went down to the spine and the applier the same day.
- *
- * ⚠ The data is the platform's roll JSON (`Roll#toJSON`): `terms[]`, a die term carrying `faces`,
- * `number`, `modifiers` and `results[]` of `{result, active, rerolled?, discarded?}`. A struck face
- * stays in the results — inactive, marked — so the card shows it and every reader of the total
- * (the verdicts, the appliers) sees the new number without knowing why.
+ * rerolled die does to a message's own roll data. PER DIE (Empowered Spell, Healer, Puncture): the
+ * picked faces struck, a new face each. PER SET (Savage Attacker): the weapon's dice rolled again,
+ * the higher set stands. The EDGE halves are shared.js `rebuildRolls` and auto-apply.js
+ * `moveAppliedDamage`.
+ * ⚠ The data is `Roll#toJSON`. A struck face stays in `results` — inactive, marked — so the card
+ * shows it and every reader of the total sees the new number.
  */
 
 /**
@@ -33,10 +25,8 @@ export function rerollFaces(rollsData, picks, faces) {
     const old = term?.results?.[d.index];
     if ( !old || !Number.isFinite(faces?.[i]) ) return;
     old.active = false; old.rerolled = true;
-    // THE DIE'S OWN FLOOR STILL HOLDS (2026-09-26, the PHB feats walk: Gren's Empowered Fireball
-    // with Elemental Adept): a term rolled with `minN` (Elemental Adept's 2, Great Weapon
-    // Fighting's 3) raises a new face below N the way Foundry's `Die#minimum` does — `count` is
-    // what the die is worth, `result` what it showed — so a reroll that lands on a 1 is still lifted.
+    // The die's own `minN` floor still holds, as Foundry's `Die#minimum` applies it: `count` is
+    // what the die is worth, `result` what it showed.
     const floor = floorOf(term.modifiers);
     const face = Number(faces[i]);
     const raised = (floor !== null) && (face < floor);
@@ -56,11 +46,9 @@ function floorOf(modifiers) {
 }
 
 /**
- * THE WEAPON'S DICE — every die term of the first `count` rolls (the activity's own damage
- * parts, which dnd5e builds FIRST; riders push theirs after — auto-damage.js stamps `count` at
- * `preRollDamageV2` before any rider runs). A crit's doubled dice are already in the term's
- * `number`; the flat parts (the ability modifier, a magic bonus) are not die terms and never
- * appear here. `values` are the faces that count toward the total now.
+ * THE WEAPON'S DICE — every die term of the first `count` rolls (dnd5e builds the activity's own
+ * parts first; riders push theirs after). A crit's doubled dice are in `number`; flat parts never
+ * appear. `values` are the faces that count now.
  * @param {any[]} rollsData
  * @param {number} count
  * @returns {{roll: number, term: number, number: number, faces: number, modifiers: string[], values: number[]}[]}
@@ -85,9 +73,7 @@ export const setFormula = dice => (dice ?? []).map(d => `${d.number}d${d.faces}$
 export const setTotal = dice => (dice ?? []).reduce((n, d) => n + (d.values ?? []).reduce((a, b) => a + b, 0), 0);
 
 /**
- * Which set stands. The rule says "use either roll", and there is no reason to keep the lower
- * (ruling 2026-09-24: never ask which) — so the higher stands, and a TIE keeps the first (the
- * roll on the card does not move for nothing).
+ * Which set stands: the higher, never asked (RULINGS *Savage Attacker*); a TIE keeps the first.
  * @param {{first: number, second: number}} args
  */
 export function eitherOutcome({ first, second }) {
@@ -97,10 +83,8 @@ export function eitherOutcome({ first, second }) {
 }
 
 /**
- * Savage's per-set patch. `fresh[k]` is the new results for the k-th weapon die term (the new
- * Roll's own results, rerolls included). When the second set wins, every old face of those terms
- * is struck and the new ones join active; when it loses (or ties) the new faces join STRUCK, so
- * the card shows both sets either way (the ruled card: "the loser struck"). Returns a clone.
+ * The per-set patch. `fresh[k]` is the new results for the k-th weapon die term. The losing set's
+ * faces are struck either way, so the card shows both sets. Returns a clone.
  * @param {any[]} rollsData
  * @param {ReturnType<typeof weaponDiceOf>} dice
  * @param {{result: number, active?: boolean, rerolled?: boolean, discarded?: boolean}[][]} fresh
@@ -123,12 +107,9 @@ export function eitherPatch(rollsData, dice, fresh, secondWins) {
 }
 
 /**
- * THE HINT (user, 2026-09-25, ruled off prototypes/savage-hint.html, option D: "yea use that savage
- * attacker ui"): where the first set sits among everything the same dice could roll — the range,
- * the average, the chance a second set beats it and the damage it adds on average (the higher
- * stands, so a second roll never lowers the hit; the cost is the rest of the turn). `low` is the
- * lean: under the average, the popup starts ticked with "Roll again" the default. The weapon's
- * dice only — the flat parts never roll again. A die's own reroll-once-on-a-1 (`r1`) is counted.
+ * THE HINT: where the first set sits among everything the same dice could roll — range, average,
+ * the chance a second set beats it and the average damage added (the higher stands). `low`
+ * (under the average) starts the popup ticked. A die's own `r1` is counted.
  * @param {ReturnType<typeof weaponDiceOf>} dice
  * @param {number} first  the first set's total
  * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}
@@ -159,9 +140,8 @@ export function eitherOdds(dice, first) {
 }
 
 /**
- * Is the fold offered on this hit — and if not, what does the card say? Pure over the facts the
- * EDGE reads: the feature listed and on the sheet, a weapon, and once per turn by the `rider`
- * turn chit (standing only for a combatant — out of combat nothing stands and every hit offers).
+ * Is the fold offered on this hit — and if not, what does the card say? Once per turn by the
+ * `rider` turn chit, which stands only for a combatant (out of combat every hit offers).
  * @param {{listed: boolean, owned: boolean, weapon: boolean, chitStands: boolean}} facts
  * @returns {"due"|"spent"|null}  null: nothing to offer and nothing to say
  */
@@ -170,17 +150,12 @@ export function eitherDue({ listed, owned, weapon, chitStands }) {
   return chitStands ? "spent" : "due";
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE HEALING REROLLS (the origin feats, 2026-09-25 — Healer; user: "use the empower spell form as
- * a baseline listing all roll numbers, the ones, and select the ones to replace"; "make sure the
- * healer feat itself gets the 1 popup too not just spells"; "1s ticked"). The third customer of the
- * per-die patch above (`rerollFaces`): the dice a healing roll shows, the 1s among them pickable.
- * ------------------------------------------------------------------------------------------- */
+/* THE HEALING REROLLS (Healer — RULINGS *The origin feats*): the per-die patch over a healing
+ * roll's dice, the 1s pickable. */
 
 /**
- * Every active face of every die term in a message's HEALING rolls, keyed `roll:term:index` —
- * Empowered's chip rows, with `one` marking a face the feat lets be rerolled. A roll of another type
- * (temporary hit points) shows no chips: "Hit Points you restore".
+ * Every active face of every die term in a message's HEALING rolls, keyed `roll:term:index`, with
+ * `one` marking a rerollable face. Temporary hit points show none ("Hit Points you restore").
  * @param {any[]} rollsData   the rolls' JSON
  * @param {number} [reroll=1] the face the feat rerolls
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, result: number, one: boolean}[]}
@@ -202,26 +177,20 @@ export function healDiceOf(rollsData, reroll = 1) {
 }
 
 /**
- * A formula with the platform's own reroll-once-on-a-1 (`r1`) taken off every die — Battle Medic's
- * activities ship `1d8r1 + @prof`, which rerolls the 1 silently; the feat's rerolls are the popup's
- * now, so its own roll goes up bare. Only a literal `r1` / `r=1` goes: `r<3`, `rr1` and the rest
- * are another rule's, and stay.
+ * A formula with a literal `r1` / `r=1` taken off every die: Battle Medic ships `1d8r1`, and the
+ * popup does the feat's rerolls. `r<3`, `rr1` and the rest are another rule's, and stay.
  * @param {string} formula
  */
 export function stripRerollOnes(formula) {
   return String(formula ?? "").replace(/(\d*d\d+)r=?1(?![\d<>=])/gi, "$1");
 }
 
-/* ---------------------------------------------------------------------------------------------
- * ONE DIE ROLLED AGAIN (the PHB feats, group 3, 2026-09-26 — Piercer's Puncture: "you can reroll one
- * of the attack's damage dice, and you must use the new roll"). The fourth customer of the per-die
- * patch above (`rerollFaces`). Which die is not asked: the one with the most to gain — its size's
- * average less its face — since rerolling any other is worse on average; a tie keeps the first met.
- * ------------------------------------------------------------------------------------------- */
+/* ONE DIE ROLLED AGAIN (Piercer's Puncture — RULINGS *The PHB feats — groups 1–3*): the die is
+ * the module's pick, the one with the most to gain; a tie keeps the first met. */
 
 /**
- * The die a single reroll should take: every active face of every die term of the message's rolls
- * (the attack's damage dice — the weapon's and any rider's), the one whose reroll gains most.
+ * The die a single reroll should take, over every active face of the message's rolls: the one
+ * whose size's average less its face is largest.
  * @param {any[]} rollsData   the rolls' JSON
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, value: number, gain: number}|null}
  */
@@ -244,9 +213,8 @@ export function bestRerollDie(rollsData) {
 }
 
 /**
- * The hint for ONE die rolled again, the new roll standing (the die meter's fields, `eitherOdds`'s
- * shape): its range and average, the chance the new face beats this one, and the average change —
- * which can be a LOSS, since the new roll stands. `low` leans toward rolling again.
+ * The hint for ONE die rolled again (`eitherOdds`'s shape). The average change can be a LOSS,
+ * since the new roll stands.
  * @param {number} faces
  * @param {number} value
  * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}
