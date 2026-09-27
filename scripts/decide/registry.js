@@ -526,12 +526,14 @@ export const USE_CHIPS = Object.freeze({
  * ability its DC is read off (`saves` — the pack ships one per ability the feat raises; the pick
  * is decide/chips.js `coatSaveAbility`) is used at the struck creatures, so the damage on a failure
  * is the pack's (N1), and SAVE_PRESSES presses what the pack only names.
+ *   img    the chip's icon — the weapon armed, never the poison's harm (the user, 2026-09-26: "one esp
+ *          that doesnt look like its dangerous to the actor"); a core icon, so every box has it
  *   list   the listed-names switch the row answers to — the Fighting Styles list's entry for the
  *          same feat, which already runs its Potent Poison: one feat, one switch
  * ⚠ NOT A KIND — one table read by one machine (use-chips.js); a second customer is a row.
  */
 export const COATINGS = Object.freeze({
-  "Poisoner": Object.freeze({ key: "poisoner", activity: "Apply Poison", chip: "Poison Coating", seconds: 60, dose: 1,
+  "Poisoner": Object.freeze({ key: "poisoner", activity: "Apply Poison", chip: "Poison Coating", img: "icons/weapons/daggers/dagger-poisoned.webp", seconds: 60, dose: 1,
     saves: Object.freeze({ dex: "Poison Save (Dexterity)", int: "Poison Save (Intelligence)" }), list: "fightingStyles",
     rule: "As a Bonus Action, you can apply a poison dose to a weapon or piece of ammunition. Once applied, the poison retains its potency for 1 minute or until you deal damage with the poisoned item, whichever is shorter. When a creature takes damage from the poisoned item, that creature must succeed on a Constitution saving throw (DC 8 plus the modifier of the ability increased by this feat and your Proficiency Bonus) or take 2d8 Poison damage and have the Poisoned condition until the end of your next turn.",
     from: "General feat" })

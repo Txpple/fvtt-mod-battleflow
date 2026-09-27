@@ -372,6 +372,7 @@ describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poi
     const row = reg.COATINGS.Poisoner;
     expect(row.activity).toBe("Apply Poison");
     expect(row.chip).toBe("Poison Coating");
+    expect(row.img).toBe("icons/weapons/daggers/dagger-poisoned.webp"); // the weapon armed, not the harm
     expect(row.seconds).toBe(60);
     expect(row.dose).toBe(1);
     expect(Object.keys(row.saves)).toEqual(["dex", "int"]);

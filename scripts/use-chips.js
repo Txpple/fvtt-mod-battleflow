@@ -274,7 +274,7 @@ async function writeCoat(actor, activity, name, row) {
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
   const place = placeOf(actor);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
-    name: row.chip, img: activity.img || feature.img || "icons/svg/poison.svg",
+    name: row.chip, img: row.img || feature.img || "icons/svg/aura.svg",
     description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${name}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
     origin: feature.uuid, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false },
