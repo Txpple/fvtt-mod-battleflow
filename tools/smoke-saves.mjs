@@ -1607,6 +1607,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // 16b — all dead: NO saves flag, NO auto damage roll, fully native.
       await shielder.update({ 'system.attributes.hp.value': 0 });
+      // The Shielder is a CHARACTER: dead only by the status, which the platform lands after the
+      // HP write — wait for it, or a fast cast meets a dying PC and stamps (the v2.5.0 floor's red).
+      await until(() => shielder.statuses?.has?.('dead') && victim.statuses?.has?.('dead'), 4000);
       target(victimToken, shielderToken);
       await sleep(120);
       const before16b = snap();
@@ -1618,7 +1621,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         && (m._source.system?.origin === card16b?.id));
       ok('16b. every target dead — no demand stamps and no damage auto-rolls (fully native)',
         !!card16b && !card16b.getFlag(MOD, 'saves') && !autoDmg16b,
-        `flag=${!!card16b?.getFlag(MOD, 'saves')} autoDmg=${!!autoDmg16b}`);
+        `flag=${!!card16b?.getFlag(MOD, 'saves')} autoDmg=${!!autoDmg16b} targets=${JSON.stringify(card16b?.getFlag(MOD, 'saves')?.targets?.map(t => t.name))} hp=${victim.system.attributes.hp.value}/${shielder.system.attributes.hp.value} types=${victim.type}/${shielder.type} dead=${victim.statuses?.has?.('dead')}/${shielder.statuses?.has?.('dead')}`);
       await ChatMessage.deleteDocuments(fresh(before16b).map(m => m.id)).catch(() => {});
 
       // 16c — the boundary the predicate is NARROWER for: a dying PC (character, 0 HP) is
