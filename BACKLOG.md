@@ -47,6 +47,7 @@ the sweep moves as fast as a table proves it.
 | 6 | **Platform passes stay their own step, never inside a slice** — one per dnd5e minor, one for Foundry 15; the 6.0 pass cost a major version. | standing rule |
 
 Why not an architecture pass instead: ARCHITECTURE's appendix *Decided against*.
+
 ## Architecture
 
 ### The two sideways edges (2026-09-05)
