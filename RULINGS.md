@@ -1331,3 +1331,13 @@ feature's own heading when that section is next recut.
 - Twinned Spell is not offered on Animate Dead, Create Undead, Cordon of Arrows or Tasha's Mind Whip — their growing count is a corpse or an arrow, not a target (RULINGS names only Magic Missile, Scorching Ray and Jump)
 - The unarmed-dice swap leaves a strike that already rolls a die (a Monk's Martial Arts) alone — "can … instead" makes that choice the table's
 - The Poisoner's coating save uses the ability the feat's own Ability Score Improvement assigned, else the higher modifier of the abilities the pack offers (the first on a tie).
+
+### The hit's sequence
+
+- On a hit, nothing but the damage happens until the damage lands; then the mastery rider resolves; only then does any other hit offer (Shield Master's bash, for one) leave its queue for a popup, and its clock starts at that moment.
+
+### Metamagic's windows
+
+- A fold's offer window (Seeking, Empowered) closes at the click, not at the verdict; the dice may land for seconds after.
+- A metamagic row's sub-controls (Heightened's target, Transmuted's damage type) are inert until that row is ticked.
+- A reroll that patches a roll in place (Empowered, Seeking) rides a created roll message, so Dice So Nice animates the fresh dice.
