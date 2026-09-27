@@ -1,8 +1,6 @@
 /**
- * Battle Flow — the reaction hold, part 5: THE ANSWER. `answerHold` (the three channels: the
- * player's own response message, the GM's flag flip, the fold the spine's relay applies), the
- * cast that IS the answer (a listed reaction used by a held target), and the two ways the
- * popup's Cast button really casts — natively, or Parry's die rolled in the open.
+ * Battle Flow — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
+ * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
 import { isTextOnlyFeature } from "../decide/eligible.js";
@@ -18,11 +16,9 @@ import { registerRelay } from "../ui.js";
 import { reactionItem, reactionNameFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 
 /**
- * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): a held target is asked of itself
- * and of its guards. The first answer that ACTS settles it; a PASS settles it only once everyone
- * asked has passed. `by` is the answering guard's uuid, null for the target itself.
- * @returns {boolean|"partial"}  true when the target is now answered, "partial" when a pass was only
- *   recorded, false when there was nothing to record
+ * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
+ * a PASS only once everyone asked has passed. `by` is the guard's uuid, null for the target.
+ * @returns {boolean|"partial"}  "partial" when a pass was only recorded
  */
 export function recordAnswer(target, answer, by = null) {
   if ( !target || target.answer ) return false;
@@ -40,9 +36,7 @@ export function recordAnswer(target, answer, by = null) {
   return true;
 }
 
-/** Record an answer for one held target. A client that does not own the held message answers
- * with its OWN message (the receipt of `appliedEffects` embedded), folded by the continuing
- * client; an owner writes the hold directly. */
+/** Record an answer for one held target: an owner writes the hold, anyone else sends its OWN message. */
 export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null, by = null } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
@@ -52,12 +46,10 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   if ( recorded === true ) target.answeredAt = Date.now();   // the crash-resume horizon
   if ( Number(reduceBy) > 0 ) target.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
   if ( poolSpend ) target.poolSpend = poolSpend;                      // Parry's die, the spend record
-  // A `roll` answer: the row that bent the roll and what stood (the second d20 already rolled).
   if ( bent ) target.bent = bent;
   if ( rescue ) target.rescue = rescue;
 
-  // Players cannot update someone else's message, so a player's answer travels as their OWN
-  // message (ARCHITECTURE.md §3 — clients volunteer, they never command).
+  // A player cannot update someone else's message: the answer travels as their OWN (ARCHITECTURE.md §3).
   const actor = await fromUuid(uuid);
   const ac = actor?.system?.attributes?.ac?.value ?? null;
   target.acAtAnswer = ac;
@@ -65,7 +57,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   target.answeredBy = game.user.id;
 
   if ( !attackMessage.isOwner && by ) {
-    // A GUARD's answer (Protection): its own card, in its own voice — who protected whom, the cost.
+    // A GUARD's answer (Protection): its own card, in its own voice.
     const guard = await fromUuid(by);
     const guarding = answer === "roll";
     await ChatMessage.create({
@@ -84,7 +76,6 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
     return;
   }
   if ( !attackMessage.isOwner ) {
-    // The card says what happened: the reaction, the AC it produced, whether its effect landed.
     // ⚠ Quote the AC only once it has ARRIVED: the effect exists before derived data recomputes.
     const cast = answer === "cast";
     const negate = target.kind === "negate";   // no AC story: the spell simply does nothing
@@ -107,8 +98,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
         tone: (cast || bending) ? "good" : "neutral"
       }),
       speaker: ChatMessage.getSpeaker({ actor }),
-      // The reaction's receipt rides the player's OWN message in the standard effectReceipt
-      // shape, so receipts.js renders it and the GM's revert.
+      // The receipt rides in the standard effectReceipt shape, so receipts.js renders it.
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, ac, effectLanded,
         ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),
         ...(poolSpend ? { poolSpend } : {}),
@@ -120,8 +110,7 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
     return;
   }
   if ( appliedEffects.length ) {
-    // ⚠ Through the serializer: one casting answers many holds, so this can run twice in a
-    // tick against one card, and a clone-mutate-set would drop the first merge.
+    // ⚠ Through the serializer: one casting answers many holds in one tick on one card.
     await queueFlagWrite(attackMessage, "effectReceipt", flag => {
       for ( const entry of appliedEffects ) joinEffectReceipt(flag, entry);
     });
@@ -129,21 +118,16 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
   await attackMessage.setFlag(MODULE_ID, "hold", hold);
 }
 
-// A player's answer message landing: the CONTINUING CLIENT (`isContinuingClient`, not the elect)
-// folds it into the hold flag, through the spine's relay registry.
-// ⚠ The envelope is FLAT (`respondsTo` plus sibling `uuid`/`answer` flags) because the message
-// also carries an `effectReceipt`. Do not nest it: that is a wire-format change, and an answer
-// in flight across a deploy would stop folding.
+// A player's answer message: the CONTINUING CLIENT (not the elect) folds it into the hold.
+// ⚠ The envelope is FLAT beside its `effectReceipt`; nesting it is a wire-format change.
 registerRelay("respondsTo", {
   flagKey: "hold",
   targetOf: response => response,
   owns: hold => (hold.status === "pending") && isContinuingClient(hold),
-  // ⚠ A per-target write to a shared array: the guards repeat INSIDE the lock, and "nothing to
-  // record" skips the write.
+  // ⚠ A per-target write to a shared array: the guards repeat INSIDE the lock.
   fold: (flag, _response, message) => {
     if ( flag.status !== "pending" ) return false;
     const target = flag.targets?.find(t => t.uuid === message.getFlag(MODULE_ID, "uuid"));
-    // `by`: a guard's answer; absent on every other envelope.
     const recorded = recordAnswer(target, message.getFlag(MODULE_ID, "answer"), message.getFlag(MODULE_ID, "by") ?? null);
     if ( !recorded ) return false;
     if ( recorded === "partial" ) return;   // a guard's pass, recorded: the others are still asked
@@ -160,22 +144,18 @@ registerRelay("respondsTo", {
   }
 });
 
-// The cast IS the answer: a listed reaction used by a held target answers its own hold, so a
-// player who just casts Shield from their sheet never has to touch our buttons at all.
+// The cast IS the answer: a listed reaction cast from the sheet answers its own hold.
 Hooks.on("dnd5e.postUseActivity", activity => {
   if ( !setting(S.reactionHold) ) return;
   const actor = activity?.actor;
-  // A `roll` row used from the sheet answers too; Lucky's "Disadvantage" is no Reaction, so it
-  // is checked before the activation gate. The use already spent its cost.
+  // A `roll` row (Lucky's "Disadvantage" is no Reaction) is checked before the activation gate.
   const bends = rollRowUsed(activity);
   if ( !actor || (!bends && (activity.activation?.type !== "reaction")) ) return;
-  // Exactly one client volunteers the answer — the one that owns the decision.
   if ( !canAnswerFor(actor) ) return;
 
   void (async () => {
     if ( bends ) return bendFromTheSheet(actor, bends);
-    // ⚠ Match on what was CAST, not the activity's owner: a statblock's Shield lives on a
-    // feature called "Spellcasting".
+    // ⚠ Match on what was CAST: a statblock's Shield lives on "Spellcasting".
     const names = interruptEntries().map(e => e.name.toLowerCase());
     const castName = (await reactionNameFor(activity))?.toLowerCase();
     if ( !names.includes(castName) ) return;
@@ -185,10 +165,8 @@ Hooks.on("dnd5e.postUseActivity", activity => {
 
 /** Fold a real cast into every hold it answers. */
 async function answerHoldsFor(activity, actor) {
-  // ⚠ Collect every hold this cast answers, THEN act once: one Shield covers every attack it
-  // answers, and concurrent applications each pass the duplicate check (+10 AC). The effect
-  // lands once up front; the answers are sequenced behind it.
-  // ⚠ The WHOLE log, never a tail window: one auto-resolved round can emit dozens of messages.
+  // ⚠ Collect every hold, THEN apply once: concurrent applications each pass the duplicate
+  // check (+10 AC). The WHOLE log, never a tail: one round can emit dozens of messages.
   const answering = [];
   for ( const message of game.messages.contents ) {
     const hold = message.getFlag(MODULE_ID, "hold");
@@ -200,33 +178,27 @@ async function answerHoldsFor(activity, actor) {
 
   let applied = [];
   if ( setting(S.holdApplyEffect) ) applied = await applyReactionEffect(activity, actor, answering[0].reaction);
-  // The effect landed once, so its receipt rides the FIRST answer only.
   for ( let i = 0; i < answering.length; i++ ) {
     const { message, uuid } = answering[i];
     await answerHold(message, uuid, "cast", { appliedEffects: i === 0 ? applied : [] });
   }
 }
 
-/* THE `roll` ANSWER (RULINGS *Rescuing the hit*): Disadvantage imposed on the attack roll after
- * the hit showed. The cost is paid BY HAND (a use() would post a card, and Warding Flare's would
- * place its emanation), the second d20 rolled in the open; the continuation re-judges. */
+/* THE `roll` ANSWER (RULINGS *Rescuing the hit*): the cost paid BY HAND (a use() would post a
+ * card, and Warding Flare's would place its emanation), the second d20 rolled in the open. */
 
-/** The INTERRUPT_ROLLS row a name keys, case-insensitively — `{ key, row }` or null. */
+/** The INTERRUPT_ROLLS row a name keys, case-insensitively. */
 function rollRow(name) {
   const key = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(name));
   return key ? { key, row: INTERRUPT_ROLLS[key] } : null;
 }
 
-/** The defender's card line for the spend. */
 function rescueSpendLine(rescue, poolSpend) {
   const found = rollRow(rescue);
   return found ? rescueSpendText({ row: found.row, poolSpend }) : "";
 }
 
-/**
- * Was this use a `roll` row's own answer? The item is a listed `roll` row and the activity is
- * the one the row names (Lucky ships two, and "Advantage" answers nothing here). The row's key or null.
- */
+/** The row's key when this use is a listed `roll` row's own activity (Lucky ships two), else null. */
 function rollRowUsed(activity) {
   const found = rollRow(activity?.item?.name);
   if ( !found || !interruptEntries().some(e => (e.kind === "roll") && (lower(e.name) === lower(found.key))) ) return null;
@@ -234,9 +206,8 @@ function rollRowUsed(activity) {
 }
 
 /**
- * Disadvantage on the attack roll already made: a second d20 with the attack's own die modifiers
- * (a reroll rides it; keep/drop never do), and what stands (`disadvantageOutcome` — on an
- * Advantage roll nothing is rolled: the two cancel).
+ * Disadvantage on a roll already made: a second d20 with the attack's die modifiers minus
+ * keep/drop; on an Advantage roll nothing is rolled (the two cancel).
  */
 async function bendTheRoll(attackMessage, actor, name) {
   const roll = attackMessage.rolls?.[0];
@@ -262,11 +233,10 @@ async function bendTheRoll(attackMessage, actor, name) {
 }
 
 /**
- * The popup's answer for a `roll` row: the cost paid, the roll bent, the answer recorded. A row
- * spent since the popup opened says so and answers nothing — the hold stays open.
+ * The popup's answer for a `roll` row. A row spent since the popup opened answers nothing.
  * @param {ChatMessage} attackMessage
  * @param {object} target  the hold's target entry
- * @param {string} name    the row's name
+ * @param {string} name
  */
 export async function rescueReaction(attackMessage, target, name) {
   const actor = await fromUuid(target.uuid);
@@ -295,12 +265,11 @@ export async function rescueReaction(attackMessage, target, name) {
 }
 
 /**
- * A GUARD's answer (Protection): its Reaction spent, the roll bent as Lucky's is, the answer
- * recorded on the protected target with who gave it. Refused, and said, when the Reaction or the
- * Shield is gone since the ask.
+ * A GUARD's answer (Protection), recorded on the protected target; refused when the Reaction or
+ * the Shield is gone since the ask.
  * @param {ChatMessage} attackMessage
- * @param {object} target  the hold's target entry — the protected creature
- * @param {object} guard   the entry's guard record
+ * @param {object} target  the protected creature's entry
+ * @param {object} guard
  */
 export async function protectReaction(attackMessage, target, guard) {
   const actor = await fromUuid(guard.uuid);
@@ -323,10 +292,7 @@ export async function protectReaction(attackMessage, target, guard) {
   return answerHold(attackMessage, target.uuid, "roll", { bent, rescue: found.key, by: guard.uuid });
 }
 
-/**
- * The sheet's answer for a `roll` row: ONE hold, the oldest still asking this defender with the
- * row live — Disadvantage is imposed on "that roll", not every roll the way one Shield covers all.
- */
+/** The sheet's answer for a `roll` row: ONE hold, the oldest asking (unlike Shield, "that roll" only). */
 async function bendFromTheSheet(actor, name) {
   for ( const message of game.messages.contents ) {
     const hold = message.getFlag(MODULE_ID, "hold");
@@ -340,16 +306,14 @@ async function bendFromTheSheet(actor, name) {
 }
 
 /**
- * The Cast button REALLY casts — the activity used natively, so the slot is spent and the usage
- * hook answers the hold. ⚠ Never merely record "cast": the hold would resolve against an
- * unchanged AC (ARCHITECTURE.md §6: the cast IS the answer). A cancelled cast leaves it open.
+ * The Cast button REALLY casts; the usage hook answers the hold. ⚠ Never merely record "cast":
+ * the hold would resolve against an unchanged AC (ARCHITECTURE.md §6).
  */
 export async function castReaction(attackMessage, target) {
   const actor = await fromUuid(target.uuid);
-  // A REDUCTION reaction (Parry): the pack's activity is a heal that would post its own card, so
-  // the die and the Reaction are spent by hand and the number rides the answer.
+  // Parry's pack activity is a heal that would post its own card: spent by hand instead.
   if ( target.reduce?.formula ) return parryReaction(attackMessage, target, actor);
-  // A TEXT-ONLY feature (Uncanny Dodge): nothing to use; answer and spend the Reaction here.
+  // A TEXT-ONLY feature (Uncanny Dodge): nothing to use.
   const own = actor?.items.get(target.itemId);
   if ( own && !target.activityId && isTextOnlyFeature(own) ) {
     await spendReaction(actor, { origin: own.uuid, what: own.name });
@@ -361,8 +325,7 @@ export async function castReaction(attackMessage, target) {
     ? actor?.items.get(target.itemId)?.system.activities?.get(target.activityId)
     : null;
   if ( !activity ) {
-    // No recorded activity: resolve the reaction's real item, not the first name match (a worn
-    // shield named Shield has no activities).
+    // The reaction's real item, not the first name match (a worn shield is named Shield too).
     const item = reactionItem(actor, target.reaction);
     activity = item?.system.activities?.contents?.find(a => a.activation?.type === "reaction")
       ?? item?.system.activities?.contents?.[0];
@@ -371,12 +334,11 @@ export async function castReaction(attackMessage, target) {
     ui.notifications.warn(`${TITLE}: could not find ${target.reaction} on ${target.name} to cast.`);
     return;
   }
-  // No usage dialog: the system picks the lowest slot; to upcast, cast from the sheet.
-  // subsequentActions:false — the module drives everything after the use, not dnd5e.
+  // No usage dialog (the lowest slot; upcast from the sheet); the module drives what follows.
   await activity.use({ subsequentActions: false }, { configure: false }, {});
 }
 
-/** Parry's answer: the pool spent, the Reaction spent, the reduction rolled in the open, the number on the answer. */
+/** Parry's answer: pool and Reaction spent, the reduction rolled in the open. */
 async function parryReaction(attackMessage, target, actor) {
   const item = actor?.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
   const activity = item?.system?.activities?.get(target.reduce.activityId) ?? null;
@@ -396,7 +358,6 @@ async function parryReaction(attackMessage, target, actor) {
   } catch(err) {
     console.error(`${TITLE} | ${target.reaction}'s reduction could not be rolled — reduce by hand.`, err);
   }
-  // The hand spend's record rides the answer, so card, popup and flash agree on what is left.
   let poolSpend = null;
   if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a ${target.reduce.spend ?? "Superiority Die"} for ${target.reaction}.`, err); return null; });
   await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });

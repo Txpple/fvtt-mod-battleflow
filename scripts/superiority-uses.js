@@ -1,9 +1,7 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the Battle Master's Bonus Action maneuvers (RULINGS
- * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet (a rolled bonus, a
- * chip, a marker), and for Lunging and Feinting a die that rides the next hit. The die is read off
- * the sheet and resolved on the fighter; the pool is spent by the activity's own consumption; the
- * chips wear the platform's clocks.
+ * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
+ * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
@@ -27,7 +25,7 @@ const useRowFor = activity => {
   return (lower(activity.name) === lower(row.use)) ? row : null;
 };
 
-/** The Superiority Die as this activity names it — its roll formula, or its damage part — resolved on the actor. "d8" reads as "1d8". */
+/** The Superiority Die as this activity names it, resolved on the actor. */
 function dieOf(actor, activity) {
   const part = activity?.damage?.parts?.[0];
   const raw = activity?.roll?.formula || (part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null);
@@ -37,11 +35,10 @@ function dieOf(actor, activity) {
 /** The fighter's standing use-chip for a row, or null. */
 const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === key)) ?? null;
 
-/* --- the use: the native follow-up off, the consequence on ---------------------------------- */
+// The use: the native follow-up off, the consequence on.
 
-// ⚠ THE CAST SLICE MUST NOT APPLY A MANEUVER'S EFFECTS: Bait and Switch ships TWELVE "Baited AC"
-// effects (one per die face) and the cast slice would apply them all. polish.js's birth stamp is
-// removed here, one hook later, for every Battle Master maneuver card.
+// ⚠ THE CAST SLICE MUST NOT APPLY A MANEUVER'S EFFECTS (Bait and Switch ships TWELVE, one per
+// face): polish.js's birth stamp is removed here, one hook later, on every maneuver card.
 Hooks.on("preCreateChatMessage", doc => {
   try {
     if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
@@ -147,7 +144,7 @@ async function drive(row, activity, actor, message) {
   }
 }
 
-/* --- Bait and Switch: the choice (the moment spine) ------------------------------------------- */
+// Bait and Switch: the choice (the moment spine).
 
 async function chooseBait(card, uuid) {
   const flag = card.getFlag(MODULE_ID, "baitSwitch");
@@ -219,7 +216,7 @@ registerResumable("baitSwitch", {
   drive: settleBait
 });
 
-/* --- the offer: Lunging Attack's die is a ticked checkbox — "moved 5 feet first" is the player's fact */
+// The offer: Lunging Attack's die is a ticked checkbox ("moved 5 feet first" is the player's fact).
 
 const lungingRow = () => { const k = Object.keys(SUPERIORITY_USES).find(x => SUPERIORITY_USES[x].chip && SUPERIORITY_USES[x].rider); return k ? { key: k, ...SUPERIORITY_USES[k] } : null; };
 function lungeFor(_attackMessage, activity) {
@@ -256,7 +253,7 @@ registerOfferPart({
   }
 });
 
-/* --- the rider: the die rides the hit's damage roll ---------------------------------------- */
+// The rider: the die rides the hit's damage roll.
 
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
@@ -306,7 +303,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-/* --- the cards say it (R5) -------------------------------------------------------------------- */
+// The cards say it (R5).
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const su = message.getFlag(MODULE_ID, "superiorityUse");

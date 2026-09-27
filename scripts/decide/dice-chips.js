@@ -1,11 +1,9 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE DICE CHIPS — which dice rise on the canvas, for
- * dice that CHANGE NUMBER (a reroll, a swapped d20, a set rolled again) and for a reaction that
- * modifies a roll already made. A die added as the roll is made stays on the card (RULINGS *The dice
- * that rise*). The record is `flags.<module>.diceRise`; dice-rise.js draws it. Pure.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE DICE CHIPS — which dice rise on the canvas
+ * (RULINGS *The dice that rise*). The record is `flags.<module>.diceRise`; dice-rise.js draws it.
  */
 
-/** A die term's results that count, off the evaluated roll's JSON (a pool or parenthetical walked). */
+/** The die results that count, off an evaluated roll's JSON (pools and parentheticals walked). */
 function diceResults(terms, out = []) {
   for ( const t of (terms ?? []) ) {
     if ( Array.isArray(t?.terms) ) diceResults(t.terms, out);
@@ -21,9 +19,8 @@ function diceResults(terms, out = []) {
 }
 
 /**
- * A roll as chips: each die that counts, then what the formula added on top as one gold bonus chip
- * ("+3" — a proficiency bonus, a modifier). A roll of nothing but a number is its one chip.
- * @param {{terms?: object[], total?: number}} roll   an evaluated roll, as JSON
+ * A roll as chips: each die that counts, then the flat rest as one gold "+N" chip.
+ * @param {{terms?: object[], total?: number}} roll   as JSON
  * @param {number} [cap]
  * @returns {{label: string, up?: boolean, flat?: boolean}[]}
  */
@@ -37,9 +34,8 @@ export function rollChips(roll, cap = 8) {
 }
 
 /**
- * A reduction (Interception, Parry): the chips rise over the reducer, then the reduction drifts to
- * the creature protected — in place when that is the reducer.
- * @param {{roll: object, from: string, to?: string|null}} args   the roll as JSON; actor uuids
+ * A reduction (Interception, Parry): chips over the reducer, the reduction drifting to the protected.
+ * @param {{roll: object, from: string, to?: string|null}} args   actor uuids
  * @returns {{on: string, chips: object[], drift: {to: string, label: string}}|null}
  */
 export function reductionRise({ roll, from, to = null }) {
@@ -49,7 +45,7 @@ export function reductionRise({ roll, from, to = null }) {
 }
 
 /**
- * A per-die reroll: each die turning over from the face it showed to the one it rolled.
+ * A per-die reroll, each die turning over.
  * @param {{done: {old: number, new: number}[], on: string}} args
  * @returns {{on: string, chips: object[]}|null}
  */
@@ -60,8 +56,7 @@ export function rerollRise({ done, on }) {
 }
 
 /**
- * A set rolled again: the two totals, the one that stands gold and the other struck (a tie keeps
- * the first).
+ * A set rolled again: the one that stands gold, the other struck.
  * @param {{first: number, second: number, stands: "first"|"second", on: string}} args
  * @returns {{on: string, chips: object[]}|null}
  */
@@ -72,10 +67,8 @@ export function eitherRise({ first, second, stands, on }) {
 }
 
 /**
- * A d20 fold over the roller — each modifies a roll already made:
- *   a die added      Bardic Inspiration, Tactical Mind — one gold "+N"
- *   a reroll         Heroic Inspiration — the d20 turning over from its old face to the new
- *   Advantage after  Lucky — the two d20s, the higher gold and the other struck (a tie keeps the first)
+ * A d20 fold over the roller: a die added (a gold "+N"), a reroll (the d20 turning over), or
+ * Advantage after (Lucky: the higher gold, the other struck).
  * @param {{mode: "die"|"reroll"|"advantage", oldFace?: number|null, newFace?: number|null, total?: number|null, on: string}} args
  * @returns {{on: string, chips: object[]}|null}
  */
@@ -91,10 +84,8 @@ export function foldRise({ mode, oldFace = null, newFace = null, total = null, o
 }
 
 /**
- * THE DICE THE PLATFORM CHANGED on its own (a `r1=1` reroll, a `min10` floor), each turning over to
- * the face that counts. A rerolled result pairs with the next live result of its term; a floored
- * one shows its face and its count.
- * @param {object[]} rolls   evaluated rolls, as JSON
+ * THE DICE THE PLATFORM CHANGED on its own (a `r1=1` reroll, a `min10` floor), each turning over.
+ * @param {object[]} rolls   as JSON
  * @param {number} [cap]
  * @returns {{was: string, label: string, up: boolean}[]}
  */
@@ -108,8 +99,7 @@ export function changedDice(rolls, cap = 8) {
       const results = t.results;
       const used = new Set();
       results.forEach((r, i) => {
-        // ⚠ A floor is marked `rerolled` too (the live die `rerolled: true, count: 10`, NOTES §2);
-        // only a retired result pairs with a later one.
+        // ⚠ A floor is marked `rerolled` too (NOTES §2); only a retired result pairs with a later one.
         if ( r?.rerolled && (r?.active === false) ) {
           const j = results.findIndex((n, k) => (k > i) && !used.has(k) && !n?.rerolled && (n?.active !== false));
           if ( j < 0 ) return;
@@ -129,7 +119,7 @@ export function changedDice(rolls, cap = 8) {
 }
 
 /**
- * Shield's answer: one chip over the creature it saved, "+5 AC"; none without a stated bonus.
+ * Shield's answer: one "+5 AC" chip; none without a stated bonus.
  * @param {number|null} bonus
  * @returns {{label: string, flat: boolean, up: boolean}[]}
  */

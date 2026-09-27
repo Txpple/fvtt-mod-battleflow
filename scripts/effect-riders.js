@@ -1,7 +1,6 @@
 /**
  * Battle Flow — effect riders (a hit applies the attack activity's own effects, per target) and
- * the one shared effect applier every document-copy application in the module runs through.
- * Application mirrors the native tray's `_prepareEffectData` (dnd5e effect-application.mjs).
+ * the one shared effect applier, mirroring the native tray's `_prepareEffectData`.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { cardActivity, profileEffects, resolveUuid } from "./lookup.js";
@@ -11,27 +10,20 @@ import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decid
 import { chipData, placeOf, statSourceOf, turnPlace } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
-/** The activity behind a chain message (`cardActivity`, which never throws). */
 export function messageActivity(message) {
   return cardActivity(message);
 }
 
-/**
- * Apply the attack's riding effects to the targets it hit, and stamp the effect receipt.
- * Runs on the active-GM elect (players cannot create effects on unowned actors).
- */
+/** Apply the attack's riding effects to the targets it hit, and stamp the receipt. Elect-run. */
 export async function applyEffectRiders(damageMessage, attackMessage, hits) {
   try {
-    // ⚠ One payout per roll, guarded by a RIDER-OWNED marker, not the flag's existence: the
-    // mastery applier writes into this same effectReceipt flag.
+    // ⚠ Guarded by a RIDER-OWNED marker: the mastery applier writes into the same flag.
     if ( damageMessage.getFlag(MODULE_ID, "effectReceipt")?.ridersDone ) return;
     const activity = messageActivity(attackMessage);
-    // An activity's effect list holds PROFILES whose effect resolves asynchronously.
     const effects = (await activity?.getApplicableEffects?.()) ?? [];
     if ( !effects.length ) return;
 
-    // The usage card carries the cast's metadata (concentration id, scaling, spell level); a
-    // roll with no card in the log falls back to base level, no concentration.
+    // The usage card carries the cast's metadata; without one, base level and no concentration.
     const usage = attackMessage.getOriginatingMessage?.();
     const usageCard = ((usage instanceof ChatMessage) && isCard(usage, CARD.usage)) ? usage : null;
     const concentration = usageCard
@@ -51,7 +43,7 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
   }
 }
 
-/** The activity an effect belongs to: the one on its item that lists it (null when none does). */
+/** The activity on the effect's item that lists it, or null. */
 function activityOfEffect(effect) {
   const item = effect?.parent;
   const activities = item?.system?.activities;
@@ -60,18 +52,10 @@ function activityOfEffect(effect) {
 }
 
 /**
- * THE application loop, built the tray's way: the listing activity authors the changes and the
- * clock (`getAppliedEffectChanges`), provenance is `system.origin`, the dedupe key is the copy's
- * `_stats.duplicateSource` (`compendiumSource` for a pack effect), and `@` values resolve for this
- * application (`forApplication`) — so the platform's tooling sees our copies as its own. Returns
- * receipt entries (only targets where something landed) for callers that cannot write a flag yet.
- * - `matchNames`: dedupe by name too — the casting client applies from an item CLONE, whose
- *   effect uuid differs, so a stamp-only test would apply Shield twice.
- * - `extraFlags`: merged into the effect (the reaction path's `reactionEffect` marker).
- * - `source`: the actor uuid whose action applies these — the caller's fact (a reactor's
- *   self-cast is why no message walk could derive it).
- * - `message` / `activity`: the card answered to and the applying activity, when the caller
- *   knows them better than the effect's own item.
+ * THE application loop, the tray's way (the platform's tooling sees our copies as its own);
+ * returns receipt entries for targets where something landed. `matchNames` dedupes by name too:
+ * a casting client applies from an item CLONE, whose effect uuid differs. `source` is the acting
+ * actor's uuid, the caller's fact (a reactor's self-cast has no message to walk).
  */
 export async function applyEffectsTo(targets, effects,
   { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null,
@@ -89,7 +73,6 @@ export async function applyEffectsTo(targets, effects,
       const sourceKey = effect.inCompendium ? "compendiumSource" : "duplicateSource";
       const profile = act?.effects?.find?.(e => (e.uuid === effect.uuid) || (e._id === effect.id))?._id ?? null;
 
-      // The activity's own changes first (the clock), then the provenance and the flags.
       const changes = act?.getAppliedEffectChanges?.(effect, { chatMessage: message ?? undefined, target: actor }) ?? {};
       const flags = {
         dnd5e: {
@@ -97,13 +80,11 @@ export async function applyEffectsTo(targets, effects,
           scaling,
           ...(((spellLevel !== undefined) && (spellLevel !== null)) ? { spellLevel } : {})
         },
-        // The module's fingerprint (the twin-dedupe floor polices only these) and WHOSE action
-        // applied it, for the gate's `except: "source"` (a compendium origin names no actor).
+        // The fingerprint the twin floor polices, and whose action applied it (`except: "source"`).
         [MODULE_ID]: { applied: true, ...(source ? { sourceUuid: source } : {}) }
       };
       foundry.utils.mergeObject(flags, extraFlags ?? {});
-      // ⚠ Write EVERY `system.origin` key: the template's own origin is its lineage (often the
-      // pack's uuid in `item`), and a partial merge leaves `getSourceActor` walking to the
+      // ⚠ Write EVERY `system.origin` key: a partial merge leaves `getSourceActor` walking to the
       // compendium — no caster, no rider die, no turn clock (NOTES §2).
       foundry.utils.mergeObject(changes, {
         flags,
@@ -117,17 +98,14 @@ export async function applyEffectsTo(targets, effects,
         } }
       });
 
-      // Native parity: an existing copy of THIS effect is re-enabled and re-clocked, not
-      // duplicated — by the source stamp, or by name (`matchNames`).
+      // Native parity: an existing copy is re-enabled and re-clocked, not duplicated.
       const existing = actor.effects.find(e => (e._stats?.[sourceKey] === effect.uuid)
         || (matchNames && (e.name === effect.name)));
       let applied;
-      // `clock`: a caller that knows the rule's window better than the pack hands
-      // `{duration, start}` in; it lands on create and refresh alike, over the activity's.
+      // `clock` ({duration, start}) overrides the activity's on create and refresh alike.
       if ( existing ) {
         // ⚠ `?? existing`: an empty-diff update returns undefined.
-        // ⚠ `expired: false`: core v14 MARKS an expired effect rather than deleting it, so a
-        // re-clocked leftover would otherwise stay suppressed.
+        // ⚠ `expired: false`: core v14 MARKS an expired effect rather than deleting it.
         const data = foundry.utils.mergeObject({
           _id: existing.id, disabled: false, duration: { expired: false },
           start: effect.constructor.getEffectStart()
@@ -135,15 +113,12 @@ export async function applyEffectsTo(targets, effects,
         if ( clock ) foundry.utils.mergeObject(data, clock);
         applied = (await existing.update(data)) ?? existing;
       } else {
-        // Legacy `origin` beside `system.origin`: this module's readers (`grantingActor`,
-        // `effectSourceOf`, the chip's owner) still walk it.
+        // Legacy `origin` too: `grantingActor`, `effectSourceOf` and the chip's owner walk it.
         const data = foundry.utils.mergeObject({
           ...effect.toObject(), disabled: false, transfer: false, origin: origin.uuid,
           _stats: { [sourceKey]: effect.uuid, [effect.inCompendium ? "duplicateSource" : "compendiumSource"]: null }
         }, changes);
-        // ⚠ The template's clock state never rides in: a pack effect with a `start` is tracked
-        // by core v14 and may already be marked `expired` on its item, and `toObject()` copies
-        // the mark — a copy born suppressed. Fresh start, unexpired (NOTES §1).
+        // ⚠ Fresh clock: `toObject()` copies a template's `expired` mark — a copy born suppressed (NOTES §1).
         data.duration = { ...(data.duration ?? {}), expired: false };
         data.start = effect.constructor.getEffectStart();
         if ( clock ) foundry.utils.mergeObject(data, clock);
@@ -152,13 +127,11 @@ export async function applyEffectsTo(targets, effects,
           data.system.changes, act ?? item ?? resolveUuid(source) ?? actor, actor);
         applied = await ActiveEffect.implementation.create(data, { parent: actor });
       }
-      // Extended Spell: the cast's effects run twice as long, 24 hours at most.
       if ( applied && extend ) {
         const longer = extendedDuration(applied.duration ?? {});
         if ( Object.keys(longer).length ) applied = (await applied.update({ duration: longer })) ?? applied;
       }
       if ( applied && !entry.effects.some(e => e.id === applied.id) ) {
-        // Plain fields only across the layer line (§2 rule 1) — the document stays here.
         entry.effects.push(effectRecord({ id: applied.id, name: applied.name,
           img: applied.img, description: applied.description }, context));
       }
@@ -168,20 +141,14 @@ export async function applyEffectsTo(targets, effects,
   return out;
 }
 
-/**
- * Apply and stamp in one move, where the receipt message already exists. Entries merge into its
- * effectReceipt flag under the caller's own done-`marker`, so stages never mistake each other's
- * work. Options as applyEffectsTo.
- */
+/** Apply and stamp, under the caller's own done-`marker` so stages never mistake each other's work. */
 export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   { concentration = null, scaling = 0, spellLevel, marker, source = null, message = null, activity = null, clock = null } = {}) {
   const entries = await applyEffectsTo(targets, effects, {
-    // Extended Spell rides the receipt card (the usage card carries the metamagic flag).
     extend: receiptMessage?.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.key === "extended",
     concentration, scaling, spellLevel, source, clock, message: message ?? receiptMessage, activity });
   if ( !entries.length && !marker ) return;
-  // ⚠ Read AFTER the await, through the queued write: concurrent per-target save passes on one
-  // card would otherwise each merge into a stale copy and drop the other's entries.
+  // ⚠ Read AFTER the await, through the queued write: concurrent passes would drop each other's entries.
   await queueFlagWrite(receiptMessage, "effectReceipt", flag => {
     flag.targets ??= [];
     for ( const entry of entries ) joinEffectReceipt(flag, entry);
@@ -190,10 +157,7 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
   });
 }
 
-/**
- * Remove one applied rider effect and mark its receipt entry; tolerates the effect already gone.
- * The state is the flag, re-read at click time.
- */
+/** Remove one applied rider effect and mark its receipt entry; tolerates the effect already gone. */
 export async function revertEffect(message, targetUuid, effectId) {
   const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "effectReceipt") ?? {});
   const entry = revertableEffect(flag, targetUuid, effectId);
@@ -204,18 +168,15 @@ export async function revertEffect(message, targetUuid, effectId) {
   await message.setFlag(MODULE_ID, "effectReceipt", flag);
 }
 
-/* --- the twin-chip dedupe floor ---------------------------------------------------------------
- * ⚠ `isActiveGM()` is per-USER: two sessions on one account both run an applier and race
- * replication, landing a chip twice. Converged here: a fingerprinted newcomer with an ELDER
- * same-name, same-origin twin deletes itself (creation time, then id). Other modules' stacks
- * are never touched. */
+/* THE TWIN FLOOR. ⚠ `isActiveGM()` is per-USER: two sessions on one account both apply. A
+ * fingerprinted newcomer with an ELDER same-name, same-origin twin deletes itself. */
 Hooks.on("createActiveEffect", effect => {
   if ( !isActiveGM() ) return;
   const actor = effect.parent;
   if ( !(actor instanceof Actor) ) return;
   const fingerprinted = e => !!(e.getFlag(MODULE_ID, "applied") || e.getFlag(MODULE_ID, CHIP_FLAG));
   if ( !fingerprinted(effect) ) return;
-  // A deliberate STACK (use-chips.js marks it — Tinker's devices, a chip each) is not a twin.
+  // A deliberate STACK (use-chips.js) is not a twin.
   if ( effect.getFlag(MODULE_ID, "stacks") ) return;
   const born = e => e._stats?.createdTime ?? 0;
   const elder = actor.effects.some(e => {
@@ -227,16 +188,14 @@ Hooks.on("createActiveEffect", effect => {
 });
 
 /**
- * Where a rider's clock is pinned: the ATTACKER's place (the Slow mastery's — an opportunity attack's
- * window is still the attacker's next turn start), or — for a window "for the rest of the current
- * turn" (Halt, TURN_PINNED) — the turn it lands in, whoever's that is.
+ * A rider's clock pins to the ATTACKER's place (an opportunity attack's window is still the
+ * attacker's turn), or for TURN_PINNED windows to the turn it lands in.
  */
 const clockPlace = (clock, attacker) => TURN_PINNED.includes(clock) ? turnPlace() : (attacker ? placeOf(attacker) : null);
 
 /**
- * An effect with no activity to carry it (Slasher, Crusher): the rider's `lands` built as a
- * template on the FEATURE — its effect `from` (changes kept unless `bare`), renamed, under a fixed
- * id so a second hit refreshes the one copy — landed through the same applier and receipt.
+ * An effect with no activity to carry it (Slasher, Crusher): `lands` as a template on the
+ * FEATURE, under a fixed id so a second hit refreshes the one copy.
  * @param {ChatMessage} receiptMessage
  * @param {Item} feature
  * @param {{name: string, from?: string, id: string, bare?: boolean}} lands
@@ -258,11 +217,9 @@ export async function applyItemEffectOnHit(receiptMessage, feature, lands, targe
 }
 
 /**
- * An activity's own effects on the hit — the hit menu's `effects` option and a clock rider's
- * `effects` row. `clock` is a CHIP_WINDOWS key pinned per `clockPlace`, or null for the pack's
- * own duration.
+ * An activity's own effects on the hit; `clock` is a CHIP_WINDOWS key, or null for the pack's.
  * @param {ChatMessage} receiptMessage
- * @param {object|null} activity   the activity whose `effects` profiles land
+ * @param {object|null} activity
  * @param {{uuid: string, name: string}[]} targets
  * @param {{clock?: string|null, attacker?: Actor|null, source?: object|null}} [options]
  */

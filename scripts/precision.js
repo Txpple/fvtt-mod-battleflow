@@ -1,11 +1,9 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Precision Attack, the `precision` fold — the
- * attacker's own missed attack, patched after the fact by a superiority die. Accepting really
- * USES the maneuver (the system spends the die), rolls it publicly, writes per-target verdicts
- * through the fold registry, and re-drives the damage.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): Precision Attack, the `precision` fold — a missed
+ * attack patched by a superiority die. Accepting USES the maneuver, rolls the die publicly,
+ * writes per-target verdicts through the fold registry, and re-drives the damage.
  * ⚠ The flag never touches `hold` (one hold per message; any hold verdict is authoritative).
- * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target, so a miss
- * patched in behind a mixed swing would double-apply to the hits.
+ * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
@@ -40,9 +38,8 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     const found = usableManeuver(attacker, entry.name);
     const raw = found ? maneuverDieFormula(found.activity) : null;
     if ( !found || !raw ) return;
-    // ⚠ Resolve the die NOW, against the attacker: the formula is a `@scale…` token, and the die
-    // the window names must be the die the resolver rolls. An unresolved token silently rolls
-    // 0, so a formula with no dice left is refused rather than offered.
+    // ⚠ Resolve the `@scale…` die NOW, against the attacker: an unresolved token silently rolls
+    // 0, so a formula with no dice left is refused.
     const resolved = await new Roll(raw, attacker.getRollData()).evaluate();
     const dieFormula = resolved.formula;
     if ( !resolved.dice.length ) {
@@ -154,10 +151,8 @@ async function resolvePrecision(message) {
     });
     const die = dieRoll.total;
 
-    // 3. Verdicts, COMPOSED across every fold on this message (compose, never order — a Bardic
-    //    die may already have been added). ⚠ Never `flag.attackTotal + die`: the card would
-    //    disagree with `hitTargets`. The pending flag is substituted into the read because this
-    //    die is not on the message yet.
+    // 3. Verdicts COMPOSED across every fold (a Bardic die may already be added). ⚠ Never
+    //    `flag.attackTotal + die`; the pending flag stands in, this die is not on the message yet.
     const pending = { ...flag, status: "resolved", outcome: "used", die };
     const folds = precisionFolds(message, pending);
     const baseRoll = precisionBase(message, flag);
@@ -213,10 +208,7 @@ async function resolvePrecision(message) {
   }
 }
 
-/**
- * The fold contributions on this attack for ONE target — one home, so the resolver and the window
- * agree. `flag` may be the pending spend, not yet on the message.
- */
+/** The fold contributions for ONE target; `flag` may be the pending spend, not yet on the message. */
 const precisionFolds = (message, flag) => foldsFrom(
   key => ((key === "precision") ? flag : message.getFlag(MODULE_ID, key)), ATTACK_FOLDS)
   .filter(f => f.uuid === flag?.targets?.[0]?.uuid);
@@ -224,10 +216,7 @@ const precisionFolds = (message, flag) => foldsFrom(
 /** The roll the folds compose over — the real d20 where there is one, the stamp's copy otherwise. */
 const precisionBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.attackTotal };
 
-/**
- * PRECISION AS A RESCUE ROW (ARCHITECTURE §5): no popup of its own — the spine draws one window
- * from every registered source, so a d20 fold on the same roll shares it.
- */
+/** PRECISION AS A RESCUE ROW (ARCHITECTURE §5): a d20 fold on the same roll shares its window. */
 registerRescue("precision", {
   isPending: message => message.getFlag(MODULE_ID, "precision")?.status === "pending",
   subject: message => {
@@ -248,10 +237,7 @@ registerRescue("precision", {
   answer: (message, action) => answerPrecision(message, (action === "use") ? "use" : "pass")
 });
 
-/**
- * THE MOOT: a sibling spend fixed the roll, so this offer withdraws, spending nothing
- * (presentation law 4). Elect-owned — a single writer (§3).
- */
+/** THE MOOT: a sibling spend fixed the roll; this offer withdraws, spending nothing. Elect-owned. */
 async function mootPrecision(message) {
   await queueFlagWrite(message, "precision", current => {
     if ( (current.status !== "pending") || current.answer ) return false;   // someone answered
@@ -261,7 +247,7 @@ async function mootPrecision(message) {
   disarmAskTimer(precisionTimers, message.id);
 }
 
-/* --- the row on the attack card, the watcher, the cleanup ----------------------------------- */
+// The row on the attack card, the watcher, the cleanup.
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const p = message.getFlag(MODULE_ID, "precision");
@@ -286,8 +272,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       armPrecisionTimer(message);
       const attacker = resolveUuid(p.attackerUuid);
       if ( canAnswerFor(attacker) && !p.answer ) {
-        // One call shows or redraws (the spine owns the latch); `recall` lets a human reopen a
-        // window they closed.
+        // `recall` lets a human reopen a window they closed.
         syncRescuePopup(message);
         row.appendChild(momentButton("Answer", () => {
           syncRescuePopup(message, { recall: true });

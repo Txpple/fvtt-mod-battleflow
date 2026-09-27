@@ -1,21 +1,17 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the damage-dice folds' pure half — what a
- * rerolled die does to a message's own roll data. PER DIE (Empowered Spell, Healer, Puncture): the
- * picked faces struck, a new face each. PER SET (Savage Attacker): the weapon's dice rolled again,
- * the higher set stands. The EDGE halves are shared.js `rebuildRolls` and auto-apply.js
- * `moveAppliedDamage`.
- * ⚠ The data is `Roll#toJSON`. A struck face stays in `results` — inactive, marked — so the card
- * shows it and every reader of the total sees the new number.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): what a rerolled die does to a message's roll
+ * data, PER DIE (Empowered Spell, Healer, Puncture) or PER SET (Savage Attacker). The EDGE halves
+ * are shared.js `rebuildRolls` and auto-apply.js `moveAppliedDamage`.
+ * ⚠ The data is `Roll#toJSON`; a struck face stays in `results`, inactive and marked.
  */
 
 /**
- * Empowered's per-die patch: each pick's face is struck (inactive, rerolled) and its new face
- * joins the same term, active. Returns a CLONE and the record of what moved; a pick whose face
- * is no longer in the data is skipped.
+ * The per-die patch: each pick's face struck, its new face joining the same term. Returns a
+ * CLONE and what moved; a pick whose face is gone is skipped.
  * @param {any[]} rollsData
  * @param {{key: string, roll: number, term: number, index: number}[]} picks
- * @param {number[]} faces  the new faces, in pick order
+ * @param {number[]} faces  in pick order
  */
 export function rerollFaces(rollsData, picks, faces) {
   const data = JSON.parse(JSON.stringify(rollsData ?? []));
@@ -25,8 +21,7 @@ export function rerollFaces(rollsData, picks, faces) {
     const old = term?.results?.[d.index];
     if ( !old || !Number.isFinite(faces?.[i]) ) return;
     old.active = false; old.rerolled = true;
-    // The die's own `minN` floor still holds, as Foundry's `Die#minimum` applies it: `count` is
-    // what the die is worth, `result` what it showed.
+    // The `minN` floor holds as `Die#minimum` applies it: `count` is the worth, `result` the face.
     const floor = floorOf(term.modifiers);
     const face = Number(faces[i]);
     const raised = (floor !== null) && (face < floor);
@@ -36,7 +31,6 @@ export function rerollFaces(rollsData, picks, faces) {
   return { data, done };
 }
 
-/** A die term's `minN` floor, or null. */
 function floorOf(modifiers) {
   for ( const m of (modifiers ?? []) ) {
     const hit = /^min(\d+)$/i.exec(String(m));
@@ -46,9 +40,8 @@ function floorOf(modifiers) {
 }
 
 /**
- * THE WEAPON'S DICE — every die term of the first `count` rolls (dnd5e builds the activity's own
- * parts first; riders push theirs after). A crit's doubled dice are in `number`; flat parts never
- * appear. `values` are the faces that count now.
+ * THE WEAPON'S DICE: every die term of the first `count` rolls (dnd5e builds the activity's own
+ * parts first, riders after). A crit's doubled dice are in `number`.
  * @param {any[]} rollsData
  * @param {number} count
  * @returns {{roll: number, term: number, number: number, faces: number, modifiers: string[], values: number[]}[]}
@@ -66,10 +59,9 @@ export function weaponDiceOf(rollsData, count) {
   return out;
 }
 
-/** The formula that rolls the same dice again — each term's count, faces and its own modifiers. */
+/** The formula that rolls the same dice again, modifiers included. */
 export const setFormula = dice => (dice ?? []).map(d => `${d.number}d${d.faces}${(d.modifiers ?? []).join("")}`).join(" + ");
 
-/** A set's total — the faces that count. */
 export const setTotal = dice => (dice ?? []).reduce((n, d) => n + (d.values ?? []).reduce((a, b) => a + b, 0), 0);
 
 /**
@@ -83,8 +75,7 @@ export function eitherOutcome({ first, second }) {
 }
 
 /**
- * The per-set patch. `fresh[k]` is the new results for the k-th weapon die term. The losing set's
- * faces are struck either way, so the card shows both sets. Returns a clone.
+ * The per-set patch (a clone); `fresh[k]` is the k-th term's new results. The loser is struck.
  * @param {any[]} rollsData
  * @param {ReturnType<typeof weaponDiceOf>} dice
  * @param {{result: number, active?: boolean, rerolled?: boolean, discarded?: boolean}[][]} fresh
@@ -107,11 +98,10 @@ export function eitherPatch(rollsData, dice, fresh, secondWins) {
 }
 
 /**
- * THE HINT: where the first set sits among everything the same dice could roll — range, average,
- * the chance a second set beats it and the average damage added (the higher stands). `low`
- * (under the average) starts the popup ticked. A die's own `r1` is counted.
+ * THE HINT: the first set against the same dice's distribution (a die's `r1` counted); `low`
+ * starts the popup ticked.
  * @param {ReturnType<typeof weaponDiceOf>} dice
- * @param {number} first  the first set's total
+ * @param {number} first
  * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}
  */
 export function eitherOdds(dice, first) {
@@ -140,24 +130,20 @@ export function eitherOdds(dice, first) {
 }
 
 /**
- * Is the fold offered on this hit — and if not, what does the card say? Once per turn by the
- * `rider` turn chit, which stands only for a combatant (out of combat every hit offers).
+ * Is the fold offered on this hit? Once per turn by the `rider` chit (out of combat, every hit).
  * @param {{listed: boolean, owned: boolean, weapon: boolean, chitStands: boolean}} facts
- * @returns {"due"|"spent"|null}  null: nothing to offer and nothing to say
+ * @returns {"due"|"spent"|null}
  */
 export function eitherDue({ listed, owned, weapon, chitStands }) {
   if ( !listed || !owned || !weapon ) return null;
   return chitStands ? "spent" : "due";
 }
 
-/* THE HEALING REROLLS (Healer — RULINGS *The origin feats*): the per-die patch over a healing
- * roll's dice, the 1s pickable. */
-
 /**
- * Every active face of every die term in a message's HEALING rolls, keyed `roll:term:index`, with
- * `one` marking a rerollable face. Temporary hit points show none ("Hit Points you restore").
- * @param {any[]} rollsData   the rolls' JSON
- * @param {number} [reroll=1] the face the feat rerolls
+ * THE HEALING REROLLS (Healer, RULINGS *The origin feats*): every active face of a message's
+ * HEALING rolls (never temp HP), `one` marking a rerollable face.
+ * @param {any[]} rollsData
+ * @param {number} [reroll=1]
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, result: number, one: boolean}[]}
  */
 export function healDiceOf(rollsData, reroll = 1) {
@@ -177,21 +163,17 @@ export function healDiceOf(rollsData, reroll = 1) {
 }
 
 /**
- * A formula with a literal `r1` / `r=1` taken off every die: Battle Medic ships `1d8r1`, and the
- * popup does the feat's rerolls. `r<3`, `rr1` and the rest are another rule's, and stay.
+ * A literal `r1` / `r=1` taken off every die (Battle Medic ships `1d8r1`; the popup rerolls).
  * @param {string} formula
  */
 export function stripRerollOnes(formula) {
   return String(formula ?? "").replace(/(\d*d\d+)r=?1(?![\d<>=])/gi, "$1");
 }
 
-/* ONE DIE ROLLED AGAIN (Piercer's Puncture — RULINGS *The PHB feats — groups 1–3*): the die is
- * the module's pick, the one with the most to gain; a tie keeps the first met. */
-
 /**
- * The die a single reroll should take, over every active face of the message's rolls: the one
- * whose size's average less its face is largest.
- * @param {any[]} rollsData   the rolls' JSON
+ * ONE DIE ROLLED AGAIN (Puncture, RULINGS *The PHB feats — groups 1–3*): the active face with the
+ * most to gain (average less face); a tie keeps the first met.
+ * @param {any[]} rollsData
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, value: number, gain: number}|null}
  */
 export function bestRerollDie(rollsData) {
@@ -213,8 +195,7 @@ export function bestRerollDie(rollsData) {
 }
 
 /**
- * The hint for ONE die rolled again (`eitherOdds`'s shape). The average change can be a LOSS,
- * since the new roll stands.
+ * The hint for ONE die rolled again; the gain can be a LOSS, since the new roll stands.
  * @param {number} faces
  * @param {number} value
  * @returns {{min: number, max: number, avg: number, beat: number, gain: number, low: boolean}|null}

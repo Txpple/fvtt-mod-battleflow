@@ -1,7 +1,7 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the ASK — the system's
- * own saving-throw dialog wearing the demand's fieldset, the straight data-driven roll, and the
- * buzzer that rolls whoever the clock catches. index.js is the directory's only public face.
+ * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the ASK — dnd5e's save
+ * dialog wearing the demand's fieldset, the straight roll, and the buzzer. index.js is the
+ * directory's only public face.
  */
 import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
 import { resolveUuid } from "../lookup.js";
@@ -15,39 +15,31 @@ import { foldSaveAnswer, foldSaveAutoFail, foldSaveAutoSucceed } from "./verdict
 import { SURFACES } from "../surfaces.js";
 import { originData } from "../decide/card.js";
 
-/* --- the roll: whoever owns the decision presses it ----------------------------------------- */
-
 /** Same-client re-entry latch (render resume + the buzzer can volunteer in one tick). */
 const saveRollsInFlight = new Set();
 
-/** The message data every answer to a demand carries — chained to the card, and the exact channel. */
+/** The message data every answer carries: chained to the card, and the exact channel. */
 function saveAnswerData(card, uuid, timedOut) {
   return { data: {
-    // Chained to the demand card; a programmatic roll has no DOM click to inherit the chain from.
+    // A programmatic roll has no DOM click to inherit the chain from.
     ...originData(card.id),
     flags: {
-    // The exact answer channel: WHICH card, WHICH target — the fold never resolves the actor
-    // (getSpeaker picks the oldest token).
+    // WHICH card, WHICH target: the fold never resolves the actor (getSpeaker picks the oldest token).
     [MODULE_ID]: { respondsTo: card.id, saveFor: uuid, ...(timedOut ? { timedOut: true } : {}) }
   } } };
 }
 
-/** Is this target still owed an answer — pending, unanswered, and no roll already on the log? */
 function saveStillOwed(card, uuid) {
   const flag = card.getFlag(MODULE_ID, "saves");
   const entry = flag?.targets?.find(t => t.uuid === uuid);
   if ( !entry || entry.done || (flag.status !== "pending") ) return null;
-  // ⚠ An answer that already landed wins though the entry reads pending (the fold may lag).
-  // Whole-log by flag, never a tail.
+  // ⚠ A landed answer wins though the entry reads pending; whole-log by flag, never a tail.
   if ( game.messages.some(m => (m.getFlag(MODULE_ID, "respondsTo") === card.id)
     && (m.getFlag(MODULE_ID, "saveFor") === uuid)) ) return null;
   return { flag, entry };
 }
 
-/**
- * Roll one target's save STRAIGHT (the buzzer's press): no dialog, sheet modifiers still apply.
- * The DC rides as `target`, so the system marks the card. The human presses `openSaveDialog`.
- */
+/** Roll one target's save STRAIGHT (the buzzer's press); the DC rides as `target`. */
 async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut = false } = {}) {
   const key = `${card.id}|${uuid}`;
   if ( saveRollsInFlight.has(key) ) return;
@@ -69,19 +61,13 @@ async function rollSaveAnswer(card, uuid, { mode = null, bonus = null, timedOut 
   }
 }
 
-/* THE DEMAND OPENS THE SYSTEM'S OWN SAVING THROW DIALOG (RULINGS *The gate before the roll*): the
- * demand's fieldset above CONFIGURATION, the gate's section below it. A save the rules decide
- * before the dice grows a Fails / Succeeds button as the default; the human still presses (R1).
- * Every pending demand opens its dialog, down the staircase. The dialog is enrolled in
- * `livePopups` under the card row's popup key. Dismissing is not an answer: the buzzer rolls. */
+/* THE DEMAND OPENS DND5E'S OWN SAVE DIALOG (RULINGS *The gate before the roll*): a save the rules
+ * decide grows a Fails / Succeeds default, the human still presses. Dismissing is not an answer. */
 
-/** Dialogs on their way up — between the call and the render that enrols them in `livePopups`. */
+/** Dialogs between the call and the render that enrols them in `livePopups`. */
 const saveDialogsOpening = new Set();
 
-/**
- * Open the system's Saving Throw dialog for one demanded target; recall fronts a live one. The
- * demand rides `dialog.options` as a DialogCarried — the object the Fails button writes to.
- */
+/** Open the save dialog for one target, the demand riding as the DialogCarried the Fails button writes. */
 export async function openSaveDialog(card, uuid) {
   const key = popupKey(card.id, `save:${uuid}`);
   const open = livePopups.get(key);
@@ -99,9 +85,8 @@ export async function openSaveDialog(card, uuid) {
       { configure: true, options: { bfSaveDemand: demand } },
       saveAnswerData(card, uuid, false)
     );
-    // Fails pressed: no roll; the demand carries the sources that failed it.
+    // Fails or Succeeds pressed: no roll; the demand carries the sources.
     if ( !rolls?.length && demand.failed ) await foldSaveAutoFail(card, uuid, { sources: demand.failed });
-    // Succeeds pressed: the mirror.
     else if ( !rolls?.length && demand.succeeded ) await foldSaveAutoSucceed(card, uuid, { sources: demand.succeeded });
   } catch(err) {
     console.error(`${TITLE} | Save dialog failed — roll it from the sheet.`, err);
@@ -110,14 +95,13 @@ export async function openSaveDialog(card, uuid) {
   }
 }
 
-/** The demand's fieldset — who, the DC, the stakes, the bar — above the dialog's CONFIGURATION. */
+/** The demand's fieldset above the dialog's CONFIGURATION. */
 function drawSaveDemand(app, element, demand) {
   const card = game.messages.get(demand.cardId);
   if ( !card ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   const entry = flag?.targets?.find(t => t.uuid === demand.uuid);
-  // ⚠ A question withdrawn before this first render closes here: the sweep that closes answered
-  // popups ran on the write, before this dialog was enrolled.
+  // ⚠ Withdrawn before this first render: close here, the answered-popup sweep already ran.
   if ( !entry || entry.done || (flag.status !== "pending") ) { void app.close(); return; }
   adoptManagedPopup(popupKey(card.id, `save:${demand.uuid}`), card, app);
   if ( element.querySelector("[data-bf-save-demand]") ) return;
@@ -135,7 +119,6 @@ function drawSaveDemand(app, element, demand) {
     `Applies either way: <strong>${flag.effectNames.always.join(", ")}</strong>.`);
   const host = document.createElement("div");
   host.innerHTML = `<fieldset data-bf-save-demand><legend>The demand</legend>${bfCard({
-    // WHO is rolling leads, portrait included; the spell is the subtitle.
     img: actor?.img ?? flag.item?.img ?? null,
     eyebrow: "Saving throw",
     title: `${entry.name}: ${abilityLabel} save, DC ${flag.dc}`,
@@ -151,32 +134,24 @@ function drawSaveDemand(app, element, demand) {
   scheduleBarSync(element);
 }
 
-// The demand's fieldset on every render of a save dialog carrying one (its dropdowns re-render).
-// polish.js and reminders.js ride the same hook; the entry order keeps their paint first.
+// On every render (the dropdowns re-render); the entry order keeps polish.js and reminders.js first.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
     const demand = app.options?.bfSaveDemand ?? null;
-    // ⚠ A demand carrying `present` is another machine's (ui.js drawDemandFieldset); this one
-    // would close a dialog whose card has no saves entry.
+    // ⚠ A demand carrying `present` is another machine's (ui.js drawDemandFieldset).
     if ( demand && !demand.present ) drawSaveDemand(app, element, demand);
   } catch(err) {
     console.error(`${TITLE} | Save dialog section failed to draw.`, err);
   }
 });
 
-/* --- the buzzer: expiry rolls, on the elect -------------------------------------------------- */
-
+// The buzzer: expiry rolls, on the elect.
 const saveTimers = new Map();
-/** The demand's clock, off the flag's absolute deadline (a no-op without one); armed on every
- * render and update, so a reload resumes it. */
+/** Armed on every render and update off the absolute deadline, so a reload resumes it. */
 export function armSaveTimer(message) { return armAskTimer(saveTimers, message, "saves", fireSaveTimer); }
-/** …and disarms it when nothing is pending or the card goes — the fold and the watchers call it. */
 export function disarmSaveTimer(cardId) { return disarmAskTimer(saveTimers, cardId); }
 
-/**
- * A save the rules fail before the dice — the gate's judgement read off decide/ directly (this
- * directory never imports the gate machine), gated on the same switch. Empty when it can be rolled.
- */
+/** A save the rules fail before the dice, read off decide/ (this directory never imports the gate). */
 function autoFailSources(actor, ability) {
   if ( !reminderEntries().some(e => e.kind === "condition") ) return [];
   const sources = saveSources({ statuses: actor.statuses ?? [], ability,
@@ -184,10 +159,7 @@ function autoFailSources(actor, ability) {
   return saveGate(sources).autoFail ? sources : [];
 }
 
-/**
- * A save that cannot FAIL (Trance): the effect table's `succeeds` rows the roller carries, read
- * against THIS demand. Empty when the save must be rolled.
- */
+/** A save that cannot FAIL (Trance): the roller's `succeeds` rows, read against THIS demand. */
 function autoSucceedSources(actor, flag) {
   if ( !reminderEntries().some(e => e.kind === "effect") ) return [];
   return effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
@@ -224,21 +196,18 @@ async function fireSaveTimer(card) {
       if ( goneName ) goneNames.push(goneName);
       continue;
     }
-    // Close a dialog still open on THIS client first, so the straight roll is the only answer;
-    // another client's closes off the fold's update.
+    // Close a dialog open on THIS client first, so the straight roll is the only answer.
     const open = livePopups.get(popupKey(card.id, `save:${entry.uuid}`));
     if ( open ) { try { await open.close(); } catch { /* already gone */ } }
-    // A save the rules fail before the dice is recorded as that failure, not rolled.
+    // A save the rules decide before the dice is recorded, not rolled.
     const failing = autoFailSources(actor, flag.abilities[0]);
     if ( failing.length ) { await foldSaveAutoFail(card, entry.uuid, { sources: failing, timedOut: true }); continue; }
-    // …and a save the rules pass before the dice is recorded as that success (Trance).
     const passing = autoSucceedSources(actor, flag);
     if ( passing.length ) { await foldSaveAutoSucceed(card, entry.uuid, { sources: passing, timedOut: true }); continue; }
     // Heightened Spell's mark: the buzzer rolls the marked target at Disadvantage.
     const heightened = flag.demand?.heightened?.uuid === entry.uuid;
     await rollSaveAnswer(card, entry.uuid, { timedOut: true, mode: heightened ? "disadvantage" : null });
   }
-  // A "gone" verdict is stamped applied above; the card's own line says so (verdictText).
   // biome-ignore lint/suspicious/noConsole: a debug trace of the creatures gone before the save was asked
   if ( goneNames.length ) console.debug(`${TITLE} | Gone at the buzzer: ${goneNames.join(", ")}.`);
 }

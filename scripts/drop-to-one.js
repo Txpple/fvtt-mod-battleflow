@@ -98,7 +98,7 @@ async function stampAsk(actor, found, { amount, source }) {
   if ( message ) armTimer(message);
 }
 
-/* --- the keeper ------------------------------------------------------------------------------- */
+// The keeper.
 
 const keeps = message => message.isAuthor || (!message.author?.active && isActiveGM());
 
@@ -115,7 +115,7 @@ function armTimer(message) {
   });
 }
 
-/* --- the answer: folded by the keeper, relayed by anyone else ---------------------------------- */
+// The answer: folded by the keeper, relayed by anyone else.
 
 async function answer(message, choice) {
   if ( answering.has(message.id) ) return;
@@ -184,7 +184,7 @@ registerResumable(DROP_FLAG, {
   drive: land
 });
 
-/* --- the popup and the card ------------------------------------------------------------------- */
+// The popup and the card.
 
 async function showPopup(message) {
   const flag = message.getFlag(MODULE_ID, DROP_FLAG);

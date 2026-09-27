@@ -1,13 +1,10 @@
 /**
  * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE ADVANTAGE BUYS — Advantage on your own D20
- * Test bought with an item's use BEFORE the roll (ADVANTAGE_BUYS; Lucky's row in RULINGS
- * *Where the table bends the rule*). One box per held row in the gate's section of the system's own dialog (the box
- * brings the section if the gate drew none); the tick counts in the net and the default button.
- * The use is spent only when the roll goes out ticked AND the net was pressed; a roll with no
- * dialog meets no box and spends nothing. Initiative with no dialog is d20-folds.js's
- * (`bfBuyShown` makes it stand aside). Runs on the roller's client; sets no mode (R-A).
- * ⚠ HOOK ORDER: imported AFTER reminders.js, so the gate draws its section and writes its record
- * first, and this re-nets and rewrites it with the buy included.
+ * Test bought with an item's use BEFORE the roll (ADVANTAGE_BUYS; RULINGS *Where the table bends
+ * the rule*): a box per held row in the gate's section of dnd5e's dialog. The use is spent only
+ * when the roll goes out ticked AND the net was pressed. Initiative with no dialog is
+ * d20-folds.js's (`bfBuyShown`). Runs on the roller's client; sets no mode (R-A).
+ * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { lower } from "./lookup.js";
@@ -80,10 +77,7 @@ function buySource(actorName, row) {
 /** The dialogs standing with a box in them — redrawn after the gate's own re-target redraw. */
 const openBuys = new Set();
 
-/**
- * Draw — or redraw — the boxes and re-net the header. Idempotent: the gate may have replaced its
- * whole section on this render, so the boxes are re-added each time.
- */
+/** Draw or redraw the boxes and re-net the header; idempotent (the gate may replace its section). */
 function drawBuy(app) {
   const buy = app.options?.bfBuy;
   const element = app.element;

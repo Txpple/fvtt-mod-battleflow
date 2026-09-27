@@ -1,18 +1,12 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): MEASURED COVER, the 2024 DMG's corner-line
- * rule on a grid (RULINGS *Measured cover*): from one corner of the attacker's space to every
- * corner of one target square, 1–2 blocked lines Half, 3–4 Three-Quarters; a creature lifts it to
- * Half at most (PHB table); the attacker picks the corner and square, so the LEAST cover wins; every
- * line walled is Total. A line that only grazes an obstacle does not count.
- * Pure: points, rectangles and one injected wall test (geometry.js holds the platform's). Imports
- * nothing.
+ * rule on a grid (RULINGS *Measured cover*). Pure: points, rectangles and one injected wall test
+ * (geometry.js holds the platform's).
  */
 
 /**
- * The degrees, in the order "more protective" runs. The bonus is dnd5e's own `coverBonus`; Total
- * carries none — the recorded AC is null (a miss), as dnd5e records it. Icons from Foundry's own
- * library.
+ * The degrees, least protective first. Total carries no bonus: its recorded AC is null (a miss).
  * @typedef {{key: string, label: string, bonus: number|null, status: string|null, img: string}} CoverDegree
  * @typedef {{x:number, y:number}} Point
  * @typedef {{x:number, y:number, w:number, h:number}} Rect
@@ -33,8 +27,7 @@ export function degreeOfLines(n) {
 }
 
 /**
- * The corners of a rectangle, each pulled `inset` toward its middle, so a line never starts or
- * ends ON an obstacle.
+ * A rectangle's corners pulled `inset` inward, so a line never starts or ends ON an obstacle.
  * @param {Rect} r
  * @param {number} inset
  * @returns {Point[]}
@@ -48,8 +41,7 @@ export function insetCorners(r, inset) {
 }
 
 /**
- * The squares a creature occupies, as rectangles. A space under one square, or a gridless scene
- * (`grid` 0), is one square.
+ * The squares a creature occupies; gridless (`grid` 0) is one square.
  * @param {Rect} space
  * @param {number} grid
  * @returns {Rect[]}
@@ -65,8 +57,7 @@ export function squaresOf(space, grid) {
 }
 
 /**
- * Does the segment a→b pass through the OPEN inside of the rectangle (Liang–Barsky, clipped)? A
- * segment that only runs along an edge or touches a corner does not.
+ * Does a→b pass through the OPEN inside of the rectangle (Liang–Barsky)? Grazing does not count.
  * @param {Point} a
  * @param {Point} b
  * @param {Rect} r
@@ -90,16 +81,15 @@ export function segmentCrossesRect(a, b, r) {
 }
 
 /**
- * Measure the cover a target has against an attacker, by the DMG's corner lines.
+ * Measure the cover a target has against an attacker; `lines` are the best corner and square's.
  * @param {object} args
- * @param {Rect} args.attacker   the attacker's space
- * @param {Rect} args.target     the target's space
- * @param {number} args.grid     the grid's square size (0: gridless — each space is one square)
- * @param {Blocker[]} [args.creatures]   every OTHER creature's space (attacker and target left out)
- * @param {(a: Point, b: Point) => boolean} [args.wallBlocks]   does a wall stop the line a→b?
- * @param {number} [args.inset]   how far a corner is pulled inside its square, and a creature's box inside its edges
+ * @param {Rect} args.attacker
+ * @param {Rect} args.target
+ * @param {number} args.grid     0: gridless
+ * @param {Blocker[]} [args.creatures]   every OTHER creature's space
+ * @param {(a: Point, b: Point) => boolean} [args.wallBlocks]
+ * @param {number} [args.inset]
  * @returns {{degree: CoverDegree, lines: {a: Point, b: Point, wall: boolean, creature: string|null}[], by: string[]}}
- *   the degree; the lines of the attacker's best corner and square (what a picture would draw); who and what blocked them
  */
 export function measureCover({ attacker, target, grid, creatures = [], wallBlocks = () => false, inset = 1 }) {
   const origins = insetCorners(attacker, inset);
@@ -117,7 +107,7 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
       const walled = lines.filter(l => l.wall).length;
       const blocked = lines.filter(l => l.wall || (l.creature !== null)).length;
       if ( walled < lines.length ) everyLineWalled = false;
-      // an object's lines count to Three-Quarters; a creature's lift the square to Half at most (PHB table)
+      // a creature lifts the square to Half at most (PHB table)
       const degree = Math.max(degreeOfLines(walled), Math.min(1, degreeOfLines(blocked)));
       if ( !best || (degree < best.degree) || ((degree === best.degree) && (blocked < best.blocked)) ) best = { degree, blocked, lines };
     }
@@ -127,7 +117,6 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
   const index = everyLineWalled ? 3 : best.degree;
   const by = [];
   if ( best.lines.some(l => l.wall) ) by.push("wall");
-  // every creature a blocked line crosses is named, a walled line's too
   for ( const l of best.lines ) if ( (l.creature !== null) && !by.includes(l.creature) ) by.push(l.creature);
   return { degree: degreeAt(index), lines: best.lines, by: index === 0 ? [] : by };
 }
@@ -138,10 +127,9 @@ function shrink(r, d) {
 }
 
 /**
- * What the attack records against one target: the measured degree beside the cover its AC already
- * carries (dnd5e's `ac.cover`) — the most protective applies, never added. How much the recorded
- * AC must RISE, or `total`.
- * @param {number} carried   the cover bonus the recorded AC already holds (0, 2 or 5)
+ * How much the recorded AC must RISE (or `total`): the most protective of measured and carried
+ * cover applies, never added.
+ * @param {number} carried   dnd5e's `ac.cover` (0, 2 or 5)
  * @param {CoverDegree} measured
  * @returns {{raise: number, total: boolean}}
  */

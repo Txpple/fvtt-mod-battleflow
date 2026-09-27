@@ -1,29 +1,24 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the presentation formatters. Pure — strings
- * in, strings out; the spine keeps everything that touches a document, a dialog or the DOM.
- * ⚠ Inline styles on purpose: module.json has no `styles` entry, and adding one costs a Foundry
- * process restart where a script change is live on F5.
- * ⚠ `momentBarHTML` reads the wall clock (an input the tests fake). Depend downward only: nothing
- * here may import a machine, the spine, or core.js.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the presentation formatters, strings in,
+ * strings out. Imports nothing above it (no machine, spine, or core.js).
+ * ⚠ Inline styles on purpose: a `styles` entry in module.json costs a Foundry process restart.
+ * ⚠ `momentBarHTML` reads the wall clock (the tests fake it).
  */
 
 /** The popup identity every machine shares: one decision, one key, one live view. */
 export const popupKey = (messageId, uuid) => `${messageId}|${uuid}`;
 
-/* The house card: everything this module says out loud wears it. */
-
 /**
- * THE PALETTE — one meaning per hue (RULINGS *The gate before the roll*): green good for you,
- * red bad, orange waiting on you, yellow a crit, grey nothing bending. Blue stays out — dnd5e
+ * THE PALETTE — one meaning per hue (RULINGS *The gate before the roll*). Blue stays out: dnd5e
  * means healing by it.
  */
 export const TONE = {
-  pending: "rgba(222,120,40,0.95)",   // waiting on a human — ORANGE
-  good:    "rgba(70,150,95,0.95)",    // good for you: it did its job, Advantage, saved, honoured
-  bad:     "rgba(180,70,60,0.95)",    // bad for you: it landed anyway, Disadvantage, failed
+  pending: "rgba(222,120,40,0.95)",   // waiting on a human
+  good:    "rgba(70,150,95,0.95)",    // good for you
+  bad:     "rgba(180,70,60,0.95)",    // bad for you
   neutral: "rgba(120,120,120,0.75)",  // nothing bends
-  crit:    "rgba(232,190,50,0.95)"    // a critical hit — YELLOW, dark text
+  crit:    "rgba(232,190,50,0.95)"    // a critical hit, dark text
 };
 
 /** The tone a roll mode wears: Advantage good, Disadvantage bad, Normal and Listed neutral. */
@@ -31,9 +26,8 @@ export const modeTone = mode => ((mode === "advantage") || (mode === "succeeds")
   : ((mode === "disadvantage") || (mode === "fails")) ? TONE.bad : TONE.neutral;
 
 /**
- * THE MODE TAG — one small coloured label wherever a roll mode is shown. Listed is the outline
- * of Normal (both "no bend counted"; colour is spent on bends alone). `fails` / `succeeds` are a
- * save the rules decide before the dice.
+ * THE MODE TAG. Listed is Normal's outline (colour is spent on bends alone); `fails` /
+ * `succeeds` are a save the rules decide before the dice.
  * @param {"advantage"|"disadvantage"|"normal"|"listed"|"fails"|"succeeds"} mode
  */
 export function modeTagHTML(mode) {
@@ -50,13 +44,11 @@ export function modeTagHTML(mode) {
 }
 
 /**
- * One card: an accent spine, a portrait, an eyebrow/title/subtitle stack, and body lines.
- * `lines` are already-safe HTML fragments; the eyebrow, title and subtitle are TEXT and escaped
- * here - they carry token, actor and item names, which a player can set.
+ * The house card. `lines` are already-safe HTML; eyebrow, title and subtitle are TEXT and
+ * escaped here (they carry names a player can set).
  */
 export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
   const accent = TONE[tone] ?? TONE.neutral;
-  // The portrait's tooltip names the card; tags out and escaped, since it lands in an attribute.
   const tip = esc(String(eyebrow || title || "").replace(/<[^>]*>/g, ""));
   const portrait = img
     ? `<img src="${esc(img)}" alt="${tip}" data-tooltip="${tip}"
@@ -88,8 +80,7 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
 export const ruleLine = text => `<em>“${text}”</em>`;
 
 /**
- * THE ONE WORDING FOR A SPENT DIE — `Combat Superiority: 3 of 4 remaining` — so the popup, the
- * card and the floating text agree.
+ * The one wording for a spent die, so the popup, the card and the floating text agree.
  * @param {{pool: string, left: number, max: number}} row
  */
 export const spendLine = row => `${row.pool}: ${row.left} of ${row.max} remaining`;
@@ -97,10 +88,7 @@ export const spendLine = row => `${row.pool}: ${row.left} of ${row.max} remainin
 export const spendPhrase = (rows, die = "Superiority Die") => rows?.length
   ? `one ${die} spent · ${rows.map(spendLine).join(" · ")}` : `one ${die} spent`;
 
-/**
- * The situational-bonus row every popup that stands in for a roll dialog carries. `name` is the
- * input's name, so the caller reads it back off the dialog.
- */
+/** The situational-bonus row of a popup standing in for a roll dialog; `name` names the input. */
 export function situationalBonusHTML(name) {
   return `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
@@ -111,9 +99,8 @@ export function situationalBonusHTML(name) {
 }
 
 /**
- * THE GATE'S SECTION — the header line ("2 Modifiers — Net [tag]"), then a box per source: the
- * fact, its bend as the mode tag, the rule quoted underneath (law 8). An unbent row wears the
- * Listed outline. See RULINGS *The gate before the roll*.
+ * THE GATE'S SECTION: the header line, then a box per source with its bend and quoted rule
+ * (RULINGS *The gate before the roll*).
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
  *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
  */
@@ -134,8 +121,7 @@ export function reminderSectionHTML({ head, boxes }) {
 }
 
 /**
- * The section folded to its header line: a native `<details>` whose summary tag says what the
- * roll does without opening.
+ * The section folded to its header line (a native `<details>`).
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
  *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
  * @param {{open?: boolean}} [opts]
@@ -151,9 +137,8 @@ export function reminderDetailsHTML({ head, boxes }, { open = false } = {}) {
 }
 
 /**
- * The section inside the system's own roll dialog: one `<fieldset>` shaped exactly like dnd5e's
- * CONFIGURATION fieldset beside it, so the dialog's own styling dresses it. The EDGE inserts it
- * after the CONFIGURATION fieldset.
+ * The section inside dnd5e's roll dialog, shaped like its CONFIGURATION fieldset so the dialog's
+ * styling dresses it.
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
  *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[], legend?: string}} view
  */
@@ -165,13 +150,11 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
 }
 
 /**
- * THE SNEAK ATTACK BOX under the gate's sources: a checkbox where the other boxes carry a tag
- * (the roll still needs its mode press, so the choice is never a fourth button). "Sneak Attack
- * — 5d6", the tick, the folded rule, nothing else. Used this turn: greyed, the reason, no tick.
+ * THE SNEAK ATTACK BOX: a checkbox, never a fourth button (the roll still needs its mode press).
+ * Used this turn: greyed, the reason on its own line, no tick.
  * @param {{dice: string, rule: string, checked?: boolean, used?: string|null}} view
  */
 export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
-  // The used reason sits on its own full-width line; beside the title it squeezes the title.
   const control = used ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
         <input type="checkbox" name="bf-sneak" ${checked ? "checked" : ""} style="margin:0;"> <span>Sneak Attack</span></label>`;
   return `
@@ -187,9 +170,8 @@ export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
 }
 
 /**
- * THE BUY BOX — the Sneak Attack box's shape for Advantage bought with an item's use
- * (`ADVANTAGE_BUYS`): "Lucky — 1 Luck Point · 3 left", a tick labelled Advantage, the folded
- * rule. No uses left: greyed, no tick, the reason said.
+ * THE BUY BOX: the Sneak Attack box's shape for Advantage bought with an item's use
+ * (`ADVANTAGE_BUYS`). No uses left: greyed, no tick.
  * @param {{name: string, point: string, left: number, rule: string, checked?: boolean}} view
  */
 export function buyBoxHTML({ name, point, left, rule, checked = false }) {
@@ -208,10 +190,7 @@ export function buyBoxHTML({ name, point, left, rule, checked = false }) {
       </div>`;
 }
 
-/**
- * A rule quoted under a fold: a native `<details>`, closed, its summary "the rule ▸".
- * @param {string} rule
- */
+/** A rule quoted under a closed fold. @param {string} rule */
 export function foldedRuleHTML(rule) {
   if ( !rule ) return "";
   return `<details data-bf-rule style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">
@@ -219,9 +198,7 @@ export function foldedRuleHTML(rule) {
 }
 
 /**
- * THE CUNNING STRIKE MENU on the damage offer: a checkbox per option the sheet grants, its cost
- * as the tag, its rule folded; unaffordable rows show disabled. The header says the DC and how
- * many may be picked.
+ * THE CUNNING STRIKE MENU on the damage offer; unaffordable rows show disabled.
  * @param {{rows: {key: string, label: string, cost: number, rule: string, caveat?: string, line: boolean, affordable: boolean}[],
  *          max: number, dc: number|null, dice: string, chosen?: Iterable<string>}} view
  */
@@ -248,11 +225,8 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
 }
 
 /**
- * THE CLOCK RIDERS on the damage offer (RULINGS *The gate before the roll*): a checkbox per due
- * rider, TICKED by default (a limited use is the player's to decline). The row is the name, the
- * dice and type, the uses left after, the folded rule — nothing else. ⚠ No caveat line: `caveat`
- * is accepted and IGNORED here; the clock's `why` belongs on the card. An effect-only rider has
- * no dice; its `says` stands where the dice would.
+ * THE CLOCK RIDERS on the damage offer, TICKED by default (RULINGS *The gate before the roll*).
+ * ⚠ `caveat` is accepted and IGNORED: no caveat line on the row. An effect-only rider shows `says`.
  * @param {{key: string, label: string, formula: string|null, says?: string|null, type: string|null, why: string, rule: string,
  *          usesLeft?: number|null, caveat?: string}[]} riders
  */
@@ -277,9 +251,8 @@ export function riderMenuHTML(riders) {
 
 
 /**
- * THE HIT MENU on the damage offer (RULINGS *The hit menu*): a group per paying feature, a row
- * per option — the name and its cost, the rule folded. One pick per group (the EDGE unticks the
- * sibling). A group with no die left keeps its rows, greyed, its tag saying why.
+ * THE HIT MENU on the damage offer (RULINGS *The hit menu*): a group per paying feature, one
+ * pick per group (the EDGE unticks the sibling); a spent group greys, its tag saying why.
  * @param {{groups: {key: string, label: string, tag: string, off: boolean,
  *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: string, affordable: boolean}[]}[]}} view
  */
@@ -311,10 +284,8 @@ export function hitMenuHTML({ groups }) {
 }
 
 /**
- * The three roll-mode buttons as DialogV2 descriptors, for every popup that stands in for a roll
- * dialog. `defaultMode` marks the button Enter triggers — the outcome the solver worked out.
- * ⚠ DialogV2 always has a default: with none flagged it makes the FIRST button (Advantage) the
- * Enter target.
+ * The three roll-mode buttons as DialogV2 descriptors; `defaultMode` is the Enter target.
+ * ⚠ With none flagged, DialogV2 makes the FIRST button (Advantage) the Enter target.
  * @param {(mode: "advantage"|"normal"|"disadvantage") => void} press
  * @param {"advantage"|"normal"|"disadvantage"|null} [defaultMode]
  */
@@ -329,12 +300,9 @@ export function modeButtons(press, defaultMode = null) {
   ];
 }
 
-/* The countdown bar (ARCHITECTURE.md §5). ⚠ Zero JS ticking: one CSS animation per bar, resumed
- * mid-drain by a negative animation-delay from the stored deadline (`syncHoldBars` in ui.js). */
-
 /**
- * THE BAR: a pure function of `{deadline, window}` — no status field. The label names what the
- * buzzer does ("answer", or "roll" for a demanded save).
+ * THE COUNTDOWN BAR, a pure function of `{deadline, window}` (ARCHITECTURE.md §5). ⚠ No JS
+ * ticking: `syncHoldBars` (ui.js) resumes one CSS animation by a negative animation-delay.
  */
 export function momentBarHTML(spec, label = "to answer") {
   if ( !spec?.deadline || !spec?.window ) return "";
@@ -352,16 +320,15 @@ export function momentBarHTML(spec, label = "to answer") {
 }
 
 /**
- * The status-gated wrapper for WHOLE flags: a resolved moment renders no bar. ⚠ A sub-object (a
- * choice, a notice) has no `status` — pass it to momentBarHTML, or the bar silently vanishes.
+ * The bar for a WHOLE flag, none once resolved. ⚠ A sub-object has no `status`: pass it to
+ * momentBarHTML, or the bar silently vanishes.
  */
 export function holdBarHTML(hold, label = "to answer") {
   if ( hold?.status !== "pending" ) return "";
   return momentBarHTML(hold, label);
 }
 
-/* THE STAIRCASE (ARCHITECTURE.md §5 law 7): the arithmetic only; ui.js owns the anchor. */
-
+// THE STAIRCASE (ARCHITECTURE.md §5 law 7): the arithmetic only; ui.js owns the anchor.
 export const CASCADE_STEP = 36;   // ≈ one window header — the full title stays visible
 
 /** The smallest free slot. ⚠ Not a live-popup count: that lands a newcomer on a survivor. */
@@ -379,14 +346,9 @@ export function cascadePosition(anchor, slot) {
 }
 
 /**
- * THE RANK (ARCHITECTURE §5 law 7): windows born of one hit front by CLASS, then event order.
- * The key's sub (`popupKey(messageId, sub)`) names the moment; the table ranks the classes.
- *   0  the damage prompt ("You hit! — roll damage", auto-damage.js)
- *   1  the weapon's mastery — the ask, the notice (Vex, Sap, Cleave), the Topple demand
- *   2  a listed carrier's OFFER on the hit (the Maneuver Folds list, decide/registry.js): the bash,
- *      the hew, Commander's Strike, the Riposte
- *   3  everything else, in event order
- * ⚠ A new sub stays at the last rank unless it is ruled into a class — the table is the ruling.
+ * THE RANK (ARCHITECTURE §5 law 7): windows of one hit front by class (the key's sub), then
+ * event order: 0 the damage prompt, 1 the weapon's mastery, 2 a listed carrier's offer, 3 the rest.
+ * ⚠ A new sub ranks last unless it is added here — the table is the ruling.
  */
 export const POPUP_RANK = Object.freeze({
   damage: 0,
@@ -402,26 +364,19 @@ export function popupRank(key) {
   return POPUP_RANK[family] ?? UNRANKED;
 }
 
-/**
- * The whole pile, BACK TO FRONT: fronting every key in this order (the newcomer included — it
- * may outrank an elder) leaves the lowest rank's earliest moment on top.
- */
+/** The whole pile BACK TO FRONT (the newcomer included: it may outrank an elder). */
 export function pileBackToFront(slots) {
   return [...slots.entries()]
     .sort(([ka, a], [kb, b]) => (popupRank(kb) - popupRank(ka)) || (b - a))
     .map(([k]) => k);
 }
 
-/* THE RESCUE VIEW — the row model. Two flags on one roll (`precision`, `d20fold`) ask one
- * question — "short by N; what do you burn?" — so the VIEW merges and the flags stay separate.
- * Pure: flags, the composed roll and the reveal setting in, a row model out. A new own-roll
- * rescue is an entry in RESCUE_SOURCES, not a new popup. */
+/* THE RESCUE VIEW: two flags on one roll (`precision`, `d20fold`) ask one question, so the view
+ * merges and the flags stay separate. A new own-roll rescue is a RESCUE_SOURCES entry. */
 
 /**
- * THE RESCUE KINDS — label, glyph, cost and the verbatim rule. ⚠ One copy of each quote (law 8:
- * the quote is the rule); d20-folds.js and maneuvers.js read them from here.
- * ⚠ `label` is not the lookup key: the settings list finds `bardic` by the effect name
- * "Inspired"; the label only announces it. `cost` is per kind because the rules disagree.
+ * THE RESCUE KINDS. ⚠ The one copy of each quote; d20-folds.js and maneuvers.js read them here.
+ * ⚠ `label` is not the lookup key (the settings list finds `bardic` by the effect "Inspired").
  */
 export const RESCUE_KINDS = {
   heroic: {
@@ -466,17 +421,13 @@ export const RESCUE_KINDS = {
   }
 };
 
-/**
- * What to CALL an offer or a spend on screen. ⚠ The fallback is the wire-format rule: a flag
- * stamped by an older build may carry no `label`, and must still read right, not "undefined".
- */
+/** An offer's or spend's name on screen. ⚠ Wire format: an older flag may carry no `label`. */
 export const rescueLabel = named =>
   named?.label ?? RESCUE_KINDS[named?.kind]?.label ?? named?.name ?? "a fold";
 
 /**
- * WHERE THE ROWS COME FROM — one entry per message flag: its premise, whether it still asks,
- * and its offers and spends as rows. `action` is the machine's own answer token, handed back
- * to it by the spine, so one window drives two machines that never know each other.
+ * One entry per message flag: premise, pending, rows. `action` is the machine's own answer
+ * token, so one window drives two machines that never know each other.
  */
 export const RESCUE_SOURCES = [
   {
@@ -489,22 +440,18 @@ export const RESCUE_SOURCES = [
     }),
     isPending: flag => (flag?.status === "pending"),
     rows: flag => [
-      // ⚠ Offers only while pending: a resolved flag keeps its `offers`, and rendering them
-      // would put live buttons on a finished moment.
-      // ⚠ Two `tactical` rows can stand at once (Tactical Mind and Ambush), so a tactical
-      // row's action carries its name — `tactical:Ambush`.
+      // ⚠ Offers only while pending: a resolved flag keeps its `offers`.
+      // ⚠ Two `tactical` rows can stand at once, so the action carries the name.
       ...((flag?.status === "pending") ? (flag?.offers ?? []) : []).map(o => ({
         kind: o.kind,
         action: (o.kind === "tactical") ? `tactical:${o.name}` : o.kind,
         label: rescueLabel(o),
         die: o.dieFormula ?? null,
         spent: false,
-        // A scoped `tactical` offer carries its own cost and rule; the kind's are Tactical Mind's.
         ...(o.cost ? { cost: o.cost } : {}),
         ...(o.rule ? { rule: o.rule } : {})
       })),
-      // Spends read off `spends`, never `offers`. A reroll (`heroic`) REPLACES the roll and
-      // carries its number under `reroll`, with its own crit and fumble.
+      // A reroll REPLACES the roll and carries its number under `reroll`.
       ...(flag?.spends ?? []).map(s => ({
         kind: s.kind,
         action: (s.kind === "tactical") ? `tactical:${s.name}` : s.kind,
@@ -519,7 +466,6 @@ export const RESCUE_SOURCES = [
   },
   {
     flag: "precision",
-    // Precision rides an attack and names its total `attackTotal`; normalised so headers match.
     premise: flag => ({
       testKind: "attack",
       baseTotal: flag?.attackTotal,
@@ -527,7 +473,7 @@ export const RESCUE_SOURCES = [
       dc: undefined
     }),
     isPending: flag => (flag?.status === "pending"),
-    // One flag, one row; the flag is its own spend record. Passed or expired: no row at all.
+    // The flag is its own spend record; passed or expired, no row.
     rows: flag => {
       if ( !flag ) return [];
       const spent = (flag.outcome === "used") && Number.isFinite(flag.die);
@@ -546,9 +492,7 @@ export const RESCUE_SOURCES = [
   }
 ];
 
-/**
- * ONE flag's declared source. ⚠ An unknown key warns: an empty view silently never opens.
- */
+/** ONE flag's declared source. ⚠ An unknown key warns: an empty view silently never opens. */
 export function rescueSourceFor(flagKey) {
   const sources = RESCUE_SOURCES.filter(s => s.flag === flagKey);
   if ( !sources.length ) {
@@ -559,9 +503,8 @@ export function rescueSourceFor(flagKey) {
 }
 
 /**
- * THE HEADER — the sentences both machines derive through this one function, so the view can
- * dedupe them by string. ⚠ `reveal` (`holdReveal`) gates the margin, never the player's own
- * total. ⚠ No verdict without a DC: dnd5e records none for a raw ability check.
+ * THE HEADER, one function for both machines so the view dedupes by string. ⚠ `reveal` gates
+ * the margin, never the total. ⚠ dnd5e records no DC for a raw ability check: no verdict.
  */
 export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
   const base = Number(premise?.baseTotal) || 0;
@@ -569,8 +512,7 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
   const added = Number(composed?.added) || 0;
   const sum = composed?.replaced ? `${base} → ${total}`
     : added ? `${base} + ${added} = ${total}` : `${total}`;
-  // Initiative has nothing to land: the number is the order itself. A raw check has no DC, so
-  // it goes to the DM — outside the reveal gate, since there is no number to hide.
+  // A raw check goes to the DM outside the reveal gate: there is no number to hide.
   if ( premise?.testKind === "initiative" ) return [`Initiative: ${sum}`];
   const testable = (premise?.targets ?? []).some(t => Number.isFinite(t?.ac))
     || Number.isFinite(premise?.dc);
@@ -592,8 +534,7 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
 }
 
 /**
- * THE WHOLE VIEW — every rescue source on one message. `read(flagKey)` is the EDGE's reader,
- * so the model tests with plain objects.
+ * THE WHOLE VIEW of one message; `read(flagKey)` is the EDGE's reader.
  * @param {(key: string) => any} read
  * @param {object} [ctx]
  * @param {?{total?: number, added?: number, replaced?: boolean}} [ctx.composed] the composed roll
@@ -613,7 +554,6 @@ export function rescueView(read, { composed = null, reveal = false,
     const flag = read(source.flag);
     if ( !flag ) continue;
     premises.push(source.premise(flag));
-    // Deduped by string: both premises describe the same roll.
     for ( const line of rescueHeaderLines(premises.at(-1), composed, { reveal }) ) {
       if ( !headerLines.includes(line) ) headerLines.push(line);
     }
@@ -628,8 +568,7 @@ export function rescueView(read, { composed = null, reveal = false,
         rule: row.rule ?? RESCUE_KINDS[row.kind]?.rule ?? null,
         result: row.result ?? null,
         replaced: row.replaced === true,
-        // WITHDRAWN: a sibling spend already made this row moot. It greys like a spent row
-        // rather than vanishing. No source produces it yet.
+        // A sibling spend made this row moot: it greys, not vanishes. No source produces it yet.
         withdrawn: row.withdrawn === true
       });
     }
@@ -642,8 +581,7 @@ export function rescueView(read, { composed = null, reveal = false,
       }
     }
   }
-  // One quote per row; the pane shows the hovered one. The die and the cost live in the pane,
-  // beside the rule — a live button carries only the feature's name.
+  // The die and the cost live in the pane; a live button carries only the name.
   const quotes = rows
     .map(r => ({
       key: r.key,
@@ -656,8 +594,7 @@ export function rescueView(read, { composed = null, reveal = false,
           + (r.cost ? ` — ${r.cost}.` : ".")
     }))
     .filter(q => q.text);
-  // Is the premise still alive (so the window can say "not enough yet")? A raw check always
-  // answers yes — it has no DC — and a human ends it with Pass.
+  // A raw check (no DC) is always still failing; a human ends it with Pass.
   const total = Number.isFinite(composed?.total) ? Number(composed?.total) : null;
   const stillFailing = premises.some(p => {
     if ( total === null ) return true;
@@ -666,32 +603,26 @@ export function rescueView(read, { composed = null, reveal = false,
     if ( Number.isFinite(p?.dc) ) return total < p.dc;
     return true;
   });
-  // Is there a number to be short of at all (an AC on the snapshot, or a DC the ask owns)?
   const verdictKnown = premises.some(p =>
     (p?.targets ?? []).some(t => Number.isFinite(t?.ac)) || Number.isFinite(p?.dc));
   return { headerLines, rows, quotes, earliestDeadline, clockWindow, stillFailing, verdictKnown };
 }
 
-/* THE WINDOW'S MARKUP — the pane and the rows, with `data-bf-rescue-*` hooks for ui.js to bind.
- * Rows live in the dialog CONTENT (a DialogV2 footer is a row of equal buttons); Pass is the one
- * footer button. */
+// The window's markup; rows live in the CONTENT (a DialogV2 footer is equal buttons), Pass alone below.
 
-/** Attribute-safe: these strings land inside `data-…="…"` and a rules quote is full of both. */
+/** Attribute-safe: these strings land inside `data-…="…"`. */
 const attr = s => String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;")
   .replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-/** Text-safe: a name or a line that lands in markup (the same four characters as `attr`). */
+/** Text-safe: a name or a line that lands in markup. */
 export const esc = s => String(s ?? "").replace(/[&<>"]/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-/**
- * THE PANE — one verbatim, labelled rule quote (law 8): the hovered row's, defaulting to the
- * first.
- */
+/** THE PANE: the hovered row's rule quote, the first by default. */
 export function rescuePaneHTML(quotes = []) {
   if ( !quotes.length ) return "";
-  // ⚠ Every quote stacks in one grid cell, so the box is as tall as the longest and hovering
-  // never resizes the window. `visibility`, never `display` — display:none gives no height.
+  // ⚠ All quotes stack in one grid cell so hovering never resizes the window; hide by
+  // `visibility`, never `display` (display:none gives no height).
   const panes = quotes.map((q, i) => `
     <div data-bf-rescue-quote="${attr(q.key)}"
          style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
@@ -705,10 +636,7 @@ export function rescuePaneHTML(quotes = []) {
   </div>`;
 }
 
-/**
- * THE ROWS — one per rescue, led by the document's art, else the kind's glyph (`heroic` is a
- * sheet boolean with no document). A spent or withdrawn row stays, greyed and unbound.
- */
+/** THE ROWS, led by the document's art else the kind's glyph; a spent row stays, greyed and unbound. */
 export function rescueRowsHTML(rows = []) {
   return rows.map(row => {
     const art = row.img
@@ -734,9 +662,7 @@ export function rescueRowsHTML(rows = []) {
 }
 
 /**
- * THE DIE METER (Savage Attacker's hint): a strip from the lowest to the highest total, a tick at
- * the average, the roll pinned on it (orange under the average, green at or above), one line of
- * odds. It sits in the popup's header, never on the offer row.
+ * THE DIE METER (Savage Attacker's hint), in the popup's header, never on the offer row.
  * @param {{value: number, min: number, max: number, avg: number, beat: number, gain: number, low: boolean}} m
  */
 export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
@@ -754,10 +680,8 @@ export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
 }
 
 /**
- * THE OFFER ROW, TICKED: one row per source — a tick, the name and dice, a fact as the tag (the
- * cost, or why it cannot be taken), "the rule ▸" folded. ⚠ Nothing else on, above or below the
- * row — never a caveat line. One tick at a time (the EDGE unticks the sibling), even on a
- * one-row popup. See RULINGS *Rescuing the hit*.
+ * THE OFFER ROW, TICKED (RULINGS *Rescuing the hit*): name and dice, a fact as the tag, the rule
+ * folded. ⚠ Never a caveat line. One tick at a time (the EDGE unticks the sibling).
  * @param {{name: string, rows: {key: string, name: string, dice?: string|null, tag?: string|null,
  *          off?: string|null, rule?: string|null}[]}} view
  */
