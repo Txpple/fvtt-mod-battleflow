@@ -125,7 +125,7 @@ const out = await f.evaluate(async () => {
         traits: { size: d.size ?? 'med', dr: { value: d.dr ?? [] } },
         details: { type: { value: 'construct' }, cr: 0 }
       },
-      prototypeToken: { name, actorLink: true, disposition: -1, width: cells, height: cells, texture: { src: tex, scaleX: 1.2, scaleY: 1.2 } }
+      prototypeToken: { name, actorLink: false, disposition: -1, width: cells, height: cells, texture: { src: tex, scaleX: 1.2, scaleY: 1.2 } }
     });
     if (d.status) await a.toggleStatusEffect(d.status, { active: true });
     made[name] = a;
@@ -152,7 +152,7 @@ const out = await f.evaluate(async () => {
   for (const [name, [x, y]] of Object.entries(SPOTS)) {
     const a = made[name];
     if (!a) { log.push(`${name}: NOT BUILT`); continue; }
-    tokens.push(foundry.utils.mergeObject(a.prototypeToken.toObject(), { x, y, actorId: a.id, actorLink: true, displayName: CONST.TOKEN_DISPLAY_MODES.ALWAYS, displayBars: CONST.TOKEN_DISPLAY_MODES.ALWAYS }, { inplace: false }));
+    tokens.push(foundry.utils.mergeObject(a.prototypeToken.toObject(), { x, y, actorId: a.id, actorLink: a.type !== 'npc', displayName: CONST.TOKEN_DISPLAY_MODES.ALWAYS, displayBars: CONST.TOKEN_DISPLAY_MODES.ALWAYS }, { inplace: false }));
   }
   await scene.createEmbeddedDocuments('Token', tokens);
   log.push(`placed ${tokens.length} token(s)`);

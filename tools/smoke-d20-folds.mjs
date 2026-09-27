@@ -168,7 +168,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // four dead paths past a green suite, so the fixture grants a PHB Longsword now and this
       // section drives the whole chain.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -459,7 +459,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // precision-side first is fine, because the fold machine composes over precision's flag.
       // A suite that spent them the other way round would go green over a live bug.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -771,7 +771,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // on in the reference table) refuses to stamp when even a maximised die cannot reach the
       // nearest AC: margin 20 against a d8. One machine, one card, one arithmetic under test.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!foeToken || !act) {
@@ -948,7 +948,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // how both of these reached a human. An assertion that something is GONE costs the same
       // as one that it is there.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -1105,7 +1105,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // answer lock — and which one wins is a race by construction. What the table is owed is
       // the same either way: the die is still there.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc"));
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
