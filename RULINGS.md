@@ -916,6 +916,25 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
 
+## One dice popup — the dice changers (ruled 2026-09-26, not built)
+
+**Ruled off [prototypes/dice-popup.html](prototypes/dice-popup.html)** (the user, the PHB feats walk:
+*"elemental fire ... says you CAN, so elemental should popup the option like it does for healer"*;
+*"you should also universialize that shape somehow, since we now have a pattern of 3"*; then *"the ui
+looks good for the dice rerollers"*). Every feature that changes dice on a roll already landed shares
+ONE popup per roll: Empowered Spell, Healer, Elemental Adept, Piercer, Savage Attacker.
+
+- **A row per feature that fits the roll**, the dice as chips above them (Empowered's grid). A
+  picking row (Empowered, Healer, Piercer) takes the chip clicks; one picking row at a time.
+- **Rerolls first, then "treat as"**: Elemental Adept's 1 → 2 is applied to the faces that stand
+  after every reroll, so a reroll that lands on 1 is still lifted.
+- **Elemental Adept is a choice** ("you can"): its row starts ticked when a 1 of its type shows, and
+  unticking it keeps the 1. The automatic floor built in group 1 is replaced by the row.
+- **Piercer's die is still the module's pick** (group 3's ⓐ, confirmed on the walk) — clicking
+  another chip moves it. **Savage Attacker and Piercer together are two rows** (the set again, then
+  one die), which settles BACKLOG's *one question per hit*.
+- **Great Weapon Fighting stays automatic**, as walked.
+
 ## The PHB feats — groups 1–3 (2026-09-26)
 
 **Built in one autonomous pass** (the user: *"work autonomously til done with 1-3"*), off the scope
