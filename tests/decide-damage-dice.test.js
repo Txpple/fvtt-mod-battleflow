@@ -262,6 +262,37 @@ describe("rerollFaces — Empowered Spell's per-die patch, lifted", () => {
     ]);
     expect(data[0].terms[0].results[0].active).toBe(true); // a clone
   });
+  it("a die rolled with minN keeps its floor: a new face under N counts N, the face kept (Elemental Adept after Empowered)", () => {
+    const data = [weaponRoll(6, [1, 4])];
+    data[0].terms[0].modifiers = ["min2"];
+    data[0].terms[0].results[0].count = 2; // the first 1 was lifted at the roll
+    const { data: out, done } = d.rerollFaces(
+      data,
+      [
+        { key: "0:0:0", roll: 0, term: 0, index: 0 },
+        { key: "0:0:1", roll: 0, term: 0, index: 1 }
+      ],
+      [1, 5]
+    );
+    expect(done).toEqual([
+      { key: "0:0:0", old: 2, new: 2, face: 1 },
+      { key: "0:0:1", old: 4, new: 5 }
+    ]);
+    expect(out[0].terms[0].results.slice(2)).toEqual([
+      { result: 1, active: true, count: 2, rerolled: true },
+      { result: 5, active: true }
+    ]);
+  });
+  it("Great Weapon Fighting's min3 holds on a Piercer reroll; a face at the floor is left alone", () => {
+    const data = [weaponRoll(8, [3])];
+    data[0].terms[0].modifiers = ["min3"];
+    expect(d.rerollFaces(data, [{ key: "0:0:0", roll: 0, term: 0, index: 0 }], [2]).done).toEqual([
+      { key: "0:0:0", old: 3, new: 3, face: 2 }
+    ]);
+    expect(d.rerollFaces(data, [{ key: "0:0:0", roll: 0, term: 0, index: 0 }], [3]).done).toEqual([
+      { key: "0:0:0", old: 3, new: 3 }
+    ]);
+  });
   it("a pick whose face is gone is skipped", () => {
     const { done } = d.rerollFaces(
       [weaponRoll(6, [1])],

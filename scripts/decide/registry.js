@@ -1941,14 +1941,14 @@ const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
  * THE HEALING REROLLS (the origin feats, 2026-09-25 — user: "use the empower spell form as a
  * baseline listing all roll numbers, the ones, and select the ones to replace"; "make sure the
  * healer feat itself gets the 1 popup too not just spells"; "1s ticked"): a feature that lets its
- * owner reroll a healing die that shows a given face. The roll's dice are shown as Empowered
- * Spell's chips, the matching faces pickable and ticked; Reroll rolls them again and the new faces
- * stand (heal-rerolls.js the machine, decide/damage-dice.js the patch). The healing waits on the
- * answer, so it lands once.
+ * owner reroll a healing die that shows a given face. AUTOMATIC since 2026-09-26 (the user: "make
+ * adept automatic, fix healer that way too ... consistent with that great weapon one"): every
+ * matching face is rolled again as the dice land and the new faces stand (heal-rerolls.js the
+ * machine, decide/damage-dice.js the patch). The healing waits on the new dice, so it lands once.
  *   reroll  the face that may be rerolled (Healer: a 1)
  *   spells  true — a healing SPELL the owner casts asks
  *   own     true — the feature's OWN healing asks (Battle Medic); the pack's `r1` in those formulas
- *           is taken off at the roll so the popup, not the formula, rerolls it
+ *           is taken off at the roll so the machine, not the formula, rerolls it (one card, one road)
  * ⚠ NOT A KIND — one table read by one machine (the DAMAGE_EITHER shape); a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({

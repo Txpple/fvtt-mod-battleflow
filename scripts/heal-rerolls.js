@@ -5,6 +5,12 @@
  * the ones, and select the ones to replace"; "make sure the healer feat itself gets the 1 popup too
  * not just spells"; "1s ticked".
  *
+ * ⚠ AUTOMATIC SINCE 2026-09-26 (the PHB feats walk — the user: "make adept automatic, fix healer that
+ * way too ... then its consistent with that great weapon one"): a reroll of a 1 can never make the
+ * healing smaller, so it is not a choice (DESIGN R1) and asks nothing. Every 1 is rerolled as the
+ * dice land; the rest of the road below — the held healing, the durable completion, the dice on the
+ * canvas, the card — is unchanged. Where the text below says popup, read: the 1s are all taken.
+ *
  * THE MOMENT is the healing roll — a healing spell the owner casts, or the feat's own Battle Medic.
  * The roll message is born with `healReroll` DUE (preRollDamageV2, a birth flag like Savage
  * Attacker's), and the heal applier (cast.js) holds the healing while it waits — so it lands ONCE,
@@ -24,21 +30,19 @@
  * roll": a second 1 stands. Healing already applied off the message — the claim makes that the belt,
  * not the road — is moved by the difference (auto-apply.js `moveAppliedDamage`).
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./settings.js";
 import { rebuildRolls } from "./shared.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
-import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, scheduleBarSync,
-  dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
+import { bfCard, esc } from "./decide/present.js";
+import { dramaticVerdictPause, registerResumable } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 
 const HEAL_FLAG = "healReroll";
-const timers = new Map();
 const offering = new Set();
 const resolving = new Set();
 
@@ -86,15 +90,8 @@ Hooks.on("dnd5e.rollDamageV2", rolls => {
 
 Hooks.on("updateChatMessage", message => {
   const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
-  if ( !flag ) return;
-  if ( (flag.status === "due") && message.isAuthor ) void promote(message);
-  if ( flag.status === "pending" ) { armTimer(message); return; }
-  disarmDeadline(timers, message.id);
-  const open = livePopups.get(popupKey(message.id, HEAL_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+  if ( (flag?.status === "due") && message.isAuthor ) void promote(message);
 });
-
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
 
 /** The whole roll's total — the healing rolls only. */
 const healTotal = rolls => (rolls ?? []).filter(r => (r?.options?.type ?? "healing") === "healing")
@@ -107,96 +104,23 @@ async function promote(message) {
   try {
     const dice = healDiceOf((message.rolls ?? []).map(r => r.toJSON()), flag.reroll);
     const any = dice.some(d => d.one);
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
     await queueFlagWrite(message, HEAL_FLAG, current => {
       if ( current.status !== "due" ) return false;
       if ( !any ) { current.status = "none"; return; }
       current.status = "pending";
       current.dice = dice;
       current.total = healTotal(message.rolls);
-      if ( window ) { current.window = window; current.deadline = Date.now() + (window * 1000); }
     });
     if ( message.getFlag(MODULE_ID, HEAL_FLAG)?.status !== "pending" ) return;
-    armTimer(message);
-    // The table sees the dice land before the question about them opens (the verdict pause's rule).
+    // The table sees the dice land before the 1s turn over (the verdict pause's rule).
     await dramaticVerdictPause(message);
-    await showPopup(message);
+    await reroll(message, dice.filter(d => d.one).map(d => d.key));
   } finally {
     offering.delete(message.id);
   }
 }
 
-/** The buzzer, on whoever drives the healer's moments — the healing waits on this answer. */
-function armTimer(message) {
-  const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
-  armDeadline(timers, message.id, flag.deadline, async () => {
-    const live = game.messages.get(message.id);
-    if ( live?.getFlag(MODULE_ID, HEAL_FLAG)?.status === "pending" ) await keep(live, { timedOut: true });
-  });
-}
-
-/* --- the popup: Empowered's chips, the 1s ticked ----------------------------------------------- */
-
-/** The picked chips in a popup's form. */
-const picksIn = form => [...(form?.querySelectorAll?.('[data-bf-heal-die][data-picked="1"]') ?? [])].map(b => b.dataset.bfHealDie);
-
-async function showPopup(message) {
-  const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
-  if ( flag?.status !== "pending" ) return;
-  const actor = resolveUuid(flag.actorUuid);
-  if ( !actor ) return;
-  const row = HEAL_REROLLS[flag.feature] ?? null;
-  const ones = (flag.dice ?? []).filter(d => d.one).length;
-  // Eight to a row (Empowered's grid). A 1 is ticked and pickable; any other face is shown, greyed.
-  const chips = (flag.dice ?? []).map(d => `<button type="button" data-bf-heal-die="${esc(d.key)}" data-picked="${d.one ? "1" : "0"}" ${d.one ? "" : "disabled"} data-tooltip="d${d.faces}"
-      style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.one ? "" : "opacity:0.45;"}">${d.result}</button>`).join("");
-  const dialog = await openMomentPopup(message, HEAL_FLAG, actor, {
-    title: `${flag.feature} — ${actor.name}`, icon: "fa-solid fa-hand-holding-medical", width: 460,
-    content: bfCard({
-      img: featureNamed(actor, flag.feature)?.img ?? null,
-      eyebrow: `${flag.feature} — Healing Rerolls`, tone: "pending",
-      title: `${flag.source ?? "Healing"} heals ${flag.total} — reroll the ${ones === 1 ? "1" : "1s"}?`,
-      subtitle: "no cost · you must use the new roll",
-      lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""]
-    }) + `<div data-bf-heal-dice style="margin:0.4rem 0;display:grid;grid-template-columns:repeat(8, 2.2rem);gap:0.3rem;justify-content:start;">${chips}</div>`
-      + holdBarHTML(flag, "to answer"),
-    buttons: [
-      // The window goes at the click (Empowered's lesson, 2026-09-10): the work is fired, not awaited.
-      { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => { const picks = picksIn(button.form); void reroll(message, picks); } },
-      { action: "keep", label: "Keep the roll", callback: () => { void keep(message); } }
-    ]
-  });
-  const box = dialog?.element?.querySelector?.("[data-bf-heal-dice]") ?? null;
-  for ( const chip of box?.querySelectorAll?.("[data-bf-heal-die]") ?? [] ) paintDieChip(chip, chip.dataset.picked === "1");
-  syncReroll(box);
-}
-
-/** Reroll is live only while at least one die is ticked (Empowered's rule, 2026-09-12). */
-function syncReroll(box) {
-  const button = box?.closest?.("form")?.querySelector?.('button[data-action="reroll"]');
-  if ( button ) button.disabled = !box.querySelector('[data-picked="1"]');
-}
-
-// The chips toggle by delegation — one listener on the document serves every open popup.
-Hooks.once("ready", () => document.addEventListener("click", ev => {
-  const chip = ev.target?.closest?.("[data-bf-heal-die]");
-  if ( !chip || chip.disabled ) return;
-  ev.preventDefault();
-  paintDieChip(chip, chip.dataset.picked !== "1");
-  syncReroll(chip.closest("[data-bf-heal-dice]"));
-}));
-
-async function keep(message, { timedOut = false } = {}) {
-  await queueFlagWrite(message, HEAL_FLAG, current => {
-    if ( current.status !== "pending" ) return false;
-    current.status = "kept";
-    current.answeredAt = Date.now();
-    if ( timedOut ) current.timedOut = true;
-  });
-}
-
-/* --- the answer: the picked 1s rolled again, the new faces standing ---------------------------- */
+/* --- the reroll: every 1 rolled again, the new faces standing --------------------------------- */
 
 async function reroll(message, keys) {
   if ( resolving.has(message.id) ) return;
@@ -206,7 +130,10 @@ async function reroll(message, keys) {
     if ( flag?.status !== "pending" ) return;
     const wanted = new Set(keys ?? []);
     const picks = (flag.dice ?? []).filter(d => d.one && wanted.has(d.key));
-    if ( !picks.length ) { await keep(message); return; }
+    if ( !picks.length ) {
+      await queueFlagWrite(message, HEAL_FLAG, current => { if ( current.status !== "pending" ) return false; current.status = "none"; });
+      return;
+    }
     const actor = resolveUuid(flag.actorUuid);
     // ANSWERED IS NOT PENDING (the d20 folds' rule): the status leaves "pending" before the dice.
     await queueFlagWrite(message, HEAL_FLAG, current => {
@@ -276,12 +203,17 @@ async function complete(message) {
 /** Past the longest the pause can be, with slack. */
 const RESUME_MS = 20_000;
 registerResumable(HEAL_FLAG, {
-  // A completion the clicking client never took, and a DUE the roller never promoted: the driver
-  // finishes the one and asks the other.
+  // A completion the rolling client never took, a DUE it never promoted, and a PENDING it never
+  // rerolled (it died inside the pause): the driver finishes the one and takes the others.
   pending: (flag, message) => ((flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > RESUME_MS))
-    || ((flag?.status === "due") && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
+    || (["due", "pending"].includes(flag?.status) && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),
-  drive: message => (message.getFlag(MODULE_ID, HEAL_FLAG)?.status === "due") ? promote(message) : complete(message)
+  drive: message => {
+    const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
+    if ( flag?.status === "due" ) return promote(message);
+    if ( flag?.status === "pending" ) return reroll(message, (flag.dice ?? []).filter(d => d.one).map(d => d.key));
+    return complete(message);
+  }
 });
 
 /* --- the card: what happened, and the recall while it asks ------------------------------------- */
@@ -294,11 +226,10 @@ function cardLine(flag) {
       const n = (flag.picks ?? []).length;
       return `${name} — ${n === 1 ? "the 1" : `${n} ones`} rerolled (${(flag.picks ?? []).map(p => `${p.old}→${p.new}`).join(", ")}): heals ${flag.newTotal}`;
     }
-    case "kept": return `${name} — kept the roll${flag.timedOut ? " (the clock ran out)" : ""}`;
-    case "answering": return `${name} — rerolling the 1s`;
+    case "kept": return `${name} — kept the roll${flag.timedOut ? " (the clock ran out)" : ""}`;   // a card from before 2026-09-26
     case "due": return `${name} — reading the dice`;
     case "none": return "";
-    default: return `${name} — offered: reroll the 1s`;
+    default: return `${name} — rerolling the 1s`;
   }
 }
 
@@ -311,14 +242,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-heal-reroll-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(flag.feature ?? "")}"></i> ${esc(cardLine(flag))}`
-      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
-    if ( flag.status === "pending" ) {
-      const actor = resolveUuid(flag.actorUuid);
-      if ( actor?.isOwner ) div.appendChild(momentButton("Answer", () => { void showPopup(message); }));
-      scheduleBarSync(div);
-      armTimer(message);
-    }
+    div.innerHTML = `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(flag.feature ?? "")}"></i> ${esc(cardLine(flag))}`;
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The healing-reroll line could not render.`, err); }
 });

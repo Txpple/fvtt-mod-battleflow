@@ -278,11 +278,11 @@ Hooks.once("init", () => {
     scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
   });
 
-  // HEALING REROLLS (the origin feats, 2026-09-25): Healer's 1s on a healing die, asked in
-  // Empowered Spell's dice popup while the healing waits. A list; the list is the switch.
+  // HEALING REROLLS (the origin feats, 2026-09-25): Healer's 1s on a healing die, rerolled as the
+  // dice land (automatic since 2026-09-26 — a reroll of a 1 never heals less). The list is the switch.
   game.settings.register(MODULE_ID, S.healRerollList, {
     name: "Healing Rerolls",
-    hint: "A feature that rerolls a healing die showing a 1, by the feature's own name, separated by commas — Healer. When its owner casts a healing spell, or uses the feat's own Battle Medic, and a die shows a 1, a popup lists every die with the 1s ticked; Reroll rolls them again and the new faces stand (the healing waits for the answer, and the card shows both). Battle Medic's own silent reroll is taken off so it asks the same way. Remove a name to reroll by hand.",
+    hint: "A feature that rerolls a healing die showing a 1, by the feature's own name, separated by commas — Healer. When its owner casts a healing spell, or uses the feat's own Battle Medic, every die showing a 1 is rolled again and the new faces stand — automatically, as Great Weapon Fighting's floor is (the healing waits for the new dice, and the card shows both). Remove a name to reroll by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
   });
 

@@ -33,10 +33,26 @@ export function rerollFaces(rollsData, picks, faces) {
     const old = term?.results?.[d.index];
     if ( !old || !Number.isFinite(faces?.[i]) ) return;
     old.active = false; old.rerolled = true;
-    term.results.push({ result: faces[i], active: true });
-    done.push({ key: d.key, old: old.result, new: faces[i] });
+    // THE DIE'S OWN FLOOR STILL HOLDS (2026-09-26, the PHB feats walk: Gren's Empowered Fireball
+    // with Elemental Adept): a term rolled with `minN` (Elemental Adept's 2, Great Weapon
+    // Fighting's 3) raises a new face below N the way Foundry's `Die#minimum` does — `count` is
+    // what the die is worth, `result` what it showed — so a reroll that lands on a 1 is still lifted.
+    const floor = floorOf(term.modifiers);
+    const face = Number(faces[i]);
+    const raised = (floor !== null) && (face < floor);
+    term.results.push(raised ? { result: face, active: true, count: floor, rerolled: true } : { result: face, active: true });
+    done.push({ key: d.key, old: Number(old.count ?? old.result), new: raised ? floor : face, ...(raised ? { face } : {}) });
   });
   return { data, done };
+}
+
+/** A die term's `minN` floor, or null. */
+function floorOf(modifiers) {
+  for ( const m of (modifiers ?? []) ) {
+    const hit = /^min(\d+)$/i.exec(String(m));
+    if ( hit ) return Number(hit[1]);
+  }
+  return null;
 }
 
 /**

@@ -1,9 +1,10 @@
 // Battle Flow healing-rerolls smoke test — HEALER (the origin feats, 2026-09-25: "use the empower
 // spell form as a baseline listing all roll numbers, the ones, and select the ones to replace";
-// "make sure the healer feat itself gets the 1 popup too not just spells"; "1s ticked"). A healing
-// roll by a Healer that shows a 1 opens Empowered's dice popup — every die a chip, the 1s ticked and
-// pickable, the rest greyed; Reroll rolls them again and the new faces stand; the healing WAITS for
-// the answer (cast.js's claim) and lands once. Battle Medic's own `r1` is taken off so it asks too.
+// "make sure the healer feat itself gets the 1 popup too not just spells"; "1s ticked"). AUTOMATIC
+// since 2026-09-26 ("fix healer that way too ... consistent with that great weapon one"): a healing
+// roll by a Healer that shows a 1 rerolls every 1 as the dice land — no popup — and the new faces
+// stand; the healing WAITS for the new dice (cast.js's claim) and lands once. Battle Medic's own `r1`
+// is taken off so it goes the same road.
 //
 // Fixtures: BF Test Cleric (a character; tools/fixture-suite.mjs) is lent the PHB's Healer and Cure
 // Wounds for the run; BF Test Victim (the goblin) is the one healed, its hit points put back after.
@@ -16,22 +17,20 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'heal-rerolls.js',        // the whole fold — the birth flag, the popup, the patch, the card
-  'cast.js',                // the heal applier's claim — the healing waits for the answer
-  'kit-tend.js'             // §8 — Battle Medic on the Healer's Kit's use (2026-09-25)
+  'heal-rerolls.js',        // the whole fold — the birth flag, the automatic reroll, the patch, the card
+  'cast.js',                // the heal applier's claim — the healing waits for the new dice
+  'kit-tend.js'             // §6 — Battle Medic on the Healer's Kit's use (2026-09-25)
 ];
 
 const SECTIONS = {
-  1: 'Cure Wounds rolls [1, 6]: the popup lists both dice — the 1 ticked and pickable, the 6 greyed — and the healing WAITS (no receipt, the hit points unmoved)',
-  2: 'Reroll: the 1 is rolled again (→ 5) on its own card, struck on the healing roll, the new total stands; the healing lands ONCE with it; the record is used',
-  3: 'Keep the roll: the record says kept; the healing lands as rolled',
-  4: 'no 1 among the dice: no popup, the record settles "none", the healing lands at once',
-  5: 'Battle Medic (the feat\'s own d8 activity): the formula goes up without its r1, a 1 opens the same popup',
-  6: 'the clock keeps the roll: an unanswered popup times out kept, and the healing lands',
-  7: 'the list is the switch: Healer off the Healing Rerolls list — no record, and Battle Medic keeps its own r1',
-  8: 'Battle Medic on the Healer’s Kit: the kit used on a creature within 5 ft asks which Hit Die; Tend spends it on the creature and rolls the feature’s own heal of that size at it; the healing lands'
+  1: 'Cure Wounds rolls [1, 6]: no popup — the 1 is rerolled (→ 5) on its own card, struck on the healing roll, the new total stands; the healing lands ONCE with it; the record is used',
+  2: 'two 1s among the dice: both rerolled at once, one card, one landing',
+  3: 'no 1 among the dice: the record settles "none", the healing lands at once',
+  4: 'Battle Medic (the feat\'s own d8 activity): the formula goes up without its r1, and a 1 is rerolled the same way',
+  5: 'the list is the switch: Healer off the Healing Rerolls list — no record, and Battle Medic keeps its own r1',
+  6: 'Battle Medic on the Healer’s Kit: the kit used on a creature within 5 ft asks which Hit Die; Tend spends it on the creature and rolls the feature’s own heal of that size at it; the healing lands'
 };
-const DEPENDS = { 2: ['1'] };   // §2 answers the popup §1 opened
+const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'heal', watchdogMs: 300_000 });
@@ -77,13 +76,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
   };
   const realDice = () => { CONFIG.Dice.randomUniform = realPRNG; };
-  const healPopup = () => [...foundry.applications.instances.values()]
-    .find(app => app.rendered && app.element?.querySelector?.('[data-bf-heal-dice]')) ?? null;
-  const closeDialogs = async () => {
-    for (const app of foundry.applications.instances.values()) {
-      if (app.element?.querySelector?.('[data-bf-heal-dice]')) { try { await app.close(); } catch { /* gone */ } }
-    }
-  };
   let restored = false;
   const teardown = async () => {
     if (restored) return;
@@ -92,7 +84,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
-      await closeDialogs();
       const live = lent.filter(id => cleric.items.get(id));
       if (live.length) await cleric.deleteEmbeddedDocuments('Item', live);
       const tokens = placed.filter(id => scene.tokens.get(id));
@@ -174,109 +165,83 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const flagOf = m => m?.getFlag(MOD, 'healReroll') ?? null;
     const healTotal = m => (m?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
 
-    // ================================================== 1–2. Cure Wounds [1, 6], then Reroll → 5
-    let first = null;
+    /** Roll a heal activity with the dice pinned through the automatic reroll too; the message back once settled. */
+    const healThrough = async (activity, spec) => {
+      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      victimToken.setTarget(true, { releaseOthers: true });
+      await sleep(100);
+      faces(spec);
+      const rolls = await activity.rollDamage({}, { configure: false }, {});
+      const m = rolls?.[0]?.parent ?? null;
+      await waitFor(() => ['used', 'none'].includes(flagOf(m)?.status), 12000);
+      realDice();
+      return m;
+    };
+    const popupOpen = () => [...foundry.applications.instances.values()].some(app => app.rendered && /Healer/.test(app.title ?? ''));
+
+    // ================================================== 1. Cure Wounds [1, 6] → the 1 rerolled to 5
     if (want(1)) {
       await wound();
-      first = await heal(cureAct(), [[1, 8], [6, 8]]);
-      const app = await waitFor(healPopup, 6000);
-      const chips = [...(app?.element?.querySelectorAll('[data-bf-heal-die]') ?? [])];
-      const one = chips.find(c => c.textContent.trim() === '1'), six = chips.find(c => c.textContent.trim() === '6');
-      ok('1a. the popup lists both dice — the 1 ticked and pickable, the 6 greyed',
-        (chips.length === 2) && (one?.dataset.picked === '1') && !one?.disabled && !!six?.disabled,
-        `popup=${!!app} chips=${chips.map(c => `${c.textContent.trim()}:${c.dataset.picked}${c.disabled ? ':off' : ''}`).join(',')}`);
-      ok('1b. the healing waits: pending, no receipt, the hit points unmoved',
-        (flagOf(first)?.status === 'pending') && !first?.getFlag(MOD, 'receipt') && (hp() === 1),
-        `status=${flagOf(first)?.status} receipt=${!!first?.getFlag(MOD, 'receipt')} hp=${hp()}`);
-    }
-    if (want(2)) {
-      const app = healPopup();
-      const before = healTotal(first);
-      faces([[5, 8]]);
-      app?.element?.querySelector('button[data-action="reroll"]')?.click();
-      const used = await waitFor(() => (flagOf(first)?.status === 'used') ? flagOf(first) : null, 10000);
-      realDice();
-      const receipt = await waitFor(() => first?.getFlag(MOD, 'receipt'), 8000);
-      const results0 = first?.rolls?.[0]?.dice?.[0]?.results ?? [];
+      const m = await healThrough(cureAct(), [[1, 8], [6, 8], [5, 8]]);
+      const used = flagOf(m);
+      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      const results0 = m?.rolls?.[0]?.dice?.[0]?.results ?? [];
       await sleep(500);
-      ok('2a. the 1 rerolled to 5: struck on the roll, the new total stands (+4)',
-        !!used && (used.picks?.[0]?.old === 1) && (used.picks?.[0]?.new === 5) && (healTotal(first) === before + 4)
+      ok('1a. no popup: the 1 rerolled to 5 at once, struck on the roll, the new total stands',
+        !popupOpen() && (used?.status === 'used') && (used.picks?.[0]?.old === 1) && (used.picks?.[0]?.new === 5)
           && results0.some(r => (r.result === 1) && (r.active === false)),
-        `picks=${JSON.stringify(used?.picks)} total=${before}→${healTotal(first)}`);
-      ok('2b. the healing lands ONCE, with the new total',
-        !!receipt && (hp() === 1 + healTotal(first)),
-        `receipt=${!!receipt} hp=${hp()} expected=${1 + healTotal(first)}`);
-      const announce = game.messages.contents.find(m => m.getFlag(MOD, 'respondsTo') === first?.id);
-      ok('2c. the new die is on its own card', !!announce && (announce.rolls?.[0]?.total === 5), `card=${!!announce} roll=${announce?.rolls?.[0]?.total}`);
+        `status=${used?.status} picks=${JSON.stringify(used?.picks)} total=${healTotal(m)} popup=${popupOpen()}`);
+      ok('1b. the healing lands ONCE, with the new total', !!receipt && (hp() === 1 + healTotal(m)),
+        `receipt=${!!receipt} hp=${hp()} expected=${1 + healTotal(m)}`);
+      const announce = game.messages.contents.find(x => x.getFlag(MOD, 'respondsTo') === m?.id);
+      ok('1c. the new die is on its own card', !!announce && (announce.rolls?.[0]?.total === 5), `card=${!!announce} roll=${announce?.rolls?.[0]?.total}`);
     }
 
-    // ================================================== 3. Keep the roll
+    // ================================================== 2. two 1s
+    if (want(2)) {
+      await wound();
+      const m = await healThrough(cureAct(), [[1, 8], [1, 8], [4, 8], [7, 8]]);
+      const used = flagOf(m);
+      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
+      ok('2a. both 1s rerolled at once (→ 4, 7); the healing lands once with them',
+        (used?.status === 'used') && ((used.picks ?? []).length === 2) && (used.picks ?? []).every(p => p.old === 1)
+          && !!receipt && (hp() === 1 + healTotal(m)),
+        `picks=${JSON.stringify(used?.picks)} hp=${hp()} total=${healTotal(m)}`);
+    }
+
+    // ================================================== 3. no 1
     if (want(3)) {
       await wound();
-      const m = await heal(cureAct(), [[1, 8], [4, 8]]);
-      const app = await waitFor(healPopup, 6000);
-      app?.element?.querySelector('button[data-action="keep"]')?.click();
+      const m = await healThrough(cureAct(), [[3, 8], [7, 8]]);
       const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
-      ok('3a. Keep the roll: kept, and the healing lands as rolled',
-        (flagOf(m)?.status === 'kept') && !!receipt && (hp() === 1 + healTotal(m)),
+      ok('3a. no 1: the record settles "none", the healing lands at once',
+        (flagOf(m)?.status === 'none') && !!receipt && (hp() === 1 + healTotal(m)),
         `status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
     }
 
-    // ================================================== 4. no 1
+    // ================================================== 4. Battle Medic
     if (want(4)) {
       await wound();
-      const m = await heal(cureAct(), [[3, 8], [7, 8]]);
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
-      ok('4a. no 1: no popup, the record settles "none", the healing lands at once',
-        (flagOf(m)?.status === 'none') && !healPopup() && !!receipt && (hp() === 1 + healTotal(m)),
-        `status=${flagOf(m)?.status} popup=${!!healPopup()} hp=${hp()} total=${healTotal(m)}`);
-    }
-
-    // ================================================== 5. Battle Medic
-    if (want(5)) {
-      await wound();
-      const m = await heal(medicAct(), [[1, 8]]);
+      const m = await healThrough(medicAct(), [[1, 8], [7, 8]]);
       const formula = m?.rolls?.[0]?.formula ?? '';
-      const app = await waitFor(healPopup, 6000);
-      ok('5a. Battle Medic rolls without its own r1, and a 1 opens the same popup',
-        !/r1/.test(formula) && (flagOf(m)?.status === 'pending') && !!app,
-        `formula="${formula}" status=${flagOf(m)?.status} popup=${!!app}`);
-      faces([[7, 8]]);
-      app?.element?.querySelector('button[data-action="reroll"]')?.click();
-      await waitFor(() => (flagOf(m)?.status === 'used'), 10000);
-      realDice();
       const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
-      ok('5b. the reroll stands and the healing lands with it', (flagOf(m)?.status === 'used') && !!receipt && (hp() === 1 + healTotal(m)),
-        `status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
+      ok('4a. Battle Medic rolls without its own r1, the 1 is rerolled (→ 7), and the healing lands with it',
+        !/r1/.test(formula) && (flagOf(m)?.status === 'used') && (flagOf(m)?.picks?.[0]?.new === 7) && !!receipt && (hp() === 1 + healTotal(m)),
+        `formula="${formula}" status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
     }
 
-    // ================================================== 6. the clock
-    if (want(6)) {
-      await set('holdTimer', 3);
-      await wound();
-      const m = await heal(cureAct(), [[1, 8], [2, 8]]);
-      await waitFor(healPopup, 6000);
-      const kept = await waitFor(() => (flagOf(m)?.status === 'kept') ? flagOf(m) : null, 12000);
-      const receipt = await waitFor(() => m?.getFlag(MOD, 'receipt'), 8000);
-      ok('6a. the clock keeps the roll: kept (timed out), and the healing lands',
-        !!kept?.timedOut && !!receipt && (hp() === 1 + healTotal(m)),
-        `status=${flagOf(m)?.status} timedOut=${!!kept?.timedOut} hp=${hp()}`);
-      await set('holdTimer', 0);
-      await closeDialogs();
-    }
-
-    // ================================================== 7. off the list
-    if (want(7)) {
+    // ================================================== 5. off the list
+    if (want(5)) {
       await set('healRerollList', '');
       await wound();
       const m = await heal(medicAct(), [[5, 8]]);
       const formula = m?.rolls?.[0]?.formula ?? '';
-      ok('7a. Healer off the list: no record, and Battle Medic keeps its own r1', !flagOf(m) && /r1/.test(formula),
+      ok('5a. Healer off the list: no record, and Battle Medic keeps its own r1', !flagOf(m) && /r1/.test(formula),
         `record=${JSON.stringify(flagOf(m))} formula="${formula}"`);
     }
 
-    // ================================================== 8. Battle Medic on the kit's use
-    if (want(8)) {
+    // ================================================== 6. Battle Medic on the kit's use
+    if (want(6)) {
       await set('kitTendList', def('kitTendList'));
       await set('healRerollList', def('healRerollList'));
       const kitSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbagHealersKit0');
@@ -291,7 +256,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let i = 0; i < 40 && !canvas.tokens.get(clericDoc.id); i++) await sleep(250);
       const clericToken = canvas.tokens.get(clericDoc.id);
       if (!kit || !cls || !clericToken) {
-        ok('8. the fixtures: a Healer’s Kit, a class with Hit Dice, the Cleric’s token', false, `kit=${!!kit} cls=${!!cls} token=${!!clericToken}`);
+        ok('6. the fixtures: a Healer’s Kit, a class with Hit Dice, the Cleric’s token', false, `kit=${!!kit} cls=${!!cls} token=${!!clericToken}`);
       } else {
         await cls.update({ 'system.hd.spent': 0 });
         await cleric.update({ 'system.attributes.hp.value': 1 });
@@ -306,7 +271,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           .find(app => app.rendered && app.element?.querySelector?.('input[name="bf-kit-tend"]')) ?? null;
         const app = await waitFor(tendPopup, 6000);
         const box = app?.element?.querySelector('input[name="bf-kit-tend"]');
-        ok('8a. the kit’s use asks: the card holds the offer, the popup lists the Cleric’s Hit Die by size, the largest ticked',
+        ok('6a. the kit’s use asks: the card holds the offer, the popup lists the Cleric’s Hit Die by size, the largest ticked',
           (offer?.status === 'pending') && (offer?.pools ?? []).some(p => p.faces === faces0) && !!box?.checked,
           `offer=${JSON.stringify(offer ? { status: offer.status, pools: offer.pools } : null)} popup=${!!app} ticked=${box?.checked}`);
         faces([[5, faces0]]);
@@ -316,7 +281,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         realDice();
         const receipt = await waitFor(() => healMsg?.getFlag(MOD, 'receipt'), 8000);
         const prof = Number(cleric.system.attributes.prof) || 0;
-        ok('8b. Tend: the Cleric’s die spent on its class, the feature’s own heal of that size rolled (5 + PB), the healing landed',
+        ok('6b. Tend: the Cleric’s die spent on its class, the feature’s own heal of that size rolled (5 + PB), the healing landed',
           !!done?.spent && (Number(cls.system.hd.spent) === 1) && new RegExp(`1d${faces0}`).test(healMsg?.rolls?.[0]?.formula ?? '')
             && !!receipt && (Number(cleric.system.attributes.hp.value) === 1 + 5 + prof),
           `done=${JSON.stringify(done ? { spent: done.spent, faces: done.faces } : null)} hdSpent=${cls.system.hd.spent} formula="${healMsg?.rolls?.[0]?.formula ?? ''}" hp=${cleric.system.attributes.hp.value}`);

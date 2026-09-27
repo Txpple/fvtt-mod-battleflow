@@ -916,32 +916,33 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
 
-## One dice popup — the dice changers (ruled 2026-09-26, not built)
+## The dice changers — automatic where there is no choice (2026-09-26)
 
-**Ruled off [prototypes/dice-popup.html](prototypes/dice-popup.html)** (the user, the PHB feats walk:
-*"elemental fire ... says you CAN, so elemental should popup the option like it does for healer"*;
-*"you should also universialize that shape somehow, since we now have a pattern of 3"*; then *"the ui
-looks good for the dice rerollers"*). Every feature that changes dice on a roll already landed shares
-ONE popup per roll: Empowered Spell, Healer, Elemental Adept, Piercer, Savage Attacker.
+**A dice change that can never make the roll worse is not a choice, so it asks nothing** (DESIGN R1;
+the user, the PHB feats walk: *"make adept automatic, fix healer that way too"* — *"yea then its
+consistent with that great weapon one"*). The "you can" in Elemental Adept's and Healer's text has
+one sensible answer, the way Great Weapon Fighting's does.
 
-- **A row per feature that fits the roll**, the dice as chips above them (Empowered's grid). A
-  picking row (Empowered, Healer, Piercer) takes the chip clicks; one picking row at a time.
-- **Rerolls first, then "treat as"**: Elemental Adept's 1 → 2 is applied to the faces that stand
-  after every reroll, so a reroll that lands on 1 is still lifted.
-- **Elemental Adept is a choice** ("you can"): its row starts ticked when a 1 of its type shows, and
-  unticking it keeps the 1. The automatic floor built in group 1 is replaced by the row.
-- **Piercer's die is still the module's pick** (group 3's ⓐ, confirmed on the walk) — clicking
-  another chip moves it. **Savage Attacker and Piercer together are two rows** (the set again, then
-  one die), which settles BACKLOG's *one question per hit*.
-- **Great Weapon Fighting stays automatic**, as walked.
+- **Elemental Adept stays automatic** — its type's 1s count as 2 (the `min2` floor, group 1).
+- **Healer rerolls every 1 as the dice land** — no popup; the healing waits for the new dice and
+  lands once, the new die on its own card and over the healer on the canvas (`heal-rerolls.js`, the
+  same road, the ask taken out).
+- **A reroll keeps its die's floor** (`decide/damage-dice.js` `rerollFaces`): a new face under the
+  term's `minN` counts N, the way Foundry's `Die#minimum` counts it — so Gren's Empowered reroll that
+  lands on a fire 1 is still a 2, and a Piercer reroll under Great Weapon Fighting is still a 3.
+- **The choices keep their popups**: Empowered Spell (a point, the dice picked), Savage Attacker and
+  Piercer (once per turn).
+- **One shared dice popup** was drawn and liked (*"the ui looks good for the dice rerollers"*,
+  [prototypes/dice-popup.html](prototypes/dice-popup.html)), then PARKED the same hour: with the
+  automatic two above, what it would unify is three machines no character combines (BACKLOG).
 
 ## The PHB feats — groups 1–3 (2026-09-26)
 
 **Built in one autonomous pass** (the user: *"work autonomously til done with 1-3"*), off the scope
 above. The calls made while the user was away are marked ⓐ. **WALKED 2026-09-26 on Party Camp**
 (`tools/content/place-feats-walk.mjs`), feat by feat, all eight good; every ⓐ call stands, with one
-change: Elemental Adept's 1s become a CHOICE in the one dice popup (*One dice popup*, above, ruled,
-not built — until it is built, the floor below stands). The range feats keep no list of their own
+later ruling: Elemental Adept's floor stays automatic and survives a reroll (*The dice changers*,
+above). The range feats keep no list of their own
 (the user: *"this is fine leave it to the table"*). Poisoner's Apply Poison became a Poison Coating on
 the character the same walk (*Bent by choice*).
 

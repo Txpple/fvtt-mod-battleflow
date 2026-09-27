@@ -143,7 +143,7 @@ export const ORDER = [
   },
   // The origin feats (2026-09-25): BF Test Cleric is lent the PHB's Healer and Cure Wounds for the run.
   {
-    name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): Empowered's dice popup, the 1s ticked, the healing waiting for the answer and landing once; kept, none, the clock, the list",
+    name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): rerolled automatically as the dice land (since 2026-09-26), the healing waiting for the new dice and landing once; none, the list, the kit's tending",
     needs: ["fixture-suite"]
   },
   // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
