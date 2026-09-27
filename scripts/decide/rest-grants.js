@@ -1,17 +1,11 @@
 // @ts-check
-/**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): the rest grants given to allies (rest-grants.js) —
- * Inspiring Leader and Chef: what a creature already holds, and whether a Chef's meal reaches it.
- * Pure functions over plain data, no imports.
- */
+/** Battle Flow — DECISION (ARCHITECTURE.md §2): the rest grants given to allies. Pure. */
 
 /**
- * TEMPORARY HIT POINTS DO NOT STACK — a creature keeps the pool it chooses, and nobody keeps the
- * smaller on purpose, so a grant lands only where it is MORE than the creature holds; one already
- * holding as many is shown greyed, "has it".
- * @param {number} current  the creature's Temporary Hit Points now
- * @param {number} amount   the grant
- * @returns {boolean}       true when the grant would give it nothing
+ * TEMPORARY HIT POINTS DO NOT STACK: true when the grant is no more than what the creature holds.
+ * @param {number} current
+ * @param {number} amount
+ * @returns {boolean}
  */
 export function holdsTemp(current, amount) {
   const have = Number(current) || 0;
@@ -20,14 +14,9 @@ export function holdsTemp(current, amount) {
 }
 
 /**
- * WHERE A CHEF'S MEAL STANDS FOR ONE EATER (Replenishing Meal: an eater who spends Hit Dice in the
- * Short Rest regains an extra 1d8). Each creature rests on its own client in any order, so this
- * reads the eater's LATEST Short Rest card (its Hit Dice spent, stamped by rest-grants.js):
- *   "spent"    it finished a Short Rest in the same sitting and spent Hit Dice — the extra lands now
- *   "none"     it finished one and spent none — the food does it no good (greyed)
- *   "resting"  no Short Rest of its own in this sitting yet — the extra waits for its rest's end
- * The same sitting: both rests answer the same Rest request when both name one (dnd5e's
- * `system.request`), else they ended within `windowMs` of each other.
+ * A Chef's meal for one eater, off its LATEST Short Rest (rests land in any order): "spent" Hit
+ * Dice in the same sitting, "none" spent, or still "resting". The same sitting: one Rest request
+ * (`system.request`) when both name one, else within `windowMs`.
  * @param {{rest?: {at?: number, hitDice?: number, requestId?: string|null}|null,
  *          chef: {at: number, requestId?: string|null}, windowMs?: number}} facts
  * @returns {"spent"|"none"|"resting"}

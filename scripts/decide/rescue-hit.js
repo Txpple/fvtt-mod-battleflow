@@ -1,19 +1,14 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the `roll` interrupt — a defender's rescue of
- * a hit that imposes Disadvantage on the attack roll AFTER the verdict showed (Lucky, Warding
- * Flare, Shadowy Dodge; decide/registry.js INTERRUPT_ROLLS; RULINGS *Rescuing the hit*). Pure.
- *
- * ⚠ Disadvantage on a roll already made is not a reroll. A plain roll gets a SECOND d20 and the
- * LOWER stands; an Advantage roll CANCELS to a plain roll — the FIRST die rolled, no second die; a
- * roll already at Disadvantage does not stack, so the row shows spent. The stood d20 carries its
- * own crit and fumble (a replaced natural 20 is no longer a crit), hence a `replace`, never an `add`.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the `roll` interrupt, Disadvantage imposed on
+ * an attack AFTER the verdict showed (INTERRUPT_ROLLS; RULINGS *Rescuing the hit*). Pure.
+ * ⚠ Not a reroll: a plain roll gets a SECOND d20, the LOWER standing; Advantage CANCELS to the FIRST
+ * die; Disadvantage does not stack. The stood d20 carries its own crit, hence a `replace`.
  */
 
 /**
- * The roll mode a d20 term was rolled in, off its modifiers: dnd5e's D20Die writes `adv` / `dis`
- * (`adv2` for Elven Accuracy) and keeps `number` 1 until it evaluates, so those are read first,
- * whatever the number; core's `kh` / `kl` still cover a roll typed by hand.
+ * A d20 term's roll mode off its modifiers. ⚠ dnd5e's `adv`/`dis` keep `number` 1 until evaluated,
+ * so they are read first; `kh`/`kl` cover a hand-typed roll.
  * @param {{number?: number, modifiers?: string[]}} term
  * @returns {"advantage"|"disadvantage"|"normal"}
  */
@@ -27,9 +22,7 @@ export function d20ModeOf(term) {
 }
 
 /**
- * The d20 faces a term's results carry: the one that STOOD (active) and the PLAIN one — the first
- * face rolled that a reroll modifier did not replace (a Halfling's natural 1, rerolled natively
- * by dnd5e, is not a face the attack ever used).
+ * The face that STOOD and the PLAIN one: the first face a native reroll (Halfling) did not replace.
  * @param {{result: number, active?: boolean, rerolled?: boolean, discarded?: boolean}[]} results
  * @returns {{kept: number|null, plain: number|null}}
  */
@@ -44,16 +37,16 @@ export function d20Faces(results) {
 export const needsSecondD20 = mode => mode === "normal";
 
 /**
- * Disadvantage imposed on an attack roll already made — what stands, and whether it moved.
+ * Disadvantage imposed on an attack roll already made: what stands, and whether it moved.
  * @param {object} args
- * @param {"advantage"|"disadvantage"|"normal"} args.mode   the attack's own mode (d20ModeOf)
- * @param {number} args.kept      the d20 face the attack's total used
- * @param {number|null} [args.plain]   the first face rolled (the Advantage case's plain roll)
- * @param {number|null} [args.second]  the second d20's face (the plain case)
- * @param {number} args.total     the attack's total as rolled
- * @param {number} [args.critAt]  the attack roll's own critical threshold (20 unless a feature lowers it)
+ * @param {"advantage"|"disadvantage"|"normal"} args.mode
+ * @param {number} args.kept      the face the attack's total used
+ * @param {number|null} [args.plain]
+ * @param {number|null} [args.second]
+ * @param {number} args.total
+ * @param {number} [args.critAt]
  * @param {number} [args.fumbleAt]
- * @param {number[]|null} [args.faces]  the attack's d20 faces in the order rolled (bentChips)
+ * @param {number[]|null} [args.faces]  in the order rolled
  * @returns {{how: "lower"|"cancelled"|"none", first: number, second: number|null, stood: number,
  *            firstTotal: number, total: number, isCritical: boolean, isFumble: boolean,
  *            wasCritical: boolean, changed: boolean}}
@@ -75,17 +68,13 @@ export function disadvantageOutcome({ mode, kept, plain = null, second = null, t
     stood, firstTotal: Number(total), total: stood + modifier,
     isCritical: stood >= critAt, isFumble: stood <= fumbleAt,
     wasCritical: Number(kept) >= critAt, changed: stood !== Number(kept),
-    // the attack's own d20 faces in the order rolled — the dice the canvas shows (bentChips)
     ...(Array.isArray(faces) ? { faces: faces.map(Number).filter(Number.isFinite) } : {})
   };
 }
 
 /**
- * THE DICE OF A BENT ROLL, as the canvas shows them (dice-rise.js): every d20 in play in the order
- * rolled, the one that STANDS gold-edged, the rest struck — red when the drop took a critical.
- *   lower      the attack's die, then the second: the lower stands (a tie keeps the first)
- *   cancelled  the Advantage pair: the FIRST die stands (the register), the other drops
- *   none       nothing moved (already at Disadvantage): no dice
+ * THE DICE OF A BENT ROLL for the canvas: every d20 in order, the one that STANDS up, the rest
+ * struck (`lost` when the drop took a critical). A tie keeps the first.
  * @param {{how: string, first: number, second: number|null, stood: number, wasCritical: boolean,
  *          isCritical: boolean, faces?: number[]}|null} bent
  * @returns {{label: string, up?: boolean, drop?: boolean, lost?: boolean}[]}
@@ -110,10 +99,8 @@ export function bentChips(bent) {
 }
 
 /**
- * Does a rolled critical stand for the damage? One damage roll serves every target the attack
- * hit, so the crit doubles the dice only when it stands against ALL of them — the automatic
- * crit's intersection rule (auto-damage.js `critFor`). A target whose hold bent the roll carries
- * its own `bent` result; the crit is gone for the roll when any hit target's bent roll is not one.
+ * Does a rolled crit stand for the damage? One damage roll serves every hit target, so only when it
+ * stands against ALL of them (the intersection rule of `critFor`).
  * @param {{rolledCrit: boolean, hitUuids: string[], bents: Record<string, {isCritical?: boolean}|null|undefined>}} args
  */
 export function critStands({ rolledCrit, hitUuids, bents }) {
@@ -122,9 +109,8 @@ export function critStands({ rolledCrit, hitUuids, bents }) {
 }
 
 /**
- * The rows the popup that rescues a hit shows: the held reaction the list found first (Shield,
- * Parry — `primary`) and every `roll` row the sheet holds. Each row's tag is the cost, or why it
- * cannot be taken; a spent row stays, greyed, and the popup opens only when a row is live.
+ * The rescue popup's rows: the held reaction (`primary`) and every `roll` row. A row's tag is its
+ * cost or why it is off; an off row stays, greyed.
  * @param {object} args
  * @param {{name: string, kind: string, bonus?: number|null, spell?: boolean, pool?: {spend: string, left: number, max: number}|null,
  *          multiplier?: number|null, uses?: {left: number, max: number}|null}|null} args.primary
@@ -158,8 +144,7 @@ export function rescueRows({ primary, rolls, facts }) {
 }
 
 /**
- * A GUARD's row (Protection): Disadvantage for another. Against an attack already at Disadvantage
- * the row still shows, greyed, and the popup says why it would do nothing.
+ * A GUARD's row (Disadvantage for another); greyed and `futile` against a roll already at Disadvantage.
  * @param {{name: string, rule?: string, mode: string}} args
  * @returns {{row: {key: string, name: string, dice: string, tag: string, off: string|null, rule: string}, futile: boolean}}
  */
@@ -169,23 +154,21 @@ export function guardRow({ name, rule = "", mode }) {
   return { row: { key: name, name, dice: "Disadvantage", tag: off ?? "a Reaction", off, rule }, futile };
 }
 
-/** The guard popup's line when the row can do nothing: why, and that the Reaction is better kept. */
+/** The guard popup's line when the row can do nothing. */
 export const futileGuardLine = name =>
   `It was already rolled with <strong>Disadvantage</strong>, and Disadvantage doesn't stack — ${name} would spend your Reaction for nothing. Keep it for something else.`;
 
 const usesLeft = n => `${n} use${n === 1 ? "" : "s"} left`;
 
-/** A reduction's pool in its own word, with the count: "2 of 3 uses left", "3 of 4 Superiority Dice left". */
+/** A reduction's pool in its own word: "3 of 4 Superiority Dice left". */
 const poolLeft = ({ spend = "Superiority Die", left = 0, max = 0 } = {}) => {
   const word = (spend === "use") ? "uses" : /die$/i.test(spend) ? spend.replace(/die$/i, m => (m[0] === "D" ? "Dice" : "dice")) : `${spend}s`;
   return (max > 0) ? `${left} of ${max} ${word} left` : `${left} ${word} left`;
 };
 
 /**
- * A reaction's own text as its row's folded rule (law 8 — read off the sheet's item, never
- * copied): the description's HTML flattened to words, an enricher shown as the label the card
- * renders (`&Reference[prone]` → "Prone"), an inline roll or lookup dropped, and the pack's
- * trailing "Foundry Note" (about the automation, not the rule) cut.
+ * A reaction's description as plain words: enrichers as their labels, inline rolls dropped, the
+ * pack's trailing "Foundry Note" (automation, not rule) cut.
  * @param {string} html
  */
 export function plainRule(html) {
@@ -202,9 +185,7 @@ export function plainRule(html) {
 }
 
 /**
- * The defender's card line for what the answer cost: "1 Luck Point spent · Luck Points: 2 of 3
- * remaining", "Reaction spent · …". The count is the spend record's (shared.js `spendPoolUses`) —
- * absent when the sheet's own use paid it.
+ * The defender's card line for what the answer cost; the count is the spend record's, if any.
  * @param {{row: {reaction: boolean, uses: boolean, point?: string|null, after?: string},
  *          poolSpend?: {pool: string, left: number, max: number}|null}} args
  */
@@ -221,8 +202,7 @@ export function rescueSpendText({ row, poolSpend = null }) {
 export const liveRows = rows => (rows ?? []).filter(r => !r.off);
 
 /**
- * The popup's title: "Rescue the hit — <defender>" for several rows; one row keeps the house's
- * single-moment title, the ability and who.
+ * The popup's title: "Rescue the hit" for several rows, the ability's name for one.
  * @param {{name: string}[]} rows
  * @param {string} defender
  */
@@ -232,8 +212,8 @@ export function rescueTitle(rows, defender) {
 }
 
 /**
- * The attacker's card, after (source then result — law 6): the headline says who bent the roll and
- * what it did, the detail keeps the struck die. `verdict` is the continuation's, against the live AC.
+ * The attacker's card: who bent the roll and what it did, the detail keeping the struck die.
+ * `verdict` is against the live AC.
  * @param {{rescue: string, bent: ReturnType<typeof disadvantageOutcome>, verdict: "hit"|"miss", ac: number|null}} args
  * @returns {{headline: string, detail: string}}
  */

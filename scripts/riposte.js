@@ -1,8 +1,6 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold — an enemy's melee miss
- * answered with a real driven attack, the superiority die riding its damage. Why it is a fold
- * (never `hold`, the interrupt list or the resolver) is argued once, in precision.js's header.
- * One feature per file: the shared readers live in lookup.js, the rules text in decide/registry.js.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
+ * answered with a real driven attack, the superiority die riding its damage (why a fold: precision.js).
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
@@ -15,9 +13,6 @@ import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } f
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 
-/* =============================================================================================
- * RIPOSTE
- * ========================================================================================== */
 
 const riposteTimers = new Map();
 const riposteInFlight = new Set();
@@ -48,9 +43,7 @@ Hooks.on("createChatMessage", async message => {
       if ( !(actor instanceof Actor) ) continue;
       if ( (actor.system.attributes?.hp?.value ?? 0) <= 0 ) continue;  // the dead don't riposte
       if ( actor.uuid === attacker.uuid ) continue;
-      // ⚠ NOT a budget test: this flag is the CLICK-VOLUME GUARD (the hold's chip, hold/trigger.js).
-      // The module does not track action economy (DESIGN §8); every read of it only declines to
-      // OFFER — nothing refuses a cast. Read as "don't nag this actor again this turn."
+      // ⚠ NOT a budget test: the CLICK-VOLUME GUARD (DESIGN §8) only declines to OFFER again this turn.
       if ( reactionSpent(actor) ) continue;
       if ( !modeAllows(actor) ) continue;                              // rides the resolver (Graze's argument)
       const found = usableManeuver(actor, entry.name);
@@ -70,7 +63,7 @@ Hooks.on("createChatMessage", async message => {
     await message.setFlag(MODULE_ID, "riposte", {
       status: "pending",
       attackerUuid: attacker.uuid, attackerName: attacker.name,
-      ...statContext(attacker.uuid), // the data-plane stamp — the swing that invited the counter
+      ...statContext(attacker.uuid),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       reactors
     });
@@ -80,8 +73,7 @@ Hooks.on("createChatMessage", async message => {
   }
 });
 
-/* Per-reactor answers don't fit armAskTimer's single-answer shape — the per-target gate on
- * the spine's raw clock (the topple timer's idiom). */
+/* Per-reactor answers don't fit armAskTimer's single-answer shape: a per-target gate on the raw clock. */
 function armRiposteTimer(message) {
   const flag = message?.getFlag(MODULE_ID, "riposte");
   if ( !flag?.deadline || (flag.status !== "pending") || !isActiveGM() ) return;
@@ -91,8 +83,7 @@ function armRiposteTimer(message) {
 
 const disarmRiposteTimer = messageId => disarmDeadline(riposteTimers, messageId);
 
-/** Expiry DECLINES — a reaction nobody took is a reaction not taken (the hold's pass, not
- * the save machine's roll: nothing here is mandatory). */
+/** Expiry DECLINES: a reaction nobody took is a reaction not taken. */
 async function fireRiposteTimer(messageId) {
   try {
     const message = game.messages.get(messageId);
@@ -109,10 +100,8 @@ async function fireRiposteTimer(messageId) {
   }
 }
 
-/** One reactor's answer — claim through the flag lock; "riposte" executes on this client.
- * ⚠ A PLAYER cannot update the enemy's attack message (author-or-GM), so their answer travels as
- * their OWN message and the elect folds it in (hold/answer.js's relay split). The driven attack
- * still runs on the answering client; the elect's 20s crash-resume covers a client that died. */
+/** One reactor's answer; "riposte" executes on this client. ⚠ A PLAYER cannot update the enemy's
+ * message, so their answer relays as their OWN message; the elect's 20s crash-resume covers a dead client. */
 async function answerRiposte(message, uuid, answer, { weaponId = null, weaponName = null } = {}) {
   if ( !message.isOwner ) {
     const live = message.getFlag(MODULE_ID, "riposte");
@@ -141,7 +130,7 @@ async function answerRiposte(message, uuid, answer, { weaponId = null, weaponNam
     const r = (current.reactors ?? []).find(x => x.uuid === uuid);
     if ( !r || r.answer || (current.status !== "pending") ) return;
     r.answer = answer;
-    r.answeredAt = Date.now();   // the crash-resume horizon (the topple discipline)
+    r.answeredAt = Date.now();   // the crash-resume horizon
     if ( weaponId ) { r.weaponId = weaponId; r.weaponName = weaponName; }
     if ( (current.reactors ?? []).every(x => x.answer) ) current.status = "resolved";
     claimed = true;
@@ -150,9 +139,7 @@ async function answerRiposte(message, uuid, answer, { weaponId = null, weaponNam
   await resolveRiposte(message, uuid, weaponId);
 }
 
-/** A relayed answer landing: the ELECT folds it into the riposte flag, idempotently (the claim
- * rules are the direct path's). Registered with the spine's relay registry; `owns` ignores the
- * flag because the elect is the owner. */
+/** A relayed answer landing: the ELECT folds it in, idempotently, by the direct path's claim rules. */
 registerRelay("riposteAnswer", {
   flagKey: "riposte",
   targetOf: a => a.messageId,
@@ -171,9 +158,8 @@ registerRelay("riposteAnswer", {
 const riposteDriven = (messageId, uuid) => game.messages.contents.some(m =>
   (m.getFlag(MODULE_ID, "riposteFor") === messageId) && (m.getFlag(MODULE_ID, "riposteBy") === uuid));
 
-/** The accept path: use the maneuver, spend the reaction, arm the die, drive the attack.
- * `trusted` is the relay branch trusting its OWN just-posted answer — the flag fold happens
- * on the elect a beat later, and waiting for the round-trip would idle the player's dice. */
+/** The accept path: use the maneuver, spend the reaction, arm the die, drive the attack. `trusted`:
+ * the relay branch trusts its own just-posted answer rather than wait for the elect's fold. */
 async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {}) {
   const key = `${message.id}|${uuid}`;
   if ( riposteInFlight.has(key) ) return;
@@ -196,21 +182,18 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
     }
 
     try {
-      // 1. REALLY use the maneuver — the system consumes the pool — and SPEND the reaction: the
-      //    hold's own setter fires only when reactionHold is on, so the fold sets it itself.
+      // Use the maneuver and SPEND the reaction here (the hold's setter runs only under reactionHold).
       const item = actor.items.get(reactor.itemId);
       const activity = item?.system.activities?.contents?.find(a => a.id === reactor.activityId);
       if ( !activity ) return;
-      //    ⚠ subsequentActions:false, or dnd5e follows the use by rolling the maneuver's own damage
-      //    activity — a native config dialog parked over the whole resolution.
+      // ⚠ subsequentActions:false, or dnd5e parks the maneuver's own damage dialog over everything.
       await activity.use({ subsequentActions: false }, { configure: false }, {
         data: { flags: { [MODULE_ID]: { riposteUse: message.id } } }
       });
       void spendReaction(actor, { origin: activity.item?.uuid ?? null, what: activity.item?.name ?? "the riposte" });
 
-      // 2. Arm the one-shot die for the injection hook, THEN drive the real attack: use() for the
-      //    usage card, rollAttack chained to it, module provenance in FLAT message data (nested
-      //    data is invisible to the riders).
+      // Arm the one-shot die, THEN drive the attack. ⚠ Provenance in FLAT message data: nested is
+      // invisible to the riders.
       const options = meleeOptions(actor);
       const wantId = weaponId ?? reactor.weaponId ?? null;   // the stored choice survives a crash-resume
       const chosen = options.find(o => o.itemId === wantId) ?? preferredMeleeOption(actor, options);
@@ -231,8 +214,6 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
           flags: { [MODULE_ID]: { riposteFor: message.id, riposteBy: uuid } }
         }
       });
-      // The rest is the ordinary pipeline: rollAttackV2, auto-damage, the injection below, and
-      // the riders on the elect.
     } finally {
       // Put the table back the way the reactor had it.
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
@@ -255,9 +236,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const armed = riposteDie.get(actor.uuid);
     if ( !armed ) return;
     if ( (Date.now() - armed.armedAt) > RIPOSTE_DIE_TTL_MS ) { riposteDie.delete(actor.uuid); return; }
-    // When the damage names its chain, verify it leads to OUR driven attack — a different
-    // attack rolled inside the window must not inherit the die. A chainless roll (the native
-    // button) falls back to the actor+TTL match.
+    // A chained damage roll must lead to OUR driven attack; a chainless one falls back to actor+TTL.
     const originId = originIdInData(message?.data);
     if ( originId ) {
       const origin = game.messages.get(originId);
@@ -268,8 +247,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       }
     }
     riposteDie.delete(actor.uuid);   // one-shot, consumed
-    // The die folds INTO the base roll — one dice group, one total; a pushed entry renders as its
-    // own group. A base part crit-doubles too, which is the rule. The typed push is a fallback.
+    // The die folds INTO the base roll (one group, crit-doubles by rule); the typed push is a fallback.
     const base = (config.rolls ?? []).find(r => r.base === true);
     if ( base ) base.parts = [...(base.parts ?? []), armed.formula];
     else config.rolls.push({
@@ -282,9 +260,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-/* The riposte's swing never ends in silence: a MISS announces itself, so a Graze or Precision
- * offer that follows arrives from an announced miss. The ROLLING client posts (one client, one
- * card); the HIT half lives in offerDamageRoll, which names the riposte and its riding die. */
+/* A riposte MISS announces itself, posted by the ROLLING client; the hit half is offerDamageRoll's. */
 Hooks.on("dnd5e.rollAttackV2", async rolls => {
   try {
     const message = rolls?.[0]?.parent;
@@ -310,8 +286,7 @@ Hooks.on("dnd5e.rollAttackV2", async rolls => {
   }
 });
 
-/** The Riposte/Pass popup — two controls plus the weapon choice (an input, like the topple
- * bonus field: inputs inform the answer, they are not answers). */
+/** The Riposte/Pass popup: two controls plus the weapon choice (an input, not an answer). */
 async function showRipostePopup(message, flag, reactor) {
   const actor = resolveUuid(reactor.uuid);
   // The weapon choice defaults to the weapon last attacked with; a single equipped melee weapon
@@ -353,9 +328,7 @@ async function showRipostePopup(message, flag, reactor) {
 }
 
 
-/* =============================================================================================
- * THE ROWS, THE WATCHER, THE CLEANUP — maneuvers.js's shared plumbing, this fold's slice of it.
- * ========================================================================================== */
+// THE ROWS, THE WATCHER, THE CLEANUP.
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   // --- Riposte: one row per reactor on the enemy's attack card ------------------------------
@@ -397,8 +370,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       }
     }
     if ( pending ) { scheduleBarSync(row); armRiposteTimer(message); }
-    // Crash-resume, elect-owned, 20s horizon: an accepted riposte with no driven attack in the
-    // log — the provenance flags are the receipt, so the check is exact.
+    // Crash-resume (elect, 20s): an accepted riposte with no driven attack in the log.
     if ( isActiveGM() ) {
       for ( const reactor of r.reactors ?? [] ) {
         if ( (reactor.answer === "riposte") && reactor.answeredAt

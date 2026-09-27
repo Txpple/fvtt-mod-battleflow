@@ -1,8 +1,7 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the DEMAND — the casting
- * client stamps the `saves` flag on the save activity's own usage card (the bus), with the
- * dead-target gate, metamagic, a chosen area and an emanation's reach applied at the cast.
- * index.js is the directory's only public face and fixes the registration order.
+ * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the DEMAND. The casting
+ * client stamps the `saves` flag on the usage card, with the dead-target gate, metamagic, a chosen
+ * area and an emanation's reach applied at the cast.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
@@ -17,12 +16,8 @@ import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../settings.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
-// ⚠ Safe statically, unlike auto-damage.js's own ui.js import (the ESM order trap): the entry
-// reaches auto-damage.js long before this directory, so no hook registration moves. Do not make
-// it dynamic without re-running check-hook-order.
+// ⚠ Static on purpose (the ESM order trap): no hook registration moves. Re-run check-hook-order before changing it.
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
-
-/* --- metamagic on the demand ------------------------------------------------------------------ */
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -32,22 +27,17 @@ function casterFactsOf(activity) {
 }
 
 /**
- * What the cast's metamagic does to THIS demand: Careful's protected creatures leave the target
- * list, Heightened's mark rides the demand for the save gate. Derived from the creatures the save
- * REACHES (at the stamp, or at adoption for a bare cast) and written back onto the metamagic flag;
- * a player's own pick (`chosen: true`) is honoured, never recomputed.
+ * The cast's metamagic on THIS demand: Careful's protected leave, Heightened's mark rides along.
+ * A player's own pick (`chosen: true`) is honoured, never recomputed.
  * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: string}|null}>}
  */
 export async function metamagicForDemand(card, activity, contained) {
   const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
-  // An ask still to come (Careful or Heightened, nothing chosen yet): the stamp defers the dice on it.
   const pendingAsk = !!mm && ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen;
   const none = { protectedUuids: new Set(), heightened: null, hold: false, pendingAsk };
   if ( !mm || !Array.isArray(contained) ) return none;
   const facts = casterFactsOf(activity);
-  // THE ASK AT THE AREA: a pick the window could not make (nobody selected, the area came later)
-  // is asked NOW of the creatures the area holds, and the demand WAITS (no targets, no clock) until
-  // the caster answers or the clock keeps the default. area-ask.js opens and answers the ask.
+  // THE ASK AT THE AREA: a pick not yet made is asked of the area's creatures; the demand WAITS.
   if ( ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
     const ask = card.getFlag(MODULE_ID, AREA_ASK_FLAG);
     if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
@@ -58,8 +48,7 @@ export async function metamagicForDemand(card, activity, contained) {
   }
   if ( mm.key === "careful" ) {
     const list = carefulProtects({ contained, ...facts, cap: mm.cap ?? 1, chosen: mm.chosen ? (mm.protected ?? []).map(p => p.uuid) : null });
-    // ⚠ A CHOSEN list is the player's and is never rewritten — a bare cast's stamp sees an EMPTY
-    // reach, and writing that back would erase the ticks. Only a DEFAULT list is written.
+    // ⚠ Only a DEFAULT list is written back: a bare cast's empty reach would erase a player's ticks.
     const same = JSON.stringify(list) === JSON.stringify(mm.protected ?? null);
     if ( !mm.chosen && !same && card.canUserModify?.(game.user, "update") ) await card.setFlag(MODULE_ID, METAMAGIC_FLAG, { ...mm, protected: list });
     return { protectedUuids: new Set(list.map(p => p.uuid)), heightened: null, hold: false, pendingAsk };
@@ -75,18 +64,9 @@ export async function metamagicForDemand(card, activity, contained) {
   return none;
 }
 
-/* --- a spell that chooses its targets --------------------------------------------------------- */
-
 /**
- * WHO A CHOSEN AREA AFFECTS (registry.js CHOSEN_AREAS): a listed spell's area is where its caster
- * CHOOSES, never who owes the save (RULINGS *Spells that choose their targets*). Read at the stamp
- * and at adoption, before Careful and Heightened:
- *   - a choice on the card (`areaChoice`) filters the contents to the chosen;
- *   - an open ask holds the demand, empty and clockless;
- *   - a real choice to make (`choiceNeedsAsk`) raises the ask, kind `choose` (carrying Heightened's
- *     radio when that pick is still to come), and holds;
- *   - otherwise the default (every hostile, up to the spell's number) is written as the choice.
- * The caster and a corpse are never candidates. Not listed, or no area in hand: pass through.
+ * WHO A CHOSEN AREA AFFECTS (RULINGS *Spells that choose their targets*): a recorded choice
+ * filters; an open or needed ask holds the demand; otherwise the default is written as the choice.
  * @returns {Promise<{contained: object[]|null, hold: boolean}>}
  */
 export async function areaChoiceForDemand(card, activity, contained) {
@@ -115,7 +95,6 @@ export async function areaChoiceForDemand(card, activity, contained) {
     return { contained: pool.filter(c => ids.has(c.uuid)), hold: false };
   }
   if ( writable ) {
-    // Heightened's pick still to come rides the same popup — a radio among the chosen.
     const mm = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
     const heightened = ((mm?.key === "heightened") && !mm.chosen)
       ? { feature: mm.feature, rule: mm.rule ?? metamagicRuleText(itemNamed(activity.actor, mm.feature)?.system?.description?.value ?? "") } : null;
@@ -125,17 +104,13 @@ export async function areaChoiceForDemand(card, activity, contained) {
   return { contained: [], hold: true };
 }
 
-/**
- * THE PICTURE WAITS FOR THE CHOICE: FX Studio asks the hold registry before playing anything keyed
- * on the cast's activity, so a hold raised as the card is born makes the card and area wait.
- * Released by the stamp when nothing is asked, or by the answer (area-ask.js, on every client).
- * Bounded by the ask's clock plus slack; a clockless ask holds clockless and the consumer bounds it.
- */
+/* THE PICTURE WAITS FOR THE CHOICE: a hold raised as the card is born keeps FX Studio's visuals
+ * back until the stamp (nothing asked) or the answer releases it; bounded by the clock plus slack. */
 const CHOICE_HOLD_SLACK_MS = 30_000;
 Hooks.on("preCreateChatMessage", doc => {
   try {
     if ( !setting(S.saves) || !isCard(doc, CARD.usage) ) return;
-    // metamagic's held card re-posted with its answer: the question was asked before it existed.
+    // A held card re-posted with its answer: the question was already asked.
     if ( doc.getFlag?.(MODULE_ID, AREA_CHOICE_FLAG) || doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) return;
     const uuid = activityUuidOf(doc);
     const activity = uuid ? resolveUuid(uuid) : null;
@@ -151,14 +126,11 @@ function settleChoiceHold(activity, message) {
   if ( !uuid || !isHeld(uuid) ) return;
   const ask = message?.getFlag(MODULE_ID, AREA_ASK_FLAG);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return;
-  if ( !chosenAreaListed(activity.item?.name) ) return;   // somebody else's hold (metamagic's held card) — theirs to lift
+  if ( !chosenAreaListed(activity.item?.name) ) return;   // somebody else's hold
   releaseHold(uuid, message ?? null);
 }
 
-/* --- the stamp: the casting client writes the demand on the usage card --------------------- */
-
-/** Stamp-time filter: an unresolvable uuid stays IN (the buzzer voids gone targets — never
- * eat a demand on a lookup miss); a dead one stays out. */
+/** Stamp-time filter: a dead target stays out; an unresolvable uuid stays IN (never eat a demand on a lookup miss). */
 export function saveDemandable(t) {
   const actor = resolveUuid(t.uuid);
   if ( !(actor instanceof Actor) ) return true;
@@ -169,12 +141,11 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   if ( !setting(S.saves) ) return;
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
-  if ( !message ) return; // used with create: false — no card, no bus, nothing to run
+  if ( !message ) return; // create: false — no card, no bus
   void stampSaveDemand(activity, message, results).finally(() => settleChoiceHold(activity, message));
 });
 
-// A usage card the metamagic ask held back until the caster answered: born with the pick made, so
-// the stamp runs as at the use — the placed areas in hand — on the client that posted it.
+// A usage card held back by the metamagic ask, born with the pick made: stamp as at the use.
 Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
   if ( !setting(S.saves) ) return;
   if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
@@ -184,110 +155,83 @@ Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
 async function stampSaveDemand(activity, message, results) {
   try {
     if ( message.getFlag(MODULE_ID, "saves") ) return; // never re-stamp
-    // ⚠ A template spell's target set is what the AREA contains, not what was clicked, in both
-    // directions; manual targeting stays the bus for everything without a template. postUseActivity
-    // fires after the placement, so `results.templates` is real: the RegionDocument[] it created
-    // (the flatten tolerates a nested shape, smoke-saves §8d). Containment is the platform's own test.
+    // ⚠ A template spell's targets are what the AREA contains, not what was clicked. postUseActivity
+    // fires after placement, so `results.templates` is the real RegionDocument[] (maybe nested).
     const placed = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));
-    // A spell that chooses its targets: the chosen stand in for the contents, or the demand waits.
     const choice = await areaChoiceForDemand(message, activity, placed);
     const contained = choice.contained;
     const raw = contained ?? targetsOf(message);
-    // THE DEAD-TARGET GATE runs on the RESOLVED set, before the setFlag, so an all-dead cast
-    // starves everything downstream by construction; raw emptiness keeps its meaning (a bare
-    // template cast still stamps a WAITING demand). Careful's protected leave here, Heightened's
-    // mark joins below; a chosen area's own ask holds the demand the same way.
+    // THE DEAD-TARGET GATE on the RESOLVED set, before the setFlag: an all-dead cast starves
+    // everything downstream; raw emptiness still means a WAITING demand.
     const metamagic = choice.hold ? { protectedUuids: new Set(), heightened: null, hold: true, pendingAsk: false }
       : await metamagicForDemand(message, activity, contained ?? raw);
-    // An open metamagic ask holds the demand EMPTY, clockless; the answer fills it (metamagic.js).
+    // An open ask holds the demand EMPTY, clockless; the answer fills it.
     const targets = metamagic.hold ? [] : raw.filter(saveDemandable).filter(t => !metamagic.protectedUuids.has(t.uuid));
-    if ( raw.length && !targets.length && !metamagic.protectedUuids.size && !metamagic.hold ) return; // every target is dead — fully native cast
-    // A TEMPLATE-SHAPED activity's targetless cast (Web: cast bare, then place) stamps a WAITING
-    // demand — zero targets, NO deadline; adoption fills it and arms the clock. No template shape
-    // anywhere means no area is coming: it stays native.
+    if ( raw.length && !targets.length && !metamagic.protectedUuids.size && !metamagic.hold ) return; // every target dead
+    // A TEMPLATE-SHAPED targetless cast stamps a WAITING demand (no deadline); adoption fills it.
     const templateShaped = !!activity.target?.template?.type;
-    if ( !targets.length && !templateShaped ) return; // targetless, no area coming — the humans have it
-    // A self-aimed save's snapshot is incidental UI targeting. A BLANK affects is allowed on
-    // purpose: hand-authored statblock abilities often carry none, and eating their saves silently
-    // is a false negative the table cannot see.
+    if ( !targets.length && !templateShaped ) return;
+    // A self-aimed save's targets are incidental. A BLANK affects is allowed: statblocks often carry none.
     if ( !contained && ((activity.target?.affects?.type ?? null) === "self") ) return;
     const dc = activity.save?.dc?.value;
-    if ( !(dc > 0) ) return; // no DC prepared — nothing to judge against (pre-2024 data)
+    if ( !(dc > 0) ) return;
     const abilities = [...(activity.save?.ability ?? [])];
     if ( !abilities.length ) return;
 
-    // The effect names by outcome, resolved NOW while the item surely exists (the popup's stakes line
-    // and the LR unwind read them). The activity's list holds PROFILES whose effects resolve async.
+    // The effect names by outcome, resolved NOW while the item surely exists.
     const entries = (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
-    // An EMANATION's effect (Spirit Guardians' Half Speed) is the area's STANDING effect, kept by the
-    // region — the verdict never applies it, and the dialog never promises it.
+    // An EMANATION's effect is the region's STANDING effect: the verdict never applies it.
     const emanation = !!emanationRowFor(activity);
     const effectNames = emanation ? { fail: [], always: [] } : {
       fail: entries.filter(e => !e.onSave).map(e => e.effect.name),
       always: entries.filter(e => e.onSave).map(e => e.effect.name)
     };
 
-    // ⚠ `onSave: "full"` marks damage the save does NOT modulate — situational rider damage (Web's
-    // burn, only when the webs burn). The demand carries no damage for it: no auto-roll, no
-    // per-verdict application; the card's own enricher stays clickable, GM-judged.
+    // ⚠ `onSave: "full"` marks rider damage the save does NOT modulate (Web's burn): no auto-roll,
+    // no per-verdict application; the card's enricher stays GM-judged.
     const onSave = activity.damage?.onSave ?? "half";
     const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
 
-    // Interpose Shield is POST-VERDICT and success-only: no choice stamps with the demand;
-    // saveChoiceSpec opens it when a SAVED verdict lands.
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
-    const awaiting = !targets.length; // template-shaped, area not placed yet (the gate above)
-    // ⚠ THE EMPTY INSTANT: an instantaneous area PLACED with nobody inside is spent — the demand
-    // stamps DONE so the elect's floor sweeps it like a resolved one. A clockless wait belongs
-    // only to an area not placed yet (`contained` null); a duration area keeps its wait.
-    // ⚠ The ITEM's duration for a spell (a spell's activity duration is not the spell's — Shield's
-    // reads "inst"), the ACTIVITY's for a feature: a monster's `feat` has no system.duration, and a
-    // null reads as a duration area that never ends.
+    const awaiting = !targets.length;
+    // ⚠ THE EMPTY INSTANT: an instantaneous area placed with nobody inside stamps DONE.
+    // ⚠ The ITEM's duration for a spell (its activity's is not the spell's), the ACTIVITY's for a
+    // feature (a `feat` has none; null would read as a duration area that never ends).
     const durationUnits = activity.item?.system?.duration?.units ?? activity.duration?.units ?? null;
-    // …and a LISTED spent area counts as an instant.
     const instantArea = (durationUnits === "inst") || spentAreaListed(activity.item?.name);
     const emptyInstant = awaiting && !!contained && instantArea && !metamagic.hold;
-    // The flag through its one constructor (decide/demand.js; emanations.js stamps the same shape).
     await message.setFlag(MODULE_ID, "saves", saveDemandData({
       status: emptyInstant ? "done" : "pending",
-      stat: statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster forced this
+      stat: statContext(activity.actor?.uuid ?? null),
       abilities, dc,
       damageOnSave: onSave,
       hasDamage: saveModulated,
       effectNames,
-      // WHAT THE SAVE IS AGAINST: a spell's demand and its failed-save statuses — Aura of Purity
-      // and Circle of Power read these off the pending demand when the roller's dialog opens.
+      // WHAT THE SAVE IS AGAINST, read by save-side auras when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))],
-        // Trance: whether a failure would put the target to sleep (decide/demand.js `putsToSleep`).
         sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),
-        // Heightened Spell's mark: the one target whose gate opens at Disadvantage.
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,
       activityUuid: activity.uuid,
-      // The dnd5e area type — adoption's shape gate for a TOOLBAR-drawn area, which has no origin flag.
+      // Adoption's shape gate for a toolbar-drawn area, which has no origin flag.
       templateType: activity.target?.template?.type ?? null,
       templated: !!contained,
       awaitingTemplate: awaiting && !emptyInstant,
       durationUnits,
       item: { name: activity.item?.name ?? "the effect", img: activity.item?.img ?? null },
       casterName: activity.actor?.name ?? null,
-      // A waiting demand carries its window but NO deadline — the clock starts at adoption.
+      // A waiting demand has NO deadline: the clock starts at adoption.
       window: (window && !emptyInstant) ? window : 0,
       deadline: (window && !emptyInstant && !awaiting) ? Date.now() + (window * 1000) : null,
-      // Per-target state is an ARRAY with uuid fields — never a uuid-keyed map (dotted-key expansion).
+      // ⚠ An ARRAY, never a uuid-keyed map (dotted-key expansion).
       targets: targets.map(t => saveTargetEntry(t.uuid, t.name))
     }));
 
-    // The machine rolls the spell's damage itself as the demand stamps (the card's Damage button is
-    // hidden), chained to the card so upcasting and damageOnSave ride the native plumbing. Save-
-    // modulated damage only; an empty instant rolls nothing. The caster's own-dice popup can be
-    // offered here because this hook runs on the casting client.
+    // The machine rolls the save-modulated damage as the demand stamps, chained to the card so
+    // upcasting rides the native plumbing; this is the casting client, so its own-dice popup can show.
     if ( saveModulated && !emptyInstant ) {
-    // ⚠ NOT awaited: the targets' save asks arm off the FLAG, and a caster thinking about dice must
-    // never hold up the table's saves.
-    // ⚠ Deferred while the caster is asked who the area spares, or while that ask is still to come:
-    // the dice, their popup and their animation wait for the answer (metamagic.js says when).
+    // ⚠ Deferred while an area ask stands or is still to come: the dice wait for the answer.
       if ( metamagic.hold || (metamagic.pendingAsk && awaiting) ) await message.setFlag(MODULE_ID, "savesDeferredRoll", { damageOnSave: onSave });
       else await rollSaveDamageNow(activity, message, { damageOnSave: onSave, targets, awaiting });
     }
@@ -304,8 +248,7 @@ async function rollSaveDamageNow(activity, message, { damageOnSave, targets, awa
   else await rollDamageForSave(activity, message);
 }
 
-// The deferred dice, once the area ask is answered — on the answering client (the caster's, or the
-// elect's at the clock). One runner: the hook is local and the flag is cleared before the roll.
+// The deferred dice, on the answering client once the area ask is answered; the flag clears first.
 Hooks.on("battleflow.areaAskAnswered", async message => {
   try {
     const deferred = message?.getFlag(MODULE_ID, "savesDeferredRoll");
@@ -321,13 +264,8 @@ Hooks.on("battleflow.areaAskAnswered", async message => {
   }
 });
 
-/**
- * AN EMANATION'S REACH AT THE CAST: a placed area asks everyone in it, which is wrong for a spell
- * that lets the caster designate creatures unaffected. A LISTED emanation row filters by its reach
- * (DESIGN §5 *Emanations* — harmful reaches enemies, by disposition), any area whose activity
- * names who it affects filters by that (`affectsAdmits`), and the caster's own token never owes
- * its own spell a save. Null in, null out.
- */
+/* AN EMANATION'S REACH AT THE CAST: a listed row filters by its reach (DESIGN §5 *Emanations*), an
+ * activity naming who it affects filters by that, and the caster never saves against its own spell. */
 const EMANATION_INDEX = tableIndex(EMANATIONS);
 function emanationRowFor(activity) {
   if ( !activity?.item || !setting(S.emanations) ) return null;

@@ -1,8 +1,7 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict
- * opens — Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed
- * feat's failure — on the same `saves` flag, no new key: spec, gate, answer, relay, clock, popup,
- * announce, settle.
+ * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict opens,
+ * Interpose on a listed shield-bearer's success and the bash's Prone-or-push on the listed feat's
+ * failure, on the same `saves` flag.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
   drivesMomentFor } from "../core.js";
@@ -13,19 +12,9 @@ import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../
 import { RULE_TEXT } from "../decide/registry.js";
 import { maneuverFoldEntries } from "../settings.js";
 
-/* --- the fold choices: a verdict opens a decision ---------------------------------------------
- * Both are keyed off the maneuver-folds list (the list is the switch), and both hold one target's
- * consequence pass between the verdict's announce and its application.
- *
- *   INTERPOSE (the saver's): the save SUCCEEDED against Dex half-on-success damage, shield in hand,
- *   Reaction free — the Reaction turns half into NONE. The text conditions it on succeeding, so a
- *   failure never offers. Expiry passes; a timer never spends a Reaction.
- *   BASH (the attacker's): the listed feat's own save FAILED — knock Prone (the standard Prone chip
- *   via forceStatus) or push 5 feet (a card, a hand-moved token). Expiry defaults to Prone.
- *
- * The popup goes to the subject's owner, else the GM; a non-owner's answer rides its own message
- * and the elect folds it in. The consequence pass resumes off the update.
- * ------------------------------------------------------------------------------------------- */
+/* A choice holds one target's consequence pass between the verdict's announce and its application;
+ * the maneuver-folds list is the switch. INTERPOSE expires to pass (a timer never spends a Reaction);
+ * BASH expires to Prone. A non-owner's answer rides its own message; the elect folds it in. */
 
 const saveChoiceTimers = new Map();
 
@@ -53,7 +42,6 @@ async function saveChoiceSpec(card, flag, entry) {
   if ( !found ) return null;
   if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
   const activity = cardActivity(card, flag.activityUuid);
-  // The activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const presses = (await applicableProfiles(activity)).some(({ profile }) => !profile.onSave);
   if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
   return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
@@ -86,8 +74,7 @@ async function answerSaveChoice(card, uuid, answer) {
   if ( !c || c.answer ) return;
   if ( !card.isOwner ) {
     const subject = await fromUuid(c.subjectUuid ?? uuid).catch(() => null);
-    // Law 3 (declaration never claims an outcome) governs the BASH labels — the press follows the
-    // choice. Interpose is post-verdict, so its accept may state the known result.
+    // The BASH labels never claim an outcome; Interpose is post-verdict, so its accept may.
     const labels = {
       use: `${c.itemName} — ${entry.name} spends the Reaction: no damage`,
       pass: `${c.itemName} — passed, the Reaction is kept`,
@@ -141,8 +128,7 @@ export function armSaveChoiceTimer(card) {
     fireSaveChoiceTimer);
 }
 
-/** Expiry defaults: bash → Prone; interpose → pass. The update the write raises drives the
- * consequence pass and any later deadline re-arms below. */
+/** Expiry defaults: bash → Prone; interpose → pass. The update drives the consequence pass. */
 async function fireSaveChoiceTimer(cardId) {
   try {
     const card = game.messages.get(cardId);
@@ -176,8 +162,7 @@ export async function showSaveChoicePopup(card, uuid) {
     icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist",
     content: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
-      // Interpose asks only whether the Reaction turns the half into none — the save already
-      // succeeded. The rule line is the feature's own sentence, verbatim; the module's read is the hint.
+      // The rule line is the feature's own sentence, verbatim; the module's read is the hint.
       title: interpose ? `${c.itemName} — take no damage?`
                        : `${c.itemName} — ${entry.name} failed: choose`,
       subtitle: interpose
@@ -195,7 +180,7 @@ export async function showSaveChoicePopup(card, uuid) {
       ? [
         { action: "use", label: `Use ${c.itemName}`, default: true,
           callback: () => answerSaveChoice(card, uuid, "use") },
-        // "Take half" states a KNOWN outcome — the verdict is already in (law 3 bars it only unrolled).
+        // "Take half" states a KNOWN outcome: the verdict is already in.
         { action: "pass", label: "Take half",
           callback: () => answerSaveChoice(card, uuid, "pass") }
       ]
@@ -208,9 +193,8 @@ export async function showSaveChoicePopup(card, uuid) {
   });
 }
 
-/** The bash outcome, announced once — the push a card and a hand-moved token; the Prone press the
- * STANDARD Prone chip via forceStatus (canonical id, origin names the presser), never the item's
- * own custom effect. */
+/** The bash outcome, announced once: a push is a card and a hand-moved token; Prone is the STANDARD
+ * chip via forceStatus, never the item's own custom effect. */
 export async function announceBashOutcome(card, _flag, entry) {
   const c = entry.choice;
   if ( !c?.answer || c.announced ) return;
@@ -240,9 +224,8 @@ export async function announceBashOutcome(card, _flag, entry) {
   });
 }
 
-/** Interpose settles on the ACCEPT: the save already succeeded, so the settle card states the known
- * outcome (no damage) and the Reaction is spent here and only here — a pass or a buzzer spends
- * nothing. The card is the durable record: a zeroed number must never read as a dropped machine. */
+/** Interpose settles on the ACCEPT, the only place the Reaction is spent. The card is the record:
+ * a zeroed number must never read as a dropped machine. */
 export async function settleInterpose(card, flag, entry) {
   const c = entry.choice;
   if ( (c?.answer !== "use") || c.validated ) return;

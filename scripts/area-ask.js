@@ -1,18 +1,9 @@
 /**
- * Battle Flow — SERVICE: the ask at the area. Once a placed area has landed, a question about the
- * creatures standing in it is put to the caster — a popup on the caster's client, a clock that
- * keeps the default, the answer written durably and the save demand filled from it. One machine,
- * three kinds, two customers: Careful Spell's ticks and Heightened Spell's radio are metamagic's
- * (RULINGS *Metamagic*); a spell that chooses its targets is the saves machine's (RULINGS *Spells
- * that choose their targets*). Both RAISE the ask by writing its flag (`newAsk`, `raiseAsk`);
- * this file draws it, takes the answer, and publishes `battleflow.areaAskAnswered`.
- *
- * A SERVICE, not a machine: it owns no feature and no moment, it is the chokepoint two machines
- * route one question through, so both import it downward (ARCHITECTURE §7). The flag KEY stays
- * `metamagicAsk` — stored on cards and read by the moment registry; a rename is a migration for
- * nothing. A customer may register an ANSWER PART (`registerAskAnswerPart`): called with the
- * outcome, it returns flags to write beside the ask's own, or `handled` when it posted the answer
- * elsewhere (metamagic's held card). The kinds' words and defaults are pure (decide/area-ask.js).
+ * Battle Flow — SERVICE (ARCHITECTURE §7): the ask at the area. A question about the creatures in
+ * a placed area goes to the caster (a popup, a clock that keeps the default); the answer fills the
+ * save demand. Customers: metamagic (RULINGS *Metamagic*) and chosen areas (RULINGS *Spells that
+ * choose their targets*) raise it via `newAsk`/`raiseAsk`, and may add an ANSWER PART
+ * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, canAnswerFor } from "./core.js";
 import { resolveUuid } from "./lookup.js";
@@ -26,9 +17,7 @@ import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups,
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Raising an ask — what the customers call
- * ------------------------------------------------------------------------------------------- */
+// Raising an ask: what the customers call.
 
 /** The token document behind a demand row — its own id, the snapshot's token uuid, or the actor's token on the canvas. */
 function tokenDocOf(c) {
@@ -38,10 +27,7 @@ function tokenDocOf(c) {
   return tokenForUuid(c?.uuid)?.document ?? null;
 }
 
-/**
- * The ask's rows for the creatures an area holds — disposition and token filled from the canvas,
- * since a TARGETED cast's snapshot rows carry neither and would tick nobody by default.
- */
+/** The ask's rows, disposition and token filled from the canvas (a targeted cast's snapshot has neither). */
 export function askCandidates(contained) {
   return (contained ?? []).map(c => {
     const tok = tokenDocOf(c);
@@ -50,9 +36,7 @@ export function askCandidates(contained) {
 }
 
 /**
- * A pending ask's flag, the one shape every raiser writes: the kind's facts, the candidates, the
- * caster's identity and side, the stat stamp, and the clock when the Hold Timer sets one (a timer
- * of 0 is a clockless ask by explicit setting — ARCHITECTURE §5 law 11).
+ * A pending ask's flag, the one shape every raiser writes (a Hold Timer of 0 means clockless).
  * @param {{kind: string, feature: string, spell?: string|null, cap?: number|null, rule?: string|null, itemImg?: string|null,
  *          heightened?: {feature: string, rule?: string|null}|null, candidates: object[],
  *          caster: {uuid: string|null, disposition: number|null, name?: string|null}}} args
@@ -80,9 +64,7 @@ const answerParts = [];
  */
 export function registerAskAnswerPart(part) { answerParts.push(part); }
 
-/* ---------------------------------------------------------------------------------------------
- * The card's line, the popup, the tick
- * ------------------------------------------------------------------------------------------- */
+// The card's line, the popup, the tick.
 
 const askTimers = new Map();
 
@@ -107,11 +89,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) { console.warn(`${TITLE} | The ask at the area could not render.`, err); }
 });
 
-/**
- * The ask's popup: the party, then everyone else in the area, the defaults ticked; OK answers, the
- * clock keeps the default. Ticks for Careful and a chosen area, a radio for Heightened; a chosen
- * area cast with Heightened carries the Disadvantage radio beside each row (one popup, not two).
- */
+/** The ask's popup, defaults ticked: ticks for Careful and a chosen area, a radio for Heightened
+ * (beside each row when a chosen area carries Heightened: one popup, not two). */
 export async function showAreaAsk(message) {
   const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
   if ( !ask || (ask.status !== "pending") ) return;
@@ -142,8 +121,7 @@ export async function showAreaAsk(message) {
   });
 }
 
-// A tick pings the creature's token on the map so the caster can confirm which, and the cap holds
-// as the ticks are made — one listener, every popup.
+// A tick pings the creature's token, and the cap holds as ticks are made.
 Hooks.once("ready", () => document.addEventListener("change", ev => {
   const any = ev.target?.closest?.('input[name="bf-metamagic-ask"]');
   if ( !any ) return;
@@ -157,9 +135,8 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
   const on = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask"]:checked') ?? [])];
   if ( on.length > cap ) { any.checked = false; return; }
   for ( const b of holder?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [] ) if ( !b.checked ) b.disabled = on.length >= cap;
-  // The merged ask: the Disadvantage radio follows its row's tick — only a creature the spell
-  // affects can save at Disadvantage against it — and a mark lost with its tick moves to the
-  // first creature still ticked.
+  // The merged ask: the radio follows its row's tick (only an affected creature saves at
+  // Disadvantage); a mark lost with its tick moves to the first still ticked.
   const marks = [...(holder?.querySelectorAll('input[name="bf-metamagic-ask-mark"]') ?? [])];
   if ( !marks.length ) return;
   const ticked = new Set(on.map(b => b.value));
@@ -167,17 +144,8 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
   if ( !marks.some(r => r.checked) ) { const first = marks.find(r => !r.disabled); if ( first ) first.checked = true; }
 }));
 
-/* ---------------------------------------------------------------------------------------------
- * The answer
- * ------------------------------------------------------------------------------------------- */
-
-/**
- * The answer — the caster's ticks, or the defaults when the clock ran out — made into its records
- * (decide/area-ask.js `askOutcome`), offered to the customers' answer parts, then written: the ask
- * done, a chosen area's choice, whatever a part added; the save demand filled from the creatures
- * that keep their save; the clock started; and `battleflow.areaAskAnswered` published for the
- * saves machine, which rolls the dice it deferred while the question stood.
- */
+/** The answer (the ticks, or the defaults at the clock): records written, answer parts consulted,
+ * the save demand filled and clocked, then `battleflow.areaAskAnswered` for the deferred dice. */
 export async function answerAsk(message, picked, { timedOut = false, mark = null } = {}) {
   try {
     const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
@@ -197,13 +165,11 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
       ...(areaChoice ? { [AREA_CHOICE_FLAG]: areaChoice } : {}),
       [AREA_ASK_FLAG]: done
     } } });
-    // Who stays on the demand: Careful's spared leave it, a chosen area keeps only the chosen. The
-    // one write into another machine's record (the saves flag), made through the serializer.
+    // ⚠ The one write into another machine's record (the saves flag), through the serializer.
     const window = Math.max(0, Number(ask.window) || 0);
     const heightenedRule = ask.heightened?.rule ?? rule;
     await queueFlagWrite(message, "saves", flag => {
-      // A demand already closed takes no new targets — nothing would ask them, and its area would
-      // never be swept (areas.js has the same guard).
+      // A closed demand takes no new targets: nothing would ask them, its area never swept.
       if ( (flag.status ?? "pending") !== "pending" ) return false;
       const prev = flag.targets ?? [];
       const fresh = ask.candidates.filter(c => outcome.stays(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
@@ -211,7 +177,7 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
       flag.awaitingTemplate = false;
       if ( window ) { flag.window = window; flag.deadline = Date.now() + (window * 1000); }
       if ( outcome.mark ) flag.demand = { ...(flag.demand ?? {}), heightened: { ...outcome.mark, caster: ask.casterName ?? null, rule: heightenedRule } };
-      if ( !flag.targets.length ) flag.status = "done";   // everyone spared — nobody owes a save
+      if ( !flag.targets.length ) flag.status = "done";   // everyone spared
     });
     Hooks.callAll("battleflow.areaAskAnswered", message);
   } catch(err) {
@@ -226,8 +192,7 @@ Hooks.on("updateChatMessage", message => {
   disarmAskTimer(askTimers, message.id);
   const open = livePopups.get(popupKey(message.id, AREA_ASK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
-  // A chosen area's picture waited on its question (saves/demand.js raised the hold on the
-  // caster's client): the answer lifts it on every client, since it may come from the elect's
-  // clock; the rest no-op. A carrier's ask names no activity — its real card's birth lifts that hold.
+  // A chosen area's picture waited on its question: lift the hold on every client (the answer may
+  // be the elect's clock). A carrier's ask names no activity; its real card's birth lifts that hold.
   if ( ask.kind === "choose" ) { const uuid = activityUuidOf(message); if ( uuid ) releaseHold(uuid, message); }
 });

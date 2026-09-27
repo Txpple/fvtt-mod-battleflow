@@ -1,11 +1,8 @@
 /**
- * Battle Flow — resource use notices: "used [ability], x of y remaining" as a screen flash, plus a
- * durable line on the usage card. dnd5e stamps every consumption onto the usage message
- * (`system.deltas`), so every client reads the spend and flashes locally — the chat log is the bus.
- * THE RHYTHM GATE: a spend announces only when its pool recovers (per short rest / long rest /
- * day) — no name list; torches and potions have uses but no recovery, and spell slots are actor
- * keyPaths the notices never read. Refunds stay quiet. Player-owned actors only, shown to every
- * client; NPC pools are the GM's secret. The elect also stamps a `spend` flag for the ledger.
+ * Battle Flow — resource use notices: "used [ability], x of y remaining" as a screen flash plus a
+ * line on the usage card, read by every client off `system.deltas`. THE RHYTHM GATE: only a pool
+ * that recovers on a rest announces (no name list). Player-owned actors only; NPC pools stay secret.
+ * The elect also stamps a `spend` flag for the ledger.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
@@ -21,9 +18,7 @@ const FLASH_FALLBACK_MS = 12_000;
 
 const isUsage = m => isCard(m, CARD.usage);
 
-// The qualifying spends [{pool, spent, left, max}], read live post-consumption — shared.js
-// `poolSpendsOn`, which also returns the module's own hand spends, so the flash, the card line
-// and every maneuver's subtitle agree.
+// The qualifying spends, hand spends included (`poolSpendsOn`), so every surface agrees.
 const spendRows = message => poolSpendsOn(message);
 
 /** The ability that was used, as the card names it — through the card, so a used-up item still names itself. */
@@ -31,11 +26,7 @@ function usedName(message) {
   return cardItem(message)?.name ?? null;
 }
 
-/**
- * Spell-slot spends on a usage message: [{slot, level, spent, left, max}] — the ledger's rows,
- * never the flash's (it would fire on every leveled cast). A spend is a NEGATIVE delta on the
- * slot's `.value`; a positive one is a regain and stays out.
- */
+/** Spell-slot spends (NEGATIVE deltas on `.value`) for the ledger, never the flash. */
 function slotRows(message) {
   if ( !isUsage(message) ) return [];
   const actor = message.getAssociatedActor?.();
@@ -51,10 +42,7 @@ function slotRows(message) {
   return rows;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The flash — a turn-banner idiom (fixed, centered, fades, un-clickable), seated at 26% so a turn
- * banner and a spend never overlap, stacking downward when two spends land together.
- * ------------------------------------------------------------------------------------------- */
+// The flash: seated at 26% so it never overlaps a turn banner, stacking downward.
 
 function flashBanner(actorName, ability, rows) {
   const stack = document.querySelectorAll(".bf-resource-banner").length;
@@ -74,13 +62,9 @@ function flashBanner(actorName, ability, rows) {
   setTimeout(() => banner.remove(), 4200);
 }
 
-/**
- * Does this use's activity carry dice of its own still to roll (a heal formula, damage parts)? Its
- * flash then waits for the roll, with a 12s fallback for a player who never rolls.
- */
+/** Does this use's activity have dice still to roll? Its flash then waits (12s fallback). */
 function awaitsOwnDice(message) {
   try {
-    // The activity the card names (`system.activity`, the card seam) — the platform's own resolver.
     const act = message.getAssociatedActivity?.() ?? null;
     if ( !act ) return false;
     if ( act.type === "heal" ) {
@@ -148,13 +132,8 @@ Hooks.on("updateChatMessage", message => {
   flashBanner(actorName, fresh[0].ability ?? "an ability", fresh);
 });
 
-/* ---------------------------------------------------------------------------------------------
- * The data-plane stamp — the ledger's spend record, written by the ELECT at CREATION only: the
- * pool truths and the combat context are honest only at the moment of the spend, so there is no
- * render-resume (a late stamp would put NOW's turn on an old spend; the reader falls back to
- * `system.deltas`). No setting gates it — a toggle would punch silent holes in the ledger.
- * Player-owned actors only, the notices' line.
- * ------------------------------------------------------------------------------------------- */
+// The ledger's spend record, stamped by the ELECT at CREATION only: a late stamp would put NOW's
+// turn on an old spend. ⚠ No setting gates it; a toggle would punch holes in the ledger.
 
 Hooks.on("createChatMessage", message => {
   if ( !isActiveGM() ) return;
@@ -170,9 +149,7 @@ Hooks.on("createChatMessage", message => {
   }).catch(err => console.error(`${TITLE} | Spend stamp failed.`, err));
 });
 
-/* ---------------------------------------------------------------------------------------------
- * The durable record — one small line on the usage card, every render, idempotent
- * ------------------------------------------------------------------------------------------- */
+// The durable record: one line on the usage card, every render, idempotent.
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   if ( !setting(S.resourceNotices) ) return;

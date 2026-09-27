@@ -1,15 +1,12 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE DICE CHANGERS' pure half — one popup per
- * damage roll, a row per feature that changes the landed dice (RULINGS *The dice changers — one popup*):
- *   pick  Empowered Spell   up to CHA-mod of the roll's dice rerolled, the new faces stand; a Sorcery Point
- *   set   Savage Attacker   the weapon's dice rolled again AS A SET, the higher set stands
- *   one   Piercer           ONE die — the one with the most to gain — rolled again, the new stands
- * They run pick, then set, then one: Piercer's die is chosen off the faces that stand after the set.
- * ⚠ PURE: the rows are the flag's own, the dice are roll JSON.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE DICE CHANGERS' pure half, one popup per
+ * damage roll (RULINGS *The dice changers — one popup*). Kinds `pick` (chosen dice rerolled), `set`
+ * (all again, higher stands), `one` (one die again). ⚠ They run pick, set, one: `one` chooses its
+ * die off the faces standing after the set.
  */
 
-/** The flag's key on the damage message — one record per roll, every row on it. */
+/** The flag's key on the damage message: one record per roll. */
 export const DICE_CHANGE_FLAG = "diceChange";
 
 /** The order the kinds run in at the answer. */
@@ -19,7 +16,7 @@ const KIND_ORDER = Object.freeze({ pick: 0, set: 1, one: 2 });
 export const DICE_CHANGE_WAITS = Object.freeze(["due", "pending", "answering"]);
 
 /**
- * The rows in the order they run (a stable sort: two of one kind keep the table's order).
+ * The rows in the order they run (stable).
  * @typedef {{key: string, feature: string, kind: "pick"|"set"|"one", status: string,
  *   cap?: number, cost?: number, poolId?: string, rule?: string|null,
  *   formula?: string, first?: number, faces?: number, odds?: object|null,
@@ -33,8 +30,7 @@ export function orderRows(rows) {
 }
 
 /**
- * The record's status at the birth, from its rows: a due row makes it due; rows all spent this
- * turn make it "spent" (the card's tag, no question); no rows, nothing to say.
+ * The record's status at birth: any due row makes it due, else "spent"; no rows, null.
  * @param {ChangerRow[]} rows
  * @returns {"due"|"spent"|null}
  */
@@ -44,9 +40,7 @@ export function birthStatus(rows) {
 }
 
 /**
- * Every active face of every die term, keyed `roll:term:index` — the popup's chips. What the die
- * COUNTS, not what it showed (Elemental Adept's floor makes a 1 count as a 2); a floored face
- * keeps its roll for the tooltip.
+ * Every active face, keyed `roll:term:index`: what the die COUNTS (a floor), with `rolled` when it differs.
  * @param {any[]} rollsData   the rolls' JSON
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, result: number, rolled?: number}[]}
  */
@@ -67,8 +61,8 @@ export function diceChipsOf(rollsData) {
 }
 
 /**
- * THE ANSWER'S PLAN: the ticked rows that are still asking, in the order they run, each with what
- * it needs — the pick row its dice (Empowered's cap held; a pick row with no die picked drops out).
+ * THE ANSWER'S PLAN: the ticked rows still asking, in run order; a pick row with its capped dice
+ * (none picked, it drops out).
  * @param {{rows: ChangerRow[], ticked: string[], picks?: string[], dice?: {key: string, faces: number, result: number}[]}} args
  * @returns {{row: ChangerRow, picks?: {key: string, roll: number, term: number, index: number, faces: number, result: number}[]}[]}
  */
@@ -85,20 +79,13 @@ export function answerPlan({ rows, ticked, picks = [], dice = [] }) {
   return out;
 }
 
-/**
- * Both buttons, the ticks pick which is live: Apply while the plan does something, Keep the roll
- * while nothing is ticked.
- * @param {{rows: ChangerRow[], ticked: string[], picks?: string[], dice?: any[]}} args
- */
+/** Which button is live: Apply while the plan does something, Keep while nothing is ticked.
+ * @param {{rows: ChangerRow[], ticked: string[], picks?: string[], dice?: any[]}} args */
 export function buttonState(args) {
   return { apply: answerPlan(args).length > 0, keep: !(args.ticked ?? []).length };
 }
 
-/**
- * The Apply button's word: one row asking says its own verb (the words each popup had alone);
- * two or more say Apply.
- * @param {ChangerRow[]} asking   the rows still pending
- */
+/** The Apply button's word: one row's own verb, or Apply for several. @param {ChangerRow[]} asking */
 export function applyLabel(asking) {
   if ( (asking ?? []).length !== 1 ) return "Apply";
   const kind = asking[0]?.kind;
@@ -106,7 +93,7 @@ export function applyLabel(asking) {
 }
 
 /**
- * A row's offer, as its tick row says it (the offer-row rule: name + dice, then the rule).
+ * A row's offer as its tick row says it.
  * @param {ChangerRow} row
  * @returns {{dice: string, tag: string}}
  */
@@ -120,8 +107,7 @@ export function rowOffer(row) {
 }
 
 /**
- * The popup's title line — one row asking keeps the words its own popup had; two or more ask
- * about the dice.
+ * The popup's title line.
  * @param {ChangerRow[]} asking
  * @param {number} total
  */
@@ -133,10 +119,7 @@ export function popupTitle(asking, total) {
   return `${total} damage — change the dice?`;
 }
 
-/**
- * One step's sentence on the announce card, source then result (law 6).
- * @param {ChangerRow} row   the row with its outcome merged in
- */
+/** One step's sentence on the announce card. @param {ChangerRow} row  with its outcome merged in */
 export function stepLine(row) {
   if ( row.kind === "pick" ) {
     const p = row.picks ?? [];
@@ -147,8 +130,7 @@ export function stepLine(row) {
 }
 
 /**
- * The card's lines for the record — one per row, source then result (law 6). A row's own status
- * speaks where it has one; the record's status speaks for a row still waiting on it.
+ * The card's lines, one per row; the record's status speaks for a row still waiting on it.
  * @param {{status: string, rows?: ChangerRow[], timedOut?: boolean}} flag
  * @returns {string[]}
  */
@@ -171,8 +153,7 @@ export function diceChangeLines(flag) {
 }
 
 /**
- * The canvas replay of every step at once (the dice that rise): the rows' chips in the order
- * they ran, over the one actor.
+ * The canvas replay of every step at once, chips in run order.
  * @param {({on: string, chips: object[]}|null)[]} rises
  * @returns {{on: string, chips: object[]}|null}
  */
@@ -181,11 +162,8 @@ export function mergeRises(rises) {
   return live.length ? { on: live[0]?.on ?? "", chips: live.flatMap(r => r.chips) } : null;
 }
 
-/**
- * EMPOWERED SPELL'S PICK: the dice the caster ticked, up to the cap (the Charisma modifier, minimum
- * one), each found among the dice the roll showed by its `roll:term:index` key.
- * @param {{dice: {key: string, faces: number, result: number}[], picks: string[], cap: number}} args
- */
+/** EMPOWERED SPELL'S PICK: the ticked dice, up to the cap (minimum one), found by key.
+ * @param {{dice: {key: string, faces: number, result: number}[], picks: string[], cap: number}} args */
 export function empoweredPlan({ dice, picks, cap }) {
   const limit = Math.max(1, Number(cap) || 1);
   const seen = new Set();
@@ -202,14 +180,12 @@ export function empoweredPlan({ dice, picks, cap }) {
 }
 
 /**
- * The card's line for the fold, from its record — source, then result (law 6): "1d8 → 5, again → 7
- * — the higher stands: 11 · used this turn".
+ * The card's line for a set or one-die fold, from its record.
  * @param {{status: string, feature?: string, formula?: string, first?: number, second?: number,
  *          stands?: string, total?: number|null, timedOut?: boolean, one?: boolean, faces?: number}} flag
  */
 export function eitherCardLine(flag) {
   const name = flag?.feature ?? "Savage Attacker";
-  // ONE die (Piercer): "the 1 on the d8 again → 6 — the new roll stands: 12"
   if ( flag?.one && (flag.status === "used") ) {
     const tail = Number.isFinite(flag.total) ? `: ${flag.total}` : "";
     return `${name} — the ${flag.first} on the d${flag.faces} again → ${flag.second} — the new roll stands${tail} · used this turn`;
@@ -227,7 +203,7 @@ export function eitherCardLine(flag) {
     case "kept": return `${name} — not used${flag.timedOut ? " (the clock ran out)" : ""}, still ready this turn`;
     case "moot": return `${name} — the attack missed; nothing to roll again`;
     case "answering": return `${name} — rolling the weapon's dice again`;
-    // Due: the question waits for the hit to stand (a defender's reaction comes first).
+    // Due: waits for the hit to stand (a defender's reaction comes first).
     case "due": return `${name} — asks once the hit stands`;
     default: return `${name} — offered: roll the weapon's dice again?`;
   }

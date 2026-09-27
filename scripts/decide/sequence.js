@@ -1,23 +1,16 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE — what a hit's offer does next,
- * from facts alone. A hit's offers QUEUE behind the damage, and behind the weapon mastery's
- * DECISION when it asks one (Slow, Topple, Push); a mastery NOTICE (Vex, Sap, Cleave) never holds
- * them (ARCHITECTURE *The presentation laws*, law 7). Pure; the edge (bash-offer.js) gathers the facts.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE. A hit's offers QUEUE behind the
+ * damage and a mastery's DECISION, never a mastery NOTICE (ARCHITECTURE *The presentation laws*, law 7). Pure.
  */
 
 /**
- * The offer's next step.
+ * The offer's next step; `promote` starts its clock NOW, `moot` resolves quietly (nobody left).
  * @param {object} facts
- * @param {string} facts.status          the offer's own status — only "queued" moves
- * @param {string|null} facts.masteryStatus  the attack's mastery ASK status, or null when there
- *                                       is none (a notice or no mastery at all)
- * @param {boolean} facts.damageLanded   a damage message for this attack exists and its payouts ran
- * @param {number} facts.living          how many of the offer's targets still stand after the damage
+ * @param {string} facts.status          only "queued" moves
+ * @param {string|null} facts.masteryStatus  the mastery ASK's status, null when none
+ * @param {boolean} facts.damageLanded
+ * @param {number} facts.living          targets still standing after the damage
  * @returns {"wait"|"promote"|"moot"|"none"}
- *   none     — the offer is not queued (already pending, answered or moot): nothing to do
- *   wait     — the damage has not landed, or the mastery's decision is still open
- *   promote  — open it: status pending, the clock starts NOW, not at the hit
- *   moot     — the damage left nobody to bash: resolve it quietly, no popup
  */
 export function hitOfferStep({ status, masteryStatus = null, damageLanded, living }) {
   if ( status !== "queued" ) return "none";
@@ -27,10 +20,8 @@ export function hitOfferStep({ status, masteryStatus = null, damageLanded, livin
 }
 
 /**
- * Can this struck creature be bashed? Shield Master's "a creature within 5 feet of you" is the
- * feat's own clause and the map settles it (DESIGN R1, "game logic is not judgment"). An
- * unmeasurable distance (no tokens) keeps the offer — a question the player can pass.
- * @param {number|null} distanceFeet  attacker to target, nearest edges, in FEET (null: unmeasured)
+ * Within the bash's 5 feet (DESIGN R1)? An unmeasured distance keeps the offer.
+ * @param {number|null} distanceFeet  nearest edges, in feet
  * @returns {boolean}
  */
 export function withinBashReach(distanceFeet) {
@@ -39,9 +30,7 @@ export function withinBashReach(distanceFeet) {
 }
 
 /**
- * "If the target is no more than one size larger than you" (Crusher's push): the two sizes' places
- * in the system's own order. An unknown size, or no limit, allows the push — unreadable data never
- * refuses.
+ * A size-limited push: an unknown size or no limit allows it (unreadable data never refuses).
  * @param {string[]} order   CONFIG.DND5E.actorSizes' keys, smallest first
  * @param {string|null} pusher
  * @param {string|null} target

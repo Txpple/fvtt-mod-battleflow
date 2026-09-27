@@ -1,13 +1,10 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, once, as data — THE GATE.
- * A moment resolves when a RECORD lands on a message (the flag is the state), so watching records
- * catches every resolve, including those of machines not yet written. `MOMENT_RECORDS` has one row
- * per resolve key (its word(s), what resolving means, and `resolved(record, ctx)` listing each
- * resolve under a stable MARKER — a target uuid, an index, "message"; a revert is its own marker);
- * `STATE_KEYS` gives every other key its reason. events.js publishes each marker once, and
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, as data — THE GATE. A
+ * moment resolves when a RECORD lands on a message. `MOMENT_RECORDS` lists each resolve under a
+ * stable MARKER (events.js publishes each once); `STATE_KEYS` gives every other key its reason;
  * tools/check-moments.mjs fails the build on an unclassified key. ⚠ This file CLASSIFIES, never
- * curates — whether a moment gets a picture is FX Studio's call. ⚠ PURE: no `game`, no imports.
+ * curates (a picture is FX Studio's call). ⚠ PURE: no `game`, no imports.
  */
 
 /**
@@ -43,14 +40,12 @@ export const MOMENT_WORDS = Object.freeze([
 /* --- small readers, shared by the rows ------------------------------------------------------- */
 
 /**
- * The shapes, once (sitting on the first declaration so the doc block attaches).
- *
+ * The shapes, once (on the first declaration so the doc block attaches).
  * @typedef {{ uuid: string|null, name?: string|null, hit?: boolean }} TargetRow
  * @typedef {object} MomentFacts
  * @property {string|null} [actor]        who resolved it — an actor uuid
  * @property {string|null} [item]         the feature or spell — an item uuid (or null and `itemName`)
- * @property {string|null} [itemName]     the feature's name when only the name is known; the spine
- *                                        resolves it on the actor's sheet
+ * @property {string|null} [itemName]     when only the name is known (resolved on the actor's sheet)
  * @property {string|null} [activity]     its activity uuid, when known
  * @property {string|null} [ability]      the feature's name as the card says it
  * @property {string|null} [attackId]     the attack message it rode, when there is one
@@ -72,7 +67,6 @@ export const MOMENT_WORDS = Object.freeze([
  * @property {string[]} events            the default word(s); a resolve may override
  * @property {string} means               one sentence — what resolving means for this key
  * @property {(record: any, ctx: MomentCtx) => ResolvedMoment[]} resolved
- *
  * An embedded item's uuid from its owner and id, or null.
  */
 const itemUuid = (actorUuid, itemId) => (actorUuid && itemId) ? `${actorUuid}.Item.${itemId}` : null;

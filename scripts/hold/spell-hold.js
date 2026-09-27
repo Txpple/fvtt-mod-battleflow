@@ -1,8 +1,7 @@
 /**
- * Battle Flow — the reaction hold, part 4: THE SPELL TRIGGER. The hold's second entry point —
- * a listed spell at the moment of USE (Magic Missile against Shield), the `negate` kind whose
- * answer IS the verdict — and its resolution, `continueSpellHold`, which the continuation
- * hands a spell hold to.
+ * Battle Flow — the reaction hold, part 4: THE SPELL TRIGGER (ARCHITECTURE.md §5). A listed spell
+ * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
+ * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { blockEntries } from "../settings.js";
@@ -12,19 +11,12 @@ import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { usableReaction, reactionNameFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
 
-/* ---------------------------------------------------------------------------------------------
- * The SECOND trigger: a listed spell, not an attack (ARCHITECTURE.md §5). Shield also stops Magic
- * Missile, a plain `damage` activity with no attack roll, so rollAttackV2 never sees it — the hold
- * enters here, at the moment of USE. A `negate` hold has no re-test, no settle window and no AC
- * arithmetic: the spell's damage simply never lands on that target.
- * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   if ( !setting(S.reactionHold) ) return;
-  // The usage card is the held document, as the attack message is for an attack — it carries the
-  // same target snapshot (every activity's messageFlags bake it in), and cards are never suppressed.
+  // The usage card is the held document: it carries the target snapshot and is never suppressed.
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
-  if ( !message ) return; // used with create: false — no card, no bus, nothing to hold
+  if ( !message ) return; // create: false — no card, nothing to hold
 
   void (async () => {
     // ⚠ Match what was CAST, not what owns the activity: a statblock casts through a `cast` activity
@@ -38,11 +30,8 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   })();
 });
 
-/**
- * When NO hold stamped, clear the damage roll's pending claim (spellHoldPending: false) so the
- * auto-applier applies; a stamped hold's resolution releases it instead. The damage roll can land
- * a beat after this runs — poll briefly for it.
- */
+/** When NO hold stamped, clear the damage roll's pending claim so the auto-applier applies; the
+ * roll can land a beat later, so poll briefly. */
 async function releaseUnheldSpellDamage(activity, holdMessage) {
   try {
     if ( holdMessage.getFlag(MODULE_ID, "hold") ) return; // held — resolution owns the release
@@ -67,11 +56,8 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
   }
 }
 
-/**
- * Stamp a `negate` hold on a usage card for every target holding a reaction that stops it — the
- * attack hold's flag shape, so the popup, card row, timer, answer channels and reaction guard are
- * reused; `trigger: "spell"` is how the roll-dependent paths know to branch.
- */
+/** Stamp a `negate` hold in the attack hold's flag shape (so its surfaces are reused); `trigger: "spell"`
+ * is how the roll-dependent paths branch. */
 async function stampSpellHold(message, entries) {
   if ( message.getFlag(MODULE_ID, "hold") ) return;      // already held; never re-stamp
   const targets = targetsOf(message);
@@ -101,7 +87,7 @@ async function stampSpellHold(message, entries) {
     status: "pending",
     trigger: "spell",
     spell: entries[0].spell,
-    ...statContext(statSourceOf(message)), // the data-plane stamp — the caster's spell
+    ...statContext(statSourceOf(message)),
     continuedBy: game.user.id,
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
     targets: held
@@ -109,11 +95,7 @@ async function stampSpellHold(message, entries) {
   armHoldTimer(message);
 }
 
-/**
- * Resolve a `negate` hold — the answer IS the verdict: no roll to re-test and no dice waiting,
- * since the module never rolls a non-attack spell's damage. The verdict is what the
- * preApplyDamage veto reads, so writing it IS the block.
- */
+/** Resolve a `negate` hold: the verdict is what the preApplyDamage veto reads, so writing it IS the block. */
 export async function continueSpellHold(message, hold) {
   const announcements = [];
   for ( const target of hold.targets ) {
@@ -125,7 +107,6 @@ export async function continueSpellHold(message, hold) {
       img: reactionImg(actor, target.reaction, target),
       eyebrow: "Reaction — it worked", title: target.reaction, subtitle: target.name,
       tone: "good",
-      // One sentence says the whole thing.
       lines: [`<strong>${hold.spell}</strong> does nothing to <strong>${target.name}</strong>.`]
     }));
   }
