@@ -10,7 +10,7 @@ import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
 import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer } from "../ui.js";
 import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
 import { saveGate, saveSources, effectSaveSources } from "../decide/reminders.js";
-import { conditionEntries, effectEntries, reminderEntries } from "../settings.js";
+import { conditionEntries, effectEntries, reminderEntries } from "../decide/registry.js";
 import { foldSaveAnswer, foldSaveAutoFail, foldSaveAutoSucceed } from "./verdict.js";
 import { SURFACES } from "../surfaces.js";
 import { originData } from "../decide/card.js";
@@ -168,6 +168,26 @@ function autoSucceedSources(actor, flag) {
     .filter(s => s.autoSucceed);
 }
 
+/** One owed save rolled with no dialog: a save the rules decide before the dice is recorded, not rolled;
+ * Heightened Spell's mark rolls at Disadvantage. */
+async function rollWithoutAsking(card, flag, actor, uuid, { timedOut = false } = {}) {
+  const failing = autoFailSources(actor, flag.abilities[0]);
+  if ( failing.length ) return foldSaveAutoFail(card, uuid, { sources: failing, timedOut });
+  const passing = autoSucceedSources(actor, flag);
+  if ( passing.length ) return foldSaveAutoSucceed(card, uuid, { sources: passing, timedOut });
+  const heightened = flag.demand?.heightened?.uuid === uuid;
+  return rollSaveAnswer(card, uuid, { timedOut, mode: heightened ? "disadvantage" : null });
+}
+
+/** Players Roll Their Own Saves, off: the owed save rolls at once on the roller's client, no popup. */
+export async function rollSaveItself(card, uuid) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  if ( !flag || (flag.status !== "pending") ) return;
+  const actor = await fromUuid(uuid).catch(() => null);
+  if ( !(actor instanceof Actor) ) return;
+  await rollWithoutAsking(card, flag, actor, uuid);
+}
+
 async function fireSaveTimer(card) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
@@ -199,14 +219,7 @@ async function fireSaveTimer(card) {
     // Close a dialog open on THIS client first, so the straight roll is the only answer.
     const open = livePopups.get(popupKey(card.id, `save:${entry.uuid}`));
     if ( open ) { try { await open.close(); } catch { /* already gone */ } }
-    // A save the rules decide before the dice is recorded, not rolled.
-    const failing = autoFailSources(actor, flag.abilities[0]);
-    if ( failing.length ) { await foldSaveAutoFail(card, entry.uuid, { sources: failing, timedOut: true }); continue; }
-    const passing = autoSucceedSources(actor, flag);
-    if ( passing.length ) { await foldSaveAutoSucceed(card, entry.uuid, { sources: passing, timedOut: true }); continue; }
-    // Heightened Spell's mark: the buzzer rolls the marked target at Disadvantage.
-    const heightened = flag.demand?.heightened?.uuid === entry.uuid;
-    await rollSaveAnswer(card, entry.uuid, { timedOut: true, mode: heightened ? "disadvantage" : null });
+    await rollWithoutAsking(card, flag, actor, entry.uuid, { timedOut: true });
   }
   // biome-ignore lint/suspicious/noConsole: a debug trace of the creatures gone before the save was asked
   if ( goneNames.length ) console.debug(`${TITLE} | Gone at the buzzer: ${goneNames.join(", ")}.`);

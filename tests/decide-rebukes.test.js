@@ -66,7 +66,6 @@ describe("rebukes — a Reaction to damage, aimed at its dealer (the Goliath wal
       expect(row.rule.length, name).toBeGreaterThan(40);
       expect(row.from, name).toBeTruthy();
     }
-    expect(reg.LIST_SPECS.rebukes.default).toBe(Object.keys(reg.REBUKES).join(", "));
   });
 });
 
@@ -99,7 +98,7 @@ describe("Sentinel's Guardian — a ward, asked of a bystander (the PHB feats, g
       opportunity: true
     });
     expect(reg.REBUKES.Sentinel.rule.startsWith("Guardian.")).toBe(true);
-    expect(reg.LIST_SPECS.rebukes.default).toContain("Sentinel");
+    expect(Object.keys(reg.REBUKES)).toContain("Sentinel");
   });
   it("the card line names the one it hit", () => {
     const f = {

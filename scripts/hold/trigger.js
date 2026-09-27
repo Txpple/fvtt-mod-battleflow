@@ -2,7 +2,7 @@
  * Battle Flow — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
  * so the chain pauses and a human answers; the module never plays the reaction (DESIGN.md §4).
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext } from "../core.js";
+import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
@@ -10,7 +10,6 @@ import { armHoldTimer } from "./clock.js";
 // Any reaction use writes the reaction-spent chip (ARCHITECTURE.md §6); the reactor's own client
 // writes it when no GM is on.
 Hooks.on("dnd5e.postUseActivity", activity => {
-  if ( !setting(S.reactionHold) ) return;
   if ( !drivesMomentFor(activity?.actor?.uuid ?? null) ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
   void spendReaction(activity.actor, { origin: activity.item?.uuid ?? null, what: activity.item?.name ?? "a Reaction" });
@@ -18,7 +17,6 @@ Hooks.on("dnd5e.postUseActivity", activity => {
 
 /** Stamp the hold and return true if any hit target has something to ask; the stamping client continues it. */
 export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
-  if ( !setting(S.reactionHold) ) return false;
   if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true; // already held; never re-stamp
 
   const held = [];
@@ -76,7 +74,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   }
   if ( !held.length ) return false;
 
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
 
   // ⚠ Answers live ON each target entry, never a uuid-keyed map: Foundry expands dotted keys on write.
   await attackMessage.setFlag(MODULE_ID, "hold", {
@@ -97,7 +95,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
  * prompt leaks that the attack beat the AC by more than the reaction adds.
  */
 function holdWouldMatter(actor, found, roll, snapshotAC) {
-  if ( !setting(S.holdSkipFutile) || !setting(S.holdReveal) ) return true;
+  if ( !setting(S.holdReveal) ) return true;
   if ( found.entry.kind !== "ac" ) return true;   // damage reactions always reduce something
   // ⚠ The entry's name plus the found ids: `found.item` may be a statblock's "Spellcasting".
   const bonus = reactionACBonus(found.entry.name, actor,

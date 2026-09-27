@@ -2,9 +2,9 @@
  * Battle Flow — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { hitTargets } from "./shared.js";
 import { TONE, esc } from "./decide/present.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
@@ -26,7 +26,7 @@ const againstLine = targets => {
 /* --- Auto-roll damage on hit ---------------------------------------------------------------- */
 
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
-  if ( !subject || !modeAllows(subject.actor) ) return;
+  if ( !subject ) return;
 
   const attackMessage = rolls[0]?.parent;
   if ( !(attackMessage instanceof ChatMessage) ) return; // rolled with create:false — no chain to ride
@@ -216,7 +216,7 @@ export async function rollDamageForSave(activity, card) {
 // ⚠ The window is a `setTimeout` on one client: a reload mid-popup loses the roll (the GM rolls by hand).
 
 /** The offer's window in seconds; 0 waits indefinitely and draws no bar. */
-const playerRollWindow = () => Math.max(0, Number(setting(S.damageTimer)) || 0);
+const playerRollWindow = () => decisionWindow();
 
 const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;border-radius:3px;
   background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;

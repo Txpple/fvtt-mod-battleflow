@@ -2,13 +2,13 @@
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
  * popup (Great Weapon Master's Hew; Polearm Master's Pole Strike, which is also offered and driven).
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor, combatStamp } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { tokenForUuid } from "./geometry.js";
-import { maneuverFoldEntries } from "./settings.js";
+import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
-import { hitTargets, modeAllows, withTargets } from "./shared.js";
+import { hitTargets, withTargets } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
@@ -28,7 +28,7 @@ const whenOf = name => swingRowOf(name)?.when ?? "critOrKill";
 async function postHewReminder(attacker, featItem, weapon, why, row = null, offer = null) {
   const label = row?.label ?? "Hew";
   // The card is the record; the popup the moment (OK-only, drain bar, auto-close).
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
     content: bfCard({
@@ -115,7 +115,7 @@ async function hewChainContext(damageMessage) {
   const activity = cardActivity(attackMessage, activityUuidOf(attackMessage));
   if ( activity?.attack?.type?.value !== "melee" ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
-  if ( !attacker || !modeAllows(attacker) ) return null;
+  if ( !attacker ) return null;
   const found = foldEntryFor(attacker, "hew", maneuverFoldEntries().filter(e => whenOf(e.name) === "critOrKill"));
   if ( !found ) return null;
   return { attackMessage, activity, attacker, found };
@@ -194,7 +194,7 @@ function attackSwingFor(attackMessage) {
   const activity = cardActivity(attackMessage, activityUuidOf(attackMessage));
   if ( activity?.attack?.type?.value !== "melee" ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
-  if ( !attacker || !modeAllows(attacker) ) return null;
+  if ( !attacker ) return null;
   for ( const entry of maneuverFoldEntries().filter(e => (e.kind === "hew") && (whenOf(e.name) === "attack")) ) {
     const row = swingRowOf(entry.name);
     if ( !swingWeaponFits(row, activity.item) ) continue;

@@ -3,14 +3,13 @@
  * Interpose on a listed shield-bearer's success and the bash's Prone-or-push on the listed feat's
  * failure, on the same `saves` flag.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
-  drivesMomentFor } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow } from "../core.js";
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
 import { bfCard, momentBarHTML, ruleLine } from "../decide/present.js";
 import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../ui.js";
 import { RULE_TEXT } from "../decide/registry.js";
-import { maneuverFoldEntries } from "../settings.js";
+import { maneuverFoldEntries } from "../decide/registry.js";
 
 /* A choice holds one target's consequence pass between the verdict's announce and its application;
  * the maneuver-folds list is the switch. INTERPOSE expires to pass (a timer never spends a Reaction);
@@ -25,7 +24,7 @@ async function saveChoiceSpec(card, flag, entry) {
     // Interpose eligibility, read at VERDICT time: half-on-success DEX damage, the listed
     // feat on the saver, a shield in hand, the Reaction free — and the save already held.
     if ( !flag.hasDamage || (flag.damageOnSave !== "half") ) return null;
-    if ( !(flag.abilities ?? []).includes("dex") || !setting(S.autoApply) ) return null;
+    if ( !(flag.abilities ?? []).includes("dex") ) return null;
     const subject = await fromUuid(entry.uuid).catch(() => null);
     const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
     if ( !(saver instanceof Actor) ) return null;
@@ -54,7 +53,7 @@ export async function gateSaveChoice(card, flag, entry) {
   if ( entry.choice ) return !entry.choice.answer;
   const spec = await saveChoiceSpec(card, flag, entry);
   if ( !spec ) return false;
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   await queueFlagWrite(card, "saves", current => {
     const t = current.targets?.find(x => x.uuid === entry.uuid);
     if ( !t || t.applied || t.choice ) return;

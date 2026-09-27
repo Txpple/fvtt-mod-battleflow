@@ -294,18 +294,6 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
     expect(sg.range).toBe(null);
     expect(sg.trigger).toEqual({ on: ["enter", "turnEnd"], oncePerTurn: true });
   });
-  it("the Emanations list is membership over the table's names, whole-chunk, and ships every row ON", () => {
-    const spec = reg.LIST_SPECS.emanations;
-    expect(spec.membership).toBe(true);
-    expect(spec.whole).toBe(true);
-    const entries = reg.parseList(spec, spec.default).entries.map(e => e.kind);
-    expect(entries.sort()).toEqual(
-      Object.keys(reg.EMANATIONS)
-        .map(s => s.toLowerCase())
-        .sort()
-    );
-    expect(reg.parseList(spec, "Aura of Protection, Fireball").rejects).toHaveLength(1);
-  });
   it("the emanation kind set is counted by the R4 tripwire", () => {
     const set = reg.KIND_SETS.find(s => s.name === "emanation");
     expect(set?.owner).toBe("emanations.js");

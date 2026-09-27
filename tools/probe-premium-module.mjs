@@ -95,10 +95,7 @@ for (const [tname, table] of Object.entries(R)) {
     if (row && typeof row === "object") for (const fld of ["feature", "name", "spell", "item"]) if (typeof row[fld] === "string") note(row[fld], `${tname}.${fld}`);
   }
 }
-for (const [k, spec] of Object.entries(R.LIST_SPECS ?? {})) for (const part of String(spec?.default ?? "").split(",")) {
-  const n = part.split(":")[0].trim();
-  if (n) note(n, `LIST_SPECS.${k}`);
-}
+for (const [k, { rows }] of Object.entries(R.KIND_LISTS ?? {})) for (const r of rows) note(r.name, `KIND_LISTS.${k}`);
 const knownNames = new Map();
 for (const [pid, rows] of Object.entries(out.known)) for (const r of rows) {
   const k = r.name.toLowerCase();

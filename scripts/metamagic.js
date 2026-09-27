@@ -4,9 +4,9 @@
  * flag; `postUseActivity` spends the points (`poolSpend`). Empowered is a dice-changers row, Seeking a
  * d20 fold kind, the ask at the area is area-ask.js.
  */
-import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
+import { MODULE_ID, TITLE, statContext, decisionWindow } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
-import { metamagicEntries, listedNames, chosenAreaListed } from "./settings.js";
+import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc } from "./decide/present.js";
@@ -313,7 +313,7 @@ const HOLD_SLACK_MS = 30_000;
 
 /** A clockless ask gets a clockless hold (ARCHITECTURE §5 law 11). */
 function openCastHold(uuid) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   raiseHold(uuid, { reason: "metamagic-ask", bound: window ? ((window * 1000) + HOLD_SLACK_MS) : null });
 }
 

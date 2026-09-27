@@ -3,7 +3,7 @@
  * the stored DC, the die-less folds, the demand's registration, and the legendary-resistance flip.
  * index.js is the directory's only public face and fixes the registration order.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
@@ -218,6 +218,6 @@ async function unwindFailedConsequences(card, entry) {
       ?.find(t => (t.uuid === entry.uuid) && !t.reverted);
     if ( !had ) continue;
     await revertTarget(dmg, entry.uuid);
-    if ( setting(S.autoApply) ) await applyOneSaveDamage(dmg, flag, entry);
+    await applyOneSaveDamage(dmg, flag, entry);
   }
 }

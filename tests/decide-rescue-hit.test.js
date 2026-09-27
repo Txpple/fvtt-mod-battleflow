@@ -359,12 +359,8 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
     expect(reg.INTERRUPT_ROLLS["Warding Flare"]).toMatchObject({ reaction: true, uses: true });
     expect(reg.INTERRUPT_ROLLS["Shadowy Dodge"]).toMatchObject({ reaction: true, uses: false });
   });
-  it("the shipped Interrupt list lists every row as the `roll` kind, and parses clean", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.interrupt,
-      reg.LIST_SPECS.interrupt.default
-    );
-    expect(rejects).toEqual([]);
+  it("the interrupts list every row as the `roll` kind", () => {
+    const entries = reg.INTERRUPTS;
     for (const name of Object.keys(reg.INTERRUPT_ROLLS)) {
       expect(entries.find(e => e.name === name)?.kind, name).toBe("roll");
     }

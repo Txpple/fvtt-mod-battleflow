@@ -3,7 +3,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { lower, featureNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
-import { clockRiderEntries, listedNames } from "./settings.js";
+import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable } from "./ui.js";

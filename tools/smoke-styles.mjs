@@ -51,7 +51,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  if (!game.settings.settings.has(`${MOD}.fightingStyleList`)) return { fatal: 'fightingStyleList not registered — OLD code (reload the box)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['fightingStyleList', 'unarmedDiceList', 'autoDamage', 'autoApply', 'riders', 'effectRiders', 'masteryRiders',
     'clockRiderList', 'damageEitherList', 'reminderList', 'holdTimer'];

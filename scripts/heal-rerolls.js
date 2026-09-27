@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
-import { healRerollEntries, listedNames } from "./settings.js";
+import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls } from "./shared.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";

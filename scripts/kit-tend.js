@@ -4,10 +4,9 @@
  * die size (a Pass leaves the kit's use as it was); the flow elect spends the creature's die and rolls
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor,
-  statContext, whisperNoGM } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { kitTendEntries, listedNames } from "./settings.js";
+import { kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
@@ -79,7 +78,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usage, results) => {
     if ( (feet === null) || (feet > found.row.reach) ) return;
     const pools = hitDiceOf(target).filter(p => healActivityFor(found.feature, p.faces));
     if ( !pools.length ) return;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     void message.setFlag(MODULE_ID, TEND_FLAG, {
       status: "pending", row: found.name, actorUuid: actor.uuid, actorName: actor.name, featureId: found.feature.id,
       targetUuid: target.uuid, targetName: token.name ?? target.name, pools, ...statContext(actor.uuid),

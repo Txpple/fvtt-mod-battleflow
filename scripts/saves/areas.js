@@ -3,14 +3,13 @@
  * authority — adoption, the toolbar area's claim, the spent-area sweep. The area is a REGION tied by
  * `flags.dnd5e.activity`; the card's render is the reliability floor.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite,
-  drivesMomentFor } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite, drivesMomentFor } from "../core.js";
 import { cardActivity } from "../lookup.js";
 import { saveTargetEntry } from "../decide/demand.js";
 import { regionShapeTypeFor } from "../decide/geometry.js";
 import { tokensInRegions } from "../geometry.js";
 import { saveDemandable, emanationReach, metamagicForDemand, areaChoiceForDemand } from "./demand.js";
-import { spentAreaListed } from "../settings.js";
+import { spentAreaListed } from "../decide/registry.js";
 
 const activityOfRegion = region => region?.getFlag?.("dnd5e", "activity") ?? null;
 
@@ -62,7 +61,6 @@ const templateRefreshes = new Map();   // card id → { again: boolean }
 /** Re-derive a live demand's targets from its regions (verdicts kept, leavers drop, arrivals join);
  * idempotent. ⚠ The render is the floor: createRegion fires BEFORE the stamp. Never await canvas. */
 export async function refreshDemandFromTemplates(card) {
-  if ( !setting(S.saves) ) return;
   if ( !drivesMomentFor(card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) ) return;
   const inFlight = templateRefreshes.get(card.id);
   if ( inFlight ) { inFlight.again = true; return; }
@@ -135,7 +133,6 @@ export async function refreshDemandFromTemplates(card) {
 
 /** The CRUD fast path: refresh the newest live demand; a bare template goes to the newest WAITING one. */
 function refreshTemplatedDemands(region) {
-  if ( !setting(S.saves) ) return;
   const origin = activityOfRegion(region);
   const bare = isBareTemplate(region);
   if ( !origin && !bare ) return;   // somebody's region, nobody's area — a feature aura, a hazard, a door

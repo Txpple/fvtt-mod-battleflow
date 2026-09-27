@@ -2,9 +2,9 @@
  * Battle Flow — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
  * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, isContinuingClient } from "../core.js";
 import { isTextOnlyFeature } from "../decide/eligible.js";
-import { interruptEntries } from "../settings.js";
+import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
@@ -146,7 +146,6 @@ registerRelay("respondsTo", {
 
 // The cast IS the answer: a listed reaction cast from the sheet answers its own hold.
 Hooks.on("dnd5e.postUseActivity", activity => {
-  if ( !setting(S.reactionHold) ) return;
   const actor = activity?.actor;
   // A `roll` row (Lucky's "Disadvantage" is no Reaction) is checked before the activation gate.
   const bends = rollRowUsed(activity);
@@ -177,7 +176,7 @@ async function answerHoldsFor(activity, actor) {
   if ( !answering.length ) return;
 
   let applied = [];
-  if ( setting(S.holdApplyEffect) ) applied = await applyReactionEffect(activity, actor, answering[0].reaction);
+  applied = await applyReactionEffect(activity, actor, answering[0].reaction);
   for ( let i = 0; i < answering.length; i++ ) {
     const { message, uuid } = answering[i];
     await answerHold(message, uuid, "cast", { appliedEffects: i === 0 ? applied : [] });

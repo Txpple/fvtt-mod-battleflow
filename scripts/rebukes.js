@@ -4,9 +4,9 @@
  * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
-import { rebukeEntries, listedNames } from "./settings.js";
+import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine } from "./decide/rebukes.js";
 import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets } from "./shared.js";
@@ -110,7 +110,7 @@ function isAttackDamage(origin) {
 async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null } = {}) {
   const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit });
   if ( !options.length ) return;
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   const flag = {
     status: "pending", actorUuid: actor.uuid, actorName: actor.name,
     sourceUuid: source.uuid, sourceName: source.name, distance, amount, originId: origin.id,

@@ -51,16 +51,6 @@ describe("the table", () => {
     expect(ALL()).not.toContain("Precision Attack");
     expect(ALL()).not.toContain("Riposte");
   });
-
-  it("ships the Hit Menu list as the whole table, and its parser takes it whole", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.hitMenu,
-      reg.LIST_SPECS.hitMenu.default
-    );
-    expect(rejects).toEqual([]);
-    // Whole-chunk lists read lower-cased — the machine matches names case-insensitively.
-    expect(entries.map(e => e.kind)).toEqual(ALL().map(n => n.toLowerCase()));
-  });
 });
 
 describe("hitMenu — the rows, read off the sheet", () => {

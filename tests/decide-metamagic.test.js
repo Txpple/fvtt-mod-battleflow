@@ -1,11 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  METAMAGIC,
-  TRANSMUTED_TYPES,
-  LIST_SPECS,
-  CHOSEN_AREAS,
-  parseList
-} from "../scripts/decide/registry.js";
+import { METAMAGIC, TRANSMUTED_TYPES, CHOSEN_AREAS } from "../scripts/decide/registry.js";
 import {
   metamagicFits,
   metamagicMenu,
@@ -121,13 +115,6 @@ describe("the table", () => {
       expect(row.when).toBeTruthy();
       expect(row).not.toHaveProperty("cost");
     }
-  });
-  it("ships its list as membership over the table, every row on", () => {
-    const spec = LIST_SPECS.metamagic;
-    expect(spec.membership).toBe(true);
-    const { entries, rejects } = parseList(spec, spec.default);
-    expect(rejects).toEqual([]);
-    expect(entries.length).toBe(10);
   });
 });
 
@@ -519,15 +506,6 @@ describe("the chosen-area table and its list", () => {
       expect(typeof row.data).toBe("string");
       expect(Object.keys(row)).toEqual(["data"]);
     }
-  });
-  it("ships its list as membership over the table, every row on", () => {
-    const spec = LIST_SPECS.chosenAreas;
-    expect(spec.membership).toBe(true);
-    expect(spec.setting).toBe("chosenAreaList");
-    const { entries, rejects } = parseList(spec, spec.default);
-    expect(rejects).toEqual([]);
-    expect(entries.length).toBe(7);
-    expect(parseList(spec, "Slow, Fireball").rejects.length).toBe(1); // not a chosen area — dropped, warned
   });
 });
 

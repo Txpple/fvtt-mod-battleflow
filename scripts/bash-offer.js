@@ -2,14 +2,13 @@
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
  * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat,
-  combatStamp, statContext, drivesMomentFor } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf, lower } from "./lookup.js";
-import { maneuverFoldEntries } from "./settings.js";
+import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT, SHOVES } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { hitTargets, modeAllows, resolveAttackMessage } from "./shared.js";
+import { hitTargets, resolveAttackMessage } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
@@ -72,7 +71,6 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( !attacker || !(message instanceof ChatMessage) ) return;
     if ( message.getFlag(MODULE_ID, "bashOffer") ) return;       // never re-stamp
     if ( message.getFlag(MODULE_ID, "riposteFor") ) return;      // a driven attack never chains the offer
-    if ( !modeAllows(attacker) ) return;
     const offer = offerFor(subject, attacker);
     if ( !offer ) return;
     const { kind, found, activity, shoveRow = null } = offer;
@@ -97,17 +95,14 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       living.push({ uuid: t.uuid, name: t.name });
     }
     if ( !living.length ) return;
-    // Queued behind the damage unless nothing downstream would ever promote it.
-    const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
+    // Queued behind the damage; the payout promotes it.
     await message.setFlag(MODULE_ID, "bashOffer", {
-      status: sequenced ? "queued" : "pending", answer: null, kind, ...(shoveRow ? { shoveRow } : {}),
+      status: "queued", answer: null, kind, ...(shoveRow ? { shoveRow } : {}),
       itemId: found.item.id, activityId: activity?.id ?? null,
       itemName: found.item.name, itemImg: found.item.img,
       attackerUuid: attacker.uuid, targets: living,
-      ...statContext(attacker.uuid), // the data-plane stamp
-      ...(sequenced ? {} : offerClock())
+      ...statContext(attacker.uuid) // the data-plane stamp
     });
-    if ( !sequenced ) armBashOfferTimer(message);
   } catch(err) {
     console.error(`${TITLE} | Bash offer stamp failed.`, err);
   }
@@ -118,7 +113,7 @@ const armBashOfferTimer = message =>
 
 /** The offer's window and deadline, read at the moment the clock STARTS. */
 function offerClock() {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   return window ? { window, deadline: Date.now() + (window * 1000) } : {};
 }
 

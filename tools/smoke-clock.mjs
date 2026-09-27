@@ -52,7 +52,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  if (!game.settings.settings.has(`${MOD}.clockRiderList`)) return { fatal: 'clockRiderList not registered — OLD code (F5)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (F5)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'saveTimer', 'castApply',

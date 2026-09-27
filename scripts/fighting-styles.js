@@ -4,9 +4,9 @@
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite, decisionWindow } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
-import { fightingStyleEntries, listedNames } from "./settings.js";
+import { fightingStyleEntries, listedNames } from "./decide/registry.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
   typesInNames, typedFace, ignoredResistances, typeChoicesLeft } from "./decide/fighting-styles.js";
@@ -175,7 +175,6 @@ for ( const hook of ["createItem", "updateItem", "deleteItem"] ) {
   Hooks.on(hook, item => { if ( item?.parent instanceof Actor ) scheduleSync(item.parent); });
 }
 // The list is the switch: a change re-reads every actor (an unlisted style's face goes, its pack effect comes back).
-Hooks.on("updateSetting", setting => { if ( setting?.key === `${MODULE_ID}.${S.fightingStyleList}` ) syncAll(); });
 
 /* --- THE ROLL ----------------------------------------------------------------------------------- */
 
@@ -574,7 +573,7 @@ Hooks.on("updateCombat", (combat, changed) => {
 });
 
 async function stampGrapple(actor, feature, activity, candidates) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   const certain = candidates.filter(c => c.certain);
   const flag = {
     status: "pending", row: "Unarmed Fighting", actorUuid: actor.uuid, actorName: actor.name,

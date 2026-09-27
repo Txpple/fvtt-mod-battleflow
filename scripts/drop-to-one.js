@@ -8,9 +8,9 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { dropToOneEntries, listedNames } from "./settings.js";
+import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -82,7 +82,7 @@ async function settle(actor, found, { amount, source }) {
 }
 
 async function stampAsk(actor, found, { amount, source }) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   const flag = {
     status: "pending", row: found.name, actorUuid: actor.uuid, actorName: actor.name, itemId: found.item.id,
     amount, sourceName: source?.name ?? null, answer: null, applied: false,

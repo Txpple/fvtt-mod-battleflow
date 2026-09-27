@@ -3,7 +3,7 @@
  * cover — the Foundry half; the arithmetic is decide/geometry.js and decide/cover.js.
  * ⚠ No hooks, no flags, no writes.
  */
-import { TITLE } from "./core.js";
+import { MODULE_ID, TITLE } from "./core.js";
 import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
 
@@ -116,14 +116,15 @@ function spaceOf(doc, grid) {
 }
 
 /** MEASURED COVER (RULINGS *Measured cover*): walls by the MOVE collision test, creatures bar the
- * hidden and dead; null off one scene or on hex.
+ * hidden and dead; null off one scene, on hex, or on a scene flagged `noCover` (the suites' lever:
+ * their fixtures stand in a row).
  * @param {Token} attacker
  * @param {Token} target */
 export function measuredCoverBetween(attacker, target) {
   try {
     const a = attacker?.document, t = target?.document;
     if ( !a || !t || (a === t) || (a.parent !== t.parent) || !canvas?.grid ) return null;
-    if ( canvas.grid.isHexagonal ) return null;
+    if ( canvas.grid.isHexagonal || a.parent?.getFlag?.(MODULE_ID, "noCover") ) return null;
     const size = canvas.grid.size;
     const grid = canvas.grid.isGridless ? 0 : size;
     const creatures = [];

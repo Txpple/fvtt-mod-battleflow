@@ -8,7 +8,7 @@
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { lower } from "./lookup.js";
-import { reminderEntries } from "./settings.js";
+import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
 import { bfCard, buyBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
 import { ADVANTAGE_BUYS } from "./decide/registry.js";
@@ -19,7 +19,7 @@ import { SURFACES } from "./surfaces.js";
 /** The rows this actor can buy on this kind of test — every held row, spent ones greyed (the box says why). */
 function buysFor(actor, testKind) {
   if ( !(actor instanceof Actor) ) return [];
-  if ( !reminderEntries().some(e => e.kind === "buy") ) return [];      // the list is the switch
+  if ( !reminderEntries().some(e => e.kind === "buy") ) return [];
   const out = [];
   for ( const [name, row] of Object.entries(ADVANTAGE_BUYS) ) {
     if ( !row.tests.includes(testKind) ) continue;

@@ -3,7 +3,7 @@
  * the create / update / delete watchers with their resume floors. index.js is the only public face.
  */
 import { MODULE_ID, rollerUserFor,
-  drivesMomentFor, canAnswerFor } from "../core.js";
+  drivesMomentFor, canAnswerFor, savesRollThemselves } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
 import { popupKey, holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
@@ -12,7 +12,7 @@ import { livePopups, momentButton, scheduleBarSync, shownMoments } from "../ui.j
 import { saveAnsweredBy, foldSaveAnswer, flipForcedSave } from "./verdict.js";
 import { applySaveConsequences, reconcileSaveDamage } from "./consequences.js";
 import { refreshDemandFromTemplates, cleanupSpentTemplates } from "./areas.js";
-import { openSaveDialog, armSaveTimer, disarmSaveTimer } from "./ask.js";
+import { openSaveDialog, armSaveTimer, disarmSaveTimer, rollSaveItself } from "./ask.js";
 import { armSaveChoiceTimer, disarmSaveChoiceTimer, showSaveChoicePopup } from "./choices.js";
 import { SURFACES } from "../surfaces.js";
 import { CARD, isCard, resistedOf } from "../decide/card.js";
@@ -199,9 +199,17 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     for ( const t of flag.targets ) {
       if ( t.done ) continue;
       const actor = resolveUuid(t.uuid);
+      const shownKey = popupKey(message.id, `save:${t.uuid}`);
+      // Rolled automatically: the elected roller rolls once, no popup and no button.
+      if ( savesRollThemselves() ) {
+        if ( (actor instanceof Actor) && (rollerUserFor(actor)?.isSelf ?? false) && !shownMoments.has(shownKey) ) {
+          shownMoments.add(shownKey);
+          void rollSaveItself(message, t.uuid);
+        }
+        continue;
+      }
       if ( !canAnswerFor(actor) ) continue;
       // canAnswerFor ALONE routes the popup; each pending demand opens once, the button recalls it.
-      const shownKey = popupKey(message.id, `save:${t.uuid}`);
       if ( !shownMoments.has(shownKey) ) {
         shownMoments.add(shownKey);
         void openSaveDialog(message, t.uuid);

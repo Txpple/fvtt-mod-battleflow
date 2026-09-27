@@ -6,7 +6,7 @@
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
 import { registerResumable } from "./ui.js";
-import { damageShieldEntries, listedNames } from "./settings.js";
+import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";

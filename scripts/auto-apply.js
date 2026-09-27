@@ -1,8 +1,7 @@
 /**
  * Battle Flow — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM,
-  queueFlagWrite, statContext, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, statContext, isActiveGM } from "./core.js";
 import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
@@ -30,8 +29,7 @@ registerResumable("attackDamage", {
   pending: (_flag, message, cause) => (cause === "create")
     || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
     || (!!message.getFlag(MODULE_ID, DICE_CHANGE_FLAG) && !eitherWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
-  drives: (_flag, message) => drivesMomentFor(payoutSubject(message))
-    && (setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders)),
+  drives: (_flag, message) => drivesMomentFor(payoutSubject(message)),
   drive: resolveAttackDamage
 });
 
@@ -59,16 +57,14 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
   });
   const blocked = hits.length - writable.length;
 
-  if ( setting(S.autoApply) ) {
-    if ( writable.length ) await applyToHitTargets(damageMessage, attackMessage, writable);
-    if ( blocked ) await whisperNoGM(`damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
-      "The roll stands — apply it from the card's damage tray.");
-  }
+  if ( writable.length ) await applyToHitTargets(damageMessage, attackMessage, writable);
+  if ( blocked ) await whisperNoGM(`damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
+    "The roll stands — apply it from the card's damage tray.");
   // Per target: the damage riders' all-targets intersection rule does NOT apply to effects.
-  if ( setting(S.effectRiders) && writable.length ) {
+  if ( writable.length ) {
     await applyEffectRiders(damageMessage, attackMessage, writable);
   }
-  if ( setting(S.masteryRiders) ) await resolveHitMastery(damageMessage, attackMessage, hits);
+  await resolveHitMastery(damageMessage, attackMessage, hits);
   // The hit's offer opens after the damage and any pending mastery decision (decide/sequence.js).
   await sequenceBashOffer(attackMessage, { damageLanded: true });
 }

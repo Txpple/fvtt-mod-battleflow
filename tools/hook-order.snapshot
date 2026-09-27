@@ -1,6 +1,5 @@
 # tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.
 init	settings.js
-renderSettingsConfig	settings.js
 init	holds.js
 createChatMessage	events.js
 updateChatMessage	events.js
@@ -159,7 +158,6 @@ createActor	fighting-styles.js
 createItem	fighting-styles.js
 updateItem	fighting-styles.js
 deleteItem	fighting-styles.js
-updateSetting	fighting-styles.js
 dnd5e.preRollDamageV2	fighting-styles.js
 dnd5e.postDamageRollConfiguration	fighting-styles.js
 preCreateChatMessage	fighting-styles.js

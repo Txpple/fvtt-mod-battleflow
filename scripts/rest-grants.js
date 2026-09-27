@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
-import { listedNames, restGrantEntries } from "./settings.js";
+import { listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { REST_GRANTS } from "./decide/registry.js";
 import { coatSaveAbility } from "./decide/chips.js";

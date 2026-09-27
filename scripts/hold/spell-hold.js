@@ -3,8 +3,8 @@
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
-import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
-import { blockEntries } from "../settings.js";
+import { MODULE_ID, TITLE, statContext, decisionWindow } from "../core.js";
+import { blockEntries } from "../decide/registry.js";
 import { bfCard } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
@@ -13,7 +13,6 @@ import { armHoldTimer, disarmHoldTimer } from "./clock.js";
 
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
-  if ( !setting(S.reactionHold) ) return;
   // The usage card is the held document: it carries the target snapshot and is never suppressed.
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // create: false — no card, nothing to hold
@@ -82,7 +81,7 @@ async function stampSpellHold(message, entries) {
   if ( !held.length ) return;
 
   // ⚠ Deliberately NO holdSkipFutile test: negating always changes the outcome.
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   await message.setFlag(MODULE_ID, "hold", {
     status: "pending",
     trigger: "spell",

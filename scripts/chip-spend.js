@@ -8,7 +8,7 @@ import { EFFECT_BENDS } from "./decide/registry.js";
 import { TURN_CHIPS, CHIP_FLAG, chipOwnedBy, chipSpentBy, netShownFor, rollModeOf, spendRecord } from "./decide/chips.js";
 import { REMINDER_FLAG, rolledWith } from "./decide/reminders.js";
 import { chipSpentOnRecord, masteryLabel } from "./shared.js";
-import { effectEntries, listedNames } from "./settings.js";
+import { effectEntries, listedNames } from "./decide/registry.js";
 import { bfCard } from "./decide/present.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
@@ -55,7 +55,7 @@ async function spendChips(message, ctx) {
         }
       }
     }
-    // EFFECT_BENDS rows with `spend: "attack"` on the Effect Sources list, on either side.
+    // EFFECT_BENDS rows with `spend: "attack"`, on either side.
     const spendRows = new Map(Object.entries(EFFECT_BENDS).filter(([, r]) => r.spend === "attack")
       .map(([k, r]) => [k.toLowerCase(), r]));
     if ( spendRows.size ) {

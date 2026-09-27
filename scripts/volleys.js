@@ -4,8 +4,7 @@
  * application, one concentration check). RAYS: a real `rollAttack` each. Membership is
  * volley-registry.js alone. Everything runs on the CASTING client.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive, statContext } from "./core.js";
-import { modeAllows } from "./shared.js";
+import { MODULE_ID, TITLE, queueFlagWrite, deadlineIsLive, statContext, decisionWindow } from "./core.js";
 import { volleyEntryFor, resolveVolleyCount } from "./volley-registry.js";
 import { castLevelOf, clampVolleyCount } from "./decide/eligible.js";
 import { popupKey, bfCard, esc, momentBarHTML, reminderDetailsHTML } from "./decide/present.js";
@@ -21,12 +20,10 @@ const volleyTimers = new Map();
 
 /** Is this use a volley (null = native)? A distinct-targets entry clamps n to the target count. */
 function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
-  if ( !setting(S.volleys) ) return null;
   const entry = volleyEntryFor(activity?.item);
   if ( !entry ) return null;
   if ( activity.type !== entry.kind ) return null;
   if ( !activity.damage?.parts?.length ) return null;
-  if ( !modeAllows(activity.actor) ) return null;   // the folds ride the resolver
   if ( !(targetCount > 0) ) return null;
   const level = castLevel ?? castLevelOf(activity, usageConfig);
   const n = clampVolleyCount(resolveVolleyCount(entry, activity, level), targetCount,
@@ -65,7 +62,7 @@ async function stampVolley(activity, message, targets, spec) {
       if ( consumed ) activity.item.updateSource({ "flags.dnd5e.consumed": consumed });
     } catch { /* refund keeps working through the deltas either way */ }
 
-    const window = Math.max(0, Number(setting(S.damageTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "volley", {
       status: "pending",
       ...statContext(activity.actor?.uuid ?? null), // the data-plane stamp — the caster's volley

@@ -3,7 +3,7 @@
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./settings.js";
+import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { TOKEN_LIGHTS, TOKEN_SENSES, TOKEN_SIZES } from "./decide/registry.js";

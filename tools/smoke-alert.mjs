@@ -45,7 +45,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  if (!game.settings.settings.has(`${MOD}.initiativeSwapList`)) return { fatal: 'initiativeSwapList not registered — OLD code (reload the box)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['initiativeSwapList', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));

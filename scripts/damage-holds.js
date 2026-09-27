@@ -5,10 +5,10 @@
  * it short by the roll (`held`, never claimed twice). ⚠ Card buttons and sheet edits are never
  * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
-import { interruptEntries } from "./settings.js";
+import { interruptEntries } from "./decide/registry.js";
 import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
 import { reduceDamages } from "./decide/verdict.js";
 import { reductionRise } from "./decide/dice-chips.js";
@@ -113,7 +113,7 @@ const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.ke
 const guardsListed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.ally);
 
 async function stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found, { guarded = false } = {}) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   const amount = Math.floor(damages.reduce((n, d) => n + (Number(d.value) || 0), 0) * multiplier);
   const source = receiptMessage.getAssociatedActor?.() ?? null;
   // A guarded share has no reactor yet; the guard who intercepts becomes it at the answer.

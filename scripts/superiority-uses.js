@@ -3,9 +3,9 @@
  * *The rest of the maneuvers*) — each a USE whose consequence lands on a sheet, and for Lunging
  * and Feinting a die that rides the next hit. The pool is spent by the activity's own consumption.
  */
-import { MODULE_ID, TITLE, S, setting, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, TITLE, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
-import { superiorityUseEntries, listedNames } from "./settings.js";
+import { superiorityUseEntries, listedNames } from "./decide/registry.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, tableIndex } from "./decide/registry.js";
@@ -101,7 +101,7 @@ async function drive(row, activity, actor, message) {
     if ( roll ) await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${item.name} — the die` });
     const other = targets.find(t => t.uuid !== actor.uuid) ?? null;
     const options = [{ uuid: actor.uuid, name: actor.name }, ...(other ? [other] : [])];
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "superiorityUse", { ...base, total: roll?.total ?? null,
       line: roll ? `${row.choice.what} +${roll.total} until the start of your next turn — yours or the other creature's` : "the die could not be read — apply the bonus by hand" });
     if ( !roll ) return;

@@ -1,16 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 /**
- * DECISION-layer list parsing (ARCHITECTURE.md §2, §6). No Foundry stub on purpose: if any of
- * this ever reaches for `setting()` the import fails, which is the signal we want.
- *
- * ⚠ This parser is the only thing between a stray character in a world setting and a feature
- * that silently does nothing forever. A dropped entry raises no error at runtime — that is
- * precisely why the drops are asserted here rather than trusted.
- *
- * ⚠ Phase 3 replaced five parsers with one spec-driven parser. Every behavioural assertion the
- * five had is preserved below, list by list, because "move, do not rewrite" is only a claim
- * until the old behaviours are re-asserted against the new code.
+ * DECISION-layer tables (ARCHITECTURE.md §2, §6). No Foundry stub on purpose: if any of this ever
+ * reaches for `setting()` the import fails, which is the signal we want.
  */
 /** @type {typeof import("../scripts/decide/registry.js")} */
 let reg;
@@ -18,90 +10,46 @@ beforeAll(async () => {
   reg = await import("../scripts/decide/registry.js");
 });
 
-const entriesOf = (spec, raw) => reg.parseList(spec, raw).entries;
-
-describe("the specs themselves", () => {
-  it("gives every list a label, an S key, at least one column and a default", () => {
-    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      expect(spec.label, key).toBeTruthy();
-      expect(spec.setting, key).toBeTruthy();
-      expect(spec.columns.length, key).toBeGreaterThan(0);
-      expect(typeof spec.default, key).toBe("string");
+describe("the kind lists", () => {
+  it("name only kinds from their own closed sets", () => {
+    for (const [key, { rows, kinds }] of Object.entries(reg.KIND_LISTS)) {
+      expect(rows.length, key).toBeGreaterThan(0);
+      for (const r of rows) expect(kinds.has(r.kind), `${key} ${r.name}:${r.kind}`).toBe(true);
     }
   });
 
-  it("declares a kind set exactly when it declares a kind column", () => {
-    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      expect(Boolean(spec.kinds), key).toBe(Boolean(spec.kindColumn));
-      if (spec.kindColumn) expect(spec.columns, key).toContain(spec.kindColumn);
-    }
+  it("keeps Riposte out of the interrupts — it triggers on a MISS", () => {
+    expect(reg.INTERRUPTS.map(r => r.name)).not.toContain("Riposte");
+    expect(reg.MANEUVER_FOLDS).toContainEqual({ name: "Riposte", kind: "riposte" });
   });
 
-  it("declares a fallback ONLY where the kind column can carry one", () => {
-    // §6 rule 6 admits a DECLARED fallback; a fallback on a kindless list is meaningless, and
-    // one whose value is not itself a legal kind would put an illegal entry into the machine.
-    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      if (!spec.fallback) continue;
-      expect(spec.kindColumn, key).toBeTruthy();
-      expect(spec.kinds.has(spec.fallback), key).toBe(true);
-    }
+  it("lets one feat appear twice under different kinds", () => {
+    const kinds = reg.MANEUVER_FOLDS.filter(r => r.name === "Shield Master").map(r => r.kind);
+    expect(kinds).toEqual(["interpose", "bash"]);
   });
 
-  it("ships a default that its own parser accepts whole — no drops, no fallbacks", () => {
-    // The same assertion the static gate makes, kept here too: a shipped default that its own
-    // parser rejects disables the feature for every fresh world, and nobody would see it.
-    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      const { entries, rejects } = reg.parseList(spec, spec.default);
-      expect(rejects, key).toEqual([]);
-      expect(entries.length, key).toBeGreaterThan(0);
-    }
+  it("hands every caller a fresh copy, so no reader can edit a table", () => {
+    const first = reg.interruptEntries();
+    first[0].kind = "damage";
+    first.push({ name: "Stray", kind: "ac" });
+    expect(reg.interruptEntries()[0].kind).toBe("ac");
+    expect(reg.interruptEntries()).toHaveLength(reg.INTERRUPTS.length);
   });
 
-  it("keeps Riposte out of the interrupt default — it triggers on a MISS", () => {
-    // Struck from the live worlds at v1.16.0; the strike missed the registered default until
-    // v1.19.0, so a fresh world kept re-seeding the every-hit nonsense hold. Pinned here.
-    expect(reg.LIST_SPECS.interrupt.default).not.toMatch(/riposte/i);
-    expect(reg.LIST_SPECS.maneuverFolds.default).toMatch(/Riposte:riposte/);
+  it("reads a membership list as every row of its table, lower-cased", () => {
+    expect(reg.effectEntries().map(e => e.kind)).toEqual(reg.EFFECT_KEYS.map(k => k.toLowerCase()));
+    expect(reg.conditionEntries().map(e => e.kind)).toEqual([...reg.CONDITION_KEYS]);
+    expect(reg.reminderEntries().map(e => e.kind)).toEqual([...reg.REMINDER_KINDS]);
   });
-});
 
-describe("interrupt list — the one DECLARED fallback", () => {
-  const spec = () => reg.LIST_SPECS.interrupt;
-
-  it("reads name and kind, and lowercases the kind", () => {
-    expect(entriesOf(spec(), "Shield:ac, Absorb Elements:DAMAGE")).toEqual([
-      { name: "Shield", kind: "ac" },
-      { name: "Absorb Elements", kind: "damage" }
+  it("the blocks and the riders", () => {
+    expect(reg.blockEntries()).toEqual([{ spell: "Magic Missile", reaction: "Shield" }]);
+    expect(reg.riderEntries().map(e => e.name)).toEqual([
+      "hunters-mark",
+      "hex",
+      "great-old-one-hex"
     ]);
-  });
-
-  it("defaults a MISTYPED kind to ac rather than dropping the reaction — and SAYS SO", () => {
-    // Deliberately unlike the folds: a mistyped interrupt is still worth pausing for. What
-    // changed in Phase 3 is the reject — the correction is no longer silent.
-    const { entries, rejects } = reg.parseList(spec(), "Shield:acc");
-    expect(entries).toEqual([{ name: "Shield", kind: "ac" }]);
-    expect(rejects).toEqual([
-      { chunk: "Shield:acc", action: "defaulted", detail: '"acc" is not a kind' }
-    ]);
-  });
-
-  it("defaults a kindless entry to ac, and says that too", () => {
-    const { entries, rejects } = reg.parseList(spec(), "Shield");
-    expect(entries).toEqual([{ name: "Shield", kind: "ac" }]);
-    expect(rejects[0]).toMatchObject({ action: "defaulted", detail: "no kind given" });
-  });
-
-  it("survives the punctuation a human actually types", () => {
-    expect(entriesOf(spec(), "  Shield : ac ,, ,Silvery Barbs:ac,")).toEqual([
-      { name: "Shield", kind: "ac" },
-      { name: "Silvery Barbs", kind: "ac" }
-    ]);
-  });
-
-  it("returns an empty list for empty, null and undefined — never throws", () => {
-    for (const raw of ["", "   ", null, undefined]) {
-      expect(reg.parseList(spec(), raw)).toEqual({ entries: [], rejects: [] });
-    }
+    expect(reg.riderUpgradeEntries()).toEqual([{ feature: "foe-slayer", rider: "hunters-mark" }]);
   });
 });
 
@@ -131,11 +79,8 @@ describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Sto
       hit: "melee attack"
     });
   });
-  it("every reduction row is a damage interrupt on the shipped default list", () => {
-    const entries = reg.parseList(
-      reg.LIST_SPECS.interrupt,
-      reg.LIST_SPECS.interrupt.default
-    ).entries;
+  it("every reduction row is a damage interrupt", () => {
+    const entries = reg.INTERRUPTS;
     for (const key of Object.keys(reg.INTERRUPT_REDUCTIONS)) {
       expect(
         entries.map(e => e.name),
@@ -146,93 +91,9 @@ describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Sto
   });
 });
 
-describe("block list — both halves required", () => {
-  const spec = () => reg.LIST_SPECS.block;
-
-  it("reads Spell:Reaction", () => {
-    expect(entriesOf(spec(), "Magic Missile:Shield")).toEqual([
-      { spell: "Magic Missile", reaction: "Shield" }
-    ]);
-  });
-
-  it("DROPS a half-written entry — a block with no reaction blocks nothing", () => {
-    for (const raw of ["Magic Missile", "Magic Missile:", ":Shield"]) {
-      expect(entriesOf(spec(), raw), raw).toEqual([]);
-    }
-  });
-
-  it("names which half was missing, so the warning is actionable", () => {
-    expect(reg.parseList(spec(), "Magic Missile").rejects[0]).toMatchObject({
-      action: "dropped",
-      detail: "no reaction"
-    });
-    expect(reg.parseList(spec(), ":Shield").rejects[0]).toMatchObject({ detail: "no spell" });
-  });
-
-  it("keeps the good entries either side of a bad one", () => {
-    expect(entriesOf(spec(), "Magic Missile:Shield, Oops, Fireball:Absorb Elements")).toEqual([
-      { spell: "Magic Missile", reaction: "Shield" },
-      { spell: "Fireball", reaction: "Absorb Elements" }
-    ]);
-  });
-});
-
-describe("maneuver folds — the closed kind set, and what it refuses", () => {
-  const spec = () => reg.LIST_SPECS.maneuverFolds;
-
-  it("accepts every kind in the set, case-insensitively", () => {
-    const raw = [...reg.MANEUVER_KINDS].map((k, i) => `Feat ${i}:${k.toUpperCase()}`).join(", ");
-    const { entries, rejects } = reg.parseList(spec(), raw);
-    expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual([...reg.MANEUVER_KINDS]);
-  });
-
-  it("REPORTS an unrecognised kind instead of guessing at it", () => {
-    const { entries, rejects } = reg.parseList(
-      spec(),
-      "Precision Attack:precision, Riposte:rispote"
-    );
-    expect(entries).toEqual([{ name: "Precision Attack", kind: "precision" }]);
-    // The typo is DROPPED and reported — never quietly read as something else.
-    expect(rejects).toEqual([
-      { chunk: "Riposte:rispote", action: "dropped", detail: '"rispote" is not a kind' }
-    ]);
-  });
-
-  it("reports a kindless entry too", () => {
-    const { entries, rejects } = reg.parseList(spec(), "Riposte");
-    expect(entries).toEqual([]);
-    expect(rejects[0]).toMatchObject({ chunk: "Riposte", action: "dropped" });
-  });
-
-  it("allows one feat to appear twice under different kinds", () => {
-    // Shield Master is listed twice on purpose: two folds off one feat, orthogonal kinds.
-    const { entries, rejects } = reg.parseList(
-      spec(),
-      "Shield Master:interpose, Shield Master:bash"
-    );
-    expect(rejects).toEqual([]);
-    expect(entries).toEqual([
-      { name: "Shield Master", kind: "interpose" },
-      { name: "Shield Master", kind: "bash" }
-    ]);
-  });
-
-  it("returns empty and reports nothing for an empty setting", () => {
-    expect(reg.parseList(spec(), "")).toEqual({ entries: [], rejects: [] });
-  });
-});
-
-describe("d20 folds — three spends, one mechanism", () => {
-  const spec = () => reg.LIST_SPECS.d20Folds;
-
-  it("ships all three surveyed features on by default", () => {
-    const { entries } = reg.parseList(spec(), spec().default);
-    // 2026-09-05: Ambush and Tactical Assessment ship too — the tactical SPEND with a scope of their own.
-    // 2026-09-09: Seeking Spell too — the metamagic pass's reroll on a spell attack's miss.
-    // 2026-09-25: Lucky's `advantage` too — the no-dialog initiative road of its Advantage half.
-    // 2026-09-27: Mage Slayer's `succeed` too — Guarded Mind (the PHB feats, group 4).
-    expect(entries.map(e => e.kind).sort()).toEqual([
+describe("d20 folds — the spends, one mechanism", () => {
+  it("ships every surveyed feature", () => {
+    expect(reg.D20_FOLDS.map(e => e.kind).sort()).toEqual([
       "advantage",
       "bardic",
       "heroic",
@@ -242,105 +103,15 @@ describe("d20 folds — three spends, one mechanism", () => {
       "tactical",
       "tactical"
     ]);
-    expect(entries.map(e => e.name)).toContain("Ambush");
+    expect(reg.D20_FOLDS.map(e => e.name)).toContain("Ambush");
   });
 
-  // ⚠ The default names the EFFECT ("Inspired") the bard applies, not the bard's own feat
-  // ("Bardic Inspiration"). The recipient carries the effect; the feat never leaves the bard,
-  // so a list entry naming the feat would look right and find nothing on the creature that
-  // actually holds the die. Measured against phbbrdBardicInsp, 2026-08-23.
-  // ⚠ The default LOOKS wrong and is right: the key must be "Inspired", because that is the
-  // ActiveEffect the bard's Inspire activity applies to the recipient — the bard's own feat
-  // never leaves the bard, so an entry naming the feat would find nothing on the creature that
-  // actually holds the die. What the table READS is "Bardic Inspiration"; d20-folds.js's
-  // KIND_LABEL supplies that, and the two are deliberately allowed to differ.
+  // ⚠ The row names the EFFECT ("Inspired") the bard applies, not the bard's own feat: the feat
+  // never leaves the bard, so a row naming it would find nothing on the creature that holds the
+  // die. What the table READS is "Bardic Inspiration"; d20-folds.js's KIND_LABEL supplies that.
   it("keys bardic off the effect a bard APPLIES, never the feat the bard keeps", () => {
-    expect(spec().default).toMatch(/Inspired:bardic/);
-    expect(spec().default).not.toMatch(/Bardic Inspiration:bardic/);
-  });
-
-  it("drops an unknown kind rather than guessing — no fallback on this list", () => {
-    expect(spec().fallback).toBe(null);
-    const { entries, rejects } = reg.parseList(spec(), "Heroic Inspiration:reroll");
-    expect(entries).toEqual([]);
-    expect(rejects[0]).toMatchObject({ action: "dropped" });
-    expect(reg.rejectMessage(spec(), rejects[0])).toMatch(/heroic\/tactical\/bardic/);
-  });
-
-  it("requires the name column even for heroic, whose name is only a label", () => {
-    // `heroic` does no lookup at all — its marker is a boolean with no document. The name is
-    // still required because the popup has to print something, and "every column required" is
-    // one rule with no per-list exceptions.
-    const { entries, rejects } = reg.parseList(spec(), ":heroic");
-    expect(entries).toEqual([]);
-    expect(rejects[0]).toMatchObject({ action: "dropped", detail: "no name" });
-  });
-
-  it("lets the table rename any of them — the name is data, the kind is the switch", () => {
-    const { entries } = reg.parseList(spec(), "Lucky Break:heroic, Bard's Gift:bardic");
-    expect(entries).toEqual([
-      { name: "Lucky Break", kind: "heroic" },
-      { name: "Bard's Gift", kind: "bardic" }
-    ]);
-  });
-
-  it("an empty list turns every d20 fold off", () => {
-    expect(reg.parseList(spec(), "").entries).toEqual([]);
-  });
-});
-
-describe("rider list and rider upgrades", () => {
-  it("reads a bare comma list of identifiers as one-column entries", () => {
-    // ⚠ `{ name }` since Phase 3, not bare strings — one shape for every list setting.
-    expect(entriesOf(reg.LIST_SPECS.rider, "hunters-mark, hex,  divine-favor ")).toEqual([
-      { name: "hunters-mark" },
-      { name: "hex" },
-      { name: "divine-favor" }
-    ]);
-  });
-
-  it("drops empty slots rather than emitting blanks", () => {
-    expect(entriesOf(reg.LIST_SPECS.rider, "hex,,, ,hunters-mark")).toEqual([
-      { name: "hex" },
-      { name: "hunters-mark" }
-    ]);
-  });
-
-  it("reads feature:rider upgrade pairs and drops half-written ones", () => {
-    expect(entriesOf(reg.LIST_SPECS.riderUpgrade, "foe-slayer:hunters-mark, broken")).toEqual([
-      { feature: "foe-slayer", rider: "hunters-mark" }
-    ]);
-  });
-});
-
-describe("one parser, one set of rules", () => {
-  it("ignores a third colon-separated field on every two-column list", () => {
-    // Pre-Phase-3 behaviour, preserved: every parser destructured the first two halves and
-    // ignored the rest. Asserted so a future column cannot appear by accident.
-    expect(entriesOf(reg.LIST_SPECS.interrupt, "Shield:ac:extra")).toEqual([
-      { name: "Shield", kind: "ac" }
-    ]);
-    expect(entriesOf(reg.LIST_SPECS.block, "Magic Missile:Shield:extra")).toEqual([
-      { spell: "Magic Missile", reaction: "Shield" }
-    ]);
-  });
-
-  it("writes a message that names the list, the chunk and what would have worked", () => {
-    const spec = reg.LIST_SPECS.maneuverFolds;
-    const { rejects } = reg.parseList(spec, "Riposte:rispote");
-    const msg = reg.rejectMessage(spec, rejects[0]);
-    expect(msg).toContain("Maneuver Folds");
-    expect(msg).toContain("Riposte:rispote");
-    expect(msg).toContain("precision/riposte/interpose/bash/hew");
-    expect(msg).toContain("ignored, never guessed");
-  });
-
-  it("says 'read as' rather than 'ignored' when a fallback stood in", () => {
-    const spec = reg.LIST_SPECS.interrupt;
-    const { rejects } = reg.parseList(spec, "Shield:acc");
-    const msg = reg.rejectMessage(spec, rejects[0]);
-    expect(msg).toContain('read as "ac"');
-    expect(msg).not.toContain("ignored");
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Inspired", kind: "bardic" });
+    expect(reg.D20_FOLDS.map(e => e.name)).not.toContain("Bardic Inspiration");
   });
 });
 
@@ -396,38 +167,16 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     expect(total).toBe(35);
   });
 
-  it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {
-    // A spec with a closed set that the tripwire does not count is a kind the code knows and
-    // nobody is counting — exactly the blind spot the tripwire exists to remove. The one
-    // exception is declared, never inferred: a `membership: true` spec's set validates the list
-    // but names DATA ROWS of one mechanism (the thirteen conditions of the `condition` kind),
-    // and counting rows as kinds would make the tripwire fire on content.
-    const counted = new Set(reg.KIND_SETS.map(s => s.kinds));
-    for (const [key, spec] of Object.entries(reg.LIST_SPECS)) {
-      if (!spec.kinds) continue;
-      if (spec.membership) {
-        expect(counted.has(spec.kinds), `${key} is membership, must not be counted`).toBe(false);
-        continue;
-      }
-      expect(counted.has(spec.kinds), key).toBe(true);
-    }
+  it("counts every kind list's set in the tripwire", () => {
+    const counted = new Set(reg.KIND_SETS.map(set => set.kinds));
+    for (const [key, { kinds }] of Object.entries(reg.KIND_LISTS))
+      expect(counted.has(kinds), key).toBe(true);
   });
 
-  it("the effect list is parsed WHOLE-CHUNK — a name with a colon survives — and matched lower-cased", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.effects,
-      "Adv: Attacks & Saves, INNATE sorcery, Not A Row"
-    );
-    expect(entries.map(e => e.kind)).toEqual(["adv: attacks & saves", "innate sorcery"]);
-    expect(rejects).toHaveLength(1);
-    expect(reg.LIST_SPECS.effects.membership).toBe(true);
-    expect(reg.LIST_SPECS.effects.default).toBe(reg.EFFECT_KEYS.join(", "));
-  });
-  it("the condition membership is the `condition` kind's rows, and prone is not among them", () => {
-    expect(reg.LIST_SPECS.conditions.membership).toBe(true);
+  it("the condition rows are the `condition` kind's, and prone is not among them", () => {
     expect(reg.REMINDER_KINDS.has("condition")).toBe(true);
-    expect(reg.CONDITION_STATUSES.has("prone")).toBe(false);
-    expect(reg.CONDITION_STATUSES.size).toBe(14);
+    expect(reg.CONDITION_KEYS).not.toContain("prone");
+    expect(reg.CONDITION_KEYS).toHaveLength(14);
   });
 });
 
@@ -455,17 +204,6 @@ describe("CONDITION_BENDS — the table, and the set and the default DERIVED fro
       expect(Object.isFrozen(reg.CONDITION_BENDS[key])).toBe(true);
       expect(reg.CONDITION_BENDS[key].rule.length).toBeGreaterThan(20);
     }
-  });
-  it("the closed set the list is validated against IS the table's keys — one declaration", () => {
-    expect(reg.CONDITION_STATUSES).toEqual(new Set(reg.CONDITION_KEYS));
-  });
-  it("the shipped default parses to every row of the table, in order", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.conditions,
-      reg.LIST_SPECS.conditions.default
-    );
-    expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual([...reg.CONDITION_KEYS]);
   });
   it("every row bends at least one side or carries a note — a row that does neither is dead data", () => {
     for (const key of reg.CONDITION_KEYS) {
@@ -507,8 +245,7 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
     ]);
   });
   it("every save row is also a row of the condition table — one membership list switches both gates", () => {
-    for (const key of Object.keys(reg.SAVE_BENDS))
-      expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
+    for (const key of Object.keys(reg.SAVE_BENDS)) expect(reg.CONDITION_KEYS, key).toContain(key);
   });
 });
 
@@ -521,9 +258,9 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
     expect([...row.abilities]).toEqual(["int", "wis", "cha"]);
     expect(row.rule.startsWith("Guarded Mind. If you fail an Intelligence")).toBe(true);
   });
-  it("is the `succeed` kind's table, and the D20 Folds list ships its row", () => {
+  it("is the `succeed` kind's table, and the d20 folds ship its row", () => {
     expect(reg.D20_FOLD_KINDS.has("succeed")).toBe(true);
-    expect(reg.LIST_SPECS.d20Folds.default).toContain("Mage Slayer:succeed");
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Mage Slayer", kind: "succeed" });
   });
   it("Mage Slayer's Concentration Breaker is a feat row of the fighting-style table that `breaks` concentration", () => {
     expect(reg.FIGHTING_STYLES["Mage Slayer"]).toMatchObject({
@@ -595,8 +332,7 @@ describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
     }
   });
   it("every check row is also a row of the condition table — one membership list switches all three gates", () => {
-    for (const key of Object.keys(reg.CHECK_BENDS))
-      expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
+    for (const key of Object.keys(reg.CHECK_BENDS)) expect(reg.CONDITION_KEYS, key).toContain(key);
   });
   it("marks Poisoned as the platform's own bend — the gate reminds, it never applies twice", () => {
     expect(reg.CHECK_BENDS.poisoned.platform).toBe(true);
@@ -607,8 +343,8 @@ describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
 describe("tableIndex — one access to a name-keyed table (the machine-tier pass, Stage 1)", () => {
   it("derives the closed name set from the keys, or from a named column", () => {
     expect(reg.tableIndex(reg.USE_CHIPS).names).toEqual(new Set(["steady aim"]));
-    expect(reg.tableIndex(reg.CLOCK_RIDERS, r => r.feature).names).toEqual(reg.CLOCK_RIDER_NAMES);
-    expect(reg.DAMAGE_SHIELD_NAMES).toEqual(
+    expect(reg.tableIndex(reg.CLOCK_RIDERS, r => r.feature).names.has("dread ambusher")).toBe(true);
+    expect(reg.tableIndex(reg.DAMAGE_SHIELDS).names).toEqual(
       new Set(Object.keys(reg.DAMAGE_SHIELDS).map(k => k.toLowerCase()))
     );
   });
@@ -631,7 +367,7 @@ describe("Polearm Master (2026-09-27, the user's P1 and the reach ring)", () => 
     expect([...pole.weapons.base]).toEqual(["quarterstaff", "spear"]);
     expect([...pole.weapons.properties]).toEqual(["hvy", "rch"]);
     expect(pole.rule.startsWith("Pole Strike. Immediately after")).toBe(true);
-    expect(reg.LIST_SPECS.maneuverFolds.default).toContain("Polearm Master:hew");
+    expect(reg.MANEUVER_FOLDS).toContainEqual({ name: "Polearm Master", kind: "hew" });
   });
   it("Reactive Strike is an invisible, quiet feature ring of the held weapon's reach that alerts on a hostile moving in", () => {
     const row = reg.EMANATIONS["Polearm Master"];

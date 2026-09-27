@@ -504,10 +504,8 @@ through a bare `default: return`. Never leave a closed switch's default silent.
    the kind deliberately, and count it against the R4 tripwire.
 5. **Registries are exposed read-only on the module API** so tooling and suites can inspect
    them. That is inspection, not an extension point (DESIGN §4).
-6. **Unknown entries are dropped with a warning, never guessed.** A spec may declare a
-   **fallback** the parser applies instead, and it still warns — exactly one exists: the
-   interrupt list reads an unrecognised kind as `ac`, the conservative reading of a reaction
-   worth pausing for. **A DECLARED fallback is legal; an undeclared one is a bug.**
+6. **A kind list names only kinds from its closed set**; `tools/check-registry.mjs` fails the
+   build otherwise.
 7. **Name the precedent row first** (user, 2026-09-24, Slice A's switch). Before a new ability
    picks a table or a kind, name the existing row it most resembles; a row that fits by shape
    is a row there, and the vocabulary grows beside it (RULINGS *Slice A*).
@@ -527,14 +525,13 @@ documented at its table's head in [decide/registry.js](scripts/decide/registry.j
 | `CLOCK_RIDERS` | `when: "any"` · `uses` off the ITEM · `effects` · `clock` · `label` | every hit, uses permitting; the uses read off the activity, else the item its consumption names, spent where they live (`decide/clock.js` `riderUsesFrom`); the activity's own effects on the hit, clocked to the attacker; the name the offer and card use |
 | `DAMAGE_EITHER` (new) | `key` · `weapon` | Savage Attacker's once-per-turn chit key and its weapon-only clause. Not a kind: one machine, rows of data |
 
-### Registry vs. settings list
+### The tables are the only list
 
-Both are the *membership* layer; they differ in who curates. A **code registry**
-(`volley-registry.js` is the reference) is for entries that need per-ability *handling* — a kind,
-a resolver; shipped, versioned, reviewed. A **world settings list** is for entries that are just
-names and a kind (the interrupt list, the block list, the rider table, the maneuver folds); the
-table can extend it without a release, and it parses through the one strict parser: split, trim,
-validate the kind against a closed set, warn once per bad entry, never default.
+Membership lives in code, never in a world setting. A table's rows are its members; a **kind list**
+(`INTERRUPTS`, `BLOCKS`, `MANEUVER_FOLDS`, `D20_FOLDS`, `RIDERS`, `RIDER_UPGRADES` in
+[decide/registry.js](scripts/decide/registry.js)) names which content takes which kind where the
+kind's own table does not. The readers (`interruptEntries()` and the rest) hand out fresh copies,
+so no caller can edit a table.
 
 ---
 
@@ -551,7 +548,7 @@ there needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1)
 | Module | Holds |
 | --- | --- |
 | [decide/geometry.js](scripts/decide/geometry.js) | `regionShapeTypeFor` (the placement's map: rect → rectangle, ray → line, radius → emanation), `emanationShapeData` (the platform's own emanation shape around a token, byte-for-byte), `tokenCenter`, `tokenSamplePoints`; `lengthUnitKey` — a scene's units folded to the system's keys |
-| [decide/registry.js](scripts/decide/registry.js) | the world-setting list SPECS and the one `parseList`; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `SAVE_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table (attacks) and the save table (saves), the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data; `SNEAK_ATTACK`, `CUNNING_OPTIONS`, `DEATH_STRIKE` — the Sneak Attack flow's data, each option naming the feature that grants it; `HIT_GROUPS`, `HIT_OPTIONS` — the hit menu's groups (the feature that pays) and rows (the Battle Master's on-hit maneuvers); `CLOCK_RIDERS` — the features whose extra damage rides the combat clock; `USE_CHIPS`, `SAVE_PRESSES`, `EVASION` — the text-only feature that becomes a chip on use, the save whose failure presses a status, the verdict outcome; `INTERRUPT_MULTIPLIERS` — the damage interrupts the module settles itself (Uncanny Dodge ×0.5); `INTERRUPT_REDUCTIONS` — the ones that reduce by a roll (Parry, Stone's Endurance); `INTERRUPT_ROLLS` — the `roll` kind's cost shapes (Lucky, Warding Flare, Shadowy Dodge); `DAMAGE_EITHER` — the damage dice rolled twice (Savage Attacker); `CHOSEN_AREAS` — the area spells whose caster chooses who they affect (by name — the pack's own choose flag covers four of the seven); `tableIndex(table, keyOf)` — a name-keyed table's closed name set and its row-by-name (the `*_NAMES` sets derive through it, **the keys unchanged**) |
+| [decide/registry.js](scripts/decide/registry.js) | the kind lists and every table's reader; the closed kind sets and the R4 tripwire; `MASTERY_RULES`, `CONDITION_BENDS`, `SAVE_BENDS`, `RANGE_RULES` and `EFFECT_BENDS` — the rules text, the condition table (attacks) and the save table (saves), the range sentences and the effect table (seventy-odd abilities by name, from a compendium scan), as data; `SNEAK_ATTACK`, `CUNNING_OPTIONS`, `DEATH_STRIKE` — the Sneak Attack flow's data, each option naming the feature that grants it; `HIT_GROUPS`, `HIT_OPTIONS` — the hit menu's groups (the feature that pays) and rows (the Battle Master's on-hit maneuvers); `CLOCK_RIDERS` — the features whose extra damage rides the combat clock; `USE_CHIPS`, `SAVE_PRESSES`, `EVASION` — the text-only feature that becomes a chip on use, the save whose failure presses a status, the verdict outcome; `INTERRUPT_MULTIPLIERS` — the damage interrupts the module settles itself (Uncanny Dodge ×0.5); `INTERRUPT_REDUCTIONS` — the ones that reduce by a roll (Parry, Stone's Endurance); `INTERRUPT_ROLLS` — the `roll` kind's cost shapes (Lucky, Warding Flare, Shadowy Dodge); `DAMAGE_EITHER` — the damage dice rolled twice (Savage Attacker); `CHOSEN_AREAS` — the area spells whose caster chooses who they affect (by name — the pack's own choose flag covers four of the seven); `tableIndex(table, keyOf)` — a name-keyed table's closed name set and its row-by-name (the `*_NAMES` sets derive through it, **the keys unchanged**) |
 | [decide/chips.js](scripts/decide/chips.js) | `CHIP_WINDOWS`, `TURN_CHITS`, `chipClock`, `chipIsDead`, `chitStamp`, `chipSpentBy`, `chipHonoured`, `netShownFor`, `spendRecord` — a chip's clock, and what spends it; the once-per-turn chits (Cleave, Sneak Attack, a clock rider) share one shape |
 | [decide/reminders.js](scripts/decide/reminders.js) | `netMode`, `resolutionLine`, `proneSources`, `conditionSources` (over the registry's table), `saveSources` / `saveGate` (over the save table: a bend, or a save that cannot succeed — the net `fails`), `rangeSources`, `effectSources` (over the effect table: scope, caveat, listed or counted, judged — the combat clock and the map's ally-beside-the-target included, spent), `effectCheckSources` (an effect that bends checks by its text), `effectSaveSources` / `saveNoneOnSuccess` (the effect table's `saves` facet; a `match: "feature"` row carried by the feature's name since 2026-09-24 — `rowCarriers`, the one test the three readers share), `autoCritSources`, `reminderView` (the header line and the boxes — no net block), `reminderRecord` — what bends a roll, what it nets to, and what the section draws |
 | [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakConditionsHold` (the box's default tick: Advantage, or the map's ally and no Disadvantage), `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
@@ -683,7 +680,7 @@ neighbour. What other modules need is *published*, never *reached for*.
 
 | Surface | Owner | What it is |
 | --- | --- | --- |
-| `registries` | [settings.js](scripts/settings.js) | the settings lists, read-only — inspection, not an extension point (§6 rule 5) |
+| `registries` | [settings.js](scripts/settings.js) | the kind lists' readers, read-only — inspection, not an extension point (§6 rule 5) |
 | `volleyRegistry` | [volley-registry.js](scripts/volley-registry.js) | volley membership, read-only, same rule |
 | `acknowledgeMoment` | [ui.js](scripts/ui.js) | resolve a card's pending presentation (law 3) |
 | `holdFor(subject)` · `castHold(uuid)` · `holds` | [holds.js](scripts/holds.js) | **the hold** — below |
@@ -808,31 +805,26 @@ dedupe on.
 
 ## 8. The settings surface
 
-`npm run registry` prints the count ("all N keys in S are registered", 52 on 2026-09-24, Slice A's Damage Rolled Twice list the 52nd) —
-quote the tool, never a number typed here. Every feature is a world setting, default **ON** (user
-call, 2026-09-03: *"have it ship all on"*); the shipped defaults and the reference table in
+Ten settings (RULINGS *The settings*): seven world configs for the DM, three per-client
+preferences. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
+in [settings.js](scripts/settings.js) agree. The shipped defaults and the reference table in
 `tools/verify-settings.mjs` agree. A Foundry default applies only where a setting has never been
-written, so a default flip never touches an existing world. A list whose `onChange` changes what
-stands on the map sweeps (Emanations off lifts what stands, on raises it again).
+written, so a default flip never touches an existing world.
 
 ### Rules
 
-1. **One switch per feature**, and it ships on. Never ask the table to opt into — or out of —
-   the same answer twice.
-2. **Entry-point hooks check their toggle; view and continuation hooks check for their flag.**
-   An already-stamped moment must still render and resolve after a mid-session kill.
+1. **Every machine is always on.** A setting is a table's taste (a clock, what the hold reveals,
+   whether a roll asks), never a switch that turns a machine off.
+2. **Every question reads one clock**, the Decision Timer (`decisionWindow()` in core.js).
 3. **A client setting must change only who presses a button.** A save is *owed* (the table waits
-   on it), so a per-player opt-out is a world decision wearing a client setting; a damage roll is
-   *owned* (nobody is blocked; the buzzer makes the timing identical). Only the second shape may
-   be a client setting.
+   on it), so whether it asks is a world decision; a damage roll is *owned* (nobody is blocked; the
+   buzzer makes the timing identical). Only the second shape may be a client setting.
 4. **A per-client setting nobody knows to look for must not start wrong** — by the TABLE's
-   normal, not by novelty: centered dialogs ship ON, and Roll Your Own Damage ships ON (user
-   call, 2026-08-27) because this table's players press their own damage; the buzzer makes ON
-   safe.
-5. **Every setting joins a divider group and the dependent grey-out sync.** A setting spanning
-   two groups states which condition enables it — a control that reads as inert and still fires
-   is a bug.
-6. **Every list setting parses strictly** (§6).
+   normal: Roll Your Own Damage ships ON because this table's players press their own damage; the
+   buzzer makes ON safe.
+5. **The suites' retired keys** are translated in the page by `tools/harness.mjs`
+   (`retireSettings`): the timers are the Decision Timer, the concentration mode is Players Roll
+   Their Own Saves, and a switch that is now always on is a no-op.
 
 ---
 

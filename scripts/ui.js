@@ -3,8 +3,7 @@
  * moment clocks, and the relay / rescue / demand / resumable / withhold registries.
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor,
-  queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -317,7 +316,7 @@ export function disarmAskTimer(timers, messageId) {
 /** Wait out Dice So Nice, then the dramatic beat, before a table-facing verdict acts. */
 export async function dramaticVerdictPause(rollMessage) {
   // ⚠ CAPPED: a DSN promise may never resolve.
-  const wait = Math.max(0, Number(setting(S.diceWait)) || 0) * 1000;
+  const wait = DICE_WAIT_SECONDS * 1000;
   try {
     const dice = wait ? game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id) : null;
     if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, wait))]);

@@ -42,7 +42,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  if (!game.settings.settings.has(`${MOD}.dropToOneList`)) return { fatal: 'dropToOneList not registered — OLD code (reload the box)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['dropToOneList', 'holdTimer', 'concMode', 'interruptList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));

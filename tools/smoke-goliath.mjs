@@ -41,7 +41,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  if (!game.settings.settings.has(`${MOD}.rebukeList`)) return { fatal: 'rebukeList not registered — OLD code (reload the box)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
   const { applyDamagesWithReceipt } = await import(`/modules/${MOD}/scripts/auto-apply.js`);
   const { livePopups } = await import(`/modules/${MOD}/scripts/ui.js`);
 

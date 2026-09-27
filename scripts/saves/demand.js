@@ -3,7 +3,7 @@
  * client stamps the `saves` flag on the usage card, with the dead-target gate, metamagic, a chosen
  * area and an emanation's reach applied at the cast.
  */
-import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
+import { MODULE_ID, TITLE, S, setting, statContext, decisionWindow } from "../core.js";
 import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
@@ -14,7 +14,7 @@ import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
 import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
-import { emanationEntries, spentAreaListed, chosenAreaListed } from "../settings.js";
+import { emanationEntries, spentAreaListed, chosenAreaListed } from "../decide/registry.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
 // ⚠ Static on purpose (the ESM order trap): no hook registration moves. Re-run check-hook-order before changing it.
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
@@ -109,13 +109,13 @@ export async function areaChoiceForDemand(card, activity, contained) {
 const CHOICE_HOLD_SLACK_MS = 30_000;
 Hooks.on("preCreateChatMessage", doc => {
   try {
-    if ( !setting(S.saves) || !isCard(doc, CARD.usage) ) return;
+    if ( !isCard(doc, CARD.usage) ) return;
     // A held card re-posted with its answer: the question was already asked.
     if ( doc.getFlag?.(MODULE_ID, AREA_CHOICE_FLAG) || doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) return;
     const uuid = activityUuidOf(doc);
     const activity = uuid ? resolveUuid(uuid) : null;
     if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item?.name) ) return;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     raiseHold(uuid, { reason: "area-choice", bound: window ? (window * 1000) + CHOICE_HOLD_SLACK_MS : null });
   } catch(err) { console.warn(`${TITLE} | The chosen area's hold could not be raised — the picture plays at once.`, err); }
 });
@@ -138,7 +138,6 @@ export function saveDemandable(t) {
 }
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
-  if ( !setting(S.saves) ) return;
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // create: false — no card, no bus
@@ -147,7 +146,6 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 
 // A usage card held back by the metamagic ask, born with the pick made: stamp as at the use.
 Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
-  if ( !setting(S.saves) ) return;
   if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
   void stampSaveDemand(activity, message, { templates: [templates ?? []] }).finally(() => settleChoiceHold(activity, message));
 });
@@ -192,7 +190,7 @@ async function stampSaveDemand(activity, message, results) {
     const onSave = activity.damage?.onSave ?? "half";
     const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
 
-    const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
+    const window = decisionWindow();
     const awaiting = !targets.length;
     // ⚠ THE EMPTY INSTANT: an instantaneous area placed with nobody inside stamps DONE.
     // ⚠ The ITEM's duration for a spell (its activity's is not the spell's), the ACTIVITY's for a
@@ -268,7 +266,7 @@ Hooks.on("battleflow.areaAskAnswered", async message => {
  * activity naming who it affects filters by that, and the caster never saves against its own spell. */
 const EMANATION_INDEX = tableIndex(EMANATIONS);
 function emanationRowFor(activity) {
-  if ( !activity?.item || !setting(S.emanations) ) return null;
+  if ( !activity?.item ) return null;
   const key = EMANATION_INDEX.keyNamed(activity.item.name);
   const row = key ? EMANATIONS[key] : null;
   if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return null;

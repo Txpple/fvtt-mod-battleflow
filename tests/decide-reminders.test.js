@@ -559,8 +559,7 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
       if (row.counted === false) expect(row.caveat, key).toMatch(/^listed — /);
       if (row.caveat && row.counted !== false) expect(row.caveat, key).toMatch(/^counted — /);
     }
-    expect(reg.EFFECT_NAMES.size).toBe(reg.EFFECT_KEYS.length);
-    expect(reg.EFFECT_NAMES.has("innate sorcery")).toBe(true);
+    expect(reg.EFFECT_KEYS).toContain("Innate Sorcery");
   });
 });
 
@@ -1457,8 +1456,8 @@ describe("effectSaveSources — FEATURE rows (Slice A, 2026-09-24: Brave, Fey An
     );
   });
 
-  it("the three ship in the Effect Sources default", () => {
-    const names = reg.LIST_SPECS.effects.default.split(", ");
+  it("the three are rows of the effect table", () => {
+    const names = reg.EFFECT_KEYS;
     for (const n of ["Brave", "Fey Ancestry", "Dwarven Resilience"]) expect(names).toContain(n);
   });
 });

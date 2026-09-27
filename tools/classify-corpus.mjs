@@ -129,10 +129,7 @@ for (const k of Object.keys(R.USE_CHIPS)) add(k, 'USE_CHIPS');
 for (const k of Object.keys(R.SAVE_PRESSES)) add(k, 'SAVE_PRESSES');
 for (const o of Object.values(R.CUNNING_OPTIONS)) add(o.feature, 'CUNNING_OPTIONS');
 add(R.SNEAK_ATTACK.feature ?? 'Sneak Attack', 'SNEAK_ATTACK'); add('Evasion', 'EVASION'); add('Death Strike', 'DEATH_STRIKE');
-for (const [spec, s] of Object.entries(R.LIST_SPECS)) {
-  if (typeof s.default !== 'string') continue;
-  for (const chunk of s.default.split(/,\s*/)) add(chunk.split(':')[0].trim(), `LIST:${spec}`);
-}
+for (const [list, { rows }] of Object.entries(R.KIND_LISTS)) for (const r of rows) add(r.name, `LIST:${list}`);
 for (const n of ['Magic Missile', 'Scorching Ray', 'Eldritch Blast', 'Steel Wind Strike']) add(n, 'VOLLEY');
 for (const n of ['Hunter\'s Mark', 'Hex']) add(n, 'RIDER');
 for (const n of ['Vex', 'Sap', 'Cleave', 'Slow', 'Topple', 'Push', 'Graze', 'Nick']) add(n, 'MASTERY');

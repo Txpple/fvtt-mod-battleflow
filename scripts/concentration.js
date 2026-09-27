@@ -4,11 +4,10 @@
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
-  drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
-import { fightingStyleEntries, listedNames } from "./settings.js";
+import { fightingStyleEntries, listedNames } from "./decide/registry.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy,
@@ -30,7 +29,6 @@ const recentDamageCauses = new Map();
 const PRIVATE_ROLL_MODE = "gm";
 
 Hooks.on("dnd5e.preApplyDamage", (actor, amount, _updates, options) => {
-  if ( setting(S.concMode) === "off" ) return;
   if ( !(Number(amount) > 0) || !actor?.uuid ) return;
   const message = options?.originatingMessage;
   if ( !(message instanceof ChatMessage) ) return;
@@ -82,7 +80,6 @@ function concentratingOn(actor) {
 
 /** The trigger, mirroring the native prompt's guard: a max-HP reduction is not damage. */
 Hooks.on("dnd5e.damageActor", (actor, changes) => {
-  if ( setting(S.concMode) === "off" ) return;
   // Gated on the SUBJECT: with no GM the concentrator's own client stamps, rolls and breaks.
   if ( !drivesMomentFor(actor?.uuid) ) return;
   if ( !(actor instanceof Actor) ) return;
@@ -96,7 +93,6 @@ Hooks.on("dnd5e.damageActor", (actor, changes) => {
 // Incapacitated breaks concentration, no save; dnd5e does not end it when the status lands.
 function breakOnIncapacitated(effect) {
   try {
-    if ( setting(S.concMode) === "off" ) return;
     if ( effect?.disabled || !effect?.statuses?.has?.("incapacitated") ) return;
     const actor = effect.parent;
     if ( !(actor instanceof Actor) || !actor.concentration?.effects?.size ) return;
@@ -131,7 +127,7 @@ async function stampConcentrationAsk(actor, changes) {
   const dc = actor.getConcentrationDC(damage);
   const cause = takeRecentCause(actor.uuid);
   const breaker = breakerFor(actor, cause?.dealerUuid ?? null);
-  const window = Math.max(0, Number(setting(S.concTimer)) || 0);
+  const window = decisionWindow();
   const abilityLabel = CONFIG.DND5E.abilities[concAbility(actor)]?.label ?? "Constitution";
 
   await ChatMessage.create({
@@ -361,10 +357,9 @@ async function announceConcentrationHolds(actor, ask, whisper = null) {
  * End concentration the system's way and say so in public (DESIGN.md R5). Breaking off: announce only.
  */
 async function breakConcentration(actor, { names = [], effectIds = null, ask = null, reason = null } = {}) {
-  const breaks = setting(S.concBreak);
   // Ending is a write to the concentrator: a PC's own client may do it; an NPC with no GM cannot.
-  const blocked = breaks && (actor instanceof Actor) && !canApplyTo(actor);
-  if ( breaks && (actor instanceof Actor) && !blocked ) {
+  const blocked = (actor instanceof Actor) && !canApplyTo(actor);
+  if ( (actor instanceof Actor) && !blocked ) {
     const targets = effectIds ?? [...(actor.concentration?.effects ?? [])].map(e => e.id);
     for ( const id of targets ) {
       try { await actor.endConcentration(id); }
@@ -387,7 +382,7 @@ async function breakConcentration(actor, { names = [], effectIds = null, ask = n
         ? `${actor?.name ?? "The concentrator"} is Incapacitated — Concentration is broken, no save`
         : ask ? `${ask.outcome.total} vs DC ${ask.dc} — ${actor?.name ?? "the concentrator"} loses concentration`
         : `${actor?.name ?? "The concentrator"} loses concentration`,
-      lines: breaks ? [] : [`<em>Breaking is off — end it from ${actor?.name ?? "the actor"}'s effects yourself.</em>`],
+      lines: [],
       tone: "bad"
     }),
     speaker: { alias: TITLE }
@@ -431,7 +426,7 @@ Hooks.on("createChatMessage", message => {
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( ask?.status === "pending" ) {
     armConcTimer(message);
-    if ( setting(S.concMode) === "auto" ) void autoRollConcentration(message);
+    if ( savesRollThemselves() ) void autoRollConcentration(message);
   }
 });
 
@@ -487,10 +482,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === message.id);
       if ( landed ) void foldConcentrationRoll(message, landed);
     }
-    if ( setting(S.concMode) === "auto" ) void autoRollConcentration(message);
+    if ( savesRollThemselves() ) void autoRollConcentration(message);
 
     const actor = resolveUuid(ask.actorUuid);
-    if ( (setting(S.concMode) === "prompt") && canAnswerFor(actor) ) {
+    if ( !savesRollThemselves() && canAnswerFor(actor) ) {
       // Auto-show only the OLDEST pending ask (asks queue); the button recalls any.
       const shownKey = popupKey(message.id, "concentration");
       if ( pendingConcAsks(ask.actorUuid)[0]?.id === message.id && !shownMoments.has(shownKey) ) {
@@ -547,8 +542,7 @@ async function showConcPopup(message, ask) {
         lines: [
           causeLine(ask.cause, ask.damage),
           ...(ask.breaker ? [breakerLine(ask.breaker)] : []),
-          `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>`
-            + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
+          `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>.`
         ],
         tone: "pending"
       }),
@@ -600,7 +594,6 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
  * active GM: a GM-less table falls back to the native prompt, not silence.
  */
 Hooks.on("preCreateChatMessage", doc => {
-  if ( setting(S.concMode) === "off" ) return;
   if ( !game.users.activeGM ) return;
   if ( !isConcentrationPrompt(doc) ) return;
   return false;

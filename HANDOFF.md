@@ -103,8 +103,9 @@ The plan as written:
   a tie-break, then the name with a warning. The lookups are `scripts/lookup.js` and
   `scripts/hold/lookup.js`.
 - **The tables are the only list:** the 31 list settings go, after prod's saved lists are
-  compared with the defaults (read only) so no house row is lost. The list parsers,
-  `tools/verify-settings.mjs` and the release's "settings clean" step retire with them.
+  compared with the defaults (read only) so no house row is lost. The list parsers retire with
+  them; `tools/verify-settings.mjs` stays, cut to the seven world settings (the suites still write
+  them).
 - **Settings:** 65 down to ten, as ruled. Every other setting's behaviour becomes the default,
   always on; Hold Settle becomes a constant.
 

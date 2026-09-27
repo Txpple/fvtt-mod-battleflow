@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { lower } from "./lookup.js";
-import { listedNames, unarmedDiceEntries } from "./settings.js";
+import { listedNames, unarmedDiceEntries } from "./decide/registry.js";
 import { UNARMED_DICE } from "./decide/registry.js";
 import { esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";

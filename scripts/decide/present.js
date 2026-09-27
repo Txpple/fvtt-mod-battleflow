@@ -376,7 +376,7 @@ export function pileBackToFront(slots) {
 
 /**
  * THE RESCUE KINDS. ⚠ The one copy of each quote; d20-folds.js and maneuvers.js read them here.
- * ⚠ `label` is not the lookup key (the settings list finds `bardic` by the effect "Inspired").
+ * ⚠ `label` is not the lookup key (D20_FOLDS finds `bardic` by the effect "Inspired").
  */
 export const RESCUE_KINDS = {
   heroic: {

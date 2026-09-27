@@ -174,9 +174,15 @@ describe('Slice A (2026-09-24): `when: "any"`, uses on the item, effects on the 
       effects: true,
       clock: "slow"
     });
-    expect(reg.HIT_OPTION_NAMES.has("fire's burn")).toBe(false);
-    expect(reg.HIT_OPTION_NAMES.has("frost's chill")).toBe(false);
-    expect(reg.HIT_OPTION_NAMES.has("hill's tumble")).toBe(true);
+    expect(
+      new Set(Object.values(reg.HIT_OPTIONS).map(r => r.feature.toLowerCase())).has("fire's burn")
+    ).toBe(false);
+    expect(
+      new Set(Object.values(reg.HIT_OPTIONS).map(r => r.feature.toLowerCase())).has("frost's chill")
+    ).toBe(false);
+    expect(
+      new Set(Object.values(reg.HIT_OPTIONS).map(r => r.feature.toLowerCase())).has("hill's tumble")
+    ).toBe(true);
   });
 });
 
@@ -203,16 +209,7 @@ describe("the registry's clock-rider data", () => {
         expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
       expect(row.rule.length, key).toBeGreaterThan(20);
     }
-    expect(reg.LIST_SPECS.clockRiders.default).toBe(
-      [...new Set(Object.values(reg.CLOCK_RIDERS).map(r => r.feature))].join(", ")
-    );
-    expect(reg.CLOCK_RIDER_NAMES.has("dread ambusher")).toBe(true);
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.clockRiders,
-      reg.LIST_SPECS.clockRiders.default
-    );
-    expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual([...reg.CLOCK_RIDER_NAMES]);
+    expect(reg.clockRiderEntries().map(e => e.kind)).toContain("dread ambusher");
   });
   it("Assassinate's Advantage is an effect-table row with the clock as its judge", () => {
     expect(reg.EFFECT_BENDS.Assassinate).toMatchObject({

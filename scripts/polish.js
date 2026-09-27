@@ -2,8 +2,8 @@
  * Battle Flow — Table polish: the no-target gate, the drinker default, the cast birth stamps, hidden
  * card buttons, the dialog target block and centering. EDGE layer (ARCHITECTURE.md §7, §8).
  */
-import { MODULE_ID, S, setting } from "./core.js";
-import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.js";
+import { MODULE_ID } from "./core.js";
+import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
 import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
@@ -13,7 +13,6 @@ import { cardActivity, profileEffectSync } from "./lookup.js";
 
 // Require a target to attack: veto the use on the initiating client before anything rolls or consumes.
 Hooks.on("dnd5e.preUseActivity", activity => {
-  if ( !setting(S.requireTarget) ) return;
   if ( activity?.type !== "attack" ) return;
   if ( game.user.targets.size ) return;
   ui.notifications.warn(`No target selected — ${activity.item?.name ?? "the attack"} stays sheathed. Target something, then attack.`);
@@ -58,7 +57,6 @@ const activityOf = doc => cardActivity(doc);
  * is OUT: an auto-apply here would beat a pending negate hold's verdict.
  */
 function castApplyQualifies(doc) {
-  if ( !setting(S.castApply) ) return false;
   const activityType = activityTypeOf(doc);
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
   const activity = activityOf(doc);
@@ -70,11 +68,9 @@ function castApplyQualifies(doc) {
   }
   // A SELF-tagged activity self-aims. ⚠ Except a LISTED reaction answering a PENDING hold: the hold
   // applies its effect (RULINGS *A listed reaction cast freestanding*); the two paths never both land.
-  if ( setting(S.reactionHold) && setting(S.holdApplyEffect) ) {
-    const itemName = (activity?.item?.name ?? "").toLowerCase();
-    if ( interruptEntries().some(e => e.name.toLowerCase() === itemName)
-      && holdPendingFor(activity?.actor?.uuid) ) return false;
-  }
+  const itemName = (activity?.item?.name ?? "").toLowerCase();
+  if ( interruptEntries().some(e => e.name.toLowerCase() === itemName)
+    && holdPendingFor(activity?.actor?.uuid) ) return false;
   return payloadWorthy;
 }
 
@@ -121,7 +117,7 @@ function castPayload(doc) {
 Hooks.on("preCreateChatMessage", doc => {
   // A healing roll aimed at targets is claimed at birth. The elect keys on the STAMP, never the
   // setting, so an old log is inert and a mid-session kill still resolves.
-  if ( setting(S.castApply) && isCard(doc, CARD.healing) ) {
+  if ( isCard(doc, CARD.healing) ) {
     const activity = activityOf(doc);
     if ( (activity?.target?.affects?.type === "self") && activity?.actor ) {
       doc.updateSource({ flags: { [MODULE_ID]: { healPending: {
@@ -135,11 +131,9 @@ Hooks.on("preCreateChatMessage", doc => {
   // it). A BLOCKLISTED spell also carries the hold's claim from birth, so the applier can never win the race.
   if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage") && targetsOf(doc).length ) {
     const claim = { spellDamage: true };
-    if ( setting(S.reactionHold) ) {
-      const name = itemNameOf(doc);
-      if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) )
-        claim.spellHoldPending = true;
-    }
+    const name = itemNameOf(doc);
+    if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) )
+      claim.spellHoldPending = true;
     doc.updateSource({ flags: { [MODULE_ID]: claim } });
   }
 
@@ -156,7 +150,6 @@ Hooks.on("preCreateChatMessage", doc => {
 const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
 Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
-  if ( !setting(S.hideCardButtons) ) return;
   const buttons = messageConfig?.data?.system?.buttons;
   if ( !Array.isArray(buttons) ) return;
   messageConfig.data.system.buttons = buttons.filter(b => KEPT_CARD_BUTTONS.has(b?.action));
@@ -262,7 +255,7 @@ Hooks.on("targetToken", () => {
 
 // Center roll dialogs, first render only, so it never fights a player dragging the window.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
-  if ( !setting(S.centerRollDialogs) || app._bfCentered ) return;
+  if ( app._bfCentered ) return;
   app._bfCentered = true;
   app.setPosition({
     left: Math.max(0, (window.innerWidth - element.offsetWidth) / 2),

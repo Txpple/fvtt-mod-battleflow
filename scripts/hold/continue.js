@@ -3,7 +3,7 @@
  * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes
  * answered popups (the parts stay a DAG: views → continue, never back).
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo, HOLD_SETTLE_SECONDS } from "../core.js";
 import { chipClock } from "../decide/chips.js";
 import { placeOf, chipData } from "../shared.js";
 import { applyEffectsTo } from "../effect-riders.js";
@@ -54,19 +54,17 @@ async function driveHoldContinuation(attackMessage, hold) {
 
   // Safety net: the cast reaction's effect must be ON the actor before the re-test. ⚠ Catches only
   // what this client OWNS; the monster side rests on the answering GM's applyReactionEffect.
-  if ( setting(S.holdApplyEffect) ) {
-    for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
-      const actor = await fromUuid(target.uuid);
-      if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
-      // The ITEM, by recorded itemId: a statblock's Shield keeps its effect only on the item.
-      const item = reactionItem(actor, target.reaction, target);
-      const activity = item?.system.activities?.contents?.[0];
-      const entries = await applyReactionEffect(activity, actor, target.reaction, target);
-      if ( entries.length ) {
-        await queueFlagWrite(attackMessage, "effectReceipt", flag => {
-          for ( const entry of entries ) joinEffectReceipt(flag, entry);
-        });
-      }
+  for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
+    const actor = await fromUuid(target.uuid);
+    if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
+    // The ITEM, by recorded itemId: a statblock's Shield keeps its effect only on the item.
+    const item = reactionItem(actor, target.reaction, target);
+    const activity = item?.system.activities?.contents?.[0];
+    const entries = await applyReactionEffect(activity, actor, target.reaction, target);
+    if ( entries.length ) {
+      await queueFlagWrite(attackMessage, "effectReceipt", flag => {
+        for ( const entry of entries ) joinEffectReceipt(flag, entry);
+      });
     }
   }
 
@@ -227,7 +225,7 @@ function bentAnnouncement(actor, target, hit) {
 
 /** Wait for every cast reaction's AC to ARRIVE (a baseline compare can race the recompute). */
 async function settleForACChange(hold) {
-  const deadline = Date.now() + (Math.max(1, Number(setting(S.holdSettle)) || 8) * 1000);
+  const deadline = Date.now() + (HOLD_SETTLE_SECONDS * 1000);
   const casts = hold.targets.filter(t => t.answer === "cast");
   while ( Date.now() < deadline ) {
     let allArrived = true;

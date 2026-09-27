@@ -48,7 +48,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const modDoc = game.modules.get(MOD);
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
-  if (!game.settings.settings.has(`${MOD}.restGrantList`)) return { fatal: 'restGrantList not registered — OLD code (reload the box)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
   const prior = { restGrantList: game.settings.get(MOD, 'restGrantList') };
   const set = (k, v) => game.settings.set(MOD, k, v);

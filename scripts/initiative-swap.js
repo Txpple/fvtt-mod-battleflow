@@ -4,9 +4,9 @@
  * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
-import { initiativeSwapEntries, listedNames } from "./settings.js";
+import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { dispositionStyle } from "./shared.js";
@@ -96,7 +96,7 @@ async function askFor(combat) {
           role: (o.id === c.id) ? "self" : pickable.has(o.id) ? "ally"
             : (o.token?.disposition === side) ? "incapacitated"
             : (o.token?.disposition === NEUTRAL) ? "neutral" : "enemy" }));
-      const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+      const window = decisionWindow();
       await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor, token: c.token }),
         content: bfCard({ img: found.item.img, eyebrow: `Feat — ${found.name}`, tone: "pending", title: `${found.name} — swap Initiative?` }),

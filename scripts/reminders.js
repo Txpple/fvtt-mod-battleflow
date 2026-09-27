@@ -3,9 +3,9 @@
  * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
-import { MODULE_ID, S, TITLE, activeCombatFor, setting, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
+import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { featureNamed, resolveUuid } from "./lookup.js";
-import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
+import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
@@ -47,7 +47,7 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const attacker = activity.item?.actor;
     if ( !(attacker instanceof Actor) ) return;
-    if ( !reminderEntries().length ) return;          // the list is the switch
+    if ( !reminderEntries().length ) return;
     const rangeFeet = distantRangeOn(message);
     const judge = attackMode => ({ ...judgeRoll(attacker, { activity, attackMode, rangeFeet }), attackMode: attackMode ?? null });
     const first = judge(config.attackMode);
@@ -95,7 +95,7 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
     const attacker = activity.item?.actor;
     const targets = message?.data?.system?.targets;
     if ( !(attacker instanceof Actor) || !Array.isArray(targets) || !targets.length ) return;
-    const from = setting(S.measuredCover) ? tokenOfActor(attacker) : null;
+    const from = tokenOfActor(attacker);
     const feat = reminderEntries().some(e => e.kind === "range") ? rangeFeatsOf(attacker, activity).cover : null;
     if ( !from && !feat ) return;
     const measured = [], ignored = [];
@@ -260,7 +260,7 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
     if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
     const actor = config?.subject;
     if ( !(actor instanceof Actor) ) return;
-    const on = new Set(reminderEntries().map(e => e.kind));           // the list is the switch
+    const on = new Set(reminderEntries().map(e => e.kind));
     if ( !on.has("condition") && !on.has("effect") ) return;
     const sources = [];
     if ( on.has("condition") ) {

@@ -204,6 +204,45 @@ export async function disposeSafely(f, tag) {
   }
 }
 
+/** In the page: translate the retired settings' reads and writes (see connectSuite). */
+function retireSettings() {
+  const MOD = "fvtt-mod-battleflow";
+  if ( game.settings._bfRetired ) return "installed";
+  const TIMERS = new Set(["holdTimer", "damageTimer", "saveTimer", "concTimer", "noticeTimer"]);
+  const WAS = { autoDamage: "all", diceWait: 0, measuredCover: true, autoApply: true, requireTarget: true,
+    hideCardButtons: true, centerRollDialogs: true, reactionHold: true, holdSkipFutile: true, holdSettle: 8,
+    holdApplyEffect: true, riders: true, effectRiders: true, masteryRiders: true, d20FoldAsk: true,
+    volleys: true, emanations: true, concBreak: true, saves: true, castApply: true };
+  const LISTS = ["interruptList", "blockList", "riderList", "riderUpgrades", "reminderList", "conditionList",
+    "effectList", "clockRiderList", "hitMenuList", "emanationList", "damageShieldList", "spentAreaList",
+    "chosenAreaList", "damageEitherList", "healRerollList", "kitTendList", "unarmedDiceList", "fightingStyleList",
+    "initiativeSwapList", "tokenLightList", "tokenSenseList", "tokenSizeList", "dropToOneList", "restGrantList",
+    "rebukeList", "cardChipList", "damageSaveList", "superiorityUseList", "effectChoiceList", "metamagicList",
+    "maneuverFolds", "d20Folds"];
+  const RETIRED = new Set([...TIMERS, "concMode", ...Object.keys(WAS), ...LISTS]);
+  const settings = game.settings;
+  const set = settings.set.bind(settings), get = settings.get.bind(settings);
+  const registry = settings.settings;
+  const has = registry.has.bind(registry);
+  // A suite's "is this the new code" guard names a retired key: report it present.
+  registry.has = key => has(key) || (String(key).startsWith(`${MOD}.`) && RETIRED.has(String(key).slice(MOD.length + 1)));
+  const retired = (ns, key) => (ns === MOD) && RETIRED.has(key) && !has(`${MOD}.${key}`);
+  settings.set = async (ns, key, value, options) => {
+    if ( !retired(ns, key) ) return set(ns, key, value, options);
+    if ( TIMERS.has(key) ) return set(MOD, "decisionTimer", value, options);
+    if ( (key === "concMode") && (value !== "off") ) return set(MOD, "saveRolls", value, options);
+    return value;
+  };
+  settings.get = (ns, key, options) => {
+    if ( !retired(ns, key) ) return get(ns, key, options);
+    if ( TIMERS.has(key) ) return get(MOD, "decisionTimer");
+    if ( key === "concMode" ) return get(MOD, "saveRolls");
+    return WAS[key];
+  };
+  settings._bfRetired = true;
+  return "installed";
+}
+
 /**
  * Connect, preflight, arm the watchdog; returns the live `Foundry`. `watchdogMs` is per-suite
  * (measured wall clocks differ widely). ⚠ Armed BEFORE `connect()`: a launch that never
@@ -230,15 +269,23 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     game.settings.set("fvtt-mod-battleflow", "playerRollDamage", false), null);
 
   /**
-   * ⚠ Measured cover OFF for the run, restored at teardown: fixtures stand creatures in a row, so
-   * cover would move hit/miss in unrelated sections. The section that tests it turns it on itself;
-   * a killed run leaves it off until verify-settings --fix.
+   * THE RETIRED SETTINGS: the module keeps ten settings, and the suites still write the rest. A
+   * retired key is translated in the page: the five timers are the Decision Timer, the concentration
+   * mode is Players Roll Their Own Saves, and a switch that is now always on is a no-op that reads
+   * back its old default. A list setting reads back undefined: the tables are the only list.
    */
-  const priorCover = await f.evaluate(async () => {
-    if ( !game.settings.settings.has("fvtt-mod-battleflow.measuredCover") ) return null;
-    const v = game.settings.get("fvtt-mod-battleflow", "measuredCover");
-    if ( v ) await game.settings.set("fvtt-mod-battleflow", "measuredCover", false);
-    return v;
+  await f.evaluate(retireSettings, null);
+
+  /**
+   * ⚠ Measured cover OFF for the run, restored at teardown: fixtures stand creatures in a row, so
+   * cover would move hit/miss in unrelated sections. The lever is the viewed scene's `noCover`
+   * flag; the section that tests cover clears it itself.
+   */
+  const coverScene = await f.evaluate(async () => {
+    const scene = game.scenes.viewed ?? game.scenes.active;
+    if ( !scene || scene.getFlag("fvtt-mod-battleflow", "noCover") ) return null;
+    await scene.setFlag("fvtt-mod-battleflow", "noCover", true);
+    return scene.id;
   }, null).catch(() => null);
 
   // ⚠ The ledger dump rides the teardown, not `finish()`: several suites never call `finish`.
@@ -252,9 +299,9 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   const teardown = async () => {
     if (hungUp) return;
     hungUp = true;
-    if ( priorCover === true ) {
-      await f.evaluate(async () => game.settings.set("fvtt-mod-battleflow", "measuredCover", true), null)
-        .catch(e => console.warn(`[${tag}] Measured Cover not restored (${e.message}) — run verify-settings --fix`));
+    if ( coverScene ) {
+      await f.evaluate(async id => game.scenes.get(id)?.unsetFlag("fvtt-mod-battleflow", "noCover"), coverScene)
+        .catch(e => console.warn(`[${tag}] the scene's noCover flag not cleared (${e.message}) — run verify-settings --fix`));
     }
     await dumpHookLedger(tag, f);
     await disposeSafely(f, tag);

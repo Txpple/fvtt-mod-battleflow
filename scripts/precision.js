@@ -5,10 +5,10 @@
  * ⚠ The flag never touches `hold` (one hold per message; any hold verdict is authoritative).
  * ⚠ Offered only when the attack hit NOBODY: one damage roll serves every target.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
-import { maneuverFoldEntries } from "./settings.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { maneuverFoldEntries } from "./decide/registry.js";
+import { hitTargets } from "./shared.js";
 import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor } from "./decide/present.js";
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRescue,
@@ -27,7 +27,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;
-    if ( !attacker || !modeAllows(attacker) ) return;
+    if ( !attacker ) return;
     const attackMessage = rolls?.[0]?.parent;
     if ( !(attackMessage instanceof ChatMessage) ) return;
     if ( attackMessage.getFlag(MODULE_ID, "precision") ) return;      // never re-stamp
@@ -57,12 +57,12 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     // The hopeless gate, as the hold's: a maximised die cannot reach the nearest AC. Off while
     // the math is hidden, since skipping would reveal it.
     const margins = judged.map(t => ({ uuid: t.uuid, name: t.name, ac: t.ac, margin: t.ac - roll.total }));
-    if ( setting(S.holdSkipFutile) && setting(S.holdReveal) ) {
+    if ( setting(S.holdReveal) ) {
       const dieMax = (await new Roll(dieFormula, attacker.getRollData()).evaluate({ maximize: true })).total;
       if ( Math.min(...margins.map(m => m.margin)) > dieMax ) return;
     }
 
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await attackMessage.setFlag(MODULE_ID, "precision", {
       status: "pending",
       itemId: found.item.id, activityId: found.activity.id,

@@ -5,8 +5,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
 import { lower, activityNamed } from "./lookup.js";
-import { damageSaveEntries, emanationEntries, listedNames } from "./settings.js";
-import { modeAllows, withTargets } from "./shared.js";
+import { damageSaveEntries, emanationEntries, listedNames } from "./decide/registry.js";
+import { withTargets } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { DAMAGE_SAVES, EMANATIONS, MANEUVER_FEATURE_NAMES, tableIndex } from "./decide/registry.js";
@@ -26,11 +26,11 @@ const listed = () => listedNames(damageSaveEntries());
 function drives(activity, targetCount) {
   if ( activity?.type !== "damage" ) return false;
   const actor = activity.actor;
-  if ( !actor?.isOwner || !modeAllows(actor) ) return false;
+  if ( !actor?.isOwner ) return false;
   if ( volleyEntryFor(activity.item) ) return false;                  // the volley machine rolls its darts
   if ( MANEUVER_FEATURE_NAMES.has(lower(activity.item?.name)) ) return false;   // a maneuver's damage activity is its DIE — other machines'
   // A transformation whose damage is a turn-end PULSE: the use is the transform alone.
-  if ( setting(S.emanations) && pulseFormKey(EMANATIONS, { itemName: activity.item?.name, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
+  if ( pulseFormKey(EMANATIONS, { itemName: activity.item?.name, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
   if ( !activity.damage?.parts?.length ) return false;
   return targetCount > 0;
 }

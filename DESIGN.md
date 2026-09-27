@@ -93,10 +93,9 @@ Combat should move. Every design choice is weighed against whether it makes the 
   are ignored (SWEEP §5).
 - **Dogfooding is the development method, and the table sets priority.** Nothing ships that
   has not been played. What the table needs decides *order of work* — never *bounds of scope*.
-- **Every feature is individually toggleable, and ships ON** (user, 2026-09-03). A fresh table
-  gets the configuration this table plays; any feature can be killed mid-session without
-  touching the others. The shipped defaults are the reference table in
-  `tools/verify-settings.mjs`.
+- **Batteries included: every machine is always on**, and a DM gets a few configs (ten settings,
+  RULINGS *The settings*). A table that wants to configure everything wants midi. The shipped
+  defaults are the reference table in `tools/verify-settings.mjs`.
 - **Every feature must be individually deletable** the day the system ships it natively. Being
   made redundant is the success condition.
 
@@ -169,7 +168,7 @@ The single most important structural rule in the module.
 | Layer | Holds | Changing it costs |
 | --- | --- | --- |
 | **Code** | KINDS of question — an AC-recheck reaction, a damage-reduce reaction, the closed mastery set, the generic save / concentration / cast / volley machines | A code change, a review, a release |
-| **Data** (registries + settings lists) | WHICH abilities participate — Shield is an entry, not a code path | One line |
+| **Data** (the code tables) | WHICH abilities participate — Shield is an entry, not a code path | One line |
 | **Content** (the compendium) | HOW MUCH — every number, every DC, every die | Nothing; it is already correct |
 
 A new ability must cost a **data entry, zero code**. Code grows only when a genuinely new KIND of

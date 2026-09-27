@@ -1,17 +1,17 @@
 /**
- * Battle Flow — settings registration, the settings-sheet polish (dividers, dependent grey-out),
- * and the list settings' readers (ARCHITECTURE §8).
+ * Battle Flow — the ten settings (ARCHITECTURE §8): seven world configs for the DM, three per-client
+ * preferences. Everything else is the module itself and always on.
  */
-import { MODULE_ID, TITLE, S, setting } from "./core.js";
-import { KIND_SETS, LIST_SPECS, parseList, rejectMessage } from "./decide/registry.js";
-import { SURFACES } from "./surfaces.js";
+import { MODULE_ID, S } from "./core.js";
+import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
+  riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 
 Hooks.once("init", () => {
-  game.settings.register(MODULE_ID, S.autoDamage, {
-    name: "Auto-Roll Damage on Hit",
-    hint: "When an attack hits at least one of its selected targets, the damage rolls itself on the attacker's own client — no dialog, crit pre-applied. A miss rolls nothing. Attacks must be made with targets selected. The mode gates on who is ATTACKING: \"NPC\" resolves the monster side only (the GM's own client does the work), \"PC\" the player side only, \"Everyone\" both.",
-    scope: "world", config: true, type: String, default: "all",
-    choices: { off: "Off", npc: "NPC Attacks Only", pc: "PC Attacks Only", all: "Everyone" }
+  game.settings.register(MODULE_ID, S.decisionTimer, {
+    name: "Decision Timer Seconds",
+    hint: "How long every question the module asks waits for its answer: a reaction to a hit, an offered damage roll, a save or concentration check, a mastery or maneuver offer, a reminder. 0 waits indefinitely. A mandatory roll ROLLS when it runs out; an optional offer PASSES. A draining bar shows the time left on the popup and the card.",
+    scope: "world", config: true, type: Number, default: 24,
+    range: { min: 0, max: 60, step: 1 }
   });
 
   game.settings.register(MODULE_ID, S.dramaticBeat, {
@@ -21,448 +21,62 @@ Hooks.once("init", () => {
     range: { min: 0, max: 10, step: 0.5 }
   });
 
-  game.settings.register(MODULE_ID, S.diceWait, {
-    name: "Wait for the Dice",
-    hint: "Seconds, at most, that a verdict or a question about a roll (a failed concentration save, Topple's prone, Empowered Spell, Savage Attacker, Piercer) waits for Dice So Nice's dice to come to rest before it shows. 0 shows it at once, while the dice are still rolling. The Dramatic Beat, if any, comes after.",
-    scope: "world", config: true, type: Number, default: 0,
-    range: { min: 0, max: 10, step: 0.5 }
+  game.settings.register(MODULE_ID, S.saveRolls, {
+    name: "Players Roll Their Own Saves",
+    hint: "\"Prompt\": a saving throw the module demands, and a concentration check, pops up for whoever owns the creature, with the native dialog's controls and one button: Roll. \"Roll automatically\": no popup; the dice roll at once. Either way the dice land on the owning player's client when one is connected, the GM's otherwise.",
+    scope: "world", config: true, type: String, default: "prompt",
+    choices: { prompt: "Prompt to roll", auto: "Roll automatically" }
+  });
+
+  game.settings.register(MODULE_ID, S.concVisibility, {
+    name: "Concentration Checks Are Public",
+    hint: "On: the check and the roll play out in the open. Off: whispered to the concentrator's owners and the GM. A BROKEN concentration is announced publicly either way: the effects it ends vanish from the whole table.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.holdReveal, {
+    name: "Hold Shows the Math",
+    hint: "On: a held reaction shows the attack total against the AC, and whether the reaction would turn it into a miss; a reaction that cannot change the outcome is never offered. Off (RAW): the player is told only that they were hit, and reacts on faith.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.masteryAsk, {
+    name: "Optional Masteries",
+    hint: "\"Ask\" puts the optional masteries (Slow, Topple, Push, Graze) to the attacking player as a Use/Pass popup. \"Take them automatically\" takes them without asking. Vex and Sap never ask; the rules make them automatic.",
+    scope: "world", config: true, type: String, default: "ask",
+    choices: { ask: "Ask the attacker", auto: "Take them automatically" }
+  });
+
+  game.settings.register(MODULE_ID, S.resourceNotices, {
+    name: "Resource Use Notices",
+    hint: "When a player character spends a limited-use ability (Second Wind, a superiority die, Channel Divinity, a magic item's daily cast), a notice flashes on every screen: who used what, and how many uses remain. The usage card keeps the same line. Expendables with no recovery and spell slots stay quiet; NPC abilities never announce.",
+    scope: "world", config: true, type: Boolean, default: true
   });
 
   // ⚠ Per-CLIENT and ON by default, or every new login starts wrong. Covers all three damage paths.
   game.settings.register(MODULE_ID, S.playerRollDamage, {
     name: "Roll Your Own Damage",
-    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers every roll the machine would have taken — an attack that hits, a save spell like Vicious Mockery or Fireball, and areas like Web. Press it and the dice roll exactly as the automation would have rolled them — same damage, same crit, same everything downstream — and the buzzer rolls for you if you miss the window, so a missed popup can never stall the table. An attack popup also says when the hit was a CRITICAL; a spell popup says what a successful save does to the number. Per player: this affects your own client only, and it is ON unless you turn it off.",
+    hint: "Ask before rolling YOUR damage, instead of the automation rolling it for you: a popup with one button and a timer, on your client alone. It covers an attack that hits, a save spell, and an area. The dice roll exactly as the automation would have rolled them, and the timer rolls for you if you miss the window. Your client only.",
     scope: "client", config: true, type: Boolean, default: true
   });
 
-  // THE EFFECT VIEW: two client switches, one per surface family.
   game.settings.register(MODULE_ID, S.effectBar, {
     name: "Effect Bar",
-    hint: "A strip above the hotbar listing the buffs and debuffs on the token you control (or your own character): every temporary effect on the sheet, including the ones that paint no icon on the token. Redraws as effects come and go. Your client only.",
+    hint: "A strip above the hotbar listing the buffs and debuffs on the token you control (or your own character): every temporary effect on the sheet, including the ones that paint no icon on the token. Your client only.",
     scope: "client", config: true, type: Boolean, default: true,
     onChange: () => Hooks.callAll(`${MODULE_ID}.effectViewChanged`)
   });
-  // MEASURED COVER (RULINGS *Measured cover*): one world switch for both halves.
-  game.settings.register(MODULE_ID, S.measuredCover, {
-    name: "Measured Cover",
-    hint: "With your token selected, point at another token: its card opens with a Cover section — No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total (can't be targeted) — measured the 2024 Dungeon Master's Guide way: lines from a corner of your space to the corners of the target's square, blocked by walls (closed doors and windows included) and other creatures (a creature gives Half at most). Attack it and that cover goes on the attack's AC by itself; a cover status set by hand still counts when it is higher, and Sharpshooter and Spell Sniper still ignore Half and Three-Quarters. Off: cover is only what someone sets by hand. Not measured on hex grids.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
+
   game.settings.register(MODULE_ID, S.effectHover, {
     name: "Effect Cards on Hover and Alt",
-    hint: "Point at any token to see its buffs and debuffs beside it; hold Alt (Foundry's highlight key) to see every creature's list at once. Nothing is on screen until you ask. Your client only.",
+    hint: "Point at any token to see its buffs and debuffs beside it; hold Alt (Foundry's highlight key) to see every creature's list at once. Your client only.",
     scope: "client", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.damageTimer, {
-    name: "Damage Roll Timer Seconds",
-    hint: "How long an offered damage roll waits before the module rolls it. 0 waits indefinitely. Expiry ROLLS, never cancels — closing the popup does the same — so the timer only ever decides who pressed the button. The draining bar shows on the roller's popup AND on the card, so the whole table can see the dice everyone is waiting on.",
-    scope: "world", config: true, type: Number, default: 24,
-    range: { min: 0, max: 60, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.autoApply, {
-    name: "Auto-Apply Damage",
-    hint: "The active GM's client applies a rolled attack's damage to the targets that attack hit, through the system's own resistance and immunity math. Every application leaves a receipt on the damage card with a per-target revert. The native damage tray stays available for manual calls, and collapses on applied cards as if Apply had been pressed.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.requireTarget, {
-    name: "Require a Target to Attack",
-    hint: "Using an attack with no target selected shows a warning and cancels the attack before anything is rolled or consumed. The whole resolver keys off targets — this makes the table discipline structural.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.hideCardButtons, {
-    name: "Hide Redundant Buttons",
-    hint: "Hide the action buttons on chat cards — Attack, Damage, Saving Throw, Place Template and the rest — leaving only Refund Resource. The module runs those workflows itself (attacks auto-roll, saves pop up, damage applies by verdict), so the buttons are a second, manual path that mostly confuses; the card keeps its text, its targets and its effects tray. An area is placed from the cast's own prompt or the canvas controls, and a waiting save spell finds its targets when it lands.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.centerRollDialogs, {
-    name: "Center Popups",
-    hint: "Open the system's roll-configuration dialogs (attack, damage, saves) centered on the screen instead of docked at the lower right. Per player: this only affects your own client, and it is ON unless you turn it off.",
-    scope: "client", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.reactionHold, {
-    name: "Reaction Hold",
-    hint: "When an attack hits someone holding an interrupt reaction (Shield and friends), pause before the damage instead of resolving instantly — the target's player chooses to cast or pass, and the GM can always override. A pause, never automation: the module waits for a human, it never plays the reaction.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.interruptList, {
-    name: "Interrupt Reactions",
-    hint: 'Which reactions pause the chain, as "Name:kind" separated by commas. kind is "ac" (raises AC — the hold re-tests the attack against the new AC, and crits skip the pause since a natural 20 hits regardless), "damage" (reduces damage — the hold pauses and announces; Uncanny Dodge’s halving and the rolled reductions of Parry and Stone’s Endurance are applied for you, any other reduction is made by hand) or "roll" (imposes Disadvantage on the attack roll after it hit — Lucky, Warding Flare, Shadowy Dodge: a second d20 is rolled and the lower stands, so a hit can become a miss and a critical hit can be undone; each is its own row in the defender’s popup beside any reaction, its cost as the tag). Names must match the item on the actor. See ARCHITECTURE.md §6 for the full survey.',
-    // ⚠ The default lives with its parser (decide/registry.js), as does why Riposte is absent.
-    scope: "world", config: true, type: String,
-    default: LIST_SPECS.interrupt.default
-  });
-
-  game.settings.register(MODULE_ID, S.blockList, {
-    name: "Spells a Reaction Blocks",
-    hint: 'Which spells a reaction stops outright, as "Spell:Reaction" separated by commas. '
-      + 'Casting a listed spell at someone holding that reaction pauses exactly like a hit does — '
-      + 'and taking the reaction means the spell\'s damage is never applied to them. Shield reads '
-      + '"you take no damage from Magic Missile"; nothing else in 2024 content does this, so one '
-      + 'entry is the whole list.',
-    // Keyed by the SPELL: Shield's two effects cannot share one `Name:kind` entry.
-    scope: "world", config: true, type: String, default: LIST_SPECS.block.default
-  });
-
-  game.settings.register(MODULE_ID, S.holdReveal, {
-    name: "Hold Shows the Math",
-    hint: "On (default): the attack total against their AC, and whether the reaction would actually turn it into a miss — so a player can tell whether spending the slot is worth it. Off (RAW): they are told only that they were hit, and react on faith. Both surfaces obey this one setting.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.holdTimer, {
-    name: "Hold Timer Seconds",
-    hint: "How long a held player has to answer before the hold passes itself and the attack resolves. 0 waits indefinitely — human-paced, and correct for a thoughtful table. A draining bar shows the time left on both the popup and the card.",
-    scope: "world", config: true, type: Number, default: 24,
-    range: { min: 0, max: 60, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.holdSkipFutile, {
-    name: "Skip Hopeless Holds",
-    hint: "Don't stop the game to offer a reaction that cannot change the outcome — if the attack beats the target's AC by more than the reaction would add, it resolves without asking. Requires \"Hold Shows the Math\": with the math hidden, a prompt that never appears would itself reveal that the attack beat your AC by more than 5.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.holdSettle, {
-    name: "Hold Settle Seconds",
-    hint: "After a reaction is cast, how long to wait for its AC change to actually land before re-testing the attack. Shield's +5 arrives as an active effect that must be applied (the native effects tray), so re-testing instantly would read a stale AC and wrongly call it a hit.",
-    scope: "world", config: true, type: Number, default: 8,
-    range: { min: 1, max: 30, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.holdApplyEffect, {
-    name: "Apply the Reaction's Own Effect",
-    hint: "When a held target casts their reaction, put its self-effect on them — Shield's +5 AC arrives as an effect the native tray would otherwise wait for someone to click, and until it lands the re-test reads the old AC and calls it a hit. Only ever applies the cast reaction's own effect, to the caster, while their hold is open. Turn off if you would rather click the effects tray yourself.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.riders, {
-    name: "Hit Riders",
-    hint: "Fold a marked target's extra damage into the attack's own damage roll — Hunter's Mark's 1d6 force arrives with the sword instead of waiting for a second button. Only ever adds damage the caster has already earned: the mark must be on the target, and it must be THIS attacker's mark.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.riderList, {
-    name: "Rider Table",
-    hint: 'Which marks add damage, as system identifiers separated by commas — "hunters-mark", not "Hunter\'s Mark". How MUCH is never listed here: it is read from the spell\'s own bonus-damage activity, so the number is always the one the content ships. Swept from official 2024 content by tools/scan-riders.mjs.',
-    // ⚠ Identifiers: Favored Enemy's casts share the identifier, not the name. A list, because
-    // non-riders (Ensnaring Strike) wear the same damage-activity shape.
-    scope: "world", config: true, type: String,
-    default: LIST_SPECS.rider.default
-  });
-
-  game.settings.register(MODULE_ID, S.riderUpgrades, {
-    name: "Rider Upgrades",
-    hint: 'Features that REPLACE a mark\'s damage, as "feature:mark" identifier pairs. The Ranger\'s level-20 Foe Slayer makes Hunter\'s Mark a d10 instead of a d6 — and like the mark itself, how much is read from the feature\'s own bonus-damage activity rather than typed here.',
-    scope: "world", config: true, type: String, default: LIST_SPECS.riderUpgrade.default
-  });
-
-  // THE REMINDER GATE: an empty Reminder Sources list turns it off.
-  game.settings.register(MODULE_ID, S.reminderList, {
-    name: "Reminder Sources",
-    hint: 'What the gate reads before an attack roll, separated by commas: "vex" (your own Vexed chip on the target — Advantage), "sap" (a Sapped chip on the attacker — Disadvantage), "prone" (either side prone — the attacker at Disadvantage; the target gives Advantage within 5 feet and Disadvantage beyond), "condition" (the conditions in the Condition Sources list), "range" (a ranged attack beyond normal range or with an enemy within 5 feet — Disadvantage; beyond long range — cannot be made), "buy" (Advantage you buy with a use before the roll — Lucky: a box with a tick in the section of any attack, save, check or initiative dialog; ticked, it counts toward the net, and the use is spent when the roll goes out with the net pressed. A fast-forwarded roll meets no box). When any listed source applies, the system\'s own Attack Roll dialog opens — even on a fast-forward key — with a Battle Flow section: a box per source with its rule, and the net, which is the highlighted button. YOU press; nothing is ever applied for you. An empty list turns the gate off.',
-    scope: "world", config: true, type: String, default: LIST_SPECS.reminders.default
-  });
-
-  game.settings.register(MODULE_ID, S.conditionList, {
-    name: "Condition Sources",
-    hint: "Which conditions the gate reads, by the system's own status ids, separated by commas. Each one's effect on attack rolls comes from the 2024 Rules Glossary and is quoted in the popup. Remove a condition here to stop being reminded of it.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.conditions.default
-  });
-
-  game.settings.register(MODULE_ID, S.effectList, {
-    name: "Effect Sources",
-    hint: "Which abilities the gate reads off the sheets, by the effect's or the feature's own name, separated by commas — Innate Sorcery, Reckless, Blur, Pack Tactics, Vow of Enmity and the rest of the shipped table. Each one's bend, which attacks it touches, and what the module cannot judge come from the table and are said in the section; a row the module cannot vouch for is listed without counting. Remove a name here to stop being reminded of it.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.effects.default
-  });
-
-  game.settings.register(MODULE_ID, S.clockRiderList, {
-    name: "Clock Riders",
-    hint: "Extra damage whose condition is the combat clock — the Gloom Stalker's Dreadful Strike, the Assassin's first-round strike, Divine Strike, Primal Strike, Divine Fury, Dreadful Strikes, the Goliath's Fire's Burn and Frost's Chill on any hit while their uses last, Slasher, Crusher and Piercer, and Sentinel's Halt (the pack's Halted effect, Speed 0 for the rest of the turn, on an Opportunity Attack's hit) — by the feature's own name, separated by commas. When the clock says a listed feature on the attacker's sheet applies, its damage is READ off that feature and added to the hit's damage roll (a critical hit doubles it), the attacker is told on the damage offer and the card says what rode; once per turn is kept as a chip, a limited use is spent. Remove a name to keep that feature by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.clockRiders.default
-  });
-
-  game.settings.register(MODULE_ID, S.hitMenuList, {
-    name: "Hit Menu",
-    hint: "A choice the hit offers before the damage rolls, by the feature's own name, separated by commas — the Battle Master's on-hit maneuvers (Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack) and the Goliath's Hill's Tumble. When a listed feature stands on the attacker's sheet with a use left — a Superiority Die, or the boon's own use — the damage offer opens with its group: pick one for the hit, or none (one pick per hit across the groups). The die is READ off the feature and rides the damage roll (a critical hit doubles it; a Sweeping Attack's die is rolled at a second creature the card asks for), the use is spent, a maneuver's save is put to the target through the save gate, Hill's Tumble knocks a Large or smaller target Prone with no save, and the card says what rode. Remove a name to keep that feature by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.hitMenu.default
-  });
-
-  // EMANATIONS: the platform's Region keeps geometry and clock; the module adds the effect.
-  game.settings.register(MODULE_ID, S.emanations, {
-    name: "Emanations",
-    hint: "An aura applies itself to the creatures inside it. A listed feature's emanation (the Paladin's auras) stands around its token wherever it goes, off while the Paladin is Incapacitated; a listed spell's emanation (Spirit Guardians) is the area the spell placed, attached to the caster, and ends with the spell. Creatures walking in receive the feature's own effect — with the SOURCE's numbers, the Paladin's Charisma and not theirs — and lose it walking out; a spell that demands a save on entering or on ending a turn inside asks for it through the save gate. Helpful auras reach allies and neutrals, harmful ones enemies. Drawn as a faint ring on the map.",
-    scope: "world", config: true, type: Boolean, default: true,
-    // emanations.js sweeps on this: off lifts what stands, on raises it.
-    onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
-  });
-
-  game.settings.register(MODULE_ID, S.emanationList, {
-    name: "Emanations List",
-    hint: "Which emanations the module keeps, by the feature's or spell's own name, separated by commas — Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians, and Polearm Master (an invisible ring of the held polearm's reach: a hostile moving into it reminds its wielder of Reactive Strike). Range, reach and the effect come from the content: the Paladin's auras read the class's own aura distance (10 feet at 6th, 30 at 18th), Spirit Guardians its own 15-foot area. Remove a name to keep that aura by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.emanations.default,
-    onChange: () => Hooks.callAll(`${MODULE_ID}.emanationsChanged`)
-  });
-
-  // DAMAGE SHIELDS: a standing effect on the defender pays out against a melee attacker. The list is the switch.
-  game.settings.register(MODULE_ID, S.damageShieldList, {
-    name: "Damage Shields",
-    hint: "A standing ward that strikes back at whoever hits its bearer with a melee attack roll, by the spell's own name, separated by commas — Death Armor, Fire Shield, Armor of Agathys. When a listed ward stands on a creature and a melee attack roll hits it from within the ward's own reach, the ward's damage is READ off the caster's spell, rolled in the open and applied to the attacker with a receipt (Death Armor once per turn; Fire Shield's type follows the warm or chill shield that stands; Armor of Agathys while its Temporary Hit Points last — the module marks that cast itself, since the pack ships no effect for it). Remove a name to keep that ward by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.damageShields.default
-  });
-
-  // SPENT AREAS: areas whose data says "duration" while the text says they end with the cast.
-  // The list is the switch.
-  game.settings.register(MODULE_ID, S.spentAreaList, {
-    name: "Spent Areas",
-    hint: "Areas that leave the map once their last save is resolved even though their data carries a duration, by the spell's or feature's own name, separated by commas — Noxious Miasma, Hypnotic Pattern. The sweep reads an area's life off its data (instantaneous: spent at the last verdict; concentration: spent with the concentration; any other duration: yours to clear, because Grease must persist); a listed name is swept at the last verdict whatever its data says, because its duration is an effect's clock and not the area's. Remove a name to keep that area by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.spentAreas.default
-  });
-
-  // CHOSEN AREAS: an area spell whose caster chooses who it affects. The list is the switch.
-  game.settings.register(MODULE_ID, S.chosenAreaList, {
-    name: "Chosen Areas",
-    hint: "Area spells whose caster chooses who they affect, by the spell's own name, separated by commas — Slow, Sleep, Conjure Barrage. When a listed spell's area lands on anyone who is not hostile to the caster, or on more hostiles than the spell allows (Slow's six), the caster is asked who it affects, the hostiles ticked, and only the chosen owe the save; when everyone in it is hostile and within the number, they are all chosen and nobody is asked. The caster is never asked about themself. Careful Spell greys on a listed spell, since its targets are already chosen. Remove a name to have that spell ask everyone in its area.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.chosenAreas.default
-  });
-
-  // DAMAGE ROLLED TWICE: features that roll a weapon hit's dice again. The list is the switch.
-  game.settings.register(MODULE_ID, S.damageEitherList, {
-    name: "Damage Rolled Twice",
-    hint: "A feature that rolls an attack's damage dice again, by the feature's own name, separated by commas — Savage Attacker (the weapon's dice again as a set, the higher standing), Piercer (one die again on a Piercing hit, the new roll standing). On a hit, once any reaction the target holds is answered, ONE popup asks the attacker about every such feature they hold (once per turn each, in combat) while the damage waits — beside Empowered Spell on a spell — and applies the ticked ones in order: Savage's set, then Piercer's die. Remove a name to keep that feature by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
-  });
-
-  // HEALING REROLLS: 1s on a healing die rerolled as the dice land. The list is the switch.
-  game.settings.register(MODULE_ID, S.healRerollList, {
-    name: "Healing Rerolls",
-    hint: "A feature that rerolls a healing die showing a 1, by the feature's own name, separated by commas — Healer. When its owner casts a healing spell, or uses the feat's own Battle Medic, every die showing a 1 is rolled again and the new faces stand — automatically, as Great Weapon Fighting's floor is (the healing waits for the new dice, and the card shows both). Remove a name to reroll by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.healRerolls.default
-  });
-
-  // KIT TENDING: Battle Medic, asked when a Healer's Kit is used within 5 feet. The list is the switch.
-  game.settings.register(MODULE_ID, S.kitTendList, {
-    name: "Kit Tending",
-    hint: "A feature that heals from the tended creature's own Hit Point Dice when its owner uses a kit on it, by the feature's own name, separated by commas — Healer (Battle Medic, the Healer's Kit, 5 feet). The kit's user picks the die size in a popup; the creature's die is spent and the feature's own Heal activity of that size is rolled at it (a 1 then asks the Healing Rerolls popup). Remove a name to tend by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.kitTends.default
-  });
-
-  // UNARMED STRIKE DICE: a die on the sheet's plain Unarmed Strike. The list is the switch.
-  game.settings.register(MODULE_ID, S.unarmedDiceList, {
-    name: "Unarmed Strike Dice",
-    hint: "A feature whose Unarmed Strike deals a die instead of the normal damage, by the feature's own name, separated by commas — Tavern Brawler. When its owner hits with the plain Unarmed Strike (1 + Strength), the damage rolls the die the feature's own unarmed attack carries (1d4 + Strength, 1s rerolled) and the card says so. A strike that already rolls a die is left alone. Remove a name to roll the flat damage.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.unarmedDice.default
-  });
-
-  // FIGHTING STYLES: each style's face on the character, gated on what is equipped, and its number
-  // on the roll it fits. The list is the switch.
-  game.settings.register(MODULE_ID, S.fightingStyleList, {
-    name: "Fighting Styles",
-    hint: "A Fighting Style feat (or a feat of the same shape) the module runs, by the feat's own name, separated by commas — Great Weapon Fighting, Thrown Weapon Fighting, Two-Weapon Fighting, Dueling, Defense, Unarmed Fighting, Great Weapon Master (+Proficiency Bonus on a Heavy weapon's damage on your turn), Heavy Armor Master (an attack's Bludgeoning, Piercing and Slashing damage cut by your Proficiency Bonus while Heavy armor is equipped), Elemental Adept (your spells ignore Resistance to the type in the feat's NAME — a popup asks for it when the feat lands and renames it \"Elemental Adept (Fire)\" — and their 1s of that type count as 2), Poisoner (your Poison damage ignores Resistance to Poison; its Apply Poison is a Bonus Action that puts a Poison Coating on the character for a minute, a dose spent, and the next weapon hit forces its Constitution save), Mage Slayer (a creature you damage makes its save to keep Concentration at Disadvantage — said on the concentration check and in its dialog). Each listed style shows as an effect on the character, live or greyed with the reason, read off what is equipped (nobody toggles it); its bonus lands on the roll it fits, with a line on the damage card. Remove a name to run that style by hand (the pack's own effect comes back on).",
-    scope: "world", config: true, type: String, default: LIST_SPECS.fightingStyles.default
-  });
-
-  // INITIATIVE SWAPS: asked once every combatant has an Initiative. The list is the switch.
-  game.settings.register(MODULE_ID, S.initiativeSwapList, {
-    name: "Initiative Swaps",
-    hint: "A feature that swaps its owner's Initiative with an ally's, by the feature's own name, separated by commas — Alert. Once every combatant has rolled Initiative, the owner gets a popup (once per combat) listing the allies on their side who are not Incapacitated, each with their Initiative; pick one and Swap exchanges the two numbers in the tracker, No leaves the order. An Incapacitated owner is not asked. A GM must be on to write the tracker. Remove a name to swap by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.initiativeSwaps.default
-  });
-
-  // TOKEN LIGHTS / SENSES / SIZES: carried as the token's own properties on an effect (Foundry's
-  // `token.*` changes), so they go when the effect goes. Each list is its switch.
-  game.settings.register(MODULE_ID, S.tokenLightList, {
-    name: "Token Lights",
-    hint: "A use whose text says something sheds light, carried as the token's own light, by the row's name, separated by commas — Inner Radiance, Light. Inner Radiance lands its own Searing Radiance effect on the Aasimar with 10 feet of Bright Light and 10 more of Dim; Light cast at targeted tokens lights each of them, 20 feet Bright and 20 more Dim, for the spell's hour, and casting it again puts out the caster's earlier light (cast with nobody targeted, the spell's own summoned light stands). The light lives on the effect: it goes when the effect ends or is removed. Remove a name to light that token by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.tokenLights.default
-  });
-
-  game.settings.register(MODULE_ID, S.tokenSenseList, {
-    name: "Token Senses",
-    hint: "A pack effect that grants a sense, carried as the token's own vision while it stands, by the row's name, separated by commas — Stonecunning. Stonecunning's effect turns the Dwarf's token to Tremorsense vision, 60 feet, with Feel Tremor detection at 60 feet, for its ten minutes (always counted as on stone). The vision lives on the effect: it goes when the effect ends or is removed. Remove a name to set that token's vision by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.tokenSenses.default
-  });
-
-  game.settings.register(MODULE_ID, S.tokenSizeList, {
-    name: "Token Sizes",
-    hint: "A pack effect that changes a creature's size, carried as the token's own size while it stands, by the row's name, separated by commas — Large Form, Enlarge/Reduce. Large Form's effect makes the Goliath Large (a 2 × 2 token) for its ten minutes; Enlarge/Reduce's Enlarged and Reduced effects move the target one size up or down from its size as the spell lands. The sheet's size changes with the token, so everything that reads a size sees the new one. The size lives on the effect: it goes when the effect ends or is removed. Remove a name to resize that token by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.tokenSizes.default
-  });
-
-  // DROP TO 1 HP: a drop to 0 Hit Points turned into a drop to 1.
-  game.settings.register(MODULE_ID, S.dropToOneList, {
-    name: "Drop to 1 HP",
-    hint: "What turns a drop to 0 Hit Points into a drop to 1, by the row's name, separated by commas — Death Ward (the spell's Protection from Death effect: automatic, and the spell ends) and Relentless Endurance (the Orc: a popup asks, the Hit Points held at 1 until the answer; once per Long Rest, never against damage that kills outright). Any damage applied through the system's damage application counts — the module's and the card's own buttons; Hit Points typed on a sheet do not. Remove a name to play it by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.dropToOne.default
-  });
-
-  // REST GRANTS: what a feature gives at a rest where the platform gives nothing.
-  game.settings.register(MODULE_ID, S.restGrantList, {
-    name: "Rest Grants",
-    hint: "What a feature gives when its owner finishes a rest, where the system gives nothing, by the feature's name, separated by commas — Resourceful (the Human: Heroic Inspiration whenever you finish a Long Rest; it lands with the rest itself, and the rest card says so) and Musician (Encouraging Song: after a Short or Long Rest a popup lists the allies within 30 feet — those who already have Heroic Inspiration greyed — and the owner picks up to their Proficiency Bonus to give it to; a GM must be on to write it), Inspiring Leader (after a Short or Long Rest: up to six creatures within 30 feet, the leader too, gain Temporary Hit Points — the feat's own amount, level plus the modifier; one already holding as many is greyed), Bolstering Treats (Chef, after a Long Rest: up to your Proficiency Bonus creatures on the scene gain that many Temporary Hit Points — handed out, no treat to eat) and Replenishing Meal (Chef, after a Short Rest: up to 4 plus your Proficiency Bonus eaters; one that spent Hit Dice in its own Short Rest regains an extra 1d8 — at once if its rest is over, at its end if it is still resting). Remove a name to give it by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.restGrants.default
-  });
-
-  // REBUKES: a Reaction to taking damage, aimed at the damager when it is within reach.
-  game.settings.register(MODULE_ID, S.rebukeList, {
-    name: "Rebukes",
-    hint: "A Reaction taken when you take damage from a creature, aimed at that creature, by the item's name, separated by commas — Storm's Thunder, Hellish Rebuke, Fount of Moonlight, Retaliation, Sword of Answering — and Sentinel, asked of a BYSTANDER: when an enemy's attack hits someone else within 5 feet of the Sentinel, its owner gets the popup, and Use makes an Opportunity Attack with the weapon last swung (its Disengage half is yours to call). When damage lands on a creature holding one (applied by the module or with the card's own buttons), and the creature that dealt it stands within the reaction's own range (60 feet for Storm's Thunder and Hellish Rebuke, 5 feet for Retaliation, the sword's reach), the damaged creature's owner gets a popup: Use fires it at the damager — its damage, its save, or the melee attack — spending the use or the lowest spell slot and the Reaction; Pass, or the clock, lets it go. Not offered with the Reaction already spent, no use or slot left, or at 0 HP. Remove a name to use that reaction by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.rebukes.default
-  });
-
-  // CARD CHIPS: a feature used through another item's cast, offered on that cast. The list is the switch.
-  game.settings.register(MODULE_ID, S.cardChipList, {
-    name: "Card Chips",
-    hint: "A feature used through another item's cast, offered on that cast's card, by the row's name, separated by commas — Tinker. When a Rock Gnome casts Prestidigitation, a popup asks whether to build a Tiny Clockwork Device, with how many of the three are left: yes puts a Tiny Clockwork Device chip on the gnome, with the lineage's icon, for 8 hours — one chip per device, at most three (with three standing, the popup says to remove one first). What the device does is played at the table. Remove a name to keep that feature by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.cardChips.default
-  });
-
-  // DAMAGE SAVES: every bare damage activity rolls at the use; a listed row also demands the save
-  // its text ties to the damage. The list is the switch for the save half.
-  game.settings.register(MODULE_ID, S.damageSaveList, {
-    name: "Damage Saves",
-    hint: "A spell whose damage is followed by a saving throw, by the spell's own name, separated by commas — Heat Metal. When a listed spell's damage is used (Heat Metal's cast, or its Bonus Action reheat) the dice roll at once and land on the target, and the spell's own save is put to that target right after through the save gate; the failed-save effect (Heated Metal: Disadvantage on attack rolls and ability checks) lands, and the card says the table removes it if the object was dropped. Every bare damage spell rolls its dice at the use whatever this list says — the list decides only which ones demand a save after. Remove a name to keep that save by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.damageSaves.default
-  });
-
-  // SUPERIORITY USES: the Battle Master's Bonus Action maneuvers. The list is the switch.
-  game.settings.register(MODULE_ID, S.superiorityUseList, {
-    name: "Superiority Uses",
-    hint: "The Battle Master's Bonus Action maneuvers the module plays, by the feature's own name, separated by commas — Evasive Footwork (the die rolled and added to your AC until the start of your next turn), Bait and Switch (the die rolled; a popup asks who gains the AC — you by default), Lunging Attack (a chip until the end of the turn; the die is a ticked checkbox on the next melee hit's damage offer, since the 5-foot straight line is yours to judge), Feinting Attack (the pack's marker on the target; the attack gate reads it as Advantage for you alone, the next attack roll at that target spends it, and the die rides the hit). The Superiority Die is spent by the activity itself. Remove a name to keep that maneuver by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.superiorityUses.default
-  });
-
-  // EFFECT CHOICES: a cast shipping alternative effects asks which one; only the pick lands.
-  game.settings.register(MODULE_ID, S.effectChoiceList, {
-    name: "Effect Choices",
-    hint: "A spell whose cast offers a choice between effects, by the spell's own name, separated by commas — Fire Shield (a warm shield or a chill shield). When a listed spell is cast, a popup asks the caster which effect to take and only that one lands on the sheet; the cast waits on the card until the choice is made, and the card's button reopens it. Remove a name to have every effect the pack ships land at once.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.effectChoices.default
-  });
-
-  // METAMAGIC: the Sorcerer's options as rows in the cast dialog. The list is the switch.
-  game.settings.register(MODULE_ID, S.metamagicList, {
-    name: "Metamagic",
-    hint: "The Sorcerer's Metamagic options the module plays, by the feat's own name, separated by commas. A listed option the caster knows appears as a row in the spell's casting window — a tick, its cost in Sorcery Points, the rule folded under — and the points are spent on the spell's card when the cast lands; Empowered Spell is offered after the spell's damage dice and Seeking Spell on a spell attack's miss instead. Remove a name to keep that option by hand.",
-    scope: "world", config: true, type: String, default: LIST_SPECS.metamagic.default
-  });
-
-  game.settings.register(MODULE_ID, S.effectRiders, {
-    name: "Effect Riders",
-    hint: "A hit applies the effects riding it: the attack's own effects land on the targets it hit, through the system's application path — Ray of Frost's slow arrives with its damage instead of waiting for a click in the card's tray. Every application leaves a receipt on the damage card with a per-effect revert.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.masteryRiders, {
-    name: "Weapon Mastery Riders",
-    hint: "A weapon mastery pays out with the attack that earned it. Vex and Sap apply themselves (the rules give no choice); Slow, Topple, Push and Graze are the wielder's option — see Ask First. Effects are visible chips with the rule in their description; nothing ever modifies a d20, and Cleave/Nick (extra attacks) stay native. On-hit payouts ride the damage roll wherever it came from — the resolver's auto-roll or the native Damage button. Graze alone needs the attack resolver on: a miss has no damage button to press.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.masteryAsk, {
-    name: "Mastery: Ask First",
-    hint: "\"Ask\" puts the optional masteries (Slow, Topple, Push, Graze) to the attacking player as a Use/Pass popup on the reaction hold's timer — players like being reminded of their options. \"Auto\" takes them silently for tables that find the popup tedious. Vex and Sap never ask; the rules make them automatic.",
-    scope: "world", config: true, type: String, default: "ask",
-    choices: { ask: "Ask the attacker", auto: "Take them automatically" }
-  });
-
-  game.settings.register(MODULE_ID, S.noticeTimer, {
-    name: "Reminder Timer Seconds",
-    hint: "How long a weapon-mastery reminder (Vex, Sap, Cleave) stays up before it dismisses itself. 0 stays until dismissed. Expiry is a NON-EVENT for Vex and Sap — the chip is already applied and the card keeps the record either way — but Cleave's reminder carries a real choice (Arm the Cleave), so the window has to be one a human can win.",
-    scope: "world", config: true, type: Number, default: 24,
-    range: { min: 0, max: 60, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.maneuverFolds, {
-    name: "Maneuver Folds",
-    hint: 'Post-roll maneuver folds, as "Name:kind" separated by commas. kind is "precision" (your own attack misses — the maneuver\'s die is offered, patches the total, and a hit that emerges is resolved like any other), "riposte" (an enemy\'s melee attack misses you — the reaction is offered, a real attack rolls inside the fold, and the maneuver\'s die joins its damage), "interpose" (you SAVE against a Dexterity half-damage effect holding a shield — the Reaction is offered and turns half into none), "bash" (your own listed save demand FAILS — choose the Prone press or the announced 5-foot push), "hew" (a crit or a kill with a melee weapon — a reminder card only, nothing automated; for Polearm Master, after an attack with a Quarterstaff, a Spear or a Heavy Reach weapon: Pole Strike, the other end, as a Bonus Action), or "shove" (an Unarmed Strike hit — once per turn, after the damage lands, Push 5 feet or Pass; the push is announced and the token moved by hand — Tavern Brawler). Names must match the item on the actor; dice and costs are read from the item, never typed here. An empty list turns every fold off. Unknown kinds are ignored, never guessed.',
-    // ⚠ Riposte lives HERE, never in Interrupt Reactions: the hold offers on HITS and reads an
-    // unknown kind as "ac". The folds ride the hold's clock and reveal settings.
-    scope: "world", config: true, type: String,
-    default: LIST_SPECS.maneuverFolds.default
-  });
-
-  game.settings.register(MODULE_ID, S.d20Folds, {
-    name: "D20 Folds",
-    hint: 'Post-roll d20 folds, as "Lookup:kind" separated by commas. kind is "heroic" (Heroic Inspiration — a REROLL of the d20, and the new roll stands, crit and fumble included), "tactical" (Tactical Mind — 1d10 added to an ability check, spending a use of Second Wind), or "bardic" (a Bardic Inspiration die the bard gave you, added to a d20 that failed), or "seeking" (Seeking Spell — a REROLL of a spell attack that missed, 1 Sorcery Point spent by hand; the Metamagic list must admit it too), or "advantage" (Lucky — on an initiative rolled with no dialog, from the carousel or Roll All: a second d20, the higher stands, 1 Luck Point spent), or "succeed" (Guarded Mind, of Mage Slayer — a failed Intelligence, Wisdom or Charisma save succeeds instead, its one use spent; the lookup is the FEAT). ⚠ The first half is a LOOKUP KEY, not a display name: for "tactical" it must match the ITEM on the actor, and for "bardic" it must match the EFFECT the bard applies, which the system calls "Inspired" — the cards and popups still say "Bardic Inspiration", because that is what the feature is called. For "heroic" the lookup is unused entirely: the marker is a bare true/false on the sheet with no document behind it. Dice and costs are read from the content, never typed here. An empty list turns every d20 fold off. Unknown kinds are ignored, never guessed.',
-    scope: "world", config: true, type: String,
-    default: LIST_SPECS.d20Folds.default
-  });
-
-  game.settings.register(MODULE_ID, S.d20FoldAsk, {
-    name: "D20 Folds: Offer Automatically",
-    hint: "Where the module OWNS the number a d20 was judged against — an attack's target AC, or the DC of a save this module demanded — it can offer a fold the moment the roll fails, the way Precision Attack already does. Turn this off to make every d20 fold a button the player presses instead. ⚠ Ability and skill checks are ALWAYS player-pressed regardless of this setting: dnd5e records no DC for a raw check, so there is no number to judge a failure against and the module refuses to guess one.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  // Membership is by name in volley-registry.js: the content's multi-projectile data is inconsistent.
-  game.settings.register(MODULE_ID, S.volleys, {
-    name: "Volley Spells",
-    hint: "Multi-projectile spells resolve as volleys: the caster gets one popup to aim every dart or ray, instead of the system rolling a single shot and forgetting the rest. Magic Missile's darts strike together — each target gets ONE aggregated damage roll (and so one concentration check). Scorching Ray's rays are separate attacks — each ray rolls its own attack at its own target through the ordinary pipeline, reactions and riders included. The window is the Damage Roll Timer; expiry fires the volley with an even spread, it never cancels. Rides the Attack Resolver's mode.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.concMode, {
-    name: "Concentration Checks",
-    hint: "When a concentrating creature takes damage, run the save instead of leaving the system's whisper card to be forgotten. \"Prompt\" pops the check up for whoever owns the concentrator — what hit them, for how much, the DC — with one button: Roll. \"Auto\" skips the popup and just rolls. Either way the dice land on the owning player's client when one is connected (their character, their dice), the GM's otherwise, and NPC concentrators get the identical treatment GM-side.",
-    scope: "world", config: true, type: String, default: "prompt",
-    choices: { off: "Off", prompt: "Prompt to roll", auto: "Roll automatically" }
-  });
-
-  game.settings.register(MODULE_ID, S.concTimer, {
-    name: "Concentration Timer Seconds",
-    hint: "How long the prompt waits before rolling the save itself. 0 waits indefinitely. Unlike the reaction hold's timer, expiry ROLLS rather than passes — a concentration save is mandatory, so the timer only ever decides who pressed the button.",
-    scope: "world", config: true, type: Number, default: 24,
-    range: { min: 0, max: 60, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.concBreak, {
-    name: "Failure Breaks Concentration",
-    hint: "A failed save ends concentration through the system's own path, and everything depending on it goes too — Bless strips from the whole party the moment the save is missed. The system never does this itself (a failed save changes nothing natively); this is the forgotten click the feature exists to press. Off announces the failure and leaves the ending to you.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.concVisibility, {
-    name: "Concentration Checks Are Public",
-    hint: "On (default): the check and the roll play out in the open — the table gets to hold its breath over the party's Bless. Off: whispered to the concentrator's owners and the GM. A BROKEN concentration is announced publicly either way — the cascade strips icons across the whole table, and an icon vanishing must never be a mystery.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.saves, {
-    name: "Resolve Saving Throws",
-    hint: "A save spell or ability runs its own saves: each targeted creature's save pops up on the client that owns it — the native dialog's controls (situational bonus, Advantage/Normal/Disadvantage) — and the verdict applies the consequences: the card's damage in full on a failure or per the spell's own word on a success (half, none), a failure applies the card's effects. NPCs and offline owners resolve on the GM's client; the card's native buttons keep working. Per target and independent — nobody waits on anyone else's dice. Damage application honors Auto-Apply Damage; legendary resistance overturns a folded failure, receipts and all.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.saveTimer, {
-    name: "Save Timer Seconds",
-    hint: "How long a prompted save waits before rolling itself. 0 waits indefinitely. Like the concentration timer — and unlike the reaction hold's — expiry ROLLS rather than passes: a demanded save is mandatory, so the timer only ever decides who pressed the button.",
-    scope: "world", config: true, type: Number, default: 24,
-    range: { min: 0, max: 60, step: 1 }
-  });
-
-  game.settings.register(MODULE_ID, S.castApply, {
-    name: "Auto-Apply on Cast",
-    hint: "A cast with no roll to gate on resolves itself: a no-save spell's effects land on every target it was aimed at (Bless on all three, Hunter's Mark's mark on the quarry), and healing rolls its dice and lands (Healing Word). Receipts with per-target revert, as everywhere. Attack spells ride the hit under Effect Riders; save spells wait for the saves phase; plain damage spells (Magic Missile) keep their manual tray — the reaction that negates them must stay answerable.",
-    scope: "world", config: true, type: Boolean, default: true
-  });
-
-  game.settings.register(MODULE_ID, S.resourceNotices, {
-    name: "Resource Use Notices",
-    hint: "When a player character spends a limited-use ability — Second Wind, a superiority die, Channel Divinity, sorcery points, a magic item's daily cast — a big text notice flashes on every screen and fades: who used what, and how many uses remain. The usage card keeps the same line durably. Structural: anything whose uses carry a recovery rhythm (per rest, per day) announces itself; expendables with no recovery (torches, potions, rations) and spell slots stay quiet. NPC abilities never announce — monster resources are the GM's secret.",
-    scope: "world", config: true, type: Boolean, default: true
   });
 
   // Registries READ-ONLY for the suites (ARCHITECTURE §6), as live readers. ⚠ `volleyRegistry` is
   // absent on purpose: the suites mutate it, and volley-registry.js exposes it.
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { registries: Object.freeze({
-    specs: LIST_SPECS,
     kindSets: KIND_SETS,
     interrupt: interruptEntries,
     block: blockEntries,
@@ -472,258 +86,3 @@ Hooks.once("init", () => {
     riderUpgrade: riderUpgradeEntries
   }) });
 });
-
-// Settings sheet: a divider per block; dependent fields grey while their governor is off.
-Hooks.on("renderSettingsConfig", (_app, element) => {
-  const el = element instanceof HTMLElement ? element : element?.[0];
-  if ( !el ) return;
-  const input = key => el.querySelector(`[name="${MODULE_ID}.${key}"]`);
-  const setEnabled = (field, enabled) => {
-    if ( !field ) return;
-    field.disabled = !enabled;
-    const group = field.closest(SURFACES.formGroup);
-    if ( group ) group.style.opacity = enabled ? "" : "0.4";
-  };
-
-  const addDivider = (field, text) => {
-    const group = field?.closest(SURFACES.formGroup);
-    if ( !group || group.previousElementSibling?.classList?.contains("bf-divider") ) return;
-    const header = document.createElement("h4");
-    header.className = "divider bf-divider";
-    header.textContent = text;
-    group.before(header);
-  };
-  const autoDamage = input(S.autoDamage);
-  addDivider(autoDamage, "Attack Resolver");
-  addDivider(input(S.reactionHold), "Reaction Hold");
-  addDivider(input(S.riders), "Hit Riders");
-  addDivider(input(S.concMode), "Concentration");
-  addDivider(input(S.saves), "Saving Throws");
-  addDivider(input(S.volleys), "Volleys");
-  addDivider(input(S.castApply), "Casts");
-  addDivider(input(S.resourceNotices), "Resource Notices");
-  addDivider(input(S.hideCardButtons), "Table Polish");
-
-  const hold = input(S.reactionHold);
-  const riders = input(S.riders);
-  const mastery = input(S.masteryRiders);
-  const conc = input(S.concMode);
-  const saves = input(S.saves);
-  const syncAll = () => {
-    setEnabled(input(S.dramaticBeat), autoDamage?.value !== "off");
-    // ⚠ Two owners: attacks (Auto-Roll Damage) and save spells (Saving Throws) both reach it.
-    setEnabled(input(S.playerRollDamage), (autoDamage?.value !== "off") || !!saves?.checked);
-    setEnabled(input(S.damageTimer), (autoDamage?.value !== "off") || !!saves?.checked);
-    for ( const key of [S.interruptList, S.blockList, S.holdReveal, S.holdTimer, S.holdSkipFutile,
-      S.holdSettle, S.holdApplyEffect] )
-      setEnabled(input(key), !!hold?.checked);
-    for ( const key of [S.riderList, S.riderUpgrades] )
-      setEnabled(input(key), !!riders?.checked);
-    for ( const key of [S.masteryAsk, S.noticeTimer] )
-      setEnabled(input(key), !!mastery?.checked);
-    for ( const key of [S.concTimer, S.concBreak, S.concVisibility] )
-      setEnabled(input(key), conc?.value !== "off");
-    setEnabled(input(S.saveTimer), !!saves?.checked);
-    setEnabled(input(S.volleys), autoDamage?.value !== "off");
-  };
-  syncAll();
-  autoDamage?.addEventListener("change", syncAll);
-  hold?.addEventListener("change", syncAll);
-  riders?.addEventListener("change", syncAll);
-  mastery?.addEventListener("change", syncAll);
-  conc?.addEventListener("change", syncAll);
-  saves?.addEventListener("change", syncAll);
-});
-
-// The list readers over decide/registry.js's parser (ARCHITECTURE §6 *Registry vs. settings list*).
-// ⚠ battleflow.js imports settings.js ahead of every machine; see check-hook-order.mjs before moving it.
-
-/** `${setting}|${action}|${chunk}` warned once per session (lists are read on nearly every hook). */
-const warnedChunks = new Set();
-
-/** THE ONE LIST READ: read the setting, parse against the spec, warn once per bad chunk. */
-function listEntries(spec) {
-  const { entries, rejects } = parseList(spec, setting(S[spec.setting]));
-  for ( const reject of rejects ) {
-    const seen = `${spec.setting}|${reject.action}|${reject.chunk}`;
-    if ( warnedChunks.has(seen) ) continue;
-    warnedChunks.add(seen);
-    console.warn(`${TITLE} | ${rejectMessage(spec, reject)}`);
-  }
-  return entries;
-}
-
-/** The listed kinds of a name-keyed list, lower-cased, as a set — "is this row switched on". */
-export const listedNames = entries => new Set(entries.map(e => String(e.kind ?? "").toLowerCase()));
-
-/** Which reactions interrupt an attack, and what each one changes — `{ name, kind }`. */
-export function interruptEntries() {
-  return listEntries(LIST_SPECS.interrupt);
-}
-
-/** Which spells a reaction stops outright — `{ spell, reaction }`. */
-export function blockEntries() {
-  return listEntries(LIST_SPECS.block);
-}
-
-/** Which listed feats fold into an attack after the roll, and how — `{ name, kind }`. */
-export function maneuverFoldEntries() {
-  return listEntries(LIST_SPECS.maneuverFolds);
-}
-
-/** Post-roll d20 folds — `{ name, kind }`. ⚠ `name` is a LOOKUP (item, or effect for `bardic`). */
-export function d20FoldEntries() {
-  return listEntries(LIST_SPECS.d20Folds);
-}
-
-/** Which marks pay, by system identifier — `{ name }`. What they pay is read from the mark. */
-export function riderEntries() {
-  return listEntries(LIST_SPECS.rider);
-}
-
-/** Which of the attacker's own features replaces a mark's damage — `{ feature, rider }`. */
-export function riderUpgradeEntries() {
-  return listEntries(LIST_SPECS.riderUpgrade);
-}
-
-/** What kinds of source the reminder gate reads before an attack roll — `{ kind }`. */
-export function reminderEntries() {
-  return listEntries(LIST_SPECS.reminders);
-}
-
-/** Which rows of the condition table the gate reads, by status id — `{ kind }`. */
-export function conditionEntries() {
-  return listEntries(LIST_SPECS.conditions);
-}
-
-/** Which rows of the effect table the gate reads, by the effect's or feature's name — `{ kind }`. */
-export function effectEntries() {
-  return listEntries(LIST_SPECS.effects);
-}
-
-/** Which rows of the clock-rider table fold into a hit's damage, by the feature's name — `{ kind }`. */
-export function clockRiderEntries() {
-  return listEntries(LIST_SPECS.clockRiders);
-}
-
-/** Which rows of the hit-option table the damage offer shows, by the feature's name — `{ kind }`. */
-export function hitMenuEntries() {
-  return listEntries(LIST_SPECS.hitMenu);
-}
-
-/** Which rows of the emanation table stand, by the feature's or spell's name — `{ kind }`. */
-export function emanationEntries() {
-  return listEntries(LIST_SPECS.emanations);
-}
-
-/** Which rows of the damage-shield table strike, by the spell's name — `{ kind }`. */
-export function damageShieldEntries() {
-  return listEntries(LIST_SPECS.damageShields);
-}
-
-/** Which rows of the spent-area table are swept at the last verdict whatever their data says, by the item's name — `{ kind }`. */
-export function spentAreaEntries() {
-  return listEntries(LIST_SPECS.spentAreas);
-}
-
-/** Is this area's item listed as spent at the last verdict (the sweep's fourth bucket)? */
-export function spentAreaListed(itemName) {
-  const wanted = String(itemName ?? "").toLowerCase();
-  return !!wanted && spentAreaEntries().some(e => e.kind === wanted);
-}
-
-/** Which rows of the chosen-area table ask their caster who they affect, by the spell's name — `{ kind }`. */
-export function chosenAreaEntries() {
-  return listEntries(LIST_SPECS.chosenAreas);
-}
-
-/** Which rows of the initiative-swap table ask once Initiative is rolled, by the feature's name — `{ kind }`. */
-export function initiativeSwapEntries() {
-  return listEntries(LIST_SPECS.initiativeSwaps);
-}
-
-/** Which rows of the kit-tending table offer on a kit's use, by the feature's name — `{ kind }`. */
-export function kitTendEntries() {
-  return listEntries(LIST_SPECS.kitTends);
-}
-
-/** Which rows of the fighting-style table the module runs, by the feat's name — `{ kind }`. */
-export function fightingStyleEntries() {
-  return listEntries(LIST_SPECS.fightingStyles);
-}
-
-/** Which rows of the unarmed-dice table swap the plain Unarmed Strike's damage, by the feature's name — `{ kind }`. */
-export function unarmedDiceEntries() {
-  return listEntries(LIST_SPECS.unarmedDice);
-}
-
-/** Which rows of the healing-reroll table ask on a healing roll, by the feature's name — `{ kind }`. */
-export function healRerollEntries() {
-  return listEntries(LIST_SPECS.healRerolls);
-}
-
-/** Which rows of the rolled-twice table offer on a weapon hit, by the feature's name — `{ kind }`. */
-export function damageEitherEntries() {
-  return listEntries(LIST_SPECS.damageEither);
-}
-
-/** Which rows of the card-chip table a cast's card offers, by the row's name — `{ kind }`. */
-export function cardChipEntries() {
-  return listEntries(LIST_SPECS.cardChips);
-}
-
-/** Which reactions to damage are offered at the damager, by the item's name — `{ kind }`. */
-export function rebukeEntries() {
-  return listEntries(LIST_SPECS.rebukes);
-}
-
-/** Which rows of the drop-to-1 table act at a drop to 0, by the row's name — `{ kind }`. */
-export function dropToOneEntries() {
-  return listEntries(LIST_SPECS.dropToOne);
-}
-
-/** Which rows of the rest-grant table give their grant at a rest, by the feature's name — `{ kind }`. */
-export function restGrantEntries() {
-  return listEntries(LIST_SPECS.restGrants);
-}
-
-/** Which rows of the token-size table resize the token, by the row's name — `{ kind }`. */
-export function tokenSizeEntries() {
-  return listEntries(LIST_SPECS.tokenSizes);
-}
-
-/** Which rows of the token-sense table change the token's vision, by the row's name — `{ kind }`. */
-export function tokenSenseEntries() {
-  return listEntries(LIST_SPECS.tokenSenses);
-}
-
-/** Which rows of the token-light table shed their light, by the row's name — `{ kind }`. */
-export function tokenLightEntries() {
-  return listEntries(LIST_SPECS.tokenLights);
-}
-
-/** Is this spell listed as one whose caster chooses who its area affects? */
-export function chosenAreaListed(itemName) {
-  const wanted = String(itemName ?? "").toLowerCase();
-  return !!wanted && chosenAreaEntries().some(e => e.kind === wanted);
-}
-
-/** Which rows of the damage-save table demand their save after the damage, by the spell's name — `{ kind }`. */
-export function damageSaveEntries() {
-  return listEntries(LIST_SPECS.damageSaves);
-}
-
-/** Which rows of the superiority-use table the module plays, by the feature's name — `{ kind }`. */
-export function superiorityUseEntries() {
-  return listEntries(LIST_SPECS.superiorityUses);
-}
-
-/** Which rows of the effect-choice table ask at the cast, by the spell's name — `{ kind }`. */
-export function effectChoiceEntries() {
-  return listEntries(LIST_SPECS.effectChoices);
-}
-
-/** Which rows of the metamagic table the module plays, by the feat's name — `{ kind }`. */
-export function metamagicEntries() {
-  return listEntries(LIST_SPECS.metamagic);
-}

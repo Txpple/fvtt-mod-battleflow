@@ -1,10 +1,8 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the rule tables and the membership-list parser.
- * Strings in, entries out — no `game`, no settings, no imports; settings.js wraps each LIST_SPECS
- * entry (ARCHITECTURE.md §6, the strict-parse contract). Every `rule` is the source text verbatim (law 8).
- * ⚠ A typo in a list setting raises nothing — the entry drops and its feature dies silently; these
- * parsers are the only guard.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the rule tables, the kind lists and their readers.
+ * No `game`, no settings, no imports; the tables are the only list (ARCHITECTURE.md §6). Every `rule` is
+ * the source text verbatim (law 8).
  */
 
 /** Maneuver fold kinds; an unknown kind is dropped. `command`: an ally's Reaction attack with the
@@ -348,8 +346,6 @@ export const CARD_CHIPS = Object.freeze({
     from: "Gnome — Gnomish Lineage (Rock)" })
 });
 
-/** The card chips' row names, lower-cased — the closed set the Card Chips list is validated against. */
-export const CARD_CHIP_NAMES = tableIndex(CARD_CHIPS).names;
 
 /**
  * A save activity whose FAILURE lands a condition the pack has no effect for (the 2024 Web ships none): the
@@ -401,8 +397,6 @@ export function tableIndex(table, keyOf = null) {
   return { names, keyNamed, rowNamed };
 }
 
-/** The clock riders' feature names, lower-cased — the closed set the Clock Riders list is validated against. */
-export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
 
 /**
  * The hit menu: one popup per hit, one pick per GROUP (RULINGS *The hit menu — a pick per group*). A group
@@ -455,8 +449,6 @@ export const HIT_OPTIONS = Object.freeze({
     rule: "When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition." })
 });
 
-/** The hit options' feature names, lower-cased — the closed set the Hit Menu list is validated against. */
-export const HIT_OPTION_NAMES = tableIndex(HIT_OPTIONS, r => r.feature).names;
 
 /**
  * The Battle Master's BONUS ACTION maneuvers: a use landing on a sheet, two with a die riding the next hit.
@@ -482,8 +474,6 @@ export const SUPERIORITY_USES = Object.freeze({
     from: "Fighter — Battle Master" })
 });
 
-/** The superiority uses' feature names, lower-cased — the closed set the Superiority Uses list is validated against. */
-export const SUPERIORITY_USE_NAMES = tableIndex(SUPERIORITY_USES).names;
 
 /** Maneuvers adding the die to a D20 Test: the `tactical` d20 fold with the text's scope (skills,
  * Initiative), which tells them from Tactical Mind. No refund — the die is spent either way. */
@@ -607,8 +597,6 @@ export const DAMAGE_SHIELDS = Object.freeze({
     from: "PHB, level 1 (1 hour)" })
 });
 
-/** The shields' item names, lower-cased — the closed set the Damage Shields list is validated against. */
-export const DAMAGE_SHIELD_NAMES = tableIndex(DAMAGE_SHIELDS).names;
 
 /** A cast shipping several effects the text makes alternatives: the caster picks in a popup (R1), only the
  * pick lands. `effects` the names in order; `ask` the question. Fewer than two present asks nothing. */
@@ -618,8 +606,6 @@ export const EFFECT_CHOICES = Object.freeze({
     from: "PHB, level 4 (10 minutes)" })
 });
 
-/** The choices' item names, lower-cased — the closed set the Effect Choices list is validated against. */
-export const EFFECT_CHOICE_NAMES = tableIndex(EFFECT_CHOICES).names;
 
 /**
  * A use whose text SHEDS LIGHT, carried as a `token.light` change on an effect (Foundry applies `token.*`
@@ -640,8 +626,6 @@ export const TOKEN_LIGHTS = Object.freeze({
     from: "PHB cantrip (1 hour)" })
 });
 
-/** The token lights' row names, lower-cased — the closed set the Token Lights list is validated against. */
-export const TOKEN_LIGHT_NAMES = tableIndex(TOKEN_LIGHTS).names;
 
 /**
  * TOKEN_LIGHTS' sibling for senses (`sight` and `detectionModes`; a `sight.visionMode` override inflates
@@ -656,8 +640,6 @@ export const TOKEN_SENSES = Object.freeze({
     from: "Dwarf" })
 });
 
-/** The token senses' row names, lower-cased — the closed set the Token Senses list is validated against. */
-export const TOKEN_SENSE_NAMES = tableIndex(TOKEN_SENSES).names;
 
 /**
  * Size changes added to the PACK's effect as it is created — `token.width`/`height` and `system.traits.size`
@@ -674,8 +656,6 @@ export const TOKEN_SIZES = Object.freeze({
     from: "PHB, level 2 (Concentration, 1 minute)" })
 });
 
-/** The token sizes' row names, lower-cased — the closed set the Token Sizes list is validated against. */
-export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
 
 /**
  * What a feature grants on finishing a rest that the platform does not give, riding the rest's own update
@@ -710,8 +690,6 @@ export const REST_GRANTS = Object.freeze({
     from: "General feat (Chef)" })
 });
 
-/** The rest grants' row names, lower-cased — the closed set the Rest Grants list is validated against. */
-export const REST_GRANT_NAMES = tableIndex(REST_GRANTS).names;
 
 /**
  * What turns a drop to 0 HP into 1 (drop-to-one.js: the 1 written in the damage's own update).
@@ -728,8 +706,6 @@ export const DROP_TO_ONE = Object.freeze({
     from: "Orc" })
 });
 
-/** The drop-to-1 rows' names, lower-cased — the closed set the Drop to 1 HP list is validated against. */
-export const DROP_TO_ONE_NAMES = tableIndex(DROP_TO_ONE).names;
 
 /**
  * A Reaction after the bearer takes damage, aimed at the damager (rebukes.js): a popup to the owner when
@@ -759,8 +735,6 @@ export const REBUKES = Object.freeze({
     rule: "Guardian. Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack, you can make an Opportunity Attack against that creature." })
 });
 
-/** The rebukes' item names, lower-cased — the closed set the Rebukes list is validated against. */
-export const REBUKE_NAMES = tableIndex(REBUKES).names;
 
 /** A damage activity whose text ties a SAVE to the damage (Heat Metal): damage-casts.js rolls `damage`,
  * then uses `save` at the same targets. The drop is the table's (R1): `line` says so on the card. */
@@ -771,13 +745,9 @@ export const DAMAGE_SAVES = Object.freeze({
     from: "PHB, level 2 (Concentration, 1 minute)" })
 });
 
-/** The damage-save items' names, lower-cased — the closed set the Damage Saves list is validated against. */
-export const DAMAGE_SAVE_NAMES = tableIndex(DAMAGE_SAVES).names;
 
 /** The two lifecycles an emanation can have — the closed set the R4 tripwire counts. */
 export const EMANATION_KINDS = new Set(["feature", "spell"]);
-/** The emanations' item names, lower-cased — the closed set the Emanations list is validated against. */
-export const EMANATION_NAMES = tableIndex(EMANATIONS).names;
 
 /**
  * Areas whose DATA lies about their life, spent at their last verdict (saves/areas.js reads every other
@@ -811,7 +781,6 @@ export const SPENT_AREAS = Object.freeze({
     rule: "Objects in a 20-foot Cube within range are outlined in blue, green, or violet light (your choice). Each creature in the Cube is also outlined if it fails a Dexterity saving throw.",
     data: "PHB, level 1 (Concentration, 1 minute) — the outline is on what stood in the Cube at the cast; the Cube itself is nothing after (the 2026-08-18 region that outlived the spell)" })
 });
-export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
 
 /**
  * Area spells whose CASTER chooses who is affected: when the area holds anyone not hostile, or more
@@ -828,7 +797,6 @@ export const CHOSEN_AREAS = Object.freeze({
   "Destructive Wave": Object.freeze({ data: "PHB, level 5 — “each creature you choose in the Emanation”; the pack flags the choice" }),
   "Weird": Object.freeze({ data: "PHB, level 9 — “each creature of your choice in a 30-foot-radius Sphere”; the pack flags the choice" })
 });
-export const CHOSEN_AREA_NAMES = tableIndex(CHOSEN_AREAS).names;
 
 /** The 2024 Rules Glossary on range, verbatim (the source's enrichers render as bare names). */
 export const RANGE_RULES = Object.freeze({
@@ -956,7 +924,7 @@ export const CHECK_BENDS = Object.freeze({
  *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }
  *   saves     { bend, statuses?, spells?, halfToNone? } scoped by the demand, or { succeeds, sleep } — the
  *             save cannot fail against magical sleep (a fourth button)
- * ⚠ Names are the packs' own, colons and all: the Effect Sources list is parsed WHOLE-CHUNK.
+ * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget", spend?: "attack",
@@ -1201,13 +1169,8 @@ export const EFFECT_BENDS = Object.freeze({
 /** The table's rows, in the order the table reads them. */
 export const EFFECT_KEYS = Object.freeze(Object.keys(EFFECT_BENDS));
 
-/** The closed set the Effect Sources list is validated against — the table's names, lower-cased. */
-export const EFFECT_NAMES = tableIndex(EFFECT_BENDS).names;
 
 
-/** The Condition Sources list's closed set, from CONDITION_BENDS (Prone is its own kind); the unit tests
- * pin its size. */
-export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
 
 /**
  * The ten 2024 metamagic options by feat name (RULINGS *Metamagic*): `when` a named predicate on the spell
@@ -1236,7 +1199,6 @@ export const TWINNED_EXCEPTIONS = Object.freeze({
   except: Object.freeze(["Magic Missile", "Scorching Ray", "Animate Dead", "Create Undead", "Cordon of Arrows", "Tasha's Mind Whip"]),
   also: Object.freeze(["Jump"])
 });
-const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**
  * A feature that rolls a weapon's damage dice again, the higher total standing; the popup asks only
@@ -1255,7 +1217,6 @@ export const DAMAGE_EITHER = Object.freeze({
     rule: "Puncture. Once per turn, when you hit a creature with an attack that deals Piercing damage, you can reroll one of the attack’s damage dice, and you must use the new roll.",
     from: "General feat" })
 });
-const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
 
 /**
  * A feature that rerolls a healing die on the `reroll` face, automatically, before the healing lands once
@@ -1268,7 +1229,6 @@ export const HEAL_REROLLS = Object.freeze({
     rule: "Healing Rerolls. Whenever you roll a die to determine the number of Hit Points you restore with a spell or with this feat’s Battle Medic benefit, you can reroll the die if it rolls a 1, and you must use the new roll.",
     from: "Origin feat (Hermit)" })
 });
-const HEAL_REROLL_NAMES = tableIndex(HEAL_REROLLS).names;
 
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
  * combat (initiative-swap.js). ⚠ NOT A KIND — a second customer is a row. */
@@ -1277,7 +1237,6 @@ export const INITIATIVE_SWAPS = Object.freeze({
     rule: "Initiative Swap. Immediately after you roll Initiative, you can swap your Initiative with the Initiative of one willing ally in the same combat. You can’t make this swap if you or the ally has the Incapacitated condition.",
     from: "Origin feat (Criminal, Guard)" })
 });
-const INITIATIVE_SWAP_NAMES = tableIndex(INITIATIVE_SWAPS).names;
 
 /**
  * An Unarmed Strike die "instead of the normal damage": the pack ships it only on the feature's own attack,
@@ -1293,7 +1252,6 @@ export const UNARMED_DICE = Object.freeze({
     rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8.",
     from: "Fighting Style feat" })
 });
-const UNARMED_DICE_NAMES = tableIndex(UNARMED_DICE).names;
 
 /** A kit use on a creature within `reach`, healed from its own Hit Point Dice: the size is picked in a popup
  * and the feature's heal activity of that size rolled (kit-tend.js). ⚠ NOT A KIND — a second customer is a row. */
@@ -1302,7 +1260,6 @@ export const KIT_TENDS = Object.freeze({
     rule: "Battle Medic. If you have a Healer’s Kit, you can expend one use of it and tend to a creature within 5 feet of yourself as a Utilize action. That creature can expend one of its Hit Point Dice, and you then roll that die. The creature regains a number of Hit Points equal to the roll plus your Proficiency Bonus.",
     from: "Origin feat (Hermit)" })
 });
-const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
 
 /**
  * A style or feat whose rule turns on what the owner HOLDS or WEARS (RULINGS *The fighting styles*):
@@ -1363,7 +1320,6 @@ export const FIGHTING_STYLES = Object.freeze({
     rule: "Concentration Breaker. When you damage a creature that is concentrating, it has Disadvantage on the saving throw it makes to maintain Concentration.",
     from: "General feat" })
 });
-const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;
 
 /**
  * THE R4 TRIPWIRE (DESIGN.md R4, ARCHITECTURE §6): every closed kind set, with the size of the dnd5e enum it
@@ -1395,244 +1351,96 @@ export const KIND_SETS = [
       + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock" }
 ];
 
-/** Split a comma list into trimmed, non-empty chunks — the shape every list setting wears. */
-const chunks = raw => String(raw ?? "").split(",").map(s => s.trim()).filter(Boolean);
-
-/** Split one `A:B` chunk into its trimmed halves. */
-const pair = chunk => chunk.split(":").map(s => s?.trim());
-/** A whole chunk as its one column — for lists whose names carry colons (the effect table's). */
-const whole = chunk => [chunk.trim()];
-
 /**
- * THE LIST SPECS — one per membership list, keyed by the name the EDGE wrapper uses.
- *   columns     the `A:B` halves, all required but a kind column with a fallback
- *   kindColumn / kinds   the column validated against a closed set, and the set
- *   fallback    ⚠ a DECLARED, WARNED substitution for an unknown kind, or null to drop
- *   membership  the set is ROWS of one table, not kinds — the R4 tripwire does not count it
- *   whole       parsed whole-chunk (names carry colons); an empty list does nothing, an unlisted row is the table's
- * ⚠ The shipped defaults live HERE beside the parser that must accept them: a default its parser rejects
- * disables the feature in every fresh world (ARCHITECTURE §6).
- * ⚠ Only `interrupt` declares a fallback: a mistyped interrupt is still worth pausing for and `ac` is the
- * conservative reading. An UNDECLARED fallback is a bug.
+ * THE KIND LISTS: which content takes which kind, where the table of the kind itself does not say.
+ * The code table is the only list; a world never edits one.
+ * ⚠ Riposte is ABSENT from INTERRUPTS: it triggers on a MISS and boosts no AC, so there it would hold
+ * every hit. It is a maneuver fold.
+ * ⚠ D20_FOLDS' `name` is a LOOKUP KEY, the card's words come from the kind (d20-folds.js `KIND_LABEL`):
+ *   tactical → an item by this name · bardic → the "Inspired" EFFECT (the card says Bardic Inspiration)
+ *   heroic → no lookup (a boolean) · seeking → METAMAGIC must hold it too · succeed → the FEAT (SAVE_SUCCEEDS)
  */
-export const LIST_SPECS = {
-  interrupt: {
-    label: "Interrupt List", setting: "interruptList",
-    columns: ["name", "kind"], kindColumn: "kind", kinds: INTERRUPT_KINDS, fallback: "ac",
-    // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS and boosts no AC, so here it would hold
-    // every hit. It lives in the Maneuver Folds list.
-    default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
-      + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
-      + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage, "
-      + "Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll, Interception:damage, Protection:roll"
-  },
-  block: {
-    label: "Block List", setting: "blockList",
-    columns: ["spell", "reaction"], kindColumn: null, kinds: null, fallback: null,
-    default: "Magic Missile:Shield"
-  },
-  maneuverFolds: {
-    label: "Maneuver Folds", setting: "maneuverFolds",
-    columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
-    default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
-      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove, Crusher:shove, "
-      + "Polearm Master:hew"
-  },
-  d20Folds: {
-    label: "D20 Folds", setting: "d20Folds",
-    columns: ["name", "kind"], kindColumn: "kind", kinds: D20_FOLD_KINDS, fallback: null,
-    // ⚠ `name` is a LOOKUP KEY; the card's words come from the kind (d20-folds.js `KIND_LABEL`):
-    //   tactical → an item by this name · bardic → the "Inspired" EFFECT (the card says Bardic Inspiration)
-    //   heroic → no lookup (a boolean) · seeking → the Metamagic list must admit it too
-    //   succeed → the FEAT (SAVE_SUCCEEDS), the benefit's name the label
-    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage, Mage Slayer:succeed"
-  },
-  rider: {
-    label: "Rider List", setting: "riderList",
-    columns: ["name"], kindColumn: null, kinds: null, fallback: null,
-    default: "hunters-mark, hex, great-old-one-hex"
-  },
-  riderUpgrade: {
-    label: "Rider Upgrades", setting: "riderUpgrades",
-    columns: ["feature", "rider"], kindColumn: null, kinds: null, fallback: null,
-    default: "foe-slayer:hunters-mark"
-  },
-  reminders: {
-    label: "Reminder Sources", setting: "reminderList",
-    // ⚠ The list IS the switch: an empty list turns the gate off.
-    columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
-    default: "vex, sap, prone, condition, range, effect, sneak, buy"
-  },
-  conditions: {
-    label: "Condition Sources", setting: "conditionList",
-    // A status id per entry: the switch for the `condition` kind, one condition at a time.
-    columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
-    default: CONDITION_KEYS.join(", ")
-  },
-  clockRiders: {
-    label: "Clock Riders", setting: "clockRiderList",
-    columns: ["kind"], kindColumn: "kind", kinds: CLOCK_RIDER_NAMES, fallback: null, membership: true, whole: true,
-    // one name per FEATURE — a feature with two rows (Slasher) is listed once
-    default: [...new Set(Object.values(CLOCK_RIDERS).map(row => row.feature))].join(", ")
-  },
-  effects: {
-    label: "Effect Sources", setting: "effectList",
-    columns: ["kind"], kindColumn: "kind", kinds: EFFECT_NAMES, fallback: null, membership: true, whole: true,
-    default: EFFECT_KEYS.join(", ")
-  },
-  hitMenu: {
-    label: "Hit Menu", setting: "hitMenuList",
-    columns: ["kind"], kindColumn: "kind", kinds: HIT_OPTION_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.values(HIT_OPTIONS).map(row => row.feature).join(", ")
-  },
-  damageShields: {
-    label: "Damage Shields", setting: "damageShieldList",
-    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SHIELD_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(DAMAGE_SHIELDS).join(", ")
-  },
-  superiorityUses: {
-    label: "Superiority Uses", setting: "superiorityUseList",
-    columns: ["kind"], kindColumn: "kind", kinds: SUPERIORITY_USE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(SUPERIORITY_USES).join(", ")
-  },
-  effectChoices: {
-    label: "Effect Choices", setting: "effectChoiceList",
-    columns: ["kind"], kindColumn: "kind", kinds: EFFECT_CHOICE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(EFFECT_CHOICES).join(", ")
-  },
-  metamagic: {
-    label: "Metamagic", setting: "metamagicList",
-    columns: ["kind"], kindColumn: "kind", kinds: METAMAGIC_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(METAMAGIC).join(", ")
-  },
-  damageSaves: {
-    label: "Damage Saves", setting: "damageSaveList",
-    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SAVE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(DAMAGE_SAVES).join(", ")
-  },
-  emanations: {
-    label: "Emanations", setting: "emanationList",
-    columns: ["kind"], kindColumn: "kind", kinds: EMANATION_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(EMANATIONS).join(", ")
-  },
-  spentAreas: {
-    label: "Spent Areas", setting: "spentAreaList",
-    // Swept at the last verdict whatever the data says (saves/areas.js).
-    columns: ["kind"], kindColumn: "kind", kinds: SPENT_AREA_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(SPENT_AREAS).join(", ")
-  },
-  chosenAreas: {
-    label: "Chosen Areas", setting: "chosenAreaList",
-    columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(CHOSEN_AREAS).join(", ")
-  },
-  initiativeSwaps: {
-    label: "Initiative Swaps", setting: "initiativeSwapList",
-    columns: ["kind"], kindColumn: "kind", kinds: INITIATIVE_SWAP_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(INITIATIVE_SWAPS).join(", ")
-  },
-  kitTends: {
-    label: "Kit Tending", setting: "kitTendList",
-    columns: ["kind"], kindColumn: "kind", kinds: KIT_TEND_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(KIT_TENDS).join(", ")
-  },
-  unarmedDice: {
-    label: "Unarmed Strike Dice", setting: "unarmedDiceList",
-    columns: ["kind"], kindColumn: "kind", kinds: UNARMED_DICE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(UNARMED_DICE).join(", ")
-  },
-  fightingStyles: {
-    label: "Fighting Styles", setting: "fightingStyleList",
-    // An unlisted style's face goes and the pack's own effect comes back on.
-    columns: ["kind"], kindColumn: "kind", kinds: FIGHTING_STYLE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(FIGHTING_STYLES).join(", ")
-  },
-  healRerolls: {
-    label: "Healing Rerolls", setting: "healRerollList",
-    columns: ["kind"], kindColumn: "kind", kinds: HEAL_REROLL_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(HEAL_REROLLS).join(", ")
-  },
-  damageEither: {
-    label: "Damage Rolled Twice", setting: "damageEitherList",
-    columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(DAMAGE_EITHER).join(", ")
-  },
-  tokenLights: {
-    label: "Token Lights", setting: "tokenLightList",
-    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_LIGHT_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(TOKEN_LIGHTS).join(", ")
-  },
-  tokenSenses: {
-    label: "Token Senses", setting: "tokenSenseList",
-    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SENSE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(TOKEN_SENSES).join(", ")
-  },
-  tokenSizes: {
-    label: "Token Sizes", setting: "tokenSizeList",
-    columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SIZE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(TOKEN_SIZES).join(", ")
-  },
-  dropToOne: {
-    label: "Drop to 1 HP", setting: "dropToOneList",
-    columns: ["kind"], kindColumn: "kind", kinds: DROP_TO_ONE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(DROP_TO_ONE).join(", ")
-  },
-  restGrants: {
-    label: "Rest Grants", setting: "restGrantList",
-    columns: ["kind"], kindColumn: "kind", kinds: REST_GRANT_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(REST_GRANTS).join(", ")
-  },
-  rebukes: {
-    label: "Rebukes", setting: "rebukeList",
-    columns: ["kind"], kindColumn: "kind", kinds: REBUKE_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(REBUKES).join(", ")
-  },
-  cardChips: {
-    label: "Card Chips", setting: "cardChipList",
-    columns: ["kind"], kindColumn: "kind", kinds: CARD_CHIP_NAMES, fallback: null, membership: true, whole: true,
-    default: Object.keys(CARD_CHIPS).join(", ")
-  }
-};
+const row = (name, kind) => Object.freeze({ name, kind });
+export const INTERRUPTS = Object.freeze([
+  row("Shield", "ac"), row("Absorb Elements", "damage"), row("Uncanny Dodge", "damage"), row("Defensive Duelist", "ac"),
+  row("Illusory Self", "ac"), row("Glorious Defense", "ac"), row("Parry", "ac"), row("Counterattack", "ac"),
+  row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
+  row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
+  row("Interception", "damage"), row("Protection", "roll")
+]);
+/** Which spells a reaction stops outright. */
+export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);
+export const MANEUVER_FOLDS = Object.freeze([
+  row("Precision Attack", "precision"), row("Riposte", "riposte"), row("Shield Master", "interpose"),
+  row("Shield Master", "bash"), row("Great Weapon Master", "hew"), row("Commander's Strike", "command"),
+  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew")
+]);
+export const D20_FOLDS = Object.freeze([
+  row("Heroic Inspiration", "heroic"), row("Tactical Mind", "tactical"), row("Inspired", "bardic"),
+  row("Ambush", "tactical"), row("Tactical Assessment", "tactical"), row("Seeking Spell", "seeking"),
+  row("Lucky", "advantage"), row("Mage Slayer", "succeed")
+]);
+/** Which marks pay, by system identifier. What they pay is read from the mark. */
+export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));
+/** Which of the attacker's own features replaces a mark's damage, by identifier. */
+export const RIDER_UPGRADES = Object.freeze([Object.freeze({ feature: "foe-slayer", rider: "hunters-mark" })]);
 
-/** Parse one list setting against its spec: `{ entries, rejects }`, each reject `{ chunk, action, detail }`
- * ("dropped" or "defaulted"). The EDGE warns on both — a corrected entry is still a setting to fix. */
-export function parseList(spec, raw) {
-  const entries = [];
-  const rejects = [];
-  for ( const chunk of chunks(raw) ) {
-    const halves = spec.whole ? whole(chunk) : pair(chunk);
-    const entry = {};
-    spec.columns.forEach((col, i) => { entry[col] = halves[i]; });
+/** The kind lists and the closed set each one's kinds come from, for tools/check-registry.mjs. */
+export const KIND_LISTS = Object.freeze({
+  INTERRUPTS: { rows: INTERRUPTS, kinds: INTERRUPT_KINDS },
+  MANEUVER_FOLDS: { rows: MANEUVER_FOLDS, kinds: MANEUVER_KINDS },
+  D20_FOLDS: { rows: D20_FOLDS, kinds: D20_FOLD_KINDS }
+});
 
-    const missing = spec.columns.find(col =>
-      !entry[col] && !(col === spec.kindColumn && spec.fallback));
-    if ( missing ) {
-      rejects.push({ chunk, action: "dropped", detail: `no ${missing}` });
-      continue;
-    }
+/* THE READERS: fresh copies, so no caller can edit a table. A membership reader is every row of its
+ * table, as `{ kind }` lower-cased. */
+const copies = rows => rows.map(r => ({ ...r }));
+const everyRow = names => [...new Set(names)].map(n => ({ kind: String(n).toLowerCase() }));
 
-    if ( spec.kindColumn ) {
-      const kind = entry[spec.kindColumn]?.toLowerCase();
-      if ( spec.kinds.has(kind) ) entry[spec.kindColumn] = kind;
-      else if ( spec.fallback ) {
-        entry[spec.kindColumn] = spec.fallback;
-        rejects.push({ chunk, action: "defaulted",
-          detail: kind ? `"${kind}" is not a kind` : "no kind given" });
-      } else {
-        rejects.push({ chunk, action: "dropped",
-          detail: kind ? `"${kind}" is not a kind` : "no kind given" });
-        continue;
-      }
-    }
-    entries.push(entry);
-  }
-  return { entries, rejects };
+/** The listed kinds of a membership reader, as a set. */
+export const listedNames = entries => new Set(entries.map(e => String(e.kind ?? "").toLowerCase()));
+
+export const interruptEntries = () => copies(INTERRUPTS);
+export const blockEntries = () => copies(BLOCKS);
+export const maneuverFoldEntries = () => copies(MANEUVER_FOLDS);
+export const d20FoldEntries = () => copies(D20_FOLDS);
+export const riderEntries = () => copies(RIDERS);
+export const riderUpgradeEntries = () => copies(RIDER_UPGRADES);
+export const reminderEntries = () => everyRow(REMINDER_KINDS);
+export const conditionEntries = () => everyRow(CONDITION_KEYS);
+export const effectEntries = () => everyRow(EFFECT_KEYS);
+export const clockRiderEntries = () => everyRow(Object.values(CLOCK_RIDERS).map(r => r.feature));
+export const hitMenuEntries = () => everyRow(Object.values(HIT_OPTIONS).map(r => r.feature));
+export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
+export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
+export const spentAreaEntries = () => everyRow(Object.keys(SPENT_AREAS));
+export const chosenAreaEntries = () => everyRow(Object.keys(CHOSEN_AREAS));
+export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
+export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
+export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
+export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));
+export const healRerollEntries = () => everyRow(Object.keys(HEAL_REROLLS));
+export const damageEitherEntries = () => everyRow(Object.keys(DAMAGE_EITHER));
+export const cardChipEntries = () => everyRow(Object.keys(CARD_CHIPS));
+export const rebukeEntries = () => everyRow(Object.keys(REBUKES));
+export const dropToOneEntries = () => everyRow(Object.keys(DROP_TO_ONE));
+export const restGrantEntries = () => everyRow(Object.keys(REST_GRANTS));
+export const tokenSizeEntries = () => everyRow(Object.keys(TOKEN_SIZES));
+export const tokenSenseEntries = () => everyRow(Object.keys(TOKEN_SENSES));
+export const tokenLightEntries = () => everyRow(Object.keys(TOKEN_LIGHTS));
+export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));
+export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES));
+export const effectChoiceEntries = () => everyRow(Object.keys(EFFECT_CHOICES));
+export const metamagicEntries = () => everyRow(Object.keys(METAMAGIC));
+
+/** Is this area's item one swept at the last verdict whatever its data says? */
+export function spentAreaListed(itemName) {
+  const wanted = String(itemName ?? "").toLowerCase();
+  return !!wanted && spentAreaEntries().some(e => e.kind === wanted);
 }
 
-/** A reject's one-line message, naming the allowed kinds. */
-export function rejectMessage(spec, reject) {
-  const allowed = spec.kinds ? ` (${[...spec.kinds].join("/")})` : "";
-  return (reject.action === "defaulted")
-    ? `${spec.label}: "${reject.chunk}" — ${reject.detail}${allowed}; read as "${spec.fallback}", never guessed further.`
-    : `${spec.label}: "${reject.chunk}" — ${reject.detail}${allowed}; ignored, never guessed.`;
+/** Is this spell one whose caster chooses who its area affects? */
+export function chosenAreaListed(itemName) {
+  const wanted = String(itemName ?? "").toLowerCase();
+  return !!wanted && chosenAreaEntries().some(e => e.kind === wanted);
 }

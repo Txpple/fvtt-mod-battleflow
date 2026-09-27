@@ -76,9 +76,6 @@ describe("lightTargets — who the light lands on", () => {
     expect(tl.lightTargets({ on: "targets" }, { self: me, targets: [t1, t1] })).toEqual([t1]);
     expect(tl.lightTargets({ on: "targets" }, { self: me, targets: [] })).toEqual([]);
   });
-  it("the list default is the table", () => {
-    expect(reg.LIST_SPECS.tokenLights.default).toBe(Object.keys(reg.TOKEN_LIGHTS).join(", "));
-  });
 });
 
 describe("token senses — the pack's own effect, the token's vision (the Dwarf walk, 2026-09-25)", () => {
@@ -111,9 +108,6 @@ describe("token senses — the pack's own effect, the token's vision (the Dwarf 
   it("an effect already carrying a sense is not given it twice; the pack's own change is not one", () => {
     expect(tl.carriesSense([{ key: "system.attributes.senses.tremorsense" }])).toBe(false);
     expect(tl.carriesSense(tl.senseChanges(reg.TOKEN_SENSES.Stonecunning))).toBe(true);
-  });
-  it("the list default is the table", () => {
-    expect(reg.LIST_SPECS.tokenSenses.default).toBe(Object.keys(reg.TOKEN_SENSES).join(", "));
   });
 });
 
@@ -168,8 +162,5 @@ describe("token sizes (the Goliath walk, 2026-09-25)", () => {
   it("an effect already carrying a size is not given it twice; the pack's speed change is not one", () => {
     expect(tl.carriesSize([{ key: "system.attributes.movement.walk" }])).toBe(false);
     expect(tl.carriesSize(tl.sizeChanges("lg", SIZES))).toBe(true);
-  });
-  it("the list default is the table", () => {
-    expect(reg.LIST_SPECS.tokenSizes.default).toBe(Object.keys(reg.TOKEN_SIZES).join(", "));
   });
 });

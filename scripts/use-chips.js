@@ -3,9 +3,9 @@
  * can read it and the roll can spend it; plus the card chips (Tinker) and the coatings (Poisoner).
  * EDGE layer (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
 import { lower, featureNamed, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
-import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./settings.js";
+import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./decide/registry.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, tableIndex } from "./decide/registry.js";
@@ -23,14 +23,13 @@ const USE_CHIP_INDEX = tableIndex(USE_CHIPS);
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
-    if ( !setting(S.riders) && !setting(S.masteryRiders) && !setting(S.effectRiders) ) { /* no feature switch of its own: the Effect Sources list is the switch */ }
     const item = activity?.item;
     const actor = activity?.actor;
     if ( !item || !actor?.isOwner ) return;
     const key = USE_CHIP_INDEX.keyNamed(item.name);
     if ( !key ) return;
     const listed = listedNames(effectEntries());
-    if ( !listed.has(lower(key)) ) return;   // the list is the switch — as for every effect row
+    if ( !listed.has(lower(key)) ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     void writeUseChip(actor, item, USE_CHIPS[key], message);
   } catch(err) {

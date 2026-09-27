@@ -2,11 +2,11 @@
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): Riposte, the `riposte` fold. An enemy's melee miss
  * answered with a real driven attack, the superiority die riding its damage (why a fold: precision.js).
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOptions, preferredMeleeOption } from "./lookup.js";
-import { maneuverFoldEntries } from "./settings.js";
+import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
-import { hitTargets, modeAllows, reactionSpent, spendReaction } from "./shared.js";
+import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
@@ -45,7 +45,6 @@ Hooks.on("createChatMessage", async message => {
       if ( actor.uuid === attacker.uuid ) continue;
       // ⚠ NOT a budget test: the CLICK-VOLUME GUARD (DESIGN §8) only declines to OFFER again this turn.
       if ( reactionSpent(actor) ) continue;
-      if ( !modeAllows(actor) ) continue;                              // rides the resolver (Graze's argument)
       const found = usableManeuver(actor, entry.name);
       const dieFormula = found ? maneuverDieFormula(found.activity) : null;
       if ( !found || !dieFormula ) continue;
@@ -59,7 +58,7 @@ Hooks.on("createChatMessage", async message => {
     }
     if ( !reactors.length ) return;
 
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "riposte", {
       status: "pending",
       attackerUuid: attacker.uuid, attackerName: attacker.name,

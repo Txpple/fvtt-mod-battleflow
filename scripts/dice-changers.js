@@ -5,9 +5,9 @@
  * hold is off. Damage already applied is moved by the difference.
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
 import { lower, featureNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
-import { damageEitherEntries, listedNames } from "./settings.js";
+import { damageEitherEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
 import { weaponDiceOf, setFormula, setTotal, eitherOutcome, eitherPatch, eitherDue, eitherOdds,
@@ -131,7 +131,7 @@ async function promote(message) {
     const wdice = weaponDiceOf(data, weaponRollsOf(message));
     const best = bestRerollDie(data);
     const chips = diceChipsOf(data);
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await queueFlagWrite(message, DICE_CHANGE_FLAG, current => {
       if ( current.status !== "due" ) return false;
       for ( const row of current.rows ?? [] ) {

@@ -116,14 +116,6 @@ export function hitsAmong({ targets, roll, folds = [] }) {
   return (targets ?? []).filter(t => foldedVerdict(t, roll, folds) === "hit");
 }
 
-/** Does the attacker-side mode (off/npc/pc/all) admit this side of the table? */
-export function modeAdmits(mode, isPC) {
-  if ( mode === "off" ) return false;
-  if ( (mode === "npc") && isPC ) return false;
-  if ( (mode === "pc") && !isPC ) return false;
-  return true;
-}
-
 /** The verdict against the stored DC (the authority); `forced` (legendary resistance) wins regardless. */
 export function saveOutcome(total, dc, forced = false) {
   return (forced || (total >= dc)) ? "saved" : "failed";

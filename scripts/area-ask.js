@@ -5,7 +5,7 @@
  * choose their targets*) raise it via `newAsk`/`raiseAsk`, and may add an ANSWER PART
  * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, canAnswerFor } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
@@ -42,7 +42,7 @@ export function askCandidates(contained) {
  *          caster: {uuid: string|null, disposition: number|null, name?: string|null}}} args
  */
 export function newAsk({ kind, feature, spell = null, cap = null, rule = null, itemImg = null, heightened = null, candidates, caster }) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   return {
     status: "pending", kind, feature, ...(spell ? { spell } : {}), cap, rule: rule ?? null, ...(itemImg ? { itemImg } : {}), ...(heightened ? { heightened } : {}),
     candidates,

@@ -2,7 +2,7 @@
  * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES per target,
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
+import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { applicableProfiles, cardActivity, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
@@ -11,7 +11,7 @@ import { dramaticVerdictPause } from "../ui.js";
 import { EFFECT_BENDS, EVASION, SAVE_PRESSES } from "../decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "../decide/receipt.js";
 import { saveNoneOnSuccess } from "../decide/reminders.js";
-import { effectEntries, reminderEntries } from "../settings.js";
+import { effectEntries, reminderEntries } from "../decide/registry.js";
 import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
 
@@ -162,7 +162,6 @@ const saveDamageApplications = new Set();
 
 /** Every chained roll on every DONE, unreceipted target; the receipt gate makes it idempotent. */
 export async function reconcileSaveDamage(card, onlyUuid = null) {
-  if ( !setting(S.autoApply) ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
   // No damage dimension: an enricher click chains to the card too, and the native tray owns it.

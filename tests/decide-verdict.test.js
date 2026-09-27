@@ -795,25 +795,6 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
   });
 });
 
-describe("modeAdmits — the npc/pc/all gate", () => {
-  it("off admits nobody", () => {
-    expect(v.modeAdmits("off", true)).toBe(false);
-    expect(v.modeAdmits("off", false)).toBe(false);
-  });
-
-  it("all admits both sides", () => {
-    expect(v.modeAdmits("all", true)).toBe(true);
-    expect(v.modeAdmits("all", false)).toBe(true);
-  });
-
-  it("npc admits only NPCs, pc only PCs", () => {
-    expect(v.modeAdmits("npc", false)).toBe(true);
-    expect(v.modeAdmits("npc", true)).toBe(false);
-    expect(v.modeAdmits("pc", true)).toBe(true);
-    expect(v.modeAdmits("pc", false)).toBe(false);
-  });
-});
-
 describe("saveOutcome", () => {
   it("saves on a tie — total >= dc", () => {
     expect(v.saveOutcome(15, 15)).toBe("saved");

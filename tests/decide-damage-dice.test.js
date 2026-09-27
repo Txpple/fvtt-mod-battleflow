@@ -316,14 +316,6 @@ describe("DAMAGE_EITHER — the table and its list", () => {
       "roll the weapon’s damage dice twice and use either roll"
     );
   });
-  it("the Damage Rolled Twice list ships the table and parses clean", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.damageEither,
-      reg.LIST_SPECS.damageEither.default
-    );
-    expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual(["savage attacker", "piercer"]);
-  });
 });
 
 describe("the healing rerolls — Healer (the origin feats, 2026-09-25)", () => {

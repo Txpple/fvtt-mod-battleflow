@@ -257,7 +257,7 @@ events. **Nothing here measures a distance or counts a turn.** `emanations.js`, 
 
 - **A feature's aura is always on:** it stands whenever the token is on the scene and its range
   resolves; off while the source is Incapacitated; a GM-deleted region comes back on the next
-  sweep (the switch is the setting or the list).
+  sweep.
 - **A spell's aura places itself on the caster** — the placement prompt switched off, the area
   centred on the token, adopted when its Region appears, ended when the concentration effect for
   that cast is deleted.
@@ -1262,12 +1262,39 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   not built (BACKLOG).
 - ⓐ **Hex grids are not measured** (the DMG counts six corners there; no table plays on hexes) — no
   section, no change to the attack. A gridless scene measures each space as one square.
-- The switch is one world setting, **Measured Cover** (on).
-- The suites' world baseline is Measured Cover OFF (`tools/harness.mjs`, restored at the teardown):
-  their fixtures stand creatures in a row on purpose, and a measured +2 would move hit and miss
-  under sections about something else. `smoke-reminders` §14 turns it on.
+- Always on (*The settings*, below).
+- The suites run with no cover: the harness flags the viewed scene `noCover` and clears it at the
+  teardown, because their fixtures stand creatures in a row on purpose and a measured +2 would move
+  hit and miss under sections about something else. `smoke-reminders` §14 clears the flag.
 - `tests/decide-cover.test.js`, `smoke-reminders` §14 (written 2026-09-27 while the sandbox ran the
   release battery; its first live run is owed).
+
+## The settings (2026-09-27)
+
+The user, 2026-09-27, ruling the draft list: *"this is fine for now"*, and agreeing with its three
+calls. The vision behind it (HANDOFF *The rulings*): batteries included, a few configs for DMs;
+midi is the alternative for a table that wants to configure everything.
+
+- **Ten settings.** For the DM: Decision Timer, Dramatic Beat, Players Roll Their Own Saves,
+  Concentration Checks Are Public, Hold Shows the Math, Optional Masteries, Resource Use Notices.
+  For each player: Roll Your Own Damage, Effect Bar, Effect Cards on Hover and Alt.
+- **Every machine is always on**: the resolver, applying damage, requiring a target, the hidden card
+  buttons, the reaction hold, the riders, emanations, volleys, casts, saves, concentration and
+  measured cover. A table that wants one off wants midi.
+- **One Decision Timer** is the clock of every question: a reaction to a hit, an offered damage roll,
+  a save, a concentration check, a mastery or maneuver offer, a reminder. A mandatory roll rolls when
+  it runs out; an optional offer passes.
+- **The NPC/PC split of the resolver is gone**: Roll Your Own Damage covers the player who wants to
+  roll.
+- **Players Roll Their Own Saves** covers the saves the module demands as well as concentration.
+  "Roll automatically" rolls each on the roller's client at once, with no popup; a save the rules
+  decide before the dice is recorded, not rolled.
+- **Waiting for the dice is automatic**: a verdict waits up to 4 seconds for Dice So Nice's dice to
+  come to rest. **Skip Hopeless Holds** follows Hold Shows the Math. A cast reaction's AC change is
+  given 8 seconds to land.
+- **The content tables are the only list** (HANDOFF *The rulings*, *Code-only content tables*): no
+  per-world list and no per-row switch. Prod's saved lists all equalled the shipped defaults, so no
+  house row was lost.
 
 ## Rulings the code carried
 
@@ -1295,7 +1322,7 @@ feature's own heading when that section is next recut.
 - An area whose data misstates its life (the activity's duration is an effect's clock, or an imported copy lost its concentration flag) — Noxious Miasma, Hypnotic Pattern, and the concentration spells whose area only chooses targets at the cast (Slow, Fear, Confusion, Sleep, Calm Emotions, Faerie Fire) — is spent the moment its last verdict lands; an area that genuinely persists (Grease, Web, Cloudkill) is never listed
 - An instantaneous area placed with nobody inside stamps its demand DONE (spent), so the floor sweeps it like a resolved one; only an area not yet placed waits clockless, and a duration area keeps its wait.
 - Damage a save does not modulate (`onSave: "full"`, e.g. Web's burn) is never auto-rolled or applied by the demand; the card's own enricher stays for the GM to use when the situation arises.
-- A demanded save runs as a popup the player presses (a per-player client setting opts out to a silent roll); a multi-ability save auto-rolls the FIRST listed ability, and the fold accepts any listed one.
+- A demanded save runs as a popup the player presses (Players Roll Their Own Saves, set to roll automatically, rolls it with no popup); a multi-ability save auto-rolls the FIRST listed ability, and the fold accepts any listed one.
 - Dead targets are skipped at the save demand's stamp — dead status, or an NPC at 0 HP — while a dying PC (0 HP, death saves ahead) is still demanded and takes the damage.
 - A placed area is the save demand's authority in both directions: a creature inside joins the demand, a pending target outside drops, done verdicts stand; a corpse never joins.
 - A spent area leaves the canvas: an instantaneous spell's area at its last consequence, a concentration spell's area when the concentration ends, a Spent Areas-listed spell's area at its last verdict whatever its data says; any other duration area stays for the GM to clear.

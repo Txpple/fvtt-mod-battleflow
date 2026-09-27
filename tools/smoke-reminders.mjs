@@ -1190,14 +1190,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (pc.items.get(item.id)) await pc.deleteEmbeddedDocuments('Item', [item.id]).catch(() => {});
         const i = created.items.findIndex(x => x.id === item.id); if (i >= 0) created.items.splice(i, 1);
       };
-      const priorCover = game.settings.get(MOD, 'measuredCover');
+      const coverScene = victimTokenDoc.parent;
+      const priorNoCover = coverScene.getFlag(MOD, 'noCover') ?? null;
       const priorHover = game.settings.get(MOD, 'effectHover');
       const priorOverride = victim.system._source.attributes.ac.override ?? null;
       const priorVictimAt = { x: victimTokenDoc.x, y: victimTokenDoc.y };
       const walls = [];
       let farDoc = null, dartItem = null, ss = null;
       try {
-        await set('measuredCover', true);
+        await coverScene.unsetFlag(MOD, 'noCover');
         await game.settings.set(MOD, 'effectHover', true);
         await victim.update({ 'system.attributes.ac.override': null });
         const dartSrc = await findPHB('Dart', 'weapon');
@@ -1309,7 +1310,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.ac.override': priorOverride }).catch(() => {});
         await drop(ss);
         await drop(dartItem);
-        await set('measuredCover', priorCover).catch(() => {});
+        if (priorNoCover) await coverScene.setFlag(MOD, 'noCover', priorNoCover).catch(() => {});
         await game.settings.set(MOD, 'effectHover', priorHover).catch(() => {});
         pcToken.control({ releaseOthers: true });
       }

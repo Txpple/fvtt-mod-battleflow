@@ -2,9 +2,9 @@
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
  * fighter's die on an ally's Reaction attack.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
-import { maneuverFoldEntries } from "./settings.js";
+import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { chipData, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
@@ -45,7 +45,7 @@ async function stampCommand(activity, fighter, message, found) {
   const ally = targets[0] ?? null;
   // ⚠ Resolved on the FIGHTER: the raw `@scale…` formula reads 0 on the ally's roll.
   const dieFormula = resolveDie(fighter, maneuverDieFormula(activity));
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   await message.setFlag(MODULE_ID, "command", {
     status: ally ? "directed" : "no ally", ...statContext(fighter.uuid),
     attackerUuid: fighter.uuid, attackerName: fighter.name, itemName: found.item.name, itemImg: found.item.img ?? null,

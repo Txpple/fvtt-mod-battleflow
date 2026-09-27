@@ -2,7 +2,7 @@
  * Battle Flow — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
  * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
+import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
@@ -11,7 +11,7 @@ import { registerResumable } from "../ui.js";
  * cancels), on whichever client applies. ⚠ Accepted gap (ARCHITECTURE.md §6): Apply pressed while
  * the hold is PENDING lands — vetoing it would strand a hold answered Pass. */
 Hooks.on("dnd5e.preApplyDamage", (actor, _amount, _updates, options) => {
-  if ( !setting(S.reactionHold) || !actor ) return;
+  if ( !actor ) return;
   const damageMessage = options?.originatingMessage;
   // ⚠ Damage only: healing takes applyDamage too.
   if ( !isCard(damageMessage, CARD.damage) ) return;
@@ -82,12 +82,12 @@ registerResumable("spellDamage", {
   pending: (_flag, message, cause) => (cause === "create")
     || ((cause === "update") && (message.getFlag(MODULE_ID, "spellHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
     || ((cause === "render") && (message.getFlag(MODULE_ID, "spellHoldPending") !== true) && !message.getFlag(MODULE_ID, "receipt")),
-  drives: (_flag, message) => setting(S.autoApply) && drivesMomentFor(spellDamageSubject(message)),
+  drives: (_flag, message) => drivesMomentFor(spellDamageSubject(message)),
   drive: applySpellDamage
 });
 
 Hooks.on("updateChatMessage", message => {
-  if ( !setting(S.autoApply) || !drivesMomentFor(spellDamageSubject(message)) ) return;
+  if ( !drivesMomentFor(spellDamageSubject(message)) ) return;
   // A resolved spell hold releases every damage roll waiting on it.
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( (hold?.trigger === "spell") && (hold.status === "resolved") ) {

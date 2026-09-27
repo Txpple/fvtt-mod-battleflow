@@ -3,14 +3,14 @@
  * an already-rolled d20 (ARCHITECTURE.md §11, "Adding a FOLD"). The original `Roll` is never
  * touched: the die posts as its own message stamped `respondsTo` and the verdict is recomputed on
  * a module flag. The module offers by itself only where it owns the number (an attack's snapshot
- * AC, a demanded save's DC); a raw check has no DC in dnd5e, so `d20FoldAsk` can turn
- * auto-offering off but never on. Depend downward only: core → decide → spine (ui) → here.
+ * AC, a demanded save's DC); a raw check has no DC in dnd5e, so a check's fold is always a
+ * button. Depend downward only: core → decide → spine (ui) → here.
  */
-import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
+import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
   from "./core.js";
-import { d20FoldEntries, metamagicEntries, listedNames } from "./settings.js";
+import { d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
-import { grantingActor, hitTargets, modeAllows, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
+import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -252,10 +252,9 @@ function baseFlag(actor, offers, testKind, total, window) {
 /** ATTACKS: the module owns the AC, so a clean miss (every judged target) is offered by itself. */
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   try {
-    if ( !setting(S.d20FoldAsk) ) return;
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;
-    if ( !attacker || !modeAllows(attacker) ) return;
+    if ( !attacker ) return;
     const message = rolls?.[0]?.parent;
     if ( !(message instanceof ChatMessage) ) return;
     if ( message.getFlag(MODULE_ID, "d20fold") ) return;            // never re-stamp
@@ -272,7 +271,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
     if ( !judged.length ) return;                                   // null AC — humans have it
 
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "d20fold", {
       ...baseFlag(attacker, offers, "attack", roll.total, window),
       ...(spell ? { spell: true } : {}),
@@ -300,7 +299,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
   Hooks.on(hook, async (rolls, data) => {
     try {
       const subject = data?.subject;
-      if ( !(subject instanceof Actor) || !modeAllows(subject) ) return;
+      if ( !(subject instanceof Actor) ) return;
       const message = rolls?.[0]?.parent;
       if ( !(message instanceof ChatMessage) ) return;
       if ( message.getFlag(MODULE_ID, "d20fold") ) return;
@@ -314,7 +313,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       if ( (testKind === "check") && await applyArmedFold(message, subject, testKind, { skill }) ) return;
       const offers = availableFolds(subject, testKind, [], { skill, ability });
       if ( !offers.length ) return;
-      const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+      const window = decisionWindow();
       await message.setFlag(MODULE_ID, "d20fold",
         { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}), ...(ability ? { ability } : {}) });
       armFoldTimer(message);
@@ -328,7 +327,7 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
  * the combatant's initiative to the composed total (DESIGN §4). */
 const initiativeStamps = new Set();   // same-client latch: the two roads below can meet on one message
 async function stampInitiative(actor, combatants, message) {
-  if ( !(actor instanceof Actor) || !modeAllows(actor) ) return;
+  if ( !(actor instanceof Actor) ) return;
   if ( !message || message.getFlag(MODULE_ID, "d20fold") || !message.isAuthor ) return;
   if ( initiativeStamps.has(message.id) ) return;
   initiativeStamps.add(message.id);
@@ -341,7 +340,7 @@ async function stampInitiative(actor, combatants, message) {
       && !(Number(roll?.options?.advantageMode) < 0);
     const offers = availableFolds(actor, "initiative").filter(o => (o.kind !== "advantage") || plain);
     if ( !offers.length ) return;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "d20fold", { ...baseFlag(actor, offers, "initiative", total, window),
       combatId: game.combat?.id ?? null, combatantIds: (combatants ?? []).map(c => c.id) });
     armFoldTimer(message);
@@ -393,17 +392,16 @@ registerWithhold("d20fold", {
 
 async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
   try {
-    if ( !setting(S.d20FoldAsk) ) return false;
     const existing = rollMessage.getFlag(MODULE_ID, "d20fold");
     if ( existing ) return existing.status === "pending";   // already asked; don't ask twice
     if ( !Number.isFinite(dc) || !Number.isFinite(total) || (total >= dc) ) return false;
     const actor = await fromUuid(uuid);
-    if ( !(actor instanceof Actor) || !modeAllows(actor) ) return false;
+    if ( !(actor instanceof Actor) ) return false;
     const ability = rollMessage.system?.ability ?? null;
     const offers = availableFolds(actor, "save", [], { ability });
     if ( !offers.length ) return false;
 
-    const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
+    const window = decisionWindow();
     await rollMessage.setFlag(MODULE_ID, "d20fold", {
       ...baseFlag(actor, offers, "save", total, window),
       ...(ability ? { ability } : {}),
@@ -1035,7 +1033,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
     }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });
     if ( !message ) return;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await message.setFlag(MODULE_ID, "tacticalArmed", { ...statContext(actor.uuid), name: entry.name, total, what, rule: scope.rule,
       skills: [...(scope.skills ?? [])], initiative: !!scope.initiative,
       itemImg: activity.item.img ?? null, chipId: chip?.id ?? null, spent: null,
@@ -1051,7 +1049,7 @@ async function applyArmedFold(message, actor, testKind, { skill = null, combatan
   if ( !chip ) return false;
   const a = chip.getFlag(MODULE_ID, "armed");
   const base = Number(message.rolls?.[0]?.total ?? total ?? 0);
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   const spends = [{ kind: "tactical", name: a.name, label: a.name, die: a.total }];
   const remaining = availableFolds(actor, testKind, [], { skill }).filter(o => o.name.toLowerCase() !== a.name.toLowerCase());
   const flag = { ...baseFlag(actor, remaining, testKind, base, remaining.length ? window : 0), spends, armed: true,
@@ -1145,7 +1143,7 @@ async function stampRefundAsk(message, actor, offer, marker, numbers = {}) {
   try {
     const pool = refundPoolFor(actor, offer.name, marker);
     if ( !pool ) return;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     const num = v => (Number.isFinite(Number(v)) && (v !== null) && (v !== "")) ? Number(v) : null;
     await queueFlagWrite(message, "tacticalRefund", current => {
       if ( current.status ) return false;                 // one ask per roll

@@ -4,10 +4,10 @@
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
-import { emanationEntries, listedNames } from "./settings.js";
+import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions } from "./geometry.js";
@@ -30,7 +30,6 @@ const TYPE = `${MODULE_ID}.emanation`;          // the behaviour type this modul
 const STATUS = "bfEmanation";                   // the status a member effect wears, so the token shows it
 const listed = () => listedNames(emanationEntries());
 const { rowNamed } = tableIndex(EMANATIONS);
-const live = () => setting(S.emanations);
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
 /** ⚠ LAYER visibility alone still draws the ring on the Regions layer; only LOCKED + LAYER_UNLOCKED is never drawn. */
 const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
@@ -164,7 +163,7 @@ async function reconcileAuraNow(group, gone) {
       const sys = beh?.system;
       const row = sys ? rowNamed(sys.key) : null;
       const source = sys?.source ? fromUuidSync(sys.source) : null;
-      const applies = !!beh && !beh.disabled && !!row && !!sys.effect && live() && listed().has(lower(row.key)) && appliesHere(region, liveSet);
+      const applies = !!beh && !beh.disabled && !!row && !!sys.effect && listed().has(lower(row.key)) && appliesHere(region, liveSet);
       byRegion.set(region.id, { region, sys, row, source });
       const inside = [];
       for ( const entry of (applies ? tokensInRegions([region]) : null) ?? [] ) {
@@ -210,7 +209,7 @@ async function maybeTrigger(behType, token, cause) {
     const beh = behType.behavior;
     const sys = behType;   // the type instance IS the system data
     const row = rowNamed(sys.key);
-    if ( !row?.trigger?.on.includes(cause) || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    if ( !row?.trigger?.on.includes(cause) || beh.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;   // a ring on a scene nobody is playing on demands nothing
     const source = resolveUuid(sys.source);
@@ -240,7 +239,7 @@ async function maybeTrigger(behType, token, cause) {
     const casterActor = item.actor ?? null;
     const onSave = activity.damage?.onSave ?? "half";
     const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
-    const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
+    const window = decisionWindow();
     const why = (cause === "enter") ? `entered ${source?.name ?? "the caster"}'s ${row.key}` : `ended its turn inside ${source?.name ?? "the caster"}'s ${row.key}`;
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
     const card = await ChatMessage.create({
@@ -287,7 +286,7 @@ async function maybeAlert(behType, token, movement) {
     if ( !isActiveGM() || !token?.actor ) return;
     const sys = behType;
     const row = rowNamed(sys.key);
-    if ( !row?.alert || (row.alert.on !== "moveIn") || behType.behavior?.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    if ( !row?.alert || (row.alert.on !== "moveIn") || behType.behavior?.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;
     const source = resolveUuid(sys.source);
@@ -300,7 +299,7 @@ async function maybeAlert(behType, token, movement) {
     alerted.add(key);
     const item = resolveUuid(sys.item);
     const weapon = row.holding ? heldWeaponFor(bearer, row.holding) : null;
-    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    const window = decisionWindow();
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: bearer, token: source }),
       content: bfCard({ img: item?.img ?? null, eyebrow: `Feat — ${item?.name ?? row.key}`, tone: "good",
@@ -328,7 +327,7 @@ async function maybeHeal(behType, token, cause) {
     const beh = behType.behavior;
     const sys = behType;
     const row = rowNamed(sys.key);
-    if ( !row?.heal || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    if ( !row?.heal || beh.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;
     const source = resolveUuid(sys.source);
@@ -366,7 +365,7 @@ async function maybeHeal(behType, token, cause) {
 /** The turn moved: the current combatant's own spell emanations with a `remind` row say so on a card. */
 Hooks.on("updateCombat", (combat, changes) => {
   try {
-    if ( !isActiveGM() || !live() ) return;
+    if ( !isActiveGM() ) return;
     if ( !("turn" in changes) && !("round" in changes) ) return;
     if ( !combat.started ) return;
     const token = combat.combatant?.token ?? null;
@@ -425,7 +424,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 const pulsed = new Set();   // `${regionId}|${round}|${turn}` — the ended turns already paid
 Hooks.on("updateCombat", (combat, changes, options) => {
   try {
-    if ( !isActiveGM() || !live() ) return;
+    if ( !isActiveGM() ) return;
     if ( !("turn" in changes) && !("round" in changes) ) return;
     if ( !combat.started || (options?.direction === -1) ) return;
     const prev = combat.previous ?? null;
@@ -524,7 +523,7 @@ Hooks.on("preCreateRegionBehavior", (behavior, data) => {
     if ( flagOf(region) ) return false;
     const item = resolveUuid(region.getFlag("dnd5e", "item"));
     const row = item ? rowNamed(item.name) : null;
-    if ( row && (row.kind === "spell") && live() && listed().has(lower(row.key)) ) return false;
+    if ( row && (row.kind === "spell") && listed().has(lower(row.key)) ) return false;
   } catch(err) {
     console.warn(`${TITLE} | Could not judge a region behaviour — the platform's stands.`, err);
   }
@@ -604,7 +603,7 @@ async function reconcileScene(scene) {
   const names = listed();
   const wanted = new Map();
   // ⚠ Only a LIVE scene raises a ring: a party leaves tokens on every scene it has visited.
-  if ( live() && liveNow().has(scene.id) ) {
+  if ( liveNow().has(scene.id) ) {
     for ( const tok of scene.tokens ) {
       if ( !tok.actor ) continue;
       for ( const [key, row] of Object.entries(EMANATIONS) ) {
@@ -666,7 +665,7 @@ async function reconcileScene(scene) {
 
 async function adoptSpellRegion(region) {
   try {
-    if ( !isActiveGM() || !live() || flagOf(region) ) return;
+    if ( !isActiveGM() || flagOf(region) ) return;
     const itemUuid = region.getFlag("dnd5e", "item");
     // live only: a region names its item by uuid with no card behind it — dnd5e's own region reads resolve the same way
     const item = resolveUuid(itemUuid);
@@ -699,7 +698,7 @@ async function adoptSpellRegion(region) {
 
 /** A listed spell row whose activity is an emanation from the caster (a `radius` template, range self). */
 function castEmanationRow(activity) {
-  if ( !live() || (activity?.item?.type !== "spell") ) return null;
+  if ( activity?.item?.type !== "spell" ) return null;
   const row = rowNamed(activity.item.name);
   if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return null;
   return selfAreaOf(activity) ? row : null;
@@ -714,7 +713,7 @@ function selfAreaOf(activity) {
 
 /** The listed `pulse` row whose FORM this activity is, or null: its use places no area and rolls no damage. */
 function transformRowOf(activity) {
-  if ( !live() || !activity?.item ) return null;
+  if ( !activity?.item ) return null;
   const key = pulseFormKey(EMANATIONS, { itemName: activity.item.name, activityName: activity.name }, listed());
   return key ? { key, ...EMANATIONS[key] } : null;
 }
@@ -729,7 +728,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
       usageConfig.subsequentActions = false;   // the pack's damage on use: the pulse is the damage
       return;
     }
-    if ( !live() || !selfAreaOf(activity) ) return;
+    if ( !selfAreaOf(activity) ) return;
     usageConfig.create ??= {};
     usageConfig.create.measuredTemplate = false;
   } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
@@ -737,7 +736,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
-    if ( !live() || transformRowOf(activity) || !selfAreaOf(activity) ) return;
+    if ( transformRowOf(activity) || !selfAreaOf(activity) ) return;
     if ( (results?.templates ?? []).flat().length ) return;   // the system placed one after all
     const actor = activity.actor;
     if ( !actor?.isOwner ) return;
@@ -981,7 +980,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
-    if ( (activity?.type !== "save") || !live() ) return;
+    if ( activity?.type !== "save" ) return;
     const row = rowNamed(activity.item?.name);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
     const types = partTypesOf(activity);

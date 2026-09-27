@@ -10,7 +10,7 @@ import { CHIP_FLAG } from "./decide/chips.js";
 import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
 import { EMANATIONS, RANGE_FEATS, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween } from "./geometry.js";
-import { emanationEntries, listedNames } from "./settings.js";
+import { emanationEntries, listedNames } from "./decide/registry.js";
 import { lower } from "./lookup.js";
 
 const ROOT_ID = "bf-effect-view";
@@ -55,7 +55,7 @@ function ownAuraOf(effect) {
   const row = emanationRow(item.name);
   if ( !row || (row.kind !== "feature") || !row.effect ) return false;
   if ( lower(effect.name) !== lower(row.effect) ) return false;
-  return !!setting(S.emanations) && listedNames(emanationEntries()).has(lower(row.key));
+  return listedNames(emanationEntries()).has(lower(row.key));
 }
 
 /** A fighting style's FACE (fighting-styles.js) reads as a worn passive — the panel, never the bar; the
@@ -218,11 +218,10 @@ function showHover(token) {
 
 /**
  * The hovered token's cover against the ONE controlled token, by the 2024 DMG's corner lines — the attack's
- * own measure (RULINGS *Measured cover*). Nothing with no single control, the setting off, or a hex grid.
+ * own measure (RULINGS *Measured cover*). Nothing with no single control, on a hex grid, or on a `noCover` scene.
  * A feat that ignores the cover (RANGE_FEATS `cover`) says so: the card cannot know the next attack.
  */
 function coverHTML(token) {
-  if ( !setting(S.measuredCover) ) return "";
   const controlled = canvas.tokens?.controlled ?? [];
   if ( (controlled.length !== 1) || (controlled[0] === token) ) return "";
   const m = measuredCoverBetween(controlled[0], token);

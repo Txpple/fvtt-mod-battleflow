@@ -7,75 +7,31 @@ export const MODULE_ID = "fvtt-mod-battleflow";
 export const TITLE = "Battle Flow";
 
 export const S = {
-  autoDamage: "autoDamage",
+  decisionTimer: "decisionTimer",       // every question's clock
   dramaticBeat: "dramaticBeat",
-  diceWait: "diceWait",                 // the verdict pause's wait for Dice So Nice
-  playerRollDamage: "playerRollDamage",
-  effectBar: "effectBar",       // the effect view's bar above the hotbar (client)
-  effectHover: "effectHover",   // the effect view's hover card and held key (client)
-  measuredCover: "measuredCover", // the 2024 DMG's corner lines: the hover card's Cover section and the attack's AC (world)
-  damageTimer: "damageTimer",
-  autoApply: "autoApply",
-  requireTarget: "requireTarget",
-  centerRollDialogs: "centerRollDialogs",
-  reactionHold: "reactionHold",
-  interruptList: "interruptList",
-  blockList: "blockList",
-  holdReveal: "holdReveal",
-  holdTimer: "holdTimer",
-  holdSkipFutile: "holdSkipFutile",
-  holdSettle: "holdSettle",
-  holdApplyEffect: "holdApplyEffect",
-  riders: "riders",
-  riderList: "riderList",
-  riderUpgrades: "riderUpgrades",
-  effectRiders: "effectRiders",
-  masteryRiders: "masteryRiders",
-  masteryAsk: "masteryAsk",
-  noticeTimer: "noticeTimer",
-  maneuverFolds: "maneuverFolds",
-  d20Folds: "d20Folds",
-  d20FoldAsk: "d20FoldAsk",
-  volleys: "volleys",
-  resourceNotices: "resourceNotices",
-  concMode: "concMode",
-  concTimer: "concTimer",
-  concBreak: "concBreak",
+  saveRolls: "saveRolls",               // demanded saves and concentration: prompt or roll automatically
   concVisibility: "concVisibility",
-  saves: "saves",
-  saveTimer: "saveTimer",
-  castApply: "castApply",
-  hideCardButtons: "hideCardButtons",
-  reminderList: "reminderList",
-  conditionList: "conditionList",
-  effectList: "effectList",
-  clockRiderList: "clockRiderList",
-  hitMenuList: "hitMenuList",
-  emanations: "emanations",
-  emanationList: "emanationList",
-  damageShieldList: "damageShieldList",
-  damageSaveList: "damageSaveList",
-  superiorityUseList: "superiorityUseList",
-  effectChoiceList: "effectChoiceList",
-  metamagicList: "metamagicList",
-  spentAreaList: "spentAreaList",
-  chosenAreaList: "chosenAreaList",
-  initiativeSwapList: "initiativeSwapList",   // Alert
-  healRerollList: "healRerollList",       // Healer
-  kitTendList: "kitTendList",             // Healer's Battle Medic on the kit's use
-  fightingStyleList: "fightingStyleList", // the fighting styles' faces, gates and numbers
-  unarmedDiceList: "unarmedDiceList",     // Tavern Brawler's die on the plain Unarmed Strike
-  damageEitherList: "damageEitherList",   // Savage Attacker, Piercer
-  tokenLightList: "tokenLightList",        // Inner Radiance and Light
-  tokenSenseList: "tokenSenseList",        // Stonecunning
-  tokenSizeList: "tokenSizeList",          // Large Form, Enlarge/Reduce
-  rebukeList: "rebukeList",                // Storm's Thunder, Hellish Rebuke …
-  cardChipList: "cardChipList",            // Tinker
-  restGrantList: "restGrantList",          // Resourceful
-  dropToOneList: "dropToOneList"           // Relentless Endurance, Death Ward
+  holdReveal: "holdReveal",
+  masteryAsk: "masteryAsk",
+  resourceNotices: "resourceNotices",
+  playerRollDamage: "playerRollDamage", // client
+  effectBar: "effectBar",               // client: the effect view's bar above the hotbar
+  effectHover: "effectHover"            // client: the effect view's hover card and held key
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);
+
+/** The Decision Timer in seconds; 0 waits indefinitely. */
+export const decisionWindow = () => Math.max(0, Number(setting(S.decisionTimer)) || 0);
+
+/** Do demanded saves and concentration checks roll without a popup? */
+export const savesRollThemselves = () => setting(S.saveRolls) === "auto";
+
+/** Seconds, at most, a verdict waits for Dice So Nice's dice to come to rest. */
+export const DICE_WAIT_SECONDS = 4;
+
+/** Seconds a cast reaction's AC change is given to land before the attack is re-tested. */
+export const HOLD_SETTLE_SECONDS = 8;
 
 /** Exactly one client may perform world-visible applications: the active GM's. */
 export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;

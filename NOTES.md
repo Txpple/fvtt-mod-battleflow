@@ -1345,8 +1345,8 @@ teardown landing late.
 
 **The world-settings reference table lives in `tools/verify-settings.mjs`, and only there.** A mirror
 in a doc drifts. When the user changes a setting, update that table — never fight the world to match
-a stale copy. Since 2026-09-03 the shipped defaults in `scripts/settings.js` agree with it (user
-call: everything ships on), so a change is two edits. ⚠ The tool exits 1 on unfixed drift (a
+a stale copy. The shipped defaults in `scripts/settings.js` agree with it, so a change is two edits. Since
+2026-09-27 it holds the seven world settings and clears a scene's leftover `noCover` flag. ⚠ The tool exits 1 on unfixed drift (a
 battery once printed "settings clean" over six drifted settings).
 
 ⚠ **A crashed run launders its pins into the next run's "prior".** A suite crashed with its settings

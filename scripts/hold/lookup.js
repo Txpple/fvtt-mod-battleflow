@@ -6,7 +6,7 @@ import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
-import { interruptEntries } from "../settings.js";
+import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, reductionFor, holdsFor } from "../lookup.js";
 import { alliesWithin, tokenForUuid } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";

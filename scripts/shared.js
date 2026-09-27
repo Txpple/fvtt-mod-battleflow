@@ -2,9 +2,9 @@
  * Battle Flow — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
+import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands } from "./decide/chips.js";
-import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
+import { foldsFrom, hitsAmong } from "./decide/verdict.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
 
@@ -21,11 +21,6 @@ export function hitTargets(attackMessage) {
 
 /** EDGE: the system's own label for a weapon mastery key. */
 export const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
-
-/** Does the attacker-side mode (npc/pc/all) admit this actor's side of the table? */
-export function modeAllows(actor) {
-  return modeAdmits(setting(S.autoDamage), actor?.type === "character");
-}
 
 /** The attack roll a damage message descends from; null outside an attack chain.
  * ⚠ The `attackFor` stamp leads: a volley's rays share one usage card, so walking back is the fallback. */

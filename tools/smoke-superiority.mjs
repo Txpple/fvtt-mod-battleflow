@@ -68,7 +68,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  if (!game.settings.settings.has(`${MOD}.superiorityUseList`)) return { fatal: 'superiorityUseList not registered — OLD code (deploy --local, reload)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, reload)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'interruptList', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',

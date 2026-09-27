@@ -337,9 +337,6 @@ describe("card chips — Tinker on the Prestidigitation card (the Gnome walk, 20
     expect(ch.chipsLeft(5, 3)).toBe(0);
     expect(ch.chipsLeft(undefined, 3)).toBe(3);
   });
-  it("the list default is the table", () => {
-    expect(reg.LIST_SPECS.cardChips.default).toBe(Object.keys(reg.CARD_CHIPS).join(", "));
-  });
 });
 
 describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poison is a buff on the actor)", () => {
@@ -379,7 +376,7 @@ describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poi
     expect(row.dose).toBe(1);
     expect(Object.keys(row.saves)).toEqual(["dex", "int"]);
     expect(row.list).toBe("fightingStyles");
-    expect(reg.LIST_SPECS[row.list].default).toMatch(/\bPoisoner\b/);
+    expect(Object.keys(reg.FIGHTING_STYLES)).toContain("Poisoner");
     expect(reg.SAVE_PRESSES.Poisoner.status).toBe("poisoned");
   });
 });

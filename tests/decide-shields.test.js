@@ -40,17 +40,6 @@ describe("the table", () => {
       cast: "Cast"
     });
   });
-
-  it("ships the Damage Shields list as the whole table, and its parser takes it whole", () => {
-    const { entries, rejects } = reg.parseList(
-      reg.LIST_SPECS.damageShields,
-      reg.LIST_SPECS.damageShields.default
-    );
-    expect(rejects).toEqual([]);
-    expect(entries.map(e => e.kind)).toEqual(
-      Object.keys(reg.DAMAGE_SHIELDS).map(n => n.toLowerCase())
-    );
-  });
 });
 
 describe("shieldDue — the rules, read plain", () => {

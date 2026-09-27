@@ -3,10 +3,10 @@
  * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
  * spent, a save goes through the saves machine.
  */
-import { MODULE_ID, TITLE, S, setting, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, activityOfType, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
-import { hitMenuEntries } from "./settings.js";
+import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
@@ -452,7 +452,7 @@ async function postSweepCard(damageMessage, hm, attackMessage, attacker, hits, i
     }
   }
   // The hold family's window (the save choice's clock): 0 waits for a human.
-  const window = candidates.length ? Math.max(0, Number(setting(S.holdTimer)) || 0) : 0;
+  const window = candidates.length ? decisionWindow() : 0;
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
     content: `<p>${hm.feature} — ${candidates.length ? "pick the second creature" : "no creature within 5 feet of the target"}.</p>`,

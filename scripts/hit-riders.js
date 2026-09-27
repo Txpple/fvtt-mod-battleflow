@@ -2,9 +2,9 @@
  * Battle Flow — hit riders: a mark on the target (Hunter's Mark, Hex) pays its die into the attack's own
  * damage roll, on the attacker's client, instead of a separate damage press after every hit.
  */
-import { TITLE, S, setting } from "./core.js";
+import { TITLE } from "./core.js";
 import { resolveUuid } from "./lookup.js";
-import { riderEntries, riderUpgradeEntries } from "./settings.js";
+import { riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
@@ -72,7 +72,6 @@ function riderTargets(message) {
 }
 
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
-  if ( !setting(S.riders) ) return;
   const activity = config.subject;
   const attacker = activity?.actor;
   if ( !attacker ) return;

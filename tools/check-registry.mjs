@@ -4,8 +4,7 @@
 //   1. Every key in the `S` map is registered in settings.js (else `setting(S.foo)` throws).
 //   2. Every setting registered in settings.js is in `S` (else the code cannot read it).
 //   3. Every registry entry declares a `kind` from its closed set and carries no amount (R4).
-//   4. Every list-setting DEFAULT parses clean under its own strict parser — a typo silently
-//      disables the feature for every fresh world.
+//   4. Every kind list names only kinds from its closed set.
 //   5. The source-file count, pinned, so adding a file is a deliberate one-line change.
 //   6. THE R4 TRIPWIRE (DESIGN.md R4): the kinds the code knows are printed and their total
 //      PINNED — not a rule against new kinds, a rule against unnoticed ones.
@@ -14,7 +13,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { KIND_SETS, LIST_SPECS, MASTERY_KINDS, VOLLEY_KINDS, parseList } from "../scripts/decide/registry.js";
+import { KIND_LISTS, KIND_SETS, MASTERY_KINDS, VOLLEY_KINDS } from "../scripts/decide/registry.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = p => readFileSync(join(ROOT, p), "utf8");
@@ -68,50 +67,13 @@ if (entries.length && !failures.some(f => f.startsWith("volley entry"))) {
   pass(`all ${entries.length} volley registry entries declare a known kind and no amounts`);
 }
 
-/* --- 4: shipped list-setting defaults parse clean -------------------------------------- */
+/* --- 4: the kind lists name only known kinds ------------------------------------------- */
 
-// The strict-parse contract (ARCHITECTURE.md §6): unknown kinds are dropped with a warning and
-// never defaulted, except where a spec declares a fallback. The REAL parser and the REAL defaults
-// are imported — a regex scrape of settings.js once stopped at an apostrophe and passed.
-
-/** Brace-match one register block out of settings.js source, so a long hint cannot truncate it. */
-const registerBlockFor = key => {
-  const at = settingsSrc.indexOf(`register(MODULE_ID, S.${key},`);
-  if (at < 0) return null;
-  const i = settingsSrc.indexOf("{", at);
-  let depth = 0;
-  for (let j = i; j < settingsSrc.length; j++) {
-    if (settingsSrc[j] === "{") depth++;
-    else if (settingsSrc[j] === "}" && --depth === 0) return settingsSrc.slice(i, j + 1);
-  }
-  return null;
-};
-
-for (const [key, spec] of Object.entries(LIST_SPECS)) {
-  // 4a. The spec names a real S key; otherwise the list reads `undefined` and is silently empty.
-  if (!sKeys.has(spec.setting)) {
-    fail(`spec ${key}`, `names setting "${spec.setting}", which is not a key in S`);
-    continue;
-  }
-
-  // 4b. settings.js registers THAT default, not a re-inlined copy that could fork.
-  const block = registerBlockFor(spec.setting);
-  if (!block) fail(`registration for ${spec.setting}`, "not found in settings.js");
-  else if (!block.includes(`LIST_SPECS.${key}.default`)) {
-    fail(`registration for ${spec.setting}`,
-      `does not register LIST_SPECS.${key}.default — a re-inlined default drifts from the one the gate checks`);
-  }
-
-  // 4c. The shipped default survives its own parser, with nothing dropped or defaulted.
-  const { entries, rejects } = parseList(spec, spec.default);
-  if (rejects.length) {
-    fail(`default for ${spec.setting}`,
-      `entries its own parser rejects: ${rejects.map(r => `${r.chunk} (${r.action}: ${r.detail})`).join(" | ")}`);
-  } else if (!entries.length) {
-    fail(`default for ${spec.setting}`, "empty — the feature ships inert");
-  } else {
-    pass(`${spec.setting}: registered from its spec, default parses clean (${entries.length} entries)`);
-  }
+for (const [name, { rows, kinds }] of Object.entries(KIND_LISTS)) {
+  const unknown = rows.filter(r => !kinds.has(r.kind)).map(r => `${r.name}:${r.kind}`);
+  if (unknown.length) fail(`kind list ${name}`, `kinds outside its set: ${unknown.join(", ")}`);
+  else if (!rows.length) fail(`kind list ${name}`, "empty — the machine ships inert");
+  else pass(`${name}: ${rows.length} rows, every kind known`);
 }
 
 /* --- 5: the R4 tripwire ---------------------------------------------------------------- */

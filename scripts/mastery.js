@@ -3,14 +3,12 @@
  * ask, the reminders and the Cleave arm. topple.js owns the `topple` flag's lifecycle;
  * chip-spend.js owns the spend, the expiry tidy and the combat sweep.
  */
-import { MODULE_ID, TITLE, S, setting, drivesMomentFor,
-  canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor,
-  statContext } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM, queueFlagWrite, canAnswerFor, combatStamp, activeCombatFor, statContext, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
-import { chipData, chitStampOf, hitTargets, masteryLabel, modeAllows, placeOf, turnPlace } from "./shared.js";
+import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -125,7 +123,6 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 // Graze pays on the MISS (no damage message), read as rolled: a later Shield does not re-open it
 // (RULINGS *Where the table bends the rule*).
 Hooks.on("createChatMessage", message => {
-  if ( !setting(S.masteryRiders) ) return;
   if ( !isCard(message, CARD.attack) ) return;
   if ( masteryOf(message) !== "graze" ) return;
   if ( !drivesMomentFor(masteryContext(message)?.attacker?.uuid ?? null) ) return;
@@ -137,7 +134,6 @@ async function resolveMissMastery(attackMessage) {
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
     // Graze alone rides the RESOLVER mode: a miss has no damage button to fall back on.
-    if ( !modeAllows(ctx.attacker) ) return;
     if ( (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0) <= 0 ) return;
 
     const hitSet = new Set(hitTargets(attackMessage).map(t => t.uuid));
@@ -262,7 +258,7 @@ async function toppleCard(ctx, targets, sourceMessage = null) {
     + (ctx.attacker.system.abilities?.[ctx.ability]?.mod ?? 0);
   const names = targets.map(t => t.name).join(", ");
   // The SAVE timer: a demanded save is mandatory, so expiry rolls; 0 waits indefinitely.
-  const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
+  const window = decisionWindow();
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
     content: bfCard({
@@ -341,7 +337,7 @@ async function postMasteryNotice(ctx, key, targets) {
   const { title, lines } = NOTICE_TEXT[key](ctx, names);
   const subtitle = `${ctx.attacker.name} — ${ctx.weapon.name}`;
   // 0 stamps no window; the bar and the auto-close read a missing window as "until dismissed".
-  const window = Math.max(0, Number(setting(S.noticeTimer)) || 0);
+  const window = decisionWindow();
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: ctx.attacker }),
     content: bfCard({
@@ -461,7 +457,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 const masteryTimers = new Map();
 
 async function stampMasteryAsk(attackMessage, damageMessage, ctx, key, targets) {
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+  const window = decisionWindow();
   await attackMessage.setFlag(MODULE_ID, "mastery", {
     status: "pending", key,
     weapon: { name: ctx.weapon.name, img: ctx.weapon.img },

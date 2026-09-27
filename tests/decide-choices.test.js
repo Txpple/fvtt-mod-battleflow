@@ -24,14 +24,6 @@ describe("the table", () => {
     expect(row.rule).toMatch(/as you choose/);
     expect(JSON.stringify({ ...row, rule: "" })).not.toMatch(/\d+d\d+/);
   });
-  it("is the Effect Choices list's closed set, as MEMBERSHIP, parsed whole-chunk", () => {
-    const spec = reg.LIST_SPECS.effectChoices;
-    expect(spec.membership).toBe(true);
-    expect(spec.whole).toBe(true);
-    expect(spec.kinds).toBe(reg.EFFECT_CHOICE_NAMES);
-    expect(spec.default).toBe("Fire Shield");
-    expect(reg.parseList(spec, "fire shield").entries.map(e => e.kind)).toEqual(["fire shield"]);
-  });
 });
 
 describe("effectChoiceFor — which of the activity's effects are the alternatives", () => {
