@@ -1063,6 +1063,10 @@ spends the item's one use, back on a Short or Long Rest), and nothing for the br
   modifier of the activities the sheet still carries (the Poisoner's pick). ⓐ Temporary Hit Points do
   not stack, so a creature already holding as many is greyed "(has N temp HP)" and one holding fewer
   is raised to the amount (`decide/rest-grants.js` `holdsTemp`).
+  ⓐ The rest card's own activity list (dnd5e lists a feat's rest-period activities) keeps only that
+  one of the pack's two, called **"Inspire with Performance"** (the row's `label`; the walk, 2026-09-27:
+  *"saying with wis or cha is nonsensical"*, *"Inspire with Performance is fine (just once)"*).
+  `smoke-rest` §8d takes the feat through its record, the lower ability.
 - **Chef — Bolstering Treats**: after a Long Rest, the Proficiency Bonus in Temporary Hit Points to
   up to that many creatures — handed out, a bend by choice (ruled 2026-09-26; *Bent by choice*). ⓐ The
   rule names no distance, so every ally on the scene is listed (`reach: null`); the owner too.
@@ -1118,6 +1122,10 @@ swung (`rebukes.js`).
     actually carry enhancements like +1 and stuff too"*) — the pack's feat-borne Pole Strike activity
     would carry none. Great Weapon Master's +PB stays off it: a Bonus Action is not "part of the Attack
     action" (`fighting-styles.js`, the `heavy` gate).
+    Every card of the swing is titled **"<weapon> — Pole Strike"** (the walk: *"needs suffix for attack
+    and dmg cards too"*): the usage card's item snapshot is renamed at its birth; the attack and damage
+    cards' header reads the LIVE item (`getAssociatedItem()`), so theirs is drawn at render
+    (`SURFACES.cardHeaderTitle`).
   - **Reactive Strike** — an `EMANATIONS` feature row: while the owner HOLDS a qualifying weapon, an
     invisible, quiet ring of that weapon's reach (10 ft with Reach) stands around it (`holding`,
     `range: "weaponReach"`, `effect: null`, `quiet`); a hostile creature MOVING into it — Foundry's own
