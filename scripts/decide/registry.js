@@ -2094,8 +2094,10 @@ export const FIGHTING_STYLES = Object.freeze({
   // THE PHB FEATS, group 1 (2026-09-26, the damage rules — RULINGS *The PHB feats — groups 1–3*): the owner's damage ignores
   // a Resistance. The pack ships Elemental Adept as text only ("not automated") and Poisoner's
   // Potent Poison with nothing; the rows are the whole mechanism.
+  // `choices`: what the type pick offers when a copy lands with no type in its name (the user,
+  // 2026-09-26: a level-up brings the pack's plain "Elemental Adept" — "A is good": ask as it lands)
   "Elemental Adept": Object.freeze({ key: "elemental-adept", gate: "always", feat: true, typed: true, spells: true,
-    ignores: "resistance", minimum: 2,
+    ignores: "resistance", minimum: 2, choices: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
     rule: "Energy Mastery. Choose one of the following damage types: Acid, Cold, Fire, Lightning, or Thunder. Spells you cast ignore Resistance to damage of the chosen type. In addition, when you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2.",
     from: "General feat" }),
   // group 2 (2026-09-26): Crossbow Expert's third benefit is Two-Weapon Fighting's, for a Light

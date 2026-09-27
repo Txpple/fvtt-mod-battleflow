@@ -246,6 +246,16 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  typePick: {
+    events: ["choice"],
+    means: "a typed feat's damage type was chosen as it landed — Elemental Adept's copy renamed \"Elemental Adept (Fire)\" (fighting-styles.js, the PHB feats walk 2026-09-26); resolved when a type is chosen, at the popup or by a rename",
+    resolved: r => r?.chosen ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.sourceUuid ?? null, ability: r.row ?? null, targets: [],
+        details: { chosen: r.chosen, left: r.left ?? [] } }
+    }] : []
+  },
+
   kitTend: {
     events: ["choice"],
     means: "a kit's tending was answered — Healer's Battle Medic: the tended creature's Hit Point Die spent and the feature's own heal of that size rolled at it by the elect, or not used (kit-tend.js, the origin-feat walk 2026-09-25); resolved at a Pass, or when the tending is applied",

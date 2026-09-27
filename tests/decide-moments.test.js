@@ -320,6 +320,13 @@ describe("the moment registry — shape", () => {
         ]
       },
       useChip: { sourceUuid: "Actor.rogue", effectId: "e", name: "Steady Aim", bend: "advantage" },
+      typePick: {
+        sourceUuid: "Actor.gren",
+        row: "Elemental Adept",
+        itemUuid: "Actor.gren.Item.x",
+        left: ["fire", "cold"],
+        chosen: "fire"
+      },
       coatUse: {
         sourceUuid: "Actor.poisoner",
         key: "poisoner",

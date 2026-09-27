@@ -33,7 +33,7 @@ import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
-  typesInNames, typedFace, ignoredResistances } from "./decide/fighting-styles.js";
+  typesInNames, typedFace, ignoredResistances, typeChoicesLeft } from "./decide/fighting-styles.js";
 import { isCard, CARD } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
@@ -786,3 +786,136 @@ Hooks.on("updateChatMessage", message => {
 });
 
 Hooks.on("deleteChatMessage", message => { disarmDeadline(grappleTimers, message.id); });
+
+/* --- THE TYPE PICK (Elemental Adept) ------------------------------------------------------------ *
+ * The user, 2026-09-26, the PHB feats walk: "we have to think how to assist players with elemental
+ * adept feat ... when they level up their player they will have the unautomated version of the
+ * feat" — then "A is good". The pack's Elemental Adept carries no type (an Ability Score
+ * Improvement and text), and the row reads the type off the NAME. So when a typeless copy LANDS on
+ * a character (a level-up's advancement, a drag, a compendium drop — on the client that made it), a
+ * card is posted to the owners and a popup asks: one button per type the row offers, less the types
+ * the other copies already name. The answer renames the copy "Elemental Adept (Fire)"; the face and
+ * every rule follow the name as before. "Later" leaves the card's Choose type… button; a copy
+ * renamed by hand needs neither.
+ * ------------------------------------------------------------------------------------------- */
+
+const PICK_FLAG = "typePick";
+const titleCase = t => String(t).charAt(0).toUpperCase() + String(t).slice(1);
+
+/** The listed typed row a copy is, when its name is the row's own with no type — `{ name, row }` or null. */
+function typelessRowOf(item) {
+  if ( item?.type !== "feat" ) return null;
+  const listed = listedNames(fightingStyleEntries());
+  for ( const [name, row] of Object.entries(FIGHTING_STYLES) ) {
+    if ( row.typed && row.choices?.length && listed.has(lower(name)) && (lower(item.name).trim() === lower(name)) ) return { name, row };
+  }
+  return null;
+}
+
+Hooks.on("createItem", (item, _options, userId) => {
+  try {
+    if ( userId !== game.user.id ) return;
+    const actor = item.parent;
+    const found = (actor instanceof Actor) ? typelessRowOf(item) : null;
+    if ( !found ) return;
+    void postTypePick(actor, item, found.name, found.row)
+      .catch(err => console.error(`${TITLE} | ${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
+  } catch(err) { console.error(`${TITLE} | A typed feat's pick failed.`, err); }
+});
+
+async function postTypePick(actor, item, name, row) {
+  const others = typedCopies(actor, name).filter(i => i.id !== item.id).map(i => i.name);
+  const left = typeChoicesLeft(row.choices, typesInNames(others, name, damageTypeKeys()));
+  if ( !left.length ) {
+    ui.notifications.warn(`${actor.name} already has every ${name} type — this copy has none left to choose.`);
+    return;
+  }
+  const owners = game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id);
+  const message = await ChatMessage.implementation.create({
+    speaker: ChatMessage.implementation.getSpeaker({ actor }), content: "", whisper: owners,
+    flags: { [MODULE_ID]: { [PICK_FLAG]: { ...statContext(actor.uuid), row: name, itemUuid: item.uuid, left, chosen: null } } }
+  });
+  if ( message ) await askTypePick(message);
+}
+
+/** The popup: a button per type still open, and Later. */
+async function askTypePick(message) {
+  const flag = message.getFlag(MODULE_ID, PICK_FLAG);
+  const row = FIGHTING_STYLES[flag?.row];
+  if ( !row || flag.chosen ) return;
+  // live only: the owner whose sheet the feat is on answers
+  const actor = fromUuidSync(flag.sourceUuid ?? "");
+  if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+  await openMomentPopup(message, PICK_FLAG, actor, {
+    title: `${flag.row} — ${actor.name}`, icon: "fa-solid fa-fire", width: 460, gate: false,
+    content: bfCard({
+      // live only: the new feat on the sheet — its own icon, and the copy the answer renames
+      img: fromUuidSync(flag.itemUuid ?? "")?.img ?? null,
+      eyebrow: `${flag.row} — a new feat`, tone: "pending",
+      title: "Choose your damage type",
+      subtitle: "your spells ignore Resistance to it, and its 1s count as 2",
+      lines: [ruleLine(row.rule)]
+    }),
+    buttons: [
+      ...flag.left.map(t => ({ action: t, label: titleCase(t), callback: () => { void chooseType(message, t); } })),
+      { action: "later", label: "Later" }
+    ]
+  });
+}
+
+async function chooseType(message, type) {
+  try {
+    const flag = message.getFlag(MODULE_ID, PICK_FLAG);
+    if ( !flag || flag.chosen || !flag.left.includes(type) ) return;
+    // live only: the copy on the sheet is what the answer renames — a gone copy has nothing to name
+    const item = await fromUuid(flag.itemUuid ?? "");
+    if ( !(item instanceof Item) ) { ui.notifications.warn(`${flag.row} is no longer on the sheet.`); return; }
+    await item.update({ name: `${flag.row} (${titleCase(type)})` });
+    if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, PICK_FLAG, { ...flag, chosen: type });
+  } catch(err) {
+    console.error(`${TITLE} | ${type} could not be chosen — rename the feat by hand.`, err);
+  }
+}
+
+// The card says it (R5): the choice while it waits — its button recalls the popup — and what was chosen.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const f = message.getFlag(MODULE_ID, PICK_FLAG);
+  const row = f ? FIGHTING_STYLES[f.row] : null;
+  if ( !row ) return;
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({
+    eyebrow: `${f.row} — a new feat`, tone: f.chosen ? "good" : "pending",
+    title: f.chosen ? `${titleCase(f.chosen)} chosen — “${f.row} (${titleCase(f.chosen)})”` : "Choose your damage type",
+    subtitle: f.chosen ? "your spells ignore Resistance to it, and its 1s count as 2" : f.left.map(titleCase).join(" · ")
+  });
+  const content = html.querySelector(SURFACES.messageContent);
+  content?.appendChild(line);
+  if ( !f.chosen ) {
+    // live only: the choice is the feat's owner's — another client sees the line, not the button
+    const actor = fromUuidSync(f.sourceUuid ?? "");
+    if ( actor?.isOwner ) content?.appendChild(momentButton("Choose type…", () => void askTypePick(message)));
+  }
+});
+
+// A copy renamed by hand with its type settles the card too — the popup closes, the card says it.
+Hooks.on("updateItem", (item, changes) => {
+  try {
+    if ( !("name" in changes) || !(item.parent instanceof Actor) ) return;
+    for ( const message of game.messages.contents.slice(-50) ) {
+      const f = message.getFlag(MODULE_ID, PICK_FLAG);
+      if ( !f || f.chosen || (f.itemUuid !== item.uuid) ) continue;
+      const [type] = typesInNames([item.name], f.row, damageTypeKeys());
+      if ( !type ) continue;
+      if ( message.canUserModify?.(game.user, "update") ) void message.setFlag(MODULE_ID, PICK_FLAG, { ...f, chosen: type }).catch(() => {});
+      const open = livePopups.get(popupKey(message.id, PICK_FLAG));
+      if ( open ) { try { void open.close(); } catch { /* gone */ } }
+    }
+  } catch(err) { console.warn(`${TITLE} | The type pick could not follow the rename.`, err); }
+});
+
+// A made choice closes the popup everywhere (law 4).
+Hooks.on("updateChatMessage", message => {
+  if ( !message.getFlag(MODULE_ID, PICK_FLAG)?.chosen ) return;
+  const open = livePopups.get(popupKey(message.id, PICK_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});

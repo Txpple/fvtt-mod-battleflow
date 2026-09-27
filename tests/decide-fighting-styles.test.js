@@ -7,8 +7,11 @@ import { beforeAll, describe, expect, it } from "vitest";
  */
 /** @type {typeof import("../scripts/decide/fighting-styles.js")} */
 let d;
+/** @type {typeof import("../scripts/decide/registry.js")} */
+let reg;
 beforeAll(async () => {
   d = await import("../scripts/decide/fighting-styles.js");
+  reg = await import("../scripts/decide/registry.js");
 });
 
 const weapon = (name, kind, properties = [], equipped = true) => ({
@@ -347,6 +350,19 @@ describe("the PHB feats, group 1 (2026-09-26): Elemental Adept and Poisoner", ()
     const off = d.typedFace("Elemental Adept", []);
     expect(off.live).toBe(false);
     expect(off.detail).toContain('"Elemental Adept (Fire)"');
+    expect(off.detail).toContain("Choose type");
+  });
+
+  it("the type pick offers the row's five, less what the other copies already name", () => {
+    const row = reg.FIGHTING_STYLES["Elemental Adept"];
+    expect(row.choices).toEqual(["acid", "cold", "fire", "lightning", "thunder"]);
+    expect(d.typeChoicesLeft(row.choices, [])).toEqual(row.choices);
+    expect(d.typeChoicesLeft(row.choices, ["fire", "Cold"])).toEqual([
+      "acid",
+      "lightning",
+      "thunder"
+    ]);
+    expect(d.typeChoicesLeft(row.choices, row.choices)).toEqual([]);
   });
 
   it("the receipt names only a type the damage carries AND the target resists", () => {

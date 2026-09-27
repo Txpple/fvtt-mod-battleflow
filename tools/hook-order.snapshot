@@ -173,6 +173,10 @@ updateCombat	fighting-styles.js
 dnd5e.renderChatMessage	fighting-styles.js
 updateChatMessage	fighting-styles.js
 deleteChatMessage	fighting-styles.js
+createItem	fighting-styles.js
+dnd5e.renderChatMessage	fighting-styles.js
+updateItem	fighting-styles.js
+updateChatMessage	fighting-styles.js
 dnd5e.postUseActivity	kit-tend.js
 dnd5e.renderChatMessage	kit-tend.js
 updateChatMessage	kit-tend.js

@@ -153,13 +153,26 @@ export function typesInNames(names, base, known) {
 }
 
 /**
+ * THE TYPE PICK (the user, 2026-09-26): the choices a new copy of a typed feat may still take — the
+ * row's own, less the types the actor's other copies already name (Elemental Adept is repeatable,
+ * "a different damage type each time").
+ * @param {string[]} choices   the row's `choices`
+ * @param {string[]} held      the types the other copies name
+ * @returns {string[]}
+ */
+export function typeChoicesLeft(choices, held) {
+  const have = new Set((held ?? []).map(t => String(t).toLowerCase()));
+  return (choices ?? []).filter(t => !have.has(String(t).toLowerCase()));
+}
+
+/**
  * A typed row's face: the types it reads, or off with how to fix it.
  * @param {string} name   the row's name
  * @param {string[]} types
  * @returns {{live: boolean, word: string, detail: string}}
  */
 export function typedFace(name, types) {
-  if ( !types?.length ) return { live: false, word: "no type", detail: `no damage type in its name — rename it "${name} (Fire)"` };
+  if ( !types?.length ) return { live: false, word: "no type", detail: `no damage type chosen — use Choose type on its card, or rename it "${name} (Fire)"` };
   const title = t => t.charAt(0).toUpperCase() + t.slice(1);
   return { live: true, word: types.join(", "), detail: types.map(title).join(" and ") };
 }

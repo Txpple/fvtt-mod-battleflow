@@ -924,6 +924,13 @@ consistent with that great weapon one"*). The "you can" in Elemental Adept's and
 one sensible answer, the way Great Weapon Fighting's does.
 
 - **Elemental Adept stays automatic** — its type's 1s count as 2 (the `min2` floor, group 1).
+- **Elemental Adept's type is asked as the feat LANDS** (the user: *"how to assist players ... when
+  they level up ... they will have the unautomated version of the feat"* — *"A is good"*): the pack's
+  copy carries no type, so a typeless copy arriving on a character (a level-up, a drag, a drop) posts
+  a card to its owners and opens a popup — Acid, Cold, Fire, Lightning, Thunder, less the types its
+  other copies already name, and Later. The answer renames the copy "Elemental Adept (Fire)"; the
+  card's Choose type… button asks again; a rename by hand settles the card too (`fighting-styles.js`,
+  the row's `choices`).
 - **Healer rerolls every 1 as the dice land** — no popup; the healing waits for the new dice and
   lands once, the new die on its own card and over the healer on the canvas (`heal-rerolls.js`, the
   same road, the ask taken out).
