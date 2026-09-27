@@ -34,7 +34,14 @@ describe("putsToSleep — read off the spell and its failed-save effects", () =>
 });
 
 describe("the Trance row — a save that cannot fail", () => {
-  const sources = d => rem.effectSaveSources({ features: ["Trance"], enabled: ["Trance"], table: reg.EFFECT_BENDS, demand: d, name: "Elf" });
+  const sources = d =>
+    rem.effectSaveSources({
+      features: ["Trance"],
+      enabled: ["Trance"],
+      table: reg.EFFECT_BENDS,
+      demand: d,
+      name: "Elf"
+    });
   it("against a spell that sleeps: one source, autoSucceed, the gate nets succeeds", () => {
     const s = sources({ spell: true, sleep: true, statuses: ["unconscious"] });
     expect(s).toHaveLength(1);
@@ -54,7 +61,10 @@ describe("the Trance row — a save that cannot fail", () => {
     expect(rem.saveGate(s).net).toBe("normal");
   });
   it("a condition's automatic failure stands over it", () => {
-    const s = [...sources({ spell: true, sleep: true }), { kind: "condition", bend: null, label: "x", autoFail: true }];
+    const s = [
+      ...sources({ spell: true, sleep: true }),
+      { kind: "condition", bend: null, label: "x", autoFail: true }
+    ];
     expect(rem.saveGate(s)).toMatchObject({ net: "fails", autoSucceed: false });
   });
 });
@@ -62,7 +72,13 @@ describe("the Trance row — a save that cannot fail", () => {
 describe("the verdict — cannot fail, no total", () => {
   it("says the feature where the total would be", () => {
     const flag = { dc: 15, hasDamage: false };
-    const t = { done: true, outcome: "saved", total: null, autoSucceeded: true, autoSucceededBy: "Trance" };
+    const t = {
+      done: true,
+      outcome: "saved",
+      total: null,
+      autoSucceeded: true,
+      autoSucceededBy: "Trance"
+    };
     expect(verdict.verdictText(flag, t)).toMatch(/^cannot fail \(Trance\) /);
     expect(verdict.verdictTail(flag, t)).toBeNull();
   });
