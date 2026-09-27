@@ -918,8 +918,8 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
   Charger, Grappler's Punch and Grab, Mounted Combatant's rest and War Caster's Reactive Spell are
   PARKED. ⚠ Correction: Crusher's and Slasher's crit halves were NOT in — `EFFECT_BENDS` rows
   nothing applied, and the pack's "Slashed" is Hamstring's speed −10. The build is six groups;
-  1–3 are built (below), 4–6 since 2026-09-27 (*The PHB feats — groups 4–6*, built the
-  same day — *The PHB feats — groups 4–6*).
+  1–3 are built (below), 4–6 since 2026-09-27 (*The PHB feats — groups 4–6*,
+  Polearm Master included).
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
 
