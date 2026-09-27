@@ -1,31 +1,12 @@
 /**
  * Battle Flow — Metamagic: the Sorcerer's options as a group in the spell's casting window, the
- * Sorcery Points spent by hand on the spell's card (RULINGS.md *Metamagic*, user rulings
- * 2026-09-09; the pass's measured cost is in ARCHITECTURE's appendix).
+ * Sorcery Points spent by hand on the spell's card (RULINGS.md *Metamagic*).
  *
- * The MOMENT is the cast. The system's own ActivityUsageDialog gets one fieldset on its render
- * hook (the emanation damage-type radios' idiom): a row per listed option the sheet grants — a
- * tick, the feat's name, the cost as the tag, the rule folded under — and the pool line above
- * them. The pick waits in memory on the casting client, keyed by the activity, until the cast's
- * card is born: `preCreateChatMessage` stamps it on the card (a birth flag — the saves machine's
- * demand stamp reads it on the same hook cycle, so Careful is on the card before the demand
- * exists), and `postUseActivity` spends the points and writes the `poolSpend` record the flash,
- * the card line and the ledger all read (`poolSpendsOn`, shared.js — the uniform spend).
- *
- * What this file reads: the metamagic feats on the sheet (the pack's `type.subtype`), Font of
- * Magic as the option's own consumption target (`poolOf` resolves the pack's compendium uuid
- * once the owned copy carries its source stamp — measured 2026-09-09), and the SPELL's shape for
- * the fit. What it never judges: sight, willingness, the turn (DESIGN §8).
- *
- * Careful's protected set and Heightened's mark (Stage 2) ride the same birth flag, derived where
- * the save's reach is known (saves/demand.js). THE ASK AT THE AREA — the popup that asks who the
- * spell spares or who saves at Disadvantage once the area has landed — is area-ask.js since
- * 2026-09-24 (one service, three kinds, two customers); this file raises it on a held card's
- * carrier and registers the answer part that writes the metamagic record. The later moments:
- * Empowered is a row of the dice changers' one popup on the damage roll (dice-changers.js, 2026-09-27;
- * its offer — known, listed, a point — is `empoweredOffer` below); Seeking is a d20
- * fold KIND in d20-folds.js — the machine that already owns the reroll, the verdict and the
- * withheld save.
+ * The pick waits in memory on the casting client until the cast's card is born: `preCreateChatMessage`
+ * stamps it as a birth flag (the saves machine's demand stamp reads it on the same cycle), and
+ * `postUseActivity` spends the points and writes the `poolSpend` record (shared.js).
+ * The ask at the area is area-ask.js; Empowered is a row of the dice changers' popup
+ * (dice-changers.js, via `empoweredOffer`); Seeking is a d20 fold kind (d20-folds.js).
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
@@ -46,9 +27,7 @@ const INDEX = tableIndex(METAMAGIC);
 export const SORCERY_POINTS = "Sorcery Points";
 const POOL_NAME = SORCERY_POINTS;
 
-/* ---------------------------------------------------------------------------------------------
- * The sheet: the options the caster knows, and the pool they draw on
- * ------------------------------------------------------------------------------------------- */
+/* --- The sheet: the options the caster knows, and the pool they draw on ----------------------- */
 
 /** The metamagic feats on the sheet that the table knows and the list admits, by feat name. */
 function knownOptions(actor) {
@@ -78,10 +57,8 @@ function poolFor(actor, item) {
 }
 
 /**
- * Who an option can name IN THE WINDOW: the creatures the caster has selected, and nobody else
- * (user, 2026-09-09, third look: a scene-wide list "on a screen with many actors is too much").
- * A cast that selects nobody — the area comes later — is asked at the area instead (the ask flag,
- * below). Plain rows for the decision layer, which picks the defaults.
+ * Who an option can name IN THE WINDOW: only the creatures the caster has targeted. A cast that
+ * targets nobody is asked at the area instead.
  */
 function candidatesFor(actor) {
   const casterTok = tokenOfActor(actor) ?? null;
@@ -111,18 +88,14 @@ function spellFactsOf(activity) {
     action: String(activation?.type ?? "") === "action",
     damageTypes, damageRoll: parts.length > 0,
     spellAttack: activity?.type === "attack",
-    // The SOURCE count, not the prepared one: `@item.level - 1` is what says the spell gains a
-    // target at a higher level (the prepared value is a number — measured, Stage 0).
+    // ⚠ The SOURCE count: only it keeps the `@item.level - 1` formula; the prepared value is a number.
     scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item?.name ?? null, exceptions: TWINNED_EXCEPTIONS }),
-    // A listed area whose caster chooses who it affects (the Chosen Areas list, 2026-09-24) —
-    // Careful greys on it: "you choose its targets".
+    // A Chosen Areas spell: Careful greys on it.
     choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item?.name)
   };
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The casting window: one fieldset, the pick held until the cast lands
- * ------------------------------------------------------------------------------------------- */
+/* --- The casting window: one fieldset, the pick held until the cast lands --------------------- */
 
 /** activity uuid → the pick made in the dialog (`{ key, feature, cost, poolId, rangeFeet }`). */
 const pending = new Map();
@@ -140,14 +113,9 @@ function windowMenuFor(activity) {
   return menu.length ? menu : null;
 }
 
-// THE WINDOW OPENS FOR A CANTRIP (user, 2026-09-10: "firebolt doesn't seem to trigger any
-// metamagics" - "is there a rule why, or bug?" A bug). The system opens the usage dialog only when
-// a use has something to configure - a slot, a template, scaling, consumption - and a cantrip has
-// none, so it never opened the window the whole group lives in. The lever is the system's own: a use
-// whose `scaling` is not `false` requires the dialog, and a cantrip at scaling 0 draws no scaling
-// section (it needs no slot and cannot scale) and consumes nothing. So when the caster has a row
-// that fits and can be paid, and nothing else would open the window, the module says "scaling 0".
-// A caller that suppressed the dialog (`configure: false` - the suites, a macro) is respected.
+// The window must open for a cantrip: dnd5e shows the usage dialog only when a use has something
+// to configure, and a cantrip has nothing. `scaling: 0` requires the dialog and draws no scaling
+// section. A caller that passed `configure: false` is respected.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig) => {
   try {
     if ( dialogConfig?.configure === false ) return;
@@ -175,21 +143,12 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
     if ( !menu.length ) return;
     const current = pending.get(activity.uuid)?.key ?? null;
     const currentType = pending.get(activity.uuid)?.type ?? null;
-    // CAREFUL LISTS NOBODY IN THE WINDOW (user ruling 2026-09-18, the 6.0 walk, Hold Person with
-    // Morgash targeted: "morgash checkbox shouldnt be under careful spell, no name should be, its
-    // queried in a subsequent popup for careful spell" — superseding 2026-09-09's ticks in the
-    // window, which 2026-09-10 had already taken off every template spell). The tick row is the
-    // tick, the name, the cost and the rule; the creatures to spare are asked ON THE CARD once the
-    // cast is out — saves/demand.js raises the ask off the creatures the save reaches (a targeted
-    // cast's targets at the stamp, a placed area's contents at adoption), the demand waits on the
-    // answer, and the pick rides the record as CHOSEN. Only the cap travels from here.
+    // Careful names nobody here; the creatures to spare are asked on the card (saves/demand.js).
+    // Only the cap travels from here.
     const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
     const selected = candidatesFor(actor);
-    // A TEMPLATE SPELL LISTS NOBODY IN THE WINDOW for Heightened either (user, 2026-09-10, Fireball
-    // with Thomas targeted: "it shouldn't have him in the check box"). Whoever is targeted is not
-    // who the area will hold; the pick waits for the placed area and is asked there.
+    // A template spell names nobody for Heightened either: the targets are not who the area will hold.
     if ( activity?.target?.template?.type ) selected.targets = [];
-    // Heightened's one target: a radio over the selected creatures.
     const mark = { ...selected, chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
@@ -208,10 +167,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
         else b.disabled = true;   // one option per cast: a tick greys the rest
         if ( row ) row.style.opacity = (b.disabled && !own) ? "0.55" : "1";
       }
-      // HEIGHTENED'S RADIO IS INERT UNTIL HEIGHTENED IS TICKED (user, 2026-09-10: "targets of heightened
-      // should be greyed out if the checkbox is not checked"). A live radio under an unticked option
-      // reads as a choice already made; it greys with its row and wakes with the tick.
-      // Transmuted's type radios the same (user, 2026-09-10: "transmute spell needs the same grey out").
+      // Heightened's and Transmuted's radios are inert until their option is ticked.
       for ( const [key, sub, name] of [["heightened", "mark", "bf-metamagic-mark"], ["transmuted", "type", "bf-metamagic-type"]] ) {
         const on = picked === key;
         for ( const r of fs.querySelectorAll(`[data-bf-metamagic-row="${key}"] input[name="${name}"]`) ) r.disabled = !on;
@@ -225,17 +181,13 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
         const markBox = fs.querySelector(`[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]:checked`);
         pending.set(activity.uuid, { key: pick.key, feature: pick.feature, cost: pick.cost, itemUuid: item?.uuid ?? null, actorUuid: actor.uuid, at: Date.now(),
           spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null,
-          // The option's rule rides the record where a later gate quotes it (Extended's concentration source).
+          // The rule rides the record for the concentration gate to quote.
           ...(pick.key === 'extended' ? { rule: metamagicRuleText(item?.system?.description?.value ?? '') } : {}),
           poolId: poolFor(actor, item)?.id ?? null,
-          // Transmuted's new type: the radio under its row (the first other listed type until picked).
           ...(pick.key === "transmuted" ? { from: facts.damageTypes.filter(t => TRANSMUTED_TYPES.includes(t)), type: typeBox?.value ?? TRANSMUTED_TYPES.find(t => !facts.damageTypes.includes(t)) ?? null } : {}),
           ...(pick.key === "distant" ? { rangeFeet: distantRange(facts) } : {}),
-          // Careful's cap is the Charisma modifier, minimum one (the option's own words); the
-          // protected list itself is asked where the save's reach is known (saves/demand.js).
           ...(pick.key === "careful" ? { cap } : {}),
-          // Heightened's rule rides the demand for the save gate's fold (law 8: the feat's own text),
-          // and the target the window marked rides as CHOSEN.
+          // Heightened's rule rides the demand for the save gate (law 8); a marked target rides as CHOSEN.
           ...(pick.key === "heightened" ? { rule: metamagicRuleText(item?.system?.description?.value ?? ""),
             ...(markBox ? { chosen: true, target: { uuid: markBox.value, name: markBox.dataset.name ?? markBox.value } } : {}) } : {}) });
       } else pending.delete(activity.uuid);
@@ -248,11 +200,8 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
   } catch(err) { console.warn(`${TITLE} | Could not add the metamagic fieldset.`, err); }
 });
 
-// ⚠ A PICK OUTLIVES ITS DIALOG ONLY UNTIL A CARD IS BORN. A tick made and the window cancelled, or a
-// cast whose template is never placed (measured 2026-09-09: the pick landed on the NEXT Fireball,
-// spent a point for an option nobody ticked), must not wait in memory for the next cast of the
-// same spell. The dialog's close hook sweeps a pick no card has claimed, after the card's own
-// creation has had its moment; and the stamp refuses a pick older than the window a cast can take.
+// ⚠ A pick no card claimed (the window cancelled, a template never placed) must not land on the
+// NEXT cast of the spell: the close hook sweeps it, and the stamp refuses a stale pick.
 const PICK_TTL_MS = 5 * 60 * 1000;
 Hooks.on("closeActivityUsageDialog", app => {
   try {
@@ -266,8 +215,7 @@ Hooks.on("closeActivityUsageDialog", app => {
 function rowHTML(row, item, current, { facts = null, currentType = null, mark = null } = {}) {
   const off = !row.eligible || !row.affordable;
   const rule = metamagicRuleText(item?.system?.description?.value ?? "");
-  // Transmuted's one pick beyond the tick: the new type, a radio per listed type the spell does
-  // not already deal (the prototype's row). Not a caveat — a control the option's text demands.
+  // Transmuted's new type: a radio per listed type the spell does not already deal.
   let sub = "";
   if ( (row.key === "transmuted") && !off ) {
     const has = new Set(facts?.damageTypes ?? []);
@@ -277,7 +225,6 @@ function rowHTML(row, item, current, { facts = null, currentType = null, mark = 
     sub = `<div data-bf-metamagic-sub="type" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
       ${options.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;"><input type="radio" name="bf-metamagic-type" value="${t}" ${t === picked ? "checked" : ""} style="margin:0;"> ${cap(t)}</label>`).join("")}</div>`;
   }
-  // Careful draws NO names here (user ruling 2026-09-18): the creatures to spare are asked on the card.
   if ( (row.key === "heightened") && !off && mark?.targets?.length ) {
     const picked = heightenedMark({ contained: mark.targets, casterUuid: mark.casterUuid, casterDisposition: mark.casterDisposition, chosen: mark.chosen })?.uuid ?? null;
     sub = `<div data-bf-metamagic-sub="mark" style="grid-column:2 / -1;display:flex;flex-wrap:wrap;gap:0.3rem 0.75rem;font-size:var(--font-size-12,12px);">
@@ -294,9 +241,7 @@ function rowHTML(row, item, current, { facts = null, currentType = null, mark = 
     </div>`;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * Transmuted Spell: every damage roll of the cast wears the picked type (Stage 3, 2026-09-09)
- * ------------------------------------------------------------------------------------------- */
+/* --- Transmuted Spell: every damage roll of the cast wears the picked type -------------------- */
 
 /** The metamagic record on the card a roll names as its origin, or on the activity's newest card. */
 function recordForRoll(activity, message) {
@@ -313,8 +258,7 @@ function recordForRoll(activity, message) {
   } catch { return null; }
 }
 
-// The emanation damage-type idiom (emanations.js): the roll's `options.type` is what the verdict
-// and the applier read, so the change lands there, on the roller's client, before the dice.
+// The roll's `options.type` is what the verdict and the applier read: set it before the dice.
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
@@ -337,9 +281,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * The card: born with the pick; the points spent once the cast has landed
- * ------------------------------------------------------------------------------------------- */
+/* --- The card: born with the pick; the points spent once the cast has landed ------------------ */
 
 Hooks.on("preCreateChatMessage", doc => {
   try {
@@ -347,17 +289,14 @@ Hooks.on("preCreateChatMessage", doc => {
     if ( !uuid || !pending.has(uuid) ) return;
     if ( !isCard(doc, CARD.usage) ) return;
     const pick = pending.get(uuid);
-    if ( (Date.now() - (pick.at ?? 0)) > PICK_TTL_MS ) { pending.delete(uuid); return; }   // a stale pick is nobody's
+    if ( (Date.now() - (pick.at ?? 0)) > PICK_TTL_MS ) { pending.delete(uuid); return; }
     pick.born = true;
     const { born, at, ...record } = pick;
     void born; void at;
     const flags = { [MODULE_ID]: { [METAMAGIC_FLAG]: { ...record, spent: false, ...statContext(pick.actorUuid ?? null) } } };
-    // THE DEFERRED CARD (user, 2026-09-09: "the animation fires right away, presumably because the
-    // card is posted right away. Is there a way the card can be deferred until the person picks?").
-    // A Careful or Heightened cast whose pick waits for the AREA — nothing chosen in the window, a
-    // template to place — keeps its card's data here and cancels the birth; the system places the
-    // template regardless, the ask opens off a small carrier when the area has landed, and the real
-    // card — the animation everyone keys on, the dice, the saves — is posted on the answer.
+    // THE DEFERRED CARD: a Careful or Heightened cast waiting on its area cancels the card's birth
+    // and keeps its data; the ask opens off a carrier once the area lands, and the real card (the
+    // one animations key on) is posted on the answer.
     const activity = resolveUuid(uuid);
     const areaComing = ((record.key === "careful") || (record.key === "heightened")) && !record.chosen && !!activity?.target?.template?.type;
     if ( areaComing ) {
@@ -376,27 +315,19 @@ const deferredCards = new Map();
 const DEFERRED_FLAG = "metamagicDeferred";
 
 /* ---------------------------------------------------------------------------------------------
- * THE CAST HOLD — metamagic's one use of the hold registry ([holds.js](holds.js), which owns the
- * shape and the public api; this file owns only WHEN a cast is held, and every way the question
- * can stop standing). While the ask at the area is up the cast's card does not exist, so a module
- * that keys on the card is told *not yet* rather than shown a picture for a spell nobody has
- * aimed yet (FX Studio, 2026-09-09; the user: "the animation still fires").
- *
- * ⚠ EVERY PATH THAT ENDS THE QUESTION MUST RELEASE, and they are not all happy ones: the answer,
- * the clock, an area with nobody in it, a carrier that could not post, a carrier somebody DELETED,
- * and the real card's BIRTH. The last is why the release below is on `preCreateChatMessage` and
- * not on `createChatMessage`: create hooks fire DURING the create, so a consumer reading the
- * released card on `createChatMessage` would otherwise find the hold still open — for the very
- * card that lifts it.
+ * THE CAST HOLD (holds.js): while the ask at the area is up the card does not exist, so a module
+ * keying on the card is told *not yet*. This file owns only when a cast is held.
+ * ⚠ EVERY path that ends the question must release: the answer, the clock, an empty area, a
+ * carrier that failed or was deleted, and the real card's birth. The birth releases on
+ * `preCreateChatMessage` because create hooks fire DURING the create.
  * ------------------------------------------------------------------------------------------- */
 
 /** Slack over the ask's own clock before a hold gives up on itself — the answer still has to write. */
 const HOLD_SLACK_MS = 30_000;
 
 /**
- * Raise metamagic's hold on a cast, bounded by the ask's own clock when it has one. A clockless
- * ask gets a clockless hold on purpose: a moment waits forever only by explicit setting
- * (ARCHITECTURE §5 law 11), and a self-bound under one would lift while the caster is still reading.
+ * Raise metamagic's hold on a cast, bounded by the ask's clock. A clockless ask gets a clockless
+ * hold (ARCHITECTURE §5 law 11).
  */
 function openCastHold(uuid) {
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
@@ -408,19 +339,14 @@ Hooks.on("preCreateChatMessage", doc => {
   const uuid = doc.getFlag?.("dnd5e", "activity")?.uuid ?? null;
   if ( uuid && doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, doc);
 });
-// ...and a card posted from ANOTHER client (the elect's clock kept the default) fires no preCreate
-// here, so its arrival lifts the hold too. Both roads are idempotent; whichever runs first wins.
+// ...and a card posted from ANOTHER client fires no preCreate here, so its arrival lifts it too.
 Hooks.on("createChatMessage", message => {
   const uuid = activityUuidOf(message);
   if ( uuid && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
 });
 
-// A DELETED CARRIER is the ask withdrawn by hand, and it used to strand the hold forever — this
-// was the only moment machine in the module with no `deleteChatMessage` handler (found 2026-09-09
-// while writing the hold's contract down). The cast happened and the points are spent, so the
-// honest repair is the one the failed-carrier road already takes: post the card as cast, which
-// releases the hold on its way past. ⚠ The GUARD is the hold itself — only the client that cast
-// holds one, so exactly one client does this, by construction.
+// A deleted carrier is the ask withdrawn: the points are spent, so post the card as cast (which
+// releases the hold). ⚠ Only the casting client holds one, so exactly one client does this.
 Hooks.on("deleteChatMessage", message => {
   try {
     const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
@@ -450,10 +376,9 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 });
 
 /**
- * The deferred card's road: the points are spent now (the cast happened); if the area holds
- * anyone, a CARRIER — a whisper to the caster and the GM, wearing the ask flag and the held card —
- * asks the question, and the answer posts the real card; an area with nobody in it, or no area at
- * all, posts the card at once (the demand's adoption road asks later if a template ever lands).
+ * The deferred card's road: spend the points now; if the area holds anyone, a CARRIER (a whisper
+ * wearing the ask flag and the held card) asks, and the answer posts the real card. Otherwise
+ * post the card at once.
  */
 async function carryDeferredCard(activity, held, templates) {
   const actor = activity?.actor;
@@ -461,7 +386,7 @@ async function carryDeferredCard(activity, held, templates) {
   const record = pool ? await spendPoolUses(actor, pool, held.pick.feature, held.pick.cost ?? 1, POOL_NAME) : null;
   if ( !pool ) console.warn(`${TITLE} | ${held.pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`);
   const casterTok = tokenOfActor(actor) ?? null;
-  // A chosen area (2026-09-24) never asks its caster about themself — the saves side's rule too.
+  // A chosen area never asks its caster about themself.
   const spell = activity.item?.name ?? "the spell";
   const chooses = chosenAreaListed(activity.item?.name);
   const contained = (tokensInRegions(templates) ?? [])
@@ -474,9 +399,8 @@ async function carryDeferredCard(activity, held, templates) {
   const whisper = [...new Set([...(actor ? game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id) : []), ...game.users.filter(u => u.isGM).map(u => u.id)])];
   const candidates = contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) }));
   const featureRule = held.pick.rule ?? metamagicRuleText(actor?.items?.find(i => i.name === held.pick.feature)?.system?.description?.value ?? "");
-  // HEIGHTENED ON A CHOSEN AREA with a real choice to make asks ONE question (2026-09-24): who the
-  // spell affects, Heightened's radio among the ticked. With no choice to make, Heightened asks as
-  // it always did and the stamp writes the default choice when the card lands.
+  // Heightened on a chosen area with a real choice asks ONE question: who is affected, with
+  // Heightened's radio among the ticked. Otherwise the stamp writes the default choice.
   const description = activity.item?.system?.description?.value ?? "";
   const cap = chooses ? choiceCapFrom(description) : null;
   const caster = { uuid: actor?.uuid ?? null, disposition: casterDisposition, name: actor?.name ?? null };
@@ -500,9 +424,8 @@ async function carryDeferredCard(activity, held, templates) {
 }
 
 /**
- * The real card, at last: the held data with the pick made chosen and the spend on it; the demand's
- * stamp follows by hook. `extra` rides the card's birth flags — a chosen area's answer, which the
- * stamp then reads as the choice already made (saves/demand.js `areaChoiceForDemand`).
+ * Post the real card: the held data, the pick made chosen, the spend on it. `extra` rides the
+ * birth flags (a chosen area's answer, read by saves/demand.js `areaChoiceForDemand`).
  */
 async function postDeferredCard(held, record, answer, templateIds, extra = null) {
   const data = foundry.utils.deepClone(held.data);
@@ -516,7 +439,7 @@ async function postDeferredCard(held, record, answer, templateIds, extra = null)
   releaseHold(held.pick.activityUuid ?? "", card);
   const activity = cardActivity(card, held.pick.activityUuid ?? null);
   const scene = canvas.scene ?? game.scenes.active;
-  const templates = (templateIds ?? []).map(id => scene?.regions?.get(id)).filter(Boolean);   // a placed area is a Region (dnd5e 6.0)
+  const templates = (templateIds ?? []).map(id => scene?.regions?.get(id)).filter(Boolean);   // a placed area is a Region
   Hooks.callAll("battleflow.deferredUsageCard", { activity, message: card, templates });
   return card;
 }
@@ -527,14 +450,11 @@ async function spendForPick(activity, pick, message) {
   if ( !pool ) { console.warn(`${TITLE} | ${pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`); return; }
   const record = await spendPoolUses(actor, pool, pick.feature, pick.cost ?? 1, POOL_NAME);
   if ( !message || !record ) return;
-  // ⚠ Not the birth flag: the card exists before the spend, and this write is what the flash's
-  // `updateChatMessage` reader catches (resources.js — Parry's answer arrives the same way).
+  // ⚠ An update, not a birth flag: the flash's `updateChatMessage` reader catches it (resources.js).
   await message.update({ flags: { [MODULE_ID]: { poolSpend: record, [METAMAGIC_FLAG]: { ...(message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? pick), spent: true } } } });
 }
 
-/* ---------------------------------------------------------------------------------------------
- * The durable record — one line on the spell's card, every render, idempotent (law 6)
- * ------------------------------------------------------------------------------------------- */
+/* --- The durable record — one line on the spell's card, every render, idempotent (law 6) ------ */
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
@@ -551,16 +471,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) { console.warn(`${TITLE} | The metamagic line could not render.`, err); }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * Empowered Spell: a row of the dice changers' one popup since 2026-09-27 (dice-changers.js — the
- * birth flag, the popup, the clock, the patch and the completion live there; its own copy here,
- * from the metamagic pass's Stage 4 of 2026-09-09, is gone). This file keeps what only it knows:
- * whether the caster can take it on this roll — the option known and listed, a point in the pool.
- * ------------------------------------------------------------------------------------------- */
+/* --- Empowered Spell: a row of the dice changers' popup (dice-changers.js) --------------------- */
 
 /**
- * Empowered Spell's row for a caster, or null: the option on the sheet and in the Metamagic list,
- * its cost in the pool now, the cap (the Charisma modifier, minimum one) and its rule verbatim.
+ * Empowered Spell's row for a caster, or null: known, listed and affordable now; cap = CHA mod, min 1.
  * @param {Actor} actor
  * @returns {{cost: number, cap: number, poolId: string, rule: string}|null}
  */
@@ -574,23 +488,7 @@ export function empoweredOffer(actor) {
     rule: metamagicRuleText(item.system?.description?.value ?? "") };
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE ASK AT THE AREA (user ruling 2026-09-09, third look): when a Careful or Heightened cast
- * selected nobody in the window and its area has landed, the caster is asked ONCE, of everything
- * the area holds — ticks for Careful (the party pre-ticked up to the cap, then the caster's side,
- * then neutrals), a radio for Heightened (the first hostile by default) — in two groups, the
- * PARTY and everyone else, a tick pinging the token on the map so the name can be matched to the
- * creature. The save demand waits, empty and clockless, until the answer fills it: the targets
- * minus the protected, the deadline from then. The clock keeps the default. saves/demand.js
- * raises the ask flag and holds the demand; this side opens the popup, answers it, fills the
- * demand and releases the clock.
- * ------------------------------------------------------------------------------------------- */
-
-/* ---------------------------------------------------------------------------------------------
- * The ask at the area — metamagic's ANSWER PART (area-ask.js owns the popup, the clock and the
- * answer since 2026-09-24; this file owns what Careful's and Heightened's answers write, and the
- * held card: the real card is born with the answer and the carrier is deleted)
- * ------------------------------------------------------------------------------------------- */
+/* --- The ask at the area: metamagic's answer part (area-ask.js owns the popup and the clock) --- */
 
 registerAskAnswerPart(async (message, ask, outcome) => {
   const mm = message.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? {};
@@ -600,8 +498,6 @@ registerAskAnswerPart(async (message, ask, outcome) => {
     : ((ask.kind === "heightened") || ask.heightened) ? { chosen: true, target: outcome.mark, rule } : null;
   const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
   if ( held ) {
-    // The deferred card's answer: the pick made chosen on the held data, the real card posted, the
-    // carrier gone. The demand, the dice and the saves all follow the card, in that order.
     await message.setFlag(MODULE_ID, AREA_ASK_FLAG, outcome.done);
     await postDeferredCard({ data: held.data, pick: held.pick }, held.poolSpend ?? null, mmAnswer, held.templateIds ?? [],
       outcome.areaChoice ? { [AREA_CHOICE_FLAG]: { ...outcome.areaChoice, ...statContext(ask.casterUuid ?? null) } } : null);

@@ -1,9 +1,6 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold
- * (2026-09-05, "the rest of maneuvers") — the fighter's die on an ally's Reaction attack.
- * The machine-tier pass, Stage 4a (2026-09-05): split out of maneuvers.js by MOMENT — one
- * feature per file, the shared readers in lookup.js, the rules text in decide/registry.js. Every
- * body here is the one maneuvers.js carried; nothing was rewritten.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
+ * fighter's die on an ally's Reaction attack.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
@@ -18,25 +15,11 @@ import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
 
 /* =============================================================================================
- * COMMANDER'S STRIKE (2026-09-05, "the rest of maneuvers") — the `command` fold kind: Riposte's
- * driven attack with the ATTACKER changed. The fighter uses "Directed Attack" (a damage activity
- * whose target is the willing ALLY; `use()` spends the Superiority Die), and the ally may use its
- * Reaction to make one attack with a weapon, the fighter's die on the damage if it hits. The 2024
- * pack ships the activity as damage typed by choice ("select the type in the roll dialog") — the
- * die rides the ALLY's weapon in the weapon's type, exactly as a riposte's die does.
- *
- *   THE STAMP — the fighter's client, on the usage card: the ally, the fighter's die (resolved on
- *   the FIGHTER's sheet — it is their scale value), the hold family's clock. The native follow-up
- *   (a damage dialog for a die that belongs to the ally's hit) is switched off at the use.
- *   THE ASK — the ally's owner gets the riposte popup's shape: a weapon dropdown (every attack
- *   activity, melee first) and Attack / Decline. The ally must have a target on the canvas — the
- *   module never picks whom the ally strikes (R1).
- *   THE ANSWER — a fold on the fighter's card: the owner writes straight, a player's click travels
- *   as an envelope the elect folds (the riposte relay's shape). The answering client drives the
- *   attack itself: the ally's Reaction spent, the weapon used, the attack rolled with the fighter's
- *   card as its provenance (`riposteFor`/`riposteBy` — the riposte die's injection, idempotence
- *   and the resolver's "driven attacks never chain re-offers" all read those two flags).
- *   THE CLOCK — the timer declines; the die is already spent (the use spent it).
+ * The fighter uses "Directed Attack" (a damage activity targeting the ALLY; `use()` spends the
+ * Superiority Die). The fighter's client stamps the card (the ally, the die resolved on the
+ * FIGHTER); the GM writes a chip on the ally carrying the die; the ally's owner gets an OK-only
+ * notice and attacks from their own sheet; the chip's die rides that attack's damage in the
+ * weapon's type, and spends the ally's Reaction.
  * ========================================================================================== */
 
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
@@ -66,8 +49,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 async function stampCommand(activity, fighter, message, found) {
   const targets = targetsOf(message).filter(t => t.uuid !== fighter.uuid);
   const ally = targets[0] ?? null;
-  // The die is the FIGHTER's scale value — resolved here, on the fighter, because it rides the
-  // ALLY's roll (measured: the raw `@scale.battle-master.superiority.die` read 0 on the Ranger).
+  // ⚠ Resolved on the FIGHTER: the raw `@scale…` formula reads 0 on the ally's roll.
   const dieFormula = resolveDie(fighter, maneuverDieFormula(activity));
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   await message.setFlag(MODULE_ID, "command", {
@@ -79,9 +61,8 @@ async function stampCommand(activity, fighter, message, found) {
 }
 
 /**
- * THE CHIP — written by the ELECT from the card (the fighter's client may not own the ally's
- * sheet; every world write of a consequence is the elect's), once: the fighter's die on the
- * ally's sheet until the end of the fighter's turn, spent by the ally's next attack's damage.
+ * THE CHIP, written once by the GM (the fighter may not own the ally): the die on the ally until
+ * the end of the fighter's turn, spent by the ally's next attack's damage.
  */
 async function ensureCommandChip(message) {
   const flag = message.getFlag(MODULE_ID, "command");
@@ -108,12 +89,7 @@ async function ensureCommandChip(message) {
 
 Hooks.on("createChatMessage", message => { if ( isActiveGM() && message.getFlag(MODULE_ID, "command") ) void ensureCommandChip(message); });
 
-/**
- * THE NOTICE — the ally's owner is told, and that is all (user, 2026-09-05: "a popup on the PC
- * recipient, informing them that they can make an attack as a reaction"; "get rid of the weird
- * trying to control that other pc workflow"). The Hew notice's shape: OK-only, the drain bar,
- * auto-close at the deadline; the ally attacks from their own sheet and the chip does the rest.
- */
+/** THE NOTICE: the ally's owner is told, OK-only, auto-closed at the deadline (the Hew notice's shape). */
 async function showCommandNotice(message) {
   const flag = message.getFlag(MODULE_ID, "command");
   if ( !flag || (flag.status !== "directed") ) return;
@@ -130,10 +106,8 @@ async function showCommandNotice(message) {
 }
 
 /**
- * THE RIDE — the ally's next attack's damage: the chip on the ATTACKER carries the fighter's
- * die, which folds INTO the base roll (the riposte die's idiom — one dice group, one total,
- * crit-doubled with it); the chip is spent, the ally's Reaction with it, and the damage message
- * says so. The fighter's card learns of it from the elect (below).
+ * THE RIDE: the chip's die folds INTO the base roll (one total, crit-doubled with it); the chip
+ * and the ally's Reaction are spent, and the damage message says so.
  */
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
@@ -148,7 +122,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     if ( formula ) {
       const base = (config.rolls ?? []).find(r => r.base === true);
       if ( base ) base.parts = [...(base.parts ?? []), formula];
-      // 6.0: per-roll damage rules WRITE into a roll's data (`roll.damageType`, `@ruleBonus`) — a shared object would carry the last rider's type onto roll 0.
+      // ⚠ Clone the data: damage rules WRITE into a roll's data, and a shared object carries the last rider's type onto roll 0.
       else config.rolls.push({ data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}), parts: [formula], options: { type, types: type ? [type] : [] } });
     }
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.commandRide`, {

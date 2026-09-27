@@ -1,22 +1,12 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE SWAP — a feature that trades its
  * owner's Initiative with a willing ally's right after Initiative is rolled (decide/registry.js
- * INITIATIVE_SWAPS; Alert the one row). The origin feats, 2026-09-25 — the user: "initiative swap
- * should have a form after initiative all roll, list non incapacitated allies, each persons
- * initiative, and they can select which to swap, and then swap yes no buttons"; "alert pick is
- * enough" (the owner's pick is the ally's willingness — nobody else is asked).
+ * INITIATIVE_SWAPS). The owner's pick stands for the ally's willingness; nobody else is asked.
  *
- * THE MOMENT is the last Initiative landing: when every combatant of a combat has one, the elect
- * (the active GM — the tracker is the GM's to write) posts one card per listed owner in that combat,
- * once per combat (the combat's own flag is the latch). An Incapacitated owner is not asked; the
- * allies are the other combatants on the owner's side (the token's disposition) who are not
- * Incapacitated, each with their Initiative; nobody to swap with, no card.
- *
- * THE POPUP opens on whoever answers for the owner (canAnswerFor): a radio per ally, "name — 17",
- * a tick pinging the token; "Swap" (live once an ally is picked) / "No"; the clock (the Hold Timer)
- * answers No. THE WRITE is the tracker, so it is the GM's: a GM answering folds directly; a player's
- * answer is an envelope the elect folds (the relay registry); the elect lands the swap from the two
- * combatants' LIVE numbers. With no GM on, the player is told to swap by hand.
+ * When every combatant has an Initiative, the GM posts one card per listed, non-Incapacitated
+ * owner, once per roll (the combat's flag is the latch); no ally on the owner's side, no card.
+ * The owner picks an ally or No (the clock answers No). The tracker is the GM's to write: a
+ * player's answer travels by relay, and the swap lands from both combatants' LIVE numbers.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";
@@ -46,7 +36,7 @@ function rowFor(actor) {
   return null;
 }
 
-/** The rule's own clause: "if you or the ally has the Incapacitated condition" — every condition that implies it included. */
+/** Incapacitated, or any condition that implies it (the status set includes those). */
 const incapacitated = actor => !!actor?.statuses?.has?.("incapacitated");
 
 /* --- the moment: the last Initiative lands --------------------------------------------------------- */
@@ -55,17 +45,13 @@ Hooks.on("updateCombatant", (combatant, changes) => {
   if ( !("initiative" in (changes ?? {})) || !isActiveGM() ) return;
   const combat = combatant.parent;
   if ( !combat ) return;
-  // A RESET RE-ARMS (user, 2026-09-25: "if i reset initiative and reroll, alert doesnt retrigger"):
-  // the holder's Initiative cleared means the next roll is a new "roll Initiative", so its latch
-  // goes and the last roll landing asks again. A number merely changed asks nothing (once per roll).
+  // A cleared Initiative re-arms the latch: the next roll asks again. A changed number asks nothing.
   if ( changes.initiative === null ) { rearm(combat); return; }
   void askFor(combat);
 });
 
-// ⚠ THE TRACKER'S "Reset Initiative" IS NOT A COMBATANT UPDATE: Combat#resetAll (Foundry 14,
-// client/documents/combat.mjs:363) clears every Initiative in its source and writes them back as ONE
-// Combat update (`{combatants: [...]}`, diff false) — no updateCombatant fires. So the re-arm reads
-// the combat's update too (user, 2026-09-25: "reset initiative -- rerolls still not retriggering").
+// ⚠ The tracker's "Reset Initiative" is ONE Combat update (Combat#resetAll), not a combatant
+// update: no updateCombatant fires, so the re-arm reads the combat's update too.
 Hooks.on("updateCombat", (combat, changes) => {
   if ( !("combatants" in (changes ?? {})) || !isActiveGM() ) return;
   rearm(combat);
@@ -103,11 +89,7 @@ async function askFor(combat) {
         .map(o => ({ combatantId: o.id, name: o.name, initiative: o.initiative, uuid: o.actor.uuid, tokenId: o.tokenId ?? null }))
         .sort((a, b) => b.initiative - a.initiative);
       if ( !allies.length ) continue;
-      // THE LINEUP (user, 2026-09-25: the owner "greyed out saying (you) so they can easily see where
-      // the init order swaps will play out"; "it should also include enemies, but greyed out"; then
-      // "enemy is red, ally is green, yellow is neutral ... friendly for an initiative list"): every
-      // combatant the tracker shows, in Initiative order, its side read off the token's disposition
-      // against the owner's; only the allies above are pickable.
+      // The lineup: every combatant the tracker shows, in Initiative order, with its side; only allies are pickable.
       const pickable = new Set(allies.map(a => a.combatantId));
       const NEUTRAL = CONST.TOKEN_DISPOSITIONS?.NEUTRAL ?? 0;
       const lineup = combatants
@@ -226,22 +208,14 @@ async function showSwapPopup(message) {
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
   const row = INITIATIVE_SWAPS[flag.row] ?? null;
-  // THE LINEUP, the whole tracker in Initiative order (the card's `lineup`, built at the ask): the
-  // allies are the radios; the owner "(you)", the enemies and an Incapacitated ally stay, greyed.
-  // THE TARGET LIST'S SHAPE (user, 2026-09-25: "hard to read when entire row is colored. like in
-  // the select windows /target list we have the icon and its highlighted portrait ... you have the
-  // precedent" — polish.js's Targeted block, shared.js `dispositionStyle`): a plain row, the token's
-  // art framed in its canvas disposition colour, the word beside it in that colour; the rank and
-  // the number; the owner bold "(you)"; an Incapacitated ally dimmed. A pick previews the two new
-  // numbers on the owner's row and the ally's ("→ 17").
+  // The lineup, in the target list's shape (shared.js `dispositionStyle`): allies are the radios,
+  // the rest shown for context; a pick previews the two traded numbers.
   const lineup = flag.lineup ?? (flag.allies ?? []).map(a => ({ ...a, role: "ally" }));
   const rows = lineup.map((a, i) => {
     const pick = a.role === "ally";
     const cue = dispositionStyle(a.tokenId ? canvas?.tokens?.get(a.tokenId) : null);
     const word = (a.role === "self") ? "(you)" : (a.role === "incapacitated") ? "Incapacitated" : cue.label;
-    // ONE GRID for every row (user, 2026-09-25: "needs alignment on the icon"): the rank, the radio's
-    // slot (empty on a row that cannot be picked, the same width), the portrait, the name, the word,
-    // the number right-aligned, the preview — so the portraits and the numbers line up down the list.
+    // One grid for every row (an empty radio slot where none), so portraits and numbers line up.
     const style = "display:grid;grid-template-columns:1.2rem 1.4rem 32px minmax(0,1fr) auto 2rem 2.8rem;gap:0.5rem;align-items:center;"
       + "margin:2px 0;padding:0.2rem 0.4rem;border-radius:4px;"
       + (pick ? "cursor:pointer;background:rgba(0,0,0,0.06);" : "") + ((a.role === "incapacitated") ? "opacity:0.55;" : "");
@@ -285,7 +259,6 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
   if ( tok ) { try { canvas.ping(tok.center); } catch { /* no canvas to ping */ } }
-  // The preview: the owner's row and the picked ally's show the numbers they would trade to.
   const list = input.closest("[data-bf-initiative-swap]");
   const self = list?.querySelector('[data-bf-initiative-row="self"]');
   const picked = input.closest("[data-bf-initiative-row]");
@@ -344,13 +317,7 @@ Hooks.on("updateChatMessage", message => {
   floatSwap(message, flag);
 });
 
-/**
- * THE FLOATING TEXT (user, 2026-09-25: "alert should have a floating white text about the swap so
- * everyone can see it. same as like when something is decremented"): once the swap lands, every
- * client floats the new number over each of the two tokens — "Initiative 11 → 17" — the canvas's
- * own scrolling text, white, as the system floats a hit-point change. Live updates only: a reload
- * replays nothing (the set remembers what this client floated).
- */
+/** Once the swap lands, every client floats "Initiative 11 → 17" over both tokens. Live updates only. */
 const floated = new Set();
 function floatSwap(message, flag) {
   if ( (flag.answer !== "swap") || !flag.applied || !Number.isFinite(flag.from) || !Number.isFinite(flag.to) ) return;

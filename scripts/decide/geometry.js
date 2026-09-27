@@ -1,26 +1,17 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): area and token geometry that needs
- * no Foundry at all.
- *
- * Moved verbatim out of saves.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"), then recut for
- * dnd5e 6.0 (the 6.0 pass, phase 3): an activity's area is a REGION now, and the region's own
- * shapes are the truth — the v14 MeasuredTemplate shim, whose corrupted `distance` this file
- * once worked around with the dnd5e `dimensions` flag (`honestDims`), is no longer on the
- * path. What is left reads fields off document-SHAPED objects and returns plain values — no
- * `game`, no `canvas`, no `CONFIG`, no `PIXI`, no hooks, no flags, no writes — so it is
- * unit-testable in milliseconds. Its callers do need Foundry, and live one layer up in
- * [geometry.js](../geometry.js), which is EDGE for exactly that reason (§2 rule 1).
+ * no Foundry at all. An activity's area is a REGION, and its shapes are the truth. Reads fields
+ * off document-SHAPED objects and returns plain values; the Foundry-facing callers live in
+ * [geometry.js](../geometry.js), the EDGE.
  *
  * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
  */
 
 /**
- * The Region shape type a dnd5e template type is placed as — the system's `areaTargetTypes`
- * table names the OLD MeasuredTemplate type (`rect`, `ray`, …) and `TemplatePlacement`
- * (dnd5e 6.0.1, `#createShapeData`) maps it onto Foundry 14's shape data: a 5e cube is a
- * `rectangle`, a line a `line`, an emanation an `emanation`; circle, cone and ring keep their
- * names. Null when the type is not one the placement knows — no claim is ever made on it.
+ * The Region shape type a dnd5e template type is placed as (`TemplatePlacement#createShapeData`):
+ * `rect` → `rectangle`, `ray` → `line`, `radius` → `emanation`; the others keep their names.
+ * Null for a type the placement does not know.
  * @param {string|null|undefined} templateType   The `template` of an areaTargetTypes row.
  * @returns {"circle"|"cone"|"rectangle"|"line"|"emanation"|"ring"|null}
  */
@@ -40,12 +31,9 @@ export function regionShapeTypeFor(templateType) {
 }
 
 /**
- * The shape data of an emanation around a token, exactly as dnd5e 6.0.1's `TemplatePlacement`
- * writes it (`#createShapeData` "emanation" + `fromActivity`'s token assignment): a `token`
- * base carrying the token's own position, size and shape, and the radius in PIXELS measured
- * from the base's edge — the 2024 rule, and Foundry 14's `EmanationShapeData`. Built here so
- * the module's own placements (a feature's aura, a listed spell's ring) are byte-for-byte the
- * platform's, and unit-tested against that shape.
+ * The shape data of an emanation around a token, exactly as dnd5e's `TemplatePlacement` writes it:
+ * a `token` base (position, size, shape) and the radius in PIXELS from the base's edge. The
+ * module's own placements must match the platform's byte for byte.
  * @param {{x:number, y:number, width:number, height:number, shape?:number|null}} tok   The token document's fields.
  * @param {number} radiusPx   The emanation's radius in pixels.
  * @param {{ shape?: number }} [defaults]   The base shape to use when the token names none (Foundry's RECTANGLE_1 is 0).
@@ -64,13 +52,10 @@ export function emanationShapeData(tok, radiusPx, { shape = 0 } = {}) {
 }
 
 /**
- * The system's length-unit KEY for a scene's grid units, or null when the string is not one
- * this module can read (blank included — a blank is a scene nobody labelled, not feet).
- * Foundry's `scene.grid.units` is a free string dnd5e never maps (its ruler only prints it), so
- * the spellings a table might type are folded here before any conversion; the conversion
- * itself is the system's own table (`dnd5e.utils.convertLength`, CONFIG.DND5E.movementUnits),
- * and belongs to the EDGE. Review finding 5 (2026-09-01): the gate compared a scene-unit
- * distance against a 5-foot literal, so a metric grid's 3 m read as "within 5 feet".
+ * The system's length-unit KEY for a scene's grid units, or null (blank included: unlabelled is
+ * not feet). `scene.grid.units` is a free string dnd5e never maps, so typed spellings are folded
+ * here; the conversion (`dnd5e.utils.convertLength`) belongs to the EDGE.
+ * ⚠ Never compare a scene-unit distance with a feet literal: a metric 3 m is not "within 5 feet".
  * @param {string|null|undefined} units
  * @returns {"ft"|"m"|"mi"|"km"|null}
  */
@@ -91,10 +76,8 @@ export function tokenCenter(tok) {
   return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
 }
 
-/** Every occupied grid square's center for a token — the 5e "does the area touch you on
- * the grid" question, one sample per square (midi-qol's long-standing model). A large
- * token counts when ANY of its squares stands in the area — center-only testing missed a
- * 2×2 body half inside. Sub-square tokens keep the single center sample. */
+/** Every occupied grid square's center for a token, one sample per square: a large token counts
+ * when ANY square is in the area. Sub-square tokens keep the single center sample. */
 export function tokenSamplePoints(tok) {
   const grid = tok.parent?.grid?.size;
   if ( !grid ) return [];

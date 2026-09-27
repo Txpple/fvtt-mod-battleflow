@@ -1,25 +1,18 @@
 /**
- * Battle Flow — the reaction hold, part 3: THE ATTACK TRIGGER. The reaction-spent chip on ANY
- * reaction use, and the stamp auto-damage.js asks for at the moment of the hit —
- * `stampHoldIfInterrupted`, the machine's one outside export (re-exported by index.js) — with
- * the futile-hold gate behind it. Phase 1.5 (a pause, NOT a system): Shield-class reactions
- * trigger on "you are hit", BEFORE damage, so the chain pauses here and a human answers; the
- * module never plays the reaction (DESIGN.md §4).
+ * Battle Flow — the reaction hold, part 3: THE ATTACK TRIGGER. The reaction-spent chip on any
+ * reaction use, and `stampHoldIfInterrupted` (re-exported by index.js) with the futile-hold gate.
+ * Shield-class reactions trigger on "you are hit", BEFORE damage, so the chain pauses and a human
+ * answers; the module never plays the reaction (DESIGN.md §4).
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
 
-// Reaction-spent bookkeeping — the core click-volume guard (ARCHITECTURE.md §6) — is a CHIP on
-// the combat clock since 2026-09-02 (shared.js `reactionSpent` / `spendReaction`): any reaction
-// an actor takes writes it, clocked to their own next turn, and the platform brings it back —
-// the two clear hooks that used to live here counted turns by hand. Out of combat nothing is
-// written (the old stranding guard, now the clock's own shape); a deleted combat sweeps the chip
-// with every other window it clocked (mastery.js's tidy).
+// Any reaction use writes the reaction-spent chip (shared.js `spendReaction`, ARCHITECTURE.md §6),
+// clocked to the actor's next turn; out of combat nothing is written.
 Hooks.on("dnd5e.postUseActivity", activity => {
-  // ⚠ The reactor's OWN client may write this when no GM is on (v1.27.2): the chip lives on the
-  // reacting actor, and a reaction is nearly always a PC's.
+  // The reactor's own client writes it when no GM is on: a reaction is nearly always a PC's.
   if ( !setting(S.reactionHold) ) return;
   if ( !drivesMomentFor(activity?.actor?.uuid ?? null) ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
@@ -27,9 +20,8 @@ Hooks.on("dnd5e.postUseActivity", activity => {
 });
 
 /**
- * If any hit target holds a usable interrupt, stamp the hold and return true (the caller
- * must not roll damage). The stamping client records itself as the one that will continue —
- * it is the attacker's client, the only one that can roll this activity's damage.
+ * If any hit target holds a usable interrupt, stamp the hold and return true (the damage's
+ * application waits for it). The stamping client, the attacker's, records itself as the continuer.
  */
 export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   if ( !setting(S.reactionHold) ) return false;
@@ -42,25 +34,18 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     let found = await findInterrupt(actor, { isCritical: roll.isCritical });
     let futile = false;
     if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) {
-      // The stat only this line witnesses (data-plane second pass, 2026-08-27): a hopeless
-      // hold skipped in silence left NO record anywhere, so "how often did Shield actually
-      // matter" was unanswerable. Recorded, never presented — the skip stays invisible at
-      // the table, exactly as before.
+      // A hopeless hold is skipped silently at the table but recorded for the stats (`holdSkipped`).
       skipped.push({ uuid: target.uuid, name: target.name, reaction: found.entry.name });
       futile = true;
       found = null;
     }
-    // THE `roll` ROWS (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): every Disadvantage
-    // the defender holds rides beside the reaction found above, in one popup ("Rescue the hit").
-    // A live one holds even where the reaction would not — a hopeless Shield leaves the popup, a
-    // crit's Shield stays greyed ("a crit ignores AC"), and Disadvantage can always matter.
+    // The `roll` rows: every Disadvantage the defender holds rides beside the reaction in one popup
+    // (RULINGS *Rescuing the hit*), and holds even where the reaction would not.
     const rescue = await rescueStateOf(actor, roll, { found, hidePrimary: futile });
-    // THE GUARDS (the fighting styles, 2026-09-26): Protection's Disadvantage from a creature beside
-    // this one — each guard is asked in a popup of its own (P1), the first to answer bends the roll.
+    // The guards: Protection from a creature beside this one, each asked in its own popup.
     const guards = protectionGuardsOf(actor, attackMessage.getAssociatedActor?.() ?? null);
     const guardFields = guards.length ? { guards } : {};
-    // Nothing live — no reaction, every rescue row spent or none at all, and nobody on guard: no
-    // popup, the way a spent Reaction has always skipped Shield ("all-spent → skip the popup").
+    // Nothing live: no popup.
     if ( !found && !rescue?.live && !guards.length ) continue;
     const rescueFields = rescue ? { rows: rescue.rows, rescues: rescue.records } : {};
     if ( !found && !rescue?.live ) {
@@ -71,8 +56,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
       continue;
     }
     if ( !found ) {
-      // The first live `roll` row is the hold's own, so every reader of `reaction` / `kind` /
-      // `itemId` (the card row, the moment record) names a real ability on the sheet.
+      // The first live `roll` row stands as the hold's own, so `reaction` / `itemId` name a real ability.
       const first = rescue.records.find(r => !rescue.rows.find(x => x.key === r.name)?.off);
       held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
         reaction: first.name, kind: "roll", itemId: first.itemId, activityId: first.activityId,
@@ -85,16 +69,11 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
       reaction: found.entry.name, kind: found.entry.kind,
       // A reduction reaction (Parry): the formula the answer rolls, off the pack (N1).
       ...(found.reduce ? { reduce: found.reduce } : {}),
-      // The exact activity that answers this hold. A statblock casts Shield from a feature's
-      // cast activity, not from the spell item, so a name lookup at Cast time finds the wrong
-      // document (or an unusable one) — record the ids instead of rediscovering them.
+      // ⚠ The ids, not a name: a statblock casts Shield from a feature's cast activity, so a name
+      // lookup at Cast time finds the wrong document.
       itemId: found.item.id, activityId: found.activity?.id ?? null,
-      // Was the reaction's effect ALREADY on them when we stamped? If so the snapshot AC
-      // already contains its bonus, and "did the AC move by the bonus" is unanswerable — see
-      // reactionACArrived, which needs to know it cannot measure a delta.
-      // ⚠ The ENTRY's name, not the found item's. On the statblock path the found item is the
-      // "Spellcasting" feature, so asking about its effects answers a different question and
-      // always says no.
+      // Already on them at the stamp? Then the snapshot AC holds the bonus and reactionACArrived
+      // cannot measure a delta. ⚠ The ENTRY's name: on a statblock the found item is "Spellcasting".
       hadEffect: hasReactionEffect(actor, found.entry.name,
         { itemId: found.item.id, activityId: found.activity?.id }),
       answer: null, verdict: null
@@ -109,21 +88,15 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
 
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
 
-  // ⚠ Answers and verdicts live ON each target entry, never in a map keyed by uuid. Foundry
-  // EXPANDS dotted keys when it persists an update, and every uuid contains dots — so
-  // `{ "Actor.abc": "cast" }` comes back as `{ Actor: { abc: "cast" } }` and every lookup
-  // silently misses forever (bit live 2026-08-15; Phase 1's receipts dodged it by accident
-  // for the same reason — they are an array too).
+  // ⚠ Answers live ON each target entry, never in a uuid-keyed map: Foundry expands dotted keys on
+  // write, so `{ "Actor.abc": … }` comes back as `{ Actor: { abc: … } }`.
   await attackMessage.setFlag(MODULE_ID, "hold", {
     status: "pending",
-    ...statContext(statSourceOf(attackMessage)), // the data-plane stamp — the attacker's swing
+    ...statContext(statSourceOf(attackMessage)),
     continuedBy: game.user.id,
-    // The deadline is absolute and lives on the flag, so the bar is a pure function of state:
-    // every client and every re-render derives the same remaining time without its own clock.
+    // An absolute deadline on the flag: every client derives the same bar with no clock of its own.
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
-    // A CRIT A LIVE DISADVANTAGE CAN UNDO (Slice A, 2026-09-24): the dice are NOT rolled at the
-    // hit this once (auto-damage.js reads this) — doubled dice rolled before the answer are wrong
-    // the moment the second d20 comes up lower. The continuation rolls them, crit or not.
+    // A crit a live Disadvantage can undo: the dice wait for the answer (auto-damage.js).
     ...((roll.isCritical && held.some(t => t.rows?.some(r => (r.kind === "roll") && !r.off) || t.guards?.length)) ? { critAtStake: true } : {}),
     targets: held
   });
@@ -132,21 +105,14 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
 }
 
 /**
- * Would this reaction actually change anything? A hold that cannot possibly help is a pure
- * false stop — it spends the table's attention and the player's nerve to ask a question with
- * one answer.
- *
- * ⚠ Gated on full disclosure, and that gate is not politeness. With the math hidden the player
- * is meant to decide on faith, and silently skipping the hopeless prompts would leak exactly
- * what the RAW setting withholds: a hold that never appears would tell them the attack beat
- * their AC by more than the reaction could add. Skip only when they could have worked it out
- * anyway.
+ * Would this reaction change anything? A hopeless hold is a false stop.
+ * ⚠ Only with the math revealed: with it hidden, a skipped prompt would leak that the attack beat
+ * the AC by more than the reaction could add.
  */
 function holdWouldMatter(actor, found, roll, snapshotAC) {
   if ( !setting(S.holdSkipFutile) || !setting(S.holdReveal) ) return true;
   if ( found.entry.kind !== "ac" ) return true;   // damage reactions always reduce something
-  // ⚠ The entry's name plus the found ids — `found.item` is the "Spellcasting" feature on a
-  // statblock caster, whose effects say nothing about Shield's +5.
+  // ⚠ The entry's name plus the found ids: `found.item` may be a statblock's "Spellcasting".
   const bonus = reactionACBonus(found.entry.name, actor,
     { itemId: found.item.id, activityId: found.activity?.id });
   if ( bonus == null ) return true;               // unmeasurable bonus — ask the human

@@ -4,28 +4,17 @@
  *
  * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
  *
- * THE PLATFORM KEEPS THE CLOCK; THE MODULE KEEPS THE RULES (HANDOFF R-C, 2026-09-01). Foundry
- * v14 judges an ActiveEffect's `duration.expiry` event against the combatant recorded in its
- * `start`, on every turn and round boundary, on the GM client — so a chip's window is written
- * ONCE, here, as the rules text reads, and nothing in this module ever counts turns. What the
- * module still owns is EVENTS: which attack roll SPENDS a chip (the rules spend Vex and Sap
- * whether or not the player claimed them), and when a chip the platform has marked expired
- * may be tidied away.
- *
- * ⚠ The values below are MEASURED, not read (tools/probe-expiry.mjs, Foundry 14.365). Two of
- * the platform's habits decide them: the `turnEnd` refresh does not recompute remaining time,
- * so a window meant to close at the end of the attacker's OWN turn must already read zero when
- * that turn ends (`value: 0`); and a `rounds` window is measured from `start.round`, so "your
- * next turn" is one round with the attacker's own combatant in `start`.
+ * The platform keeps the clock (it judges `duration.expiry` against the combatant in `start`), so a
+ * chip's window is written once, here; the module owns only which roll SPENDS a chip.
+ * ⚠ The window values are measured, not read (NOTES *v14 owns effect expiry*): a window closing at
+ * the end of the attacker's own turn is `value: 0`, and a `rounds` window counts from `start.round`.
  */
 
-/** The flag key every Battle Flow chip carries (`flags.<module>.mastery = <key>`) — the fingerprint
- * the applier, the spend, the tidy and the reminder gate all read. One name, here. */
+/** The flag key every Battle Flow chip carries (`flags.<module>.mastery = <key>`). */
 export const CHIP_FLAG = "mastery";
 
 /**
- * Does a chip belong to this attacker? A chip's `origin` is the WEAPON that applied it, so the
- * attacker owns it when that weapon is theirs — the origin uuid starts with the attacker's.
+ * Does a chip belong to this attacker? Its `origin` is the weapon that applied it.
  * @param {string|null|undefined} origin
  * @param {string} attackerUuid
  */
@@ -39,59 +28,37 @@ export function chipOwnedBy(origin, attackerUuid) {
  *   vex     "before the end of your next turn"        → 1 round, judged at the attacker's turnEnd
  *   sap     "before the start of your next turn"      → 1 round, judged at the attacker's turnStart
  *   slow    "until the start of your next turn"       → the same window as sap
- *   cleave  "only once per turn" — the once-per-turn chit on the ATTACKER (user, 2026-09-01):
- *           the popup is offered when no chit stands, the chit is written, and it dies with the
- *           turn it was written in — the turn IN PROGRESS, whoever's it is (an opportunity
- *           attack's chit dies with the victim's turn, not the attacker's next), so its `start`
- *           is the CURRENT turn's place, and its life is `chitStamp` against `combatStamp`.
- *           Out of combat there is no turn to be once-per, so no chit is written and every hit
- *           reminds — `chipClock` returns null for it there.
+ *   cleave, sneak, rider  "once per turn" chits on the attacker: dead with the turn IN PROGRESS
+ *           (an opportunity attack's dies with the victim's turn), so `start` is the current
+ *           turn's place; out of combat no chit is written (`chipClock` → null)
  */
 export const CHIP_WINDOWS = Object.freeze({
   vex: Object.freeze({ value: 1, units: "rounds", expiry: "turnEnd" }),
   sap: Object.freeze({ value: 1, units: "rounds", expiry: "turnStart" }),
   slow: Object.freeze({ value: 1, units: "rounds", expiry: "turnStart" }),
   cleave: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  // Sneak Attack's "once per turn" (user, 2026-09-02) and a clock rider's (Dreadful Strike, Divine
-  // Strike…): the Cleave chit's shape exactly — written when the damage is dealt, dead with the
-  // turn it was written in.
   sneak: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
   rider: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  // Steady Aim's "on the current turn" (a use chip, 2026-09-02): the attacker's own turn ends
-  // it; the next attack roll spends it first. Out of combat there is no turn — it stands until
-  // spent (a clockless chip is alive, decide/chips.js chipIsDead).
+  // Steady Aim: ends with the attacker's turn or its next attack roll; out of combat, until spent.
   steadyAim: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  // THE REACTION (user, 2026-09-02: "shield should probably be refactored similarly (reaction,
-  // one per turn)"): a Reaction comes back at the start of the creature's own turn — Sap's
-  // window exactly. One chip on the reactor, written by whichever interrupt spent it (Shield,
-  // Uncanny Dodge, a riposte, Interpose), read by every hold's offer gate. It replaces the
-  // `reactionSpent` flag and its two clear hooks: the platform keeps this clock too.
-  // ⚠ ZERO TURNS, judged at the reactor's turnStart — NOT a one-round window: a Reaction spent
-  // on somebody else's turn comes back at the reactor's NEXT turn, which can be less than a
-  // round away (smoke-hold §7 measured the rounds shape returning it a round late).
+  // A spent Reaction, back at the reactor's turn start; read by every hold's offer gate.
+  // ⚠ ZERO TURNS, not one round: a Reaction spent on another's turn returns at the reactor's NEXT
+  // turn, which can be less than a round away.
   reaction: Object.freeze({ value: 0, units: "turns", expiry: "turnStart" }),
-  // Sentinel's Halt (the PHB feats, group 6, 2026-09-27): "for the rest of the current turn" — the
-  // turn the Opportunity Attack lands in, which is the MOVER's, not the attacker's (TURN_PINNED).
+  // Sentinel's Halt: "the rest of the current turn", the MOVER's, not the attacker's (TURN_PINNED).
   halt: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
 });
 
 /** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
 export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim", "reaction", "halt"]);
 
-/**
- * The windows pinned to the CURRENT turn's place (the Cleave chit's `turnPlace`), not the
- * attacker's: an effect a rider lands "for the rest of the current turn" on someone whose turn it
- * is — Halt, made on the mover's turn by somebody else's reaction.
- */
+/** The windows pinned to the CURRENT turn's place (`turnPlace`), not the attacker's. */
 export const TURN_PINNED = Object.freeze(["halt"]);
 
 /**
- * Does a Reaction chip still STAND — the reactor has not yet begun a turn since it was written?
- * Stamp arithmetic, never the platform's mark alone (the mark is GM-written; a no-GM table
- * would sit with its Reaction spent forever): the chip's start is where the order stood when the
- * Reaction was taken; the reactor's next turn after that is the first (round, turn) at or past
- * which the Reaction is back. A chip with no clock is a deliberate mark and stands; a chip whose
- * combat is gone (now null) is dead.
+ * Does a Reaction chip still STAND (the reactor has not begun a turn since)? Stamp arithmetic,
+ * not the platform's GM-written mark, so a no-GM table gets its Reaction back. No clock: stands;
+ * no combat: dead.
  * @param {{start?: {round?: number|null, turn?: number|null}|null, now: {round: number, turn: number}|null,
  *          actorTurn: number|null}} facts   `actorTurn` = the reactor's index in the turn order (null: not in it)
  */
@@ -109,10 +76,8 @@ export function reactionStands({ start = null, now, actorTurn }) {
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
 
 /**
- * The clock for one chip: the duration the rules give it, and — in a running combat — the
- * `start` that pins the window to the ATTACKER's place in the order rather than to whoever's
- * turn the platform happens to see (an opportunity attack is made on somebody else's turn).
- *
+ * The clock for one chip: its duration and, in a running combat, the `start` that pins it to the
+ * given place (an opportunity attack is made on somebody else's turn).
  * @param {string} key                      a CHIP_WINDOWS key
  * @param {{combat: string, combatant: string|null, initiative: number|null,
  *          round: number, turn: number, time: number}|null} place
@@ -136,19 +101,10 @@ export function chipClock(key, place) {
 
 
 /**
- * Is a chip dead by the platform's own reading? Expired is dead. A clock that never resolved
- * (`remaining` null or NaN) is dead too. A chip with NO clock is left alone — a durationless
- * effect is somebody else's contract.
- *
- * ⚠ ZERO ON THE CLOCK IS ALIVE (review finding, 2026-09-01 — the chip died a turn early). Foundry
- * measures a `rounds` window from `start.round`, so a one-round chip reads `remaining: 0` from
- * the START of the round its boundary falls in — the whole round in which Vex's turnEnd and
- * Sap's turnStart both sit — and writes `expired` only at the event. Reading zero as dead
- * dropped Vex from the gate on the one turn it exists for. The platform's mark is the truth
- * (NOTES §1: "suppression keys off the flag, not the arithmetic"); a NEGATIVE clock is the one
- * arithmetic fallback kept, for a table with no GM connected where the mark is never written —
- * it goes negative only in the round AFTER the boundary, so it can never kill early.
- *
+ * Is a chip dead by the platform's reading? Expired, or a clock that never resolved. A chip with
+ * no clock is left alone.
+ * ⚠ ZERO REMAINING IS ALIVE: a one-round chip reads 0 for the whole round its boundary falls in.
+ * Negative is the no-GM fallback (the mark is GM-written); it never kills early.
  * @param {{expired?: boolean, remaining?: number|null, value?: number|null}} duration
  */
 export function chipIsDead({ expired = false, remaining = null, value = null } = {}) {
@@ -161,17 +117,11 @@ export function chipIsDead({ expired = false, remaining = null, value = null } =
 }
 
 /**
- * The once-per-turn chit's identity: WHICH turn it was written in, as the house stamp
- * (`combat:round:turn` — core.js `combatStamp`), or null for a chit with no turn behind it.
- * A chit LIVES while its stamp equals the running combat's, and any mismatch IS expiry — the
- * `cleaveArm` idiom, and the reason the chit needs no GM: the platform's `expired` mark is
- * GM-written and both tidies are GM-gated, so on a no-GM table a mark-based chit stood forever
- * and Cleave never reminded again (review finding 17, 2026-09-01). The platform's expiry is
- * kept as the tidy that removes the document; this is what decides.
- *
+ * The once-per-turn chit's identity: the turn it was written in (`combat:round:turn`, core.js
+ * `combatStamp`), or null. A chit lives while its stamp equals the running combat's, so it needs
+ * no GM (the platform's expiry mark is GM-written; it only tidies the document).
  * @param {{combat?: string|null, round?: number|null, turn?: number|null}|null|undefined} start
- *        the effect's `start`, with `combat` already reduced to an id (a ForeignDocumentField
- *        on the document — the EDGE reads `.id`)
+ *        the effect's `start`, `combat` already reduced to an id
  */
 export function chitStamp(start) {
   if ( !start?.combat || (start.round === null) || (start.round === undefined)
@@ -180,19 +130,12 @@ export function chitStamp(start) {
 }
 
 /**
- * Does this attack roll SPEND this chip? The rules spend it whether or not the roll honoured
- * it — "your next attack roll" is the next one made, claimed or not.
- *
- *   vex  the chip sits on the TARGET and belongs to the attacker who applied it: spent by that
- *        attacker's next attack roll against the bearer, with any weapon.
- *   sap  the chip sits on the SAPPED creature: spent by the bearer's next attack roll, at anyone.
- *   Everything else this module clocks (slow, the cleave chit) is spent by nothing — its window
- *   closes it.
- *
+ * Does this attack roll SPEND this chip? The rules spend it whether or not the roll honoured it.
+ *   vex  on the TARGET: spent by the applying attacker's next attack roll against it
+ *   sap  on the sapped creature: spent by its own next attack roll, at anyone
+ * Everything else is closed by its window alone.
  * @param {string} key
  * @param {{bearer: "attacker"|"target", attackerOwnsChip?: boolean}} roll
- *        who is wearing the chip on this roll — the attacker (its own Sap) or a target (the
- *        attacker's Vex on it) — and whether the attacker's weapon applied it
  */
 export function chipSpentBy(key, { bearer, attackerOwnsChip = false }) {
   switch ( key ) {
@@ -203,8 +146,7 @@ export function chipSpentBy(key, { bearer, attackerOwnsChip = false }) {
 }
 
 /**
- * The roll mode a d20 went out with, from the system's signed advantage mode (advantage > 0,
- * disadvantage < 0, else normal). The DECISION layer cannot read CONFIG, so it reads the sign.
+ * The roll mode from the system's signed advantage mode (the decision layer cannot read CONFIG).
  * @param {number|null|undefined} advantageMode
  * @returns {"advantage"|"disadvantage"|"normal"}
  */
@@ -216,20 +158,15 @@ export function rollModeOf(advantageMode) {
 }
 
 /**
- * Was the chip's rule HONOURED by the roll that spent it? On its own, Vex wants advantage and
- * Sap wants disadvantage. ⚠ When the gate showed the roller the NET of every source (a sapped
- * attacker swinging at a target they Vexed nets to a normal roll — the user's ruling), honour
- * is the press matching the NET, not the chip's own bend: pressing Normal there honoured both.
- * A chip nothing spends has nothing to honour.
+ * Was the chip's rule HONOURED by the roll that spent it? Vex wants advantage, Sap disadvantage.
+ * ⚠ When the gate showed the NET of every source, honour is the press matching the net (Vex and
+ * Sap together net to normal).
  * @param {string} key
  * @param {"advantage"|"disadvantage"|"normal"} mode
- * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, when the gate SHOWED
- *        this chip's kind — `netShownFor` decides that; a bare net for a kind the gate never
- *        listed is the review finding 1 shape (an unlisted Vex stamped honoured by a Sap-only gate)
+ * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, only when it showed this kind (`netShownFor`)
  */
 export function chipHonoured(key, mode, net = null) {
-  // An effect the rules spend on the roll (EFFECT_BENDS `spend: "attack"`) is honoured exactly
-  // as a chip is: against the net the gate showed; with no net shown, nothing to honour.
+  // A spent effect (EFFECT_BENDS `spend: "attack"`) is judged against the net shown, if any.
   if ( key === "effect" ) return net ? (mode === net) : null;
   if ( !["vex", "sap"].includes(key) ) return null;
   if ( net ) return mode === net;
@@ -238,11 +175,8 @@ export function chipHonoured(key, mode, net = null) {
 }
 
 /**
- * The net a spent chip is judged against: the gate's net when the gate READ this chip's kind
- * (its record lists a source of that kind), else null — the chip's own bend. A chip whose kind
- * is off the Reminder Sources list was never part of the resolution the roller saw, and honour
- * against a net it did not contribute to is a false receipt (review finding 1, 2026-09-01).
- *
+ * The net a spent chip is judged against: the gate's net when the gate listed a source of this
+ * kind, else null. A net the chip did not contribute to would make a false receipt.
  * @param {{sources?: {kind?: string}[], net?: string|null}|null|undefined} reminder
  *        the `reminder` flag on the attack message, when the gate re-issued it
  * @param {string} key   the spent chip's kind
@@ -255,11 +189,8 @@ export function netShownFor(reminder, key) {
 }
 
 /**
- * One spent-chip record, THE constructor for every `chipSpend` entry on an attack message —
- * the receipt that says a chip vanished because the rules spent it (DESIGN R5: a vanishing
- * icon must never be a mystery). The data-plane context is stamped once, at the flag level,
- * by the EDGE that writes it.
- *
+ * THE constructor for a `chipSpend` entry: the receipt that a chip vanished because the rules
+ * spent it (DESIGN R5). The edge stamps the data-plane context at the flag level.
  * @param {{id: string, name: string, img?: string|null, key: string, bearerUuid: string,
  *          bearerName: string, mode: "advantage"|"disadvantage"|"normal",
  *          net?: "advantage"|"disadvantage"|"normal"|null}} spent
@@ -269,7 +200,7 @@ export function spendRecord({ id, name, img = null, key, bearerUuid, bearerName,
     honoured: chipHonoured(key, mode, net) };
 }
 
-/* --- card chips (the Gnome walk, 2026-09-25) ------------------------------------------------- */
+/* --- card chips ------------------------------------------------------------------------------ */
 
 /**
  * The card-chip row a cast offers, or null: the cast item's name is the row's `on`, the caster
@@ -292,8 +223,7 @@ export function cardChipRowKey(table, { itemName, featureNames }, listed) {
 }
 
 /**
- * How many more of a row's chips may be built: `max` less what stands, never below zero (user,
- * 2026-09-25: "if a person has 3 already, do a popup saying to remove a clockwork first").
+ * How many more of a row's chips may be built: `max` less what stands, never below zero.
  * @param {number} standing
  * @param {number} max
  * @returns {number}
@@ -303,11 +233,9 @@ export function chipsLeft(standing, max) {
 }
 
 /**
- * THE COATING'S SAVE (COATINGS, the Poisoner — the user, 2026-09-26): the pack ships one save
- * activity per ability the feat raises ("Poison Save (Dexterity)", "(Intelligence)"), the DC read
- * off that ability, and a note to delete the other. The sheet settles it where it can: the ability
- * the feat's own Ability Score Improvement assigned; a sheet with no record (a feat dropped on
- * without its advancement) takes the higher modifier of the offered, the first offered on a tie.
+ * The coating's save ability. The pack ships one save activity per ability the feat can raise:
+ * take the one the feat's own Ability Score Improvement assigned, else the higher modifier
+ * offered (the first on a tie).
  * @param {{offered?: string[], assigned?: string[]|null, mods?: Record<string, number>}} [facts]
  * @returns {string|null}  the ability key, or null when nothing is offered
  */
@@ -320,8 +248,7 @@ export function coatSaveAbility({ offered = [], assigned = null, mods = {} } = {
 }
 
 /**
- * A feature's doses left — its item uses (`max` less `spent`), never below zero. A max that is not
- * a number (a formula not yet prepared) reads as none.
+ * A feature's doses left (`max` less `spent`, floor 0); an unprepared formula max reads as none.
  * @param {{max?: number|string|null, spent?: number|null}} uses
  * @returns {number}
  */

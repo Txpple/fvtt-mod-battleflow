@@ -1,13 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7), a part of the reaction hold: its DICE (the user, 2026-09-26: "rebuild the shape, start with 1"):
- * when a `roll` answer bends an attack (Lucky, Warding Flare, Shadowy Dodge, a guard's Protection),
- * the d20s in play rise over the creature that was hit — the one that stands gold, the one that no
- * longer counts struck (red when a critical went with it). decide/rescue-hit.js `bentChips` says
- * which; dice-rise.js draws them.
- *
- * EVERY CLIENT, off the record landing: the answer writes `bent` onto the hold's target (directly,
- * or folded from a player's response by the continuing client), and each client sees that update
- * once. What was already bent when this client loaded is remembered, so a reload replays nothing.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7), a part of the reaction hold: its DICE. When a `roll`
+ * answer bends an attack, the d20s rise over the creature that was hit (decide/rescue-hit.js
+ * `bentChips` says which, dice-rise.js draws them); a cast AC reaction floats its bonus.
+ * Every client, once, off the `bent` record landing; a reload replays nothing.
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { bentChips } from "../decide/rescue-hit.js";
@@ -18,7 +13,6 @@ import { tokenForUuid } from "../geometry.js";
 
 const played = new Set();
 const keyOf = (message, target) => `${message.id}|${target.uuid}`;
-// a bent roll's dice, or an AC reaction cast (Shield — a reaction that modifies a roll: "+5 AC" over the creature it saved)
 const isShield = t => (t?.answer === "cast") && (t?.kind === "ac");
 const bentTargets = message => (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []).filter(t => t?.bent || isShield(t));
 

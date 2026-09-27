@@ -1,33 +1,14 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE CARD SEAM — what kind of card a message
- * is, whose it is, and from which card it came, read off the message's TYPED data.
+ * is, whose it is, and from which card it came, read off the message's TYPED data. The one seam
+ * over dnd5e's card data (NOTES §2 *the 6.0 pass*), so the next rename is one file.
  *
- * THE dnd5e 6.0 PASS, phase 1 (2026-09-15, NOTES §2 *the 6.0 pass* §2 B–F). At 5.3.3 a roll card was a plain
- * message carrying `flags.dnd5e.{messageType, roll.type, activity, item, targets,
- * originatingMessage}`, and this module read those flags in roughly ninety places across forty
- * files — each site its own copy of "is this a damage roll", "who was targeted", "which card did
- * it come from". At 6.0 the card IS the data: `message.type` says what it is and `message.system`
- * says the rest; nothing is written to `flags.dnd5e` any more and the world migration DELETES the
- * old keys. Every one of those ninety reads failed closed on the same day. One seam, so the next
- * rename is one file.
- *
- * ⚠ READS `type` AND `system.*` ONLY. The platform keeps `getFlag("dnd5e", …)` read fallbacks for
- * the old keys; they are courtesy, not contract (NOTES §2 *the 6.0 pass* §3b rule 4), and nothing here leans
- * on them. The one concession is a target row's `uuid` (the 5.x descriptor's key), accepted
- * beside 6.0's `actor` so a record written under either shape reads the same.
- *
- * ⚠ PURE. Takes a message-shaped object (`{type, system, _source}` — a document reads fine, so
- * does a plain snapshot) or a roll's pre-create DATA (`message.data` at the roll hooks, which
- * may be flattened — `"system.origin"` — or expanded). Never `game`, never `canvas`, never a
- * lookup: the EDGE resolves what these name.
- *
- * ⚠ THE TARGET KEY IS THE ACTOR. Every record this module keeps — the receipt, the hold, the
- * demand — keys a target by `uuid`, and that uuid has always been the target ACTOR's (an
- * unlinked token's synthetic actor included). 6.0's descriptor is token-precise and carries no
- * `uuid`: `{actor, token, ac, img, name}`, one row per TOKEN. `targetsOf` hands every reader the
- * house shape — `uuid` = the actor, the token kept beside it — and folds two tokens of one linked
- * actor to ONE row, because the module applies to actors and 5.3.3 never listed an actor twice.
+ * ⚠ Reads `type` and `system.*` only; the platform's `flags.dnd5e` fallbacks are courtesy, not
+ * contract. A target row's 5.x `uuid` is accepted beside `actor`.
+ * ⚠ PURE: takes a message-shaped object or a roll's pre-create DATA (flattened or expanded).
+ * ⚠ THE TARGET KEY IS THE ACTOR: the platform lists one row per TOKEN; `targetsOf` gives every
+ * reader `uuid` = the actor's, and folds two tokens of one linked actor to ONE row.
  */
 
 /** The kinds a card can be, by `type` (dnd5e 6.0 `data/chat-message/_module.mjs`). */
@@ -43,7 +24,7 @@ export const CARD = Object.freeze({
   base: "base"
 });
 
-/** The kinds that carry ROLLS — the cards the 5.x `roll.type` used to name. @type {Set<string>} */
+/** The kinds that carry ROLLS. @type {Set<string>} */
 const ROLL_KINDS = new Set([CARD.attack, CARD.damage, CARD.healing, CARD.save, CARD.check]);
 
 /** What kind of card this is — its `type`, `base` when it has none. */
@@ -69,9 +50,8 @@ export function rollKindInData(data) {
 }
 
 /**
- * A save's or a check's SUB-kind — what the 5.x `roll.type` used to spell out as its own word.
- * A save is `ability` | `concentration` | `death`; a check is `ability` | `initiative`; anything
- * else has none. (6.0 folds death and concentration saves under `type: "save"`, told apart here.)
+ * A save's or a check's SUB-kind: a save is `ability` | `concentration` | `death`; a check is
+ * `ability` | `initiative`; anything else has none.
  */
 export function subKindOf(msg) {
   const kind = cardKind(msg);
@@ -79,9 +59,7 @@ export function subKindOf(msg) {
   return msg?.system?.type || "ability";
 }
 
-/* ---------------------------------------------------------------------------------------------
- * WHOSE — the targets
- * ------------------------------------------------------------------------------------------- */
+/* --- WHOSE: the targets ------------------------------------------------------------------------ */
 
 /** The key a snapshot is written under in a roll's message data. */
 export const TARGETS_KEY = "system.targets";
@@ -124,10 +102,8 @@ export function targetsOf(msg) {
 }
 
 /**
- * The same off a usage's pre-create DATA (`messageConfig.data` at `dnd5e.preUseActivity`,
- * flattened or expanded) — or NULL when the data names no snapshot at all. The distinction is
- * the volley's and the damage cast's: "nobody was aimed at" (an empty list) is a claim to make,
- * "the platform has not written the snapshot yet" (null) means read the client's live targets.
+ * The same off a usage's pre-create DATA, or NULL when it names no snapshot yet (read the live
+ * targets then); an empty list means nobody was aimed at.
  * @returns {Target[]|null}
  */
 export function targetsInData(data) {
@@ -136,25 +112,20 @@ export function targetsInData(data) {
 }
 
 /**
- * The platform's own descriptor for one creature (`TargetsField.getDescriptors`, 6.0) — what the
- * module writes when IT names a target (the potion that aims at its drinker). The name is the
- * TOKEN's, the identity the actor's, the AC nulled under total cover exactly as the platform nulls it.
+ * The platform's descriptor for one creature (`TargetsField.getDescriptors`), for when the module
+ * names a target itself: the TOKEN's name, the actor's identity, AC nulled under total cover.
  * @param {{actorUuid: string, tokenUuid?: string|null, name: string, img?: string|null, ac?: number|null, totalCover?: boolean}} facts
  */
 export function describeTarget({ actorUuid, tokenUuid = null, name, img = null, ac = null, totalCover = false }) {
   return { actor: actorUuid, token: tokenUuid, name, img, ac: totalCover ? null : (ac ?? null) };
 }
 
-/* ---------------------------------------------------------------------------------------------
- * FROM WHICH — the origin chain
- * ------------------------------------------------------------------------------------------- */
+/* --- FROM WHICH: the origin chain -------------------------------------------------------------- */
 
 /**
- * The key a roll's origin is written under in its message data. ⚠ A roll this module DRIVES
- * (the auto damage, a save, a fold's reroll) has no DOM click for the platform to read the card
- * off, so the id must be written here explicitly — and it is this key, not the old flag, that
- * the platform's registry indexes (`getAssociatedRolls`, the usage card's outcomes and
- * summaries, the delete cascade). A roll stamped anywhere else is invisible to all of them.
+ * The key a roll's origin is written under. ⚠ A roll this module DRIVES has no click to read the
+ * card off, so it must be stamped here: the platform's registry (`getAssociatedRolls`, outcomes,
+ * the delete cascade) indexes only this key.
  */
 export const ORIGIN_KEY = "system.origin";
 
@@ -164,9 +135,8 @@ export function originData(id) {
 }
 
 /**
- * The id of the card this one descends from, or null. Read off the SOURCE: on a document
- * `system.origin` is a ForeignDocumentField that resolves to the message (and to null once that
- * message is deleted), while the raw source keeps the id either way.
+ * The id of the card this one descends from, or null. ⚠ Read off the SOURCE: the prepared field
+ * resolves to null once that message is deleted; the source keeps the id.
  */
 export function originIdOf(msg) {
   const raw = msg?._source?.system?.origin;
@@ -183,9 +153,7 @@ export function originIdInData(data) {
   return v?.id ?? null;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * WHAT — the activity and the item behind a card
- * ------------------------------------------------------------------------------------------- */
+/* --- WHAT: the activity and the item behind a card --------------------------------------------- */
 
 /** The activity a card names — `{id, type, uuid, name, img}` (a SourceReferenceField) — or null. */
 export function activityRefOf(msg) {
@@ -203,38 +171,21 @@ export function itemRefOf(msg) {
 export const itemUuidOf = msg => itemRefOf(msg)?.uuid ?? null;
 export const itemNameOf = msg => itemRefOf(msg)?.name ?? null;
 
-/* ---------------------------------------------------------------------------------------------
- * THE ROLL'S OWN FACTS — the 5.x `roll.*` sub-keys, at their 6.0 homes. ⚠ A reader joins this
- * section WITH its customer (the D8 lesson — a seam is built by the file that reads it): phase 2 of
- * the 6.0 pass adds the mastery, the attack mode, the damage-on-save and the resisted flag beside
- * mastery.js, the folds and the saves machine as each is swept through here.
- * ------------------------------------------------------------------------------------------- */
+/* --- THE ROLL'S OWN FACTS: add a reader here with the file that needs it ----------------------- */
 
 /** The ability a save or check was rolled with, or null. */
 export const abilityOf = msg => msg?.system?.ability ?? null;
 
-/**
- * The weapon mastery an attack was rolled with (5.x `roll.mastery`), or null. The platform
- * writes it only when the wielder genuinely has that mastery with that weapon — eligibility,
- * identity and the which-mastery choice are all pre-solved upstream (mastery.js's customer).
- */
+/** The weapon mastery an attack was rolled with, or null; the platform writes it only when the wielder has it. */
 export const masteryOf = msg => msg?.system?.mastery ?? null;
 
-/**
- * How a damage roll treats a target that SAVED (5.x `roll.damageOnSave`): `half` | `none` |
- * `full`, or null when the card carries none — the demand's own record then decides
- * (saves/consequences.js's customer).
- */
+/** How a damage roll treats a target that SAVED (`half` | `none` | `full`), or null: the demand decides. */
 export const onSaveOf = msg => msg?.system?.onSave ?? null;
 
-/**
- * Was this save turned into a success after the fact — legendary resistance (5.x
- * `roll.forceSuccess`, written as an UPDATE on the save message once its failure landed)?
- * The saves machine watches for the flip and overturns the verdict (saves/verdict.js).
- */
+/** Was this save turned into a success after the fact (legendary resistance, an UPDATE on the save message)? */
 export const resistedOf = msg => msg?.system?.resisted === true;
 
-/** The level a spell was cast at, off its usage card (5.x `spellLevel`), or null when it carries none. */
+/** The level a spell was cast at, off its usage card, or null. */
 export function castLevelOn(msg) {
   const level = msg?.system?.level;
   return Number.isFinite(Number(level)) && (level !== null) && (level !== undefined) ? Number(level) : null;
@@ -246,20 +197,14 @@ export const scalingOf = msg => Number(msg?.system?.scaling) || 0;
 /** The id of the concentration effect a usage card started, or null. */
 export const concentrationIdOf = msg => msg?.system?.concentration || null;
 
-/* ---------------------------------------------------------------------------------------------
- * THE PLATFORM'S PROMPTS — a `prompt` card is a whispered request with buttons as data
- * (`system.buttons[{type}]`), no content to match on. Read by TYPE.
- * ------------------------------------------------------------------------------------------- */
+/* --- THE PLATFORM'S PROMPTS: buttons as data (`system.buttons[{type}]`), read by TYPE ---------- */
 
 /** The button kinds the platform's concentration prompts carry: "roll it" on damage, "end it" when dead or incapacitated. */
 const CONCENTRATION_PROMPT_BUTTONS = new Set(["concentration", "endConcentration"]);
 
 /**
- * Is this the platform's own concentration prompt — `challengeConcentration`'s whispered
- * roll request, or `promptConcentrationEnd`'s at 0 HP / incapacitated? Both are
- * `type: "prompt"` with a button of that kind; concentration.js vetoes them while its machine
- * runs (NOTES §2 *the 6.0 pass* §5 ruling 2: the platform's prompt is a reminder, Battle Flow's machine is a
- * resolution).
+ * Is this the platform's own concentration prompt (`challengeConcentration` or
+ * `promptConcentrationEnd`)? concentration.js vetoes them while its machine runs.
  */
 export function isConcentrationPrompt(msg) {
   if ( !isCard(msg, CARD.prompt) ) return false;

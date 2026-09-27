@@ -1,10 +1,7 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER, the `bash` fold's trigger
- * (v1.19.x, walk finding (g)) — a listed carrier's melee hit offers Shield Master's bash; the
- * save and the Prone-or-push choice that follow are the saves machine's.
- * The machine-tier pass, Stage 4a (2026-09-05): split out of maneuvers.js by MOMENT — one
- * feature per file, the shared readers in lookup.js, the rules text in decide/registry.js. Every
- * body here is the one maneuvers.js carried; nothing was rewritten.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER, the `bash` fold's trigger — a listed
+ * carrier's melee hit offers Shield Master's bash (and a `shove` feat's push); the save and the
+ * Prone-or-push choice that follow are the saves machine's.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat,
@@ -22,37 +19,20 @@ import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoment
   armAskTimer, disarmAskTimer } from "./ui.js";
 
 /* =============================================================================================
- * THE BASH OFFER (v1.19.x, walk finding (g)) — the HIT is the trigger. The first walk's
- * item 8 drove Shield Bash from the sheet; the table hit with the sword and expected the
- * offer ("shield bash never triggered a popup attacking combat dummy"). RAW agrees: "if
- * you attack... and hit with a Melee weapon, you can immediately bash." A melee weapon hit
- * by a listed `bash` carrier stamps a Use/Pass offer on the attacker's OWN attack message
- * (their message, so the answer writes directly — the precision locality); accepting aims
- * at the struck target and drives the feat's save activity, and everything downstream (the
- * demand, the failure's Prone-or-push choice) is the machinery that already exists. Once
- * per turn in combat (the feat's own clause, the Cleave stamp discipline); out of combat
- * every hit offers — "we don't have timers and combat rounds yet".
- *
- * ⚠ THE SEQUENCE (user ruling 2026-09-13 — decide/sequence.js carries the rule): the hit still
- * STAMPS the offer (the record is right: RAW's trigger is the hit), but it stamps it QUEUED —
- * no clock, no popup, a quiet row — and the offer is PROMOTED to pending from the damage
- * chokepoint (auto-apply.js `resolveDamagePayouts`, after the mastery rider) once the damage has
- * landed and the mastery's decision, if it asked one, is answered. The clock starts at the
- * promotion, so the damage prompt and the mastery never eat the offer's window. A hit whose
- * damage left nobody standing resolves the offer MOOT with no popup (the dead gate, after the
- * damage). When no payout stage is on at all (resolver, riders and masteries all off) nothing
- * would ever promote it, so it opens at the hit as it always did.
+ * THE BASH OFFER — the HIT is the trigger: a Use/Pass offer stamped on the attacker's OWN attack
+ * message (so the answer writes directly); accepting aims at the struck target and drives the
+ * feat's save activity. Once per turn in combat; out of combat every hit offers.
+ * ⚠ THE SEQUENCE (decide/sequence.js): stamped QUEUED at the hit, promoted to pending (the clock
+ * starts) once the damage has landed and any mastery decision is answered; moot when nobody is
+ * left standing. With every payout stage off nothing would promote it, so it opens at the hit.
  * ========================================================================================== */
 
 const bashOfferTimers = new Map();
 const bashOfferInFlight = new Set();
 
 /**
- * THE SHOVE (Tavern Brawler, the origin feats, 2026-09-25 — user: "yes mimic the shiled master
- * push"): the `shove` kind on the same list and the same offer — an Unarmed Strike hit, queued
- * behind the damage, Use / Pass, once per turn — with no save behind it: "you can deal damage to the
- * target and also push it 5 feet away from you". Accepting announces the push (the Push mastery's
- * idiom — the token is moved by hand, never by the module) and spends the turn's use.
+ * The offer kinds. A `shove` has no save behind it: accepting announces the push (the token is
+ * moved by hand, never by the module) and spends the turn's use.
  */
 const OFFER_KINDS = Object.freeze({
   bash: { used: "bashUsed", eyebrow: "Maneuver", verb: "bash", use: "Use", icon: "fa-solid fa-shield-halved" },
@@ -65,11 +45,7 @@ const isUnarmed = subject => subject?.attack?.type?.classification === "unarmed"
 /** The SHOVES row a listed `shove` item runs by — Tavern Brawler's when the table does not name it. */
 const shoveRowOf = name => Object.entries(SHOVES).find(([n]) => lower(n) === lower(name)) ?? ["Tavern Brawler", SHOVES["Tavern Brawler"]];
 
-/**
- * THE SHOVE'S ROWS (the PHB feats, group 3, 2026-09-26): every listed `shove` item on the sheet, in
- * list order, whose row this hit fits and whose turn's use is not spent — Tavern Brawler on an
- * Unarmed Strike in melee, Crusher on any hit that deals Bludgeoning damage.
- */
+/** The first listed `shove` item whose row this hit fits and whose turn's use is unspent, or null. */
 function shoveFor(subject, attacker, entries) {
   for ( const entry of entries.filter(e => e.kind === "shove") ) {
     const item = itemNamed(attacker, entry.name);
@@ -111,7 +87,7 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     const { kind, found, activity, shoveRow = null } = offer;
     const row = shoveRow ? SHOVES[shoveRow] : null;
     const used = attacker.getFlag(MODULE_ID, OFFER_KINDS[kind].used);
-    if ( !row && used?.stamp && (used.stamp === combatStamp()) ) return; // once on each of your turns (the shove's rows judged theirs)
+    if ( !row && used?.stamp && (used.stamp === combatStamp()) ) return; // once per turn (a shove row judged its own)
     const sizes = Object.keys(CONFIG.DND5E?.actorSizes ?? {});
     const hits = hitTargets(message);
     if ( !hits.length ) return;
@@ -122,16 +98,15 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
       if ( !(a instanceof Actor) ) continue;
       if ( a.statuses?.has?.("dead") ) continue;
       if ( (a.type === "npc") && ((a.system.attributes?.hp?.value ?? 0) <= 0) ) continue;
-      // "a creature within 5 feet of you" — measured at the hit, where the feat asks it; a reach
-      // weapon's 10-foot swing and a thrown javelin carry no bash (Session 8, 2026-09-22).
+      // "a creature within 5 feet of you", measured at the hit: a reach or thrown hit carries no bash.
       const token = tokenForUuid(t.uuid);
       if ( (!row || row.reach) && !withinBashReach((attackerToken && token) ? nearestFeet(attackerToken, token) : null) ) continue;
-      // Crusher's "no more than one size larger than you" — the data settles it
+      // Crusher's "no more than one size larger than you"
       if ( row && !sizeAllows(sizes, attacker.system?.traits?.size ?? null, a.system?.traits?.size ?? null, row.larger) ) continue;
       living.push({ uuid: t.uuid, name: t.name });
     }
-    if ( !living.length ) return;                  // a corpse or a creature out of reach cannot be bashed
-    // THE SEQUENCE: queued behind the damage unless nothing downstream would ever promote it.
+    if ( !living.length ) return;
+    // Queued behind the damage unless nothing downstream would ever promote it.
     const sequenced = setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders);
     await message.setFlag(MODULE_ID, "bashOffer", {
       status: sequenced ? "queued" : "pending", answer: null, kind, ...(shoveRow ? { shoveRow } : {}),
@@ -158,9 +133,7 @@ function offerClock() {
 
 /* --- THE SEQUENCE: queued at the hit, promoted after the damage and the mastery's decision --- */
 
-/** A damage message whose payouts have run for this attack — the receipt when damage was
- * applied, the mastery flag or the message itself otherwise (the chokepoint calls
- * `sequenceBashOffer` only after its stages ran, so on that path existence is enough). */
+/** Is there a damage message for this attack? (The chokepoint calls in only after its stages ran.) */
 function damageLandedFor(attackMessage) {
   return game.messages.contents.some(m => isCard(m, CARD.damage)
     && (resolveAttackMessage(m)?.id === attackMessage.id));
@@ -189,9 +162,8 @@ async function offerFacts(attackMessage, { damageLanded } = {}) {
 }
 
 /**
- * Move a queued offer along — the ELECT's call (drivesMomentFor the attacker), idempotent:
- * "wait" and "none" write nothing, so the chokepoint, the mastery watcher and the render
- * resume can all call it. Promotion starts the clock; moot resolves quietly.
+ * Move a queued offer along, on the attacker's driver. Idempotent, so the chokepoint, the mastery
+ * watcher and the render resume can all call it. Promotion starts the clock; moot resolves quietly.
  */
 export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
   try {
@@ -205,7 +177,7 @@ export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
       if ( step === "promote" ) {
         Object.assign(current, offerClock());
         current.targets = facts.standing;
-        current.promotedAt = Date.now();   // the record of WHEN the clock started (after the damage)
+        current.promotedAt = Date.now();
         current.status = "pending";
       } else {
         current.status = "moot";
@@ -238,8 +210,7 @@ async function answerBashOffer(message, answer, { targetUuid = null, timedOut = 
   await resolveBashOffer(message);
 }
 
-/** The accept path: aim at the struck target, drive the feat's OWN save activity — the
- * demand and the Prone-or-push choice are the existing machinery from here. */
+/** The accept path: aim at the struck target and drive the feat's OWN save activity. */
 async function resolveBashOffer(message) {
   if ( bashOfferInFlight.has(message.id) ) return;
   bashOfferInFlight.add(message.id);
@@ -279,10 +250,7 @@ async function resolveBashOffer(message) {
   }
 }
 
-/**
- * The shove's accept: the push announced on its own card (the Push mastery's idiom — nothing moves
- * the token), the card carrying `bashFor` so a second pass finds it done, and the turn's use spent.
- */
+/** The shove's accept: the push announced on a card carrying `bashFor` (so it is found done), the turn's use spent. */
 async function announceShove(message, flag, attacker) {
   const targetUuid = flag.targetUuid ?? flag.targets?.[0]?.uuid ?? null;
   const target = (flag.targets ?? []).find(t => t.uuid === targetUuid) ?? flag.targets?.[0] ?? null;
@@ -294,7 +262,7 @@ async function announceShove(message, flag, attacker) {
   });
   if ( inRunningCombat(attacker) ) {
     const stamp = combatStamp();
-    // each feat its own turn's mark (SHOVES `used`), written by name so the moments check sees both
+    // Each feat its own turn's mark, written by literal name so the moments check sees both.
     if ( stamp && (shoveRowOf(flag.shoveRow ?? "Tavern Brawler")[1].used === "crushUsed") ) await attacker.setFlag(MODULE_ID, "crushUsed", { stamp });
     else if ( stamp ) await attacker.setFlag(MODULE_ID, "shoveUsed", { stamp });
   }
@@ -322,8 +290,6 @@ async function showBashOfferPopup(message, flag) {
     content: bfCard({
       img: flag.itemImg, eyebrow: `${kind.eyebrow} — ${flag.itemName}`, tone: "pending",
       title: `${flag.itemName} — ${kind.verb} ${options.length === 1 ? options[0].name : "the target"}${shove ? " 5 feet" : ""}?`,
-      // (z): the rule line is the feat's own passage, verbatim — trigger, either/or and the
-      // once-a-turn limit all in the feature's words.
       lines: [ruleLine(shove ? (RULE_TEXT[shoveRowOf(flag.shoveRow ?? "Tavern Brawler")[1].rule] ?? RULE_TEXT.shove) : RULE_TEXT.bash)]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
@@ -334,12 +300,9 @@ async function showBashOfferPopup(message, flag) {
 }
 
 
-/* =============================================================================================
- * THE ROW, THE WATCHER, THE CLEANUP — maneuvers.js's shared plumbing, this offer's slice of it.
- * ========================================================================================== */
+/* --- THE ROW, THE WATCHER, THE CLEANUP --------------------------------------------------------- */
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
-  // --- Bash offer: one row on the attacker's own attack card (finding (g)) -----------------
   const b = message.getFlag(MODULE_ID, "bashOffer");
   if ( b ) {
     const row = document.createElement("div");
@@ -358,8 +321,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       subtitle: (b.targets ?? []).map(t => t.name).join(", ")
     }) + (pending ? holdBarHTML(b, "to answer") : "");
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
-    // The sequence's resume (the elect): a queued offer whose damage landed while nobody was
-    // driving — the render re-reads the facts and moves it, or leaves it waiting.
+    // Resume: a queued offer whose damage landed while nobody was driving.
     if ( queued && drivesMomentFor(b.attackerUuid) ) void sequenceBashOffer(message);
     if ( pending ) {
       scheduleBarSync(row);
@@ -376,8 +338,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         }, { margin: "0.25rem 0 0" }));
       }
     }
-    // Crash-resume, elect-owned, the precision block's 20s horizon: an accepted offer whose
-    // driving client died is answer="use" with no driven usage in the log.
+    // Crash-resume on the GM: accepted 20s ago with no driven usage in the log.
     if ( (b.answer === "use") && isActiveGM() && b.answeredAt
       && (Date.now() - b.answeredAt > 20_000) && !bashDriven(message.id) ) {
       void resolveBashOffer(message);
@@ -392,8 +353,7 @@ Hooks.on("updateChatMessage", message => {
     const dialog = livePopups.get(popupKey(message.id, "bashoffer"));
     if ( dialog && ((b.status !== "pending") || b.answer) ) void dialog.close();
     if ( b.status !== "pending" ) disarmAskTimer(bashOfferTimers, message.id);
-    // THE SEQUENCE's second trigger: the mastery ask on this same attack message just settled
-    // (mastery.js writes its status here) — the queued offer's turn, on the elect.
+    // The sequence's second trigger: the mastery ask on this attack message just settled.
     if ( (b.status === "queued") && drivesMomentFor(b.attackerUuid)
       && (message.getFlag(MODULE_ID, "mastery")?.status === "done") ) void sequenceBashOffer(message);
   }

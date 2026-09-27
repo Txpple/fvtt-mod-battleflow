@@ -1,6 +1,8 @@
 /**
  * Battle Flow — Emanations: an aura applies itself to the creatures inside it, and the platform keeps the geometry and the clock.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
+ * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
@@ -21,58 +23,9 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
- * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat and
- * you want to automate the application of damage, effects, bonuses etc. — no different than auto
- * applying Slow with mastery"). Paladin's aura is the example; the class is "a persistent area
- * attached to a token whose effect applies to the creatures inside it".
- *
- * THE PLATFORM MODELS IT — MEASURED, NOT REASONED (tools/probe-emanations.mjs, Foundry 14.365):
- *   - `RegionDocument.createTokenEmanation(token, range)` makes a Region shaped as the token's base
- *     plus the radius (the 2024 rule — from the edge, not the centre), ATTACHED to the token; the
- *     region moves with the token and its membership is recomputed as it goes. The token's own
- *     emanation does not count the token.
- *   - a template's Region can be attached the same way (`attachment.token`) and the template moves too.
- *   - the Region raises tokenEnter / tokenExit (a creature moving, OR the area moving onto a
- *     standing creature) and tokenTurnStart / tokenTurnEnd (the Combat dispatches those to the one
- *     designated GM). A module registers its own behaviour type through
- *     `CONFIG.RegionBehavior.dataModels` — public API, the way dnd5e registers difficult terrain.
- *   - the 2024 pack ships every aura's EFFECT and says in its own text that who-is-inside is not
- *     automated. What it does not ship is the SOURCE's numbers: a formula on an effect resolves
- *     against the creature wearing it ("it will add their Charisma modifier and not the Paladin's",
- *     the pack's note on Aura of Protection). So the effect handed to a member is the pack's
- *     effect with the source's values read in (decide/emanations.js resolveChanges).
- *
- * WHAT THE MODULE OWNS, and only this:
- *   - the ROWS (decide/registry.js EMANATIONS; membership is the Emanations list) — which item,
- *     which effect, who it reaches, where its range lives, what triggers inside it;
- *   - the LIFECYCLE — a feature's emanation stands whenever its token is on a LIVE scene (the
- *     active one, or one a connected player is viewing — a GM's while no player is on) and the
- *     range resolves (reconcileScene); a
- *     spell's is the REGION placed at the cast — the platform's
- *     own emanation shape on the caster's token (dnd5e 6.0 places every area as a Region) — adopted
- *     when it appears and ended here when the concentration that sustains it goes (6.0 does NOT
- *     make a placed region a dependent; measured 2026-09-15);
- *   - the §3.6 RULING (2026-09-15): Battle Flow's emanations stay Battle Flow's. The platform's
- *     own `dnd5e.applyActiveEffect` behaviour is never allowed onto a region this module adopts
- *     (the option on the module's own creates, the veto below on anyone else's) — it admits no
- *     neutrals to a helpful aura and fires no turn events, and the Player's Handbook pack declares
- *     none anyway;
- *   - the FLOOR — the active GM keeps the standing effects true to membership (reconcileMembers) on
- *     every event and on every token move: apply to a member that lacks it, lift from a non-member
- *     that carries it, ONE copy per aura however many live scenes it stands on. The Region's
- *     events are the fast path; the floor is the truth (the saves machine's render floor, the
- *     same lesson);
- *   - the TRIGGER — a spell row's save, raised as a demand CARD carrying a `saves` flag for the one
- *     creature: the saves machine drives it off the bus (R2 — no import between the two machines).
- *
- * WHO WRITES: the active GM, always — regions, behaviours and effects on other people's tokens are
- * GM writes. With no GM the flow-elect law applies: nothing lands, and the client that moved says so.
- *
- * REACH (user, 2026-09-03): helpful auras reach allies and neutrals, harmful ones enemies, by token
- * disposition — the caster's "designate creatures to be unaffected" is that default.
- * NOT DRAWN (user ruling 2026-09-18, the 6.0 walk: "I prefer the ring to be invisible"): the region is
- * the machine only — locked, LAYER_UNLOCKED, so it draws nowhere, not even on the Regions layer, until
- * a GM unlocks it (RING_VISIBILITY). The member's chit on the token is what the table sees.
+ * An attached Region does the geometry and raises enter / exit / turn events to the behaviour type
+ * below (NOTES *v14 models an emanation end to end*). The pack's effect formulas resolve against
+ * the WEARER, so a member gets the effect with the source's numbers read in (decide/emanations.js).
  * ------------------------------------------------------------------------------------------- */
 
 const FLAG = "emanation";                       // on the region, and on every member effect
@@ -82,25 +35,14 @@ const listed = () => listedNames(emanationEntries());
 const { rowNamed } = tableIndex(EMANATIONS);
 const live = () => setting(S.emanations);
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
-/**
- * The ring is invisible at the table (user ruling 2026-09-18) — and NOWHERE ELSE EITHER. LAYER
- * visibility (the first cut) draws the region whenever the Regions layer is active, and dnd5e's
- * own area placement puts the caster on that layer: every Web or Fog Cloud placed showed the
- * Paladin's ring until the next click elsewhere (user, 2026-09-19: "occasionally, the paladin
- * aura shows … it re-disappears … periodic"). Foundry's one never-drawn shape is a LOCKED region
- * with LAYER_UNLOCKED visibility (Region#isVisible: on the layer, locked + LAYER_UNLOCKED is
- * false before the observer test) — a GM who wants to see it unlocks it in the Regions tab.
- */
+/** ⚠ LAYER visibility alone still draws the ring on the Regions layer; only LOCKED + LAYER_UNLOCKED is never drawn. */
 const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
 /** The visibility fields every ring wears: never drawn, unlocked by hand to see it. */
 const ringHidden = () => ({ visibility: RING_VISIBILITY(), locked: true });
 
 /**
- * Where a token STANDS — its committed placement (the document's source), never a frame of the
- * walk. A token's prepared x/y are interim while it animates (geometry.js, the measured note), so a
- * ring raised from them mid-walk sat off its token for good: Foundry re-bases an attached emanation
- * only when its base matches the token's start exactly, and otherwise just shifts it by the move —
- * carrying the offset along (Session 8, 2026-09-22: a ring "one square up and left" of Invictus).
+ * Where a token STANDS: its committed placement (the source), never an animation frame. ⚠ A ring
+ * raised from interim x/y sits off its token for good (NOTES *An attached emanation is RE-BASED*).
  */
 const standing = tok => ({ x: tok._source?.x ?? tok.x, y: tok._source?.y ?? tok.y,
   width: tok._source?.width ?? tok.width, height: tok._source?.height ?? tok.height, shape: tok._source?.shape ?? tok.shape });
@@ -162,17 +104,11 @@ function gmHandles(event) {
 
 /* --- the floor: standing effects true to membership -------------------------------------------- */
 
-/**
- * The scenes play is on now (decide/emanations.js liveScenes): the active one, and every scene a
- * connected PLAYER is viewing — a GM's too while no player is connected (user, 2026-09-23 — the
- * table plays on scenes it was pulled to). `viewedScene` is the platform's own per-user record,
- * kept by the user-activity broadcast (a client property, not a document field — no update hook
- * carries it; see watchLive below).
- */
+/** The scenes play is on now (decide/emanations.js liveScenes). `viewedScene` has no update hook (watchLive). */
 const liveNow = () => liveScenes(game.scenes.active?.id ?? null,
   game.users.filter(u => u.active).map(u => ({ sceneId: u.viewedScene ?? null, name: u.name, isGM: u.isGM })));
 
-/** Only a LIVE scene's emanations apply (decide/emanations.js appliesOnScene — the bleed). */
+/** Only a LIVE scene's emanations apply (decide/emanations.js appliesOnScene). */
 const appliesHere = (region, scenes = liveNow()) => appliesOnScene(region?.parent?.id ?? null, scenes).applies;
 
 /** The aura a region carries, as one thing across every scene it stands on (decide/emanations.js emanationGroup). */
@@ -182,7 +118,7 @@ const groupOf = region => {
   return emanationGroup(f?.itemUuid ?? sys?.item ?? null, f?.key ?? sys?.key ?? null, region?.id ?? "");
 };
 
-/** Every region of this aura, on every scene, the ACTIVE scene's first (its copy is the one a creature wears). */
+/** Every region of this aura on every scene, the active scene's first. */
 function regionsOfGroup(group) {
   const out = [];
   const active = game.scenes.active;
@@ -192,21 +128,13 @@ function regionsOfGroup(group) {
   return out;
 }
 
-/**
- * This aura's member effects on this actor: its group's, and — for a copy written before the
- * group was stamped (v2.0.3 and earlier) — one naming a region of the group.
- */
+/** This aura's member effects on this actor: stamped with its group, or naming one of its regions. */
 const memberEffects = (actor, group, regionIds) => actor?.effects?.filter(e => {
   const f = e.getFlag(MODULE_ID, FLAG);
   return !!f && ((f.group === group) || regionIds.has(f.regionId));
 }) ?? [];
 
-/**
- * Everyone who could be wearing this aura's effect: the actors of the tokens on every scene it
- * stands on AND every world actor. A member effect lives on the ACTOR, so a linked actor carries
- * it to every scene it has a token on — and if its token on this scene is deleted, only the world
- * list still reaches it. The lift reads both so nothing is orphaned.
- */
+/** Everyone who could wear this aura's effect: its scenes' token actors AND every world actor (a linked actor outlives its token). */
 function holdersOf(regions) {
   const out = new Set();
   for ( const scene of new Set(regions.map(r => r.parent).filter(Boolean)) ) {
@@ -217,31 +145,10 @@ function holdersOf(regions) {
 }
 
 /**
- * Apply the standing effect to every member the reach admits, lift it from everyone else. ONE
- * AURA AT A TIME, across every region of it: the Paladin's ring on the camp and on the battle map
- * are one aura (decide/emanations.js emanationGroup), and a creature inside either wears ONE copy
- * (groupMembers) — two live scenes never stack (user, 2026-09-23; the bleed of 2026-09-04 was
- * one copy per REGION). Idempotent, GM-only, cheap: membership is the platform's own containment
- * test run HERE (geometry.js tokensInRegions → `TokenDocument#testInsideRegion`, no canvas), the
- * effect is fingerprinted with the aura's group.
- *
- * ⚠ GEOMETRY, NOT `region.tokens` (the 6.0 pass, phase 3 — measured on Foundry 14.367): the
- * platform fills `region.tokens` from a TOKEN update it makes on the active GM with
- * `noHook: true` (RegionDocument#updateTokens), so the membership of a region just created — or
- * just moved with its token — lands SILENTLY: no updateToken hook, and the region events reach
- * only the behaviours that already exist. A floor that read `region.tokens` right after raising a
- * ring saw an empty set (the Ranger inside wore two auras of three, smoke-emanations §11a, one run
- * in three); the same test evaluated directly is the truth at once.
- *
- * ⚠ SERIALIZED PER AURA. One token move fires the region's own enter event, the token's update
- * hook and the region's update hook within a tick, and three floors reading "no effect yet" before
- * any create lands wrote the same effect three times (smoke-emanations, first live run: Half Speed
- * stacked to ×0.0625). One reconcile at a time per aura — its regions on every scene share the
- * queue, so two scenes' floors can never both write the copy; a second request waits for the first.
- *
- * `gone`: a region being deleted (or already deleted) — its copies are still this aura's to lift,
- * but it admits nobody. How a region leaves: the sweep takes a ring down, a spell ends, a GM
- * deletes it by hand.
+ * Apply the standing effect to every member, lift it from everyone else: one copy per aura across
+ * all its regions (decide/emanations.js groupMembers). `gone` is a region being deleted.
+ * ⚠ Membership is the containment test (geometry.js), never `region.tokens`, which lags a create or move.
+ * ⚠ Serialized per aura: one move fires three events in a tick, and parallel floors double-write.
  */
 const reconciling = new Map();
 function reconcileMembers(region, { gone = null } = {}) {
@@ -258,7 +165,6 @@ async function reconcileAuraNow(group, gone) {
     const regions = regionsOfGroup(group).filter(r => r.id !== gone?.id);
     const regionIds = new Set([...regions.map(r => r.id), ...(gone ? [gone.id] : [])]);
     const liveSet = liveNow();
-    // Each region's facts, plain, for the rules (decide/emanations.js groupMembers).
     const actorsByKey = new Map();
     const byRegion = new Map();
     const areas = regions.map(region => {
@@ -283,12 +189,10 @@ async function reconcileAuraNow(group, gone) {
       const actor = actorsByKey.get(key);
       const { sys, row, source } = byRegion.get(regionId);
       const have = memberEffects(actor, group, regionIds);
-      // One effect per aura per creature: a duplicate that slipped in (a race before this floor
-      // was serialized, a copy from each of two scenes before the group) is tidied, not tolerated.
+      // One effect per aura per creature: any duplicate is tidied.
       if ( have.length > 1 ) await actor.deleteEmbeddedDocuments("ActiveEffect", have.slice(1).map(e => e.id));
       if ( have.length ) {
-        // A copy from before the group was stamped learns it, so it outlives the region it names —
-        // and its row's name, which every copy before 2026-09-23 was written without (NOTES §4).
+        // A copy missing its group or row key learns them, so it outlives the region it names.
         const f = have[0].getFlag(MODULE_ID, FLAG);
         if ( (f.group !== group) || (f.key !== row.key) ) await have[0].setFlag(MODULE_ID, FLAG, { ...f, group, key: row.key });
         continue;
@@ -320,10 +224,7 @@ async function maybeTrigger(behType, token, cause) {
     const source = resolveUuid(sys.source);
     if ( source && (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
-    // A creature standing inside when the area was cast was asked by the CAST's own demand
-    // (user walk, 2026-09-03: "if I cast it and the dummy is in range, it triggers two saves").
-    // Its first "enter" — the area attaching around it — is not an entry; the record is
-    // forgotten once used, and on a real exit, so a later re-entry asks as it should.
+    // Inside at the cast = asked by the cast's demand: the area attaching around it is not an entry.
     if ( cause === "enter" ) {
       const f = flagOf(region);
       if ( f?.initial?.includes(token.id) ) { await forgetInitial(region, token); return; }
@@ -359,16 +260,11 @@ async function maybeTrigger(behType, token, cause) {
         lines: [ruleLine(row.rule)]
       }),
       flags: { [MODULE_ID]: {
-        // The saves flag through its one constructor (decide/demand.js, Stage 2) — this card
-        // used to write the whole shape by hand.
         saves: saveDemandData({
           stat: statContext(casterActor?.uuid ?? null),
           abilities, dc, damageOnSave: onSave, hasDamage,
           effectNames: { fail: [], always: [] }, effectsHandled: "emanation",
-          // The target is THIS creature and nothing re-derives it: the saves machine's area
-          // adoption keys on the activity, which this card shares with the cast (first live run
-          // rewrote the demand to whoever stood in the template). Pinned, and invisible to the
-          // same-activity scans that disarm older casts.
+          // ⚠ Pinned: the area adoption keys on the activity this card shares with the cast and would rewrite the targets.
           pinnedTargets: true,
           activityUuid: activity.uuid, templateType: null, templated: false,
           durationUnits: item.system?.duration?.units ?? null,
@@ -389,14 +285,9 @@ async function maybeTrigger(behType, token, cause) {
 /* --- the alert: a creature moving INTO the ring reminds its source (Polearm Master's Reactive Strike) --- */
 
 /**
- * An `alert` row (2026-09-27, the user's shape: "an invisible emanation … if a hostile person gets the
- * emanation … a popup reminding the player they can attack (same shape as hew too)"): Foundry raises
- * tokenMoveIn only for a token that MOVED into the region — the ring sliding over a standing creature is
- * not an entry ("a creature that enters the reach"). The reminder is Hew's card and popup (`hewNotice`,
- * drawn by hew.js off the bus); once per movement, and not while the source's Reaction is spent or it is
- * Incapacitated. A creature passing THROUGH the reach in one move is caught too: Foundry splits a walked
- * move at the edge of every region listening for entry (TokenDocument#splitMovementPath, measured 14.368,
- * smoke-emanations §17e) — the entry is a checkpoint of its own. The move itself is never held.
+ * An `alert` row: a creature that MOVED into the reach raises Hew's reminder (`hewNotice`), once per
+ * movement. tokenMoveIn fires only for a mover, and a walked move is split at each region edge, so
+ * passing through is caught.
  */
 const alerted = new Set();
 async function maybeAlert(behType, token, movement) {
@@ -436,13 +327,9 @@ async function maybeAlert(behType, token, movement) {
   }
 }
 
-/* --- the heal: an area pays a member at a moment (Aura of Life, the second slice) ------------- */
+/* --- the heal: an area pays a member at a moment (Aura of Life) ------------------------------- */
 
-/**
- * The row's heal, at the member's turn start: an ally at 0 HP regains what the activity's own
- * healing part says (Aura of Life: 1). Read off the pack, rolled on the caster, applied through
- * the receipt chokepoint on a card that says why — never a number typed here (N1).
- */
+/** The row's heal at the member's turn start: the activity's healing part, rolled on the caster, receipted (N1). */
 async function maybeHeal(behType, token, cause) {
   try {
     if ( !isActiveGM() || !token?.actor ) return;
@@ -457,9 +344,7 @@ async function maybeHeal(behType, token, cause) {
     if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
     if ( !(region.tokens?.has?.(token) ?? true) ) return;
     const actor = token.actor;
-    // ⚠ The 0-HP creature IS the one the text names, and dnd5e marks it `dead` at 0 HP on its own
-    // (measured 2026-09-05: the Ranger at 0 HP wore the dead status and the heal was refused) —
-    // so the platform's mark is not consulted; the rule's own condition is the Hit Points.
+    // ⚠ dnd5e marks a 0-HP creature `dead` itself: read the Hit Points, never the status.
     const due = healTriggerDue(row, { cause, hp: Number(actor.system?.attributes?.hp?.value ?? 0) });
     if ( !due.due ) return;
     const item = resolveUuid(sys.item);
@@ -522,8 +407,7 @@ async function remind(region, row, token) {
   });
 }
 
-// The notice's button: the caster's own client uses the activity (aim a creature first — the
-// system's own targeting; nothing is chosen for them).
+// The notice's button: the caster's client uses the activity on whatever they have targeted.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const r = message.getFlag(MODULE_ID, "emanationRemind");
   if ( !r?.activityUuid ) return;
@@ -543,16 +427,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 /* --- the pulse: the bearer's turn ends, everyone inside takes the form's damage (Inner Radiance) --- */
 
 /**
- * THE PULSE (the Aasimar walk, 2026-09-25: "inner radiance needs to pulse - you can probably shape
- * it like spirit guardians in part"). Spirit Guardians' trigger is a MEMBER's turn end — the
- * region's own tokenTurnEnd event; Inner Radiance's is the BEARER's ("at the end of each of your
- * turns, each creature within 10 feet of you takes Radiant damage"), and the bearer is never
- * inside its own emanation, so no region event carries it. The turn moving is read here, as the
- * notice above reads it: when the combatant whose turn just ENDED is a pulse ring's bearer, the
- * row's activity's own damage part is rolled ONCE on the bearer (`@prof` — never a number typed
- * here, N1) and applied to every creature the ring holds, through the receipt chokepoint, on a
- * card that says why. Forward moves only — a GM stepping the tracker back pays nothing — and once
- * per ended turn, however many times the update echoes.
+ * The pulse fires on the BEARER's turn end, which no region event carries (the bearer is not inside
+ * its own ring). Rolled once on the bearer, applied to everyone inside. Forward moves only, once per turn.
  */
 const pulsed = new Set();   // `${regionId}|${round}|${turn}` — the ended turns already paid
 Hooks.on("updateCombat", (combat, changes, options) => {
@@ -599,7 +475,7 @@ async function pulse(region, row, token, sys) {
     const inside = (tokensInRegions([region]) ?? [])
       .map(e => region.parent.tokens.get(e.tokenId))
       .filter(t => t?.actor && (t.id !== token.id) && reachAdmits(sys.reach, token.disposition, t.disposition));
-    if ( !inside.length ) return;   // nobody within reach — nothing to pay, nothing to say
+    if ( !inside.length ) return;
     const roll = await new Roll(raw, bearer.getRollData()).evaluate();
     const names = inside.map(t => t.name).join(", ");
     const card = await ChatMessage.create({
@@ -626,23 +502,10 @@ async function forgetInitial(region, token) {
   await region.setFlag(MODULE_ID, FLAG, { ...f, initial: f.initial.filter(id => id !== token.id) }).catch(() => {});
 }
 
-/**
- * Make a Region this module's emanation: the behaviour first (the flag every reader keys on is
- * written last, so a flagged region always carries its behaviour), attached to the source token,
- * DRAWN as the ring in the reach's hue — the region is the only document there is at dnd5e 6.0
- * (the template that once drew "the black circle, not the green area" is gone with the shim), so
- * it shows its own shape, not the squares it covers — and flagged with what it is, plus who stood
- * inside when it appeared (the cast's demand already asked those).
- */
+/** Make a Region this module's emanation: flagged (with who stood inside), given the behaviour, attached. */
 async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 0, effect = null, disabled = false }) {
-  // ⚠ ORDER. The "asked at the cast" record goes down FIRST: creating the behaviour subscribes
-  // it to events, and attaching the region recomputes membership and raises tokenEnter for
-  // everyone inside — a trigger that read the record before it was written asked the dummy a
-  // second time (smoke-emanations, fifth live run). The flag is also what every reader keys
-  // on, and a flagged region without its behaviour is tolerated for the milliseconds between.
-  // ⚠ GEOMETRY, not membership: a region just created has not computed `tokens` yet (empty for
-  // the first beat — the record came out empty and the dummy was asked twice again). The
-  // region's own shapes are on the scene now, and the spine's containment tests them directly.
+  // ⚠ ORDER: the "asked at the cast" record goes down FIRST, before the behaviour and attachment
+  // raise tokenEnter. Geometry, not `region.tokens`, which is still empty on a new region.
   const inside = (tokensInRegions([region]) ?? []).map(e => e.tokenId);
   const initial = inside.filter(id => id && (id !== tok?.id));
   await region.update({
@@ -658,13 +521,8 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
 const pxPerUnit = scene => scene.grid.size / scene.grid.distance;
 
 /**
- * THE §3.6 RULING'S VETO: the platform attaches its own `dnd5e.*` region behaviours on the
- * active GM's `createRegion` (`Activity.placeTemplateBehaviors`) — the same seam this module
- * adopts on. This module's own creates pass `options.dnd5e.createActivityBehaviors: false`;
- * for a region placed by anyone else (the platform's own placement of a listed spell, a future
- * pack that declares behaviours) the behaviour is refused at preCreate, on the client creating
- * it, so an adopted ring never carries two standing effects. Only listed emanation spells: an
- * unlisted spell's area is the platform's to run as it likes.
+ * Refuse the platform's own `dnd5e.*` behaviours on an adopted ring or a listed emanation spell's
+ * region, so a ring never carries two standing effects (they admit no neutrals, fire no turn events).
  */
 Hooks.on("preCreateRegionBehavior", (behavior, data) => {
   try {
@@ -682,11 +540,7 @@ Hooks.on("preCreateRegionBehavior", (behavior, data) => {
 
 /* --- the lifecycle: a feature's emanation stands with its token ------------------------------- */
 
-/**
- * The activity's own size, resolved on the source (it may be a formula — `@scale.paladin.aura`):
- * the row's own activity when it names one (Inner Radiance's 10 feet on Celestial Revelation's
- * second activity), the item's first otherwise.
- */
+/** The activity's size resolved on the source (it may be a formula): the given activity's, else the item's first. */
 function activitySizeOf(item, rollData, activity = null) {
   const act = activity ?? item?.system?.activities?.contents?.[0];
   const raw = act?._source?.target?.template?.size ?? act?.target?.template?.size ?? null;
@@ -713,14 +567,9 @@ function weaponReachOf(weapon) {
 /** What a feature's emanation on this token should look like now, or null when it should not stand. */
 function featureSpec(tok, row) {
   const actor = tok.actor;
-  // The row's item: its own key (the Paladin's auras), or the pack item a form lives on (Inner
-  // Radiance on Celestial Revelation — the Aasimar walk, 2026-09-25).
   const item = itemNamed(actor, row.item ?? row.key);
   if ( !item ) return null;
-  // A `while` row stands only while its effect stands on the bearer — the transformation's own
-  // (Searing Radiance, landed at the use by token-lights.js, 1 minute): it ends, the ring goes.
   if ( row.while && !actor.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) return null;
-  // A `holding` row stands only while a qualifying weapon is held — its reach is the ring (Polearm Master).
   const held = row.holding ? heldWeaponFor(actor, row.holding) : null;
   if ( row.holding && !held ) return null;
   const rollData = actor.getRollData();
@@ -728,8 +577,7 @@ function featureSpec(tok, row) {
   if ( row.activity && !act ) return null;
   const range = (row.range === "weaponReach") ? weaponReachOf(held) : emanationRange(row, rollData, activitySizeOf(item, rollData, act));
   if ( !range ) return null;
-  // A ring that applies nothing to its members (a `pulse` row): the ring is the geometry the
-  // pulse reads at the bearer's turn end, and nobody wears it.
+  // A ring with no effect (a `pulse` row) is only the geometry the pulse reads; nobody wears it.
   if ( row.effect === null ) return { tok, actor, item, row, range, effect: null,
     disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
   const effect = item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
@@ -741,12 +589,7 @@ function featureSpec(tok, row) {
     disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
 }
 
-/**
- * Debounced AND serialized per scene: many hooks fire for one change, and a sweep takes seconds
- * (one region create per aura). Two sweeps overlapping both read "Courage wanted, none standing"
- * and raised two Courage regions (smoke-emanations, third live run) — so a request that arrives
- * while a sweep runs waits for it, and re-sweeps once, however many asked.
- */
+/** Debounced AND serialized per scene: ⚠ two overlapping sweeps each raise the same ring. */
 const sweepTimers = new Map();
 const sweepChains = new Map();
 function scheduleScene(scene) {
@@ -763,20 +606,12 @@ function scheduleScene(scene) {
 /** Every scene that has a token of this actor on it. */
 const scenesWith = actor => (actor instanceof Actor) ? game.scenes.filter(s => s.tokens.some(t => (t.actorId === actor.id) || (t.actor === actor))) : [];
 
-/**
- * The feature emanations this scene should carry, made true: one region per (token, row) that
- * stands, updated when the range or the effect moved, deleted when the token or the feature is
- * gone. Spell emanations are not touched here — the template owns their life.
- */
+/** Make this scene's feature emanations true: one region per standing (token, row); spell regions only re-floored. */
 async function reconcileScene(scene) {
   if ( !isActiveGM() || !scene ) return;
   const names = listed();
   const wanted = new Map();
-  // ONLY A LIVE SCENE raises a ring — the active one, or one a connected user is viewing (user,
-  // 2026-09-23). A party leaves a token of itself on every scene it has visited (Thomas stood on
-  // 22 of them, 2026-09-04); a ring on each put the aura's effect on the ally beside him
-  // seventeen times over. On a scene nobody is on the areas come down and their effects are
-  // lifted, and where two scenes are live the floor keeps one copy per aura.
+  // ⚠ Only a LIVE scene raises a ring: a party leaves tokens on every scene it has visited.
   if ( live() && liveNow().has(scene.id) ) {
     for ( const tok of scene.tokens ) {
       if ( !tok.actor ) continue;
@@ -793,22 +628,17 @@ async function reconcileScene(scene) {
     const f = flagOf(region);
     const id = `${f.tokenId}|${f.key}`;
     const w = wanted.get(id);
-    // Not wanted, or a second area for the same aura (a race before the sweep was serialized):
-    // lifted and deleted. One aura, one area.
+    // Not wanted, or a second area for the same aura: lifted and deleted.
     if ( !w || seen.has(id) ) { await removeArea(region); continue; }
     seen.add(id);
     wanted.delete(id);
     const beh = behaviorOf(region);
-    // The range moved (a level taken): the emanation's radius follows. The base follows the token
-    // by itself — the region is attached — and a ring that has DRIFTED off it (raised mid-walk,
-    // above) is put back under the token here, so every sweep converges on where it stands.
+    // The radius follows the range; a ring that DRIFTED off its token (see `standing`) is put back.
     const radius = w.range * pxPerUnit(scene);
     const shape = emanationShapeData(standing(w.tok), radius);
     const base = region.shapes?.[0]?.base;
     const drifted = !base || ["x", "y", "width", "height"].some(k => base[k] !== shape.base[k]);
     if ( (region.shapes?.[0]?.radius !== radius) || drifted ) await region.update({ shapes: [shape] });
-    // A ring raised before the 2026-09-18 ruling was drawn, and one raised before 2026-09-19's
-    // showed on the layer; the sweep hides it in place.
     if ( (region.visibility !== RING_VISIBILITY()) || !region.locked ) await region.update(ringHidden());
     if ( beh ) {
       const upd = {};
@@ -820,12 +650,7 @@ async function reconcileScene(scene) {
   }
   for ( const w of wanted.values() ) {
     try {
-      // A REGION, the platform's own emanation shape (dnd5e 6.0 places a spell's the same way):
-      // the token's base plus the class's range, measured from the edge (the 2024 rule, Foundry
-      // 14's EmanationShapeData), attached to the token so it walks with them. It is the machine
-      // and nothing the table sees (RING_VISIBILITY — the user's ruling, 2026-09-18). No dnd5e
-      // flags: a feature's aura demands no save, so the saves machine's area adoption must never
-      // see it as an area of anything; and no platform behaviour on it (the §3.6 ruling).
+      // ⚠ No dnd5e flags: the saves machine's area adoption must never see a feature's aura as an area.
       const [region] = await scene.createEmbeddedDocuments("Region", [{
         name: `${w.row.key} [${w.actor.name}]`, color: colorFor(w.row.reach),
         shapes: [emanationShapeData(standing(w.tok), w.range * pxPerUnit(scene))],
@@ -841,8 +666,7 @@ async function reconcileScene(scene) {
       console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err);
     }
   }
-  // The spells' floors too: a scene going active or inactive changes what every emanation on it
-  // applies, and a spell's region is otherwise floored only by its own events.
+  // Spell regions too: a scene going live or dead changes what they apply, and no event of theirs says so.
   for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "spell") ) await reconcileMembers(region);
 }
 
@@ -858,8 +682,7 @@ async function adoptSpellRegion(region) {
     const row = rowNamed(item.name);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
     const actor = item.actor ?? null;
-    // The placement stamps the USAGE TOKEN as the region's origin (dnd5e 6.0: `flags.dnd5e.origin`
-    // is `activity.getUsageToken()?.uuid`, the activity moved to `flags.dnd5e.activity`).
+    // The placement stamps the usage token as `flags.dnd5e.origin`.
     const originTok = resolveUuid(region.getFlag("dnd5e", "origin"));
     const tok = (originTok?.documentName === "Token") ? originTok
       : actor?.token ?? region.parent.tokens.find(t => t.actor && ((t.actor === actor) || (t.actor.uuid === actor?.uuid))) ?? null;
@@ -890,42 +713,22 @@ function castEmanationRow(activity) {
   return selfAreaOf(activity) ? row : null;
 }
 
-/**
- * An area that starts on its user: a `radius` (or the system's own `emanation`) template with
- * range self. Any item — a spell, a species form, a monster's feature. The class the user ruled
- * (2026-09-25, the Aasimar walk: "it should always just be centered on the token without
- * additional placing"; "every self-centered area").
- */
+/** An area that starts on its user: a `radius` or `emanation` template with range self, on any item. */
 function selfAreaOf(activity) {
   const tpl = activity?.target?.template;
   if ( !["radius", "emanation"].includes(tpl?.type) || !(Number(tpl?.size) > 0) ) return false;
   return (activity.range?.units ?? "self") === "self";
 }
 
-/**
- * The listed `pulse` row whose FORM this activity is (Inner Radiance on Celestial Revelation), or
- * null. Its use is the transformation alone: the ring is the sweep's (it stands while the form's
- * effect does), the damage is the pulse's at the bearer's turn end — so the use places no area
- * and rolls no damage (user, 2026-09-25: "no damage at transform").
- */
+/** The listed `pulse` row whose FORM this activity is, or null: its use places no area and rolls no damage. */
 function transformRowOf(activity) {
   if ( !live() || !activity?.item ) return null;
   const key = pulseFormKey(EMANATIONS, { itemName: activity.item.name, activityName: activity.name }, listed());
   return key ? { key, ...EMANATIONS[key] } : null;
 }
 
-// The caster is not asked to click the area down (user, 2026-09-03: "I shouldn't need to place
-// the template, it should just put it where the caster's token is"; 2026-09-25: every area that
-// starts on its user, not only the listed auras): the system's own placement prompt is switched
-// off, and the REGION is placed here on the casting client — the data `TemplatePlacement.fromActivity`
-// would have written (dnd5e 6.0.5, read from source): the platform's emanation shape on the
-// caster's token, attached to it, the size from the token's edge, the flags the placement stamps
-// (activity, item, the usage token as origin, spell level, dimensions). From there nothing is new:
-// the region appears, the saves machine's floor adopts the area into the use's demand, the spent-
-// area sweep ends it. A LISTED emanation spell's region is the machine's (hidden, no platform
-// behaviour — the §3.6 ruling; no dependent flag: 6.0 makes no placed region a concentration
-// dependent — endConcentrationAreas below ends it with the spell); every other area is the
-// platform's to run as it likes — its own behaviours on it. None is drawn (the ring ruling).
+// A self-centred area is never clicked down: the placement prompt is off and the casting client
+// places the Region with the data `TemplatePlacement.fromActivity` would write.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     if ( transformRowOf(activity) ) {
@@ -957,7 +760,7 @@ async function placeSelfArea(activity, row, message) {
   if ( !tok || !scene ) return;
   const tpl = activity.target.template;
   const units = scene.grid.units;
-  // The size in the SCENE's units, the placement's own way (its `convertLength` call).
+  // The size in the SCENE's units, as the placement converts it.
   const inScene = n => (n === "" || n === null || n === undefined) ? undefined
     : (Number(dnd5e.utils.convertLength(Number(n), tpl.units || "ft", units, { strict: false })) || Number(n));
   const size = inScene(tpl.size);
@@ -968,27 +771,19 @@ async function placeSelfArea(activity, row, message) {
     ...(canvas?.level?.id ? { levels: [canvas.level.id] } : {}),
     restriction: { enabled: true, type: "move" },
     attachment: { token: tok.id },
-    // NEVER DRAWN, listed or not (user, 2026-09-25: "it can be invisible, just like inner
-    // radiance" — the 2026-09-18 ring ruling, reaching every area this module places on a token).
     ...ringHidden(), highlightMode: "coverage",
     flags: { dnd5e: {
       activity: activity.uuid, item: activity.item.uuid, origin: tok.uuid, spellLevel,
       dimensions: { size, width: inScene(tpl.width), height: inScene(tpl.height), units }
     } }
   }], row ? { dnd5e: { createActivityBehaviors: false } } : {});
-  // The type picked in the CASTING WINDOW (below) is written onto the emanation card the GM posts
-  // as the area is adopted — the card's own buttons can still change it later. No dialog shown
-  // (a fast-forward cast): the alignment's default stands, no extra click (N4).
+  // The type picked in the casting window goes onto the emanation card once the GM posts it.
   if ( row ) void carryDamageTypeChoice(activity);
 }
 
 /* --- the casting window: a damage type the part leaves open is picked THERE ------------------- */
 
-// The same idiom as the gate's fieldset in the roll dialogs (DESIGN §5): the system's own
-// usage dialog, one fieldset added on its public render hook (user, 2026-09-03: "I would have
-// preferred it be inserted in the casting initial window"). Radios per type the part offers,
-// the alignment's answer checked; the pick rides in memory on the casting client until the cast
-// lands, then goes onto the card.
+// A radio per damage type on the usage dialog, the alignment's default checked; held until the cast lands.
 const pendingTypes = new Map();   // activity uuid → type picked in the dialog
 Hooks.on("renderActivityUsageDialog", (app, element) => {
   try {
@@ -1026,34 +821,16 @@ async function carryDamageTypeChoice(activity) {
   }
 }
 
-// The spell ends when concentration does. dnd5e does NOT delete a placed area on endConcentration
-// (5.3: measured, smoke-emanations §8; 6.0.1: measured 2026-09-15, a placed region is no
-// dependent), and the saves machine's own duration sweep waits for every verdict to land. So the
-// area this module adopted goes here, on the GM, the moment the concentration effect for its
-// activity is deleted.
+// ⚠ dnd5e does NOT make a placed region a concentration dependent: the area ends here.
 Hooks.on("deleteActiveEffect", effect => {
   if ( !isActiveGM() || !effect?.statuses?.has?.("concentrating") ) return;
   void endConcentrationAreas(effect);
 });
 /**
- * EVERY area a concentration cast placed comes down with the concentration (user, 2026-09-19,
- * the 6.0 walk: "when jetten casts fog cloud, the region/vfx stays even after he loses
- * concentration. didnt have the problem with gren's web"). Web demands a save, so the saves
- * machine's own sweep (saves/areas.js cleanupSpentTemplates) ended its area; Fog Cloud demands
- * nothing of anybody, so no card of this module's knew it — and at dnd5e 6.0 a placed region is
- * no concentration dependent (measured 2026-09-15), so the platform did not end it either. The
- * class is every region stamped with the cast's activity: this module's own emanation
- * placements and the platform's TemplatePlacement alike. A cast that HAS a demand card stays the
- * saves machine's (it lifts the area's effects too) — only this module's own emanation regions
- * are ended here for such a cast, as before. THE TIE: casting the same spell again ends the old
- * concentration after the new area may already stand, and both regions wear one activity uuid —
- * so the casting client stamps its concentration effect with the areas the cast placed (`areas`,
- * the hook below; the effect is the caster's own document, which a player may write where a
- * Region is the scene's), and the sweep ends exactly those. An UNTIED area (a cast from before
- * the tie, a client without the module) falls back to the activity match — but only while no
- * other concentration effect for the same activity stands on the caster, so a re-cast's area is
- * never taken for the old one's. (A Region carries no `_stats` on the client — measured
- * 2026-09-19 — so creation time was never a tie.)
+ * Every region stamped with the cast's activity comes down with its concentration; a cast with a
+ * demand card is the saves machine's (saves/areas.js) except for this module's own rings.
+ * ⚠ A re-cast's area wears the same activity uuid: the tie (`areas`) names this cast's regions, and
+ * an untied area matches only while no other concentration of that activity stands.
  */
 async function endConcentrationAreas(effect) {
   try {
@@ -1063,8 +840,6 @@ async function endConcentrationAreas(effect) {
     const tied = effect.getFlag(MODULE_ID, AREAS_FLAG);
     const another = !!actor?.effects?.some(e => (e.id !== effect.id) && e.statuses?.has?.("concentrating")
       && (e.flags?.dnd5e?.activity?.uuid === activityUuid));
-    // An untied area is this cast's only when nothing else can claim it: the cast made no tie
-    // and no other concentration of the same spell stands.
     const untiedIsOurs = !Array.isArray(tied) && !another;
     const demanded = game.messages.contents.some(m => (m.system?.concentration === effect.id) && m.getFlag(MODULE_ID, "saves")?.templated);
     for ( const scene of game.scenes ) {
@@ -1083,11 +858,7 @@ async function endConcentrationAreas(effect) {
 /** The flag on a concentration effect: the uuids of the regions its cast placed (the sweep's tie). */
 const AREAS_FLAG = "areas";
 
-// THE TIE IS WRITTEN AT THE CAST, on the casting client: the platform hands the placed regions
-// to postUseActivity (`results.templates`, RegionDocument[] at 6.0) and the usage card names the
-// concentration effect it made (`system.concentration`); the effect is the caster's own, so the
-// write is the caster's. A cast with no concentration ties nothing (its area is instantaneous
-// or the GM's — the saves machine's buckets).
+// The tie, written on the casting client, which owns the concentration effect.
 Hooks.on("dnd5e.postUseActivity", async (activity, _usageConfig, results) => {
   try {
     const regions = (results?.templates ?? []).flat().filter(r => r?.parent && r.uuid);
@@ -1109,8 +880,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, _usageConfig, results) => {
 /* --- the card (R5 / N3): an emanation says what it is when it appears ------------------------- */
 
 const KEY_LABELS = {
-  // dnd5e 6.0 moved the roll bonuses under `system.rolls.*` (migrated packs carry the new keys;
-  // the old ones are shimmed until 7.0) — both spellings label the same change.
+  // dnd5e 6.0 moved the roll bonuses under `system.rolls.*` and shims the old keys: label both.
   "system.rolls.ability.save.bonus": v => `${Number(v) >= 0 ? "+" : ""}${v} to saving throws`,
   "system.rolls.damage.mwak.bonus": v => `+${v} to melee weapon damage`,
   "system.rolls.damage.rwak.bonus": v => `+${v} to ranged weapon damage`,
@@ -1142,8 +912,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       : pulseLine ? pulseLine
       : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
     const rangeText = range ? `${range}-foot Emanation` : "Emanation";
-    // A damage part with several types (Spirit Guardians: necrotic OR radiant) is a choice the
-    // card carries: the alignment's answer as the default, the caster's pick when made.
+    // A part with several types is a choice the card carries: the alignment's default, or the caster's pick.
     const types = partTypesOf(activity);
     const alignment = actor?.system?.details?.alignment ?? null;
     const choice = (types.length > 1) ? { types, activityUuid: activity.uuid, alignment, ...damageTypeFor(types, alignment) } : null;
@@ -1170,8 +939,7 @@ function emanationCardFor(activityUuid) {
   return game.messages.contents.filter(m => m.getFlag(MODULE_ID, "emanationCard")?.activityUuid === activityUuid).at(-1) ?? null;
 }
 
-// The pick is a fold onto the card (R2): the GM writes it straight, a player's click travels as
-// an envelope the driving client folds — the relay idiom every answer in this module rides.
+// The pick is a fold onto the card (R2): the GM writes it straight, a player's travels by relay.
 registerRelay("emanationTypeAnswer", {
   flagKey: "emanationCard",
   targetOf: a => a.cardId,
@@ -1217,9 +985,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
 });
 
-// Every roll of the cast wears the type: the save activity's own damage roll — the cast's, the
-// triggers' — carries the card's pick, or the alignment's default when no card stands yet (the
-// cast's first roll can land before the card does).
+// Every damage roll of the cast wears the card's type, or the default when it lands before the card.
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
@@ -1244,24 +1010,17 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 
 /* --- the hooks: when to look ---------------------------------------------------------------- */
 
-// The switch or the list moved (settings.js says so on change): every scene that carries an
-// emanation, and every live one, is swept — off removes what stands, on raises it again.
-/** The live scenes, and every scene that carries an emanation: raised on the one, brought down on the others. */
+/** Sweep the live scenes and every scene that carries an emanation: raised on the one, brought down on the others. */
 const sweepEverywhere = () => {
   const scenes = liveNow();
   for ( const s of game.scenes ) if ( scenes.has(s.id) || s.regions.some(r => flagOf(r)) ) scheduleScene(s);
 };
-Hooks.once("ready", sweepEverywhere);   // every scene that carries one, not just the live: the others come down
+Hooks.once("ready", sweepEverywhere);
 Hooks.on(`${MODULE_ID}.emanationsChanged`, sweepEverywhere);
 
 /**
- * THE LIVE SET MOVED: a scene activated, a user viewing another scene, a user connecting or
- * leaving — the scene they left lifts what its emanations wrote, the one they are on raises its
- * own. ⚠ No document hook carries a user's view: `User#viewedScene` is a client property the
- * platform sets from the user-activity broadcast (Users#handleUserActivity, Foundry 14.368), and
- * the one public signal it raises is re-rendering the scene navigation — for another user's view
- * or connection, and (canvas draw) for this client's own. So the GM re-reads the set on that
- * render and on an activation, and sweeps only when it CHANGED: the navigation renders often.
+ * ⚠ No document hook carries a user's view; the signal is the scene navigation rendering (NOTES
+ * *A user's VIEWED scene has no document hook*). It renders often: sweep only when the set changed.
  */
 let liveKey = null;
 const watchLive = () => {
@@ -1278,12 +1037,10 @@ Hooks.on("createToken", tok => scheduleScene(tok.parent));
 Hooks.on("deleteToken", tok => scheduleScene(tok.parent));
 Hooks.on("updateToken", (tok, changes) => {
   if ( !isActiveGM() || !tok.parent ) return;
-  // A move: the floor over every emanation on this scene (membership is the platform's, already
-  // recomputed). A change of actor or disposition: the whole sweep.
+  // A move re-floors every emanation on the scene; a change of actor or disposition re-sweeps.
   if ( ("x" in changes) || ("y" in changes) || ("elevation" in changes) || ("_regions" in changes) ) {
     for ( const region of tok.parent.regions.filter(r => flagOf(r)) ) void reconcileMembers(region);
-    // A feature ring's SOURCE moved: once the platform's own move of the attached ring has landed,
-    // the sweep checks the ring still sits on the token and re-bases one that drifted.
+    // A ring's source moved: once the platform has moved the attached ring, re-base one that drifted.
     if ( (("x" in changes) || ("y" in changes)) && tok.parent.regions.some(r => (flagOf(r)?.kind === "feature") && (flagOf(r).tokenId === tok.id)) ) {
       setTimeout(() => scheduleScene(tok.parent), 1000);
     }
@@ -1299,18 +1056,15 @@ Hooks.on("deleteRegion", region => {
   const f = flagOf(region);
   if ( !isActiveGM() || !f ) return;
   void reconcileMembers(region, { gone: region });
-  // A feature's aura deleted by hand stands again on the next sweep: it is always on, and the
-  // switch for it is the setting or the list, not the region (a spell's dies with its template).
+  // A feature's aura deleted by hand stands again: its switch is the setting or the list, not the region.
   if ( f.kind === "feature" ) scheduleScene(region.parent);
 });
-// A feature gained or lost, a level taken, a Charisma changed: the sources' scenes are swept.
 for ( const hook of ["createItem", "deleteItem", "updateItem"] ) {
   Hooks.on(hook, item => { if ( item?.parent instanceof Actor ) for ( const s of scenesWith(item.parent) ) scheduleScene(s); });
 }
 Hooks.on("updateActor", (actor, changes) => {
   if ( ("system" in changes) || ("items" in changes) ) for ( const s of scenesWith(actor) ) scheduleScene(s);
 });
-// Incapacitated on or off a source: the behaviour toggles, the floor lifts or re-applies.
 for ( const hook of ["createActiveEffect", "deleteActiveEffect", "updateActiveEffect"] ) {
   Hooks.on(hook, effect => {
     const actor = (effect?.parent instanceof Actor) ? effect.parent : effect?.parent?.parent;

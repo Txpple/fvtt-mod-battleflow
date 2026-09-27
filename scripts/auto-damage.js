@@ -1,5 +1,6 @@
 /**
- * Battle Flow — Phase 1a: auto-roll damage on hit, on the attacker's own client.
+ * Battle Flow — auto-roll damage on hit, on the attacker's own client, and the damage offer
+ * (the popup that asks the roller for their own dice). Owns the one crit judgement (`critFor`).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting } from "./core.js";
@@ -14,12 +15,9 @@ import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold/index.js";
 import { SURFACES } from "./surfaces.js";
 
-/** (hh): the "Against …" line names each target with its token icon (law 8 tooltip) —
- * the roll popup was the one volley surface still naming targets in text alone. Pure
- * render off the roll's own snapshot; a target without an image degrades to its name.
- * ⚠ `display:inline-block` is load-bearing (the T4/T5 close-out's one visual): the
- * dialog stylesheet blocks imgs, which stacked "Against / icon / Gren." on three lines —
- * an inline style is the only thing that outranks it without touching the sheet. */
+/** The "Against …" line: each target with its token icon (law 8 tooltip).
+ * ⚠ `display:inline-block` is load-bearing: the dialog stylesheet makes imgs block, and only an
+ * inline style outranks it. */
 const againstLine = targets => {
   const list = (targets ?? []).filter(t => t?.name);
   if ( !list.length ) return null;
@@ -28,15 +26,10 @@ const againstLine = targets => {
       style="display:inline-block;width:18px;height:18px;border:none;border-radius:3px;object-fit:cover;vertical-align:-4px;margin:0 2px 0 0;">` : ""}<strong>${esc(t.name)}</strong>`).join(", ")}.`;
 };
 
-/* ---------------------------------------------------------------------------------------------
- * Phase 1a — auto-roll damage on hit (the attacker's client; its attack, its dice)
- * ------------------------------------------------------------------------------------------- */
+/* --- Auto-roll damage on hit (the attacker's client; its attack, its dice) -------------------- */
 
 Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
-  // The mode gates on the ATTACKER's side of the table, and this hook runs on whichever client
-  // rolled — so "npc" is in practice the GM's client and "pc" a player's own. Everything
-  // downstream is side-agnostic: auto-apply is the GM elect regardless of who attacked, and a
-  // hold's continuation follows the roller (see isContinuingClient).
+  // The mode gates on the attacker's side; this hook runs on whichever client rolled.
   if ( !subject || !modeAllows(subject.actor) ) return;
 
   const attackMessage = rolls[0]?.parent;
@@ -48,34 +41,18 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return; // a miss means the damage dice never exist
 
-  // The one legitimate interrupt: someone hit is holding a Shield-class reaction. Since the
-  // v1.20.0 walk-1 ruling (gg) the hold pauses the APPLICATION, never the dice — "the shoudl
-  // just roll damage, and not wait for shield" — exactly the darts' pattern item 6 walked.
-  // The stamp still raises the popup and the clock; the roll below is born attackHoldPending
-  // (rollDamageForAttack reads the hold), and the resolution releases or discards it.
+  // A hold (a Shield-class reaction) pauses the APPLICATION, never the dice: the roll is born
+  // attackHoldPending and the hold's resolution releases or discards it.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
-  // The ONE case the dice wait for the hold (Slice A, 2026-09-24): a crit a live Disadvantage row
-  // could undo — doubled dice rolled now would be wrong the moment the second d20 comes up lower.
-  // The hold's continuation rolls them (`damageAfterHold`, below), crit or not as the answer left it.
+  // The one case the dice wait: a crit a Disadvantage reaction could undo. `damageAfterHold` rolls them.
   if ( attackMessage.getFlag(MODULE_ID, "hold")?.critAtStake ) return;
   return offerOrRollDamage(subject, attackMessage);
 });
 
-/**
- * The damage after a hit: offered to the attacker, or rolled after the dramatic beat. The tail
- * of the attack trigger above, and the hold's continuation's for a crit it held back (Slice A,
- * 2026-09-24 — one path, so the held crit's dice are offered and rolled exactly as any hit's).
- */
+/** The damage after a hit: offered to the attacker, or rolled after the dramatic beat. One path for every hit. */
 function offerOrRollDamage(subject, attackMessage) {
-  // The player asked for their own dice back: offer the roll instead of taking it. The popup
-  // IS the pause, so it ABSORBS the dramatic beat rather than stacking a 15s window behind a
-  // 3s wait (FLOW item 3, decision 2) — a beat is a held breath, and you cannot hold one twice.
-  // An ARMED SNEAK ATTACK opens the offer whatever the setting (user, 2026-09-02: "even with
-  // auto damage on, because there is a decision to make" — which Cunning Strike, if any).
-  // …and so does a CLOCK RIDER the rules make available (user ruling, the same evening: a
-  // checkbox, optional — so the offer is where the choice lives).
-  // …and so does any contribution with a decision pending (`registerOfferPart` — the sneak
-  // machine, the clock riders, the hit menu declare their own `due`).
+  // The offer replaces the beat rather than stacking behind it, and opens whatever the setting
+  // when a contribution has a decision pending (`registerOfferPart`).
   if ( setting(S.playerRollDamage) || offerPartsDue(attackMessage, subject) ) {
     return void offerDamageRoll(subject, attackMessage);
   }
@@ -85,9 +62,8 @@ function offerOrRollDamage(subject, attackMessage) {
 }
 
 /**
- * The crit the hold held back (Slice A, 2026-09-24; hold/continue.js calls it once the hold has
- * resolved): the attack's damage, offered or rolled exactly as at the hit — provided the attack
- * still hits someone. A Disadvantage that turned it into a miss leaves no dice to roll.
+ * The crit the hold held back, once the hold resolved (hold/continue.js): offered or rolled as at
+ * the hit, if the attack still hits someone.
  * @param {ChatMessage} attackMessage
  */
 export async function damageAfterHold(attackMessage) {
@@ -105,17 +81,11 @@ export async function damageAfterHold(attackMessage) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * THE CRIT, ONE SOURCE (user, 2026-09-02 — "an attack within 5 feet of paralyzed auto crits").
- * A hit is critical when the d20 said so (the roll's own `isCritical`) OR when the target's
- * condition says so from where the attacker stands: the glossary's *Automatic Critical Hits*
- * clause on Paralyzed and Unconscious, carried as `critWithinFeet` on the condition table and
- * judged by decide/reminders.js `autoCritSources` over the distance the reminder gate measures.
- * An OUTCOME (R1 automates outcomes), so the damage roll is MADE critical — at every path that
- * rolls it: the module's own drive passes it, and the pre-roll-damage hook below catches the
- * card's Damage button too — and the offer's badge reads this same function, so the badge and
- * the dice cannot disagree. ⚠ One damage roll serves every target it hit, so the crit is applied
- * only when it is true of ALL of them (hit-riders' intersection rule; over-applying damage is
- * the worst failure this module has); the dropped case is said on the offer, never swallowed.
+ * THE CRIT, ONE SOURCE: the d20's own `isCritical`, or a condition's automatic crit within reach
+ * (decide/reminders.js `autoCritSources`; RULINGS *The gate before the roll*). Every roll path and
+ * the offer's badge read `critFor`, so the badge and the dice cannot disagree.
+ * ⚠ One damage roll serves every target it hit: the crit applies only when true of ALL of them;
+ * the dropped case is said on the offer.
  * ------------------------------------------------------------------------------------------- */
 
 /**
@@ -125,9 +95,7 @@ export async function damageAfterHold(attackMessage) {
  */
 function critFor(attackMessage) {
   const d20Crit = attackMessage?.rolls?.[0]?.isCritical ?? false;
-  // A NATURAL 20 THE HOLD UNDID (Slice A, 2026-09-24): a defender's Disadvantage bent the roll and
-  // the lower d20 stood, so the d20 no longer says crit for that target — and one roll serves every
-  // hit target, so it doubles only while it stands for all of them (decide/rescue-hit.js).
+  // A natural 20 a defender's Disadvantage undid no longer doubles, unless it stands for every hit target.
   const rolled = d20Crit && rolledCritStands(attackMessage);
   const out = { isCritical: rolled, rolled, undone: d20Crit && !rolled, auto: false, sources: [], dropped: [] };
   try {
@@ -171,10 +139,8 @@ function rolledCritStands(attackMessage) {
 }
 
 /**
- * The attack an about-to-roll damage answers, from the roll's message DATA (no document yet):
- * the module's own drives stamp `attackFor`; the card's Damage button carries the click, whose
- * enclosing card is the usage card and whose last attack roll is the one (dnd5e's own
- * #rollDamage reads it the same way); the origin key in the data is the sheet shape.
+ * The attack an about-to-roll damage answers, from the message DATA (no document yet): the
+ * module's `attackFor` stamp, else the clicked card's last attack roll (as dnd5e's #rollDamage reads it).
  */
 export function attackMessageForDamage(config, message) {
   const data = message?.data ?? {};
@@ -188,25 +154,18 @@ export function attackMessageForDamage(config, message) {
   return card.getAssociatedRolls?.("attack")?.pop() ?? null;
 }
 
-// The hook is what makes the card's own Damage button honour it: dnd5e reads the d20's crit
-// off the attack message and passes `isCritical` into this config; `applyKeybindings` runs
-// AFTER this hook and stamps `config.isCritical` onto every roll (hit-riders.js's note on the
-// order). Setting it here is exactly what a nat 20 sets. The fact rides the damage message
-// as a flag, so the card can say why the dice doubled (R5).
+// Makes the card's own Damage button honour the crit: `applyKeybindings` runs AFTER this hook and
+// stamps `config.isCritical` onto every roll. The flag lets the card say why the dice doubled (R5).
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     if ( config?.subject?.type !== "attack" ) return;
-    // HOW MANY OF THESE ROLLS ARE THE ACTIVITY'S OWN (Slice A, 2026-09-24): dnd5e builds the
-    // activity's damage parts first and every rider (a mark, Sneak Attack, a clock rider, a
-    // maneuver's die) pushes its roll AFTER — and this registration is the first on the hook
-    // (tools/hook-order.snapshot), so the count is taken before any rider has run. Savage Attacker
-    // rolls "the weapon's damage dice" again: these, never a rider's (dice-changers.js).
+    // ⚠ The count of the activity's own rolls, taken before any rider pushes one: this handler
+    // must stay first on the hook (tools/hook-order.snapshot). Savage Attacker rerolls only these.
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.weaponRolls`, config.rolls?.length ?? 0);
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
     const crit = critFor(attackMessage);
-    // The card's own Damage button carries the d20's crit into this config: a crit the hold
-    // undid (Slice A) is taken back out, the way a condition's crit is put in below.
+    // The card's Damage button carries the d20's crit in: a crit the hold undid is taken out.
     if ( crit.undone && !crit.auto ) { config.isCritical = false; return; }
     if ( !crit.auto ) return;
     config.isCritical = true;
@@ -228,32 +187,21 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /**
- * Press the Damage button the way AttackActivity#rollDamage does at 6.0.1: the ability, the
- * attack mode and the ammunition off the attack card's typed data (the platform rebuilds
- * ammunition destroyed by consumption from its own snapshot, `system.ammunitionItem`), pre-set
- * critical, skip the dialog. The origin is stamped explicitly (decide/card.js ORIGIN_KEY)
- * because a programmatic roll has no DOM click to inherit it from; without it the damage
- * message never registers and auto-apply can't chain.
+ * Press the Damage button as AttackActivity#rollDamage does: ability, attack mode and ammunition
+ * off the attack card's data, crit pre-set, no dialog. ⚠ The origin is stamped explicitly (a
+ * programmatic roll has no click to inherit it); without it auto-apply cannot chain.
  */
 export async function rollDamageForAttack(activity, attackMessage) {
   try {
     const { ability, mode: attackMode, ammunitionItem: ammunition } = attackMessage.system ?? {};
     const isCritical = critFor(attackMessage).isCritical;
     const originId = originIdOf(attackMessage) ?? attackMessage.id;
-    // (ii): EVERY driven roll names the exact attack it answers — resolveAttackMessage
-    // reads this stamp first, because the registry walk misattributes under a volley
-    // (three rays share one usage card and "last attack before the damage" is ray 3 for
-    // all of them once the offers open). (gg): a roll made while that attack's hold is
-    // still open is additionally born claimed — the applier waits on the flag and the
-    // hold's resolution releases it (a Shield-flipped target just drops out of hitTargets,
-    // so its dice do nothing). The hold is read at ROLL time, not offer time: a hold that
-    // resolved while the popup sat open needs no claim and applies straight.
+    // Every driven roll names the exact attack it answers (`attackFor`): under a volley the rays
+    // share one usage card. A roll made while the hold is open is born claimed; the hold is read
+    // at ROLL time, so one resolved while the popup sat open applies straight.
     const holdPending = attackMessage.getFlag(MODULE_ID, "hold")?.status === "pending";
-    // ⚠ The stamps ride NESTED under `flags`, never as dotted keys (2026-09-24, the Slice A live
-    // run): dnd5e merges this data without expanding it, every preRollDamageV2 stamp (weaponRolls,
-    // autoCrit, a rider's record) is written nested with setProperty, and a created message whose
-    // data holds both a nested `flags.<module>` and a dotted `flags.<module>.x` keeps only the
-    // nested one — measured: `attackFor` and `attackHoldPending` vanished from every driven roll.
+    // ⚠ Stamps ride NESTED under `flags`, never as dotted keys: data holding both a nested
+    // `flags.<module>` and a dotted `flags.<module>.x` keeps only the nested one.
     await activity.rollDamage(
       { ability, ammunition, attackMode, isCritical },
       { configure: false },
@@ -266,28 +214,16 @@ export async function rollDamageForAttack(activity, attackMessage) {
 }
 
 /**
- * Roll a SAVE activity's damage, chained to its own usage card — the twin of the function above,
- * and deliberately its neighbour. It lives here rather than in saves.js for the property that
- * makes the whole family safe: the auto-roll and the player's button call ONE function, so
- * nothing downstream can tell who pressed it. Split across two files, the two paths drift.
- *
- * No attack mode, no ammunition and no crit — a save spell has none of them; the empty config is
- * exactly what saves.js passed inline before the popup existed, kept byte-for-byte so upcast
- * scaling and `damageOnSave` keep riding the native plumbing. `originatingMessage` is stamped
- * explicitly because a programmatic roll has no DOM click to inherit it from, and without it
- * `saveDamageMessages` never finds the roll and the verdict fold has nothing to apply.
+ * Roll a SAVE activity's damage, chained to its own usage card. The twin of the function above:
+ * the auto-roll and the player's button call ONE function, so nothing downstream can tell who
+ * pressed it. ⚠ The origin is stamped explicitly, or the verdict fold never finds the roll.
  */
 export async function rollDamageForSave(activity, card) {
   try {
-    // A demand raised off a usage card carries the cast's own scaling in the system's message
-    // data. An emanation's TRIGGERED demand (emanations.js, 2026-09-03) is a plain card, so it
-    // carries the upcast level on the demand itself — passed through, never re-derived.
-    // A bare damage cast (damage-casts.js, 2026-09-04) chains to its own usage card, whose system
-    // data carries the upcast the system stamped at the cast — the fallback when no demand does.
+    // The upcast: on the demand (an emanation's triggered demand is a plain card), else the usage card's.
     const scaling = Number(card.getFlag(MODULE_ID, "saves")?.scaling ?? card.system?.scaling ?? 0);
-    // The card's OWN targets ride the roll (the Goliath walk, 2026-09-25: a rebuke's Storm's Thunder
-    // landed on the rebuker — dnd5e snapshots the client's live targets at the roll, and the driver
-    // had put its aim back by then). A card that named nobody leaves the platform's default.
+    // ⚠ The card's OWN targets ride the roll: dnd5e snapshots the client's live targets, which a
+    // driver may have changed by now.
     const data = foundry.utils.expandObject(originData(card.id));
     const aimed = card._source?.system?.targets;
     if ( Array.isArray(aimed) && aimed.length ) foundry.utils.setProperty(data, "system.targets", foundry.utils.deepClone(aimed));
@@ -298,69 +234,31 @@ export async function rollDamageForSave(activity, card) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * The player's own roll (FLOW item 3) — offered, never taken
- *
- * A player asked for their dice back: "give me a Roll Damage button, and roll it anyway if I
- * miss it." That is the whole feature, and it is cheap for one reason — the hooks it hangs off
- * fire on WHICHEVER CLIENT ACTED, so the popup lands on that player's own screen with no elect,
- * no canAnswerFor and nothing crossing the wire. It is the first table moment in this module
- * that needs no card, because nobody else is waiting on it.
- *
- * TWO PATHS REACH IT, and the second was the v1.18.0 walk's only finding — the first shipped
- * answering attacks alone, which left every save spell and every area rolling its own dice
- * behind the player's back:
- *   • ATTACKS — `dnd5e.rollAttackV2` (this file), on hit. Carries the crit, because there is
- *     an attack roll to have critted.
- *   • SAVE SPELLS AND AREAS — `dnd5e.postUseActivity` (saves.js's demand stamp), at the stamp.
- *     Vicious Mockery, Fireball, Web. No crit; the stakes take the badge's slot.
- * Both hooks share the locality above, which is why the second path cost a card and a thunk
- * rather than a machine.
- *
- * ⚠ THE PROPERTY THAT STOPS IT FORKING THE MACHINE: on each path the button and the buzzer
- * call the SAME roll function — `rollDamageForAttack()` or `rollDamageForSave()`, never a
- * popup-only variant. Crit, ammunition, attack mode and `originatingMessage` are byte-identical
- * whoever pressed it, so auto-apply, the riders, the verdict fold and the receipts cannot tell
- * a player's dice from the machine's — and the worst case of every failure path below is
- * today's behaviour.
- *
- * ⚠ KNOWN LIMIT, deliberately not engineered around: the window lives in a `setTimeout` on one
- * client, so an F5 mid-popup loses the roll (today's 3s beat has the same hole, 5x narrower).
- * Making it survive a reload means a flag, a re-render popper and an elect for "who rolls if
- * the roller never comes back" — the exact cross-client machinery whose absence makes this
- * item small. If it ever bites at the table, that is the follow-up; the GM rolls it by hand.
+ * The player's own roll — offered, never taken. The hooks fire on the client that acted, so the
+ * popup needs no elect and nothing crosses the wire. Two paths: attacks on hit (with the crit),
+ * and save spells and areas at the demand stamp (saves.js; the stakes take the badge's slot).
+ * ⚠ The button and the buzzer call the SAME roll function as the auto-roll, so nothing downstream
+ * can tell a player's dice from the machine's. Never add a popup-only variant.
+ * ⚠ Known limit: the window is a `setTimeout` on one client, so a reload mid-popup loses the
+ * roll; the GM rolls it by hand.
  * ------------------------------------------------------------------------------------------- */
 
-/** The family's window — `damageTimer` since walk-4 finding (w) (default 15 with the rest
- * of the family; 0 waits indefinitely and draws no bar). It graduated from a constant when
- * the wait became visible to the whole table, not just the roller. */
+/** The offer's window in seconds (`damageTimer`); 0 waits indefinitely and draws no bar. */
 const playerRollWindow = () => Math.max(0, Number(setting(S.damageTimer)) || 0);
 
-/**
- * The crit badge. Loud on purpose and NEVER shown on a guess — see the single source below.
- */
+/** The crit badge: never shown on a guess, only off `critFor`. */
 const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;border-radius:3px;
   background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
 
 /**
- * The shell EVERY damage offer wears, and the reason there is only one of it: the button, the X
- * and the buzzer all funnel through ONE `roll` thunk, so no flavour can drift into rolling
- * something its twin would not have. The flavours differ in what the card SAYS and what `roll`
- * DOES — never in how the window behaves. A third flavour means writing copy, not re-deciding
- * what a dismissal means.
- *
- * ONE POPUP PER ROLL, never per target (HANDOFF standing item 1): one damage roll serves every
- * target, so asking twice would be asking about dice that do not exist. `popupKey` + `livePopups`
- * make that structural — a second call while one is open raises the open one instead of stacking
- * a twin. The key is keyed to the CARD's id, so an attack chain and a save chain cannot collide.
+ * The shell every damage offer wears: the button, the X and the buzzer all funnel through ONE
+ * `roll` thunk. One popup per roll (keyed to the card), never per target: a second call raises
+ * the open one.
  */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
-  // ⚠ Lazily bound, the same discipline hold/ and saves/ keep (v1.6.1's ESM order trap).
-  // A STATIC import of ui.js here evaluates it during THIS file's own import — the entry reaches
-  // auto-damage.js before hold/index.js, whose own bare ui.js import has not yet run at that
-  // point — which runs ui.js's body, and its renderChatMessage/deleteChatMessage
-  // registrations, ahead of this file's. Measured with check-hook-order: the static form moves
-  // them, the dynamic form leaves the whole evaluation order byte-identical. Keep this dynamic.
+  // ⚠ Keep these imports dynamic: a static import of ui.js runs its hook registrations ahead of
+  // this file's and changes the hook order (check-hook-order).
   const { popupKey, bfCard, momentBarHTML } = await import("./decide/present.js");
   const { livePopups, openManagedPopup } = await import("./ui.js");
 
@@ -371,25 +269,18 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const window = playerRollWindow();
   const deadline = window ? Date.now() + (window * 1000) : null;
 
-  // THE TABLE'S VIEW (walk-4 finding (w)): the wait is stamped on the card, so every client
-  // renders the same draining bar the roller's popup runs — "we are waiting on dice" stops
-  // being knowledge private to the one holding them. The roller authors this message, so the
-  // write is theirs to make; failing to stamp must never block the offer itself.
+  // The wait is stamped on the card so every client draws the bar; a failed stamp never blocks the offer.
   if ( deadline ) {
     void message.setFlag(MODULE_ID, "damageOffer", { status: "pending", deadline, window })
       .catch(() => { /* the popup still offers; only the table's bar is lost */ });
   }
 
-  // Idempotent by construction: the button, the dismissal and the buzzer all come through here,
-  // and only the first one through rolls. Everything else is a no-op, which is why none of the
-  // paths below need to know about each other.
+  // Idempotent: only the first of button, dismissal and buzzer rolls.
   let fired = false;
   const fire = () => {
     if ( fired ) return;
     fired = true;
     void roll();
-    // The moment resolves: fold the card's bar everywhere. Merge-write keeps the deadline
-    // for the record; the row gates on status alone.
     if ( deadline ) void message.setFlag(MODULE_ID, "damageOffer", { status: "done" })
       .catch(() => { /* a stale bar drains to empty and the next render drops it */ });
   };
@@ -397,11 +288,8 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   const dialog = new foundry.applications.api.DialogV2({
     window: { title: windowTitle, icon: windowIcon },
     position: { width: 420 },
-    // ⚠ THE BUTTON MUST STAY ON SCREEN (user walk 2026-09-02): a rogue with Improved Cunning
-    // Strike and the Thief's Stealth Attack draws eight menu rows under the card, and DialogV2
-    // sizes to its content — the footer walked off the bottom of the viewport and the roller
-    // had no Roll to press. The menus scroll inside a viewport-bounded box; the card and the
-    // footer stay put.
+    // ⚠ DialogV2 sizes to its content: long menus scroll in a viewport-bounded box so the Roll
+    // button stays on screen.
     content: bfCard({ tone: "pending", ...card })
       + (extraHTML ? `<div data-bf-offer-menus style="max-height:calc(100vh - 20rem);overflow-y:auto;overflow-x:hidden;">${extraHTML}</div>` : "")
       + (deadline ? momentBarHTML({ deadline, window }, "to roll") : ""),
@@ -415,50 +303,28 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
     rejectClose: false
   });
 
-  // Dismissing is not a veto — it is "stop asking me, get on with it", so the X and Escape roll
-  // IMMEDIATELY rather than leaving the table sitting in silence until the buzzer. The guard in
-  // `fire` is what makes this safe to stack under the button's own callback.
+  // Dismissing is not a veto: the X and Escape roll immediately.
   const close = dialog.close.bind(dialog);
   dialog.close = (...args) => { fire(); return close(...args); };
 
-  // The buzzer. Unconditional on purpose: it does not test livePopups, so it still rolls even
-  // if the popup never rendered or was closed by something this function never hears about.
-  // A 0 window arms nothing — the popup waits for a human, and only the X or the button roll.
+  // The buzzer, unconditional so it rolls even if the popup never rendered. A 0 window arms nothing.
   if ( window ) setTimeout(() => { void dialog.close(); }, window * 1000);
 
   await openManagedPopup(key, message, dialog);
 
-  // A render that failed leaves NO surface to press: Hide Redundant Buttons is world-default ON,
-  // so the native Damage button is not there to fall back to. Roll now rather than make the
-  // table wait 15 seconds for a popup that does not exist.
+  // A failed render leaves nothing to press (the native Damage button is hidden): roll now.
   if ( livePopups.get(key) !== dialog ) return fire();
-  // A flavour with live controls (the Cunning Strike menu) wires them once the DOM stands.
   if ( wire ) { try { wire(dialog.element); } catch(err) { console.error(`${TITLE} | Offer controls failed to wire.`, err); } }
 }
 
 /**
- * THE OFFER'S CONTRIBUTIONS (2026-09-04 — the seam the third instance proved, BACKLOG's "the
- * damage offer's three lazy edges"). The damage offer is a SERVICE: it owns the popup, the clock
- * and the one roll thunk, and it knows nothing about any feature. What a feature paints on the
- * offer — the armed Cleave line, the Cunning Strike menu, the due clock riders, the hit menu —
- * is declared INTO it by the machine that owns the content, at module evaluation, the relay's
- * and the rescue's idiom (ui.js `registerRelay` / `registerRescue`). Before this the offer
- * imported each machine lazily and named its functions, one PERMANENT layer pin per machine and
- * a fourth waiting on the hit menu; now the edge points downward (machine → service) and the
- * offer walks a list.
- *
- * A part declares:
- *   due(attackMessage, activity)          → true when the offer must OPEN even under auto damage
- *                                           — there is a decision pending (an armed Sneak Attack,
- *                                           a due clock rider, an affordable maneuver)
- *   parts(attackMessage, activity, ctx)   → null, or `{ html, lines, wire(element), commit() }`:
- *                                           the menu markup, the notice lines, the live controls,
- *                                           and what to write on the attack message BEFORE the
- *                                           dice. `ctx.isCritical` is the crit as the offer knows
- *                                           it (critFor — one source).
- *
- * The order on the offer is the order of registration, which is the entry's import order —
- * the Cleave line, the Cunning Strike menu, the clock riders, the hit menu.
+ * The offer's contributions. The offer is a service that knows no feature; a machine declares
+ * what it paints on the offer at module evaluation (the `registerRelay` idiom), so the edge points
+ * machine → service. A part declares:
+ *   due(attackMessage, activity)        → true when a decision is pending: the offer opens even under auto damage
+ *   parts(attackMessage, activity, ctx) → null, or `{ html, lines, wire(element), commit() }`;
+ *                                         `commit` writes onto the attack message BEFORE the dice
+ * The order on the offer is registration order, i.e. the entry's import order.
  */
 const offerParts = [];
 
@@ -489,31 +355,16 @@ function offerPartsFor(attackMessage, activity, ctx) {
   return out;
 }
 
-/**
- * Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them.
- */
+/** Ask the ATTACKER to roll their own damage, with a `damageTimer` buzzer that rolls it for them. */
 export async function offerDamageRoll(activity, attackMessage) {
-  // ⚠ ONE SOURCE FOR THE CRIT — `critFor`: the roll's own verdict, or the condition's 5-foot
-  // clause. `rollDamageForAttack` and the pre-roll-damage hook read the same function to decide
-  // what they roll, so the badge cannot disagree with the dice. Deriving it instead from the
-  // d20 face and a crit threshold would be a second opinion about a settled fact — and a second
-  // opinion on a card people trust is worse than no badge at all.
+  // ⚠ The crit comes from `critFor` only, never re-derived from the d20 face.
   const crit = critFor(attackMessage);
   const isCritical = crit.isCritical;
   const against = againstLine(hitTargets(attackMessage));
-  // What the machines paint on this offer (the seam above): the armed Cleave line, the Cunning
-  // Strike menu, the due clock riders, the hit menu — each machine owns its content, this
-  // service owns the popup. Every pick is committed onto the attack message inside the one roll
-  // thunk, BEFORE the dice, where the machines' rider hooks read it.
+  // Each pick is committed onto the attack message inside the roll thunk, BEFORE the dice.
   const parts = offerPartsFor(attackMessage, activity, { isCritical });
 
-  // THE CELEBRATION (ARCHITECTURE.md §5 law 10, finding (l)): every attack-damage popup leads
-  // with the HIT — the moment the player earned — and the dice ask rides it. One design,
-  // consistent flavors: crits get louder on the one badge; a riposte is named as itself
-  // (finding (p) — its hit is the riposte's own moment, and the die-riding note explains
-  // the roll that is about to look bigger than the weapon); a precision re-drive names the
-  // maneuver that turned the miss. This is the single chokepoint — plain swings, riposte
-  // drives and precision re-drives all celebrate here or not at all.
+  // The popup leads with the hit (ARCHITECTURE.md §5 law 10); a riposte or precision re-drive names itself.
   const riposte = !!attackMessage.getFlag(MODULE_ID, "riposteFor");
   const precisionUsed = attackMessage.getFlag(MODULE_ID, "precision")?.outcome === "used";
   const headline = isCritical
@@ -546,35 +397,14 @@ export async function offerDamageRoll(activity, attackMessage) {
 }
 
 /**
- * Ask the CASTER to roll a save spell's damage — Vicious Mockery's d4, Fireball's 8d6, and every
- * area in between. The v1.18.0 walk's one finding: the popup answered attacks and nothing else,
- * because it only ever hung off `dnd5e.rollAttackV2`, and a save spell never rolls an attack.
- *
- * ⚠ NO CRIT BADGE, and that is not an omission — a save spell has no attack roll to crit on, so
- * there is no settled fact to report. The stakes line takes the badge's slot instead: what a
- * successful save does to this number is the thing the roller wants to know while the dice are
- * still in their hand.
- *
- * ⚠ WHY LEAVING THE ROLL HANGING IS SAFE, and the reason this stayed small: the save slice was
- * built order-independent from the start. `reconcileSaveDamage` applies chained damage on
- * ARRIVAL, verdicts or no verdicts, behind a receipt-gated latch — its own docstring reads
- * "damage before verdicts, verdicts before damage, or interleaved". A roll landing fifteen
- * seconds after the saves needs no new machinery; it is the case already handled.
- *
- * ⚠ THE AREA NOT PLACED YET (`awaitingTemplate` — cast Web bare, then place it) is offered the
- * roll ANYWAY, targetless. The dice do not need to know who they land on; only the application
- * does, and that waits for adoption regardless. Deferring the offer until the template lands
- * would invent a NEW way to stall — a spell nobody ever places would never roll at all — and
- * this family's rule is that the worst case of every failure path is today's behaviour.
- *
- * ⚠ RIDER DAMAGE NEVER REACHES HERE. The caller gates on `saveModulated`, which excludes
- * `onSave: "full"` (Web's burn clause, finding ③, 2026-08-17). Riding the caller's existing gate
- * rather than re-testing here is what stops this popup re-opening that door.
+ * Ask the CASTER to roll a save spell's damage. No crit badge (no attack roll); the stakes line
+ * takes its slot. Leaving the roll hanging is safe: `reconcileSaveDamage` applies in any order.
+ * An area not placed yet is offered the roll anyway, targetless: only the application waits.
+ * ⚠ The caller gates on `saveModulated` (excludes `onSave: "full"`), so rider damage never reaches here.
  */
 export async function offerSaveDamageRoll(activity, card, { damageOnSave, targets, awaiting } = {}) {
   const against = againstLine(targets);
-  // Deliberately the save popup's own phrasing (saves.js's stakes block), trimmed to sit beside
-  // the dice: the caster and the target should read the same rule in the same words.
+  // The save popup's own phrasing (saves.js), so caster and target read the same words.
   const stake = (damageOnSave === "half") ? "A successful save <strong>halves</strong> it."
     : (damageOnSave === "none") ? "A successful save avoids it <strong>entirely</strong>."
     : null;
@@ -592,7 +422,6 @@ export async function offerSaveDamageRoll(activity, card, { damageOnSave, target
     lines: [
       stake,
       against,
-      // Says WHY the line above is missing, rather than leaving the roller to wonder.
       (awaiting && !against)
         ? `<span style="opacity:0.85;">The area is not placed yet — your dice can go first.</span>`
         : null

@@ -1,30 +1,13 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DICE CHANGERS — one popup per damage roll, a row
- * per feature that changes the landed dice (the user, 2026-09-27; the shape drawn and liked
- * 2026-09-26, prototypes/dice-popup.html; RULINGS *The dice changers — one popup*). The pure half —
- * the order, the plan, the words — is decide/dice-changers.js; the arithmetic of a patched die is
- * decide/damage-dice.js.
+ * per feature that changes the landed dice (RULINGS *The dice changers — one popup*): Empowered
+ * Spell (`pick`), Savage Attacker (`set`), Piercer (`one`), run in that order by one Apply. The pure
+ * half is decide/dice-changers.js; the die arithmetic decide/damage-dice.js.
  *
- * THE ROWS: Empowered Spell (a `pick` — Metamagic, the METAMAGIC table and its list), Savage
- * Attacker (a `set`) and Piercer (a `one`) — the DAMAGE_EITHER table and its list. One shell for
- * all three, where there were two copies (Empowered's in metamagic.js since 2026-09-09, Savage's in
- * damage-either.js since 2026-09-24): the birth flag, the popup, the clock, the recall, the durable
- * completion. A character holding two of them is asked ONCE per roll, both rows in one popup, and
- * one Apply runs them in the ruled order — pick, then set, then one (Piercer's die chosen off the
- * faces that stand after Savage's set).
- *
- * THE SEQUENCE (Savage's ruling, 2026-09-24, now every row's): the damage message is born with the
- * record DUE (preRollDamageV2, a birth flag), and auto-apply.js holds an attack's application while
- * it waits — so the dice land ONCE, with what stood. The question is asked only once the attack's
- * hold is off the roll: a roll born `attackHoldPending` waits for the hold's release write
- * (hold/continue.js), which reaches this file as an update; an attack the hold turned into a miss
- * resolves the record moot. A spell's damage with no attack behind it (Fireball) is not held by the
- * attack applier; damage already applied off it is moved by the difference at the completion
- * (auto-apply.js `moveAppliedDamage`, the §11 rule 4 obligation), as Empowered always did.
- *
- * THE PATCH: the old faces struck in the message's own roll data (decide/damage-dice.js), the rolls
- * rebuilt with their totals taken again (shared.js `rebuildRolls`), the message updated. ⚠ dnd5e
- * dispatches the damage hook TWICE per roll (measured 2026-09-09): an in-flight set keeps it single.
+ * The damage message is born with the record DUE; auto-apply.js holds an attack's application
+ * while it waits, so the dice land ONCE. The question opens only once the attack's hold is off
+ * the roll. Damage already applied (a spell with no attack) is moved by the difference.
+ * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
 import { lower, featureNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
@@ -50,9 +33,8 @@ const offering = new Set();
 const resolving = new Set();
 
 /**
- * The DAMAGE_EITHER rows this attacker holds that fit THIS hit, in the table's order — every one,
- * not the first (BACKLOG's "one question per hit", closed 2026-09-27). A `weapon` row wants a
- * weapon; a `dealt` row a hit that deals its type (Piercer: Piercing).
+ * Every DAMAGE_EITHER row this attacker holds that fits THIS hit, in table order. A `weapon` row
+ * wants a weapon; a `dealt` row a hit that deals its type.
  * @param {Actor} attacker
  * @param {{weapon?: boolean, dealt?: string[]}} [hit]
  */
@@ -96,19 +78,17 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     if ( !actor ) return;
     const rows = [];
     let attackId = null;
-    // Empowered Spell — "when you roll damage for a spell": damage, never a spell's healing.
+    // Empowered Spell: a spell's damage, never its healing.
     if ( (activity.item?.type === "spell")
       && empoweredReaches({ activityType: activity.type, rollTypes: (config?.rolls ?? []).map(r => r?.options?.type) }) ) {
       const offer = empoweredOffer(actor);
       if ( offer ) rows.push({ key: "empowered", feature: "Empowered Spell", kind: "pick", status: "due", ...offer });
     }
-    // Savage Attacker and Piercer — an attack's hit.
     const attackMessage = (activity.type === "attack") ? attackMessageForDamage(config, message) : null;
     if ( attackMessage ) {
       attackId = attackMessage.id;
       const weapon = activity.item?.type === "weapon";
       for ( const found of eitherRowsFor(actor, { weapon, dealt: dealtOf(config, activity) }) ) {
-        // a row that does not ask for a weapon (Piercer) is due on any attack that fits it
         const status = eitherDue({ listed: true, owned: true, weapon: weapon || !found.row.weapon,
           chitStands: turnChitStands(actor, "rider", found.row.key) });
         if ( status ) rows.push({ key: found.row.key, feature: found.name, kind: found.row.one ? "one" : "set", status });
@@ -132,9 +112,8 @@ Hooks.on("dnd5e.rollDamageV2", rolls => {
   if ( message instanceof ChatMessage ) void promote(message);
 });
 
-// The hold's release (hold/continue.js writes `attackHoldPending: false` on the roll), on the client
-// that rolled it; a settled record closes its popup (law 4) and stands its buzzer down, and a pending
-// one re-arms here on whichever client drives the moment.
+// The hold's release reaches the roller here; a settled record closes its popup (law 4) and its
+// buzzer, a pending one re-arms on the driving client.
 Hooks.on("updateChatMessage", message => {
   const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
   if ( !flag ) return;
@@ -148,13 +127,12 @@ Hooks.on("updateChatMessage", message => {
 async function promote(message) {
   const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "due") || offering.has(message.id) ) return;
-  // The hold first: its release write brings this back (the update hook above).
   if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) return;
   offering.add(message.id);
   try {
     const actor = resolveUuid(flag.actorUuid);
     const attackMessage = flag.attackId ? game.messages.get(flag.attackId) : null;
-    // A hold that turned the hit into a miss leaves nothing to change, and spends nothing.
+    // A hold that turned the hit into a miss makes every row moot.
     const missed = !!flag.attackId && (!attackMessage || !hitTargets(attackMessage).length);
     const data = (message.rolls ?? []).map(r => r.toJSON());
     const wdice = weaponDiceOf(data, weaponRollsOf(message));
@@ -177,7 +155,7 @@ async function promote(message) {
           row.first = best.value;
           row.odds = oneDieOdds(best.faces, best.value);
         } else if ( row.kind === "pick" ) {
-          // the point is read again as the dice land: one spent since the birth takes the row away
+          // The pool is re-read: a point spent since the birth takes the row away.
           const pool = actor?.items?.get(row.poolId) ?? null;
           if ( !chips.length || !pool || ((pool.system?.uses?.value ?? 0) < (Number(row.cost) || 1)) ) { row.status = "moot"; continue; }
         }
@@ -194,7 +172,7 @@ async function promote(message) {
     });
     if ( message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status !== "pending" ) return;
     armTimer(message);
-    // The table sees the dice land before the question about them opens (the verdict pause's rule).
+    // The table sees the dice land before the question opens.
     await dramaticVerdictPause(message);
     await showPopup(message);
   } finally {
@@ -202,11 +180,7 @@ async function promote(message) {
   }
 }
 
-/**
- * The buzzer, on whoever drives the actor's moments (core.js `drivesMomentFor`: the active GM, and
- * with no GM the actor's own player) — an attack's damage waits on this answer, so a table with no
- * GM must still have a clock that keeps the roll.
- */
+/** The buzzer, on whoever drives the actor's moments (`drivesMomentFor`), so a no-GM table still keeps the roll. */
 function armTimer(message) {
   const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
   if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
@@ -238,8 +212,7 @@ async function showPopup(message) {
   const pool = pickRow ? (actor.items?.get(pickRow.poolId) ?? null) : null;
   const subtitle = [`${weapon?.name ?? "the roll"} · ${formula} → ${flag.total}`,
     pool ? `${SORCERY_POINTS}: ${pool.system?.uses?.value ?? "?"} of ${pool.system?.uses?.max ?? "?"}` : null].filter(Boolean).join(" · ");
-  // The chips: every die the roll shows — pickable when a pick row asks (Empowered's), else the
-  // roll laid out for the eye. Eight to a row (user, 2026-09-09).
+  // Every die the roll shows, pickable only when a pick row asks.
   const chips = (flag.dice ?? []).map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" ${pickRow ? "" : "disabled"}
       data-tooltip="d${d.faces}${(d.rolled !== undefined) ? ` · rolled ${d.rolled}, counts ${d.result}` : ""}"
       style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}${pickRow ? "" : "opacity:0.75;cursor:default;"}">${d.result}</button>`).join("");
@@ -253,15 +226,13 @@ async function showPopup(message) {
       title: popupTitle(asking, flag.total),
       subtitle
     }) + holdBarHTML(flag, "to answer")
-      // THE HINT (option D, ruled 2026-09-25 off prototypes/savage-hint.html): the die meter in the
-      // header for the roll-again row; its tick starts where the meter leans.
+      // The die meter for the roll-again row.
       + (meterRow ? dieMeterHTML({ value: meterRow.first, ...meterRow.odds }) : "")
       + (chips ? `<div data-bf-dice-chips data-cap="${pickRow?.cap ?? 0}" style="margin:0.4rem 0;display:grid;grid-template-columns:repeat(8, 2.2rem);gap:0.3rem;justify-content:start;">${chips}</div>` : "")
       + `<span data-bf-dice-for="${esc(message.id)}" hidden></span>`
       + tickRowsHTML({ name: "bf-dice", rows: asking.map(r => ({ key: r.key, name: r.feature, ...rowOffer(r), rule: r.rule ?? DAMAGE_EITHER[r.feature]?.rule ?? null })) }),
     buttons: [
-      // The window goes at the click (Empowered's lesson, 2026-09-10): the work is fired, not awaited,
-      // and the ticks are read while the form is still in the DOM.
+      // Fired, not awaited, so the window closes at the click; the ticks are read while the form stands.
       { action: "apply", label: applyLabel(asking), default: true,
         callback: (_event, button) => { void resolve(message, { ticked: ticksIn(button.form), picks: picksIn(button.form) }); } },
       { action: "keep", label: "Keep the roll", callback: () => { void keep(message); } }
@@ -269,8 +240,7 @@ async function showPopup(message) {
   });
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   if ( !form ) return;
-  // Where each tick starts: a roll-again row where its hint leans (under the average: ticked); the
-  // pick row follows its chips — a point is spent only on dice the caster chose.
+  // A roll-again row starts ticked under the average; the pick row follows its chips.
   for ( const row of asking ) {
     const box = form.querySelector(`input[name="bf-dice"][value="${row.key}"]`);
     if ( box ) box.checked = (row.kind !== "pick") && (row.odds?.low !== false);
@@ -278,7 +248,6 @@ async function showPopup(message) {
   form.addEventListener("change", ev => {
     const box = ev.target?.closest?.('input[name="bf-dice"]');
     if ( !box ) return;
-    // unticking the pick row lets its chips go
     if ( !box.checked && (asking.find(r => r.key === box.value)?.kind === "pick") ) {
       for ( const chip of form.querySelectorAll('[data-bf-die][data-picked="1"]') ) paintDieChip(chip, false);
     }
@@ -301,8 +270,7 @@ function syncButtons(form) {
   keepButton.disabled = !state.keep;
 }
 
-// The chips toggle by delegation — one listener on the document serves every open popup. The cap is
-// enforced as the picks are made; a pick ticks the pick row, the last one let go unticks it.
+// The chips toggle by delegation, one document listener for every popup; the cap is enforced here.
 Hooks.once("ready", () => document.addEventListener("click", ev => {
   const chip = ev.target?.closest?.("[data-bf-die]");
   const box = chip?.closest?.("[data-bf-dice-chips]");
@@ -347,8 +315,7 @@ async function resolve(message, { ticked, picks }) {
     if ( !plan.length ) { await keep(message); return; }
     const actor = resolveUuid(flag.actorUuid);
     if ( !actor ) return;
-    // ANSWERED IS NOT PENDING (the d20 folds' rule): the status leaves "pending" before the dice, so
-    // the buzzer can no longer keep a roll the player chose to change, and the popup closes.
+    // ⚠ Leave "pending" BEFORE the dice, so the buzzer cannot keep a roll the player chose to change.
     await queueFlagWrite(message, DICE_CHANGE_FLAG, current => {
       if ( current.status !== "pending" ) return false;
       current.status = "answering";
@@ -369,7 +336,7 @@ async function resolve(message, { ticked, picks }) {
         const pool = actor.items?.get(row.poolId) ?? null;
         if ( !pool ) continue;
         record = await spendPoolUses(actor, pool, "Empowered Spell", Number(row.cost) || 1, SORCERY_POINTS);
-        // THE DICE ARE ONE ROLL, AND THEY RIDE THE ANNOUNCE CARD (user, 2026-09-10: Dice So Nice rolls again).
+        // One roll, carried by the announce card (so Dice So Nice rolls it).
         const roll = await new Roll(live.map(d => `1d${d.faces}`).join(" + ")).evaluate();
         const faces = roll.dice.map(die => die.results.find(r => r.active !== false)?.result ?? die.total);
         const patched = rerollFaces(data, live, faces);
@@ -380,7 +347,7 @@ async function resolve(message, { ticked, picks }) {
         fresh.push(roll);
         rises.push(rerollRise({ done: patched.done, on: actor.uuid }));
       } else if ( row.kind === "set" ) {
-        // THE SECOND SET, ONE ROLL — the weapon's die terms, term for term, off the faces standing now.
+        // The second set, one roll: the weapon's die terms, off the faces standing now.
         const dice = weaponDiceOf(data, weaponRollsOf(message));
         if ( !dice.length ) continue;
         const formula = setFormula(dice);
@@ -395,7 +362,7 @@ async function resolve(message, { ticked, picks }) {
         fresh.push(roll);
         rises.push(eitherRise({ first, second, stands: outcome.stands, on: actor.uuid }));
       } else {
-        // ONE die (Piercer): the die with the most to gain among the faces standing NOW (the ruled order).
+        // One die: the one with the most to gain among the faces standing NOW.
         const pick = bestRerollDie(data);
         if ( !pick ) continue;
         const roll = await new Roll(`1d${pick.faces}`).evaluate();
@@ -435,17 +402,15 @@ async function resolve(message, { ticked, picks }) {
         title: `${ran.map(r => r.feature).join(", then ")} — ${flag.total} → ${total}`,
         subtitle: (delta === 0) ? "The total stands." : `The damage is ${total} now — the new rolls stand.`,
         lines }),
-      // the changed dice on the canvas, over the actor, in the order they ran (the dice that rise)
       flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
     });
-    // THE DURABLE INTENT, BEFORE THE PAUSE (Empowered's 2026-09-10 review): everything the completion
-    // needs is written first, so the driver's resume can finish it if this client dies.
+    // ⚠ The durable intent goes down BEFORE the pause, so the driver's resume can finish if this client dies.
     await queueFlagWrite(message, DICE_CHANGE_FLAG, current => {
       if ( current.status !== "answering" ) return false;
       current.pending = { rolls: rebuilt.map(r => JSON.stringify(r.toJSON())), outcomes, total, delta, at: Date.now() };
     });
     if ( record ) await message.setFlag(MODULE_ID, "poolSpend", record);
-    // Once per turn: a chit per roll-again row, on the attacker, for the turn in progress (none out of combat).
+    // Once per turn: a chit per roll-again row on the attacker.
     for ( const row of ran.filter(r => r.kind !== "pick") ) {
       const feature = featureOf(actor, row);
       void writeTurnChit(actor, "rider", { name: `${row.feature} — used this turn`, img: feature?.img ?? null,
@@ -457,9 +422,8 @@ async function resolve(message, { ticked, picks }) {
     await complete(message);
   } catch(err) {
     console.error(`${TITLE} | The dice changers failed to roll — change the dice by hand.`, err);
-    // Never strand "answering": a written intent completes; a point spent with nothing written ends
-    // the moment used with the spend on record (the dice are the caster's to reroll by hand); with
-    // nothing spent the offer comes back.
+    // Never strand "answering": a written intent completes; a point spent without one ends "used"
+    // with the spend recorded; otherwise the offer comes back.
     const current = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
     if ( current?.pending ) await complete(message).catch(() => {});
     else {
@@ -477,9 +441,8 @@ async function resolve(message, { ticked, picks }) {
 }
 
 /**
- * THE COMPLETION — the one step between "answering" and "used": the patched rolls onto the message,
- * each row's outcome onto its row (a row not ticked is kept), the settling write auto-apply's claim
- * waits on, and damage already applied moved by the difference. Idempotent by status.
+ * THE COMPLETION, "answering" → "used": the patched rolls and outcomes onto the message (the
+ * settling write auto-apply waits on), then applied damage moved by the difference. Idempotent.
  */
 async function complete(message) {
   const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
@@ -500,8 +463,7 @@ async function complete(message) {
 /** Past the longest the pause can be (six seconds of dice, up to ten of dramatic beat), with slack. */
 const RESUME_MS = 20_000;
 registerResumable(DICE_CHANGE_FLAG, {
-  // A completion the clicking client never took, and a DUE the roller never promoted (its client
-  // gone before the hold released): the driver finishes the one and asks the other.
+  // The driver finishes a completion the clicking client never took, and asks a DUE nobody promoted.
   pending: (flag, message) => ((flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > RESUME_MS))
     || ((flag?.status === "due") && (message.getFlag(MODULE_ID, "attackHoldPending") !== true)
       && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
@@ -533,10 +495,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) { console.warn(`${TITLE} | The dice line could not render.`, err); }
 });
 
-/**
- * A card from before the one popup (v2.4.0 and earlier: Savage's `either`, Empowered's `empowered`)
- * still says what happened on a reload — read-only; nothing writes those keys any more.
- */
+/** An older card's `either` / `empowered` record, read-only: nothing writes those keys now. */
 function legacyLines(message) {
   const either = message.getFlag(MODULE_ID, "either");
   const empowered = message.getFlag(MODULE_ID, "empowered");

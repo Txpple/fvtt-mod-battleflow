@@ -1,5 +1,5 @@
 /**
- * Battle Flow — Phase 1b: auto-apply damage on the active-GM elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
+ * Battle Flow — auto-apply damage on the elect, the shared receipt applier, and the payout pipeline (application, then effect riders, then mastery).
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM,
@@ -15,36 +15,21 @@ import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 import { sequenceBashOffer } from "./bash-offer.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Phase 1b — auto-apply damage to hit targets (the active-GM elect; single writer)
- * ------------------------------------------------------------------------------------------- */
+/* --- Auto-apply damage to hit targets ---------------------------------------------------------- */
 
 /**
- * The payout chain's SUBJECT for a damage roll — the ATTACKER, never the room: the chain's writes
- * land on the attack message, which only its author may update. Who drives it is core's one
- * question, `drivesMomentFor` (ARCHITECTURE §3, the driver table; this file's own copy of the
- * elect body, v1.27.0, folded away in Stage 5 of the machine-tier pass, 2026-09-05). An
- * unresolvable attacker resolves to null, which is the old GM-only answer.
+ * The payout chain's SUBJECT: the ATTACKER, since the chain writes on the attack message. Who
+ * drives it is `drivesMomentFor` (ARCHITECTURE §3); null means GM-only.
  */
 function payoutSubject(message) {
   try { return resolveAttackMessage(message)?.getAssociatedActor?.()?.uuid ?? null; }
   catch { return null; }
 }
 
-// The payouts' three triggers, declared to the spine's resumable registry (Stage 3, 2026-09-05),
-// FLAGLESS: the attack's damage roll is the system's own message, judged at creation before
-// anything of this module is on it. (gg) roll-now-apply-later: an attack held by a Shield-class
-// reaction rolls its damage anyway (auto-damage.js stamps the roll `attackHoldPending`), and the
-// application waits for the hold's resolution to release the claim — the darts' spellHoldPending
-// pattern, on the attack chain. The release write (pending → false, hold/continue.js) is the bus event;
-// render is the reload resume — only an ex-claimed, unreceipted roll resumes. The re-entry guard
-// (the release write and a render can land in one tick, and over-applying damage is the worst
-// failure this module has) is the spine's `attackDamage|<id>` latch now.
-// ⚠ A SECOND CLAIM (Slice A, 2026-09-24; every dice changer's since 2026-09-27): the dice changers'
-// question — Savage Attacker, Piercer, Empowered Spell on a spell attack — is asked AFTER the dice
-// and BEFORE they land ("the damage waits for the answer", the ruled prototype), so a damage message
-// born with `diceChange` due holds the application until the answer settles it; the settling write
-// is the bus event, the same as the hold's release. The dice land once, with what stood.
+// FLAGLESS resumable: the damage roll is the system's message, judged at creation. Two claims hold
+// the application: a hold (`attackHoldPending`, released by hold/continue.js) and a pending dice
+// changer (`diceChange`); each settling write is the bus event, a render the reload resume.
+// ⚠ The spine's `attackDamage|<id>` latch guards re-entry: over-applying is the worst failure.
 const eitherWaits = message => DICE_CHANGE_WAITS.includes(message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status);
 registerResumable("attackDamage", {
   flagless: true,
@@ -61,13 +46,11 @@ async function resolveAttackDamage(message) {
   const attackMessage = resolveAttackMessage(message);
   if ( !attackMessage ) return;
   if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) {
-    // Claimed for a hold. Belt and braces (the spell applier's own idiom): if the hold
-    // has already RESOLVED — the release sweep ran before this roll landed — fall
-    // through and apply per its verdicts; a live claim keeps waiting for the release.
+    // Claimed for a hold: a hold already RESOLVED (released before this roll landed) applies now.
     const hold = attackMessage.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status === "pending") ) return;
   }
-  if ( eitherWaits(message) ) return;   // the dice changers' answer first (the claim above)
+  if ( eitherWaits(message) ) return;   // the dice changers' answer first
   if ( message.getFlag(MODULE_ID, "receipt") ) return;               // applied already (resume)
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing, by ruling
@@ -75,18 +58,12 @@ async function resolveAttackDamage(message) {
 }
 
 /**
- * Everything a damage roll pays out, in a deterministic order: damage application first,
- * then the card's effect riders, then the weapon mastery riding the attack — sequential
- * because the mastery gates (Vex and Slow trigger only when damage was DEALT) read the
- * receipt's per-target taken amounts, and a receipt only exists once application has run.
- * Each stage is independently gated by its own setting.
+ * Everything a damage roll pays out, in order: application, effect riders, then mastery.
+ * ⚠ Sequential: the mastery gates (Vex, Slow: damage DEALT) read the receipt application writes.
  */
 async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
-  // ⚠ WITH NO GM, THE CONSEQUENCE STAGES ARE SKIPPED AND SAID OUT LOUD (v1.27.0). Damage
-  // application and the effect riders both write to the TARGET, which a player client has no
-  // permission to touch — so they are gated on the write instead of attempted and thrown.
-  // The mastery chain below is NOT gated here: its cards, asks and popups are all
-  // player-reachable, and it guards its own writes one payout at a time.
+  // ⚠ Application and effect riders write to the TARGET: gated on the write and said aloud when a
+  // player client cannot. The mastery chain guards its own writes.
   const writable = hits.filter(t => {
     try { return canApplyTo(fromUuidSync(t.uuid)); } catch { return false; }
   });
@@ -97,37 +74,26 @@ async function resolveDamagePayouts(damageMessage, attackMessage, hits) {
     if ( blocked ) await whisperNoGM(`damage to ${blocked} target${blocked === 1 ? "" : "s"}`,
       "The roll stands — apply it from the card's damage tray.");
   }
-  // Per-target application: the damage riders' split-target intersection refusal
-  // deliberately does NOT apply to effects.
+  // Per target: the damage riders' all-targets intersection rule does NOT apply to effects.
   if ( setting(S.effectRiders) && writable.length ) {
     await applyEffectRiders(damageMessage, attackMessage, writable);
   }
   if ( setting(S.masteryRiders) ) await resolveHitMastery(damageMessage, attackMessage, hits);
-  // THE SEQUENCE (user ruling 2026-09-13, decide/sequence.js): the hit's offer opens only now —
-  // after the damage, and after the mastery's decision if one is pending (the watcher in
-  // bash-offer.js takes it from there when the ask is answered).
+  // The hit's offer opens only after the damage and any pending mastery decision (decide/sequence.js).
   await sequenceBashOffer(attackMessage, { damageLanded: true });
 }
 
-/**
- * Apply a damage message's rolls to the given targets exactly as the native tray would, and
- * stamp the receipt. Damages are built with the system's own aggregation; application runs
- * through Actor5e#applyDamage so di/dr/dv, modification, threshold and temp-HP math stay
- * authoritative. The receipt records the pre-application SOURCE hp so a revert restores the
- * exact stored values.
- */
+/** Apply a damage message's rolls to the given targets as the native tray would, and stamp the receipt. */
 async function applyToHitTargets(damageMessage, attackMessage, hits) {
   const damages = damagePartsOf(damageMessage.rolls);
-  // A HELD attack lands per reactor (user, 2026-09-02): a target whose damage-kind reaction
-  // was cast and is in the multiplier table (Uncanny Dodge) takes its share at that
-  // multiplier, with the receipt row saying why; everyone else takes it whole. The split is
-  // by multiplier, so a two-rogue volley still makes one application per group.
+  // A held attack lands per reactor: a target whose reaction is in the multiplier table (Uncanny
+  // Dodge) takes its share at that multiplier. One application per group.
   const hold = attackMessage?.getFlag(MODULE_ID, "hold");
   const groups = new Map();
   for ( const target of hits ) {
     const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;
     const found = entry ? interruptMultiplier(entry, INTERRUPT_MULTIPLIERS) : null;
-    // A reaction that REDUCES by a roll (Parry, 2026-09-05): the number the answer carried.
+    // A reaction that REDUCES by a roll (Parry): the number the answer carried.
     const reduce = (entry?.answer === "cast") && (Number(entry.reduceBy) > 0) ? Number(entry.reduceBy) : 0;
     const note = found?.note ?? (reduce ? `${entry.reaction} — reduced by ${reduce}` : undefined);
     const key = `${found?.multiplier ?? 1}|${note ?? ""}|${reduce}`;
@@ -140,14 +106,9 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
 }
 
 /**
- * THE DAMAGE CLAIMS (the Goliath walk, 2026-09-25 — ruled "Hold before it lands": Stone's
- * Endurance on ANY damage, not just attack hits). A machine may CLAIM one target's share of an
- * application before it lands — the reaction that reduces "when you take damage" must be asked
- * while the damage is still a number. The claimant takes the share whole (the damages, the
- * multiplier, the note) and applies it later through this same applier with `held: true`, which is
- * never claimed again. Declared at module evaluation, like the offer's parts (auto-damage.js); a
- * service names no feature, so the claimant is a callback. A claim that throws is ignored and the
- * damage lands as it always did.
+ * THE DAMAGE CLAIMS: a machine may claim one target's share before it lands (a reaction to "when
+ * you take damage" asked while the damage is a number) and apply it later with `held: true`,
+ * which is never claimed again. Registered at module evaluation; a claim that throws is ignored.
  * @type {Array<(receiptMessage: ChatMessage, target: {uuid: string, name: string}, actor: Actor,
  *   damages: object[], opts: {multiplier: number, note?: string}) => boolean>}
  */
@@ -167,50 +128,33 @@ function claimed(receiptMessage, target, actor, damages, opts) {
 }
 
 /**
- * The shared applier: land `damages` on every target and stamp the receipt onto
- * `receiptMessage` (the damage card normally; the ATTACK card for Graze, where no damage
- * message exists because the attack missed). `note` rides each receipt entry and renders
- * beside the taken amount — it is how a Graze line says what it is.
- *
- * `multiplier` is threaded now so Phase 2 (half damage on a successful save) extends this
- * applier instead of forking it — today every caller passes the default 1, and a non-1
- * multiplier is recorded on the receipt entry so the row can say why the number halved.
+ * The shared applier: land `damages` on every target through Actor5e#applyDamage (the system's
+ * di/dr/dv and threshold math) and stamp the receipt onto `receiptMessage` (the ATTACK card for
+ * Graze, which has no damage message). `note` and a non-1 `multiplier` show on the receipt row.
  */
 export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1, held = false } = {}) {
   try {
-    // The data-plane stamp, resolved ONCE per application while both facts are live: the
-    // receipt message's own actor is the source (attacker, caster, healer — statSourceOf's
-    // finding), and a held target landing on a LATER call gets that call's own context.
+    // The data-plane stamp, once per application: the receipt message's actor is the source.
     const context = statContext(statSourceOf(receiptMessage));
     const receipts = [];
     for ( const target of hits ) {
       const actor = await fromUuid(target.uuid); // the targets snapshot carries ACTOR uuids
       if ( !(actor instanceof Actor) || !actor.system.attributes?.hp ) continue;
-      // A claimed share waits for its answer and lands later, `held` (the claims above).
       if ( !held && claimed(receiptMessage, target, actor, damages, { multiplier, ...(note ? { note } : {}) }) ) continue;
       const src = actor.system._source.attributes.hp;
       const prior = { value: src.value, temp: src.temp, tempmax: src.tempmax };
 
-      // Ask the system's math WHY before letting it apply: calculateDamage is public and
-      // side-effect-free (it deep-clones the array), and it annotates each entry's `active`
-      // with the multiplier/threshold story applyDamage then acts on (actor.mjs:833-891).
-      // The receipt keeps that story so the card can explain a rolled 9 that lands as a 0 —
-      // reported live 2026-08-15: a cold-immune Ice Mephit "taking" Ray of Frost's 9 with
-      // nothing on the card saying why. Recomputing di/dr/dv by hand here would drift from
-      // bypasses/modification/threshold; asking the same method twice cannot. (The extra
-      // pass fires the calculate-damage hooks one more read-only time; nothing in this
-      // module or combatplus listens to them.)
+      // Ask the system WHY first: calculateDamage is side-effect-free and annotates each entry
+      // with the multiplier story, so the receipt can explain a 9 that lands as 0. Never
+      // recompute di/dr/dv by hand. ⚠ It fires the calculate-damage hooks a second time.
       const calc = actor.calculateDamage(damages, { multiplier, originatingMessage: receiptMessage });
 
       await actor.applyDamage(damages, {
         multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
       });
       const after = actor.system._source.attributes.hp;
-      // The entry is arithmetic over the two snapshots and the system's own annotations —
-      // prior → delta → taken → reason, all of it in decide/receipt.js.
-      // A block the target's own armor took (Heavy Armor Master, fighting-styles.js) says so on its row.
+      // A block or an ignored Resistance (fighting-styles.js) says so on the row.
       const block = calc?.bfArmorBlock;
-      // A Resistance the attacker's feat ignored (Elemental Adept, Poisoner — the same file) says so too.
       const ignored = (calc?.bfIgnored ?? []).map(i => `${i.feature} — ignores ${i.types.join(", ")} resistance`);
       const said = [note, block?.amount ? `${block.feature} — blocked ${block.amount}` : null, ...ignored].filter(Boolean).join(" · ") || note;
       receipts.push(receiptEntry({
@@ -219,10 +163,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       }));
     }
     if ( receipts.length ) {
-      // Through `queueFlagWrite` (core.js) because the merge is only correct when the writes
-      // are sequential: two CONCURRENT writers would each merge into the same pre-read copy
-      // and drop one another's entries. The merge discipline itself — and what one lost entry
-      // costs — is decide/receipt.js.
+      // ⚠ Through `queueFlagWrite`: concurrent merges would drop each other's entries.
       await queueFlagWrite(receiptMessage, "receipt", existing => {
         joinDamageReceipt(existing, receipts);
       });
@@ -233,12 +174,8 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
 }
 
 /**
- * Damage ALREADY applied off a message whose dice were rerolled after the fact is moved by the
- * difference — the §11 *Adding a FOLD* rule 4 obligation, carried through the one applier above
- * as its own receipt (revertable like any other); a total that fell heals the difference back the
- * same way. Lifted out of metamagic.js (Empowered Spell, 2026-09-09) on 2026-09-24 for its second
- * customer, Savage Attacker (Slice A): `feature` names the source on the note and the whisper, and
- * Empowered's bytes are unchanged. Only the elect applies; anyone else says so.
+ * Move damage ALREADY applied by the difference after a reroll (ARCHITECTURE §11 *Adding a FOLD*
+ * rule 4), as its own revertable receipt; a lower total heals back. Only the GM applies.
  * @param {ChatMessage} message
  * @param {{delta: number, feature: string}} outcome
  */

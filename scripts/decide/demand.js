@@ -2,31 +2,15 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): which pending DEMAND a roll answers.
  *
- * The machine-tier pass, Stage 2 (2026-09-05). Three machines demand a saving throw of a
- * creature — concentration (its ask card), saves (the demand card), the Topple fold (the mastery
- * card) — and each had its own recognizer for "does this roll answer me": the module's own
- * `respondsTo` stamp, a roll chained to the card (`originatingMessage`), or a BARE sheet roll
- * matched by actor and ability. The bare branch is the one that couples them: a bare roll can
- * answer only one demand, so each recognizer checked the others' flags BY STRING in a fixed
- * order the comments called ship order. **This module is that order, written once, over plain
- * data** — no `game`, no messages, no flags read; the spine hands it the facts and the cards.
- *
- * ⚠ RULING 1 (2026-09-05): the ship order is KEPT as an explicit `priority` on each spec —
- * concentration, then saves, then Topple — byte-identical to the three recognizers it replaces.
- * Oldest-pending-first across machines stays one field away if a table ever wants it.
- *
- * ⚠ THE BYTES ON THE WIRE DO NOT CHANGE. `respondsTo` keeps every one of its meanings (§4's
- * table); this module unifies the READER. An answer in flight across a deploy keeps folding.
- *
- * Also here, because the same finding named them: the saves flag's two constructors
- * (`saveDemandData`, `saveTargetEntry`) — emanations.js wrote a complete copy of that shape by
- * hand — and the verdict reader (`verdictsOn`) the hit menu and Sneak Attack read outcomes
- * through.
+ * Several machines demand a save of a creature (concentration, saves, the Topple fold); a roll
+ * answers by its `respondsTo` stamp, its chain (`originatingMessage`), or bare by actor and
+ * ability. A bare roll can answer only one demand, so the machines are ordered by an explicit
+ * `priority`: concentration, then saves, then Topple. Plain data only; the spine hands in the cards.
+ * Also: the saves flag's constructors and its verdict reader.
  */
 
 /**
- * The shapes, once (the comments check wants a doc block on a declaration, so they sit on the
- * first one):
+ * The shapes (on the first declaration, where the comments check wants a doc block).
  *
  * @typedef {object} RollFacts
  * @property {string | null} respondsTo        the module's own answer stamp — the card id
@@ -34,7 +18,7 @@
  * @property {string | null} originatingMessage the system's chain — the card the roll was pressed on
  * @property {string | null} actorUuid         who rolled
  * @property {string | null} ability           which ability
- * @property {string | null} rollType          the roll's kind (`save`, `check`, … — decide/card.js `rollKindOf`; since dnd5e 6.0 a
+ * @property {string | null} rollType          the roll's kind (`save`, `check`, … — decide/card.js `rollKindOf`; a
  *                                              concentration or death save is a `save` whose sub-kind rides `saveKind`)
  * @property {string | null} [saveKind]         `ability` | `concentration` | `death` on a save, null otherwise
  *
@@ -46,14 +30,12 @@
  * @property {string} flagKey
  * @property {number} priority                 lower answers a bare roll first
  * @property {((flag: any, facts: RollFacts) => any) | null} answering
- *   the entry a `respondsTo` roll answers on THIS flag, or null — null on the spec means the
- *   machine never accepts a stamped roll as its answer (Topple's 2026-08-18 finding ④)
+ *   the entry a `respondsTo` roll answers on THIS flag; null on the spec: never accepts a stamped roll
  * @property {boolean} chained                 may a roll chained to the card answer it
  * @property {(flag: any, facts: RollFacts) => any} pendingEntry
- *   the undone entry THIS ROLL would answer, judged on the flag alone, or null — the roll's
- *   type and ability are the spec's to gate on
+ *   the undone entry THIS ROLL would answer, or null (the spec gates on type and ability)
  * @property {(flag: any, actorUuid: string) => any} pendingFor
- *   the undone entry naming this actor, with NO roll in hand — "is this creature mid-answer"
+ *   the undone entry naming this actor, with NO roll in hand
  *
  * @typedef {object} DemandMatch
  * @property {string} cardId
@@ -64,14 +46,10 @@ const byPriority = (/** @type {DemandSpec[]} */ specs) => [...specs].sort((a, b)
 /**
  * Which demand this roll answers, and on which card(s).
  *
- * 1. A stamped roll (`respondsTo`) answers exactly the card it names, on whichever registered
- *    flag that card carries and accepts it — a stamp pointing at another machine's card is
- *    another machine's channel and answers nothing here.
- * 2. A chained roll (`originatingMessage`) answers the card it chains to, or nothing: a save
- *    chained to any other message belongs to that chain.
+ * 1. A stamped roll (`respondsTo`) answers exactly the card it names, or nothing.
+ * 2. A chained roll (`originatingMessage`) answers the card it chains to, or nothing.
  * 3. A bare roll answers the highest-priority machine with a pending entry for this actor and
- *    ability, and EVERY such card of that machine, oldest first — the caller claims the first
- *    and walks on only when another fold beat it to the entry (the Topple loop).
+ *    ability: EVERY such card of it, oldest first; the caller claims the first it can.
  *
  * @param {RollFacts} facts
  * @param {DemandCard[]} cards  oldest first
@@ -117,10 +95,7 @@ export function resolveDemand(facts, cards, specs) {
 }
 
 /**
- * Every pending demand naming this actor, oldest first — "is this creature mid-answer", asked
- * without a roll in hand (the d20 folds stand aside on a demanded save; the save gate reads the
- * demand's facet). Judged by each spec's own `pendingFor`, which knows no roll.
- *
+ * Every pending demand naming this actor, oldest first: "is this creature mid-answer", with no roll in hand.
  * @param {string} actorUuid
  * @param {DemandCard[]} cards  oldest first
  * @param {DemandSpec[]} specs
@@ -141,13 +116,7 @@ export function pendingDemands(actorUuid, cards, specs, { flagKey = null } = {})
   return out;
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE SAVES FLAG — its two constructors and its verdict reader.
- *
- * The shape is saves.js's (`stampSaveDemand`, ARCHITECTURE §4's table). emanations.js wrote a
- * complete copy by hand for its trigger card; the field order here is the order both wrote,
- * so a stamped card reads the same before and after this module existed.
- * ------------------------------------------------------------------------------------------- */
+/* --- THE SAVES FLAG: its constructors and its verdict reader (ARCHITECTURE §4) ------------------ */
 
 /** One target's entry — per-target state is an ARRAY with uuid fields, never a uuid-keyed map. */
 export function saveTargetEntry(uuid, name) {
@@ -155,10 +124,8 @@ export function saveTargetEntry(uuid, name) {
 }
 
 /**
- * The demand flag. `stat` is the data-plane stamp (`statContext`), spread where it always was;
- * `window` and `deadline` are the caller's — this layer has no clock. Optional facets appear
- * only when given, so a card that never carried one still does not.
- *
+ * The demand flag. `stat` is the data-plane stamp (`statContext`); `window` and `deadline` are the
+ * caller's (this layer has no clock). Optional facets appear only when given.
  * @param {object} d
  * @param {string} [d.status]
  * @param {object} d.stat
@@ -203,10 +170,8 @@ export function saveDemandData({ status = "pending", stat, abilities, dc, damage
 }
 
 /**
- * DOES THIS DEMAND PUT ITS TARGET TO SLEEP (Trance, 2026-09-27 — "magic can't put you to sleep")?
- * Read off the data the stamp holds: the spell's own name (Sleep) or a failed-save effect named
- * for sleep (Symbol's Sleep, Eyebite's Asleep, any pack effect of the kind). A word match on
- * names the packs ship, never a list of spells — a new sleeping effect is one the data names.
+ * Does this demand put its target to sleep (Trance)? A word match on the spell's name or a
+ * failed-save effect's, never a list of spells.
  * @param {{itemName?: string|null, effectNames?: (string|null|undefined)[]}} facts
  */
 export function putsToSleep({ itemName = null, effectNames = [] } = {}) {
@@ -215,10 +180,7 @@ export function putsToSleep({ itemName = null, effectNames = [] } = {}) {
 }
 
 /**
- * The verdicts a demand card carries — every target that has answered, with what it rolled and
- * how it went. A follow-up keyed on failure (the hit menu's effect, Cunning Strike's) reads
- * these and never the array's shape.
- *
+ * The verdicts a demand card carries: every target that has answered. Follow-ups read these, never the array.
  * @param {any} flag  the saves flag, or nothing
  * @returns {Array<{ uuid: string, name: string, outcome: string | null, total: number | null }>}
  */

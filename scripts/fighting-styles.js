@@ -1,32 +1,11 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — a Fighting Style feat whose
- * rule turns on what its owner holds or wears, or on how the attack is made (decide/registry.js
- * FIGHTING_STYLES; the arithmetic decide/fighting-styles.js). The user, 2026-09-26, ruling off
- * prototypes/fighting-styles.html: "one table"; "we need to gate it on what pc is holding - not
- * overall rule, we want flows to work, not editing items"; "the feats that do weapon mods should
- * be effects on the player ... so itd show in the detailed buff bar"; option B for the notice.
- *
- * THE FACE: one ActiveEffect per listed style on the character — the style's name, the feat's
- * icon, origin the feat — kept by the flow elect for that actor from the EQUIPPED boxes: live, or
- * disabled with the reason ("a second weapon held (Dagger)"). The effect view's panel lists it
- * with that line (Passive when live, Unavailable when off). Defense's face carries the AC change
- * the pack's own effect carries (N1: read, never stored), so the AC is right the moment the armor
- * comes off. Where the pack ships an UNGATED effect on the feat (Defense, Dueling — the notes say
- * "disable it when ..."), the machine switches that one off with a flag and the face carries the
- * rule; unlisting the style gives it back.
- *
- * THE ROLL: `dnd5e.preRollDamageV2` — the weapon attack's own mode (dnd5e's attackModes: one or
- * two hands, off-hand, thrown) decides whether the roll fits: Thrown's +2 and Dueling's +2 (read off
- * the pack's effect) join the parts, Two-Weapon Fighting adds back the modifier dnd5e drops on the
- * off-hand, and Great Weapon Fighting floors every damage die at 3 — the `min3` modifier, added on
- * `dnd5e.postDamageRollConfiguration` once the dialog has built the rolls (a crit's doubled dice
- * and every die of the attack's damage included — "a damage die"). The message is born with the
- * `fightingStyle` record; at `preCreateChatMessage` the floor's raised faces are counted off the
- * evaluated dice, and a floor that raised nothing leaves no trace.
- *
- * THE NOTICE (option B): one line on the damage card per style that changed the roll, and every
- * client floats "+3 Great Weapon Fighting" over the target once. The record is the stats reader's
- * (ARCHITECTURE §4): `gain` per style, per roll.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — feats whose rule turns on what
+ * the owner holds or wears, or how the attack is made (decide/registry.js FIGHTING_STYLES, the
+ * arithmetic in decide/fighting-styles.js; RULINGS *The fighting styles*).
+ * THE FACE: one ActiveEffect per listed style, live or disabled with the reason, kept from the
+ * EQUIPPED boxes; a pack effect that is ungated is switched off while the face carries the rule.
+ * THE ROLL: bonuses join the parts on `preRollDamageV2`; a die floor is a `minN` modifier added once
+ * the rolls are built. The `fightingStyle` record is the card's line, the canvas dice and the stats' `gain`.
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
@@ -65,7 +44,7 @@ const typedCopies = (actor, name) => [...(actor?.items ?? [])].filter(i => (i.ty
 
 /**
  * The listed rows this actor holds — `[{ name, row, feature, types }]`. `types` is the row's own, or
- * for a `typed` row what the copies' names say (group 1 of the PHB feats, 2026-09-26).
+ * for a `typed` row what the copies' names say.
  */
 function heldRows(actor) {
   const listed = listedNames(fightingStyleEntries());
@@ -125,10 +104,8 @@ const sameChanges = (a, b) => JSON.stringify((a ?? []).map(c => [c.key, Number(c
 
 const syncing = new Map();
 
-/** Core floats "+Defense" / "-Defense" on any effect with changes that turns on or off; the face
- * floats its own words (the user, 2026-09-26: "which should be removed / suppressed"). A FRESH
- * object per write: Foundry writes into the operation, and a shared frozen one threw on every
- * sync (the walk, 2026-09-26: faces stopped following the Equipped box). */
+/** Silences core's own "+/-" float on face writes (the face floats its own words).
+ * ⚠ A FRESH object per write: Foundry writes into the operation, and a shared frozen one throws. */
 const quiet = () => ({ animate: false });
 
 /** Keep this actor's faces — and the pack effects they take over — in step with its sheet. */
@@ -168,8 +145,7 @@ async function syncFaces(actor) {
 
 /** The pack's ungated effects: off while the face carries the rule, back on when it stops. */
 async function syncTakeovers(actor, rows) {
-  // by NAME, every copy: a sheet carrying the feat twice (a lent copy beside its own) would keep
-  // the second copy's pack effect running and cut twice (the feats slice's first run, 2026-09-26)
+  // By NAME, every copy: a second copy of the feat would otherwise keep its pack effect running.
   const running = new Set(rows.filter(r => r.row.takesOver).map(r => lower(r.name)));
   for ( const feature of (actor.items ?? []) ) {
     if ( feature.type !== "feat" ) continue;
@@ -246,15 +222,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       }
       if ( !row.bonus ) continue;
       if ( !fits ) {
-        // Dueling's quiet line — only where its owner might expect the +2: the face is live (one
-        // weapon, one hand) but THIS swing took the Versatile weapon in two. Off at the equipment,
-        // the panel already says why, and a line on every Greatsword swing would be noise (the
-        // first smoke-styles run, 2026-09-26).
+        // Dueling's quiet line, only when the face is live but THIS swing took the Versatile weapon in two.
         if ( (row.gate === "oneHanded") && face.live && ["simpleM", "martialM"].includes(facts.kind) ) {
           styles.push({ key: row.key, feature: name, gain: 0, off: "two hands" });
         }
-        // Great Weapon Master's quiet line: a Heavy weapon swung off the owner's turn (an
-        // Opportunity Attack) — "as part of the Attack action on your turn".
+        // Great Weapon Master's quiet line: a Heavy weapon swung off the owner's turn.
         if ( (row.gate === "heavy") && facts.properties.includes("hvy") && !facts.ownTurn ) {
           styles.push({ key: row.key, feature: name, gain: 0, off: "not your turn" });
         }
@@ -278,10 +250,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 });
 
 /**
- * A SPELL's floor (Elemental Adept: "when you roll damage for a spell you cast that deals damage of
- * that type, you can treat any 1 on a damage die as a 2"): the `spells` rows with a `minimum`, when
- * the spell's damage carries one of the row's types. Only that type's dice are floored (the roll
- * per part keeps its own type), a crit's doubled dice included.
+ * A SPELL's floor (Elemental Adept): a `spells` row with a `minimum`, when the spell deals one of
+ * the row's types. Only that type's dice are floored.
  */
 function spellFloor(config, activity, message) {
   const caster = activity.actor;
@@ -300,8 +270,7 @@ function spellFloor(config, activity, message) {
   }
 }
 
-// The floor rides the built rolls: every die of the attack's damage, a crit's doubled ones too; a
-// typed floor (a spell's) only the dice of its types.
+// The floor goes on the built rolls, so a crit's doubled dice are included.
 Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
   try {
     const set = config?.[FLOOR];
@@ -324,8 +293,7 @@ Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
   }
 });
 
-// The floor's count and the dice the card and the canvas show, off the evaluated dice, before the
-// card is born.
+// Count what the floor raised off the evaluated dice; a floor that raised nothing leaves no trace.
 Hooks.on("preCreateChatMessage", doc => {
   try {
     const flag = doc.getFlag?.(MODULE_ID, STYLE_FLAG);
@@ -350,11 +318,8 @@ Hooks.on("preCreateChatMessage", doc => {
 });
 
 /**
- * The face's float: core's "+(…)" / "−(…)" with the panel's title in it — "+(Fighting Style:
- * Defense)" ("again, match the buff name") — drawn the way core draws every other effect's toggle (user, 2026-09-26: "the toggle should be the standard +/- every other effect
- * uses") — here because core floats only an effect with changes (Defense's AC), never Great Weapon
- * Fighting or Dueling; core's own is quieted on the face writes so Defense floats once. Every
- * client, on an update that turned the face on or off; a create floats nothing.
+ * The face's float, core's "+(…)" / "−(…)" with the panel's title: core floats only an effect with
+ * changes, so the face draws its own (core's is quieted). Every client, on a toggle; a create floats nothing.
  */
 Hooks.on("updateActiveEffect", (effect, changes) => {
   try {
@@ -374,20 +339,10 @@ Hooks.on("updateActiveEffect", (effect, changes) => {
 });
 
 /* --- THE BLOCK (Heavy Armor Master) ------------------------------------------------------------ *
- * The PHB feats slice (user, 2026-09-26: "heavy armor master should have that blocking damage like
- * stones endurance / protectin does"). The pack ships the reduction as an UNGATED `traits.dm` effect
- * ("Disable it when you are not wearing Heavy Armor") that also cut a falling rock and a save's
- * damage; the row takes it over, and the face's gate (Heavy armor equipped) is the rule's "while
- * you're wearing Heavy armor".
- *
- * THE SEAM is `dnd5e.preCalculateDamage` — every application runs it, the module's applier and the
- * card's own buttons alike, before the system's resistances (the rule's order: resistance "after all
- * other modifiers"). The damage must come off an ATTACK's damage card ("when you're hit by an
- * attack"): a save's, an area's, a rider's or a bare number (the token bar) is never cut. What was
- * cut rides the options object into `dnd5e.preApplyDamage`, and from there the actor's own update,
- * so every client sees one "−3" pop over the armored creature — Stone's Endurance's pop, no roll
- * (RULINGS, the dice that rise). The module's receipt row says it too (auto-apply.js reads the
- * calculation's `bfBlock`).
+ * The pack's ungated `traits.dm` effect is taken over; the face's gate is "while wearing Heavy armor".
+ * `dnd5e.preCalculateDamage` runs on every application, before resistances (the rule's order).
+ * Only an ATTACK's damage card is cut. The cut rides the options into `preApplyDamage` and the
+ * actor's own update, so every client pops it; auto-apply.js reads `bfBlock` for the receipt.
  * ------------------------------------------------------------------------------------------- */
 
 const BLOCK = "bfArmorBlock";          // on the damage options and the calculation, client-local
@@ -423,13 +378,9 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
 });
 
 /* --- THE IGNORED RESISTANCE (Elemental Adept, Poisoner) ----------------------------------------- *
- * Group 1 of the PHB feats (2026-09-26, RULINGS *The PHB feats — groups 1–3*): "Spells you cast ignore Resistance to damage of
- * the chosen type"; "When you make a damage roll that deals Poison damage, it ignores Resistance to
- * Poison damage". The rows are the ATTACKER's, so the seam reads the damage card's own actor
- * (`options.originatingMessage`) and hands dnd5e its own switch — `options.ignore.resistance`, a Set
- * of types, which calculateDamage reads after this hook. A copy, never the caller's Set: the damage
- * tray keeps its options between renders. What was ignored against a target that resists rides the
- * calculation (`bfIgnored`) to the receipt row, as the block does.
+ * RULINGS *The PHB feats — groups 1–3*. The rows are the ATTACKER's (the damage card's actor); the
+ * hook hands dnd5e its own `options.ignore.resistance` Set. ⚠ A copy, never the caller's Set: the
+ * damage tray keeps its options between renders. `bfIgnored` carries it to the receipt row.
  * ------------------------------------------------------------------------------------------- */
 
 const IGNORED = "bfIgnored";
@@ -462,7 +413,7 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
   }
 });
 
-// the block rides the damage's own update: one write, and every client pops it
+// The block rides the damage's own update: one write, and every client pops it.
 Hooks.on("dnd5e.preApplyDamage", (_actor, _amount, updates, options) => {
   const block = options?.[BLOCK];
   if ( !block?.amount || !updates ) return;
@@ -472,8 +423,7 @@ Hooks.on("dnd5e.preApplyDamage", (_actor, _amount, updates, options) => {
 const popped = new Set();
 Hooks.on("updateActor", (actor, changes) => {
   try {
-    // the update carries only what CHANGED — a second block of the same amount sends `at` alone
-    // (the walk, 2026-09-26: "it did it once or so thats it"); the whole record is the actor's
+    // ⚠ The update carries only what CHANGED (a same-amount block sends `at` alone): read the actor's flag.
     if ( !changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG] ) return;
     const block = actor.getFlag?.(MODULE_ID, BLOCK_FLAG);
     if ( !block?.amount || !block.at || ((Date.now() - block.at) > 10_000) ) return;
@@ -485,14 +435,10 @@ Hooks.on("updateActor", (actor, changes) => {
   } catch(err) { console.warn(`${TITLE} | Heavy Armor Master's block could not draw.`, err); }
 });
 
-/* --- THE NOTICE (L4 + F7) ------------------------------------------------------------------------ *
- * Ruled 2026-09-26 off the Artifact "GWF Notice Options" (the user: "the player needs something fun
- * or cool when they see it doing extra damage on the canvas, like they appreciate takig the feat,
- * but it should be unobtrusive"; "it cant require clicks"). decide/fighting-styles.js chipsOf. */
+/* --- THE NOTICE: the card's chips and the canvas dice, no clicks (decide/fighting-styles.js chipsOf) --- */
 
 const CHIP_CSS_ID = "bf-style-chips-css";
-/** The chips' look, once per client: the card's own ink, the turned die's edge gold on the dark
- * theme and bronze on the parchment (Foundry sets color-scheme per theme; light-dark() reads it). */
+/** The chips' look, once per client (light-dark() follows Foundry's per-theme color-scheme). */
 function ensureChipCss() {
   if ( document.getElementById(CHIP_CSS_ID) ) return;
   const style = document.createElement("style");
@@ -533,7 +479,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-fighting-style-line") ) return;
     ensureChipCss();
-    // the turn-over plays once, on a card just born; a reload or a scroll back shows it at rest
+    // The turn-over plays only on a card just born.
     const fresh = (Date.now() - (message.timestamp ?? 0)) < 5000;
     for ( const entry of flag.styles ) {
       const div = document.createElement("div");
@@ -557,22 +503,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-/**
- * F7 — THE DICE RISE OFF THE FIGHTER: every client, once, over the ATTACKER's own token (never the
- * target's — its damage number stands alone): the chips pop up, a turned die flips from its face to
- * what it counts with a gold flash, a flat bonus flashes in, and they rise and fade, about a second
- * and a half. Drawn on the canvas interface like core's scrolling text, and off with core's
- * scrollingStatusText setting like it. Live cards only: a reload replays nothing.
- */
-// the drawing is the shared renderer's (dice-rise.js), the fighting styles its first customer
-
+// The dice rise off the ATTACKER's token on every client, once, for every style that changed the
+// roll (dice-rise.js draws them). Live cards only: a reload replays nothing.
 const floated = new Set();
 Hooks.on("createChatMessage", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
-    // every style that changed the roll - the floor AND the flat +2: the player's check that the
-    // style fired (the user, 2026-09-26: "it was kinda handy for FS so someone can see if they used
-    // thrown weapon, duelist, etc properly"; "let everyone see") - RULINGS, the dice that rise
     const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
     if ( !changed.length || floated.has(message.id) ) return;
     floated.add(message.id);
@@ -586,23 +522,16 @@ Hooks.on("createChatMessage", message => {
   } catch(err) { console.warn(`${TITLE} | The fighting style's dice could not draw.`, err); }
 });
 
-/* --- THE GRAPPLE'S TURN-START DAMAGE (Unarmed Fighting, U1) ------------------------------------ *
- * "At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled
- * by you." Ruled U1 off the prototype (2026-09-26): the rule says "can", so it asks — a card and a
- * popup to the owner, Deal it / Skip, the grappled creature picked when there are two — and the
- * clock deals it, since there is rarely a reason to hold back (to the one creature KNOWN to be held
- * by this one; with none certain the clock skips). "Grappled by you" is read off the Grappled
- * effect's own provenance (the module's source stamp, else its origin's actor); a Grappled whose
- * grappler cannot be read is offered when it stands within 5 feet, never dealt by the clock. The
- * damage is the feat's own "Grappled Damage" activity, used at the pick — the bare damage machine
- * (damage-casts.js) rolls and lands it like any other.
+/* --- THE GRAPPLE'S TURN-START DAMAGE (Unarmed Fighting) ----------------------------------------- *
+ * Asked of the owner (Deal it / Skip); the clock deals it only to the one creature KNOWN to be held
+ * by this one. The damage is the feat's own damage activity, used at the pick (damage-casts.js).
  * ------------------------------------------------------------------------------------------- */
 
 const GRAPPLE_FLAG = "grappleDamage";
 const grappleTimers = new Map();
 const grappleAsked = new Set();
 
-/** Who put this Grappled on its bearer — an actor uuid, or null when the effect does not say. */
+/** Who put this Grappled on its bearer (the module's source stamp, else the origin's actor), or null. */
 function grapplerOf(effect) {
   const stamped = effect.getFlag?.(MODULE_ID, "sourceUuid");
   if ( stamped ) return stamped;
@@ -610,7 +539,7 @@ function grapplerOf(effect) {
   return (origin instanceof Actor) ? origin.uuid : (origin?.actor?.uuid ?? null);
 }
 
-/** The creatures this one grapples on the scene — `[{ uuid, tokenUuid, name, certain }]`. */
+/** The creatures this one grapples — `[{ uuid, tokenUuid, name, certain }]`; an unknown grappler within 5 feet counts, uncertain. */
 function grappledBy(actor, token) {
   const out = [];
   for ( const other of (canvas.tokens?.placeables ?? []) ) {
@@ -680,7 +609,6 @@ function armGrappleTimer(message) {
     const live = game.messages.get(message.id);
     const now = live?.getFlag(MODULE_ID, GRAPPLE_FLAG);
     if ( now?.status !== "pending" ) return;
-    // U1: the clock deals it — to the one creature known to be held; otherwise it skips.
     if ( now.clockDeals && now.pick ) await dealGrapple(live, now.pick, { timedOut: true });
     else await recordGrapple(live, { answer: "skip", pick: null, timedOut: true });
   });
@@ -791,15 +719,8 @@ Hooks.on("updateChatMessage", message => {
 Hooks.on("deleteChatMessage", message => { disarmDeadline(grappleTimers, message.id); });
 
 /* --- THE TYPE PICK (Elemental Adept) ------------------------------------------------------------ *
- * The user, 2026-09-26, the PHB feats walk: "we have to think how to assist players with elemental
- * adept feat ... when they level up their player they will have the unautomated version of the
- * feat" — then "A is good". The pack's Elemental Adept carries no type (an Ability Score
- * Improvement and text), and the row reads the type off the NAME. So when a typeless copy LANDS on
- * a character (a level-up's advancement, a drag, a compendium drop — on the client that made it), a
- * card is posted to the owners and a popup asks: one button per type the row offers, less the types
- * the other copies already name. The answer renames the copy "Elemental Adept (Fire)"; the face and
- * every rule follow the name as before. "Later" leaves the card's Choose type… button; a copy
- * renamed by hand needs neither.
+ * The pack's feat carries no type and the row reads it off the NAME: a typeless copy landing on a
+ * character asks for one, and the answer renames the copy "Elemental Adept (Fire)".
  * ------------------------------------------------------------------------------------------- */
 
 const PICK_FLAG = "typePick";
@@ -846,9 +767,7 @@ async function postTypePick(actor, item, name, row) {
   if ( message ) await askTypePick(message);
 }
 
-// THE FEAT'S OWN CARD asks too (the user, 2026-09-26: "if a person clicks the elemental adept card and
-// if it doesnt have an element, do the popup there too"): the pack's feat has no activity, so a click
-// on the sheet posts its card — a typeless copy's card carries the pick and the popup opens over it.
+// The feat's own card asks too: a typeless copy's card (posted from the sheet) carries the pick.
 Hooks.on("dnd5e.displayCard", (item, card) => {
   try {
     if ( !(card instanceof ChatMessage) || !card.isAuthor ) return;
@@ -922,7 +841,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-// A copy renamed by hand with its type settles the card too — the popup closes, the card says it.
+// A copy renamed by hand with its type settles the card too.
 Hooks.on("updateItem", (item, changes) => {
   try {
     if ( !("name" in changes) || !(item.parent instanceof Actor) ) return;
