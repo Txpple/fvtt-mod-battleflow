@@ -186,8 +186,7 @@ function ensureStyle() {
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
     .bf-ev-chip .dtl{font-size:11px;color:#e8e3d6;font-weight:700;font-variant-numeric:tabular-nums}
     .bf-ev-chip.bf-ev-cover{--bf-tone:rgb(120,120,120)} .bf-ev-chip.bf-ev-cover.half,.bf-ev-chip.bf-ev-cover.threeQuarters{--bf-tone:rgb(222,120,40)} .bf-ev-chip.bf-ev-cover.total{--bf-tone:rgb(180,70,60)}
-    .bf-ev-chip.bf-ev-cover{padding-left:7px} .bf-ev-chip .src{font-size:10px;color:#b5b0a4}
-    .bf-ev-ignore{font-size:10.5px;color:#b5b0a4;font-style:italic}
+    .bf-ev-chip.bf-ev-cover{padding-left:7px;white-space:normal} .bf-ev-chip .src{font-size:10.5px;color:#b5b0a4}
     .bf-ev-chip em{font-style:normal;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#7d7a72;margin-left:2px}
     #${ROOT_ID}-bar{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(20,22,26,.92);border:1px solid #3a3f48;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.45);max-width:min(900px,calc(100vw - 340px));font-size:12px;color:#b5b0a4}
     #${ROOT_ID}-bar .who{display:flex;flex-direction:column;padding:0 8px 0 4px;border-right:1px solid #3a3f48;margin-right:2px;line-height:1.15}
@@ -259,15 +258,19 @@ function coverHTML(token) {
   const m = measuredCoverBetween(controlled[0], token);
   if ( !m ) return "";
   const d = m.degree;
-  const detail = (d.key === "none") ? "" : (d.key === "total") ? "can't be targeted" : `+${d.bonus} AC`;
-  const by = m.by.length ? `<span class="src">${esc(m.by.map(b => (b === "wall") ? "a wall" : b).join(", "))} in the way</span>` : "";
+  // TWO LINES (the user, 2026-09-27: "keep it 2 lines, the cover amount with the AC mod, then second
+  // line the desc/whats in way"): "Half Cover (+2 AC)", then who or what is in the way and any feat
+  // of the controlled creature that ignores it. No Cover is the one line alone.
+  // Total Cover says no more (the user, 2026-09-27: "for total cover you dont need to say cant be targeted")
+  const amount = (d.bonus ? `${d.label} (+${d.bonus} AC)` : d.label);
   const names = new Set(controlled[0].actor?.items?.filter(i => i.type === "feat").map(i => i.name.toLowerCase()) ?? []);
   const ignores = ((d.key === "half") || (d.key === "threeQuarters"))
     ? Object.entries(RANGE_FEATS).filter(([name, r]) => r.cover && names.has(name.toLowerCase()))
-      .map(([name, r]) => `<span class="bf-ev-ignore">${esc(name)} ignores it — ${r.scope === "spell" ? "spell attacks" : "ranged weapon attacks"}</span>`).join("")
-    : "";
+      .map(([name, r]) => `${name} ignores it (${r.scope === "spell" ? "spell attacks" : "ranged weapon attacks"})`)
+    : [];
+  const why = [m.by.length ? `${m.by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "", ...ignores].filter(Boolean).join(" · ");
   return `<div class="bf-ev-lbl">Cover</div><div class="bf-ev-list"><span class="bf-ev-chip bf-ev-cover ${d.key}" title="${esc(d.label)}">`
-    + `<span class="txt"><span class="nm">${esc(d.label)}</span>${detail ? `<span class="dtl">${esc(detail)}</span>` : ""}${by}</span></span>${ignores}</div>`;
+    + `<span class="txt"><span class="nm">${esc(amount)}</span>${why ? `<span class="src">${esc(why)}</span>` : ""}</span></span></div>`;
 }
 
 /** Seat a card at the token's top-right corner, in screen space, kept on screen. */

@@ -209,7 +209,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-cover-measured";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    const words = flag.targets.map(t => `the ${t.name}: ${t.label}${(t.bonus === null) ? " (can't be targeted)" : ` (+${t.bonus} AC)`}`).join(", ");
+    const words = flag.targets.map(t => `the ${t.name}: ${t.label}${t.bonus ? ` (+${t.bonus} AC)` : ""}`).join(", ");
     div.textContent = `Cover — ${words}`;
     div.dataset.bfCoverMeasured = div.textContent;
     content.appendChild(div);

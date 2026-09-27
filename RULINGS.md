@@ -1167,14 +1167,17 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   cover each other along the shared edge. The corners sit a hair inside their squares and the
   creatures' boxes a hair inside their edges (`decide/cover.js`).
 - **The hover card**: with ONE token controlled, pointing at another opens its card with a **Cover**
-  section on top — No Cover, Half Cover +2 AC, Three-Quarters Cover +5 AC, Total Cover "can't be
-  targeted" — who or what is in the way under it, and "Sharpshooter ignores it — ranged weapon
-  attacks" (or Spell Sniper, spell attacks) when the controlled creature holds one. The effects
-  follow under their own label. Still a pure view (*The effect view*).
+  section on top, TWO lines (the user, 2026-09-27: "keep it 2 lines, the cover amount with the AC
+  mod, then second line the desc/whats in way"): "Half Cover (+2 AC)" (or No Cover, Three-Quarters
+  Cover (+5 AC), Total Cover — nothing more: "for total cover you dont need to say cant be
+  targeted"), then "Hobgoblin in the way" — and "· Sharpshooter
+  ignores it (ranged weapon attacks)" (or Spell Sniper, spell attacks) when the controlled creature
+  holds one. No Cover is its one line. The effects follow under their own label. Still a pure view
+  (*The effect view*).
 - **At the attack** the same measure goes on each target's RECORDED AC (`system.targets[].ac`, the
   seam Bypass Cover already uses): the most protective degree applies and degrees never add — a
   cover status set by hand stands when it is higher; Total records no AC (a miss, as dnd5e records a
-  `coverTotal` target). The card says "Cover — the Goblin: Half Cover (+2 AC)". Then Sharpshooter and
+  `coverTotal` target). The card says "Cover — the Goblin: Half Cover (+2 AC)" (Total: "…: Total Cover"). Then Sharpshooter and
   Spell Sniper take the whole carried cover off, measured and hand-set alike (*The PHB feats —
   groups 1–3*, group 2); Total stays.
 - ⓐ **Attacks only.** A Dex save against an area measured from its point of origin is the DMG's too;
