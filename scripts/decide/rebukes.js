@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the REBUKE — a Reaction to taking damage,
- * aimed at the creature that dealt it (the Goliath walk, 2026-09-25; the table is
- * decide/registry.js REBUKES, the machine rebukes.js). Plain facts in, plain answers out.
+ * aimed at the creature that dealt it (the table is decide/registry.js REBUKES, the machine
+ * rebukes.js). Plain facts in, plain answers out.
  */
 
 /**
@@ -36,8 +36,8 @@ export function rebukeReach(row, activityFeet) {
  */
 export function rebukeBlocked({ self, hp, reactionSpent, distance, reach, usesLeft, slot, whileStands, equipped, side = null }) {
   if ( self ) return "self";
-  // A ward (Sentinel, 2026-09-27) is asked of a bystander only when the one who hit stands on another
-  // side of the map from it — its own side's attacks are the table's to punish by hand.
+  // A ward is asked only when the one who hit stands on another side from the bearer — its own
+  // side's attacks are the table's to punish by hand.
   if ( side === false ) return "an ally";
   if ( !(Number(hp) > 0) ) return "down";
   if ( reactionSpent ) return "reaction spent";
@@ -71,7 +71,7 @@ export function rebukeCost({ usesLeft = null, usesMax = null, spell = false }) {
 export function rebukeLine(flag) {
   const who = flag?.actorName ?? "The creature";
   const at = flag?.sourceName ?? "the creature that damaged it";
-  // A ward (Sentinel's Guardian, 2026-09-27): the bearer answers a hit on SOMEONE ELSE.
+  // A ward: the bearer answers a hit on SOMEONE ELSE.
   if ( flag?.ward ) {
     const hurt = flag.targetName ?? "someone else";
     if ( flag.answer === "use" ) return `${flag.choice} — ${who} strikes ${at} for hitting ${hurt}`;

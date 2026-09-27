@@ -15,32 +15,17 @@ import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
- * TOKEN LIGHTS (user, 2026-09-25, the Aasimar walk: "inner radiance - add the bright/dim light
- * settings. this is a net new add. while you are at it, since it will have the same shape, edit
- * the Light spell so it adds light emission to a token target as well"). The table is
- * decide/registry.js TOKEN_LIGHTS; membership is the Token Lights list.
- *
- * THE PLATFORM CARRIES THE LIGHT (measured on Foundry 14.368): an effect change keyed `token.*`
- * is applied to the bearer's TOKENS (Actor#applyActiveEffects keeps them apart,
- * TokenDocument#applyActiveEffects applies them — `light` is one of its targetable keys). So the
- * light is two changes on an effect, and the effect's own life is the light's: its clock, its
- * removal from the sheet, the rest that clears it. No token document is written, and nothing here
- * has to remember a token's old light to put it back.
- *
- *   self     Inner Radiance: the pack ships its Searing Radiance effect on a DAMAGE activity,
- *            which nothing lands on its user (the cast slice keeps its hands off bare damage), so
- *            this machine lands it — the pack's effect, its own clock, the light added. The ring
- *            and the pulse stand while it does (emanations.js, the row's `while`); the Revelation
- *            rider reads it as the form (clock-riders.js).
- *   targets  the Light spell: every creature targeted at the cast wears a "Light" effect of the
- *            module's making — the spell's hour, the light added; casting it again puts the
- *            caster's earlier light out ("The spell ends if you cast it again"). Nobody targeted:
- *            the pack's own use stands (its summoned light, which the use then still places).
- *
- * WHERE IT RUNS: the casting client stamps the payload on the use's own card (its author may
- * write it); the flow elect applies it — the active GM, who may write every sheet, or with no GM
- * the caster's own client, which lands what it owns and says what it could not. The card says
- * what shed light (R5).
+ * TOKEN LIGHTS — decide/registry.js TOKEN_LIGHTS; membership is the Token Lights list. The
+ * platform carries the light: an effect change keyed `token.*` is applied to the bearer's TOKENS
+ * (TokenDocument#applyActiveEffects — `light` is targetable), so the light is two changes on an
+ * effect and lives the effect's life. No token document is written; nothing remembers an old light.
+ *   self     the pack ships Searing Radiance on a DAMAGE activity, which nothing lands on its
+ *            user, so this machine lands it — the pack's effect, its clock, the light added. The
+ *            ring and pulse (emanations.js) and the Revelation rider (clock-riders.js) read it.
+ *   targets  every creature targeted at the cast wears a "Light" effect of the module's making;
+ *            a recast puts the caster's earlier light out. Nobody targeted: the pack's use stands.
+ * The casting client stamps the payload on the use's card; the flow elect applies it (with no GM,
+ * the caster's client lands what it owns and says what it could not). The card says it (R5).
  * ------------------------------------------------------------------------------------------- */
 
 const LIGHT_FLAG = "tokenLight";
@@ -52,8 +37,8 @@ function rowFor(activity) {
   return key ? { key, ...TOKEN_LIGHTS[key] } : null;
 }
 
-// A `targets` row cast AT someone lights them, not a summoned object: the system's summon prompt is
-// switched off for that use only. Nobody targeted, the pack's use runs as it ships.
+// A `targets` row cast AT someone lights them, not a summoned object: the system's summon prompt
+// is switched off for that use only.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
     const row = rowFor(activity);
@@ -108,7 +93,7 @@ function lightEffectData(row, item, activity, target, sourceUuid) {
     duration: activity?.duration?.getEffectData?.() ?? {}
   };
   delete data._id;
-  // The pack's own clock for its effect (Searing Radiance's minute) — or, clockless, the activity's.
+  // The pack's own clock for its effect — or, clockless, the activity's.
   if ( base ) foundry.utils.mergeObject(data, activity?.getAppliedEffectChanges?.(base, { target }) ?? {});
   data.system ??= {};
   data.system.changes = [...(data.system.changes ?? []), ...lightChanges(row)];
@@ -129,7 +114,7 @@ async function applyLight(payload) {
   if ( !row ) return { landed: [], skipped: [] };
   // live only: the item the use named — a cantrip and a species feature are never used up
   const item = resolveUuid(payload.itemUuid);
-  // live only: its activity, for the same reason — the clock the effect takes is the live one's
+  // live only: its activity, for the same reason — the effect takes the live clock
   const activity = resolveUuid(payload.activityUuid);
   const landed = [];
   const skipped = [];
@@ -163,8 +148,7 @@ async function driveLight(message) {
   const payload = message.getFlag(MODULE_ID, LIGHT_FLAG);
   const { landed, skipped } = await applyLight(payload);
   await queueFlagWrite(message, LIGHT_FLAG, current => { current.landed = landed; current.skipped = skipped; });
-  // The receipt every effect application writes (the effect riders' idiom): the row names the
-  // effect that carries the light, and its revert takes the light off with it.
+  // The effect receipt: its revert takes the light off with the effect.
   const row = TOKEN_LIGHTS[payload.key];
   if ( landed.length ) await queueFlagWrite(message, "effectReceipt", current => {
     for ( const l of landed ) joinEffectReceipt(current, { uuid: l.uuid, name: l.name, img: l.img,
@@ -203,13 +187,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * TOKEN SENSES (user, 2026-09-25, the Dwarf walk: "figure out a way to change the vision type to
- * tremor sense for the duration"). The table is decide/registry.js TOKEN_SENSES; membership is
- * the Token Senses list. The carrier is the light's — `token.*` changes on an effect — but the
- * effect is the PACK's own (Stonecunning's, landed by the cast slice's self-aim or a tray click),
- * so nothing is landed here: the changes are added to it AS IT IS CREATED on a sheet, on the
- * creating client, whoever creates it. The sense then lives and dies with the pack's effect — its
- * ten-minute clock, its removal — and no token document is written.
+ * TOKEN SENSES — decide/registry.js TOKEN_SENSES; membership is the Token Senses list. The
+ * light's carrier, but the effect is the PACK's own, so nothing is landed here: the changes are
+ * added AS IT IS CREATED on a sheet, on whichever client creates it, and the sense lives and dies
+ * with the pack's effect.
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("preCreateActiveEffect", (effect, data) => {
@@ -224,12 +205,10 @@ Hooks.on("preCreateActiveEffect", (effect, data) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * TOKEN SIZES (user, 2026-09-25, the Goliath walk: "large form did not increase token size"). The
- * table is decide/registry.js TOKEN_SIZES; membership is the Token Sizes list. The senses' shape
- * exactly: the pack's own effect (Large Form, Enlarged, Reduced) gains the size as it is created —
- * the actor's size and the token's width and height, which Foundry 14 applies to the bearer's
- * tokens as a document update and takes back when the effect goes. A step (Enlarge/Reduce) is
- * measured from the bearer's size as the effect lands.
+ * TOKEN SIZES — decide/registry.js TOKEN_SIZES; the senses' shape: the pack's own effect gains
+ * the actor's size and the token's width and height as it is created, which Foundry applies to
+ * the bearer's tokens and takes back when the effect goes. A step is measured from the bearer's
+ * size as the effect lands.
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("preCreateActiveEffect", (effect, data) => {

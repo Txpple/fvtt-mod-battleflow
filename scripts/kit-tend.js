@@ -1,21 +1,15 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE KIT TENDING — a feature that turns a kit's use on
  * a creature within reach into healing paid from THAT creature's Hit Point Dice (decide/registry.js
- * KIT_TENDS; Healer's Battle Medic the one row). The origin-feat walk, 2026-09-25 — the user:
- * "healer kit use --- if in 5 feet, give the 'caster' of healer kit option to choose hit dice and
- * make the roll for the other player"; "and then reroll 1 option".
- *
- * The pack ships Battle Medic as four bare activities ("Heal d6" … "Heal d12") and a note: the
- * creature spends its die on its own sheet and says which size. Here the kit's use is the moment.
- *
- * THE MOMENT is the kit's use (`dnd5e.postUseActivity`, the using client) by a listed feature's
- * owner with ONE target within the row's reach: the kit's usage card is stamped `kitTend` pending,
- * with the target's Hit Dice by size ("d10 · Fighter · 3 of 5 left"). THE POPUP opens on whoever
- * answers for the kit's user: one row per size, one pick, "Tend" / "Pass" (the clock passes; a Pass
- * leaves the kit's own use — stabilizing — as it was). THE LANDING is the flow elect's (the GM when
- * one is on): the target's die spent on its class, then the feature's OWN heal activity of that
- * size rolled at the target — so the Healing Rerolls popup (heal-rerolls.js) asks about a 1 and the
- * cast applier lands the healing, both unchanged.
+ * KIT_TENDS). The pack ships Battle Medic as bare activities per die size and a note.
+ *   the moment  the kit's use (`dnd5e.postUseActivity`, the using client) by a listed feature's
+ *               owner with ONE target within reach: the usage card is stamped `kitTend` pending,
+ *               with the target's Hit Dice by size
+ *   the popup   on whoever answers for the kit's user: one row per size, "Tend" / "Pass" (the clock
+ *               passes; a Pass leaves the kit's own use as it was)
+ *   the landing the flow elect's: the target's die spent on its class, then the feature's OWN heal
+ *               activity of that size rolled at the target — so the healing rerolls
+ *               (heal-rerolls.js) and the cast applier carry the rest, unchanged
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor,
   statContext, whisperNoGM } from "./core.js";
@@ -82,7 +76,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usage, results) => {
     const found = rowFor(actor, activity?.item);
     const message = results?.message;
     if ( !found || !(message instanceof ChatMessage) ) return;
-    // The card's snapshot of the targets; the using client's live ones when the card kept none.
+    // The card's snapshot of the targets, else the using client's live ones.
     const snap = targetsOf(message);
     const targets = snap.length ? snap : [...(game.user?.targets ?? [])].map(t => ({ uuid: t.actor?.uuid ?? null })).filter(t => t.uuid);
     if ( targets.length !== 1 ) return;
@@ -154,8 +148,8 @@ async function landTend(message) {
     const activity = healActivityFor(actor?.items?.get(flag.featureId), pool?.faces);
     const token = tokenForUuid(flag.targetUuid);
     if ( !(target instanceof Actor) || !pool || !activity || !token ) return;
-    // The die first — the rule's order ("That creature can expend one of its Hit Point Dice, and
-    // you then roll that die"). A client that may not write the creature says so, and rolls anyway.
+    // The die first — the rule's order. A client that may not write the creature says so, and
+    // rolls anyway.
     if ( canApplyTo(target) ) {
       if ( pool.key === "npc" ) {
         await target.update({ "system.attributes.hd.spent": (Number(target.system.attributes.hd.spent) || 0) + 1 });
@@ -206,8 +200,7 @@ async function showTendPopup(message) {
   const row = KIT_TENDS[flag.row] ?? null;
   const feature = actor.items.get(flag.featureId);
   const prof = Number(actor.system?.attributes?.prof) || 0;
-  // The house tick rows (Savage Attacker's, the rescue's): one row per size, one tick at a time;
-  // a size with no die left stays, greyed, its reason as the tag.
+    // One row per size, one tick at a time; a size with no die left stays, greyed, its reason as the tag.
   const rows = (flag.pools ?? []).map(p => ({ key: p.key, name: `d${p.faces}`, dice: `${p.label} · 1d${p.faces} + ${prof}`,
     tag: `${p.value} of ${p.max} left`, off: (p.value > 0) ? null : "no Hit Dice left" }));
   const dialog = await openMomentPopup(message, TEND_FLAG, actor, {

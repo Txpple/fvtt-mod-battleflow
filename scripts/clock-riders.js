@@ -16,31 +16,19 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
- * CLOCK RIDERS (user, 2026-09-02 — "the damage riders on clock (assassin, gloomstalker) should
- * just notify the player that they are available and will be added to the damage. i believe crit
- * should double those"). The second class of rider beside the marks: a feature on the
- * ATTACKER's sheet whose extra damage is conditioned on the combat clock — once per turn, the
- * first round — rather than on a chip the target carries. The table (decide/registry.js
- * CLOCK_RIDERS) names the feature, the pack's damage activity and the clock; membership is the
- * Clock Riders list.
- *
- * The seam is hit-riders': `preRollDamageV2` on the roller's client, the rider pushed as its own
- * part with the type the row says, crit-doubled by the same stamp that doubles the weapon's dice
- * (free — nothing here hand-rolls a crit). What is added here is the CLOCK: the once-per-turn
- * chit (the Cleave shape, on the attacker, dead with the turn), the round read off the running
- * combat, a limited use spent when the activity carries one. The NOTICE is the damage offer's
- * line where an offer opens, and always the damage card (R5): what rode, and why it was due.
- *
- * ⚠ The dice are READ off the feature's own activity and resolved on the sheet — never a table
- * of dice by level; an unresolved token (NOTES §2: it rolls ZERO in silence) is refused, and the
- * card says so rather than adding nothing quietly.
+ * A feature on the ATTACKER's sheet whose extra damage is conditioned on the combat clock (once
+ * per turn, the first round) rather than on a chip the target carries — decide/registry.js
+ * CLOCK_RIDERS; membership is the Clock Riders list. The seam is hit-riders': `preRollDamageV2`
+ * on the roller's client, the rider pushed as its own part, crit-doubled by the same stamp as the
+ * weapon's dice. The notice is the damage offer's row, and always the damage card (R5).
+ * ⚠ The dice are READ off the feature's activity and resolved on the sheet; an unresolved token
+ * rolls ZERO in silence (NOTES §2), so it is refused and the card says so.
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * Where a rider's limited uses live, or null when it carries none: the ACTIVITY's own (Dreadful
- * Strike), else — for a `uses` row — the ITEM its consumption names, the item itself for an empty
- * target (Slice A, 2026-09-24: the species packs put every use on the item — Fire's Burn, Frost's
- * Chill, `@prof` per Long Rest). The spend writes back where the uses were read.
+ * Where a rider's limited uses live, or null: the ACTIVITY's own, else — for a `uses` row — the
+ * ITEM its consumption names (the item itself for an empty target). The spend writes back where
+ * the uses were read.
  */
 function usesOf(attacker, activity, row) {
   const pool = (row.uses && activity) ? poolOf(attacker, activity) : null;
@@ -93,8 +81,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     dealt: roll.dealt ?? dealtTypesOf(activity),
     // a Critical Hit: the attack's own d20, or the damage roll made critical (a Paralyzed target's)
     critical: !!attackMessage?.rolls?.[0]?.isCritical || (roll.critical === true),
-    // an Opportunity Attack (Sentinel's Halt, the PHB feats group 6): one the module DROVE as such says
-    // so on its card; a melee attack off the attacker's own turn in a running combat may be one
+    // an Opportunity Attack: one the module DROVE says so on its card; a melee attack off the
+    // attacker's own turn in a running combat may be one
     opportunity: attackMessage?.getFlag(MODULE_ID, "opportunity") ? "driven"
       : (combat?.started && combat.combatant && (combat.combatant.actor?.uuid !== attacker.uuid)
         && (activity?.attack?.type?.value === "melee")) ? "offTurn" : null
@@ -112,7 +100,6 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
       const resolved = raw ? Roll.replaceFormulaData(raw, attacker.getRollData()) : null;
       formula = (resolved && Roll.validate(resolved)) ? resolved : null;
     } catch { formula = null; }
-    // A `transformed` row's type is the FORM's (Necrotic for Necrotic Shroud, Radiant otherwise).
     const form = formOn(attacker, row);
     const type = (row.type === "weapon") ? weaponType : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
     const uses = usesOf(attacker, act, row);
@@ -132,11 +119,9 @@ function clockRidersDue(attackMessage, activity) {
 }
 
 /**
- * What the damage offer shows for the riders the clock says are due (auto-damage.js, lazy),
- * and what it does at fire time — the Sneak Attack menu's shape (user ruling, the same evening:
- * "make like sneak attack"). Each due rider is a checkbox, ticked; the pick lives in memory
- * from the change events and is written on the attack message BEFORE the roll, where the
- * rider hook reads it. A rider whose dice could not be read is a line, not a row.
+ * The damage offer's rows for the due riders, and its fire-time commit. Each due rider is a
+ * ticked checkbox; the pick is written on the attack message BEFORE the roll, where the rider hook
+ * reads it. A rider whose dice could not be read is a line, not a row.
  * @param {ChatMessage} attackMessage
  * @param {object} activity
  */
@@ -164,9 +149,8 @@ function clockRiderOfferParts(attackMessage, activity) {
   };
 }
 
-// Declared into the damage offer (auto-damage.js `registerOfferPart`, 2026-09-04): a due rider
-// opens the offer whatever the auto-damage setting (a checkbox, optional — the offer is where
-// the choice lives) and paints its rows on it.
+// A due rider opens the damage offer whatever the auto-damage setting — the offer is where the
+// choice lives.
 registerOfferPart({
   key: "clock",
   due: clockRidersDue,
@@ -184,9 +168,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     if ( activity?.type !== "attack" ) return;
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
-    // The offer's pick, when one was made: only the ticked riders ride, and a declined one spends
-    // nothing — no chit, no use (user ruling 2026-09-02). No pick recorded means no offer opened
-    // (a driven roll), and every due rider rides.
+    // Only the ticked riders ride, and a declined one spends nothing. No pick recorded means no
+    // offer opened (a driven roll): every due rider rides.
     const pick = attackMessage.getFlag(MODULE_ID, "clockPick");
     const picked = Array.isArray(pick) ? new Set(pick) : null;
     const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
@@ -197,7 +180,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const record = [];
     const spends = [];
     for ( const r of riders ) {
-      // Piercer's extra die (group 3): dnd5e's own crit bonus on the first roll — never doubled
+      // dnd5e's own crit bonus die on the first roll — never doubled
       if ( r.row.bonusDice && config.rolls?.[0] ) {
         config.rolls[0].options ??= {};
         const opts = config.rolls[0].options;
@@ -206,8 +189,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       }
       if ( r.formula ) {
         config.rolls.push({
-          // No `properties`: a feature's extra damage is its own, never the weapon's magic
-          // (hit-riders' rule on physical-resistance bypass).
+          // No `properties`: a feature's extra damage is never the weapon's magic (it must not
+          // bypass physical resistance).
           data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
           parts: [r.formula],
           options: { type: r.type ?? null, types: r.type ? [r.type] : [] }
@@ -215,15 +198,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       }
       record.push({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule,
         ...(r.says ? { says: r.says } : {}),
-        // `lands` (group 3): the effect the rider builds on the feature, landed after the damage message exists
         ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
         ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
-        // `effects` (Frost's Chill, 2026-09-24): the activity's own effects land after the damage
-        // message exists — the resumable below reads these off the record.
+        // the activity's own effects land once the damage message exists (settleRiderEffects)
         ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}) });
-      // The clock's bookkeeping, both on the attacker: the once-per-turn chit (out of combat
-      // there is no turn — none is written), and the limited use spent on the activity.
+      // Out of combat there is no turn, so no chit is written.
       if ( r.row.when === "oncePerTurn" ) {
         void writeTurnChit(attacker, "rider", { name: `${r.label} — used this turn`, img: r.feature.img ?? null,
           description: `${r.label} has ridden a hit this turn (${r.feature.name}). Once per turn; this chit ends with the turn.`,
@@ -232,15 +212,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       }
       if ( r.row.uses && r.activity && r.uses ) {
         const spent = r.uses.spent + 1;
-        // Written where the uses were read: the activity's own, or the item's (2026-09-24).
         const write = r.uses.item
           ? r.uses.item.update({ "system.uses.spent": spent })
           : r.feature.update({ [`system.activities.${r.activity.id}.uses.spent`]: spent });
         void write.catch(err => console.warn(`${TITLE} | Could not spend a use of ${r.label}.`, err));
-        // THE UNIFORM SPEND (user report 2026-09-09: "when Jetten consumes Dreadful Strike there
-        // is no floating text that it was used/remaining"): the record every other pool spend
-        // writes, born on the damage message, so the flash, the card line and the ledger read it
-        // the same way they read a superiority die or a Sorcery Point (shared.js poolSpendsOn).
+        // The uniform pool-spend record, so the flash, card line and ledger read it like any other
+        // pool spend (shared.js poolSpendsOn).
         const max = r.uses.max;
         if ( max > 0 ) spends.push({ pool: r.uses.item ? r.uses.item.name : (r.activity.name || r.feature.name), spent: 1, left: Math.max(0, max - spent), max,
           ability: r.label, actorUuid: attacker?.uuid ?? null, at: Date.now() });
@@ -254,12 +231,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-/* --- the rider's own effects on the hit (Frost's Chill, 2026-09-24) -------------------------- */
+/* --- the rider's own effects on the hit ------------------------------------------------------- */
 
 /**
- * A rider row with `effects` lands its activity's applied effects on the hit targets once the
- * damage message exists, on the elect, receipted there — through the hit menu's own path
- * (effect-riders.js `applyActivityEffectsOnHit`), the row's `clock` pinned to the attacker.
+ * A rider row with `effects` or `lands` lands its effects on the hit targets once the damage
+ * message exists, on the elect, receipted there — the hit menu's path (effect-riders.js), the
+ * row's `clock` pinned to the attacker.
  */
 async function settleRiderEffects(message) {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
@@ -278,7 +255,7 @@ async function settleRiderEffects(message) {
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     const attacker = resolveUuid(cr.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
     for ( const r of rows ) {
-      // live only: the rider FEATURE — never used up, so the sheet is the truth
+      // live only: the rider FEATURE is never used up, so the sheet is the truth
       const feature = resolveUuid(r.featureUuid);
       if ( r.lands ) {
         await applyItemEffectOnHit(message, feature, r.lands, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
@@ -292,7 +269,7 @@ async function settleRiderEffects(message) {
   }
 }
 
-// The resume floor (the hit menu's shape): on arrival and on reload, never on an update.
+// Resumed on arrival and on reload, never on an update.
 registerResumable("clockRiders", {
   pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
@@ -302,13 +279,10 @@ registerResumable("clockRiders", {
 /* --- the form chip: a transformation that marks nothing on its bearer (Necrotic Shroud) --------- */
 
 /**
- * Celestial Revelation's rider reads the FORM that stands (decide/clock.js standingForm). Two
- * forms land an effect on their bearer — Heavenly Wings by the cast slice (a self utility),
- * Searing Radiance by token-lights.js — and those ARE the mark. Necrotic Shroud lands its effect
- * on the frightened, never on the Aasimar, so its use writes the module's own form chip on the
- * bearer: the activity's own duration (the transformation's minute), the rule in its
- * description, deleted by hand to end the transformation early ("or until you end it"). On the
- * client that used it — the owner's.
+ * A `forms` row reads the FORM that stands. Two forms land an effect on their bearer, and those
+ * ARE the mark; Necrotic Shroud lands its effect on the frightened, never on the bearer, so its use
+ * writes the module's own form chip: the activity's duration, the rule in its description, deleted
+ * by hand to end the transformation early. On the owner's client.
  */
 Hooks.on("dnd5e.postUseActivity", activity => {
   try {
@@ -341,14 +315,12 @@ async function writeFormChip(actor, activity, key, row, form) {
 /* --- a spell's damage with no attack roll: the ONE target is the caster's pick ------------------ */
 
 /**
- * A `spells` row (Celestial Revelation: "when you deal damage to it with an attack or a spell")
- * rides an ATTACK spell's roll like a weapon's — one attack, one target. A spell that deals damage
- * with NO attack roll (a save, a bare damage roll — Sacred Flame, Fireball, Magic Missile) may hit
- * many, and the extra goes to ONE of them; which one is the caster's choice (R1). So the offer is
- * on the spell's damage card, once its damage has landed: a button per creature that took damage,
- * on the caster's own client; a pick lands the extra on its own card through the receipt
- * chokepoint (the spell's receipt is keyed by creature, and an entry there would overwrite the
- * spell's own), spends the turn, and the offer goes. Out of combat there is no turn: once per card.
+ * A `spells` row rides an ATTACK spell's roll like a weapon's. A spell with NO attack roll may hit
+ * many, and the extra goes to ONE of them — the caster's choice (R1). So the offer is on the
+ * spell's damage card once its damage has landed: a button per creature damaged, on the caster's
+ * client. A pick lands the extra on its OWN card through the receipt chokepoint (an entry in the
+ * spell's receipt, keyed by creature, would overwrite the spell's own), spends the turn, and the
+ * offer goes. Out of combat: once per card.
  */
 const SPELL_FLAG = "spellRider";
 

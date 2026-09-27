@@ -1,25 +1,15 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE EFFECT VIEW — a creature's buffs and debuffs,
- * visible on demand (DESIGN §6, user ruling 2026-09-15: "we just need to show debuffs and
- * buffs. not avail actions").
- *
- * Three surfaces, one renderer, no new state — every row is read off the sheet at draw time:
- *   THE HOVER CARD   point at a token, its list appears beside it (`hoverToken`); nothing at rest
- *   THE HELD KEY     Foundry's own highlight gesture (Alt held → `highlightObjects`) shows every
- *                    creature's list at once and clears on release
- *   THE BAR          a strip above the hotbar for the controlled token (else the user's own
- *                    character), always on; redrawn when effects change, control changes, or a
- *                    turn passes. THE ONE INTERACTIVE SURFACE (user ruling 2026-09-15): the NAME
- *                    opens the full list upward; a CHIP opens a fold with its one action (Remove
- *                    an effect on the creature, Disable an item's, Clear a sheet row) — for an
- *                    owner, which the GM is for every creature ("editing conditions on the fly").
- *                    A Details entry was tried the same day and dropped ("didnt like it").
- * The bar and the hover card each have a CLIENT switch. The draft is on the branch
- * `effect-view` (2026-09-15) with decide/effect-view.js's two heuristics unruled.
- *
- * ⚠ What this machine WRITES: nothing of its own — no flag, no message. The bar's fold deletes or
- * disables an ActiveEffect, or zeroes temp HP / inspiration, on the user's click and through the
- * platform's own permission (an owner's write). Every other surface is a pure view.
+ * visible on demand (RULINGS *The effect view*). Three surfaces, one renderer, no state of its own
+ * — every row is read off the sheet at draw time:
+ *   the hover card  point at a token, its list appears beside it (`hoverToken`)
+ *   the held key    Foundry's highlight gesture (Alt → `highlightObjects`) shows every list at once
+ *   the bar         a strip above the hotbar for the controlled token (else the player's character),
+ *                   always on; the ONE interactive surface — the name opens the full list, a chip
+ *                   opens a fold with its one action (Remove, Disable, Clear) for an owner
+ * The bar and the hover card each have a CLIENT switch.
+ * ⚠ It writes nothing of its own: the bar's fold deletes or disables an ActiveEffect, or zeroes
+ * temp HP / inspiration, on a click through the platform's own permission.
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
@@ -80,10 +70,9 @@ function ownAuraOf(effect) {
 }
 
 /**
- * A fighting style's FACE (fighting-styles.js): kept by the module off the equipped boxes, so it
- * reads as a worn passive — the panel, never the bar — with its line ("Longsword in one hand", or
- * why it is off); the pack effect it took over is not shown at all (user, 2026-09-26: "so itd show
- * in the detailed buff bar").
+ * A fighting style's FACE (fighting-styles.js): kept by the module off the equipped items, so it
+ * reads as a worn passive — the panel, never the bar — with its line (what is held, or why it is
+ * off); the pack effect it took over is not shown at all.
  */
 const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
 const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;
@@ -131,7 +120,7 @@ function sheetOf(actor) {
 /** Every row for an actor — the effects and the sheet rows. */
 const rowsOf = actor => allRows(factsOf(actor), sheetOf(actor));
 
-/** The marks this actor holds on the other creatures on the scene (question 2, drafted in). */
+/** The marks this actor holds on the other creatures on the scene. */
 function marksOf(actor) {
   const others = [];
   for ( const t of (canvas.tokens?.placeables ?? []) ) {
@@ -242,14 +231,12 @@ function showHover(token) {
 }
 
 /**
- * THE COVER SECTION (the user, 2026-09-27: "on top of the list, in its own section called Cover
- * ... no cover, half, 3/4 or full ... then the player knows what they are dealing with"): the
- * cover the hovered token has against the ONE token the user controls, by the 2024 DMG's corner
- * lines (geometry.js). A pure read like the rest of the card — the attack puts the same measure on
- * its AC (reminders.js). Nothing when no single token is controlled, the setting is off, or the
- * grid cannot be measured (hexes). A feat of the controlled creature that ignores the cover
- * (Sharpshooter, Spell Sniper — RANGE_FEATS' `cover` rows) says so under it, with the attacks it
- * covers: the card cannot know which attack comes next.
+ * The cover the hovered token has against the ONE token this client controls, by the 2024 DMG's corner
+ * lines (geometry.js) — the same measure the attack puts on its AC (reminders.js), in a section of
+ * its own at the top (RULINGS *Measured cover*). Nothing when no single token is controlled, the
+ * setting is off, or the grid cannot be measured (hexes). A feat of the controlled creature that
+ * ignores the cover (RANGE_FEATS' `cover` rows) says so, with the attacks it covers: the card
+ * cannot know which attack comes next.
  */
 function coverHTML(token) {
   if ( !setting(S.measuredCover) ) return "";
@@ -258,10 +245,8 @@ function coverHTML(token) {
   const m = measuredCoverBetween(controlled[0], token);
   if ( !m ) return "";
   const d = m.degree;
-  // TWO LINES (the user, 2026-09-27: "keep it 2 lines, the cover amount with the AC mod, then second
-  // line the desc/whats in way"): "Half Cover (+2 AC)", then who or what is in the way and any feat
-  // of the controlled creature that ignores it. No Cover is the one line alone.
-  // Total Cover says no more (the user, 2026-09-27: "for total cover you dont need to say cant be targeted")
+  // Two lines: "Half Cover (+2 AC)", then what is in the way and any feat that ignores it. No Cover
+  // and Total Cover are the one line alone.
   const amount = (d.bonus ? `${d.label} (+${d.bonus} AC)` : d.label);
   const names = new Set(controlled[0].actor?.items?.filter(i => i.type === "feat").map(i => i.name.toLowerCase()) ?? []);
   const ignores = ((d.key === "half") || (d.key === "threeQuarters"))
@@ -283,8 +268,7 @@ function placeBeside(card, token) {
 Hooks.on("hoverToken", (token, hovered) => {
   try {
     if ( !setting(S.effectHover) ) return;
-    // NOT FOR A CONTROLLED TOKEN (user, 2026-09-18, the 6.0 walk: "its redundant to what the buff
-    // bar presents and gets in the way when controlling the token") — the bar is its list already.
+    // Not for a controlled token: the bar is its list already.
     if ( hovered && !token.controlled ) showHover(token); else if ( hoverCard?.dataset.token === token.id ) hideHover();
   } catch(err) { console.error(`${MODULE_ID} | effect view (hover) failed.`, err); }
 });
@@ -325,7 +309,7 @@ Hooks.on("highlightObjects", active => {
 
 /* --- the bar -------------------------------------------------------------------------------- */
 
-/** Whose bar: the controlled token, else the user's own character. */
+/** Whose bar: the controlled token, else this player's own character. */
 function barActor() {
   return canvas.tokens?.controlled?.[0]?.actor ?? game.user.character ?? null;
 }
@@ -341,13 +325,11 @@ function drawBar() {
   }
   const actor = barActor();
   const rows = actor ? rowsOf(actor) : [];
-  // The bar stands whenever there is someone to stand for (user, 2026-09-15: "id like the bar to
-  // always appear ... the name only if theres no buff") — empty rows draw the name alone.
+  // The bar stands whenever there is someone to stand for — empty rows draw the name alone.
   bar.classList.toggle("empty", !actor);
   if ( !actor ) {
-    // Nobody to stand for: the LAST creature's chips must not linger, clickable, with Remove on
-    // offer for someone no longer controlled (2026-09-24: probe-effect-view §4 read a stale Bless
-    // for three seconds after control was lost mid-run — the bar had kept the old rows).
+    // ⚠ Nobody to stand for: clear the rows, or the LAST creature's chips linger, clickable, with
+    // Remove on offer for someone no longer controlled.
     bar.replaceChildren();
     delete bar.dataset.actor;
     return;
@@ -365,7 +347,7 @@ function drawBar() {
   bar.style.bottom = `${above}px`;
 }
 
-/* --- the bar's actions (user ruling 2026-09-15) --------------------------------------------- */
+/* --- the bar's actions ---------------------------------------------------------------------- */
 
 /** Close whatever fold or panel is open on the bar. */
 function closeFolds(bar) {
@@ -383,8 +365,7 @@ function barActorNow(bar) {
 function openFold(bar, chip, actor) {
   const row = everyRow(factsOf(actor), sheetOf(actor)).find(r => r.id === chip.dataset.row);
   if ( !row ) return;
-  // The one write, for an owner (the GM owns every creature). Details was tried and dropped
-  // (user, 2026-09-15: "didnt like it").
+  // The one write, for an owner (the GM owns every creature).
   const act = rowAction(row, { owner: actor.isOwner === true });
   if ( !act ) return;
   closeFolds(bar);
@@ -403,14 +384,11 @@ function openFold(bar, chip, actor) {
 /** Open the full list above the name — every row, each a chip with its own fold. */
 function openPanel(bar, who, actor) {
   closeFolds(bar);
-  // ALL of them, grouped as the sheet groups them (user ruling 2026-09-15) — the bar's rule is
-  // for the bar; the panel is the sheet's effects tab, in reach.
+  // ALL of them, grouped as the sheet groups them — the bar's rule is for the bar.
   const groups = panelGroups(factsOf(actor), sheetOf(actor));
   const total = groups.reduce((n, g) => n + g.rows.length, 0);
-  // ON OTHERS (user, 2026-09-18, the 6.0 walk: "id like to see all buffs including the on others"
-  // — then, shown them on the strip, "no no these get moved over there", the panel): the marks
-  // this creature holds on other creatures, the hover card's second group, as the panel's last
-  // group — plain chips, since the fold's one action belongs to the bearer's owner.
+  // Last, the marks this creature holds on others: plain chips, since the fold's one action
+  // belongs to the bearer's owner.
   const marks = marksOf(actor);
   const held = marks.length
     ? `<div class="bf-ev-lbl">On others</div><div class="bf-ev-list">${marks.map(m => chipHTML({ ...m, name: `${m.name} → ${m.bearer}` })).join("")}</div>`

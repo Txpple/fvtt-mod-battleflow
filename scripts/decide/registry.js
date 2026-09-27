@@ -2,45 +2,25 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the membership lists, one shape.
  *
- * Moved verbatim out of hold.js, maneuvers.js and hit-riders.js (ARCHITECTURE §10 D5, "move, do
- * not rewrite"), then unified here (ARCHITECTURE §6, 2026-08-23). Strings in, entries out — no `game`, no
- * `setting()`, no warnings, no globals. Each list keeps a one-line EDGE wrapper in
- * settings.js that reads its setting and delegates, which is the whole split: reading the
- * world is EDGE, deciding what the string MEANS is not.
- *
- * ⚠ WHY THIS MATTERS MORE THAN IT LOOKS (ARCHITECTURE.md §6, the strict-parse contract): a
- * typo in a world setting does not raise anything. The entry simply drops and the feature it
- * named silently does nothing, forever, with no error to notice. These parsers are the only
- * thing standing between a stray character and a dead feature.
- *
- * ⚠ WHAT PHASE 3 CHANGED, AND WHY IT WAS WORTH CHANGING. There were five list parsers with
- * FOUR different failure behaviours — default-to-`ac` (interrupts), silent drop (blocks,
- * upgrades), drop-and-report (folds), and no validation whatsoever (riders) — and exactly one
- * of the five declared its kind set in code. Which behaviour a given list had was an accident
- * of which session wrote it. Now every list is a SPEC and there is one parser: same splitting,
- * same trimming, same required-column rule, same closed-kind test, same reject report.
- *
- * ⚠ THE SPECS DECLARE, THEY DO NOT READ. A spec names its setting KEY as a plain string so the
- * static gate can pair a list with its registration and its shipped default; nothing here ever
- * reads a setting, and this file still imports nothing at all.
- *
- * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
+ * Strings in, entries out — no `game`, no `setting()`, no globals, no imports. Every list is a SPEC
+ * read by the one parser (ARCHITECTURE.md §6, the strict-parse contract); settings.js holds each
+ * list's one-line EDGE wrapper that reads the setting. A spec names its setting KEY as a plain
+ * string so the static gate can pair it with its registration and shipped default.
+ * ⚠ A typo in a setting raises nothing: the entry drops and its feature silently dies. These
+ * parsers are the only guard. Depend downward only: no machine, spine or core.js imports.
  */
 
-/** The closed set of maneuver fold kinds. Unknown kinds are DROPPED, never guessed. */
-// `command` (2026-09-05): Commander's Strike — a Bonus Action that gives an ALLY a Reaction attack
-// with the fighter's die on its damage: Riposte's driven attack with the attacker changed.
-// `shove` (2026-09-25, the origin feats): Tavern Brawler's push on an Unarmed Strike hit - the bash
-// offer's shape with no save behind it; accepting announces the 5-foot push (bash-offer.js).
+/**
+ * The closed set of maneuver fold kinds. Unknown kinds are DROPPED, never guessed.
+ * `command`: Commander's Strike — an ALLY's Reaction attack with the fighter's die (Riposte's
+ * driven attack, attacker changed). `shove`: a push offer on a hit with no save (bash-offer.js).
+ */
 export const MANEUVER_KINDS = new Set(["precision", "riposte", "interpose", "bash", "hew", "command", "shove"]);
 
 /**
- * WHO PUSHES ON THE SHOVE OFFER (the PHB feats, group 3, 2026-09-26): the `shove` kind's rows, by the
- * listed feat's name — what hit qualifies and which once-per-turn mark it spends. Tavern Brawler's
- * Unarmed Strike within 5 feet; Crusher's hit that deals Bludgeoning damage, any reach, a target no
- * more than one size larger than the pusher. ⚠ NOT A KIND: `shove` is the one kind; these are its rows.
+ * The `shove` kind's rows, keyed by feat name: what hit qualifies and which once-per-turn mark it spends.
  *   on       "unarmed" (an Unarmed Strike) | a damage type the hit must deal
- *   reach    true — only a creature within 5 feet (the Attack action's swing)
+ *   reach    true — only a creature within 5 feet
  *   larger   the most sizes larger than the pusher the target may be (null: any)
  *   used     the attacker flag that marks the turn's use — each feat its own
  *   rule     RULE_TEXT's key for the popup's quote
@@ -50,20 +30,17 @@ export const SHOVES = Object.freeze({
   "Crusher": Object.freeze({ on: "bludgeoning", reach: false, larger: 1, used: "crushUsed", rule: "crush" })
 });
 
-/** The closed set of interrupt kinds — what a held reaction changes about an attack. */
-// `roll` (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): the defender bends the ROLL
-// itself — Disadvantage imposed after the hit showed, a second d20 and the lower standing. Not
-// `ac` (the AC never moves, and a natural 20 can be undone, which an AC change never can) and
-// not `damage` (it changes whether the attack hit at all). Its rows are INTERRUPT_ROLLS.
+/**
+ * The closed set of interrupt kinds — what a held reaction changes about an attack. `roll` bends
+ * the attack roll itself (Disadvantage after the hit shows — it can undo a natural 20, which `ac`
+ * never can); its rows are INTERRUPT_ROLLS.
+ */
 export const INTERRUPT_KINDS = new Set(["ac", "damage", "roll"]);
 
 /**
- * DAMAGE INTERRUPTS THE MODULE CAN SETTLE ITSELF (user, 2026-09-02: "uncanny dodge … doesn't
- * half the damage"): a `damage`-kind reaction whose whole effect is a MULTIPLIER on the
- * triggering attack's damage. The applier lands the reactor's share at that multiplier and the
- * receipt row says why; a damage interrupt not listed here (Absorb Elements — resistance to one
- * type; Deflect Attacks — reduce by a roll) stays "reduce by hand", because its arithmetic is
- * not a number the module can read. Keyed by the Interrupt list's own names.
+ * `damage` interrupts whose whole effect is a MULTIPLIER on the triggering attack's damage: the
+ * applier lands the reactor's share at it and the receipt says why. Any other damage interrupt
+ * (Absorb Elements, Deflect Attacks) stays "reduce by hand". Keyed by the Interrupt list's names.
  */
 export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
@@ -71,38 +48,22 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
 });
 
 /**
- * DAMAGE INTERRUPTS THAT REDUCE BY A ROLL (2026-09-05, the Battle Master's Parry — "reduce the
- * damage by the number you roll on your Superiority Die plus your Strength or Dexterity
- * modifier"): a `damage`-kind reaction whose effect is a SUBTRACTION the module can roll. The
- * pack ships Parry as a "Heal" Reaction activity whose healing formula IS the reduction
- * (`@scale.battle-master.superiority.die + max(@abilities.str.mod, @abilities.dex.mod)` — the
- * pack's max() stands in for the player's choice); the hold reads that formula, rolls it in the
- * open at the answer, and the applier lands the attack's damage against the reactor short by
- * that number, the receipt row saying why. ⚠ Keyed by the Interrupt list's own names — and the
- * Monster Manual ships a different "Parry" (a +2 AC Reaction, `ac`); the row applies only where
- * the found item carries the named activity, so the monster's stays an AC hold.
- *
- * The Goliath's Stone's Endurance (Slice A, 2026-09-24) is the second row, the same shape: the
- * pack's heal activity whose formula (`1d12 + @abilities.con.mod`) is the reduction, spent from
- * the item's OWN uses (its activity consumes `itemUses` with an empty target — the item itself).
- * Before this row it held as a plain damage interrupt: Cast USED the heal, healing a Goliath at
- * full HP, and the whole hit landed "reduce by hand". An attack hit is the attack hold's; since
- * the Goliath walk (2026-09-25, ruled "Hold before it lands") ANY other damage the module applies
- * is held for it too (damage-holds.js, the applier's claim) — `any` below.
- *
- *   activity  the activity's name — or, when the stored name is EMPTY (Stone's Endurance's is:
- *             dnd5e shows the type's localized title), the first heal activity: locale-proof
- *   pool      true — the activity's consumption target is spent, one use, and none left offers nothing
- *   eyebrow   the family the card and popup wear: "Maneuver" (Parry) or "Reaction" (a species trait)
- *   spend     what one use is called on the cost line: "Superiority Die", "use"
- *   hit       the trigger as the card says it: "melee attack" (Parry's rule), "attack" (any hit)
- *   by        what the reduction is, in words, for the popup's ask
- *   any       true — "when you take damage": every damage the module applies is held for it, not
- *             only an attack hit (damage-holds.js); Parry's "melee attack roll" is not
- *   ally      feet — the reduction is for ANOTHER creature within that reach of its owner, never the
- *             owner itself (Interception, the fighting styles 2026-09-26): an attack's damage to a
- *             creature is claimed at the applier and every GUARD in reach is asked (damage-holds.js,
- *             ruled P1: each gets a popup, the first to intercept takes it)
+ * `damage` interrupts that REDUCE BY A ROLL: the pack's heal activity's formula IS the reduction
+ * (Parry's max(str, dex) stands in for the player's choice). The hold rolls it in the open at the
+ * answer and the applier lands the damage short by it. Keyed by the Interrupt list's names.
+ * ⚠ The Monster Manual's "Parry" is a +2 AC reaction: a row applies only where the item carries
+ * the named activity, so the monster's stays an AC hold.
+ *   activity  the activity's name — or, when the stored name is EMPTY (dnd5e shows the type's
+ *             localized title), the first heal activity: locale-proof
+ *   pool      true — the activity's consumption target is spent; none left offers nothing
+ *   eyebrow   the family the card and popup wear: "Maneuver" | "Reaction"
+ *   spend     what one use is called on the cost line
+ *   hit       the trigger as the card says it: "melee attack" | "attack"
+ *   by        the reduction in words, for the popup's ask
+ *   any       true — "when you take damage": every damage the module applies is held for it
+ *             (damage-holds.js), not only an attack hit
+ *   ally      feet — the reduction is for ANOTHER creature within that reach, never the owner;
+ *             every guard in reach gets a popup, the first to intercept takes it (damage-holds.js)
  *   holding   what the guard must hold: "shieldOrWeapon" (a Shield or a Simple or Martial weapon)
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
@@ -121,23 +82,17 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
 });
 
 /**
- * THE `roll` INTERRUPTS (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): a defender's
- * answer to a hit that imposes Disadvantage on the attack roll already made — a second d20 with
- * the attack's own modifiers, the lower standing, the verdict taken again against the live AC
- * (decide/rescue-hit.js holds the arithmetic). Three customers and three COST shapes, which is
- * the whole of what differs between them — so the shape is data and the mechanism is one:
- *   reaction  true when the answer takes the Reaction (the chip); Lucky takes none
- *   uses      true when it spends one of the ITEM's own uses (Lucky's Luck Points, Warding
- *             Flare's Wisdom-mod uses); Shadowy Dodge spends nothing but the Reaction
- *   point     what one use is called on the row's tag, when the table calls it something
- *   activity  the pack's activity that IS this answer, by name — a use from the sheet answers
- *             the hold (the cast-IS-the-answer path); Lucky ships two, only "Disadvantage" is this
+ * The `roll` interrupts: Disadvantage on the attack roll already made — a second d20 with the
+ * attack's own modifiers, the lower standing, the verdict retaken against the live AC
+ * (decide/rescue-hit.js). The customers differ only in COST, so the cost is data:
+ *   reaction  true when the answer takes the Reaction; Lucky takes none
+ *   uses      true when it spends one of the ITEM's own uses
+ *   point     what one use is called on the row's tag, when the table names it
+ *   activity  the pack's activity that IS this answer — a use from the sheet answers the hold;
+ *             Lucky ships two, only "Disadvantage" is this
  *   after     what the rule leaves to the table once the roll is bent — a card line, never a move
- * ⚠ Keyed by the Interrupt list's own names (the `roll` kind); membership stays that list. The
- * `rule` is the pack's text VERBATIM (law 8) — Lucky's Disadvantage paragraph alone, Warding
- * Flare's with the pack's "currently N" lookup dropped, as the ruled prototype quotes them.
- * ⚠ The 2014 Halfling's "Lucky" TRAIT shares the name and none of this (no uses, no activity —
- * the natural-1 reroll dnd5e plays natively): the lookup demands the item's own uses.
+ * ⚠ `rule` is the pack's text VERBATIM (law 8). ⚠ The 2014 Halfling "Lucky" trait shares the
+ * name and none of this (no uses, no activity): the lookup demands the item's own uses.
  */
 export const INTERRUPT_ROLLS = Object.freeze({
   "Lucky": Object.freeze({ reaction: false, uses: true, point: "Luck Point", activity: "Disadvantage",
@@ -150,78 +105,44 @@ export const INTERRUPT_ROLLS = Object.freeze({
     after: "teleport up to 30 feet if you wish (the table moves the token)",
     rule: "When a creature makes an attack roll against you, you can take a Reaction to impose Disadvantage on that roll. Whether the attack hits or misses, you can then teleport up to 30 feet to an unoccupied space you can see.",
     from: "Ranger — Gloom Stalker" }),
-  // `ally` (the fighting styles, 2026-09-26, ruled R1 and P1): the Disadvantage is for ANOTHER
-  // creature within that reach — every GUARD in reach is asked in a popup of its own after the hit
-  // shows (the hold's `guards`), the first to answer bends the roll; the attack card says whose.
-  // `holding` "shield": "interpose your Shield if you're holding one". `effect`: the pack's own
-  // effect the answer then lands on the protected creature ("Protected — <guard>"), until the
-  // start of the guard's next turn — the gate reads it (EFFECT_BENDS "Protected (Protection)").
+  // `ally`: the Disadvantage is for ANOTHER creature within that reach — every guard in reach gets
+  // its own popup after the hit shows, the first to answer bends the roll. `holding` "shield": only
+  // while holding one. `effect`: the pack's effect then landed on the protected creature until the
+  // start of the guard's next turn (the gate reads it: EFFECT_BENDS "Protected (Protection)").
   "Protection": Object.freeze({ reaction: true, uses: false, point: null, activity: "Protect", ally: 5, holding: "shield", effect: "Protected",
     rule: "When a creature you can see attacks a target other than you that is within 5 feet of you, you can take a Reaction to interpose your Shield if you're holding one. You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target.",
     from: "Fighting Style feat" })
 });
 
 /**
- * The closed set of D20 FOLD kinds — the three surveyed features (v1.23.0), which are one
- * mechanism wearing three different SPENDS. The arithmetic they share already shipped with D8
- * (`foldedRoll`/`foldedVerdict`/`foldedSave` handle `add` and `replace` on both sides); what
- * genuinely differs per feature — and therefore what earns a kind under R4 — is where the
- * marker lives and how you take it away:
- *
- *   heroic    `system.attributes.inspiration`, a bare BooleanField. Spending it is a WRITE.
- *   tactical  Second Wind's `itemUses`, reached through a real utility activity. `use()`.
- *   bardic    an ActiveEffect ("Inspired") the bard applied. Spending it is a DELETE.
- *
- * ⚠ THREE SPENDS, THREE DIE SOURCES, AND ONLY ONE OF THEM HAS AN ACTIVITY. Measured in the
- * dnd5e 5.3.3 source and this world's own PHB pack, 2026-08-23:
- *   - `heroic` has NO activity anywhere in the system, and a boolean is not one of the five
- *     consumption kinds (activityUses · itemUses · material · hitDice · spellSlots), so there
- *     is no consumption route to hang it on. The module writes the field, which is exactly
- *     what the system's own sheet toggle does.
- *   - `bardic`'s die formula is `@scale.bard.inspiration` — a scale value on the GRANTING
- *     BARD, not on the creature holding the die. It resolves cross-actor, through the
- *     effect's `origin`.
- *   - only `tactical` is Precision-shaped: an activity, consumed with `use()`.
- *
- * ⚠ These are NOT contribution shapes. `add`/`replace`/`ac`/`verdict` are mechanism vocabulary
- * and deliberately uncounted (§6); a kind here names a SPEND, which is content, which is
- * precisely what the R4 tripwire is counting.
+ * The closed set of d20 FOLD kinds. A kind names a SPEND (content, which the R4 tripwire counts),
+ * never a contribution shape (`add`/`replace`/`ac`/`verdict` are mechanism vocabulary, ARCHITECTURE.md §6):
+ *   heroic     `system.attributes.inspiration`, a bare boolean with no activity and no consumption
+ *              route — spending it is a WRITE, as the sheet's own toggle does
+ *   tactical   Second Wind's `itemUses` through a real activity — `use()`
+ *   bardic     the "Inspired" effect the bard applied — spending it is a DELETE; its die
+ *              `@scale.bard.inspiration` resolves on the GRANTING bard, through the effect's `origin`
+ *   advantage  a second d20 with the roll's modifiers, the higher standing, paid with an item use —
+ *              the post-roll road when an initiative rolled with no dialog (ADVANTAGE_BUYS never showed)
+ *   succeed    a FAILED SAVE turned into a success through the feature's activity (SAVE_SUCCEEDS):
+ *              no die, the verdict itself (decide/verdict.js)
  */
-// `advantage` (2026-09-25, the Halfling walk - Lucky's Advantage half unparked): a SECOND d20 with the
-// roll's own modifiers, the higher standing, paid with one of the item's own uses - the post-roll
-// road for an initiative rolled with no dialog (the carousel, Roll All), where the gate's box
-// (ADVANTAGE_BUYS) never showed. A kind because the arithmetic differs from all four: neither an
-// add nor a plain replace, a keep-the-higher of two.
-// `succeed` (2026-09-27, the PHB feats group 4 - Mage Slayer's Guarded Mind): a FAILED SAVE turned
-// into a success, paid with a use through the feature's own activity (SAVE_SUCCEEDS). A kind because
-// the arithmetic differs from all five: no die and no reroll - the verdict itself (decide/verdict.js,
-// a `verdict` contribution on the save side, the way a negate hold forces the attack side's).
 export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"]);
 
-/**
- * The closed set of volley kinds. Lives here, in the pure layer, so that ONE definition serves
- * the shipping registry and the static gate alike. ⚠ It used to exist twice: volley-registry.js
- * knew them implicitly and `tools/check-registry.mjs` re-declared them as a lookalike — the
- * exact defect Phase 2 removed for the maneuver kinds and then left standing here.
- */
+/** The closed set of volley kinds — the one definition the registry and tools/check-registry.mjs share. */
 export const VOLLEY_KINDS = new Set(["damage", "attack"]);
 
 /**
- * The weapon masteries this module RESOLVES. Seven of the system's eight — `nick` is
- * deliberately native (it is pure action economy, and ruling 1 says action economy is not this
- * module's job), which is why it is declared below rather than merely absent. An absence and a
- * decision look identical in a switch statement; only one of them survives a code review.
+ * The weapon masteries this module RESOLVES. `nick` is pure action economy, which is not this
+ * module's job — declared native (MASTERY_NATIVE) rather than merely absent.
  */
 export const MASTERY_KINDS = new Set(["vex", "sap", "cleave", "slow", "topple", "push", "graze"]);
 
 /** Masteries the system has and this module deliberately leaves alone. See MASTERY_KINDS. */
 export const MASTERY_NATIVE = new Set(["nick"]);
 
-/** Walk-5 (z): what each mastery popup quotes (DATA, moved here from mastery.js 2026-09-01 so the
- * reminder gate can quote it without a sideways import) — the 2024 property text VERBATIM, matched
- * against the system's own rules journal by tools/check-mastery-rules.mjs (first run as a probe 2026-08-21,
- * dnd5e 5.3.3; punctuation included). Never paraphrase these; the module's operational
- * hints ride as separate lines wherever they are needed. */
+/** What each mastery popup quotes: the 2024 property text VERBATIM, checked against the system's
+ * rules journal by tools/check-mastery-rules.mjs. Never paraphrase; hints ride as separate lines. */
 export const MASTERY_RULES = Object.freeze({
   slow: "If you hit a creature with this weapon and deal damage to it, you can reduce its Speed by 10 feet until the start of your next turn. If the creature is hit more than once by weapons that have this property, the Speed reduction doesn’t exceed 10 feet.",
   topple: "If you hit a creature with this weapon, you can force the creature to make a Constitution saving throw (DC 8 plus the ability modifier used to make the attack roll and your Proficiency Bonus). On a failed save, the creature has the Prone condition.",
@@ -232,18 +153,11 @@ export const MASTERY_RULES = Object.freeze({
   cleave: "If you hit a creature with a melee attack roll using this weapon, you can make a melee attack roll with the weapon against a second creature within 5 feet of the first that is also within your reach. On a hit, the second creature takes the weapon’s damage, but don’t add your ability modifier to that damage unless that modifier is negative. You can make this extra attack only once per turn."
 });
 
-/** Walk-5 (z): the maneuver folds' rule lines, the popups' quotes (DATA, moved here from
- * maneuvers.js 2026-09-05 with the split by moment — the 2026-09-01 precedent above) — the 2024 text VERBATIM, read off this
- * world's own PHB compendium items 2026-08-21 (punctuation included; the source mixes curly
- * and straight apostrophes). The popups keep the module's operational hints as separate
- * lines; these strings are the rules and must never be paraphrased. Keyed by KIND — the
- * folds list maps items onto kinds, and each kind's mechanics are these features'. */
+/** The maneuver folds' popup quotes, keyed by KIND: the 2024 text VERBATIM from the PHB compendium
+ * (the source mixes curly and straight apostrophes). Never paraphrase; hints ride as separate lines. */
 export const RULE_TEXT = {
-  // ⚠ PRECISION'S QUOTE LIVES IN `RESCUE_KINDS` (decide/present.js) AND IS READ FROM THERE.
-  // It is the one fold kind that is also a RESCUE — the merged window draws it into its own
-  // quote pane — and law 8 says the quote IS the rule, so a second copy that drifts is the
-  // module telling the table something untrue. No key for it here (nothing ever read one;
-  // this layer imports nothing, present.js included). Every other kind is the folds' alone.
+  // ⚠ Precision's quote lives only in `RESCUE_KINDS` (decide/present.js): law 8 — the quote IS the
+  // rule, and a drifting second copy tells the table something untrue.
   riposte: "When a creature misses you with a melee attack roll, you can take a Reaction and expend one Superiority Die to make a melee attack roll with a weapon or an Unarmed Strike against the creature. If you hit, add the Superiority Die to the attack's damage.",
   bash: "If you attack a creature within 5 feet of you as part of the Attack action and hit with a Melee weapon, you can immediately bash the target with your Shield if it’s equipped, forcing the target to make a Strength saving throw (DC 8 plus your Strength modifier and Proficiency Bonus). On a failed save, you either push the target 5 feet from you or cause it to have the Prone condition (your choice). You can use this benefit only once on each of your turns.",
   shove: "Push. When you hit a creature with an Unarmed Strike as part of the Attack action on your turn, you can deal damage to the target and also push it 5 feet away from you. You can use this benefit only once per turn.",
@@ -255,20 +169,17 @@ export const RULE_TEXT = {
 };
 
 /**
- * THE BONUS SWINGS (the PHB feats, 2026-09-27 — the user's pick "P1" off BACKLOG's Polearm Master
- * options): a feat whose text grants one more attack as a Bonus Action, REMINDED — the `hew` fold's
- * OK-only popup and card (hew.js), the swing made from the sheet. A `hew` entry on the Maneuver Folds
- * list whose feat is not a row here is Great Weapon Master's shape: `when: "critOrKill"`.
- *   when      "critOrKill" — after a Critical Hit or a creature reduced to 0 with a melee weapon (Hew);
- *             "attack" — after an attack with a qualifying weapon on the owner's own turn, once per turn
- *   weapons   ("attack") the weapons that qualify: a base item named in `base`, or one carrying every
- *             property in `properties` (dnd5e's ids)
- *   label     what the popup and the card call the swing
- *   swing     the line saying what to swing
- *   drive     true — the reminder is an OFFER (Pole Strike / Pass): Use drives the weapon's own attack at the
- *             same creature, its die a d4 of Bludgeoning (the walk, 2026-09-27: "an offer to attack, using
- *             bonus action, player chooses yes or no, and then it does the attack for them")
- *   rule      the benefit's sentence, verbatim (law 8)
+ * A feat whose text grants one more attack as a Bonus Action, REMINDED — the `hew` fold's OK-only
+ * popup and card (hew.js). A `hew` entry on the Maneuver Folds list with no row here takes Great
+ * Weapon Master's shape (`when: "critOrKill"`).
+ *   when     "critOrKill" — after a Critical Hit or a creature reduced to 0 with a melee weapon;
+ *            "attack" — after an attack with a qualifying weapon on the owner's turn, once per turn
+ *   weapons  ("attack") a base item named in `base`, or one carrying every property in `properties`
+ *   label    what the popup and the card call the swing
+ *   swing    the line saying what to swing
+ *   drive    true — the reminder is an OFFER: Use drives the weapon's own attack at the same
+ *            creature, its die a d4 of Bludgeoning
+ *   rule     the benefit's sentence, verbatim (law 8)
  */
 export const BONUS_SWINGS = Object.freeze({
   "Great Weapon Master": Object.freeze({ when: "critOrKill", label: "Hew", rule: RULE_TEXT.hew }),
@@ -281,48 +192,36 @@ export const BONUS_SWINGS = Object.freeze({
 });
 
 /**
- * The REMINDER kinds — the sources of Advantage or Disadvantage the gate can read off the table
- * before an attack roll (HANDOFF Stage 2, 2026-09-01). Each is a distinct way of KNOWING:
- *   vex    the attacker's own Vexed chip on a target      → Advantage
- *   sap    a Sapped chip on the attacker                   → Disadvantage
- *   prone  the Prone status, both roles: the attacker prone → Disadvantage; the target prone →
- *          Advantage within 5 feet of it, Disadvantage beyond (decide/reminders.js)
- *   condition  a row of the condition table (CONDITION_BENDS) on either side
- *   range  a RANGED attack roll's geometry (user, 2026-09-02): the target beyond normal range →
- *          Disadvantage, beyond long range → cannot be made (listed, not counted); an enemy
- *          within 5 feet of the attacker → Disadvantage (RANGE_RULES, decide/reminders.js)
- *   sneak  the Sneak Attack CHOICE beside the roll (user, 2026-09-02): the feature on the
- *          attacker's sheet and a Finesse or ranged weapon offer a tick — the player judges the
- *          conditions, the module carries the dice (SNEAK_ATTACK, CUNNING_OPTIONS)
- *   effect an ability on either sheet that bends the roll — an active effect or a feature by
- *          name, a row of EFFECT_BENDS (user, 2026-09-02); WHICH rows count is the Effect
- *          Sources list, membership like the condition table
+ * The REMINDER kinds — the sources of Advantage or Disadvantage the gate reads before an attack roll:
+ *   vex        the attacker's own Vexed chip on a target → Advantage
+ *   sap        a Sapped chip on the attacker → Disadvantage
+ *   prone      the attacker prone → Disadvantage; the target prone → Advantage within 5 feet,
+ *              Disadvantage beyond (decide/reminders.js)
+ *   condition  a row of CONDITION_BENDS on either side
+ *   range      a ranged roll's geometry: beyond normal range → Disadvantage, beyond long → cannot
+ *              be made (listed, not counted); an enemy within 5 feet → Disadvantage (RANGE_RULES)
+ *   sneak      the Sneak Attack CHOICE beside the roll — a tick; the module carries the dice
+ *              (SNEAK_ATTACK, CUNNING_OPTIONS)
+ *   effect     a row of EFFECT_BENDS on either sheet; which rows count is the Effect Sources list
+ *   buy        Advantage bought with an item's use before the roll (ADVANTAGE_BUYS) — the one
+ *              source the roller CHOOSES, so a tick rather than a tag
  * The gate never SETS a mode (DESIGN R-A): it lists every source and the net, and a human presses.
- * Membership — which of these a table wants nagged about — is the Reminder Sources list.
+ * Which kinds a table wants is the Reminder Sources list.
  */
-// `buy` (2026-09-25, the Halfling walk): the gate's SPEND box - Advantage bought with an item's use
-// before the roll (ADVANTAGE_BUYS, Lucky the first row). A kind because it is the one source the
-// roller CHOOSES rather than one the module reads: a tick, like Sneak Attack's, not a tag.
 export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "range", "effect", "sneak", "buy"]);
 
 /**
- * THE ADVANTAGE BUYS (2026-09-25, the Halfling walk: "we need to unpark the advantage on our own
- * d20"; ruled off the prototype lucky-advantage.html, "looks good"): Advantage on your OWN D20
- * Test, bought before the roll with one of the item's uses. The gate draws one box per row the
- * roller holds - the Sneak Attack box's shape, a tick where the other boxes carry a tag - inside
- * the system's own roll dialog for an attack, a save, a check and initiative (advantage-buys.js).
- * The tick counts as an Advantage source in the net (a Disadvantage beside it nets Normal and the
- * use still goes - the rule allows it, ruled); the use is spent when the roll goes out with the
- * box ticked and the net pressed. A roll with no dialog (a shift-click) meets no box and spends
- * nothing (ruled). An initiative rolled with no dialog at all (the carousel, Roll All) is offered
- * the same buy AFTER the roll - the `advantage` D20 fold: a second d20, the higher standing
- * (ruled "After the roll"; a bend in RULINGS' register - the player sees the first die).
- *   uses      true - the spend is one of the ITEM's own uses (Lucky's Luck Points, @prof per Long Rest)
- *   point     what one use is called on the box and the receipt
- *   tests     which D20 Tests the rule reaches ("a D20 Test": attack, save, check, initiative)
- *   rule      the pack's paragraph for this half, verbatim (law 8)
- * ⚠ The 2014 Halfling's "Lucky" TRAIT shares the name and has no uses - the lookup demands them,
- * as INTERRUPT_ROLLS' does.
+ * Advantage on your OWN D20 Test, bought before the roll with one of the item's uses: one tick box
+ * per row the roller holds, inside the system's roll dialog for an attack, save, check or
+ * initiative (advantage-buys.js). The tick is an Advantage source in the net (beside a
+ * Disadvantage it nets Normal and the use still goes); the use is spent when the roll goes out
+ * ticked. A roll with no dialog meets no box and spends nothing; an initiative with no dialog is
+ * offered the buy AFTER the roll — the `advantage` d20 fold (RULINGS *Where the table bends the rule*).
+ *   uses   true — the spend is one of the ITEM's own uses
+ *   point  what one use is called on the box and the receipt
+ *   tests  which D20 Tests the rule reaches
+ *   rule   the pack's paragraph for this half, verbatim (law 8)
+ * ⚠ The 2014 Halfling "Lucky" trait shares the name and has no uses — the lookup demands them.
  */
 export const ADVANTAGE_BUYS = Object.freeze({
   "Lucky": Object.freeze({ uses: true, point: "Luck Point", activity: "Advantage",
@@ -332,15 +231,13 @@ export const ADVANTAGE_BUYS = Object.freeze({
 });
 
 /**
- * THE SAVES THAT SUCCEED INSTEAD (the PHB feats, group 4, 2026-09-27 — RULINGS *The PHB feats —
- * groups 4–6*): a feature that turns a FAILED saving throw into a success, once per rest — the
- * `succeed` D20 fold (d20-folds.js). Offered where a failure is known (a save the module demanded:
- * after the roll, before the verdict applies — the withhold) and on a save rolled from the sheet as
- * an offer the roller judges (no DC is known there — the DC finding). Keyed by the FEATURE's name
- * (the D20 Folds list's lookup key); membership is that list's `succeed` rows.
- *   activity   the feature's own activity whose use pays (its consumption spends the item's use)
+ * A feature that turns a FAILED saving throw into a success, once per rest — the `succeed` d20
+ * fold (d20-folds.js). Offered where a failure is known (a demanded save, before its verdict
+ * applies) and, on a save rolled from the sheet, as an offer the roller judges (no DC is known
+ * there). Keyed by the FEATURE's name; membership is the D20 Folds list's `succeed` rows.
+ *   activity   the feature's own activity whose use pays
  *   label      what the offer and the card call it — the benefit's name, not the feat's
- *   abilities  the saves it reaches (ability ids) — "an Intelligence, a Wisdom, or a Charisma saving throw"
+ *   abilities  the saves it reaches (ability ids)
  *   rule       the benefit's paragraph, verbatim (law 8)
  */
 export const SAVE_SUCCEEDS = Object.freeze({
@@ -351,16 +248,12 @@ export const SAVE_SUCCEEDS = Object.freeze({
 });
 
 /**
- * SNEAK ATTACK (user, 2026-09-02 — the prototype *Sneak Attack, Cunningly*, built as drawn): the
- * feature by NAME on the attacker's sheet, its dice read off the feature's own damage activity
- * (`@scale.rogue.sneak-attack`, resolved on the sheet — never a table of dice by level), and its
- * rule quoted verbatim from the 2024 PHB pack. The gate's seventh kind: a CHOICE beside the
- * roll — a checkbox in the section, because the roll still needs its Advantage / Normal press.
- * The PLAYER decides whether the conditions hold (user: "the player can determine if they have
- * the conditions"); the module reads what it can (the weapon is Finesse or ranged, the roll's
- * net, and — reopened 2026-09-22 — an ally of the rogue within 5 feet of the target, off the
- * map) and ticks the box when they hold; the tick stays the player's. The DAMAGE is automated: the dice ride
- * the damage roll (the hit-riders seam), crit-doubled for free, once per turn as a turn chip.
+ * Sneak Attack: the feature by NAME on the attacker's sheet, its dice read off its own damage
+ * activity (`@scale.rogue.sneak-attack` — never a table by level), its rule verbatim. A CHOICE
+ * beside the roll — a checkbox, because the roll still needs its Advantage / Normal press. The
+ * module ticks it when what it can read holds (Finesse or ranged, the roll's net, an ally within
+ * 5 feet of the target); the tick stays the player's. The dice ride the damage roll (the
+ * hit-riders seam), crit-doubled for free, once per turn as a turn chip.
  */
 export const SNEAK_ATTACK = Object.freeze({
   feature: "Sneak Attack",
@@ -371,24 +264,14 @@ export const SNEAK_ATTACK = Object.freeze({
 });
 
 /**
- * THE CUNNING STRIKE OPTIONS, read off the sheet (user ruling 2026-09-02: "the option list is
- * READ OFF THE SHEET, subclass included") — each row names the FEATURE that grants it, the SAVE
- * ACTIVITY dnd5e ships on that feature (the effect lands through the saves machine, with the
- * condition the pack attaches), and its die cost. A row with no activity is a LINE on the card
- * (Withdraw, Stealth Attack) — movement and stealth are the table's. The 2024 PHB pack as
- * measured 2026-09-02 (tools/probe-clock-riders.mjs):
- *
- *   Cunning Strike     Poison (1d6, Con, Poisoned 1 min) · Trip (1d6, Dex, Prone) · Withdraw (1d6)
- *   Devious Strikes    Daze (2d6, Con) · Knock Out (6d6, Con, Unconscious) · Obscure (3d6, Dex, Blinded)
- *   Supreme Sneak      Stealth Attack (1d6) — the Thief
- *   Envenom Weapons    UPGRADES Poison — the Assassin: the pack's activity carries the damage
- *                      (2d8 poison on a failed save, as shipped; its text says 2d6 — the data
- *                      wins, N1) and no condition, so the failure ALSO presses Poisoned
- *   Rend Mind          the Soulknife, Psychic Blades only, no die cost: a free use, or three
- *                      Psionic Energy Dice — the pack's two activities
- *
- * `upgrade.onFail` names what the module applies on top of the upgraded activity's own
- * consequences; `weapon` restricts the row to attacks with that item name.
+ * The Cunning Strike options, READ OFF THE SHEET (subclass included): each row names the FEATURE
+ * that grants it, the save ACTIVITY dnd5e ships on it (the effect lands through the saves
+ * machine, with the pack's condition), and its die cost. A row with no activity is a LINE on the
+ * card (Withdraw, Stealth Attack) — movement and stealth are the table's.
+ * ⚠ Envenom Weapons UPGRADES Poison: the pack's activity carries the damage (2d8 as shipped, its
+ * text says 2d6 — the data wins, N1) and no condition, so a failure ALSO presses Poisoned
+ * (`upgrade.onFail`). Rend Mind: Psychic Blades only (`weapon`), a free use or three Psionic
+ * Energy Dice — the pack's two activities.
  */
 export const CUNNING_OPTIONS = Object.freeze({
   poison: Object.freeze({ feature: "Cunning Strike", activity: "Poison", cost: 1,
@@ -423,58 +306,41 @@ export const DEATH_STRIKE = Object.freeze({
 });
 
 /**
- * DAMAGE RIDERS ON THE COMBAT CLOCK (user, 2026-09-02 — "the assassin, gloomstalker" class:
- * "should just notify the player that they are available and will be added to the damage";
- * a crit doubles them, which the crit stamp does for free). A second class of rider beside the
- * marks (hit-riders.js): the condition is the ROUND or the TURN, not a chip on the target —
- * facts the platform holds and the module already reads for expiry. Each row names the FEATURE
- * that grants it (matched by name on the attacker's sheet — what a GM can type), the damage
- * activity the pack ships on it (the dice are READ off the sheet, scaled — the Gloom Stalker's
- * scale value), and its clock:
- *
- *   when      "oncePerTurn" — the once-per-turn chit (the Cleave shape); out of combat there is
- *             no turn, so it rides every hit · "firstRound" — combat.round === 1, never out of combat
- *             · "any" — due on EVERY hit, uses permitting (Slice A, 2026-09-24: the Goliath's Fire's
- *             Burn and Frost's Chill — no clock of their own, only a use; user, 2026-09-24: "yes you
- *             should switch" — a Goliath owns one boon: use-it-or-not is the rider's question, not
- *             the menu's)
- *   uses      true — the feature carries limited uses: one is consumed, none left means not offered.
- *             Read off the ACTIVITY when it carries them (Dreadful Strike), else off the ITEM its
- *             consumption names — the item itself for an empty target (2026-09-24: the species
- *             packs put every use on the item), and the spend is written where the uses live
- *   effects   true — when the rider rides, the rider activity's own applied effects land on the hit
- *             target, receipted on the damage card (2026-09-24, Frost's Chill's "Chilled"); the one
- *             path the hit menu's `effects` uses (effect-riders.js `applyActivityEffectsOnHit`)
+ * Damage riders on the combat CLOCK: the condition is the ROUND or the TURN, not a chip on the
+ * target (those are hit-riders.js). The player is told the rider is due and it is added to the
+ * damage; a crit doubles it for free. Each row names the FEATURE (by name on the attacker's sheet)
+ * and the damage activity the pack ships on it — the dice are READ off the sheet, scaled.
+ *   when      "oncePerTurn" — the once-per-turn chit; out of combat it rides every hit ·
+ *             "firstRound" — combat.round === 1, never out of combat · "any" — every hit, uses
+ *             permitting (use-it-or-not is the rider's question, not the hit menu's)
+ *   uses      true — limited uses: one is consumed, none left means not offered. Read off the
+ *             ACTIVITY when it carries them, else off the ITEM its consumption names (the item
+ *             itself for an empty target); the spend is written where the uses live
+ *   effects   true — the rider activity's own effects land on the hit target, receipted on the
+ *             damage card (effect-riders.js `applyActivityEffectsOnHit`, the hit menu's path too)
  *   clock     a CHIP_WINDOWS key those effects land with, pinned to the ATTACKER's place — for a
- *             pack effect with no duration that means the rule (`slow`: "until the start of your
- *             next turn", the Slow mastery's sentence)
- *   label     what the offer and the card call the rider, when the activity's name would not say
- *             it ("Burn" → "Fire's Burn"); the activity's name by default, the feature's for "Damage"
- *   requires  "sneak" — only on an armed Sneak Attack (Assassinate's second clause)
+ *             pack effect with no duration, the rule's ("slow": until the start of your next turn)
+ *   label     the offer's and card's name when the activity's would not say it; by default the
+ *             activity's name, the feature's for "Damage"
+ *   requires  "sneak" — only on an armed Sneak Attack
  *   judge     "raging" — the bearer must be raging (an effect named Rage, or the status);
- *             "opportunity" — the hit is an Opportunity Attack's (Sentinel's Halt): driven as one by
- *             the module, or a melee attack off the attacker's own turn (then ticked with the caveat)
- *   type      "weapon" — the extra damage takes the WEAPON's own type; otherwise the part's first
- *   weapon    true — a weapon attack only (every 2024 row says "with a weapon")
+ *             "opportunity" — an Opportunity Attack's hit: driven as one by the module, or a melee
+ *             attack off the attacker's own turn (then ticked with the caveat)
+ *   type      "weapon" — the extra damage takes the WEAPON's type; otherwise the part's first
+ *   weapon    true — a weapon attack only
  *   caveat    what the module cannot judge, said on the line
- *   dealt     a damage type the hit must deal ("an attack that deals Slashing damage" — Slasher,
- *             Crusher, Piercer): read off the roll's own parts, and off the activity before it
- *   crit      true — only on a Critical Hit (the attack's own d20, or the damage roll's crit)
- *   lands     an effect the rider lands on the hit target with no activity to carry it (the PHB
- *             feats, group 3, 2026-09-26): `{ name, from?, id, bare? }` — built from the FEATURE's
- *             own effect `from` (its changes kept, unless `bare`), named `name`, keyed by `id` so
- *             the next hit refreshes it rather than stacking; with no `from`, an effect of `name`
- *             alone (the gate reads it by name — EFFECT_BENDS). Pinned by `clock` like `effects`.
- *   says      what an effect-only rider does, for the offer's row and the card (it has no dice)
- *   bonusDice one more of the attack's first damage die on a Critical Hit (Piercer) — dnd5e's own
- *             `critical.bonusDice` on the first roll, so the crit never doubles it
- *
- * Found by a 30-pack survey of every feature whose text conditions extra damage on the clock
- * (tools/probe-clock-riders.mjs, 2026-09-02). Left out on purpose: Hunter's Prey (Colossus
- * Slayer or Horde Breaker is a choice the sheet does not record), Brutal Strike (a forgone
- * Advantage — a choice), Hand of Harm / Eldritch Smite / Lifedrinker's heal (a resource spend —
- * a choice), Foe Slayer (a favored enemy the module cannot judge). Death Strike is the Sneak
- * Attack's own (DEATH_STRIKE). Membership is the Clock Riders list.
+ *   dealt     a damage type the hit must deal: read off the roll's parts, and the activity before it
+ *   crit      true — only on a Critical Hit (the attack's d20, or the damage roll's crit)
+ *   lands     an effect landed on the hit target with no activity to carry it: `{ name, from?, id,
+ *             bare? }` — built from the feature's effect `from` (changes kept unless `bare`), named
+ *             `name`, keyed by `id` so the next hit refreshes rather than stacks; with no `from`, a
+ *             bare effect of `name` (the gate reads it by name — EFFECT_BENDS). Pinned by `clock`.
+ *   says      what an effect-only rider does, for the offer's row and the card
+ *   bonusDice one more of the first damage die on a Critical Hit — dnd5e's `critical.bonusDice`
+ *             on the first roll, so the crit never doubles it
+ * Left out on purpose: each is a choice the sheet does not record or a judgment the module cannot
+ * make — Hunter's Prey, Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal, Foe
+ * Slayer (tools/probe-clock-riders.mjs). Death Strike is DEATH_STRIKE. Membership: the Clock Riders list.
  */
 export const CLOCK_RIDERS = Object.freeze({
   "dread-ambusher": Object.freeze({ feature: "Dread Ambusher", activity: "Dreadful Strike", when: "oncePerTurn", uses: true, weapon: true,
@@ -498,23 +364,19 @@ export const CLOCK_RIDERS = Object.freeze({
     caveat: "the type is the activity's first — ask for the other by hand",
     rule: "On each of your turns while your Rage is active, the first creature you hit with a weapon or an Unarmed Strike takes extra damage equal to 1d6 plus half your Barbarian level (round down). The extra damage is Necrotic or Radiant; you choose the type each time you deal the damage.",
     from: "Barbarian — Zealot 3" }),
-  // The Goliath's on-hit boons (Slice A, 2026-09-24; moved off the hit menu the same day, user:
-  // "yes you should switch"). Any attack roll — weapon, unarmed or spell — so no `weapon`; the
-  // type is the part's own (fire, cold); the uses the item's (`@prof` per Long Rest).
+  // The Goliath's boons: any attack roll (weapon, unarmed or spell), so no `weapon`; the type is
+  // the part's own; the uses the item's.
   "fires-burn": Object.freeze({ feature: "Fire's Burn", activity: "Burn", label: "Fire's Burn", when: "any", uses: true,
     rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d10 Fire damage to that target.",
     from: "Goliath — Giant Ancestry (Fire)" }),
   "frosts-chill": Object.freeze({ feature: "Frost's Chill", activity: "Chill", label: "Frost's Chill", when: "any", uses: true, effects: true, clock: "slow",
     rule: "When you hit a target with an attack roll and deal damage to it, you can also deal 1d6 Cold damage to that target and reduce its Speed by 10 feet until the start of your next turn.",
     from: "Goliath — Giant Ancestry (Frost)" }),
-  // The Aasimar's transformation (the walk, 2026-09-25; user: "you need to add this in and not
-  // skip it"). No activity carries the extra damage, so the row names its `amount` — the text's
-  // own token, resolved on the bearer — and its type comes from the FORM that stands (`forms`):
-  // an effect the form lands on the bearer (Heavenly Wings, Searing Radiance), or, for the form
-  // that lands nothing on its bearer (Necrotic Shroud's effect is the targets' Frightened), the
-  // module's own form chip written at the use (`chip`). `spells`: a spell's damage too — an
-  // attack spell rides the roll like a weapon; a spell that deals damage with no attack roll is
-  // offered on its card as a pick of the ONE target (clock-riders.js).
+  // No activity carries this damage: `amount` is the text's token resolved on the bearer, and the
+  // type comes from the FORM that stands (`forms`) — an effect the form lands on the bearer, or,
+  // for Necrotic Shroud (whose effect lands on the targets), the module's own form chip (`chip`).
+  // `spells`: an attack spell rides the roll like a weapon; a no-attack damage spell is offered on
+  // its card as a pick of the ONE target (clock-riders.js).
   "celestial-revelation": Object.freeze({ feature: "Celestial Revelation", activity: null, amount: "@prof", label: "Celestial Revelation",
     when: "oncePerTurn", judge: "transformed", spells: true,
     forms: Object.freeze([
@@ -524,12 +386,10 @@ export const CLOCK_RIDERS = Object.freeze({
     ]),
     rule: "Once on each of your turns before the transformation ends, you can deal extra damage to one target when you deal damage to it with an attack or a spell. The extra damage equals your Proficiency Bonus, and the extra damage’s type is either Necrotic for Necrotic Shroud or Radiant for Heavenly Wings and Inner Radiance.",
     from: "Aasimar — Celestial Revelation (character level 3)" }),
-  // THE PHB FEATS, group 3 (2026-09-26, RULINGS *The PHB feats — groups 1–3* — the on-hit riders). No dice of their own:
-  // an effect on the target, or one more die on a crit. ⚠ The PHB's "Slashed" effect carries
-  // Hamstring's speed −10 AND stands for the crit's Disadvantage (its Foundry note: "used for
-  // tracking the Hamstring and Enhanced Critical effects"), and EFFECT_BENDS "Slashed" counts the
-  // Disadvantage — so Hamstring lands as "Hamstrung" (the pack's change, its own name) and only the
-  // crit lands "Slashed" (measured 2026-09-26, RULINGS *The PHB feats — the scope*).
+  // No dice of their own: an effect on the target, or one more die on a crit (RULINGS *The PHB
+  // feats — groups 1–3*). ⚠ The PHB's "Slashed" effect carries Hamstring's speed −10 AND stands for
+  // the crit's Disadvantage, which EFFECT_BENDS "Slashed" counts — so Hamstring lands as "Hamstrung"
+  // (the pack's change, its own name) and only the crit lands "Slashed".
   "slasher-hamstring": Object.freeze({ feature: "Slasher", activity: null, label: "Hamstring", when: "oncePerTurn", dealt: "slashing",
     lands: Object.freeze({ name: "Hamstrung", from: "Slashed", id: "bfHamstrung00000" }), clock: "slow",
     says: "Speed −10 feet until the start of your next turn",
@@ -549,11 +409,9 @@ export const CLOCK_RIDERS = Object.freeze({
     bonusDice: 1, says: "one additional damage die",
     rule: "Enhanced Critical. When you score a Critical Hit that deals Piercing damage to a creature, you can roll one additional damage die when determining the extra Piercing damage the target takes.",
     from: "General feat (Piercer)" }),
-  // THE PHB FEATS, group 6 (2026-09-27): Sentinel's Halt — the pack's own "Halted" (Speed 0) on an
-  // Opportunity Attack's hit, for the rest of the CURRENT turn (the `halt` clock, pinned to the turn
-  // it lands in). `judge: "opportunity"`: an attack the module drove as one (Sentinel's Guardian — its
-  // card says so), or a melee attack made off the attacker's own turn in combat, which the offer
-  // ticks with the caveat (an Opportunity Attack made from the sheet carries no mark of its own).
+  // The pack's "Halted" (Speed 0) for the rest of the CURRENT turn (the `halt` clock). An
+  // Opportunity Attack made from the sheet carries no mark, so an off-turn melee attack is ticked
+  // with the caveat.
   "sentinel-halt": Object.freeze({ feature: "Sentinel", activity: null, label: "Halt", when: "any", judge: "opportunity",
     lands: Object.freeze({ name: "Halted", from: "Halted", id: "bfHalted00000000" }), clock: "halt",
     says: "Speed 0 for the rest of the current turn", caveat: "only on an Opportunity Attack",
@@ -562,12 +420,10 @@ export const CLOCK_RIDERS = Object.freeze({
 });
 
 /**
- * USE CHIPS (user report 2026-09-02): features the 2024 pack ships as TEXT ONLY — a utility
- * activity, instantaneous, self, no effect — whose whole consequence is a bend on the actor's
- * next roll. use-chips.js writes a chip named as the feature is when it is used; the effect
- * table above carries the row that reads it (same name), and the roll spends it. `window` is a
- * CHIP_WINDOWS key (the rules' own duration); `changes` what the text changes on the sheet.
- * Membership is the Effect Sources list (the row's name).
+ * Features the pack ships as TEXT ONLY (a self, instantaneous utility activity) whose whole
+ * consequence is a bend on the actor's next roll: use-chips.js writes a chip named as the feature
+ * when used, EFFECT_BENDS reads it by that name, and the roll spends it. `window`: a CHIP_WINDOWS
+ * key (the rule's duration); `changes`: what the text changes on the sheet. Membership: Effect Sources.
  */
 export const USE_CHIPS = Object.freeze({
   "Steady Aim": Object.freeze({ key: "steadyAim", bend: "advantage", window: "steadyAim",
@@ -577,20 +433,15 @@ export const USE_CHIPS = Object.freeze({
 });
 
 /**
- * THE COATINGS (the user, 2026-09-26, the PHB feats walk — RULINGS *Bent by choice — the rule of
- * cool*: "when Apply Poison is clicked, it puts a poison buff (self only) on the actor. dont make
- * the separate card ... player then gets poisoner buff for the minute or until they hit something,
- * then its removed. make clear its a bonus action"). A use chip of its own kind: the feature's
- * named `activity` (an enchantment the pack ships — drag a weapon onto its card) is VETOED at the
- * use and becomes a chip on the ACTOR instead, named `chip`, for `seconds`; it spends `dose` of the
- * feature's uses. The NEXT weapon hit spends the chip: the feature's own save activity for the
- * ability its DC is read off (`saves` — the pack ships one per ability the feat raises; the pick
- * is decide/chips.js `coatSaveAbility`) is used at the struck creatures, so the damage on a failure
- * is the pack's (N1), and SAVE_PRESSES presses what the pack only names.
- *   img    the chip's icon — the weapon armed, never the poison's harm (the user, 2026-09-26: "one esp
- *          that doesnt look like its dangerous to the actor"); a core icon, so every box has it
- *   list   the listed-names switch the row answers to — the Fighting Styles list's entry for the
- *          same feat, which already runs its Potent Poison: one feat, one switch
+ * A use chip of its own kind (RULINGS *Bent by choice — the rule of cool*): the feature's named
+ * `activity` (the pack's weapon enchantment) is VETOED at the use and becomes a chip on the ACTOR,
+ * named `chip`, for `seconds`, spending `dose` of the feature's uses. The NEXT weapon hit spends it:
+ * the feature's save activity for the ability its DC is read off (`saves` — one per ability the
+ * feat raises; the pick is decide/chips.js `coatSaveAbility`) is used at the struck creatures, so
+ * the failure's damage is the pack's (N1) and SAVE_PRESSES presses what the pack only names.
+ *   img   the chip's icon — the weapon armed, never a harm on the actor; a core icon, so every box has it
+ *   list  the listed-names switch the row answers to — the Fighting Styles list's entry for the
+ *         same feat, which already runs its Potent Poison: one feat, one switch
  * ⚠ NOT A KIND — one table read by one machine (use-chips.js); a second customer is a row.
  */
 export const COATINGS = Object.freeze({
@@ -601,16 +452,11 @@ export const COATINGS = Object.freeze({
 });
 
 /**
- * CARD CHIPS (user, 2026-09-25, the Gnome walk: "for gnome tinker, just make it a buff on the char
- * that lasts for the duration, use like a chit that is the same as the icon"; ruled: a button on
- * the Prestidigitation card; "yea just give a buff called tiny clockwork device ... the rest is
- * played at table"). A feature the pack ships as TEXT with NO activity of its own, whose use is
- * another item's cast: the card of that cast (`on`) OFFERS the chip when its caster owns the
- * feature (`feature`); a click writes a chip named `chip`, wearing the feature's own icon, for
- * `seconds` of world time, one chip per device, at most `max` standing (at the max the popup says
- * to remove one first). The chip bends nothing: it is the table's reminder that the thing exists
- * and when it lapses. The cast ASKS (a popup, with what is left); the card recalls it.
- * Membership is the Card Chips list (the row names).
+ * A feature the pack ships as TEXT with no activity, whose use is another item's cast: the card of
+ * that cast (`on`) OFFERS the chip when its caster owns `feature`. A click writes a chip named
+ * `chip`, wearing the feature's icon, for `seconds` of world time, one per device, at most `max`
+ * standing (at the max the popup says to remove one first). The chip bends nothing — it is the
+ * table's reminder that the thing exists and when it lapses. Membership: the Card Chips list.
  */
 export const CARD_CHIPS = Object.freeze({
   "Tinker": Object.freeze({ feature: "Gnomish Lineage, Rock", on: "Prestidigitation", chip: "Tiny Clockwork Device", seconds: 28800, max: 3,
@@ -623,23 +469,15 @@ export const CARD_CHIPS = Object.freeze({
 export const CARD_CHIP_NAMES = tableIndex(CARD_CHIPS).names;
 
 /**
- * SAVE PRESSES (user report 2026-09-02: "web never applied the restrained"): a save activity
- * whose FAILURE lands a condition the pack does not carry as an effect — the 2024 PHB's Web
- * ships with no effect at all (measured, tools/probe-web.mjs), so the saves machine had nothing
- * to apply and applied nothing. A row here names the ITEM and the standard status its text
- * presses on a failed save, through `forceStatus` — the canonical condition, the caster as its
- * origin, receipted on the demand card with a revert — the way Topple presses Prone. Data, not a
- * graft on the content (the house rule on premium packs); the saves machine reads it only when
- * the activity itself brought no effect to apply.
- *
- * ⚠ THE TABLE IS THE AUDIT'S OUTPUT (2026-09-03, tools/audit-presses.mjs over the corpus scan):
- * every 2024 save activity whose text presses a condition, against the statuses its effects
- * carry. Forty-three press one; thirty-five carry it (Hold Person, Entangle, Fear…) and need no
- * row; eight are bare and THREE are this shape — one save, one status, on the failure. The other
- * five are deliberately absent: Command presses Prone only on the word Grovel (a choice), Sleep's
- * Unconscious is a SECOND save a turn later (its first-save Incapacitated IS carried), Flesh to
- * Stone's Petrified takes three failures (its Restrained is carried), and Elemental Attunement
- * and Mind Spike only mention a condition in passing. Re-run the audit after a content update.
+ * A save activity whose FAILURE lands a condition the pack does not carry as an effect (the 2024
+ * Web ships no effect at all — tools/probe-web.mjs). A row names the ITEM and the status its text
+ * presses on a failed save, through `forceStatus` (the caster as origin, receipted with a revert),
+ * the way Topple presses Prone. Data, not a graft on the content; read only when the activity
+ * brought no effect of its own.
+ * ⚠ The table is tools/audit-presses.mjs's output — re-run it after a content update. Deliberately
+ * absent: Command (Prone only on Grovel, a choice), Sleep (the Unconscious is a second save; its
+ * Incapacitated is carried), Flesh to Stone (three failures; its Restrained is carried), Elemental
+ * Attunement and Mind Spike (mention a condition in passing).
  */
 export const SAVE_PRESSES = Object.freeze({
   "Web": Object.freeze({ status: "restrained", onFail: true,
@@ -648,19 +486,16 @@ export const SAVE_PRESSES = Object.freeze({
     rule: "When the grease appears, each creature standing in its area must succeed on a Dexterity saving throw or have the Prone condition. A creature that enters the area or ends its turn there must also succeed on that save or fall Prone." }),
   "Sleet Storm": Object.freeze({ status: "prone", onFail: true,
     rule: "When a creature enters the Cylinder for the first time on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration." }),
-  // The Poisoner's coating (COATINGS, 2026-09-26): the feat's save activities carry the 2d8 and no
-  // effect; the Poisoned is pressed here, on the platform's own clock — `expiry` is the pseudo-
-  // expiry "until the end of your next turn" is (sourceEnd, judged against the Poisoner's turn).
+  // The feat's save activities carry the 2d8 and no effect; the Poisoned is pressed here, with the
+  // pseudo-expiry "until the end of your next turn" (sourceEnd, against the Poisoner's turn).
   "Poisoner": Object.freeze({ status: "poisoned", onFail: true, expiry: "sourceEnd",
     rule: "When a creature takes damage from the poisoned item, that creature must succeed on a Constitution saving throw (DC 8 plus the modifier of the ability increased by this feat and your Proficiency Bonus) or take 2d8 Poison damage and have the Poisoned condition until the end of your next turn." })
 });
 
 /**
- * EVASION (user, 2026-09-02 — "ah evasion yes"): the Rogue's (and Monk's) save-side feature, an
- * OUTCOME with no choice in it (R1): a Dexterity save against an effect that deals half on a
- * success takes NONE on a success and HALF on a failure. Not while Incapacitated. Read off the
- * sheet by the feature's name at the fold; the verdict's multiplier does the rest, and the
- * receipt says why. The 2024 PHB text, verbatim.
+ * Evasion: an OUTCOME with no choice in it (R1) — a Dexterity save against a half-on-success
+ * effect takes NONE on a success and HALF on a failure; not while Incapacitated. Read off the
+ * sheet by name at the fold; the verdict's multiplier does the rest, and the receipt says why.
  */
 export const EVASION = Object.freeze({
   feature: "Evasion", ability: "dex",
@@ -668,22 +503,17 @@ export const EVASION = Object.freeze({
 });
 
 /**
- * THE ONE TABLE INDEX (Stage 1 of the machine-tier pass, 2026-09-05). A name-keyed table's
- * closed name set and its row-by-name lookup, both case-insensitive, both derived from the
- * table itself — where four machines each carried a `rowNamed` and six `*_NAMES` sets were
- * derived by hand. `keyOf` names the column the list validates against when it is not the key
- * (the clock riders and the hit options list their `feature`).
- *
- * ⚠ THE TABLES KEEP THEIR KEYS. A list setting's default derives from these names, so renaming a
- * key changes what a world's saved setting validates against. Only the ACCESS is one body.
+ * A name-keyed table's closed name set and its row-by-name lookup, both case-insensitive, both
+ * derived from the table. `keyOf` names the column the list validates against when it is not the
+ * key (the clock riders and hit options list their `feature`).
+ * ⚠ A list setting's default derives from these names: renaming a table key changes what a
+ * world's saved setting validates against.
+ * ⚠ `rowNamed` spreads the ROW over `{ key }`, so a row carrying its own `key` field (USE_CHIPS)
+ * wins and the table key is not on the result — `keyNamed` gives the table key.
  *
  * @template T
  * @param {Record<string, T>} table
  * @param {((row: T, key: string) => string) | null} [keyOf] the name a row is listed by; the key by default
- * ⚠ `rowNamed` spreads the ROW over `{ key }`, exactly as the four copies did — so a row that
- * carries its own `key` field (USE_CHIPS: `key: "steadyAim"`) wins, and the TABLE key is not
- * on the result. `keyNamed` is the table key, for the callers that index the table by it (the
- * Steady Aim chip went missing on the first battery of Stage 1 for want of this line).
  *
  * @returns {{ names: Set<string>, keyNamed: (name: unknown) => string | null, rowNamed: (name: unknown) => (T & { key: string }) | null }}
  */
@@ -706,79 +536,45 @@ export function tableIndex(table, keyOf = null) {
 export const CLOCK_RIDER_NAMES = tableIndex(CLOCK_RIDERS, r => r.feature).names;
 
 /**
- * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers, to
- * pick when they hit"; the prototype *Battle Flow Hit Menu*, built as drawn; the sweep's ruling of
- * 2026-09-03: ONE popup per hit, the rows grouped by the feature that grants them, smites out).
- * Cunning Strike was the first instance of "on a hit, pick what rides before the dice"; this is
- * the general table. A GROUP is the feature that pays (Combat Superiority — its pool, its die,
- * its pick limit, its DC rule); an OPTION is a feature on the sheet that spends from it.
- *
- * What is read off the content, never typed (N1): the die (`@scale.battle-master.superiority.die`
- * on the option's own damage activity, resolved on the sheet — d8, d10 at 10th, d12 at 18th), the
- * pool (the activity's consumption target — the Combat Superiority item, by id, identifier or
- * compendium source, the three shapes the 2024 pack ships), the save (the option's save activity,
- * DC and all), the condition (the effect the save activity carries).
- *
- * The 2024 PHB pack as measured 2026-09-04 (the compendium, item by item):
- *   Trip Attack        Superiority Die + Strength Save; the Prone effect sits on the ITEM, unlinked
- *                      to the activity — `onFail: "prone"` presses it (the Envenom shape)
- *   Goading Attack     Superiority Die + Wisdom Save carrying "Goaded" (1 round)
- *   Menacing Attack    Superiority Die + Wisdom Save carrying Frightened (1 round)
- *   Pushing Attack     Superiority Die + Strength Save, no effect — the push is the table's
- *   Disarming Attack   Superiority Die + Strength Save, no effect — the drop is the table's
- *   Distracting Strike ONE damage activity carrying "Distracted" (1 round) — applied on the hit,
- *                      no save; the gate already reads it (EFFECT_BENDS "Distracted", from the scan)
- *   Maneuvering Attack Superiority Die only — the ally's move is a LINE on the card
- *   Sweeping Attack    ONE damage activity, `mode: "sweep"` — the die does NOT ride: it is rolled at
- *                      a SECOND creature within 5 feet of the target, if the attack roll would hit it
+ * The hit menu: on a hit, pick what rides before the dice — one popup per hit, rows grouped by the
+ * feature that pays. A GROUP is that feature (Combat Superiority — its pool, die, pick limit, DC);
+ * an OPTION is a feature on the sheet that spends from it. Read off the content, never typed (N1):
+ * the die (the option's damage activity, resolved on the sheet), the pool (its consumption target —
+ * the Combat Superiority item by id, identifier or compendium source, the three shapes the pack
+ * ships), the save (the option's save activity, DC and all), the condition (the effect it carries).
+ * ⚠ Trip Attack's Prone effect sits on the ITEM, unlinked to the activity — `onFail` presses it.
+ * Sweeping Attack's die does NOT ride: it is rolled at a SECOND creature (`mode: "sweep"`).
  *
  *   mode      "ride" (default) — the die joins the damage roll, crit-doubled by the same stamp ·
  *             "sweep" — the die is rolled apart, at a second creature the card asks for
  *   save      true — the option's save activity is used at the hit target after the damage
  *   onFail    a status the item's own (unlinked) effect presses on a failed save
  *   effects   true — the damage activity's own effects land on the hit target (no save)
- *   line      what the card says beyond the rule, for a consequence the table plays — uniform
- *             "Played at the table: …" (user, 2026-09-04)
+ *   line      what the card says beyond the rule, for a consequence the table plays
  *   melee     true — a melee attack only
- *   clock     a CHIP_WINDOWS key (decide/chips.js) the `effects` land with, pinned to the
- *             ATTACKER's place — for a pack effect that ships no duration, or the wrong one (the
- *             shared path, effect-riders.js `applyActivityEffectsOnHit`; no option uses it today —
- *             Frost's Chill, its first customer, moved to CLOCK_RIDERS the same day)
- *   press     a status the hit presses with NO save (Hill's Tumble's Prone) — receipted, never
- *             pressed over a status the target already has; the option's activity may then be a
- *             utility one (no die; the row shows the uses left, "2 of 3 uses left")
- *   maxSize   the largest size the option reaches ("lg" — "a Large or smaller creature"): read off
- *             the hit target's sheet; a larger target greys the row, an unreadable size does not
- *             (the gate never guesses)
- *   (no caveat lines — user, 2026-09-04: "just the rule tick is needed"; what the rules leave to the player is in the rule)
+ *   clock     a CHIP_WINDOWS key the `effects` land with, pinned to the ATTACKER's place — for a
+ *             pack effect with no duration or the wrong one (effect-riders.js `applyActivityEffectsOnHit`)
+ *   press     a status the hit presses with NO save — receipted, never over a status the target
+ *             already has; the option's activity may then be a utility one (no die; uses left shown)
+ *   maxSize   the largest size the option reaches: read off the target's sheet; a larger target
+ *             greys the row, an unreadable size does not (the gate never guesses)
  *
- * A GROUP's fields: `feature` the paying feature the sheet must carry (null — nothing to carry:
- * the Goliath's Giant Ancestry is a text-only parent the sheet may not hold), `pool` "feature"
- * (default — ONE pool for the group, the options' shared consumption target: Combat Superiority)
- * or "option" (every option pays from its OWN uses — the boon's item, `@prof` per Long Rest),
- * `label`, `max` picks, `dieLabel` what one spend is called, `eyebrow` the card's family word,
- * `heading` and `per` the offer line's voice ("Maneuvers — … one maneuver per attack"), `from`,
- * `rule`, `dc`.
- *
- * ⚠ ONE PICK PER HIT, across groups (Slice A, decided 2026-09-24): the pick is recorded as ONE
- * record (`hitPick` → `hitManeuver`), so the offer's wire keeps one tick on the whole menu — a
- * tick in Giant Ancestry unticks Combat Superiority's. The array shape a Goliath Battle Master
- * would want is BACKLOG's (it binds a Goliath Battle Master's Hill's Tumble; Fire's Burn and
- * Frost's Chill ride as clock riders beside any pick).
- *
- * Membership is the Hit Menu list (the option names). Precision Attack and Riposte are FOLDS
- * (maneuvers.js) and the nine remaining maneuvers are other moments (BACKLOG).
+ * A GROUP's fields: `feature` the paying feature the sheet must carry (null: nothing to carry —
+ * Giant Ancestry is a text-only parent the sheet may not hold), `pool` "feature" (one pool, the
+ * options' shared consumption target) or "option" (each option pays from its OWN uses), `label`,
+ * `max` picks, `dieLabel` what one spend is called, `eyebrow` the card's family word, `heading`
+ * and `per` the offer line's voice, `from`, `rule`, `dc`.
+ * One pick per GROUP, each riding the one hit (RULINGS *The hit menu — a pick per group*).
+ * Membership: the Hit Menu list (option names). Precision Attack and Riposte are folds.
  */
 export const HIT_GROUPS = Object.freeze({
   "combat-superiority": Object.freeze({ feature: "Combat Superiority", pool: "feature", label: "Combat Superiority", max: 1,
     dieLabel: "Superiority Die", eyebrow: "Maneuver", heading: "Maneuvers", per: "one maneuver per attack", from: "Fighter — Battle Master 3",
     rule: "Many maneuvers enhance an attack in some way. You can use only one maneuver per attack.",
     dc: "If a maneuver requires a saving throw, the DC equals 8 plus your Strength or Dexterity modifier (your choice) and Proficiency Bonus." }),
-  // The Goliath's on-hit PRESS (Slice A, 2026-09-24): Hill's Tumble alone — Fire's Burn and
-  // Frost's Chill are CLOCK_RIDERS (user, 2026-09-24: "yes you should switch" — a Goliath owns one
-  // boon, so the hit never asks WHICH, only whether). The parent is text only and the boon is a
-  // separate item granted by an advancement the sheet may not keep, so the group has no feature
-  // to require; the boon pays from its own uses. The rule is the parent's opening, verbatim.
+  // Hill's Tumble alone — Fire's Burn and Frost's Chill are CLOCK_RIDERS (a Goliath owns one boon,
+  // so the hit asks only whether). The parent is text only and the boon a separate item the sheet
+  // may not keep, so the group requires no feature; the boon pays from its own uses.
   "giant-ancestry": Object.freeze({ feature: null, pool: "option", label: "Giant Ancestry", max: 1,
     dieLabel: "use", eyebrow: "Giant Ancestry", heading: "Giant Ancestry", per: "one boon per hit", from: "Goliath",
     rule: "You are descended from Giants. Choose one of the following benefits—a supernatural boon from your ancestry; you can use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses when you finish a Long Rest" })
@@ -804,8 +600,7 @@ export const HIT_OPTIONS = Object.freeze({
     rule: "When you hit a creature with an attack roll, you can expend one Superiority Die to maneuver one of your comrades into another position. Add the Superiority Die roll to the attack's damage roll, and choose a willing creature who can see or hear you. That creature can use its Reaction to move up to half its Speed without provoking an Opportunity Attack from the target of your attack." }),
   "sweeping-attack": Object.freeze({ feature: "Sweeping Attack", group: "combat-superiority", mode: "sweep", melee: true,
     rule: "When you hit a creature with a melee attack roll using a weapon or an Unarmed Strike, you can expend one Superiority Die to attempt to damage another creature. Choose another creature within 5 feet of the original target and within your reach. If the original attack roll would hit the second creature, it takes damage equal to the number you roll on your Superiority Die. The damage is of the same type dealt by the original attack." }),
-  // Giant Ancestry (Slice A, 2026-09-24): any attack roll that hits and deals damage — weapon,
-  // unarmed or spell. No die: the press is the whole boon.
+  // Any attack roll that hits and deals damage — weapon, unarmed or spell. No die: the press is the boon.
   "hills-tumble": Object.freeze({ feature: "Hill's Tumble", group: "giant-ancestry", press: "prone", maxSize: "lg",
     rule: "When you hit a Large or smaller creature with an attack roll and deal damage to it, you can give that target the Prone condition." })
 });
@@ -814,36 +609,21 @@ export const HIT_OPTIONS = Object.freeze({
 export const HIT_OPTION_NAMES = tableIndex(HIT_OPTIONS, r => r.feature).names;
 
 /**
- * SUPERIORITY USES (2026-09-05, "the rest of maneuvers"): the Battle Master's BONUS ACTION
- * maneuvers — a use whose consequence lands on a sheet, and for two of them a die that rides the
- * hit after. Measured on the 2024 PHB pack 2026-09-04 (tools/probe-pack-shapes.mjs):
- *
- *   Evasive Footwork   "Evade" rolls the die ("AC Bonus"); the pack's "Evasive AC" effect carries
- *                      NO change — `bonus`: the module writes a chip with the number rolled on the
- *                      AC until the start of the next turn (Sap's window)
- *   Bait and Switch    "Switch Places" rolls the die ("Armor Class Bonus") and ships TWELVE effects
- *                      "Baited AC +1" … "+12" — `choice`: the matching pack effect goes on whoever
- *                      the fighter picks, a popup with the hold family's clock, the fighter by default
- *   Lunging Attack     "Damage" (no target): Dash, and the die on the next melee hit this turn if the
- *                      fighter moved 5 feet in a straight line — `chip` until the end of the turn,
- *                      `rider` as a TICKED checkbox on the offer (the player's fact)
- *   Feinting Attack    "Damage" at one creature and the pack's "Feinting Attack" effect ("for
- *                      tracking the target") — `marker`: on the target with the fighter as source;
- *                      the effect table's row reads it as Advantage for the fighter alone (`only:
- *                      "source"`), the next attack roll spends it, and the die rides the hit
- *
- *   use       the activity the fighter presses, by name (the pool is the system's — `use()` consumes)
- *   bonus     { key, window, what } — a rolled number written as a change on the fighter's own chip
- *   choice    { effectPrefix, what } — the pack's "+N" effect, applied to the fighter's pick
- *   chip      { window } — a chip on the fighter; `rider` says the die rides the next hit
- *   marker    { effect } — the pack's effect on the TARGET, the fighter as its source
- *   rider     { melee?, caveat? } — the die rides the hit's damage roll (crit-doubled by the stamp)
- *
- * The die is READ off the sheet (the activity's roll formula or damage part, resolved). Membership
- * is the Superiority Uses list. Rally needs no row: its temp HP are a heal activity the cast slice
- * already lands. Precision Attack and Riposte are folds; the on-hit eight are the hit menu;
- * Commander's Strike is a fold kind (`command`); Ambush and Tactical Assessment are d20 folds
- * (SUPERIORITY_FOLDS); Parry is an interrupt (INTERRUPT_REDUCTIONS).
+ * The Battle Master's BONUS ACTION maneuvers: a use whose consequence lands on a sheet, and for two
+ * of them a die that rides the hit after (tools/probe-pack-shapes.mjs).
+ *   use     the activity the fighter presses, by name (the pool is the system's — `use()` consumes)
+ *   bonus   { key, window, what } — the rolled number written as a change on the fighter's chip
+ *           (Evasive Footwork: the pack's "Evasive AC" effect carries NO change)
+ *   choice  { effectPrefix, what } — the pack's "+N" effect (Bait and Switch ships twelve,
+ *           "Baited AC +1" … "+12") on whoever the fighter picks, the fighter by default
+ *   chip    { window } — a chip on the fighter; `rider` says the die rides the next hit
+ *   marker  { effect } — the pack's effect on the TARGET, the fighter as source; EFFECT_BENDS
+ *           reads it as Advantage for the fighter alone (`only: "source"`), the next attack spends it
+ *   rider   { melee?, caveat? } — the die rides the hit's damage roll (crit-doubled by the stamp);
+ *           Lunging Attack's straight line is the player's fact, a TICKED checkbox
+ * The die is READ off the sheet. Membership: the Superiority Uses list. Rally needs no row (its
+ * temp HP are a heal activity the cast path lands); the other maneuvers are folds, the hit menu,
+ * SUPERIORITY_FOLDS or INTERRUPT_REDUCTIONS.
  */
 export const SUPERIORITY_USES = Object.freeze({
   "Evasive Footwork": Object.freeze({ use: "Evade", bonus: Object.freeze({ key: "system.attributes.ac.bonus", window: "sap", what: "AC" }),
@@ -864,13 +644,10 @@ export const SUPERIORITY_USES = Object.freeze({
 export const SUPERIORITY_USE_NAMES = tableIndex(SUPERIORITY_USES).names;
 
 /**
- * SUPERIORITY FOLDS (2026-09-05): the Battle Master's maneuvers that ADD THE DIE TO A D20 TEST —
- * Ambush (a Dexterity (Stealth) check, or an Initiative roll) and Tactical Assessment (an
- * Intelligence (History or Investigation) check, or a Wisdom (Insight) check). Each is the d20
- * folds' `tactical` SPEND — a utility activity used, its roll formula the die — with a SCOPE the
- * feature's own text gives: which skills, and whether Initiative. Listed in the D20 Folds list as
- * `Ambush:tactical` / `Tactical Assessment:tactical`; the scope here is what tells them from
- * Tactical Mind (any check, a refund). No refund: the die is spent either way it lands.
+ * Battle Master maneuvers that ADD THE DIE TO A D20 TEST: the d20 folds' `tactical` spend (a
+ * utility activity used, its formula the die) with the SCOPE the text gives — which skills, and
+ * whether Initiative. Listed in the D20 Folds list as `Ambush:tactical` etc.; the scope is what
+ * tells them from Tactical Mind (any check, a refund). No refund: the die is spent either way.
  */
 export const SUPERIORITY_FOLDS = Object.freeze({
   "Ambush": Object.freeze({ skills: Object.freeze(["ste"]), initiative: true,
@@ -889,66 +666,41 @@ export const MANEUVER_FEATURE_NAMES = new Set([
 ].map(n => n.toLowerCase()));
 
 /**
- * EMANATIONS (user ruling 2026-09-03 — DESIGN §4 amended: "emanations are a core part of combat …
- * no different than auto-applying Slow with mastery"). A persistent area attached to a token whose
- * effect applies to the creatures inside it. THE PLATFORM MODELS IT (measured, tools/probe-
- * emanations.mjs, Foundry 14.365): a Region attached to the token moves with it, tracks the tokens
- * inside, and raises enter / exit / turn-end events; `RegionDocument.createTokenEmanation` builds
- * the rules-correct shape (the token's base plus the radius). The 2024 pack ships every aura's
- * EFFECT and says in its own text that who-is-inside is not automated. A row here names the item,
- * the effect the pack ships for it, who it reaches, how far, and what triggers inside it.
+ * A persistent area attached to a token whose effect applies to the creatures inside it (DESIGN §4).
+ * The platform models it: a Region attached to the token moves with it, tracks the tokens inside
+ * and raises enter / exit / turn-end events; `RegionDocument.createTokenEmanation` builds the
+ * rules-correct shape (token base plus radius) — tools/probe-emanations.mjs. The pack ships every
+ * aura's EFFECT and leaves who-is-inside to the table; a row names the item, its effect, who it
+ * reaches, how far, and what triggers inside it.
  *
- *   kind       "feature" — always on: stands whenever the source's token is on the scene and the
- *              range resolves (a Paladin below 6th has no aura, and the scale value says so).
- *              "spell" — cast: the emanation template the system places is adopted, attached to
- *              the caster, and ends with the template (concentration).
- *   reach      "helpful" reaches allies and neutrals; "harmful" reaches enemies (user defaults,
- *              2026-09-03; the caster's "designate creatures to be unaffected" is the default).
- *   range      null: the activity's own size. A formula: the content's own token — the Paladin's
- *              aura activities carry `@scale.paladin.aura` (10 at 6th, 30 at 18th — Aura Expansion
- *              is a scale step, not a feature to look for), read off the SOURCE's roll data.
- *              ⚠ Never a number here for a feature the class scales; the row says where the
- *              number lives, not what it is (N1).
+ *   kind       "feature" — always on while the source's token is on the scene and the range
+ *              resolves (a Paladin below 6th has no aura; the scale value says so) · "spell" — the
+ *              system's emanation template is adopted, attached to the caster, ends with it
+ *   reach      "helpful" reaches allies and neutrals; "harmful" enemies; "all" every creature
+ *   range      null: the activity's own size · a formula: the content's own token, read off the
+ *              SOURCE's roll data (`@scale.paladin.aura`). ⚠ Never a number for a feature the class
+ *              scales (N1) · "weaponReach": the held weapon's reach, else 10 ft with Reach, else 5 ft
  *   effect     the pack's effect by name; its changes are RESOLVED against the source before the
- *              platform hands them out (the pack's own Aura of Protection note: "it will add their
- *              Charisma modifier and not the Paladin's").
- *   incapacitated  the aura is inactive while the source is Incapacitated (Protection's text; Courage
- *              and Warding are "while in your Aura of Protection").
+ *              platform hands them out (else each member adds its own Charisma, not the Paladin's).
+ *              null: a ring and a card, nothing applied (a barrier, a notice)
+ *   incapacitated  the aura is inactive while the source is Incapacitated
  *   trigger    a save demanded of a creature — `on`: "enter" (it enters, or the area enters its
- *              space) and/or "turnEnd" (it ends its turn inside); `oncePerTurn` as the text says.
- *              The save, DC, damage and scaling are the activity's own; the saves machine judges.
- *
- *   heal       (the second slice, 2026-09-05) a heal the area pays a member at a moment — `on`:
- *              "turnStart", `when`: "zeroHP" (Aura of Life's ally at 0 HP regains the activity's
- *              own healing), `activity` the heal activity whose part is read
- *   remind     (the second slice) a NOTICE at the SOURCE's turn start naming the activity the
- *              caster may use — Aura of Vitality's heal is AIMED, a choice, so it is offered and
- *              never played (R1); `activity` names the heal to use from the card
- *   effect null   a ring and a card and nothing applied — a barrier (Antilife Shell), a notice
- *   holding    (a feature) the ring stands only while the source HOLDS a weapon that qualifies — an
- *              equipped weapon whose base item is named in `base`, or that carries every property in
- *              `properties` (Polearm Master, 2026-09-27)
- *   range "weaponReach"  the reach of that weapon: its own reach, else 10 ft with Reach, else 5 ft
+ *              space) and/or "turnEnd"; `oncePerTurn` as the text says. The save, DC, damage and
+ *              scaling are the activity's; the saves machine judges
+ *   heal       a heal the area pays a member at a moment — `on` "turnStart", `when` "zeroHP",
+ *              `activity` the heal activity whose part is read
+ *   remind     a NOTICE at the SOURCE's turn start naming the heal to use — an AIMED heal is a
+ *              choice, offered and never played (R1)
+ *   holding    (a feature) the ring stands only while the source holds a qualifying equipped
+ *              weapon — base item in `base`, or every property in `properties`
  *   alert      a REMINDER to the source when a creature the row reaches MOVES INTO the ring
- *              (`on: "moveIn"` — Foundry's tokenMoveIn, raised only when the creature itself moved):
- *              Hew's popup (the `hewNotice` card, hew.js draws it), the swing from the sheet
- *   quiet      raise and lower the ring with no card — it stands and falls with what is held
+ *              (`on: "moveIn"` — Foundry's tokenMoveIn, raised only when the creature itself
+ *              moved): Hew's popup (hew.js), the swing from the sheet
+ *   quiet      raise and lower the ring with no card
+ *   item / activity / while / pulse   see the Inner Radiance row
+ *   caveat     what the pack leaves to the table, said on the card
  *
- * ⚠ Aura of Courage's pack effect ("Courageous") carries NO change — the Frightened immunity is a
- * CONTENT fix at the world (user, 2026-09-03: "agree"), and the module applies what the pack ships.
- * Membership is the Emanations list.
- *
- * THE SECOND SLICE (2026-09-05, the corpus scan the first slice left): every 2024 PHB spell whose
- * activity is a `radius` template from the caster with a standing effect the pack ships — Aura of
- * Life, Aura of Purity, Circle of Power, Crusader's Mantle, Holy Aura — plus the two the backlog
- * named, Aura of Vitality (a notice) and Antilife Shell (a ring). Each applies exactly what the
- * pack's effect carries and says on its card what the pack leaves to the table (`caveat`).
- * Measured on the packs 2026-09-04 (tools/probe-pack-shapes.mjs). Left out on purpose: Antimagic
- * Field, Globe of Invulnerability, Darkness, Daylight (no effect — a ring alone would be a guess
- * about what the table wants drawn); Intimidating Presence, Wrath of the Sea, Oceanic Gift (an
- * emanation SAVE at a Bonus Action — the cast's own demand handles the moment, the area needs no
- * standing); Holy Aura's Fiend/Undead save on a melee hit (the damage shields' shape with a save
- * in place of dice — a row for that family when a table asks).
+ * Membership: the Emanations list. What is left out on purpose: RULINGS *Emanations*.
  */
 export const EMANATIONS = Object.freeze({
   "Aura of Protection": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Protected", incapacitated: true,
@@ -965,7 +717,7 @@ export const EMANATIONS = Object.freeze({
     trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
     rule: "Protective spirits flit around you in a 15-foot Emanation for the duration. When you cast this spell, you can designate creatures to be unaffected by it. Any other creature’s Speed is halved in the Emanation, and whenever the Emanation enters a creature’s space and whenever a creature enters the Emanation or ends its turn there, the creature must make a Wisdom saving throw. On a failed save, the creature takes 3d8 Radiant damage (if you are good or neutral) or 3d8 Necrotic damage (if you are evil). On a successful save, the creature takes half as much damage. A creature makes this save only once per turn.",
     from: "Cleric spell, level 3 (Concentration, 10 minutes)" }),
-  // --- the second slice (2026-09-05) -----------------------------------------------------------
+  // --- spells with a standing effect -------------------------------------------------------------
   "Aura of Life": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Aura of Life", incapacitated: false,
     heal: Object.freeze({ on: "turnStart", when: "zeroHP", activity: "Create Aura" }),
     caveat: "the pack's effect carries the Necrotic Resistance; \"Hit Point maximums can't be reduced\" is the table's",
@@ -995,35 +747,25 @@ export const EMANATIONS = Object.freeze({
     caveat: "the pack's effect carries the Advantage on saves (the save gate says so) and the attack gate reads attackers' Disadvantage off it (Effect Sources — Holy Protection); the Fiend/Undead save on a melee hit is the table's",
     rule: "For the duration, you emit an aura in a 30-foot Emanation. While in the aura, creatures of your choice have Advantage on all saving throws, and other creatures have Disadvantage on attack rolls against them. In addition, when a Fiend or an Undead hits an affected creature with a melee attack roll, the attacker must succeed on a Constitution saving throw or have the Blinded condition until the end of its next turn.",
     from: "Cleric spell, level 8 (Concentration, 1 minute)" }),
-  // --- the Elf walk (2026-09-25) --------------------------------------------------------------
-  // The user: "pass without trace should have an enamation similar to the paladin one, but gratns
-  // +10 stealth, should use the saem shape". The pack ships the +10 as "Concealed"; its AREA is
-  // missing from the spell (Vendor Fixes VF-003 gives it the rule's 30-foot Emanation).
+  // The pack ships the +10 as "Concealed"; its AREA is missing from the spell (Vendor Fixes
+  // VF-003 gives it the rule's 30-foot Emanation).
   "Pass without Trace": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Concealed", incapacitated: false,
     caveat: "the pack's effect carries the +10 to Stealth; \"leave no tracks\" is the table's",
     rule: "You radiate a concealing aura in a 30-foot Emanation for the duration. While in the aura, you and each creature you choose have a +10 bonus to Dexterity (Stealth) checks and leave no tracks.",
     from: "Druid / Ranger spell, level 2 (Concentration, 1 hour); the Wood Elf's lineage at character level 5" }),
-  // --- the Aasimar walk (2026-09-25) -----------------------------------------------------------
-  // A FEATURE emanation that stands only WHILE a named effect stands on its bearer (`while` —
-  // the transformation's own effect, landed at the use by the token-lights machine), found on
-  // the item `item` by its activity `activity` (the row's key is the form the table names; the
-  // item is the pack's Celestial Revelation), reaching EVERY creature inside (`reach: "all"` —
-  // the text's "each creature within 10 feet of you", allies included; user, 2026-09-25: "as
-  // written"), and paying out at the END OF THE BEARER'S turn (`pulse`) — the activity's own
-  // damage part, rolled once on the bearer and applied to everyone inside. The activity's use is
-  // the transform alone: no area placed, no damage rolled (the pack models the pulse as damage
-  // on use; user, 2026-09-25: "no damage at transform").
+  // A FEATURE emanation that stands only WHILE a named effect stands on its bearer (`while` — the
+  // transformation's effect, landed by the token-lights machine), found on `item` by `activity`,
+  // reaching EVERY creature inside, and paying out at the END OF THE BEARER'S turn (`pulse`): the
+  // activity's damage part, rolled once and applied to everyone inside. ⚠ The pack models the
+  // pulse as damage on use; the use is the transform alone — no area placed, no damage rolled.
   "Inner Radiance": Object.freeze({ kind: "feature", item: "Celestial Revelation", activity: "Inner Radiance", while: "Searing Radiance",
     reach: "all", range: null, effect: null, incapacitated: false,
     pulse: Object.freeze({ on: "sourceTurnEnd", activity: "Inner Radiance" }),
     rule: "Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus.",
     from: "Aasimar — Celestial Revelation (character level 3)" }),
-  // THE PHB FEATS, 2026-09-27 (the user, off BACKLOG's Polearm Master options: "if wielding right weapon
-  // with polearm master, an invisible emanation. if a hostile person gets the emanation buff, then trigger
-  // a popup reminding the player they can attack (same shape as hew too)"). The ring is the REACH of the
-  // qualifying weapon held (`holding`, `range: "weaponReach"`), invisible, applying nothing; a hostile
-  // creature MOVING into it (Foundry's own tokenMoveIn — the mover moved, not the ring) raises Hew's
-  // reminder on the wielder (`alert`). Nothing is driven: the Reaction's attack is from the sheet.
+  // The ring is the REACH of the qualifying weapon held, invisible, applying nothing; a hostile
+  // MOVING into it raises Hew's reminder on the wielder. Nothing is driven: the Reaction's
+  // attack is made from the sheet.
   "Polearm Master": Object.freeze({ kind: "feature", reach: "harmful", range: "weaponReach", effect: null, incapacitated: true, quiet: true,
     holding: Object.freeze({ base: Object.freeze(["quarterstaff", "spear"]), properties: Object.freeze(["hvy", "rch"]) }),
     alert: Object.freeze({ on: "moveIn", label: "Reactive Strike",
@@ -1033,37 +775,22 @@ export const EMANATIONS = Object.freeze({
 });
 
 /**
- * DAMAGE SHIELDS (user, 2026-09-04: "death armor needs its damage shield effect automated") — the
- * NINTH shape beside SWEEP §1's eight: the hit rider MIRRORED. A standing effect on the DEFENDER
- * pays out against the ATTACKER when a melee attack roll hits it, with no choice in it (R1). The
- * dice are the pack's own damage activity on the SOURCE's item — found by walking the standing
- * effect's origin (a Death Armor cast on an ally is the caster's spell paying out on the ally's
- * sheet), rolled in the open by the elect and applied through the receipt chokepoint at the
- * attacker. Measured on the packs 2026-09-04 (tools/probe-pack-shapes.mjs):
- *
- *   Death Armor        (Heroes of Faerûn, L2, touch, 1 hour) ships the "Death Armor" effect on the
- *                      WARDED creature and a Retaliate damage activity — 5 ft, "once per turn, when
- *                      hit by a target in range". The once-per-turn is a turn chit on the defender.
- *   Fire Shield        (PHB, L4, self, 10 minutes) ships Warm Shield / Chill Shield on the caster
- *                      and one Flame Eruption activity typed [cold, fire] — the TYPE follows the
- *                      effect that stands (warm burns, chill freezes); every melee hit within 5 ft.
- *   Armor of Agathys   (PHB, L1, self, 1 hour) ships NO effect: the cast is a temp-HP heal and
- *                      Frost Damage is the payout, every melee hit "while you have these Hit
- *                      Points". `mark: true` — the module writes its own chip at the cast (the
- *                      use-chip idiom), carrying the cast's level; the chip goes when the pool is
- *                      gone, and the shield strikes only while the temp HP stand.
- *
- *   effect    the pack's effect by NAME on the defender — one name, or a map of name → damage type
- *             where the standing effect decides the type
+ * The hit rider MIRRORED (a ninth shape beside SWEEP §1's eight): a standing effect on the
+ * DEFENDER pays out against the ATTACKER when a melee attack roll hits it, with no choice (R1).
+ * The dice are the pack's damage activity on the SOURCE's item, found through the standing
+ * effect's origin (a Death Armor on an ally is the caster's spell paying out on the ally's sheet),
+ * rolled in the open by the elect and applied through the receipt chokepoint.
+ *   effect    the pack's effect by NAME on the defender — one name, or a map of name → damage
+ *             type where the standing effect decides the type (Fire Shield: warm burns, chill freezes)
  *   activity  the pack's damage activity on the source's item, by name — its dice, its reach
- *   melee     a melee attack roll only (every 2024 row says "melee attack roll")
- *   when      "oncePerTurn" — the defender's turn chit; out of combat every hit (the settled rule)
+ *   melee     a melee attack roll only
+ *   when      "oncePerTurn" — the defender's turn chit; out of combat every hit
  *   while     "tempHP" — strikes only while the defender has Temporary Hit Points
- *   mark      true — no pack effect: the module marks the cast; `cast` names the casting activity
- *
+ *   mark      true — the pack ships no effect (Armor of Agathys): the module writes its own chip at
+ *             the cast (`cast` names the casting activity), carrying the cast's level; it goes
+ *             when the temp HP do
  * ⚠ Hellish Rebuke is NOT this family — a Reaction, a human's choice, the hold's business.
- * Membership is the Damage Shields list (the item names). The reach, the dice and the type are
- * read off the content, never typed (N1).
+ * Membership: the Damage Shields list. Reach, dice and type are read off the content (N1).
  */
 export const DAMAGE_SHIELDS = Object.freeze({
   "Death Armor": Object.freeze({ effect: "Death Armor", activity: "Retaliate", melee: true, when: "oncePerTurn",
@@ -1081,21 +808,13 @@ export const DAMAGE_SHIELDS = Object.freeze({
 export const DAMAGE_SHIELD_NAMES = tableIndex(DAMAGE_SHIELDS).names;
 
 /**
- * EFFECT CHOICES (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this
- * should also be a popup asking the player which shield to apply"). A cast whose activity ships
- * SEVERAL effects that the text makes alternatives — "as you choose" — and marks nothing to say
- * so: the cast slice, reading "a utility with effects", landed every one. The choice is the
- * caster's (R1), asked at the cast the way Spirit Guardians' damage type is asked (the moment
- * spine, a popup on the caster's own card); only the pick lands. Measured on the packs:
- *
- *   Fire Shield        (PHB, L4, self) ships Warm Shield (Resistance to Cold) AND Chill Shield
- *                      (Resistance to Fire) on one utility activity — one stands, the caster's pick.
- *
- *   effects   the pack's effect NAMES that are alternatives, in the order the popup offers them
+ * A cast whose activity ships SEVERAL effects the text makes alternatives ("as you choose") and
+ * marks nothing to say so — landing all would be wrong. The choice is the caster's (R1), asked at
+ * the cast in a popup on the caster's own card; only the pick lands.
+ *   effects   the pack's effect NAMES that are alternatives, in the popup's order
  *   ask       the popup's question
- *
- * Membership is the Effect Choices list (the item names). A row whose activity carries fewer than
- * two of the names asks nothing (decide/choices.js). The effects themselves are the pack's (N1).
+ * Membership: the Effect Choices list. A row whose activity carries fewer than two of the names
+ * asks nothing (decide/choices.js).
  */
 export const EFFECT_CHOICES = Object.freeze({
   "Fire Shield": Object.freeze({ effects: Object.freeze(["Warm Shield", "Chill Shield"]), ask: "A warm shield or a chill shield?",
@@ -1107,28 +826,21 @@ export const EFFECT_CHOICES = Object.freeze({
 export const EFFECT_CHOICE_NAMES = tableIndex(EFFECT_CHOICES).names;
 
 /**
- * TOKEN LIGHTS (user, 2026-09-25, the Aasimar walk: "inner radiance - add the bright/dim light
- * settings ... edit the Light spell so it adds light emission to a token target as well"). A use
- * whose text says something SHEDS LIGHT, carried as the token's own light on an effect: Foundry 14
- * applies an effect change keyed `token.*` to the bearer's tokens (TokenDocument#applyActiveEffects
- * — `light` is one of its targetable keys, measured on 14.368), so the light comes and goes with
- * the effect, its clock and its removal, and no token document is written. The radii are the
- * rule's own words — Bright Light in a radius, Dim Light "for an additional" distance, and a
- * Foundry light's `dim` is the OUTER radius, so dim = bright + the additional (N1: the packs carry
- * no light at all, so the text is the only source).
- *
- *   on        "self" — the user's own sheet; "targets" — every creature targeted at the use (none
- *             targeted: the pack's own use stands, the Light spell's summoned light)
- *   item      the pack item the row's activity lives on, when the row's key is not the item's name
+ * A use whose text says something SHEDS LIGHT, carried as the token's light on an effect: Foundry
+ * applies a change keyed `token.*` to the bearer's tokens (TokenDocument#applyActiveEffects —
+ * `light` is targetable), so the light follows the effect's clock and removal and no token
+ * document is written. The radii are the rule's words; a Foundry light's `dim` is the OUTER
+ * radius, so dim = bright + "an additional" (the packs carry no light — the text is the source).
+ *   on        "self" — the actor's own sheet; "targets" — every creature targeted at the use
+ *             (none targeted: the pack's own use stands)
+ *   item      the pack item the activity lives on, when the row's key is not the item's name
  *   activity  the activity, by name, whose use lands the light (null: any use of the item)
- *   effect    the pack's own effect on that activity which the light rides — landed on the user
- *             WITH the light (Searing Radiance: the pack ships it on a damage activity, which
- *             nothing lands on its user); null: the module makes the effect, named as the item,
- *             with the item's own duration
+ *   effect    the pack's effect the light rides, landed on the actor WITH the light (the pack ships
+ *             Searing Radiance on a damage activity, which lands nothing on its user); null: the
+ *             module makes the effect, named as the item, with the item's duration
  *   recast    "ends" — casting it again ends the caster's earlier light, wherever it stands
  *   bright / dim   the radii in feet, dim the outer
- *
- * Membership is the Token Lights list (the row names).
+ * Membership: the Token Lights list.
  */
 export const TOKEN_LIGHTS = Object.freeze({
   "Inner Radiance": Object.freeze({ item: "Celestial Revelation", activity: "Inner Radiance", on: "self", effect: "Searing Radiance", bright: 10, dim: 20,
@@ -1144,21 +856,15 @@ export const TOKEN_LIGHTS = Object.freeze({
 export const TOKEN_LIGHT_NAMES = tableIndex(TOKEN_LIGHTS).names;
 
 /**
- * TOKEN SENSES (user, 2026-09-25, the Dwarf walk: "for stonecunning, we dont have a way to do a
- * check on standing on stone, so just run it always and assume stone. figure out a way to change
- * the vision type to tremor sense for the duration"). TOKEN_LIGHTS' sibling: the same carrier —
- * an effect change keyed `token.*` (TokenDocument#applyActiveEffects; `sight` and
- * `detectionModes` are among its targetable keys, and a `sight.visionMode` override inflates the
- * mode's own defaults — both read from Foundry 14.368's source) — but the effect is the PACK's,
- * landed by whoever lands it (the cast slice's self-aim, a tray click): the changes are added to
- * it as it is created, so the sense comes and goes with the pack's own clock and removal.
- *
+ * TOKEN_LIGHTS' sibling on the same carrier (`token.*` changes — `sight` and `detectionModes` are
+ * targetable, and a `sight.visionMode` override inflates the mode's own defaults), but the effect
+ * is the PACK's, landed by whoever lands it: the changes are added as it is created, so the sense
+ * follows the pack's clock and removal.
  *   effect    the pack effect's name the row answers to (the row key when absent)
  *   vision    the Foundry vision mode the token takes while it stands (CONFIG.Canvas.visionModes)
  *   detect    { mode, range } — a Foundry detection mode enabled at that range (feet)
- *   range     the token's sight range while it stands (feet) — the sense's own reach
- *
- * Membership is the Token Senses list (the row names).
+ *   range     the token's sight range while it stands (feet)
+ * Membership: the Token Senses list.
  */
 export const TOKEN_SENSES = Object.freeze({
   "Stonecunning": Object.freeze({ effect: "Stonecunning", vision: "tremorsense", range: 60,
@@ -1172,23 +878,15 @@ export const TOKEN_SENSES = Object.freeze({
 export const TOKEN_SENSE_NAMES = tableIndex(TOKEN_SENSES).names;
 
 /**
- * TOKEN SIZES (user, 2026-09-25, the Goliath walk: "large form did not increase token size").
- * TOKEN_SENSES' sibling, the same carrier: `token.*` changes added to the PACK's own effect as it
- * is created on a sheet — `token.width` / `token.height`, which Foundry 14's
- * TokenDocument#applyActiveEffects applies as a document update (its `requiresUpdateKeys`), and
- * `system.traits.size`, so the sheet, the size judge (Hill's Tumble's "Large or smaller") and the
- * system's own size readers see the new size. dnd5e resizes a token only when the SOURCE size
- * changes (its tokenSizeSync), never an effect's, and the packs ship no size change: the PHB's
- * Large Form and Enlarge/Reduce carry none (measured on the sandbox, 2026-09-25). The size lives
- * on the effect: its clock, its removal, the rest that clears it put the token back.
- *
- *   effects  { effectName: { size } | { step } } — the pack effects the row answers to: `size` an
- *            absolute size key (Large Form: "lg"), `step` a number of categories from the
- *            bearer's size at the moment the effect lands (Enlarged +1, Reduced −1), clamped to
- *            the system's own ordering (CONFIG.DND5E.actorSizes)
- *   caveat   what the table judges ("if you're in a big enough space")
- *
- * Membership is the Token Sizes list (the row names).
+ * TOKEN_SENSES' sibling on the same carrier: `token.width` / `token.height` (which Foundry applies
+ * as a document update — its `requiresUpdateKeys`) and `system.traits.size` added to the PACK's
+ * effect as it is created, so the sheet, the size judge and the system's size readers all see it.
+ * dnd5e resizes a token only when the SOURCE size changes (tokenSizeSync), never an effect's, and
+ * the packs ship no size change. The size lives on the effect: its clock or removal puts it back.
+ *   effects  { effectName: { size } | { step } } — `size` an absolute size key; `step` categories
+ *            from the bearer's size when the effect lands, clamped to CONFIG.DND5E.actorSizes
+ *   caveat   what the table judges
+ * Membership: the Token Sizes list.
  */
 export const TOKEN_SIZES = Object.freeze({
   "Large Form": Object.freeze({ effects: Object.freeze({ "Large Form": Object.freeze({ size: "lg" }) }),
@@ -1204,36 +902,28 @@ export const TOKEN_SIZES = Object.freeze({
 export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
 
 /**
- * THE REST GRANTS (the Human walk, 2026-09-25 — user: "human i think just needs initiatve to be
- * ticked on long rest"): a feature whose text gives the creature something when it finishes a rest,
- * which the platform does not give (the PHB's Resourceful ships a note: "Usage of this feature's
- * activity does not automatically grant Heroic Inspiration"). The grant rides the rest's own actor
- * update (rest-grants.js, `dnd5e.preRestCompleted`), and the rest card says so. Keyed by the
- * FEATURE's name; membership is the Rest Grants list.
+ * A feature whose text gives the creature something when it finishes a rest, which the platform
+ * does not give (the pack's own note says so). The grant rides the rest's own actor update
+ * (rest-grants.js, `dnd5e.preRestCompleted`), and the rest card says so. Keyed by the FEATURE's
+ * name; membership is the Rest Grants list.
  *   rests   which rests give it ("long", "short")
- *   grant   what the sheet gains — "inspiration" (Heroic Inspiration, the sheet's box); "temphp"
- *           (Temporary Hit Points, the amount read off the feature's own heal activity — N1 — and
- *           given only where it is more than the creature holds: they do not stack); "meal" (Chef's
- *           Replenishing Meal: the activity's extra dice, healed to a creature that spends Hit Dice
- *           in the SAME Short Rest — rest-grants.js, the meal)
- *   to      absent — the owner gains it on the rest's own update; "allies" — the owner GIVES it to
- *           allies, asked in a courtesy popup once the rest is done (Musician, the origin feats,
- *           2026-09-25 — user: "give a courtesy popup after long and short rest, listing the allies
- *           within 30 ft, player picks which ones to give inspiration. grey out the ones that already
- *           have and so note it"; "you can leverage the general form of careful spell")
- *   feature the feature's name on the sheet, where the row is one of its benefits (Chef's two) —
+ *   grant   "inspiration" (Heroic Inspiration) · "temphp" (the amount read off the feature's heal
+ *           activity — N1 — given only where it beats what the creature holds: they do not
+ *           stack) · "meal" (Chef: extra dice healed to a creature that spends Hit Dice in the
+ *           SAME Short Rest — rest-grants.js)
+ *   to      absent — the owner gains it; "allies" — the owner GIVES it, in a courtesy popup once
+ *           the rest is done (allies in reach listed, those who already have it greyed)
+ *   feature the feature's name on the sheet, where the row is one of its benefits (Chef's two);
  *           the row's own name by default
- *   self    ("allies") the owner may pick itself ("which can include yourself")
- *   reach   ("allies") the feet an ally may stand from the owner's token — the map settles it (R1);
- *           null — the rule names no distance (Chef's food): every ally on the scene
- *   cap     ("allies") how many may be given it — "prof": the owner's Proficiency Bonus; a number;
- *           or a formula on the owner's roll data ("4 + @prof")
- *   activity  the feature's own HEAL activity the amount is read from (Bolstering Treats, the meal)
- *   activities  by ability — the activity that stands for the ability the feat raised (Inspiring
- *           Leader ships one per ability, "delete the other"): the feat's own Ability Score
- *           Improvement picks it, else the higher modifier (Poisoner's pick, decide/chips.js)
- *   label   what the rest card calls the one activity it keeps of `activities` (the others dropped —
- *           the walk, 2026-09-27: "Inspire with Performance is fine (just once)")
+ *   self    ("allies") the owner may pick itself
+ *   reach   ("allies") the feet an ally may stand from the owner — the map settles it (R1);
+ *           null — no distance in the rule: every ally on the scene
+ *   cap     ("allies") how many — "prof", a number, or a formula on the owner's roll data
+ *   activity    the feature's HEAL activity the amount is read from
+ *   activities  by ability — the activity standing for the ability the feat raised (the pack
+ *           ships one per ability): the feat's own ASI picks it, else the higher modifier
+ *           (decide/chips.js, as the Poisoner's pick)
+ *   label   what the rest card calls the one activity it keeps of `activities`
  *   rule    the feature's sentence, verbatim (law 8)
  */
 export const REST_GRANTS = Object.freeze({
@@ -1242,15 +932,13 @@ export const REST_GRANTS = Object.freeze({
   "Musician": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "inspiration", to: "allies", reach: 30, cap: "prof",
     rule: "Encouraging Song. As you finish a Short or Long Rest, you can play a song on a Musical Instrument with which you have proficiency and give Heroic Inspiration to allies who hear the song. The number of allies you can affect in this way equals your Proficiency Bonus.",
     from: "Origin feat (Entertainer)" }),
-  // THE PHB FEATS, group 5 (2026-09-27, the rest grants — RULINGS *The PHB feats — groups 4–6*):
-  // Musician's popup, a grant of Temporary Hit Points, the amount the pack's own heal activity's.
+  // Musician's popup, granting Temporary Hit Points (the pack's heal activity's amount).
   "Inspiring Leader": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "temphp", to: "allies", self: true, reach: 30, cap: 6,
     activities: Object.freeze({ wis: "Inspire with Wisdom", cha: "Inspire with Charisma" }), label: "Inspire with Performance",
     rule: "Bolstering Performance. When you finish a Short or Long Rest, you can give an inspiring performance: a speech, song, or dance. When you do so, choose up to six allies (which can include yourself) within 30 feet of yourself who witness the performance. The chosen creatures each gain Temporary Hit Points equal to your character level plus the modifier of the ability you increased with this feat.",
     from: "General feat" }),
-  // Chef's two benefits, one row each (the feat is `feature`). Bolstering Treats are HANDED OUT after
-  // the Long Rest as their Temporary Hit Points — a bend by choice (RULINGS *Bent by choice*): the
-  // treats last 8 hours and are eaten as a Bonus Action by the rule.
+  // Chef's two benefits, one row each (the feat is `feature`). Bolstering Treats are handed out
+  // after the Long Rest as their Temporary Hit Points (RULINGS *Bent by choice*).
   "Bolstering Treats": Object.freeze({ feature: "Chef", rests: Object.freeze(["long"]), grant: "temphp", to: "allies", self: true, reach: null, cap: "prof",
     activity: "Bolstering Treats",
     rule: "Bolstering Treats. With 1 hour of work or when you finish a Long Rest, you can cook a number of treats equal to your Proficiency Bonus if you have ingredients and Cook’s Utensils on hand. These special treats last 8 hours after being made. A creature can use a Bonus Action to eat one of those treats to gain a number of Temporary Hit Points equal to your Proficiency Bonus.",
@@ -1265,18 +953,17 @@ export const REST_GRANTS = Object.freeze({
 export const REST_GRANT_NAMES = tableIndex(REST_GRANTS).names;
 
 /**
- * DROP TO 1 HP (the Orc walk, 2026-09-25 — user: "if sometihng takes them to zero, then a popup
- * should ask to use the feat. same shape as death ward which you should do now too"): what turns a
- * drop to 0 Hit Points into a drop to 1 (drop-to-one.js, at `dnd5e.preApplyDamage`: the 1 is written
- * in the damage's own update). Keyed by the row's name; membership is the Drop to 1 HP list.
- *   ask       true — the rule says "you can": the HP is held at 1 and the owner is asked; false —
- *             the rule leaves no choice (Death Ward): it simply happens, and a card says so
- *   uses      true — the ITEM's own uses pay for it (Relentless Endurance: once per Long Rest)
- *   effect    the EFFECT whose presence is the row (Death Ward's "Protection from Death"), removed
- *             when it fires; no `effect` = a feature on the sheet, by the row's name
+ * What turns a drop to 0 Hit Points into a drop to 1 (drop-to-one.js, at `dnd5e.preApplyDamage`:
+ * the 1 is written in the damage's own update). Keyed by the row's name; membership is the Drop to
+ * 1 HP list.
+ *   ask       true — "you can": the HP is held at 1 and the owner is asked; false — no choice in
+ *             the rule: it simply happens, and a card says so
+ *   uses      true — the ITEM's own uses pay for it
+ *   effect    the EFFECT whose presence is the row, removed when it fires; absent — a feature on
+ *             the sheet, by the row's name
  *   ends      the spell ends when it fires (the card says so)
- *   outright  true — it also stands against damage that would kill outright (Death Ward: "would drop
- *             to 0"); false — "but not killed outright" (the remainder meets the Hit Point maximum)
+ *   outright  true — it stands against damage that would kill outright too; false — "but not
+ *             killed outright" (the remainder meets the Hit Point maximum)
  *   rule      the text, verbatim (law 8)
  */
 export const DROP_TO_ONE = Object.freeze({
@@ -1292,35 +979,27 @@ export const DROP_TO_ONE = Object.freeze({
 export const DROP_TO_ONE_NAMES = tableIndex(DROP_TO_ONE).names;
 
 /**
- * REBUKES (user, 2026-09-25, the Goliath walk: "Storms thunder is not triggering anything. when
- * you fix it, also make sure the 60ft range calc is in there. Also when you do this, why dont you
- * pick up hellish rebuke and anything else in that family that is the same"). A Reaction taken
- * AFTER the bearer takes damage from a creature, aimed at THAT creature — offered as a popup to the
- * damaged creature's owner the moment the damage lands (rebukes.js), only when the damager stands
- * within reach of it. The shape is Riposte's (the defender strikes back, the answer drives the real
- * use at the attacker); the trigger is the damage, not a miss. Found by a scan of every
- * reaction-cost item in the sandbox's packs (tools/scan-reactions.mjs, 2026-09-25): each ships a
- * REACTION activity with its own range — the reach is read off it (N1), never typed, except
- * Retaliation's, whose activity carries none.
- *
+ * A Reaction taken AFTER the bearer takes damage from a creature, aimed at THAT creature: a popup
+ * to the damaged creature's owner the moment the damage lands (rebukes.js), only when the damager
+ * stands within reach. Riposte's shape (the answer drives the real use at the attacker), triggered
+ * by damage, not a miss. The reach is read off the item's REACTION activity (N1,
+ * tools/scan-reactions.mjs), except where the activity carries none (`range`).
  *   activity  the reaction activity, by name (null: the item's first reaction activity)
- *   attack    "melee" — the answer is one melee attack with a weapon the bearer picks (Retaliation:
- *             "using a weapon or an Unarmed Strike"), not the item's own activity
- *   range     feet, when the activity carries none (Retaliation's "within 5 feet")
- *   advantage true — the answer's attack roll has Advantage (Sword of Answering)
- *   while     an effect's name that must stand on the bearer (Fount of Moonlight's reaction exists
- *             only while the spell does: its "Wreathed in Light")
- *   equipped  true — the item must be equipped ("while you hold the sword")
- *   ward      true — the bearer is NOT the creature damaged: a BYSTANDER within `range` of the
- *             damager, on another side of the map from it, whose attack hit someone else (Sentinel's
- *             Guardian — the PHB feats, group 6, 2026-09-27). Asked of every such bearer on the scene.
- *   hit       true — only an ATTACK's damage counts ("hits a target other than you with an attack")
- *   opportunity  true — the answer is an Opportunity Attack: the driven attack says so on its card,
- *             and the Halt rider reads it (CLOCK_RIDERS "sentinel-halt")
+ *   attack    "melee" — the answer is one melee attack with a weapon the bearer picks, not the
+ *             item's own activity
+ *   range     feet, when the activity carries none
+ *   advantage true — the answer's attack roll has Advantage
+ *   while     an effect's name that must stand on the bearer (the reaction exists only while the
+ *             spell does)
+ *   equipped  true — the item must be equipped
+ *   ward      true — the bearer is NOT the creature damaged: every BYSTANDER within `range` of a
+ *             damager whose attack hit someone else is asked
+ *   hit       true — only an ATTACK's damage counts
+ *   opportunity  true — the answer is an Opportunity Attack: its card says so, and the Halt rider
+ *             reads it (CLOCK_RIDERS "sentinel-halt")
  *   caveat    what the table judges ("that you can see")
- *
- * The spell's slot is the lowest the sheet holds (the hold's rule — no picker inside a Reaction's
- * window; a player who wants to upcast casts from the sheet). Membership is the Rebukes list.
+ * A spell answers at the lowest slot the sheet holds: no picker inside a Reaction's window; to
+ * upcast, cast from the sheet. Membership: the Rebukes list.
  */
 export const REBUKES = Object.freeze({
   "Storm's Thunder": Object.freeze({ activity: null, from: "Goliath — Giant Ancestry (Storm)",
@@ -1334,9 +1013,8 @@ export const REBUKES = Object.freeze({
     rule: "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike." }),
   "Sword of Answering": Object.freeze({ activity: "Attack Reaction", advantage: true, equipped: true, from: "DMG legendary weapon",
     rule: "While you hold the sword, you can take a Reaction to make one melee attack with it against any creature in your reach that deals damage to you. You have Advantage on the attack roll, and any damage dealt with this special attack ignores any Immunity or Resistance the target has." }),
-  // THE PHB FEATS, group 6 (2026-09-27 — RULINGS *The PHB feats — groups 4–6*): Retaliation's answer,
-  // asked of a bystander. The pack ships Sentinel with no activity (only Halt's effect), so the
-  // answer is one melee attack with the weapon last swung, as Retaliation's is.
+  // Retaliation's answer, asked of a bystander. The pack ships Sentinel with no activity (only
+  // Halt's effect), so the answer is one melee attack with the weapon last swung.
   "Sentinel": Object.freeze({ attack: "melee", range: 5, ward: true, hit: true, opportunity: true, from: "General feat",
     caveat: "its Disengage half — nothing records a Disengage",
     rule: "Guardian. Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack, you can make an Opportunity Attack against that creature." })
@@ -1346,21 +1024,15 @@ export const REBUKES = Object.freeze({
 export const REBUKE_NAMES = tableIndex(REBUKES).names;
 
 /**
- * DAMAGE SAVES (user, 2026-09-04: "make heat metal spell work"). A bare damage activity whose
- * text ties a SAVE to taking the damage — the 2024 PHB's Heat Metal: "Cast and Heat" (2d8 Fire
- * at the object's holder) and "Reheat" (the same as a Bonus Action on later turns) are damage
- * activities that nothing chains, and "On Damage Save" (Con; the Heated Metal effect on a
- * failure — Disadvantage on attack rolls and ability checks until the start of the caster's next
- * turn) is a save activity nobody used. A row names the damage activities and the save; the
- * machine (damage-casts.js) rolls the dice at the use and puts the save to the same targets
- * right after, through the saves machine. The drop is a judgment the card says out loud (R1):
- * the failed save's effect lands, and the table removes it if the object was dropped.
- *
+ * A bare damage activity whose text ties a SAVE to taking the damage (Heat Metal: the damage
+ * activities nothing chains, and a save activity nobody used). A row names the damage activities
+ * and the save; damage-casts.js rolls the dice at the use and puts the save to the same targets
+ * right after, through the saves machine. The drop is a judgment the card says out loud (R1): the
+ * failed save's effect lands, and the table removes it if the object was dropped.
  *   damage   the damage activities, by name — each use of one rolls and then demands
  *   save     the save activity, by name — used at the damage's targets, no slot
  *   line     what the card says beyond the rule, for the consequence the table plays
- *
- * Membership is the Damage Saves list. The dice, the DC and the effect are the pack's (N1).
+ * Membership: the Damage Saves list. The dice, the DC and the effect are the pack's (N1).
  */
 export const DAMAGE_SAVES = Object.freeze({
   "Heat Metal": Object.freeze({ damage: Object.freeze(["Cast and Heat", "Reheat"]), save: "On Damage Save",
@@ -1378,17 +1050,14 @@ export const EMANATION_KINDS = new Set(["feature", "spell"]);
 export const EMANATION_NAMES = tableIndex(EMANATIONS).names;
 
 /**
- * SPENT AREAS — the spent-template sweep's FOURTH bucket (user ruling 2026-09-10, on the Adult
- * Green Dragon's Noxious Miasma beside Hypnotic Pattern). The sweep (saves/areas.js) reads the
- * area's life off the DATA: instantaneous → spent at the last verdict; concentration → spent with
- * the concentration; any other duration → the GM's, because Grease's minute is the area's own and
- * MUST persist. These rows are the areas whose data LIES about the area — the duration written on
- * the activity is an EFFECT's clock (Noxious Miasma's −2 AC "until the end of its next turn"), or
- * the concentration flag can go missing on an imported copy (Hypnotic Pattern) — so the text, not
- * the data, says the area is spent the moment its last verdict lands. Membership is the Spent
- * Areas list (the item names, whole-chunk, case-insensitive). ⚠ A row here is a claim about the
- * TEXT: an area that genuinely persists (Grease, Web, Cloudkill) must never be listed.
- *
+ * The spent-template sweep's fourth bucket. The sweep (saves/areas.js) reads an area's life off
+ * the DATA: instantaneous → spent at the last verdict; concentration → with the concentration; any
+ * other duration → the GM's (Grease's minute is the area's own and MUST persist). These rows are
+ * areas whose data LIES — the activity's duration is an EFFECT's clock, or an imported copy lost
+ * its concentration flag — so the TEXT says the area is spent the moment its last verdict lands.
+ * Membership: the Spent Areas list (whole-chunk, case-insensitive).
+ * ⚠ A row is a claim about the TEXT: an area that genuinely persists (Grease, Web, Cloudkill) must
+ * never be listed.
  *   rule   the sentence that says the area itself does not persist
  *   data   what the pack writes instead, and why the sweep would otherwise keep the area
  */
@@ -1399,11 +1068,9 @@ export const SPENT_AREAS = Object.freeze({
   "Hypnotic Pattern": Object.freeze({
     rule: "You create a twisting pattern of colors that weaves through the air inside a 30-foot Cube within range. The pattern appears for a moment and vanishes. Each creature in the area who can see the pattern must succeed on a Wisdom saving throw or have the Charmed condition for the duration.",
     data: "PHB, level 3 (Concentration, 1 minute) — the DURATION is the Charmed condition's; the pattern \"appears for a moment and vanishes\", and an imported copy missing the concentration flag falls into the GM's bucket" }),
-  // THE CLASS (user, 2026-09-18, the 6.0 walk, on Slow: "the template stays on slow, which should
-  // be placed and gone, like hypnotic pattern"): a concentration spell whose area only CHOOSES its
-  // targets at the cast — the effect rides the targets for the duration and the area itself is
-  // nothing after the save. The pack writes the spell's minute on the activity, so without a row
-  // the sweep keeps the area until concentration ends.
+  // A concentration spell whose area only CHOOSES its targets at the cast: the effect rides the
+  // targets and the area is nothing after the save, but the pack writes the spell's minute on the
+  // activity, so without a row the sweep keeps the area until concentration ends.
   "Slow": Object.freeze({
     rule: "You alter time around up to six creatures of your choice in a 40-foot Cube within range. Each target must succeed on a Wisdom saving throw or be affected by this spell for the duration.",
     data: "PHB, level 3 (Concentration, 1 minute) — the duration is the targets' slowing; the Cube chooses them at the cast" }),
@@ -1426,24 +1093,17 @@ export const SPENT_AREAS = Object.freeze({
 export const SPENT_AREA_NAMES = tableIndex(SPENT_AREAS).names;
 
 /**
- * CHOSEN AREAS — the area spells whose CASTER chooses who they affect (user, 2026-09-24, Session
- * 8: Slow asked Invictus, inside its cube, for a save; ruled off the prototype *Creatures of Your
- * Choice*). A placed area asks everyone it holds; these rows say the area is only where the
- * choice is made: "up to six creatures of your choice in a 40-foot Cube". When a listed spell's
- * area lands on anyone who is not hostile to the caster, or on more hostiles than the spell lets
- * the caster choose, the caster is asked who it affects (saves/demand.js raises the ask,
- * metamagic.js asks and answers it); otherwise the hostiles are the choice and nobody is asked.
- * Careful Spell greys on a listed spell (METAMAGIC's `unless`). Membership is the Chosen Areas
- * list (the item names, whole-chunk, case-insensitive).
- *
- * ⚠ BY NAME, NOT BY FLAG (§6 registry rule 1, measured 2026-09-24 against the 2024 PHB pack):
- * dnd5e's own `target.affects.choice` is set on four of these and left off Slow, Sleep, Conjure
- * Barrage and Conjure Volley, whose text grants the choice all the same. Spirit Guardians carries
- * the flag and is NOT here: its aura's reach (EMANATIONS) already reaches enemies only, the same
- * answer. Spells that choose by TARGETING (Bane, Enthrall, Compulsion, Divine Word) need nothing —
- * the tokens the player targets are the choice. The number a spell allows is read off its own
- * text (decide/metamagic.js `choiceCapFrom`), never written here (N1).
- *
+ * Area spells whose CASTER chooses who they affect ("up to six creatures of your choice in a
+ * 40-foot Cube"): the area is only where the choice is made. When a listed spell's area lands on
+ * anyone not hostile to the caster, or on more hostiles than the spell allows, the caster is asked
+ * (saves/demand.js raises the ask, metamagic.js answers it); otherwise the hostiles are the choice.
+ * Careful Spell greys on a listed spell (METAMAGIC's `unless`). Membership: the Chosen Areas list
+ * (whole-chunk, case-insensitive).
+ * ⚠ BY NAME, NOT BY FLAG (ARCHITECTURE §6): dnd5e's `target.affects.choice` is off on Slow, Sleep,
+ * Conjure Barrage and Conjure Volley though their text grants the choice. Spirit Guardians carries
+ * the flag and is not here (its EMANATIONS reach is enemies already); spells that choose by
+ * TARGETING need nothing. The number allowed is read off the text (decide/metamagic.js
+ * `choiceCapFrom`), never written here (N1).
  *   data   what the text says, and what the pack's data does with it
  */
 export const CHOSEN_AREAS = Object.freeze({
@@ -1458,9 +1118,8 @@ export const CHOSEN_AREAS = Object.freeze({
 export const CHOSEN_AREA_NAMES = tableIndex(CHOSEN_AREAS).names;
 
 /**
- * The 2024 Rules Glossary on range, verbatim (dnd5e.content24 / the premium PHB, appendix D —
- * "Range" and "Ranged Attacks in Close Combat"; presentation law 8). The `&Reference[...]`
- * enrichers in the source render as the bare condition names.
+ * The 2024 Rules Glossary on range, verbatim (law 8). The source's `&Reference[...]` enrichers
+ * render as the bare condition names.
  */
 export const RANGE_RULES = Object.freeze({
   long: "Your attack roll has Disadvantage when your target is beyond normal range, and you can’t attack a target beyond long range.",
@@ -1469,22 +1128,19 @@ export const RANGE_RULES = Object.freeze({
 });
 
 /**
- * THE RANGE CANCELLERS (the PHB feats, group 2, 2026-09-26 — RULINGS *The PHB feats — groups 1–3*; SWEEP §3 item 6): a feat
- * on the ATTACKER's sheet, by name, that takes away what the range rows above impose. The gate
- * still LISTS a cancelled row, with the feat that cancels it and no bend (Blindsight's shape,
- * `sightOf`: listed with why, never counted), so the roller sees the rule was met and answered.
- *   scope     which attacks the feat reaches: "rangedWeapon" (a Ranged weapon — a bow, a crossbow,
- *             never a thrown melee weapon), "spell" (a spell's attack roll), "crossbow" (the three
- *             crossbows, by dnd5e's base item)
- *   cancels   the RANGE_RULES rows it takes away: "long" (Disadvantage beyond normal range) and
- *             "close" (Disadvantage with an enemy within 5 feet). Beyond long range stays — the
- *             attack still cannot be made.
+ * A feat on the ATTACKER's sheet, by name, that takes away what RANGE_RULES impose (RULINGS *The
+ * PHB feats — groups 1–3*). The gate still LISTS a cancelled row, with the feat that cancels it and
+ * no bend (Blindsight's shape: listed with why, never counted), so the roller sees it answered.
+ *   scope     "rangedWeapon" (a Ranged weapon — never a thrown melee weapon) | "spell" (a spell's
+ *             attack roll) | "crossbow" (the three crossbows, by dnd5e's base item)
+ *   cancels   the RANGE_RULES rows it takes away: "long", "close". Beyond long range stays — the
+ *             attack still cannot be made
  *   cover     true — Half and Three-Quarters Cover are ignored: the attack's recorded AC for each
- *             target is its AC without the cover bonus, so the card's hit and miss are right on
- *             every client (Total Cover stays: no AC is recorded against it)
- *   reach     feet added to a spell's range of at least 10 feet (Spell Sniper)
- * No list of its own: the feats are part of the range rule's truth (DESIGN R1 — the data settles
- * them), so the Reminder Sources' `range` kind is their switch, as it is the rows'.
+ *             target is its AC without the cover bonus, so hit and miss are right on every client
+ *             (Total Cover stays: no AC is recorded against it)
+ *   reach     feet added to a spell's range of at least 10 feet
+ * No list of its own: the feats are part of the range rule's truth (DESIGN R1), so the Reminder
+ * Sources' `range` kind is their switch too.
  */
 export const RANGE_FEATS = Object.freeze({
   "Sharpshooter": Object.freeze({ scope: "rangedWeapon", cancels: Object.freeze(["long", "close"]), cover: true,
@@ -1499,31 +1155,20 @@ export const RANGE_FEATS = Object.freeze({
 export const CROSSBOWS = Object.freeze(["handcrossbow", "lightcrossbow", "heavycrossbow"]);
 
 /**
- * THE CONDITION TABLE (Stage 3, 2026-09-01) — what the 2024 conditions do to an ATTACK ROLL,
- * both roles, with each condition's own "Attacks Affected" clause quoted VERBATIM from the
- * world's Rules Glossary (dnd5e.content24 / the premium PHB — presentation law 8). This is the
- * knowledge AC5e carries (DESIGN R-B), as DATA the gate reads; nothing here decides anything —
- * `conditionSources` in decide/reminders.js takes this table as a parameter.
- *
- * ⚠ ONE DECLARATION (review finding 8). The rows, the closed set the Condition Sources list is
- * validated against (`CONDITION_STATUSES`) and that list's shipped default were three hand-kept
- * copies; the set and the default are DERIVED from these keys now, so a fourteenth condition is
- * a row here and nothing else — R4's bargain, literally (and Hiding was exactly that, 2026-09-02).
- *
- *   attacker   what the condition does to the bearer's OWN attack rolls
- *   target     what it does to attack rolls AGAINST the bearer
- *   null       no bend on that side; a NOTE means "listed for the table, never counted"
- *
- * Prone is the one row with geometry, and it lives in `proneSources` rather than here.
- * Membership — which of these a table wants nagged about — is the Condition Sources list.
- *
- * Each row: `attacker` and `target` are the bend on that side ("advantage" | "disadvantage" |
- * null), `rule` the glossary clause verbatim, `caveat` a condition the module cannot judge (counted,
- * and said), `note` a fact listed for the table and never counted.
- *
- * `critWithinFeet` is the glossary's *Automatic Critical Hits* clause as a number (user,
- * 2026-09-02): a hit on the bearer from within that many feet is a Critical Hit — an OUTCOME,
- * which the damage service applies (auto-damage.js `critFor`), not a reminder.
+ * What the 2024 conditions do to an ATTACK ROLL, both roles, each clause quoted VERBATIM from the
+ * Rules Glossary (law 8) — AC5e's knowledge (DESIGN R-B) as DATA; `conditionSources` in
+ * decide/reminders.js takes this table as a parameter and decides.
+ * ⚠ ONE DECLARATION: the Condition Sources list's closed set (`CONDITION_STATUSES`) and shipped
+ * default derive from these keys, so a new condition is a row here and nothing else.
+ *   attacker  the bend on the bearer's OWN attack rolls ("advantage" | "disadvantage" | null)
+ *   target    the bend on attack rolls AGAINST the bearer
+ *   rule      the glossary clause verbatim
+ *   caveat    a condition the module cannot judge — counted, and said
+ *   note      a fact listed for the table, never counted
+ *   critWithinFeet  the *Automatic Critical Hits* clause: a hit from within that many feet is a
+ *             Critical Hit — an OUTCOME the damage service applies (auto-damage.js `critFor`)
+ * Prone is the one row with geometry and lives in `proneSources`. Membership: the Condition
+ * Sources list.
  *
  * @type {Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string, critWithinFeet?: number}>>>}
  */
@@ -1532,10 +1177,8 @@ export const CONDITION_BENDS = Object.freeze({
     rule: "Attack rolls against you have Advantage, and your attack rolls have Disadvantage." }),
   invisible: Object.freeze({ attacker: "advantage", target: "disadvantage",
     rule: "Attack rolls against you have Disadvantage, and your attack rolls have Advantage. If a creature can somehow see you, you don’t gain this benefit against that creature." }),
-  // Hiding is the system's own status (dnd5e ships `hiding`, an icon with no condition
-  // behind it), not a 2024 condition: the Hide action grants Invisible "while hidden", and the
-  // attack clause is the glossary's Unseen Attackers and Targets (user, 2026-09-02 — the
-  // fourteenth row, and it cost this row and nothing else).
+  // Hiding is the system's own status (an icon with no condition behind it): the Hide action
+  // grants Invisible "while hidden", and the clause is the glossary's Unseen Attackers and Targets.
   hiding: Object.freeze({ attacker: "advantage", target: "disadvantage",
     rule: "When a creature can’t see you, you have Advantage on attack rolls against it. When you make an attack roll against a target you can’t see, you have Disadvantage on the roll.",
     caveat: "counted — press Normal if the other side can see you" }),
@@ -1574,24 +1217,18 @@ export const CONDITION_BENDS = Object.freeze({
 export const CONDITION_KEYS = Object.freeze(Object.keys(CONDITION_BENDS));
 
 /**
- * THE SAVE TABLE (user ruling 2026-09-02, option E of *The Save Gate*) — what the 2024
- * conditions do to a SAVING THROW, each row's own "Saving Throws Affected" clause quoted
- * VERBATIM from the world's Rules Glossary (read live off `CONFIG.DND5E.conditionTypes[*].reference`,
- * tools/probe-clock-riders.mjs; presentation law 8). Less than the attack table: two true
- * bends and four automatic failures, all on Strength or Dexterity saves. Membership is the
- * same Condition Sources list the attack gate reads — a condition switched off there is not
- * read here either; `saveSources` in decide/reminders.js takes this table as a parameter.
- *
+ * What the 2024 conditions do to a SAVING THROW, each clause VERBATIM from the Rules Glossary
+ * (`CONFIG.DND5E.conditionTypes[*].reference`, law 8): two bends and four automatic failures, all
+ * on Strength or Dexterity saves. Membership is the Condition Sources list the attack gate reads;
+ * `saveSources` in decide/reminders.js takes this table as a parameter.
  *   abilities  which saves the row touches (ability ids)
- *   bend       "advantage" | "disadvantage" — counted, the gate's arithmetic as for attacks
- *   autoFail   true — the save CANNOT SUCCEED: not a bend, a fourth button (Fails: no dice,
- *              the failure recorded) — the human still presses (R1; option C, the module
- *              deciding with no press, is ruled out)
- *   caveat     a condition the module cannot judge, said on the box (Dodge's two)
- *
- * Not read on purpose: Exhaustion's flat penalty — dnd5e applies it itself (`addRollExhaustion`);
- * Poisoned and Frightened touch checks and attacks only. Dodging is the system's own status
- * (`dodging`), and its clause is the Dodge action's, not a condition's.
+ *   bend       "advantage" | "disadvantage" — counted, as for attacks
+ *   autoFail   true — the save CANNOT SUCCEED: not a bend, a fourth button (Fails: no dice, the
+ *              failure recorded) — the human still presses (R1)
+ *   caveat     a condition the module cannot judge, said on the box
+ * Not read on purpose: Exhaustion's penalty (dnd5e applies it — `addRollExhaustion`); Poisoned and
+ * Frightened touch checks and attacks only. Dodging is the system's status; its clause is the Dodge
+ * action's.
  *
  * @type {Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: string, caveat?: string}>>>}
  */
@@ -1612,19 +1249,12 @@ export const SAVE_BENDS = Object.freeze({
 });
 
 /**
- * THE CHECK TABLE (user go 2026-09-03 — the third table on the one gate machine): what the 2024
- * conditions do to an ABILITY CHECK (a raw check, a skill, a tool — never initiative, which is
- * out of scope by design), each row's clause quoted VERBATIM from the Rules Glossary. Two rows,
- * both Disadvantage; membership is the same Condition Sources list the other two gates read.
- *
- * ⚠ Poisoned is a bend the PLATFORM already applies — dnd5e 5.3.3 rolls a Poisoned creature's
- * check with Disadvantage on its own (measured 2026-09-03, tools/probe-conditions.mjs:
- * `2d20dis + 1` with `configure: false`). The row is therefore a REMINDER of a default the dialog
- * already shows, never a second application: the gate's box says WHY the button is
- * highlighted, and the record says what was pressed. Frightened the platform leaves alone (its
- * clause hinges on line of sight), so that row is the gate's own — counted, the caveat in the
- * quoted rule. Exhaustion's −2 × level is a subtraction the system applies, not a bend, so it has
- * no row; Blinded's and Deafened's sight/hearing failures are out of scope (BACKLOG).
+ * What the 2024 conditions do to an ABILITY CHECK (raw, skill or tool — never initiative), each
+ * clause VERBATIM from the Rules Glossary. Membership is the Condition Sources list.
+ * ⚠ The PLATFORM already rolls a Poisoned check with Disadvantage (tools/probe-conditions.mjs):
+ * that row (`platform`) is a REMINDER of the dialog's default, never a second application.
+ * Frightened hinges on line of sight, which the platform leaves alone, so that row is the gate's
+ * own. Exhaustion's −2 × level is a subtraction the system applies, not a bend — no row.
  *
  * @type {Readonly<Record<string, Readonly<{bend: "advantage"|"disadvantage", rule: string, platform?: boolean}>>>}
  */
@@ -1636,69 +1266,50 @@ export const CHECK_BENDS = Object.freeze({
 });
 
 /**
- * THE EFFECT TABLE — the sixth reminder kind (user, 2026-09-02: "I like effect sources").
  * Abilities that bend an attack roll and land on a sheet as an ACTIVE EFFECT (Innate Sorcery,
- * Reckless, Blur…) or sit there as a FEATURE with no effect at all (Pack Tactics, Bloodied
- * Fury). One row per ability, all data, found by a 30-pack scan of the sandbox's system and
- * premium compendia (the survey artifact "Effect Sources", 2026-09-02).
- *
- *   match     "effect" (default) — the row names an ActiveEffect on the actor;
- *             "feature" — the row names an Item of type feat on the actor (never an effect:
- *             Innate Sorcery the FEATURE is always on the sheet, Innate Sorcery the EFFECT only
- *             while it runs — so a feature row must never name something that also lands as
- *             an effect). The attack gate, the check gate and the SAVE gate all read it (the
- *             save gate since Slice A, 2026-09-24 — Brave, Fey Ancestry, Dwarven Resilience)
+ * Reckless, Blur…) or sit there as a FEATURE with no effect (Pack Tactics). One row per ability,
+ * all data. The attack gate, the check gate and the save gate all read it.
+ *   match     "effect" (default) — an ActiveEffect on the actor · "feature" — an Item of type feat
+ *             on the actor. ⚠ A feature row must never name something that also lands as an
+ *             effect (Innate Sorcery the FEATURE is always on the sheet; the EFFECT only while it runs)
  *   attacker  the bend on the bearer's OWN attack rolls, or null
  *   target    the bend on attack rolls AGAINST the bearer, or null
- *   scope     "any" | "spell" | "weapon" | "melee" | "ranged" — which attacks the row touches
- *             (Innate Sorcery is spell attacks only; the activity's own classification decides)
- *   caveat    a condition the module cannot judge, said on the box (the Frightened shape)
- *   counted   false = LISTED, not counted (user ruling 2026-09-02: rows whose caveat is the
- *             RULE — Demon Armor bends only against demons — are shown so nobody forgets the
- *             item, and stay out of the net); default true
- *   judge     "bloodied" (the bearer at or below half HP), "targetBloodied", "targetDamaged"
- *             (the target at or below half / short of full), "targetGrappled", "targetNotActed"
- *             (round one, and the target has not taken a turn — the combat clock), "allyNearTarget"
- *             (an ally of the attacker, not Incapacitated, within 5 feet of the target — the map)
- *             — a fact the module holds; the row fires only when it is true. The map's fact can
- *             also be UNKNOWN (an attacker whose side the module cannot name): the row is then
- *             counted, as `except` does — the gate never guesses an exemption
- *   spend     "attack" — the rules end the effect on the next attack roll ("your next attack
- *             roll"): the spend hook uses it up with a receipt, exactly as Vex and Sap
- *   only      "source" — the bend is for the creature whose action put the effect there and
- *             nobody else (Vow of Enmity: the sworn creature wears the marker, the paladin's
- *             Advantage is the paladin's alone); a carrier with no recorded source is skipped
- *   except    "source" — the bend stands against everyone BUT that creature (Goaded, Compelled);
- *             a carrier with no recorded source is counted — the gate never guesses an exemption
- *   checks    a bend on the bearer's ABILITY CHECKS (Heated Metal, Averse) — the check gate's
+ *   scope     "any" | "spell" | "weapon" | "melee" | "ranged" — the activity's classification decides
+ *   caveat    a condition the module cannot judge, said on the box
+ *   counted   false — LISTED, not counted: the caveat IS the rule (Demon Armor bends only against
+ *             demons), shown so nobody forgets the item; default true
+ *   judge     a fact the module holds; the row fires only when it is true — "bloodied" (the
+ *             bearer at or below half HP), "targetBloodied", "targetDamaged" (short of full),
+ *             "targetGrappled", "targetNotActed" (round one, the target has not had a turn),
+ *             "allyNearTarget" (an ally of the attacker, not Incapacitated, within 5 feet of the
+ *             target). An UNKNOWN map fact (the attacker's side cannot be named) counts the row —
+ *             the gate never guesses an exemption
+ *   spend     "attack" — the rules end the effect on the next attack roll: the spend hook uses it
+ *             up with a receipt, as Vex and Sap
+ *   only      "source" — the bend is for the creature whose action put the effect there alone;
+ *             a carrier with no recorded source is skipped
+ *   except    "source" — the bend stands against everyone BUT that creature (Goaded: skipped when
+ *             the target is the goader; Distracted: when the attacker is the distracter); a carrier
+ *             with no recorded source is counted. The EDGE reads the source off the module's stamp
+ *             on the effect, else its origin
+ *   checks    a bend on the bearer's ABILITY CHECKS — the check gate's
  *   checksWhen { statuses, skills } — narrows `checks` to a bearer wearing one of the statuses and
- *             a check of one of the skills (Powerful Build: Grappled, Athletics or Acrobatics —
- *             the escape the module cannot otherwise tell from any check; the Goliath walk,
- *             2026-09-25)
+ *             a check of one of the skills (Powerful Build: the escape, told from any other check)
  *   saves     { bend, statuses?, spells?, halfToNone? } — a bend on the bearer's SAVING THROWS,
- *             scoped by the DEMAND the save gate finds: against an effect imposing one of the
- *             statuses (Aura of Purity), or against a spell (Circle of Power); `halfToNone` turns
- *             a success against half-on-save damage into none (2026-09-05). { succeeds, sleep }
- *             (Trance, 2026-09-27) — the save CANNOT FAIL against magic that would put the bearer
- *             to sleep (the demand's `spell` and `sleep`): the mirror of the save table's
- *             `autoFail`, a fourth button (Succeeds: no dice, the success recorded)
+ *             scoped by the demand: against an effect imposing one of the statuses, or a spell;
+ *             `halfToNone` turns a success against half-on-save damage into none.
+ *             { succeeds, sleep } — the save CANNOT FAIL against magic that would put the bearer
+ *             to sleep: the mirror of `autoFail`, a fourth button (Succeeds: no dice)
  *   rule      the ability's own sentence, from the pack (enrichers rendered as plain words)
  *   from      where it comes from, for the reader
- *
- * ⚠ Names are the packs' own, colons and all ("Adv: Attacks & Saves") — the Effect Sources
- * list is parsed WHOLE-CHUNK for that reason (LIST_SPECS.effects.whole). Matching is
- * case-insensitive on both sides.
+ * ⚠ Names are the packs' own, colons and all ("Adv: Attacks & Saves") — the Effect Sources list
+ * is parsed WHOLE-CHUNK for that reason (LIST_SPECS.effects.whole). Matching is case-insensitive.
  *
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget", spend?: "attack",
  *   only?: "source", except?: "source", rule: string, from: string}>>>}
  */
-// `except: "source"` (2026-09-04, the walk: "disadvantage should not apply when attacking
-// morgash, the person doing the goading"): the bend stands against everyone BUT the creature
-// whose action put the effect there — Goaded (an attacker-side bend, skipped when the target
-// is the goader), Distracted (a target-side bend, skipped when the attacker is the distracter).
-// The EDGE reads each effect's source off the module's stamp on it, else off its origin.
 export const EFFECT_BENDS = Object.freeze({
   // --- A. standing, no caveat: the row is the whole truth ---------------------------------
   "Innate Sorcery": Object.freeze({ attacker: "advantage", target: null, scope: "spell", from: "Sorcerer",
@@ -1727,7 +1338,7 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "Undead within the Emanation have Advantage on attack rolls and saving throws." }),
   "Manacled": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Manacles",
     rule: "While bound, a creature has Disadvantage on attack rolls, and the creature is Restrained if the Manacles are attached to a chain or hook that is fixed in place." }),
-  // `checks` — the row bends ABILITY CHECKS too (the check gate reads it; 2026-09-04, Heat Metal).
+  // `checks` — the row bends ABILITY CHECKS too (the check gate reads it).
   "Heated Metal": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", checks: "disadvantage", from: "Heat Metal",
     rule: "If it doesn’t drop the object, it has Disadvantage on attack rolls and ability checks until the start of your next turn." }),
   "Averse": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", checks: "disadvantage", from: "Aversion to Fire (monsters)",
@@ -1747,20 +1358,16 @@ export const EFFECT_BENDS = Object.freeze({
   "Disadv.: Attacks & Checks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Fear of Fire (monsters)",
     rule: "If it takes Fire damage, it has Disadvantage on attack rolls and ability checks until the end of its next turn." }),
   // --- B. the effect sits on the OTHER creature — the source's facet judges it ---------------
-  // ⚠ RE-READ AGAINST THE PACKS (2026-09-21, the walk: "vow of enmity is not giving invictus
-  // advantage reminder when he swings"). Every one of these effects lands on the creature the
-  // feature is USED ON, not on its user — Vow of Enmity's activity targets one creature within
-  // 30 feet, and the sworn creature wears the marker with the paladin as its source. Read on
-  // the paladin's own sheet (the old rows: `attacker: "advantage"`) it fired for nobody. The
-  // rows now read the marker where the pack puts it and let the SOURCE facet judge what the
-  // caveat used to ask the table to judge: `only: "source"` where the bend is the source's alone,
-  // `except: "source"` where it stands against everyone but the source. A caveat stays only
-  // where the words still hold a fact the module cannot read (Prey's target is never recorded;
-  // Strike Fear's Frightened can be cured under the marker).
+  // ⚠ Every one of these effects lands on the creature the feature is USED ON, not its user (Vow of
+  // Enmity's sworn creature wears the marker, the paladin as its source) — read on the owner's own
+  // sheet they fire for nobody. The SOURCE facet judges: `only: "source"` where the bend is the
+  // source's alone, `except: "source"` where it stands against everyone but the source. A caveat
+  // stays only where a fact is unreadable (Prey's target is never recorded; Strike Fear's
+  // Frightened can be cured under the marker).
   "Vow of Enmity": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", from: "Paladin",
     rule: "You have Advantage on attack rolls against the creature for 1 minute or until you use this feature again." }),
-  // Marked as Prey: the pack's effect is on the MONSTER (a self-ranged utility), the marked
-  // creature is nowhere in the data — the caveat is the whole of what the module can say.
+  // The pack's effect is on the MONSTER (a self-ranged utility); the marked creature is nowhere
+  // in the data, so the caveat is all the module can say.
   "Prey: Attack Advantage": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Marked as Prey (monsters)",
     caveat: "counted — press Normal if this attack is not at the marked creature",
     rule: "It has Advantage on attack rolls against the target until the start of its next turn." }),
@@ -1777,13 +1384,8 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "The target must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against targets other than you until the end of your next turn." }),
   "Taunted": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", except: "source", from: "Steps of the Fey",
     rule: "Creatures within 5 feet of the space you left must succeed on a Wisdom saving throw or have Disadvantage on attack rolls against creatures other than you until the start of your next turn." }),
-  // SAVE BENDS BY EFFECT (user, 2026-09-05: "Aura of Purity doesn't really give advantage to
-  // saves like Hold Person, Hypnotic Pattern … do it for all the pack effect spells"): the
-  // `saves` facet — the bend on the BEARER's saving throws, scoped by what the demand would do
-  // (`statuses`: a save against an effect that imposes one of these; `spells`: a save a spell
-  // demands), read against the demand the save gate finds. `halfToNone`: a success against
-  // half-on-save damage takes NONE (Circle of Power — an outcome, the applier's). The packs'
-  // effects carry no data for any of this (measured 2026-09-05); the rows are where it lives.
+  // The `saves` facet: the packs' effects carry no data for these save bends; the rows are where
+  // it lives, read against the demand the save gate finds.
   "Aura of Purity": Object.freeze({ attacker: null, target: null, scope: "any", from: "Aura of Purity",
     saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["blinded", "charmed", "deafened", "frightened", "paralyzed", "poisoned", "stunned"]) }),
     rule: "While in the aura, you and your allies have Resistance to Poison damage and Advantage on saving throws to avoid or end effects that include the Blinded, Charmed, Deafened, Frightened, Paralyzed, Poisoned, or Stunned condition." }),
@@ -1793,16 +1395,15 @@ export const EFFECT_BENDS = Object.freeze({
   "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
     caveat: "counted — press Normal if this attack is not at the caster",
     rule: "While cursed, the target has Disadvantage on attack rolls against you." }),
-  // `item`: the row stands only for an effect that comes from THIS item, when the sheet knows —
-  // the Aura of Protection hands out a "Protected" too, a save bonus (walk finding, 2026-09-18).
+  // `item`: the row stands only for an effect from THIS item, when the sheet knows — the Aura of
+  // Protection hands out a "Protected" too, a save bonus.
   "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good", item: "Protection from Evil and Good",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
     rule: "Creatures of those types have Disadvantage on attack rolls against the target." }),
-  // THE PROTECTION STYLE'S STANDING HALF (2026-09-26): the pack's "Protected" landed on the guarded
-  // creature by the Protection answer (hold/continue.js), named "Protected — <guard>". The key is
-  // taken by the spell's row above, so this row names the effect it reads (`named`) and the item it
-  // comes from; `sourceWithin` — it bends only while its source (the guard) stands within that many
-  // feet of the bearer ("if you remain within 5 feet of the target").
+  // The pack's "Protected" landed on the guarded creature by the Protection answer
+  // (hold/continue.js). The key is the spell's row above, so this row names the effect it reads
+  // (`named`) and its item; `sourceWithin` — it bends only while the guard stands within that
+  // many feet of the bearer.
   "Protected (Protection)": Object.freeze({ named: "Protected", attacker: null, target: "disadvantage", scope: "any", from: "Protection (Fighting Style)", item: "Protection",
     sourceWithin: 5,
     rule: "You impose Disadvantage on the triggering attack roll and all other attack rolls against the target until the start of your next turn if you remain within 5 feet of the target." }),
@@ -1863,9 +1464,8 @@ export const EFFECT_BENDS = Object.freeze({
     rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
   "Brief Enfeeblement": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", spend: "attack", from: "Ray of Enfeeblement",
     rule: "On a successful save, the target has Disadvantage on the next attack roll it makes until the start of your next turn." }),
-  // ⚠ Recut 2026-09-05: the pack's effect sits on the TARGET ("for tracking the target"), placed by
-  // superiority-uses.js with the fighter as its source; `only: "source"` — the Advantage is the
-  // fighter's alone, and only the fighter's next attack roll at that target spends it.
+  // The pack's effect sits on the TARGET, placed by superiority-uses.js with the fighter as its
+  // source: the Advantage is the fighter's alone, and only the fighter's next attack roll spends it.
   "Feinting Attack": Object.freeze({ attacker: null, target: "advantage", scope: "any", only: "source", spend: "attack", from: "Battle Master",
     rule: "You have Advantage on your next attack roll against that target this turn." }),
   "Distracted": Object.freeze({ attacker: null, target: "advantage", scope: "any", spend: "attack", except: "source", from: "Battle Master, Distracting Strike",
@@ -1884,10 +1484,8 @@ export const EFFECT_BENDS = Object.freeze({
   "Vigilant": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", spend: "attack", from: "Tyro of the Gauntlet (Heroes of Faerûn)",
     rule: "When you take the Ready action, the next attack roll made against you has Disadvantage before the start of your next turn." }),
   // --- D. a feature, never an effect: matched by the feature's name --------------------------
-  // Pack Tactics is judged on the MAP (user, 2026-09-22: "the hobgoblin in party camp attacking
-  // the practice dummy is triggering adv prompt bc of pack tactics, yet that shouldn't apply
-  // here"): an ally of the attacker within 5 feet of the target, or nothing. The caveat stands
-  // for the one case the map cannot answer — an attacker whose side the module cannot name.
+  // Pack Tactics is judged on the MAP: an ally of the attacker within 5 feet of the target. The
+  // caveat stands for the one case the map cannot answer — an attacker whose side is unknown.
   "Pack Tactics": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "allyNearTarget", from: "monsters",
     caveat: "counted — when the attacker's side cannot be read; press Normal if no ally of the attacker is within 5 feet of the target",
     rule: "It has Advantage on an attack roll against a creature if at least one of its allies is within 5 feet of the creature and the ally doesn’t have the Incapacitated condition." }),
@@ -1931,14 +1529,11 @@ export const EFFECT_BENDS = Object.freeze({
   "Ambusher": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Advantage only in the first round, against a creature it surprised",
     rule: "In the first round of a combat, it has advantage on attack rolls against any creature it has surprised." }),
-  // --- E. the combat CLOCK as the judge (user, 2026-09-02 — the Assassin) ----------------------
-  // The first row whose fact is the ROUND and whether the target has ACTED: the platform's own
-  // facts (combat.round, the target's place in the order against the current turn), read by the
-  // EDGE like Bloodied is. Out of combat it never fires — there is no first round to be in.
-  // --- F. USE CHIPS — a feature the pack ships as text alone, written as a chip on use (use-chips.js) ---
-  // The chip is NAMED as the feature is, so this row reads it as any effect: Advantage on the
-  // attacker's next attack roll, spent by that roll (user report 2026-09-02: Steady Aim
-  // "isnt appling" — the 2024 PHB ships it with no effect at all).
+  // --- E. the combat CLOCK as the judge ---------------------------------------------------------
+  // The round and whether the target has ACTED are the platform's facts (combat.round, the order
+  // against the current turn), read by the EDGE like Bloodied. Out of combat it never fires.
+  // --- F. USE CHIPS (use-chips.js) — the chip is NAMED as the feature, so the row reads it as any
+  // effect: the pack ships Steady Aim with no effect at all.
   "Steady Aim": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack",
     rule: "As a Bonus Action, you give yourself Advantage on your next attack roll on the current turn. You can use this feature only if you haven’t moved during this turn, and after you use it, your Speed is 0 until the end of the current turn.",
     from: "Rogue 3 (a use chip)" }),
@@ -1946,12 +1541,11 @@ export const EFFECT_BENDS = Object.freeze({
     judge: "targetNotActed",
     rule: "During the first round of each combat, you have Advantage on attack rolls against any creature that hasn’t taken a turn.",
     from: "Rogue — Assassin (Surprising Strikes)" }),
-  // --- G. SPECIES TRAITS whose one bend is on SAVES (Slice A, 2026-09-24) ----------------------
-  // The 2024 PHB ships these as text alone — no effect to find (measured on the pack, the Slice A
-  // inventory) — so they are FEATURE rows the save gate reads by name, scoped by the demand's
-  // statuses the Aura of Purity way. A save to END the condition is a bare sheet roll with no
-  // demand: the row is listed there, never counted (R1 — the module does not guess what a sheet
-  // roll is against). Dwarven Resilience's Poison Resistance is the species' own advancement.
+  // --- G. species traits whose one bend is on SAVES ---------------------------------------------
+  // The pack ships these as text alone, so they are FEATURE rows the save gate reads by name,
+  // scoped by the demand's statuses. A save to END the condition is a sheet roll with no demand:
+  // the row is listed there, never counted (R1 — the module does not guess what a sheet roll is
+  // against). Dwarven Resilience's Poison Resistance is the species' own advancement.
   "Brave": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Halfling",
     saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["frightened"]) }),
     rule: "You have Advantage on saving throws you make to avoid or end the Frightened condition." }),
@@ -1961,19 +1555,15 @@ export const EFFECT_BENDS = Object.freeze({
   "Dwarven Resilience": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Dwarf",
     saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["poisoned"]) }),
     rule: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition." }),
-  // TRANCE (2026-09-27, the user: "fix them all"; BACKLOG since Slice A): "magic can't put you to
-  // sleep" — a save against magic whose failure would put the Elf to sleep cannot fail (the 2024
-  // Sleep spell says it outright: "Creatures that don't sleep, such as elves ... automatically
-  // succeed"). The demand says whether it sleeps (decide/demand.js `putsToSleep`, off the spell
-  // and its failed-save effects); the gate offers Succeeds and the buzzer takes it. A sheet roll
-  // with no demand lists the row, as every row is listed there.
+  // A save against magic whose failure would put the bearer to sleep cannot fail (the demand says
+  // whether it sleeps — decide/demand.js `putsToSleep`); the gate offers Succeeds. A sheet roll
+  // with no demand lists the row.
   "Trance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Elf",
     saves: Object.freeze({ succeeds: true, sleep: true }),
     rule: "You don’t need to sleep, and magic can’t put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness." }),
-  // The Goliath walk (2026-09-25, ruled: "Build a proxy"): the check to END the Grappled condition
-  // is not a roll the module can tell from any other — so while the Goliath IS Grappled, its
-  // Athletics and Acrobatics checks (the escape's two skills) count as the escape (a bend, RULINGS'
-  // register). The pack's own Powerful Build effect carries the carrying-capacity half alone.
+  // The check to END Grappled cannot be told from any other roll, so while the bearer IS Grappled
+  // its Athletics and Acrobatics checks count as the escape (RULINGS *Where the table bends the
+  // rule*). The pack's own effect carries the carrying-capacity half alone.
   "Powerful Build": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Goliath",
     checks: "advantage", checksWhen: Object.freeze({ statuses: Object.freeze(["grappled"]), skills: Object.freeze(["ath", "acr"]) }),
     caveat: "counted — while Grappled, an Athletics or Acrobatics check counts as the escape",
@@ -1989,27 +1579,24 @@ export const EFFECT_NAMES = tableIndex(EFFECT_BENDS).names;
 
 /**
  * The CONDITION SOURCES the `condition` reminder kind can read — the closed set the Condition
- * Sources list is validated against, DERIVED from the table above. Prone is NOT here — it is
- * its own kind, with geometry. The unit tests pin the size as the deliberate tripwire.
+ * Sources list is validated against, derived from CONDITION_BENDS. Prone is its own kind. The
+ * unit tests pin the size as a deliberate tripwire.
  */
 export const CONDITION_STATUSES = new Set(CONDITION_KEYS);
 
 /**
- * METAMAGIC (the metamagic pass, 2026-09-09 — DESIGN §6 *Metamagic*): the ten 2024 options,
- * keyed by the feat's own name. Each row says WHEN the option fits the spell being cast (a
- * named predicate over the spell's facts — decide/metamagic.js resolves it; the pack's option
- * carries its condition as PROSE, so the predicate lives here), at which MOMENT it is offered
- * (`cast`: a row in the cast dialog; `damage`: a fold after the spell's damage dice; `miss`: a
- * fold on a spell attack's miss), and what it PICKS beyond the tick (`protect`: creatures the
- * save leaves alone; `target`: one creature; `type`: a damage type; `twin`: one more target).
- * ⚠ NO COST HERE (N1): the cost is the option's own consumption target on the sheet, read live.
- * `apply` names the arithmetic the module does after the press, for the reader; the code is the
- * mechanism's. The rule text is read off the feat on the sheet at render (law 8), never copied.
+ * The ten 2024 metamagic options, keyed by the feat's name (RULINGS *Metamagic*). Each row says
+ * WHEN the option fits the spell (a named predicate — decide/metamagic.js; the pack carries the
+ * condition as PROSE), the MOMENT it is offered (`cast`: the cast dialog; `damage`: a fold after
+ * the damage dice; `miss`: a fold on a spell attack's miss), and what it PICKS beyond the tick
+ * (`protect`, `target`, `type`, `twin`). `apply` names the arithmetic, for the reader.
+ * ⚠ NO COST HERE (N1): the cost is the option's own consumption target, read live. The rule text
+ * is read off the feat on the sheet at render (law 8), never copied.
  */
 export const METAMAGIC = Object.freeze({
   "Careful Spell":    { key: "careful",    moment: "cast",   when: "save",       picks: "protect", apply: "the protected creatures leave the save demand",
     // A spell that chooses its targets (CHOSEN_AREAS) leaves the unchosen out already, so Careful
-    // buys nothing there (user ruling 2026-09-24): the row greys, "you choose its targets".
+    // buys nothing there: the row greys, "you choose its targets".
     unless: "choosesTargets" },
   "Distant Spell":    { key: "distant",    moment: "cast",   when: "range",      picks: null,      apply: "the range the gate's reminder reads is doubled (Touch → 30 ft)" },
   "Empowered Spell":  { key: "empowered",  moment: "damage", when: "damageRoll", picks: "dice",    apply: "up to CHA-mod dice rerolled, the new rolls stand" },
@@ -2024,51 +1611,40 @@ export const METAMAGIC = Object.freeze({
 /** The damage types Transmuted Spell trades between — the option's own list. */
 export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightning", "poison", "thunder"]);
 /**
- * TWINNED SPELL'S EXCEPTIONS to the data read (user rulings 2026-09-09, against the pack scan —
- * tools/probe-twinnable.mjs). The read is the pack's own statement — a target count that grows
- * with the cast's level — and it is right for the many; these are the few where the table's
- * reading of "can target an additional creature" differs from the data, or the data says
- * nothing. `except`: the count grows but the extra is a dart or a ray, not a target the way
- * Twinned means it (user: "remove Magic Missile … Scorching Ray, same reason"). `also`: the
- * text grants the extra creature but the pack's count is a plain number (Jump, 2024 PHB).
+ * Twinned Spell's exceptions to the data read (tools/probe-twinnable.mjs). The read — a target
+ * count that grows with the cast's level — is right for the many. `except`: the count grows but
+ * the extra is a dart, a ray, a corpse or an arrow, not a target the way Twinned means it (Tasha's
+ * Mind Whip is not in the PHB pack at all). `also`: the text grants the extra creature but the
+ * pack's count is a plain number.
  */
 export const TWINNED_EXCEPTIONS = Object.freeze({
-  // Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip: OUT by the user's word
-  // (2026-09-09, "remove all as options") - the first three read as twinnable from the data (a
-  // corpse or an arrow is the extra), the last is not in the PHB pack at all.
   except: Object.freeze(["Magic Missile", "Scorching Ray", "Animate Dead", "Create Undead", "Cordon of Arrows", "Tasha's Mind Whip"]),
   also: Object.freeze(["Jump"])
 });
 const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
 
 /**
- * THE DAMAGE DICE, ROLLED TWICE (Slice A, ruled 2026-09-24 off prototypes/slice-a.html): a feature
- * that lets the attacker roll a weapon's damage dice a second time and use either roll. The popup
- * asks only WHETHER to use it on this hit; on yes the weapon's dice — every die of the activity's
- * own damage rolls, the doubled set on a crit, never a modifier and never a rider — are rolled
- * again AS A SET, and the higher set total stands with no second question (dice-changers.js the
- * machine since 2026-09-27 — every row a character holds is a row of ONE popup per roll, beside
- * Empowered Spell's — decide/damage-dice.js the arithmetic).
+ * A feature that rolls a weapon's damage dice again: the popup asks only WHETHER on this hit; on
+ * yes the weapon's dice — every die of the activity's own damage rolls, the doubled set on a
+ * crit, never a modifier or a rider — are rolled again AS A SET and the higher total stands
+ * (dice-changers.js, one popup per roll beside Empowered Spell's; decide/damage-dice.js the
+ * arithmetic).
  *   key     the once-per-turn chit's riderKey (TURN_CHITS `rider`, the clock riders' shape)
- *   weapon  true — "when you hit a target with a weapon": a weapon item only
- * Once per turn is counted only for a combatant (RULINGS *Chips and clocks*); out of combat
- * every hit offers. Membership is the Damage Rolled Twice list.
- * ⚠ NOT A KIND — the R4 tripwire does not move for it (ARCHITECTURE §11 step 3's test, 2026-09-24):
- * one table read by ONE machine, rows of data, the CLOCK_RIDERS / DAMAGE_SHIELDS / METAMAGIC shape.
- * Nothing dispatches on a kind column; a second customer is a row here and zero code.
- *   weapon  true — a weapon's hit only (Savage Attacker)
- *   one     true — ONE die rolled again, the new roll standing (Piercer); else the whole set
- *   dealt   a damage type the hit must deal (Piercer: Piercing)
+ *   weapon  true — a weapon's hit only
+ *   one     true — ONE die rolled again, the new roll standing; else the whole set
+ *   dealt   a damage type the hit must deal
+ * Once per turn is counted only for a combatant (RULINGS *Chips and clocks*); out of combat every
+ * hit offers. Membership: the Damage Rolled Twice list.
+ * ⚠ NOT A KIND (the R4 tripwire does not move): one table read by ONE machine; nothing dispatches
+ * on a kind column, and a second customer is a row here and zero code.
  */
 export const DAMAGE_EITHER = Object.freeze({
   "Savage Attacker": Object.freeze({ key: "savage-attacker", weapon: true,
     rule: "Once per turn when you hit a target with a weapon, you can roll the weapon’s damage dice twice and use either roll against the target.",
     from: "Origin feat" }),
-  // THE PHB FEATS, group 3 (2026-09-26): `one` — ONE die rolled again and the new roll stands (the
-  // rule: "you must use the new roll"), on any attack that deals `dealt` damage. The die is the
-  // one with the most to gain (its size's average less its face) — rerolling any other is worse on
-  // average, so the popup asks only whether, never which. A sheet holding Savage Attacker too is
-  // asked both in one popup (2026-09-27): Savage's set first, then Piercer's die off what stands.
+  // `one`: the die rerolled is the one with the most to gain (its size's average less its face) —
+  // any other is worse on average, so the popup asks only whether, never which. A sheet holding
+  // Savage Attacker too is asked both in one popup: Savage's set first, then this die off what stands.
   "Piercer": Object.freeze({ key: "piercer", one: true, dealt: "piercing",
     rule: "Puncture. Once per turn, when you hit a creature with an attack that deals Piercing damage, you can reroll one of the attack’s damage dice, and you must use the new roll.",
     from: "General feat" })
@@ -2076,18 +1652,14 @@ export const DAMAGE_EITHER = Object.freeze({
 const DAMAGE_EITHER_NAMES = tableIndex(DAMAGE_EITHER).names;
 
 /**
- * THE HEALING REROLLS (the origin feats, 2026-09-25 — user: "use the empower spell form as a
- * baseline listing all roll numbers, the ones, and select the ones to replace"; "make sure the
- * healer feat itself gets the 1 popup too not just spells"; "1s ticked"): a feature that lets its
- * owner reroll a healing die that shows a given face. AUTOMATIC since 2026-09-26 (the user: "make
- * adept automatic, fix healer that way too ... consistent with that great weapon one"): every
- * matching face is rolled again as the dice land and the new faces stand (heal-rerolls.js the
- * machine, decide/damage-dice.js the patch). The healing waits on the new dice, so it lands once.
- *   reroll  the face that may be rerolled (Healer: a 1)
- *   spells  true — a healing SPELL the owner casts asks
- *   own     true — the feature's OWN healing asks (Battle Medic); the pack's `r1` in those formulas
- *           is taken off at the roll so the machine, not the formula, rerolls it (one card, one road)
- * ⚠ NOT A KIND — one table read by one machine (the DAMAGE_EITHER shape); a second customer is a row.
+ * A feature that rerolls a healing die showing a given face — AUTOMATIC: every matching face is
+ * rolled again as the dice land and the new faces stand (heal-rerolls.js; decide/damage-dice.js
+ * the patch). The healing waits on the new dice, so it lands once.
+ *   reroll  the face that may be rerolled
+ *   spells  true — a healing SPELL the owner casts qualifies
+ *   own     true — the feature's OWN healing qualifies; the pack's `r1` in those formulas is taken
+ *           off at the roll so the machine, not the formula, rerolls it (one card, one road)
+ * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
   "Healer": Object.freeze({ reroll: 1, spells: true, own: true,
@@ -2097,13 +1669,10 @@ export const HEAL_REROLLS = Object.freeze({
 const HEAL_REROLL_NAMES = tableIndex(HEAL_REROLLS).names;
 
 /**
- * THE INITIATIVE SWAPS (the origin feats, 2026-09-25 — user: "initiative swap should have a form
- * after initiative all roll, list non incapacitated allies, each persons initiative, and they can
- * select which to swap, and then swap yes no buttons"; "alert pick is enough"): a feature that lets
- * its owner trade Initiative with a willing ally right after Initiative is rolled. Once every
- * combatant has an Initiative the owner is asked, once per combat; the allies listed are those on
- * the owner's side who are not Incapacitated, each with their Initiative; Swap exchanges the two
- * numbers in the tracker (initiative-swap.js). The owner's pick is the willingness (ruled).
+ * A feature that trades Initiative with a willing ally right after Initiative is rolled. Once
+ * every combatant has an Initiative the owner is asked, once per combat, listing the allies on
+ * its side who are not Incapacitated with their Initiative; Swap exchanges the two numbers in the
+ * tracker (initiative-swap.js). The owner's pick stands for the ally's willingness.
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
  */
 export const INITIATIVE_SWAPS = Object.freeze({
@@ -2114,26 +1683,20 @@ export const INITIATIVE_SWAPS = Object.freeze({
 const INITIATIVE_SWAP_NAMES = tableIndex(INITIATIVE_SWAPS).names;
 
 /**
- * THE UNARMED STRIKE DICE (the origin-feat walk, 2026-09-25 — user, on the plain Unarmed Strike
- * always dealing 1 + Str beside Tavern Brawler: "Module swaps it" — "but give some kind of notice
- * somewhere"): a feature whose owner's Unarmed Strike deals a die "instead of the normal damage".
- * The pack ships that die on the FEATURE's own unarmed attack (Tavern Brawler's "Enhanced Unarmed
- * Strike", `1d4r1 + @abilities.str.mod`), so a player who presses the sheet's plain Unarmed Strike
- * rolled the flat 1 + Str. unarmed-dice.js swaps the formula in at `preRollDamageV2` — READ from
- * the feature's own unarmed attack (hit-riders.js's upgrade rule: the number is always the one the
- * content ships), never transcribed here — and the damage card says so in one line. A strike that
- * already rolls a die (a Monk's Martial Arts) is left alone: the rule is "can … instead", and the
- * die it has is the table's call, not ours. The swap is never lower (a d4's 1 + Str is the flat
- * number), so nothing is asked.
+ * A feature whose owner's Unarmed Strike deals a die "instead of the normal damage". The pack ships
+ * that die only on the FEATURE's own unarmed attack, so the sheet's plain Unarmed Strike rolls the
+ * flat 1 + Str. unarmed-dice.js swaps the formula in at `preRollDamageV2` — READ from the
+ * feature's own attack, never transcribed here — and the damage card says so. A strike that
+ * already rolls a die (a Monk's Martial Arts) is left alone: the rule is "can … instead", and that
+ * choice is the table's. The swap is never lower, so nothing is asked.
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
  */
 export const UNARMED_DICE = Object.freeze({
   "Tavern Brawler": Object.freeze({
     rule: "Enhanced Unarmed Strike. When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d4 plus your Strength modifier instead of the normal damage of an Unarmed Strike.",
     from: "Origin feat (Sailor)" }),
-  // `hands` (2026-09-26, the fighting styles): the feature ships TWO unarmed attacks — the d6
-  // "Weapon in Hand" and the d8 "Empty Hand" — and the one that stands is picked by what the owner
-  // holds when the strike is rolled: nothing (no weapon, no Shield) the larger die, else the smaller.
+  // `pick: "hands"`: the feature ships TWO unarmed attacks (d6 "Weapon in Hand", d8 "Empty Hand");
+  // the one that stands is picked by what the owner holds when the strike is rolled.
   "Unarmed Fighting": Object.freeze({ pick: "hands",
     rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8.",
     from: "Fighting Style feat" })
@@ -2141,14 +1704,12 @@ export const UNARMED_DICE = Object.freeze({
 const UNARMED_DICE_NAMES = tableIndex(UNARMED_DICE).names;
 
 /**
- * THE KIT TENDING (the origin-feat walk, 2026-09-25 — user: "healer kit use --- if in 5 feet, give
- * the 'caster' of healer kit option to choose hit dice and make the roll for the other player";
- * "and then reroll 1 option"): a feature that turns a kit's use on a creature within `reach` into
- * healing paid from that creature's own Hit Point Dice. The kit's user picks the size in a popup;
- * the die is spent on the creature's sheet and the feature's OWN heal activity of that size is
- * rolled at it (kit-tend.js), so the Healing Rerolls popup and the cast applier carry the rest.
+ * A feature that turns a kit's use on a creature within `reach` into healing paid from that
+ * creature's own Hit Point Dice. The kit's user picks the size in a popup; the die is spent on the
+ * creature's sheet and the feature's OWN heal activity of that size is rolled at it (kit-tend.js),
+ * so the healing rerolls and the cast applier carry the rest.
  *   kit    the kit item's name whose use is the moment
- *   reach  feet from the user to the creature
+ *   reach  feet from the healer to the creature
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
  */
 export const KIT_TENDS = Object.freeze({
@@ -2159,50 +1720,40 @@ export const KIT_TENDS = Object.freeze({
 const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
 
 /**
- * THE FIGHTING STYLES (user, 2026-09-26, ruled off prototypes/fighting-styles.html: "one table";
- * "we need to gate it on what pc is holding - not overall rule, we want flows to work, not editing
- * items"; "the feats that do weapon mods should be effects on the player ... so itd show in the
- * detailed buff bar"): a Fighting Style feat whose rule turns on what its owner HOLDS or WEARS, or
- * on how the attack is made. fighting-styles.js keeps ONE effect per style on the character — the
- * style's FACE, live or greyed with the reason in the effect view's panel — read off the equipped
- * items, so nobody toggles anything; and it applies the style's number to the roll it fits, with
- * one line on the damage card, a floating number over the target when the style changed it, and a
- * `fightingStyle` stats record (option B).
- *   gate       what the style reads — `twoHanded` (a melee weapon swung in two hands, a Two-Handed
- *              or Versatile weapon), `thrown` (a thrown attack), `offhand` (the Light weapon's extra
- *              attack), `oneHanded` (one melee weapon in one hand, no other weapon), `armored`
- *              (Light, Medium or Heavy armor worn), `unarmed` (what the hands hold — the die only),
- *              `heavy` (a Heavy weapon's attack on the owner's own turn — Great Weapon Master),
- *              `heavyArmor` (Heavy armor worn — Heavy Armor Master), `offhandCrossbow` (the Light
- *              property's extra attack with a Light crossbow — Crossbow Expert)
- *   minimum    the damage dice's floor (Great Weapon Fighting: a 1 or 2 counts as 3)
- *   bonus      the damage added: "2", "@mod", or "effect" — READ off the pack's own effect on the
- *              feat (N1); the text-only feats (Thrown) carry the text's number, as Celestial
- *              Revelation's rider carries its text's @prof
+ * A Fighting Style (or general feat) whose rule turns on what its owner HOLDS or WEARS, or on how
+ * the attack is made (RULINGS *The fighting styles*). fighting-styles.js keeps ONE effect per style
+ * on the character — its FACE, live or greyed with the reason — read off the equipped items, so
+ * nobody toggles anything; and applies the style's number to the roll it fits, with a card line,
+ * a floating number over the target, and a `fightingStyle` stats record.
+ *   gate       what the style reads — `twoHanded` (a Two-Handed or Versatile melee weapon in two
+ *              hands), `thrown`, `offhand` (the Light weapon's extra attack), `oneHanded` (one melee
+ *              weapon in one hand, no other), `armored` (any armor worn), `unarmed` (what the hands
+ *              hold — the die only), `heavy` (a Heavy weapon's attack on the owner's turn),
+ *              `heavyArmor`, `offhandCrossbow` (the Light extra attack with a Light crossbow),
+ *              `always` (no equipment in the rule: live whenever the feat is on the sheet)
+ *   minimum    the damage dice's floor (a 1 or 2 counts as 3)
+ *   bonus      the damage added: "2", "@mod", "@prof", or "effect" — READ off the pack's own effect
+ *              on the feat (N1); a text-only feat carries the text's number
  *   ac         "effect": the AC change the pack's own effect carries, moved onto the face
- *   takesOver  the pack ships an UNGATED effect on the feat (Defense, Dueling — the notes say
- *              "disable it when ..."); the machine switches it off and the face carries the rule
- *   block      a reduction the owner takes on an attack's damage while the face is live (Heavy
- *              Armor Master): the amount, off the owner's roll data, cut from the `types` parts
- *              before the system's own resistances — at dnd5e.preCalculateDamage, so every
- *              application of an attack's damage carries it, the card's own buttons included
- *   feat       a general feat, not a style: its face and its float wear the feat's own name
- *   ignores    "resistance": the OWNER's damage of the row's `types` ignores the target's Resistance
- *              to them (Elemental Adept's Energy Mastery, Poisoner's Potent Poison) — dnd5e's own
- *              `options.ignore.resistance`, set at dnd5e.preCalculateDamage off the damage card's
- *              actor, so the card's buttons and the module's applier both carry it
- *   typed      the types are read off the feat's NAME — "Elemental Adept (Fire)" (user, 2026-09-26:
- *              the pack stores no choice); every copy on the sheet adds its own, and a copy with no
- *              type in its name is a greyed face that says so
- *   spells     the row reaches a SPELL's damage only ("spells you cast"), never a weapon's; its
- *              `minimum` then floors that spell's dice of the row's types, not the whole roll
- *   breaks     "concentration": a creature the OWNER damages makes the save to keep its Concentration
- *              at Disadvantage (Mage Slayer's Concentration Breaker) — read by concentration.js when
- *              it stamps the ask (the damage's dealer, off the card that dealt it), and said in the
- *              save gate's box; the roll nets it with the concentrator's own Advantage (War Caster)
- *   gate "always"  no equipment in the rule: the face is live whenever the feat is on the sheet
- * The two reactions (Interception, Protection) and Blind Fighting's sight are NOT rows here: they
- * land by mechanism — the interrupt tables and the gate before the roll (SWEEP §1).
+ *   takesOver  the pack ships an UNGATED effect on the feat; the machine switches it off and the
+ *              face carries the rule
+ *   block      a reduction the owner takes on an attack's damage while the face is live: the
+ *              amount, off the owner's roll data, cut from the `types` parts before the system's
+ *              resistances — at dnd5e.preCalculateDamage, so the card's own buttons carry it too
+ *   feat       a general feat, not a style: its face and float wear the feat's own name
+ *   ignores    "resistance": the OWNER's damage of `types` ignores the target's Resistance —
+ *              dnd5e's `options.ignore.resistance`, set at dnd5e.preCalculateDamage off the damage
+ *              card's actor, so the card's buttons and the module's applier both carry it
+ *   typed      the types are read off the feat's NAME ("Elemental Adept (Fire)" — the pack stores
+ *              no choice); every copy adds its own; a copy with none is a greyed face that says so
+ *   choices    what the type pick offers when a copy lands with no type in its name
+ *   spells     a SPELL's damage only; `minimum` then floors that spell's dice of `types` alone
+ *   breaks     "concentration": a creature the OWNER damages saves for Concentration at
+ *              Disadvantage — concentration.js reads it when it stamps the ask (the dealer, off the
+ *              card), the save gate's box says so, and the roll nets it with the concentrator's own
+ *              Advantage
+ * The two reactions (Interception, Protection) and Blind Fighting's sight land by mechanism — the
+ * interrupt tables and the gate before the roll (SWEEP §1).
  * ⚠ NOT A KIND — one table read by one machine; a second customer is a row.
  */
 export const FIGHTING_STYLES = Object.freeze({
@@ -2224,8 +1775,6 @@ export const FIGHTING_STYLES = Object.freeze({
   "Unarmed Fighting": Object.freeze({ key: "unarmed-fighting", gate: "unarmed",
     rule: "When you hit with your Unarmed Strike and deal damage, you can deal Bludgeoning damage equal to 1d6 plus your Strength modifier instead of the normal damage of an Unarmed Strike. If you aren't holding any weapons or a Shield when you make the attack roll, the d6 becomes a d8. At the start of each of your turns, you can deal 1d4 Bludgeoning damage to one creature Grappled by you.",
     from: "Fighting Style feat" }),
-  // THE PHB FEATS slice (2026-09-26, the party's own: "i cant beleive weve been missing damage on
-  // gwm!"): the same two shapes — a number on the roll it fits, a rule gated on what is worn.
   "Great Weapon Master": Object.freeze({ key: "great-weapon-master", gate: "heavy", bonus: "@prof", feat: true,
     rule: "Heavy Weapon Mastery. When you hit a creature with a weapon that has the Heavy property as part of the Attack action on your turn, you can cause the weapon to deal extra damage to the target. The extra damage equals your Proficiency Bonus.",
     from: "General feat" }),
@@ -2233,26 +1782,21 @@ export const FIGHTING_STYLES = Object.freeze({
     block: "@prof", types: Object.freeze(["bludgeoning", "piercing", "slashing"]),
     rule: "Damage Reduction. When you’re hit by an attack while you’re wearing Heavy armor, any Bludgeoning, Piercing, and Slashing damage dealt to you by that attack is reduced by an amount equal to your Proficiency Bonus.",
     from: "General feat" }),
-  // THE PHB FEATS, group 1 (2026-09-26, the damage rules — RULINGS *The PHB feats — groups 1–3*): the owner's damage ignores
-  // a Resistance. The pack ships Elemental Adept as text only ("not automated") and Poisoner's
-  // Potent Poison with nothing; the rows are the whole mechanism.
-  // `choices`: what the type pick offers when a copy lands with no type in its name (the user,
-  // 2026-09-26: a level-up brings the pack's plain "Elemental Adept" — "A is good": ask as it lands)
+  // The pack ships Elemental Adept as text only and Poisoner's Potent Poison with nothing; the rows
+  // are the whole mechanism.
   "Elemental Adept": Object.freeze({ key: "elemental-adept", gate: "always", feat: true, typed: true, spells: true,
     ignores: "resistance", minimum: 2, choices: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
     rule: "Energy Mastery. Choose one of the following damage types: Acid, Cold, Fire, Lightning, or Thunder. Spells you cast ignore Resistance to damage of the chosen type. In addition, when you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2.",
     from: "General feat" }),
-  // group 2 (2026-09-26): Crossbow Expert's third benefit is Two-Weapon Fighting's, for a Light
-  // crossbow only; beside Two-Weapon Fighting it adds nothing twice (the machine adds one modifier)
+  // Beside Two-Weapon Fighting it adds nothing twice (the machine adds one modifier).
   "Crossbow Expert": Object.freeze({ key: "crossbow-expert", gate: "offhandCrossbow", bonus: "@mod", feat: true,
     rule: "Dual Wielding. When you make the extra attack of the Light property, you can add your ability modifier to the damage of the extra attack if that attack is with a crossbow that has the Light property and you aren’t already adding that modifier to the damage.",
     from: "General feat" }),
   "Poisoner": Object.freeze({ key: "poisoner", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["poison"]),
     rule: "Potent Poison. When you make a damage roll that deals Poison damage, it ignores Resistance to Poison damage.",
     from: "General feat" }),
-  // THE PHB FEATS, group 4 (2026-09-27, the saves — RULINGS *The PHB feats — groups 4–6*): the pack
-  // ships Mage Slayer with nothing for the breaker (its one activity is Guarded Mind's — a D20 fold,
-  // SAVE_SUCCEEDS). The row is the switch and the face; the concentration machine reads it.
+  // The pack ships nothing for the breaker (its one activity is Guarded Mind's, SAVE_SUCCEEDS);
+  // the row is the switch and the face, read by the concentration machine.
   "Mage Slayer": Object.freeze({ key: "mage-slayer", gate: "always", feat: true, breaks: "concentration",
     rule: "Concentration Breaker. When you damage a creature that is concentrating, it has Disadvantage on the saving throw it makes to maintain Concentration.",
     from: "General feat" })
@@ -2260,26 +1804,14 @@ export const FIGHTING_STYLES = Object.freeze({
 const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;
 
 /**
- * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6).
- *
- * R4's bargain is that a new ABILITY costs a data entry and zero code, and that this is safe
- * because every axis it keys on is a closed enumerated set. The bargain has a stated
- * abandonment condition: *if new KINDS start arriving faster than one per phase, stop adding
- * kinds and adopt a conditions library instead.* That condition was unmeasurable — nobody could
- * state the rate, so the tripwire could never actually fire.
- *
- * This is the measurement. Every closed kind set the module owns, in one place, with the size
- * of the system enum it mirrors where such an enum exists. `tools/check-registry.mjs` prints it
- * and pins the total, so ADDING A KIND FAILS THE GATE until someone changes the pin on purpose.
- * That is the whole mechanism: not a rule against new kinds, a rule against *unnoticed* ones.
- *
- * ⚠ `system` is the size of the dnd5e enum this set mirrors, or null where the kind is the
- * MODULE'S OWN invention and no system enum exists to check it against. Only masteries mirror
- * one. That distinction is the honest answer to "registries carry their kind against a closed
- * set, checkable against the system's own enums": it is checkable for exactly one of the four,
- * it is already checked there (tools/check-mastery-rules.mjs, live, against
- * CONFIG.DND5E.weaponMasteries), and for the other three there is nothing to check against
- * because the system has no concept of an "interrupt kind" or a "fold kind" at all.
+ * THE R4 TRIPWIRE, AS DATA (DESIGN.md R4, ARCHITECTURE §6): every closed kind set the module owns,
+ * with the size of the system enum it mirrors where one exists. R4's bargain is that a new ability
+ * costs a data entry and zero code; its abandonment condition is kinds arriving too fast.
+ * `tools/check-registry.mjs` prints this and pins the total, so ADDING A KIND FAILS THE GATE until
+ * the pin is changed on purpose — a rule against *unnoticed* kinds, not new ones.
+ * ⚠ `system` is the size of the dnd5e enum mirrored, or null for the module's own invention. Only
+ * masteries mirror one, checked live by tools/check-mastery-rules.mjs against
+ * CONFIG.DND5E.weaponMasteries.
  */
 export const KIND_SETS = [
   { name: "interrupt", owner: "hold/index.js", kinds: INTERRUPT_KINDS, system: null,
@@ -2316,45 +1848,33 @@ const whole = chunk => [chunk.trim()];
 
 /**
  * THE LIST SPECS — one per membership list, keyed by the name the EDGE wrapper uses.
- *
- * Fields:
- *   label       the setting's own UI name, so a warning names what the reader must go and fix.
- *   setting     the `S` key, as a STRING (see the header: declaring, not reading).
- *   columns     the `A:B` halves in order. Every column is REQUIRED unless it is the kind
- *               column of a spec that declares a fallback — one rule, no per-list exceptions.
- *   kindColumn  which column is validated against a closed set, or null.
- *   kinds       that closed set, or null.
- *   fallback    ⚠ a DECLARED, WARNED substitution for an unrecognised kind, or null to drop.
- *   default     the SHIPPED default for that setting.
- *
- * ⚠ THE DEFAULTS LIVE HERE, WITH THE PARSER THAT HAS TO ACCEPT THEM (ARCHITECTURE §6, 2026-08-23), and
- * settings.js reads them when it registers. They used to sit inline in the register blocks,
- * where the static gate could only reach them by scraping source with a regex — which the
- * check itself flagged as "a heuristic, and a fragile one". It was: the regex ended a
- * double-quoted default at the apostrophe in "Stone's Endurance", silently truncating the
- * interrupt list to two thirds of itself. That went unnoticed only because the old check asked
- * nothing stronger than "is it comma-shaped". A shipped default that its own parser rejects
- * disables a feature for every fresh world, so the gate now imports the real string.
- *
- * ⚠ Only `interrupt` declares a fallback, and it is the one deliberate exception to
- * ARCHITECTURE §6 rule 6 ("dropped with a warning, never guessed"). The reason is a table
- * outcome rather than a taste: an interrupt whose kind is mistyped is STILL a reaction worth
- * pausing for, and `ac` is the conservative reading — whereas a fold with no recognised kind
- * has no machine to run at all. What Phase 3 changed is that the exception is now *declared
- * and warned* instead of buried in a parser body, so a typo no longer looks like a working
- * entry. §6 rule 6 was amended to admit a declared fallback; an UNDECLARED one is still a bug.
+ *   label       the setting's UI name, so a warning names what to go and fix
+ *   setting     the `S` key, as a STRING (declaring, not reading)
+ *   columns     the `A:B` halves in order; every column is REQUIRED unless it is the kind column
+ *               of a spec that declares a fallback
+ *   kindColumn  which column is validated against a closed set, or null
+ *   kinds       that closed set, or null
+ *   fallback    ⚠ a DECLARED, WARNED substitution for an unrecognised kind, or null to drop
+ *   default     the SHIPPED default for that setting
+ *   membership  true — the set is ROWS of one table read by one mechanism, not a kind set: the
+ *               R4 tripwire does not count it (the registry unit test pins this reading)
+ *   whole       the list is parsed WHOLE-CHUNK (row names carry colons or slashes); matching is
+ *               case-insensitive. For a membership list the list is the switch: an empty list
+ *               does nothing, and an unlisted row stays the table's to play by hand
+ * ⚠ The defaults live HERE, with the parser that must accept them, and settings.js reads them at
+ * registration; the static gate imports the real string. A shipped default its own parser rejects
+ * disables a feature for every fresh world (ARCHITECTURE §6).
+ * ⚠ Only `interrupt` declares a fallback — the one declared exception to ARCHITECTURE §6 rule 6:
+ * a mistyped interrupt is STILL a reaction worth pausing for and `ac` is the conservative reading,
+ * whereas a fold with no recognised kind has no machine to run. An UNDECLARED fallback is a bug.
  */
 export const LIST_SPECS = {
   interrupt: {
     label: "Interrupt List", setting: "interruptList",
     columns: ["name", "kind"], kindColumn: "kind", kinds: INTERRUPT_KINDS, fallback: "ac",
-    // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS (the hold offers on hits) and it
-    // is not an AC boost, so an entry here can only ever produce the every-hit nonsense hold
-    // that was struck from the live worlds at v1.16.0. It lives in the Maneuver Folds list
-    // instead. This default carried it until v1.19.0 — the strike missed the registered
-    // default, so a fresh world or Reset Defaults kept re-seeding the bug.
-    // Lucky, Warding Flare and Shadowy Dodge (Slice A, 2026-09-24): the `roll` kind — the rows
-    // beside Shield in the popup that rescues a hit (INTERRUPT_ROLLS carries their cost shapes).
+    // ⚠ Riposte is deliberately ABSENT: it triggers on a MISS (the hold offers on hits) and is not
+    // an AC boost, so an entry here can only produce an every-hit nonsense hold. It lives in the
+    // Maneuver Folds list.
     default: "Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, "
       + "Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, "
       + "Whirlwind of Sand:ac, Deflect Attacks:damage, Stone's Endurance:damage, "
@@ -2375,28 +1895,17 @@ export const LIST_SPECS = {
   d20Folds: {
     label: "D20 Folds", setting: "d20Folds",
     columns: ["name", "kind"], kindColumn: "kind", kinds: D20_FOLD_KINDS, fallback: null,
-    // ⚠ THE `name` COLUMN IS A LOOKUP KEY, NOT A DISPLAY NAME (recut 2026-08-23 after the
-    // first table pass). What the card and popup SAY comes from the kind — `KIND_LABEL` in
-    // d20-folds.js — and the two genuinely differ:
-    //   tactical  → an ITEM on the actor with this name ("Tactical Mind"). Key and label agree.
-    //   bardic    → an ACTIVE EFFECT with this name, which the system calls "Inspired" (the
-    //               effect the bard's Inspire activity applies, NOT the bard's own feat).
-    //               ⚠ Key and label DISAGREE, and must: nobody at the table calls the feature
-    //               "Inspired", so a card announcing "Inspired — spent" names a thing the rules
-    //               do not have. It is Bardic Inspiration on screen and "Inspired" in the find.
-    //   heroic    → NO LOOKUP AT ALL. The marker is `system.attributes.inspiration`, a boolean
-    //               with no document behind it, so this string is never matched against
-    //               anything. It is required only because every column is required.
-    // ⚠ v1 used this column for BOTH jobs and the table read "Inspired" on every bardic card.
-    // Splitting them is why renaming the effect here changes what is FOUND and never what is
-    // said — which is the right way round.
-    // Ambush and Tactical Assessment (2026-09-05) are the `tactical` SPEND with a scope of their
-    // own (SUPERIORITY_FOLDS) — the name is the lookup key and the label both.
-    // Seeking Spell (the metamagic pass, Stage 4, 2026-09-09): a REROLL like heroic, on a SPELL
-    // attack's miss, paid from Font of Magic by hand — the item is the lookup key, and the
-    // Metamagic list must admit it too (the option's own switch).
-    // Mage Slayer (the PHB feats, group 4, 2026-09-27): Guarded Mind, the `succeed` fold — the FEAT
-    // is the lookup key (SAVE_SUCCEEDS), the benefit's name the label.
+    // ⚠ THE `name` COLUMN IS A LOOKUP KEY, NOT A DISPLAY NAME — what the card and popup SAY comes
+    // from the kind (`KIND_LABEL` in d20-folds.js), and the two differ:
+    //   tactical  → an ITEM on the actor with this name. Key and label agree.
+    //   bardic    → the ACTIVE EFFECT the bard's Inspire applies, which the system calls
+    //               "Inspired". ⚠ Key and label DISAGREE, and must: the card says Bardic
+    //               Inspiration, the find looks for "Inspired".
+    //   heroic    → NO LOOKUP: the marker is a boolean with no document behind it; the string is
+    //               required only because every column is.
+    //   seeking   → a REROLL on a spell attack's miss, paid from Font of Magic by hand; the
+    //               Metamagic list must admit it too (the option's own switch).
+    //   succeed   → the FEAT is the key (SAVE_SUCCEEDS), the benefit's name the label.
     default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage, Mage Slayer:succeed"
   },
   rider: {
@@ -2411,223 +1920,147 @@ export const LIST_SPECS = {
   },
   reminders: {
     label: "Reminder Sources", setting: "reminderList",
-    // ⚠ The list IS the switch (the v1.19.0 idiom): every entry is a kind the gate knows how to
-    // read, and an empty list turns the gate off. Unknown kinds are dropped with a warning.
+    // ⚠ The list IS the switch: an empty list turns the gate off.
     columns: ["kind"], kindColumn: "kind", kinds: REMINDER_KINDS, fallback: null,
     default: "vex, sap, prone, condition, range, effect, sneak, buy"
   },
   conditions: {
     label: "Condition Sources", setting: "conditionList",
-    // Which rows of the table the gate reads. An entry is a status id the system uses; the list
-    // is the switch for the `condition` kind, one condition at a time.
-    // ⚠ `membership: true` — this closed set validates the list but is NOT a kind set, and the
-    // R4 tripwire deliberately does not count it: the entries are ROWS of one table read by ONE
-    // mechanism (decide/reminders.js `conditionSources`), and another row costs a data row and
-    // nothing else — R4's definition of membership. The kind it belongs to is `condition` in
-    // REMINDER_KINDS, which IS counted. The registry unit test pins this reading.
+    // A status id per entry: the switch for the `condition` kind, one condition at a time.
     columns: ["kind"], kindColumn: "kind", kinds: CONDITION_STATUSES, fallback: null, membership: true,
-    // Every row of the table ships ON — the default is the table, not a copy of it.
     default: CONDITION_KEYS.join(", ")
   },
   clockRiders: {
     label: "Clock Riders", setting: "clockRiderList",
-    // Which rows of the clock-rider table fold in — the FEATURE names, whole-chunk (colons in
-    // "Blessed Strikes: Divine Strike"), case-insensitive. Membership over CLOCK_RIDERS; the
-    // mechanism is clock-riders.js.
     columns: ["kind"], kindColumn: "kind", kinds: CLOCK_RIDER_NAMES, fallback: null, membership: true, whole: true,
-    // one name per FEATURE — a feature with two rows (Slasher: Hamstring and its crit) is listed once
+    // one name per FEATURE — a feature with two rows (Slasher) is listed once
     default: [...new Set(Object.values(CLOCK_RIDERS).map(row => row.feature))].join(", ")
   },
   effects: {
     label: "Effect Sources", setting: "effectList",
-    // Which rows of the effect table the gate reads — an active effect or a feature by NAME,
-    // the packs' own names, colons and all, so the list is parsed whole-chunk and matched
-    // case-insensitively. Membership, like the condition table: the kind is `effect`.
     columns: ["kind"], kindColumn: "kind", kinds: EFFECT_NAMES, fallback: null, membership: true, whole: true,
     default: EFFECT_KEYS.join(", ")
   },
   hitMenu: {
     label: "Hit Menu", setting: "hitMenuList",
-    // Which rows of the hit-option table the damage offer shows — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over HIT_OPTIONS; the mechanism is hit-menu.js.
     columns: ["kind"], kindColumn: "kind", kinds: HIT_OPTION_NAMES, fallback: null, membership: true, whole: true,
     default: Object.values(HIT_OPTIONS).map(row => row.feature).join(", ")
   },
   damageShields: {
     label: "Damage Shields", setting: "damageShieldList",
-    // Which rows of the damage-shield table strike — the ITEM names, whole-chunk, case-insensitive.
-    // Membership over DAMAGE_SHIELDS; the mechanism is damage-shields.js.
     columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SHIELD_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DAMAGE_SHIELDS).join(", ")
   },
   superiorityUses: {
     label: "Superiority Uses", setting: "superiorityUseList",
-    // Which rows of the superiority-use table the module plays — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over SUPERIORITY_USES; the mechanism is superiority-uses.js.
     columns: ["kind"], kindColumn: "kind", kinds: SUPERIORITY_USE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(SUPERIORITY_USES).join(", ")
   },
   effectChoices: {
     label: "Effect Choices", setting: "effectChoiceList",
-    // Which rows of the effect-choice table ask at the cast — the ITEM names, whole-chunk,
-    // case-insensitive. Membership over EFFECT_CHOICES; the mechanism is cast.js.
     columns: ["kind"], kindColumn: "kind", kinds: EFFECT_CHOICE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(EFFECT_CHOICES).join(", ")
   },
   metamagic: {
     label: "Metamagic", setting: "metamagicList",
-    // Which rows of the metamagic table the module plays — the FEAT names, whole-chunk,
-    // case-insensitive. Membership over METAMAGIC (not a kind set: one table, one mechanism,
-    // metamagic.js — the conditions idiom); the list is the switch, an option removed stays the
-    // player's to play by hand.
     columns: ["kind"], kindColumn: "kind", kinds: METAMAGIC_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(METAMAGIC).join(", ")
   },
   damageSaves: {
     label: "Damage Saves", setting: "damageSaveList",
-    // Which rows of the damage-save table demand their save after the damage — the ITEM names,
-    // whole-chunk, case-insensitive. Membership over DAMAGE_SAVES; the mechanism is damage-casts.js.
     columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_SAVE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DAMAGE_SAVES).join(", ")
   },
   emanations: {
     label: "Emanations", setting: "emanationList",
-    // Which rows of the emanation table stand — the ITEM names, whole-chunk, case-insensitive.
-    // Membership over EMANATIONS; the mechanism is emanations.js.
     columns: ["kind"], kindColumn: "kind", kinds: EMANATION_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(EMANATIONS).join(", ")
   },
   spentAreas: {
     label: "Spent Areas", setting: "spentAreaList",
-    // Which rows of the spent-area table are swept at the last verdict whatever their data says —
-    // the ITEM names, whole-chunk, case-insensitive. Membership over SPENT_AREAS; the mechanism is
-    // the sweep in saves/areas.js (and the empty-instant stamp in saves/demand.js).
+    // Swept at the last verdict whatever the data says (saves/areas.js; the empty-instant stamp in
+    // saves/demand.js).
     columns: ["kind"], kindColumn: "kind", kinds: SPENT_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(SPENT_AREAS).join(", ")
   },
   chosenAreas: {
     label: "Chosen Areas", setting: "chosenAreaList",
-    // Which rows of the chosen-area table ask their caster who they affect — the ITEM names,
-    // whole-chunk, case-insensitive. Membership over CHOSEN_AREAS; the mechanism is the demand's
-    // reach in saves/demand.js and the ask at the area in metamagic.js.
     columns: ["kind"], kindColumn: "kind", kinds: CHOSEN_AREA_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CHOSEN_AREAS).join(", ")
   },
   initiativeSwaps: {
     label: "Initiative Swaps", setting: "initiativeSwapList",
-    // Which rows of the initiative-swap table ask once Initiative is rolled — the FEATURE names,
-    // whole-chunk, case-insensitive. Membership over INITIATIVE_SWAPS; the mechanism is
-    // initiative-swap.js (the origin feats, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: INITIATIVE_SWAP_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(INITIATIVE_SWAPS).join(", ")
   },
   kitTends: {
     label: "Kit Tending", setting: "kitTendList",
-    // Which rows of the kit-tending table offer on a kit's use — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over KIT_TENDS; the mechanism is kit-tend.js (the origin-feat
-    // walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: KIT_TEND_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(KIT_TENDS).join(", ")
   },
   unarmedDice: {
     label: "Unarmed Strike Dice", setting: "unarmedDiceList",
-    // Which rows of the unarmed-dice table swap the plain Unarmed Strike's damage — the FEATURE
-    // names, whole-chunk, case-insensitive. Membership over UNARMED_DICE; the mechanism is
-    // unarmed-dice.js (the origin-feat walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: UNARMED_DICE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(UNARMED_DICE).join(", ")
   },
   fightingStyles: {
     label: "Fighting Styles", setting: "fightingStyleList",
-    // Which rows of the fighting-style table the machine keeps — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over FIGHTING_STYLES; the mechanism is fighting-styles.js (the
-    // fighting styles, 2026-09-26). The list is the switch: an unlisted style's face goes and the
-    // pack's own effect comes back on.
+    // An unlisted style's face goes and the pack's own effect comes back on.
     columns: ["kind"], kindColumn: "kind", kinds: FIGHTING_STYLE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(FIGHTING_STYLES).join(", ")
   },
   healRerolls: {
     label: "Healing Rerolls", setting: "healRerollList",
-    // Which rows of the healing-reroll table ask on a healing roll — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over HEAL_REROLLS; the mechanism is heal-rerolls.js (the origin
-    // feats, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: HEAL_REROLL_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(HEAL_REROLLS).join(", ")
   },
   damageEither: {
     label: "Damage Rolled Twice", setting: "damageEitherList",
-    // Which rows of the rolled-twice table offer on a weapon hit — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over DAMAGE_EITHER; the mechanism is dice-changers.js (Slice A,
-    // 2026-09-24; the one popup since 2026-09-27). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
     columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DAMAGE_EITHER).join(", ")
   },
   tokenLights: {
     label: "Token Lights", setting: "tokenLightList",
-    // Which rows of the token-light table shed their light — the ROW names, whole-chunk,
-    // case-insensitive. Membership over TOKEN_LIGHTS; the mechanism is token-lights.js (the
-    // Aasimar walk, 2026-09-25). The list is the switch: an empty list lights nothing.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_LIGHT_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_LIGHTS).join(", ")
   },
   tokenSenses: {
     label: "Token Senses", setting: "tokenSenseList",
-    // Which rows of the token-sense table change the token's vision — the ROW names, whole-chunk,
-    // case-insensitive. Membership over TOKEN_SENSES; the mechanism is token-lights.js (the Dwarf
-    // walk, 2026-09-25). The list is the switch: an empty list changes nothing.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SENSE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SENSES).join(", ")
   },
   tokenSizes: {
     label: "Token Sizes", setting: "tokenSizeList",
-    // Which rows of the token-size table resize the token — the ROW names, whole-chunk ("Enlarge/
-    // Reduce" carries a slash), case-insensitive. Membership over TOKEN_SIZES; the mechanism is
-    // token-lights.js (the Goliath walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: TOKEN_SIZE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(TOKEN_SIZES).join(", ")
   },
   dropToOne: {
     label: "Drop to 1 HP", setting: "dropToOneList",
-    // Which rows of the drop-to-1 table act at a drop to 0 — the ROW names, whole-chunk,
-    // case-insensitive. Membership over DROP_TO_ONE; the mechanism is drop-to-one.js (the Orc walk,
-    // 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: DROP_TO_ONE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DROP_TO_ONE).join(", ")
   },
   restGrants: {
     label: "Rest Grants", setting: "restGrantList",
-    // Which rows of the rest-grant table give their grant at a rest — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over REST_GRANTS; the mechanism is rest-grants.js (the Human
-    // walk, 2026-09-25). The list is the switch.
     columns: ["kind"], kindColumn: "kind", kinds: REST_GRANT_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(REST_GRANTS).join(", ")
   },
   rebukes: {
     label: "Rebukes", setting: "rebukeList",
-    // Which reactions to damage are offered at the damager — the ITEM names, whole-chunk,
-    // case-insensitive. Membership over REBUKES; the mechanism is rebukes.js (the Goliath walk,
-    // 2026-09-25). The list is the switch: an empty list offers nothing.
     columns: ["kind"], kindColumn: "kind", kinds: REBUKE_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(REBUKES).join(", ")
   },
   cardChips: {
     label: "Card Chips", setting: "cardChipList",
-    // Which rows of the card-chip table a cast's card offers — the ROW names, whole-chunk,
-    // case-insensitive. Membership over CARD_CHIPS; the mechanism is use-chips.js (the Gnome
-    // walk, 2026-09-25). The list is the switch: an empty list offers nothing.
     columns: ["kind"], kindColumn: "kind", kinds: CARD_CHIP_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(CARD_CHIPS).join(", ")
   }
 };
 
 /**
- * Parse one list setting against its spec.
- *
- * Returns `{ entries, rejects }` rather than warning: the warn-once bookkeeping is a side
- * effect that owns a console and a seen-set, so it belongs to the EDGE caller (settings.js).
- * Each reject carries `{ chunk, action, detail }` where action is `"dropped"` (the entry is
- * gone) or `"defaulted"` (the entry survives with the spec's declared fallback) — the EDGE
- * warns on both, because a silently corrected entry is still a setting somebody must fix.
+ * Parse one list setting against its spec. Returns `{ entries, rejects }` rather than warning —
+ * the warn-once bookkeeping is the EDGE caller's (settings.js). Each reject is `{ chunk, action,
+ * detail }`, action `"dropped"` or `"defaulted"` (kept with the declared fallback); the EDGE warns
+ * on both, because a silently corrected entry is still a setting somebody must fix.
  */
 export function parseList(spec, raw) {
   const entries = [];
@@ -2637,7 +2070,6 @@ export function parseList(spec, raw) {
     const entry = {};
     spec.columns.forEach((col, i) => { entry[col] = halves[i]; });
 
-    // Required columns. The kind column is exempt only where a fallback stands ready for it.
     const missing = spec.columns.find(col =>
       !entry[col] && !(col === spec.kindColumn && spec.fallback));
     if ( missing ) {
@@ -2664,9 +2096,8 @@ export function parseList(spec, raw) {
 }
 
 /**
- * The one-line human sentence for a reject — built here, beside the rule that produced it, so
- * the EDGE wrapper owns only the seen-set and the console. Names the allowed kinds, because a
- * warning that does not say what WOULD have worked costs its reader another trip to the docs.
+ * The one-line sentence for a reject, built beside the rule that produced it. It names the allowed
+ * kinds, so the reader learns what WOULD have worked.
  */
 export function rejectMessage(spec, reject) {
   const allowed = spec.kinds ? ` (${[...spec.kinds].join("/")})` : "";

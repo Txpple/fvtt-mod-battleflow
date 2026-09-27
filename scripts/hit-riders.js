@@ -1,5 +1,5 @@
 /**
- * Battle Flow — Phase 1.75: curated hit riders - a mark on the target pays out with the attack that earned it.
+ * Battle Flow — curated hit riders: a mark on the target pays out with the attack that earned it.
  * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { TITLE, S, setting } from "./core.js";
@@ -11,45 +11,25 @@ import { bfCard } from "./decide/present.js";
 import { CARD, isCard, originIdInData } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
- * Phase 1.75 — hit riders (the attacker's client, folded into the attack's own damage roll)
- *
- * Hunter's Mark and Hex read "you deal an extra 1d6 to the target whenever you hit it with an
- * attack roll", and dnd5e models that as a SEPARATE damage activity — "Bonus Mark Damage" —
- * that the caster presses by hand after every single hit. This folds it into the weapon's roll.
- *
- * The whole feature is one question, asked of the mark itself:
- *
- *     the mark on the TARGET  --origin-->  the ITEM it came from  --parent-->  the ACTOR
- *                                                |                               |
- *                                         what it deals                  who put it there
- *
- * If that actor is the one attacking, its damage rides along. Nothing else is consulted — not
- * the mark's name, not its `marked` / `cursed` status. Two rangers can mark the same creature,
- * and the origin walk is the only thing that tells them apart.
- *
- * **A mark that is still on the target is a mark that still counts**, so concentration never
- * comes into it: the system's dependent-effect cascade deletes the mark the moment the caster's
- * concentration breaks. Presence is the whole state.
- *
- * Crit doubling is FREE and must not be hand-rolled. `preRollDamageV2` fires at
- * basic-roll.mjs:101, BEFORE applyKeybindings at :106 stamps `options.isCritical` onto every
- * entry in config.rolls — ours included — so configureDamage doubles the rider die exactly as
- * it doubles the weapon's. That is 2024 RAW: a rider IS part of the attack, so the attack's
- * crit rule already covers it. ⚠ Do NOT consult `damage.critical.allow` on the source activity.
- * It reads inconsistently across official content (compendium hunters-mark true; the Favored
- * Enemy copy and foe-slayer false) because it governs the standalone BUTTON — whether pressing
- * Bonus Mark Damage on its own offers a crit toggle, where there is no attack to ask about —
- * not whether the rule doubles the die.
- *
- * dnd5e 5.3.3 cannot express "only against the marked creature"; Conditional ActiveEffects is
- * on the system roadmap. DELETE THIS WHOLE SECTION the day it ships (DESIGN.md §3).
+ * Hit riders (on the attacker's client, folded into the attack's own damage roll). dnd5e models
+ * Hunter's Mark's and Hex's extra die as a SEPARATE damage activity pressed by hand after every
+ * hit; this folds it into the weapon's roll. One question, asked of the mark itself:
+ *     the mark on the TARGET --origin--> the ITEM it came from --parent--> the ACTOR
+ * If that actor is the attacker, its damage rides. Nothing else is consulted (not the mark's name
+ * or status): two rangers can mark the same creature and only the origin chain tells them apart.
+ * A mark still on the target still counts — the system deletes it when concentration breaks.
+ * ⚠ Crit doubling is FREE: `preRollDamageV2` fires BEFORE the key bindings stamp
+ * `options.isCritical` onto every roll in config.rolls, ours included (a rider IS part of the
+ * attack under 2024 RAW). Do NOT consult the source activity's `damage.critical.allow` — it
+ * governs the standalone button and reads inconsistently across official content.
+ * dnd5e cannot express "only against the marked creature"; delete this section the day
+ * Conditional ActiveEffects ships (DESIGN.md §3).
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * The attacker's own item that REPLACES a mark's damage, or null. Ranger level 20: "the damage
- * die of your Hunter's Mark is a d10 rather than a d6" — and `foe-slayer` ships that as its own
- * "Improved Hunter's Mark Damage" activity at 1d10 force, so the replacement is read from the
- * feature exactly as the original is read from the spell. Nothing here knows about dice sizes.
+ * The attacker's own item that REPLACES a mark's damage, or null (Foe Slayer ships its d10 as its
+ * own activity), so the replacement is read from the feature exactly as the original is read from
+ * the spell. Nothing here knows about dice sizes.
  */
 function riderUpgrade(identifier, attacker) {
   for ( const { feature, rider } of riderUpgradeEntries() ) {
@@ -61,10 +41,9 @@ function riderUpgrade(identifier, attacker) {
 }
 
 /**
- * What a mark's own source says it deals: the parts of its no-activation damage activity — the
- * system's shape for "press this when it applies" ("Bonus Mark Damage", "Bonus Hex Damage").
- * Reading the number here instead of transcribing it into the setting means the damage can only
- * ever be the one the content ships, and a homebrewed mark works with no entry to edit.
+ * What a mark's own source says it deals: the parts of its no-activation damage activity (the
+ * system's "press this when it applies" shape). Read, never transcribed — the damage can only be
+ * the one the content ships, and a homebrewed mark works with no entry to edit.
  */
 function riderParts(item) {
   const activities = item.system?.activities ?? [];
@@ -77,19 +56,14 @@ function riderParts(item) {
 }
 
 /**
- * Every rider this attacker has earned against this one target: each mark the target carries
- * that THIS attacker placed, whose source the table lists, paying what that source says.
- *
- * ⚠ The owner test is by **uuid**, not id. An unlinked token's synthetic actor keeps the base
- * actor's `id`, so two identical marking tokens would read as one creature and each would
- * collect the other's die.
- *
- * Returns a Map so the caller can intersect across targets by key — the parts are rebuilt on
- * every call, so comparing them by reference would find nothing in common and silently drop a
- * rider that every target had earned.
+ * Every rider this attacker has earned against this one target: each mark the target carries that
+ * THIS attacker placed, whose source the table lists, paying what that source says.
+ * ⚠ The owner test is by **uuid**, not id: an unlinked token's synthetic actor keeps the base
+ * actor's `id`, so two identical marking tokens would each collect the other's die.
+ * Returns a Map keyed for intersection across targets — the parts are rebuilt every call, so
+ * comparing them by reference would silently drop a rider every target had earned.
  */
 function ridersAgainst(attacker, targetActor) {
-  // ⚠ `{ name }` entries since Phase 3, not bare strings — one shape for every list setting.
   const listed = riderEntries();
   const found = new Map();
   for ( const marker of targetActor.effects ) {
@@ -97,8 +71,7 @@ function ridersAgainst(attacker, targetActor) {
     if ( src?.actor?.uuid !== attacker.uuid ) continue;
     const identifier = src.item.system?.identifier;
     if ( !identifier || !listed.some(e => e.name === identifier) ) continue;
-    // A feature the ATTACKER owns can replace the mark's damage outright — Foe Slayer's d10 for
-    // Hunter's Mark's d6. It replaces, never stacks: the source is swapped, not appended.
+    // An owned upgrade REPLACES the mark's damage, never stacks.
     const source = riderUpgrade(identifier, attacker) ?? src.item;
     for ( const part of riderParts(source) ) found.set(riderKey(identifier, part), part);
   }
@@ -107,14 +80,12 @@ function ridersAgainst(attacker, targetActor) {
 
 /**
  * Who this damage roll is landing on, in order of trust:
- *  1. the originating attack message's snapshot, filtered to the targets it actually hit — the
- *     same authority Phase 1a and 1b use. Battle Flow's own damage rolls always stamp
- *     `system.origin`, so this covers auto-damage and a hold's continuation exactly.
- *  2. the rolling client's live targets, for a human pressing the native Damage button —
- *     ⚠ the card's own button carries only the DOM click, which the platform reads at
- *     buildPost — AFTER this hook — so there is no chain to walk on that path and the
- *     selection is all there is.
- * The snapshot carries ACTOR uuids, and this hook is synchronous, so resolution is Sync.
+ *  1. the originating attack message's snapshot, filtered to the targets it hit — the module's
+ *     own damage rolls always stamp `system.origin`, so this covers auto-damage and a hold's
+ *     continuation.
+ *  2. the rolling client's live targets, for a human pressing the native Damage button — ⚠ the
+ *     platform reads that click at buildPost, AFTER this hook, so there is no chain to walk.
+ * The snapshot carries ACTOR uuids and this hook is synchronous, so resolution is Sync.
  */
 function riderTargets(message) {
   const originId = originIdInData(message?.data);
@@ -136,25 +107,21 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   const activity = config.subject;
   const attacker = activity?.actor;
   if ( !attacker ) return;
-  // A rider rides an ATTACK. Save and AoE damage is not "part of the attack" under the 2024
-  // crit rule, and the rider's own standalone Bonus Mark Damage press is an attack activity's
-  // opposite — guarding here is what stops this feature adding a die to itself.
+  // A rider rides an ATTACK: save and area damage is not part of the attack, and this guard stops
+  // the rider's own standalone damage press adding a die to itself.
   if ( activity.type !== "attack" ) return;
 
   const targets = riderTargets(message);
   if ( !targets.length ) return;
 
-  // One damage roll serves every target it hit, so a rider may only be folded in when it is
-  // true of ALL of them. A ranger who hits their quarry and an unmarked goblin with one attack
-  // gets the extra die applied to the goblin too if we are careless — over-applying damage is
-  // the worst failure this module has, so the intersection is the only safe answer. The
-  // dropped case is announced rather than swallowed (§2.5): the caster earned that die.
+  // One damage roll serves every target it hit, so a rider folds in only when it is true of ALL of
+  // them — over-applying damage is the worst failure this module has. The dropped case is
+  // announced: the caster earned that die.
   const per = targets.map(t => ridersAgainst(attacker, t));
   const common = [...per[0]].filter(([key]) => per.every(m => m.has(key)));
   const dropped = new Set(per.flatMap(m => [...m.keys()]).filter(k => !per.every(m => m.has(k))));
   if ( dropped.size ) {
-    // §2.5: the caster earned that die, so the non-payment must reach the TABLE, not the
-    // console — whispered to the roller and the GM, since it is their by-hand roll to make.
+    // Whispered to the roller and the GM — the non-payment must reach the TABLE, not the console.
     const names = [...new Set([...dropped].map(k => k.split(":")[0]))].join(", ");
     void ChatMessage.create({
       content: bfCard({
@@ -172,11 +139,10 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 
   for ( const [, part] of common ) {
     config.rolls.push({
-      // No `properties`: the rider is its own damage and must NOT inherit the weapon's
-      // magical/silvered flags — those decide physical-resistance bypass, which force and
-      // necrotic have no business claiming. ⚠ The roll data is CLONED, not shared (dnd5e 6.0):
-      // the per-roll damage rules write `roll.damageType` and `@ruleBonus` into each roll's
-      // data, and one object shared by reference carried the last rider's type onto roll 0.
+      // No `properties`: the rider must NOT inherit the weapon's magical/silvered flags (they
+      // decide physical-resistance bypass). ⚠ The roll data is CLONED, not shared: dnd5e writes
+      // `roll.damageType` and `@ruleBonus` into each roll's data, and a shared object carries the
+      // last rider's type onto roll 0.
       data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
       parts: [part.formula],
       options: { type: part.type, types: part.type ? [part.type] : [] }
