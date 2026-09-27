@@ -320,7 +320,7 @@ async function runConsequences(damageMessage, record) {
     // One pick at a time, in the order they rode.
     for ( const pick of picksOf(record) ) {
       const hm = { ...pick, attackId: record.attackId, attackRoll: record.attackRoll ?? pick.attackRoll ?? null };
-      // the paying feature is never used up, so the sheet is the truth
+      // live only: the paying feature is never used up, so the sheet is the truth
       const item = resolveUuid(hm.itemUuid);
       if ( !item ) continue;
       await consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes });
@@ -376,7 +376,7 @@ async function settleHitEffects(message) {
     const attackMessage = game.messages.get(record.attackId);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     for ( const { p: hm, index } of picks ) {
-      // the paying feature is never used up, so the sheet is the truth
+      // live only: the paying feature is never used up, so the sheet is the truth
       const item = resolveUuid(hm.itemUuid);
       if ( hm.effects ) {
         // The shared path (effect-riders.js), also used by the clock riders' `effects` rows.
