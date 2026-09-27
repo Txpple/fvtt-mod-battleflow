@@ -118,6 +118,17 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
     expect(r.degree.key).toBe("none");
   });
 
+  it("names a creature on a line a wall also blocks", () => {
+    const r = measureCover({
+      attacker: sq(0, 0),
+      target: sq(4, 0),
+      grid: G,
+      creatures: [{ name: "Gren", rect: sq(3, 0) }],
+      wallBlocks: wallsOf(vwall(250, -500, 80))
+    });
+    expect(r.by).toEqual(["wall", "Gren"]);
+  });
+
   it("a Tiny creature's space is its own one square", () => {
     expect(squaresOf({ x: 0, y: 0, w: 50, h: 50 }, G)).toEqual([{ x: 0, y: 0, w: 50, h: 50 }]);
   });

@@ -151,7 +151,9 @@ export function measureCover({ attacker, target, grid, creatures = [], wallBlock
   const index = everyLineWalled ? 3 : best.degree;
   const by = [];
   if ( best.lines.some(l => l.wall) ) by.push("wall");
-  for ( const l of best.lines ) if ( (l.creature !== null) && !l.wall && !by.includes(l.creature) ) by.push(l.creature);
+  // every creature a blocked line crosses is named, a walled line's too (the walk, 2026-09-27: a line
+  // through a column AND Gren read "a wall" alone)
+  for ( const l of best.lines ) if ( (l.creature !== null) && !by.includes(l.creature) ) by.push(l.creature);
   return { degree: degreeAt(index), lines: best.lines, by: index === 0 ? [] : by };
 }
 

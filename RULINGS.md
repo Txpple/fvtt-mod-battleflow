@@ -1158,6 +1158,11 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   object's). The DMG counts a creature as an obstacle for the lines; lines only a creature blocks
   never lift the degree past Half. Ally or foe alike. A hidden token and a dead one are not counted.
 - **Total** is "no line reaches": every line from every corner to every square meets a wall.
+- **The measure is not symmetric, and stays so** (the user, 2026-09-27, the walk: Jetten had Half
+  against Invictus's shot while Invictus had none against Jetten's; offered a symmetric bend, ruled
+  "keep the DMG rule as written"). The lines run from ONE corner of the attacker's space to ALL
+  four corners of the target's square, so the creature standing beside an obstacle is the covered
+  one.
 - **Walls are the platform's MOVE collision test** (`CONFIG.Canvas.polygonBackends.move`): a closed
   door blocks, an open one does not, a one-way wall from its side only; a window (sight passes,
   bodies and arrows do not) is cover. Foundry walls have no height: a drawn wall is a whole wall,
