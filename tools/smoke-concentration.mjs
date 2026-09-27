@@ -46,7 +46,8 @@ const SECTIONS = {
   13: 'a sheet edit is damage too — then zero HP is not a save',
   14: 'the crash-resume re-drives a dead fold',
   15: 'Incapacitated breaks concentration — no save, the cascade, the card (user, 2026-09-02)',
-  16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); off the list, nothing; the dialog\'s gate lists it'
+  16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); off the list, nothing; the dialog\'s gate lists it',
+  17: "the check OWNS its DC (the user, 2026-09-27): a passed check offers no rescue; a failed one is WITHHELD — Heroic Inspiration offered, the spell still standing — and Pass lets it break"
 };
 // Concentration is a STATE, so a section that never calls `ensureConc` inherits one. §§1, 5,
 // 11, 13 and 14 stand up their own; every other section names the nearest one that does.
@@ -105,7 +106,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['concMode', 'concTimer', 'concBreak', 'concVisibility',
     'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
-    'riders', 'effectRiders', 'masteryRiders', 'fightingStyleList', 'reminderList'];
+    'riders', 'effectRiders', 'masteryRiders', 'fightingStyleList', 'reminderList', 'd20FoldAsk', 'd20Folds'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -801,6 +802,54 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       dialogButtons(popup).find(b => b.textContent.trim() === 'Normal')?.click();
       await waitFor(() => doneAskNew(t3));
       await set('concMode', 'auto');
+    }
+
+    // ================================================== 17. the check owns its DC — a rescue only on a failure
+    if (want(17)) {
+      await set('concMode', 'auto');
+      await set('concTimer', 0);
+      await set('d20FoldAsk', true);
+      await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`)?.default ?? '');
+      await set('autoDamage', 'all');          // the fold's side gate (modeAllows)
+      const priorInsp = shielder.system.attributes.inspiration;
+      try {
+        await shielder.update({ 'system.attributes.inspiration': true });
+        const eff = concEffects()[0] ?? await ensureConc();
+        if (!eff) return { fatal: 'recast failed for section 17 (slots?)' };
+        await saveBonus('+30');
+        await setTemp(500);
+        const t0 = marker();
+        await smack(12);
+        const passed = (await waitFor(() => doneAskNew(t0)))?.getFlag(MOD, 'concentration');
+        const passRoll = passed?.outcome?.rollMessageId ? game.messages.get(passed.outcome.rollMessageId) : null;
+        ok('17a. a PASSED check offers no rescue — the ask knows the DC',
+          (passed?.outcome?.success === true) && !passRoll?.getFlag(MOD, 'd20fold'),
+          `success=${passed?.outcome?.success} fold=${JSON.stringify(passRoll?.getFlag(MOD, 'd20fold')?.offers ?? null)}`);
+        await saveBonus('');
+        const t1 = marker();
+        await smack(70);                          // DC 30 — a failure
+        const askMsg = await waitFor(() => asksNew(t1)[0]);
+        const held = await waitFor(() => {
+          const a = askMsg?.getFlag(MOD, 'concentration');
+          const r = a?.withheld ? game.messages.get(a.withheld) : null;
+          return (r?.getFlag(MOD, 'd20fold')?.status === 'pending') ? r : null;
+        }, 8000);
+        const offers = (held?.getFlag(MOD, 'd20fold')?.offers ?? []).map(o => o.kind);
+        ok('17b. a FAILED check is withheld: Heroic Inspiration offered against the DC, the ask still pending, the spell still up',
+          !!held && offers.includes('heroic') && (held.getFlag(MOD, 'd20fold')?.dc === askMsg?.getFlag(MOD, 'concentration')?.dc)
+            && (askMsg?.getFlag(MOD, 'concentration')?.status === 'pending') && (concEffects().length === 1),
+          `held=${!!held} offers=[${offers}] status=${askMsg?.getFlag(MOD, 'concentration')?.status} effects=${concEffects().length}`);
+        const pass = await waitFor(() => [...document.querySelectorAll('.application')]
+          .find(el => el.querySelector('[data-bf-rescue-action="heroic"]'))?.querySelector('button[data-action="pass"]'), 6000);
+        pass?.click();
+        const done = await waitFor(() => (askMsg?.getFlag(MOD, 'concentration')?.status === 'done') ? askMsg.getFlag(MOD, 'concentration') : null, 10000);
+        const gone = await waitFor(() => concEffects().length === 0, 8000);
+        ok('17c. Pass: the verdict lands — failed, and the concentration breaks', (done?.outcome?.success === false) && !!gone,
+          `pass=${!!pass} success=${done?.outcome?.success} effects=${concEffects().length}`);
+      } finally {
+        await shielder.update({ 'system.attributes.inspiration': priorInsp });
+        await saveBonus('+30');
+      }
     }
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);

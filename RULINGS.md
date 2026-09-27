@@ -1028,6 +1028,13 @@ spends the item's one use, back on a Short or Long Rest), and nothing for the br
   The roll carries `disadvantage` alone, so dnd5e nets it with the concentrator's own Advantage:
   War Caster beside Mage Slayer is a plain roll. The buzzer and auto mode roll it too (Heightened
   Spell's buzzer, the same shape). Damage with no card (a sheet edit) names no dealer — nothing.
+- **The walk, 2026-09-27** (the user: *"on the concentration save offer, you have the dc, so i dont
+  think you need offer heroic inspiration if it passes"*): a concentration save answering the module's
+  check is WITHHELD like a demanded save — the check owns the DC, so a rescue (Heroic Inspiration, a
+  Bardic die) is offered only on a FAILURE, the spell stands while it is asked, and the rescue's reroll
+  or die is folded into the verdict (`concentration.js`, the spine's withhold registry; the clock's own
+  roll is never withheld). A concentration save rolled with no check pending keeps the sheet-save offer.
+  `smoke-concentration` §17.
 - **Found on the way, fixed with it:** the save gate never listed War Caster on a concentration
   save — dnd5e 6.0.5's `rollConcentration` reads `system.attributes.concentration.roll.mode`,
   a key the gate's mode reader did not know — so the net beside Mage Slayer would have been

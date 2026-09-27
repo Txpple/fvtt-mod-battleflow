@@ -468,6 +468,9 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       // and can therefore gate on the failure. Stamping here as well would put an ungated
       // button on the same message and race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
+      // …and so is a CONCENTRATION save answering the module's check (2026-09-27): the check owns the DC
+      // and withholds its verdict (concentration.js), so the offer comes only on a failure.
+      if ( (testKind === "save") && rolls?.[0]?.options?.isConcentration && pendingDemandsFor(subject.uuid, { flagKey: "concentration" }).length ) return;
       const skill = data?.skill ?? null;   // the skill hook's own data (dnd5e 5.3.3: `{ ability, skill|tool, subject }`)
       // The save's ability (dnd5e 6.0.5: `{ ability, subject }`) — a `succeed` row reaches some saves only.
       const ability = (testKind === "save") ? (data?.ability ?? null) : null;

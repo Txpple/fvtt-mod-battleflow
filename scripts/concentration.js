@@ -9,7 +9,9 @@ import { rollConfigFor } from "./shared.js";
 import { fightingStyleEntries, listedNames } from "./settings.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
-import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
+import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy,
+  registerWithheld, withholds } from "./ui.js";
+import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
 
@@ -345,6 +347,20 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     const roll = rollMessage.rolls?.[0];
     if ( !roll ) return;
 
+    // THE D20 FOLD OFFER — WITHHELD, the saves machine's own protocol (the user, 2026-09-27: "on the
+    // concentration save offer, you have the dc, so i dont think you need offer heroic inspiration if
+    // it passes"). The ask OWNS the DC, so a rescue (Heroic Inspiration, a Bardic die) is offered only on
+    // a FAILURE, and the verdict waits for it instead of breaking the spell first. The clock's own roll
+    // is never withheld (nobody is at the keyboard). The ask records the paused roll, so its buzzer folds
+    // that one rather than rolling a second save.
+    if ( !rollMessage.getFlag(MODULE_ID, "timedOut")
+      && await withholds(rollMessage, { by: "concentration", card: askMessage, uuid: ask.actorUuid, total: roll.total, dc: ask.dc }) ) {
+      if ( ask.withheld !== rollMessage.id ) await askMessage.setFlag(MODULE_ID, "concentration", { ...ask, withheld: rollMessage.id });
+      return;
+    }
+    // Through the save side of the fold: a reroll or a die the rescue added is the number judged.
+    const judged = foldedSave({ total: roll.total, dc: ask.dc, folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS) });
+
     const actor = await fromUuid(ask.actorUuid);
     // Freeze the visibility choice AT VERDICT TIME — the pause below must not let a
     // setting flip re-address the announcement (bit smoke-conc 10c the day the pause
@@ -354,8 +370,8 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
 
     ask.status = "done";
     ask.outcome = {
-      total: roll.total,
-      success: roll.total >= ask.dc,
+      total: judged.total,
+      success: judged.outcome === "saved",
       ...(rollMessage.getFlag(MODULE_ID, "timedOut") ? { timedOut: true } : {}),
       rollMessageId: rollMessage.id,
       // The crash-resume contract (the saves machine's `applied` discipline): the
@@ -385,6 +401,14 @@ async function foldConcentrationRoll(askMessage, rollMessage) {
     concFolds.delete(askMessage.id);
   }
 }
+
+// A verdict this machine paused for a rescue offer is finished by the same fold, handed back by the spine.
+registerWithheld("concentration", {
+  resume: ({ cardId }, rollMessage) => {
+    const card = game.messages.get(cardId);
+    return card ? foldConcentrationRoll(card, rollMessage) : undefined;
+  }
+});
 
 /** The consequence finished — write the resume contract's receipt. */
 async function markConcApplied(askMessage) {
@@ -501,6 +525,10 @@ const concTimers = new Map();
 const armConcTimer = message => armAskTimer(concTimers, message, "concentration", fireConcTimer);
 
 async function fireConcTimer(askMessage) {
+  // A roll already paused for a rescue offer (the withhold) is THE answer — its own clock finishes it.
+  const withheld = askMessage.getFlag(MODULE_ID, "concentration")?.withheld;
+  const paused = withheld ? game.messages.get(withheld) : null;
+  if ( paused ) return foldConcentrationRoll(askMessage, paused);
   const landed = game.messages.find(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id);
   if ( landed ) return foldConcentrationRoll(askMessage, landed);
   const ask = askMessage.getFlag(MODULE_ID, "concentration");
