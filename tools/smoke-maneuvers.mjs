@@ -941,6 +941,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcToken.document.update({ x: victimToken.document.x, y: victimToken.document.y + canvas.grid.size }, { animate: false });
         await sleep(500);
         const hitUntil = async act => {
+          if (!act) {
+            // the 2026-09-27 batteries: the Mace's attack came back undefined in a FULL battery only — say what the sheet held
+            const it = pc.items.get(mace?.id);
+            log.push(`§C: no attack activity — made=${JSON.stringify(made.map(x => [x.name, x.id]))} onSheet=${!!it} activities=${JSON.stringify(it ? [...it.system.activities].map(a => a.type) : null)} pc=${pc.name}/${pc.uuid} items=${pc.items.size}`);
+            ok('C. the Mace on the sheet carries its attack', false, log.at(-1));
+            return null;
+          }
           for (let i = 0; i < 6; i++) {
             const { msg, roll } = await attack(act, victimToken);
             if (roll && !roll.isFumble && (roll.total > 1)) return msg;
