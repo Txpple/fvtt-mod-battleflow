@@ -74,15 +74,16 @@ export function modeTagHTML(mode) {
 
 /**
  * One card: an accent spine, a portrait, an eyebrow/title/subtitle stack, and body lines.
- * `lines` are already-safe HTML fragments.
+ * `lines` are already-safe HTML fragments; the eyebrow, title and subtitle are TEXT and escaped
+ * here - they carry token, actor and item names, which a player can set.
  */
 export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
   const accent = TONE[tone] ?? TONE.neutral;
   // Walk-5 (aa): every card icon says what it is on hover — the eyebrow (or the title) is
   // the name. Tags out, quotes escaped: these strings go into an attribute.
-  const tip = String(eyebrow || title || "").replace(/<[^>]*>/g, "").replace(/"/g, "&quot;");
+  const tip = esc(String(eyebrow || title || "").replace(/<[^>]*>/g, ""));
   const portrait = img
-    ? `<img src="${img}" alt="${tip}" data-tooltip="${tip}"
+    ? `<img src="${esc(img)}" alt="${tip}" data-tooltip="${tip}"
          style="width:40px;height:40px;flex:0 0 auto;border-radius:4px;
          border:1px solid var(--color-border-dark,#0006);object-fit:cover;">`
     : "";
@@ -95,11 +96,11 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
       ${portrait}
       <div style="flex:1;min-width:0;">
         ${eyebrow ? `<div style="font-size:var(--font-size-10,10px);letter-spacing:0.08em;
-             text-transform:uppercase;opacity:0.6;line-height:1.4;">${eyebrow}</div>` : ""}
+             text-transform:uppercase;opacity:0.6;line-height:1.4;">${esc(eyebrow)}</div>` : ""}
         <div style="font-family:var(--font-h1,inherit);font-size:var(--font-size-15,15px);
-             font-weight:bold;line-height:1.2;">${title}</div>
+             font-weight:bold;line-height:1.2;">${esc(title)}</div>
         ${subtitle ? `<div style="font-size:var(--font-size-11,11px);opacity:0.7;
-             line-height:1.3;">${subtitle}</div>` : ""}
+             line-height:1.3;">${esc(subtitle)}</div>` : ""}
       </div>
     </div>
     ${body ? `<div style="margin-top:0.35rem;font-size:var(--font-size-12,12px);

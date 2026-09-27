@@ -53,10 +53,20 @@ describe("bfCard — the house card", () => {
     expect(html).toContain('alt="Say &quot;hi&quot;"');
   });
 
-  it("but renders the TITLE as markup — the card body trusts its caller, the attribute does not", () => {
-    // Deliberate asymmetry, and the reason the tooltip has its own scrub: titles and lines are
-    // already-safe HTML fragments the machines compose, while an attribute cannot carry them.
-    expect(p.bfCard({ title: "<b>Bold</b>", img: "i.webp" })).toContain("<b>Bold</b>");
+  it("escapes the eyebrow, title and subtitle as TEXT — they carry names a player can set", () => {
+    // The body LINES stay trusted HTML fragments the machines compose; the heading stack does
+    // not, because a token or actor name lands there (2026-09-26, the escaping review).
+    const html = p.bfCard({
+      eyebrow: "<i>E</i>",
+      title: "<img src=x onerror=alert(1)>",
+      subtitle: "a & b",
+      lines: ["<b>line</b>"]
+    });
+    expect(html).not.toContain("<img src=x");
+    expect(html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(html).toContain("&lt;i&gt;E&lt;/i&gt;");
+    expect(html).toContain("a &amp; b");
+    expect(html).toContain("<b>line</b>");
   });
 
   it("drops empty body lines instead of rendering blank rows", () => {

@@ -187,7 +187,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     });
     if ( t.done ) {
       line.style.opacity = "0.85";
-      line.innerHTML = `${t.name} — <span style="color:${t.outcome === "saved"
+      line.innerHTML = `${esc(t.name)} — <span style="color:${t.outcome === "saved"
         ? "var(--dnd5e-color-blue, #3a7ca5)" : "var(--dnd5e-color-maroon, #740b0b)"};">`
         + `${verdictText(flag, t)}</span>`;
     } else {
