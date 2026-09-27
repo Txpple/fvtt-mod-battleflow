@@ -139,8 +139,8 @@ for (const file of jsFiles(SCRIPTS)) {
   visit(sf);
   collect(ts.getLeadingCommentRanges(text, sf.endOfFileToken.getFullStart()));
 }
-// Phase 1 of HANDOFF.md turns this on once scripts/ is clean; until then `--history` reports.
-const ENFORCE_HISTORY = false;
+// `--history` lists them without failing.
+const ENFORCE_HISTORY = true;
 if (process.argv.includes("--history")) {
   for (const h of history) console.log(h);
   console.log(`${history.length} comment line(s) carry history.`);
