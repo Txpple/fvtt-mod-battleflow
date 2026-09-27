@@ -4,12 +4,10 @@
  *
  * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
  *
- * THE NINTH SHAPE (user, 2026-09-04: "death armor needs its damage shield effect automated") —
- * the hit rider MIRRORED: a standing effect on the DEFENDER pays out against the ATTACKER when
- * a melee attack roll hits, with no choice in it (R1 automates outcomes). What is decided here
- * is whether the rules say the shield strikes on THIS hit — a melee attack roll, within the
- * activity's own reach, once per turn where the text says so, while the pool the spell rides
- * still stands — and why not otherwise. The dice are the pack's activity, rolled by the EDGE.
+ * The hit rider MIRRORED (RULINGS *Damage shields*): a standing effect on the DEFENDER pays out
+ * against the ATTACKER when a melee attack roll hits, with no choice in it. Decided here: whether
+ * the shield strikes on THIS hit (melee, within reach, once per turn where the text says so, while
+ * its pool stands) and why not otherwise. The dice are the pack's activity, rolled by the EDGE.
  */
 
 /**

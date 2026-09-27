@@ -1,28 +1,19 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the ask at the area. Once a placed area lands, a question is put to the
- * caster about the creatures standing in it, and this file holds everything about that question
- * that is arithmetic: the defaults each kind ticks, the words each kind wears, the outcome an
- * answer makes, and the readers of a spell's own text that size a choice.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * THREE KINDS today, two customers: Careful Spell's ticks (who the spell spares) and Heightened
- * Spell's radio (who saves at Disadvantage) are metamagic's (RULINGS *Metamagic*); a spell that
- * chooses its targets (RULINGS *Spells that choose their targets*) is the saves machine's — the
- * hostiles ticked, up to the spell's own number, Heightened's radio beside each row when that
- * pick rides the same cast. The machine that opens the popup and takes the answer is
- * `scripts/area-ask.js`; the raisers write the flag it reads. Moved out of decide/metamagic.js on
- * 2026-09-24 (the user: "better to pay this debt now than later") — the flag KEY stays
- * `metamagicAsk`, because it is stored on cards and a rename is a migration.
+ * Battle Flow — DECISION: the ask at the area — the question put to the caster about the
+ * creatures in a placed area: the defaults each kind ticks, its words, the outcome an answer
+ * makes, and the readers of a spell's own text that size a choice. Pure functions over plain
+ * data (ARCHITECTURE.md §2). Three kinds: Careful (who is spared) and Heightened (who saves at
+ * Disadvantage), RULINGS *Metamagic*; and a spell that chooses its targets, RULINGS *Spells that
+ * choose their targets*. The machine that draws it is `scripts/area-ask.js`.
  */
 
 /**
  * The flag a pending ask rides, on the cast's own card or on a carrier that stands in for it:
  * `{ status, kind, feature, spell?, cap?, rule?, itemImg?, heightened?, candidates, casterUuid,
  * casterDisposition, casterName, window?, deadline?, answer? }`.
- * ⚠ The key is historical — the first customer was metamagic — and is kept: it is on every card
- * that carried an ask, and the smoke suites and the moment registry read it by name.
+ * ⚠ The key says "metamagic" but serves every kind: it is stored on cards and read by name
+ * (suites, the moment registry), so a rename is a migration.
  */
 export const AREA_ASK_FLAG = "metamagicAsk";
 
@@ -44,13 +35,10 @@ export const AREA_CHOICE_FLAG = "areaChoice";
  *            candidates: Candidate[], casterUuid: string|null, casterDisposition: number|null,
  *            casterName?: string|null, window?: number, deadline?: number}} Ask
  *
- * CAREFUL SPELL'S PROTECTED SET: up to `cap` (the Charisma modifier, minimum one) of the creatures
- * the save reaches, NON-HOSTILE by default (user ruling 2026-09-09, second look: "neutral and
- * allies") — the caster first, then the party, then the caster's own side, then the neutrals,
- * each group in the order the list came. A secret token is nobody's to protect. When the player
- * ADJUSTED the list (`chosen`, uuids), the chosen creatures that the save still reaches stand
- * instead, in the order they were ticked, capped the same way. Sight and willingness are never
- * judged.
+ * CAREFUL SPELL'S PROTECTED SET: up to `cap` (Charisma modifier, minimum one) of the creatures
+ * the save reaches, non-hostile by default — the caster, the party, the caster's side, then the
+ * neutrals; never a secret token. A player's `chosen` list (uuids) stands instead, in tick order,
+ * capped the same way. Sight and willingness are never judged.
  * @param {{contained: Candidate[], casterUuid: string|null, casterDisposition: number|null, cap: number, chosen?: string[]|null}} args
  * @returns {{uuid: string, name: string}[]}
  */
@@ -87,7 +75,7 @@ export function heightenedMark({ contained, casterUuid = null, casterDisposition
 }
 
 /* ---------------------------------------------------------------------------------------------
- * A spell that chooses its targets (user, 2026-09-24, Session 8's Slow — the Chosen Areas list)
+ * A spell that chooses its targets (the Chosen Areas list)
  * ------------------------------------------------------------------------------------------- */
 
 const NUMBER_WORDS = Object.freeze({ one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12 });
@@ -109,8 +97,7 @@ export function spellProse(html) {
 
 /**
  * How many creatures a spell that chooses may choose — its own number ("up to six creatures of
- * your choice"), or null when the text sets none (Sleep: "each creature of your choice"). N1: the
- * number is the content's, read where it is written, never copied into a table.
+ * your choice"), or null when the text sets none (Sleep). Read from the content, never copied (N1).
  * @param {string} html the spell's description
  */
 export function choiceCapFrom(html) {
@@ -136,10 +123,9 @@ export function choiceRuleFrom(html) {
 const hostileTo = d => (d === 1) ? -1 : (d === -1) ? 1 : null;
 
 /**
- * WHO A SPELL THAT CHOOSES AFFECTS BY DEFAULT (user, 2026-09-24): the creatures hostile to the
- * caster, in the order the area found them, up to the spell's own number — never the caster,
- * the caster's own side, a neutral or a secret token. The clock keeps this; so does a cast with
- * no choice to make.
+ * Who a spell that chooses affects by default: the creatures hostile to the caster, in area
+ * order, up to the spell's own number — never the caster, its side, a neutral or a secret token.
+ * The clock keeps this; so does a cast with no choice to make.
  * @param {{candidates: Candidate[], casterUuid?: string|null, casterDisposition?: number|null, cap?: number|null}} args
  * @returns {{uuid: string, name: string}[]}
  */
@@ -152,9 +138,8 @@ export function chosenByDefault({ candidates, casterUuid = null, casterDispositi
 }
 
 /**
- * IS THERE A CHOICE TO MAKE? (user ruling 2026-09-24: ask "only when there's a real choice") —
- * the area holds someone who is not hostile to the caster, or more hostiles than the spell lets
- * the caster choose. Otherwise the default IS the answer and nobody is asked.
+ * Is there a real choice? The area holds someone not hostile to the caster, or more hostiles than
+ * the spell lets the caster choose. Otherwise the default IS the answer and nobody is asked.
  * @param {{candidates: {uuid: string, disposition?: number|null}[], casterUuid?: string|null, casterDisposition?: number|null, cap?: number|null}} args
  */
 export function choiceNeedsAsk({ candidates, casterUuid = null, casterDisposition = null, cap = null }) {
@@ -183,9 +168,8 @@ export function areaChoiceLine(record) {
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * The ask's defaults, from its own facts: Careful's non-hostiles up to the cap, a chosen area's
- * hostiles up to the spell's number, Heightened's nearest hostile — the same arithmetic the cast
- * would have used silently.
+ * The ask's defaults: Careful's non-hostiles up to the cap, a chosen area's hostiles up to the
+ * spell's number, Heightened's nearest hostile.
  * @param {Ask} ask
  * @returns {{uuid: string, name: string}[]}
  */
@@ -198,9 +182,8 @@ export function askDefaults(ask) {
 }
 
 /**
- * The merged ask's Disadvantage mark (a spell that chooses, cast with Heightened Spell — one
- * popup, 2026-09-24): the player's radio when it names a creature they also chose, else
- * Heightened's own default over the chosen.
+ * The merged ask's Disadvantage mark (a spell that chooses, cast with Heightened Spell): the
+ * player's radio when it names a creature they also chose, else Heightened's default over the chosen.
  * @param {Ask} ask
  * @param {string[]} chosenUuids
  * @param {string|null} [picked]
@@ -244,10 +227,9 @@ export function askWords(ask) {
 }
 
 /**
- * THE OUTCOME OF AN ANSWER — the caster's ticks, or the defaults when the clock ran out — as the
- * records it makes: Careful's protected list, a chosen area's choice (with Heightened's mark among
- * the chosen when that pick rode along), Heightened's mark; and `stays`, which creatures of the
- * area keep their save.
+ * The outcome of an answer (the ticks, or the defaults when the clock ran out) as the records it
+ * makes: Careful's protected list, a chosen area's choice, Heightened's mark; and `stays`, which
+ * creatures of the area keep their save.
  * @param {Ask} ask
  * @param {string[]|null} picked the ticked uuids, or null for the defaults
  * @param {{mark?: string|null, timedOut?: boolean}} [opts]

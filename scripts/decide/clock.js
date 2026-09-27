@@ -4,10 +4,8 @@
  *
  * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
  *
- * A clock rider's condition is the ROUND or the TURN (decide/registry.js CLOCK_RIDERS) — facts
- * the EDGE reads off the running combat and hands in plain. Nothing here decides for the
- * player (user ruling 2026-09-02: the rider is NOTIFIED and added; the roll is the roll); what
- * is decided is whether the rules say it applies right now, and why not when they do not.
+ * A clock rider's condition is the ROUND or the TURN (decide/registry.js CLOCK_RIDERS), read by the
+ * EDGE off the running combat. Decided here: whether the rules say it applies now, and why not.
  */
 
 /**
@@ -16,12 +14,10 @@
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, weapon?: boolean, form?: string|null,
  *          dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null}} facts
- *          `form`: the transformation that stands on the bearer, by the form's name (a `transformed`
- *          row — Celestial Revelation, the Aasimar walk 2026-09-25), null when none does;
- *          `dealt`: the damage types this hit deals; `critical`: a Critical Hit (the PHB feats, group 3);
- *          `opportunity`: "driven" — the module drove this attack as an Opportunity Attack (Sentinel's
- *          Guardian); "offTurn" — a melee attack off the attacker's own turn in combat; null — neither
- *          (the PHB feats, group 6, 2026-09-27)
+ *          `form`: the transformation standing on the bearer, by name (a `transformed` row), or null;
+ *          `dealt`: the damage types this hit deals; `critical`: a Critical Hit;
+ *          `opportunity`: "driven" — the module drove this attack as an Opportunity Attack;
+ *          "offTurn" — a melee attack off the attacker's own turn in combat; null — neither
  * @returns {{due: boolean, why: string}}
  */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
@@ -47,8 +43,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( chitStands ) return { due: false, why: "already used this turn" };
       if ( form ) return { due: true, why: inCombat ? `${form} — once this turn` : `${form} — out of combat, every hit` };
       return { due: true, why: inCombat ? "once this turn" : "out of combat — every hit" };
-    // Every hit, uses permitting (Slice A, 2026-09-24 — Fire's Burn, Frost's Chill): the use is
-    // the only clock, judged above.
+    // Every hit, uses permitting (Fire's Burn, Frost's Chill): the use is the only clock, judged above.
     case "any":
       if ( row.crit ) return { due: true, why: `a Critical Hit that deals ${row.dealt ?? "damage"}` };
       return { due: true, why: "on any hit, while its uses last" };
@@ -74,10 +69,9 @@ export function riderPartFormula({ number = null, denomination = null, custom = 
 }
 
 /**
- * WHERE A RIDER'S USES LIVE (Slice A, 2026-09-24): the ACTIVITY's own when it carries a max
- * (Dreadful Strike), else — for a `uses` row — the ITEM its consumption names (the species packs
- * put every use on the item: Fire's Burn, Frost's Chill). Null when neither carries a max. The
- * EDGE reads the two shapes off the sheet and writes the spend back where `on` says.
+ * WHERE A RIDER'S USES LIVE: the ACTIVITY's own when it carries a max (Dreadful Strike), else —
+ * for a `uses` row — the ITEM (the species packs put every use there). Null when neither carries a
+ * max. The EDGE writes the spend back where `on` says.
  * @param {{activity?: {max?: unknown, value?: unknown, spent?: unknown}|null,
  *          item?: {max?: unknown, value?: unknown, spent?: unknown}|null, uses?: boolean}} facts
  * @returns {{left: number, max: number, spent: number, on: "activity"|"item"}|null}
@@ -91,12 +85,10 @@ export function riderUsesFrom({ activity = null, item = null, uses = false } = {
 }
 
 /**
- * WHICH FORM STANDS (the Aasimar walk, 2026-09-25 — a `transformed` row, Celestial Revelation):
- * the first of the row's forms whose mark is on the bearer. A form marks itself with the effect it
- * lands on its bearer (Heavenly Wings, Searing Radiance), matched by name; the form that lands
- * nothing on its bearer (Necrotic Shroud — its effect is the targets' Frightened) is marked by the
- * module's own form chip, matched by the chip's form and never by name, so a creature frightened BY
- * a Shroud (an effect named the same) is never read as wearing one. Null when none stands.
+ * WHICH FORM STANDS (a `transformed` row, Celestial Revelation): the first of the row's forms whose
+ * mark is on the bearer — the effect it lands on its bearer, by name; or, for a form that lands
+ * nothing on its bearer (Necrotic Shroud), the module's form chip, never by name, so a creature
+ * frightened BY a Shroud (an effect named the same) is not read as wearing one. Null when none.
  * @param {{forms?: ReadonlyArray<{form: string, effect?: string, chip?: string, type: string}>}} row
  * @param {Array<{name: string, active: boolean, chip: string|null}>} effects   the bearer's effects;
  *        `chip` is the form a module form chip marks (lower-cased), null on every other effect

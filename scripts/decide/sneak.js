@@ -4,16 +4,10 @@
  *
  * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
  *
- * THE FLOW AS DRAWN (user ruling 2026-09-02, the prototype *Sneak Attack, Cunningly* — "go with
- * the prototype and iterate"): the tick is at the GATE (the player judges the conditions; the
- * module ticks it when what it read says they hold), Cunning Strike is picked on the DAMAGE OFFER after the hit, the
- * costs come off the sneak dice BEFORE the roll ("You remove the die before rolling"), a crit
- * doubles what is left (free — the crit stamp lands on every part), the effects run through the
- * saves machine on the activities the pack ships, and once per turn is a turn chip.
- *
- * What is decided here is the arithmetic and the reading, never the choice: which options the
- * sheet grants, which the dice can pay for, what the remaining formula is, and the sentence that
- * tells the player what the module could and could not judge.
+ * The tick is at the GATE (ticked when what the module read says the conditions hold); Cunning
+ * Strike is picked on the damage offer after the hit, its costs come off the sneak dice BEFORE
+ * the roll, a crit doubles what is left, and once per turn is a turn chip. Decided here: the
+ * arithmetic and the reading, never the choice.
  */
 
 /**
@@ -45,9 +39,8 @@ export function sneakWeaponQualifies({ finesse = false, ranged = false } = {}) {
  * Do the ROLL's conditions hold, as far as the module can read them — the box's default tick?
  * "if you have Advantage on the roll", or without it "if at least one of your allies is within
  * 5 feet of the target, the ally doesn't have the Incapacitated condition, and you don't have
- * Disadvantage on the attack roll". `allyNear` is the map's fact (user, 2026-09-22 — the DESIGN
- * §8 row reopened): true only when measured for every target; anything else leaves the second
- * clause to the player, whose tick it stays either way.
+ * Disadvantage on the attack roll". `allyNear` is the map's fact: true only when measured for
+ * every target; anything else leaves the second clause to the player, whose tick it stays.
  * @param {{net: "advantage"|"disadvantage"|"normal", allyNear?: boolean|null}} roll
  */
 export function sneakConditionsHold({ net, allyNear = null }) {
@@ -89,8 +82,7 @@ export function cunningMenu({ options, features = [], weaponName = "", dice, imp
 
 /**
  * The PICK: which menu rows were ticked, what they cost together, what is left to roll, and
- * whether the pick is one the rules allow (at most `max`, affordable together). The offer
- * disables what cannot be afforded; this is the arithmetic that stands behind the button.
+ * whether the pick is one the rules allow (at most `max`, affordable together).
  * @param {{rows: {key: string, cost: number}[], chosen?: Iterable<string>, dice: number, max: number}} facts
  * @returns {{chosen: any[], cost: number, remaining: number, tooMany: boolean, tooDear: boolean}}
  */

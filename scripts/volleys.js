@@ -1,51 +1,16 @@
 /**
- * Battle Flow — the volley folds (Phase 1.7, FLOW item 6 / Pass C).
- *
- * A volley is a spell that throws N projectiles in one action — Magic Missile's darts,
- * Scorching Ray's rays. The system rolls exactly ONE subsequent action per use
- * (AttackActivity fires one attack, DamageActivity one damage roll), so the table's natural
- * play collapsed every time: session 4 re-cast Scorching Ray three times for one volley and
- * hand-lumped Magic Missile's dice. The fold suppresses that single native follow-up and
- * gives the CASTER one popup to aim the whole volley instead.
- *
- * The two kinds genuinely differ, and the difference is RAW (FLOW item 6, pinned):
- *   - DAMAGE kind (Magic Missile): darts strike SIMULTANEOUSLY — each target gets ONE
- *     aggregated damage roll (k darts = k dice groups in one roll message), so one
- *     application and ONE concentration check per target. The roll is aimed by setting the
- *     canvas target around `rollDamage` (the maneuvers drive idiom), so the roll message's
- *     own snapshot names exactly that target — and polish.js's existing `spellDamage` birth
- *     stamp + hold/spell-damage.js's applier do the application, the hold blocklist (Magic Missile:Shield)
- *     defers it, and concentration rides the application. Nothing downstream is new.
- *   - ATTACK kind (Scorching Ray): each ray is its OWN attack, resolved independently — the
- *     fold drives one real `rollAttack` per ray at that ray's chosen target through the
- *     ordinary pipeline. Auto-damage (or the player's own damage offer), reaction holds and
- *     hit riders all fire PER RAY, which is the recorded per-roll ruling (ARCHITECTURE.md
- *     1.6: "N driven rolls are N independent rider folds"). A hold on ray 2 pauses ray 2's
- *     damage and nothing else.
- *
- * DETECTION IS THE REGISTRY (finding (ff), 2026-08-21 — volley-registry.js carries the
- * user directive verbatim and the census that grounds it): a spell volleys iff its name is
- * listed, with the listed per-spell handling (kind, count formula, distinct-targets), and
- * an unlisted spell never volleys no matter what its copy's data says. The census measured
- * content data wrong in BOTH directions — the 2024 pack ships Scorching Ray bare and
- * Dimension Door count-2-with-a-damage-activity — so content counts decide nothing here.
- * A registered name still volleys only when the USED activity matches the entry's kind and
- * the count evaluates 2+ at this cast; everything else stays fully native.
- *
- * THE CLAIM SHAPE (the Pass C unblock recorded in ARCHITECTURE.md §6): the volley's claim
- * is `usageConfig.subsequentActions = false`, set in dnd5e.preUseActivity on the casting
- * client — the same flag walk-4 (v) passes on every module-driven `use`, arriving through
- * the hook's mutable config instead (the potion-aim seam). Suppressing it also skips the
- * system's own `flags.dnd5e.consumed` write (the Refund Resource dependency), so the stamp
- * replicates that one line verbatim.
- *
- * LOCALITY: everything here runs on the CASTING client — preUse/postUse fire where `use()`
- * ran, the popup is the caster's own decision, and the driven rolls are their dice (the
- * damage-offer family's locality; no elect, no relay). The card runs the PUBLIC bar (the
- * pairing rule) on every client. ⚠ Accepted family limit, recorded: the buzzer lives on the
- * casting client, so a caster who F5s mid-window and never returns leaves the volley
- * unfired — the card shows the drained bar, and the GM's fallback is the sheet, exactly as
- * for the damage offers. Render-resume re-pops and re-arms on the author's return.
+ * Battle Flow — the volley folds. A volley is a spell that throws N projectiles in one action
+ * (Magic Missile's darts, Scorching Ray's rays); the system rolls ONE follow-up per use, so the
+ * fold suppresses it and gives the CASTER one popup to aim the whole volley.
+ *   - DAMAGE kind (darts): strike simultaneously — one aggregated damage roll per target, so one
+ *     application and one concentration check each; aimed by the canvas target around
+ *     `rollDamage`, applied by the existing spell-damage machinery (hold/spell-damage.js).
+ *   - ATTACK kind (rays): each ray is its own real `rollAttack` through the ordinary pipeline —
+ *     damage, holds and riders fire per ray.
+ * Membership is volley-registry.js alone (content counts are wrong both ways); the used activity
+ * must match the entry's kind and the count be 2+. The claim is `subsequentActions = false` in
+ * preUseActivity. Everything runs on the CASTING client; a caster who reloads and never returns
+ * leaves the volley unfired (the GM's fallback is the sheet).
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, deadlineIsLive, statContext } from "./core.js";
 import { modeAllows } from "./shared.js";
@@ -67,12 +32,8 @@ const volleyTimers = new Map();
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * Is this use a volley? Null when it is not — and every `null` here means the fully native
- * path, untouched. Membership is the registry's (volley-registry.js), and the entry's kind
- * must match the used activity so a listed spell's other activities stay native. Targetless
- * casts stay native on purpose: a volley with nothing to aim at is just a damage roll, and
- * the existing machinery already owns that case. A distinct-targets entry (Steel Wind
- * Strike) throws at most one projectile per creature, so its n clamps to the target count.
+ * Is this use a volley? Null means the fully native path. Targetless casts stay native (nothing
+ * to aim). A distinct-targets entry (Steel Wind Strike) clamps n to the target count.
  */
 function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
   if ( !setting(S.volleys) ) return null;
@@ -106,9 +67,8 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
   if ( !message ) return;
   const targets = targetsOf(message)
     .map(t => ({ uuid: t.uuid, name: t.name, img: t.img ?? null }));
-  // The message's own level is the cast level the system stands behind (see
-  // castLevelOf's warning) — the config is only the fallback for content that never
-  // stamps one.
+  // The message's own level is the cast level the system stands behind (castLevelOf); the
+  // config is only the fallback.
   const spellLevel = castLevelOn(message) ?? 0;
   const spec = volleySpec(activity, usageConfig, targets.length,
     spellLevel ? { castLevel: spellLevel } : {});
@@ -119,12 +79,8 @@ Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
 async function stampVolley(activity, message, targets, spec) {
   try {
     if ( message.getFlag(MODULE_ID, "volley") ) return; // never re-stamp
-    // Replicate the consumed-flag write the suppressed subsequentActions block skips —
-    // verbatim the system's own two lines (Activity#use, 5.3.3). ⚠ Measured: that helper
-    // records HIT DICE spends only (`system.hd.spent`) and returns void for everything
-    // else; Refund Resource's real channel is the usage message's own `system.deltas`,
-    // which consumption already stamped untouched. This call exists so even the hd edge
-    // behaves natively.
+    // Replicate the consumed-flag write that suppressing subsequentActions skips (Activity#use).
+    // It records only hit-dice spends; refunds otherwise ride the message's `system.deltas`.
     try {
       const consumed = activity.createConsumedFlag?.(activity.actor, message.system?.deltas);
       if ( consumed ) activity.item.updateSource({ "flags.dnd5e.consumed": consumed });
@@ -144,7 +100,7 @@ async function stampVolley(activity, message, targets, spec) {
       ...(spec.distinct ? { distinct: true } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     });
-    // Locality: this hook already runs on the casting client — the popup is theirs.
+    // This hook already runs on the casting client — the popup is theirs.
     void openVolleyPopup(message);
   } catch(err) {
     console.error(`${TITLE} | Could not stamp the volley.`, err);
@@ -173,19 +129,9 @@ function defaultAssignment(v) {
 const unitNoun = v => (v.kind === "damage") ? "dart" : "ray";
 
 /* ---------------------------------------------------------------------------------------------
- * THE GATE MEETS THE RAYS AT THE AIM (user, 2026-09-02 — BACKLOG "Volley spells and the gate").
- * The rays roll with the dialog suppressed, so the reminder gate (reminders.js) never sees
- * them — and the aim popup already holds every fact the gate needs: the caster, one target per
- * ray, one mode per ray, and the order the rays fire in. So the gate's own judge runs here,
- * once per ray, in ray order: each ray row carries the section folded to its header line
- * ("2 Modifiers — Net [tag]"; open it for the boxes), the ray's mode select DEFAULTS to its net
- * (the dialog's highlighted-button rule, the same ruling), and re-aiming a ray re-judges every
- * ray after it. Spends are carried forward in ray order — the rules spend Sap on "its next
- * attack roll" and Vex on "your next attack roll against that creature", which is ONE ray each
- * (canon, N1) — so the chip shows on the first ray that uses it and on none after. The drive
- * runs the same judge again per ray as it fires and stamps the record on the ray's own attack
- * message, so the card line and the stats plane read a ray exactly as they read a sword.
- * Darts are damage, not attack rolls: nothing to judge, nothing drawn.
+ * The gate meets the rays at the aim (RULINGS *A volley meets the gate at its aim*): the rays
+ * roll with the dialog suppressed, so the gate's judge runs here once per ray, in ray order,
+ * spends carried forward; each ray's mode defaults to its net. Darts are not attack rolls.
  * ------------------------------------------------------------------------------------------- */
 
 /**
@@ -229,20 +175,19 @@ async function openVolleyPopup(message) {
   const key = popupKey(message.id, "volley");
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
-  // The rays' judge needs the caster and the activity (the range kind reads the spell's own
-  // range); a volley whose activity no longer resolves aims without a judgement.
+  // The rays' judge needs the caster and the activity (range reads the spell's own); a volley
+  // whose activity no longer resolves aims without a judgement.
   const activity = (v.kind === "attack") ? cardActivity(message, v.activityUuid) : null;
   const caster = activity?.item?.actor ?? null;
 
   const noun = unitNoun(v);
-  // (hh): every popup row shows WHO — the target's token icon beside its name (law 8
-  // tooltip), read off the stamped snapshot. A target without an image degrades to its name.
+  // Every row shows WHO — the target's token icon beside its name; no image degrades to the name.
   const iconHTML = t => t?.img
     ? `<img src="${esc(t.img)}" alt="${esc(t.name)}" data-tooltip="${esc(t.name)}"
         style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;flex:0 0 auto;">`
     : "";
-  // The ray variant always renders the element (hidden when imageless) so the change
-  // listener below has something to reveal when the pick moves to a target WITH an image.
+  // The ray variant always renders the element (hidden when imageless) so the change listener
+  // has something to reveal when the pick moves to a target with an image.
   const rayIconHTML = (i, t) => `<img data-bf-volley-icon="${i}" src="${esc(t?.img ?? "")}"
       alt="${esc(t?.name ?? "")}" ${t?.img ? `data-tooltip="${esc(t.name)}"` : ""}
       style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;flex:0 0 auto;${t?.img ? "" : "display:none;"}">`;
@@ -250,7 +195,7 @@ async function openVolleyPopup(message) {
     // One stepper per target: how many darts land there.
     ? v.targets.map((t, _i) => {
       const def = defaultAssignment(v).find(a => a.uuid === t.uuid)?.count ?? 0;
-      // One row, the card grammar (user tweak 2026-08-21): [icon] **Name** is targeted [n]
+      // [icon] **Name** is targeted [n]
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
         ${iconHTML(t)}
         <label style="flex:1;"><strong>${esc(t.name)}</strong> <span style="opacity:0.8;">is targeted</span></label>
@@ -258,18 +203,13 @@ async function openVolleyPopup(message) {
           min="0" max="${v.n}" step="1" style="width:4rem;text-align:center;">
       </div>`;
     }).join("")
-    // One target pick per ray — and the ray's mode ((dd), RAW; the concentration popup's
-    // Adv/Normal/Dis is the in-house precedent). "Normal" passes NO override so sheet-borne
-    // modifiers keep applying themselves; only an explicit pick forces the booleans.
-    // The row's icon is the SELECTED target's (the dart-row pattern, user ask (hh)) — a
-    // change listener bound after render keeps it tracking the pick.
+    // One target pick and one mode per ray. "Normal" passes NO override, so sheet-borne modifiers
+    // keep applying themselves. The icon tracks the selected target (listener bound after render).
     : Array.from({ length: v.n }, (_, i) => {
       const def = defaultAssignment(v)[i]?.uuid;
       const defTarget = v.targets.find(t => t.uuid === def);
       const options = v.targets.map(t =>
         `<option value="${esc(t.uuid)}" ${t.uuid === def ? "selected" : ""}>${esc(t.name)}</option>`).join("");
-      // The icon LEADS the row (the dart rows' and the cards' grammar — user tweak
-      // 2026-08-21); it still tracks the select via the listener below.
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
         ${rayIconHTML(i, defTarget)}
         <label style="flex:1;">Ray ${i + 1}</label>
@@ -308,8 +248,7 @@ async function openVolleyPopup(message) {
     rejectClose: false
   });
 
-  // The X is "get on with it", never a cancel — the family rule. It fires with whatever the
-  // inputs hold at that moment (they start at the default spread).
+  // The X is "get on with it", never a cancel: it fires with whatever the inputs hold.
   const close = dialog.close.bind(dialog);
   dialog.close = (...args) => {
     void fireVolley(message, readAssignment(message, dialog.element));
@@ -319,9 +258,8 @@ async function openVolleyPopup(message) {
   await openManagedPopup(key, message, dialog);
   // Render failed → no surface to press, and the native buttons are hidden: fire now.
   if ( livePopups.get(key) !== dialog ) return void fireVolley(message, null);
-  // (hh): each ray row's icon tracks its own select, so the row always shows WHO the ray
-  // is on. Bound after render because DialogV2 owns the DOM until now. The same change
-  // re-judges every ray — a re-aim moves the spends with it.
+  // Bound after render (DialogV2 owns the DOM until now): each ray's icon tracks its select,
+  // and any change re-judges every ray — a re-aim moves the spends with it.
   for ( const sel of dialog.element?.querySelectorAll?.("[data-bf-volley-ray]") ?? [] ) {
     sel.addEventListener("change", () => {
       const icon = dialog.element?.querySelector?.(`[data-bf-volley-icon="${sel.dataset.bfVolleyRay}"]`);
@@ -354,8 +292,8 @@ function readAssignment(message, element) {
       rows.push({ uuid: t.uuid, name: t.name, count: Math.max(0, Math.floor(Number(input.value) || 0)) });
     }
     if ( !rows.length ) return null;
-    // Normalize to exactly n: trim overflow from the last rows up, top up round-robin — the
-    // popup must never refuse to fire over arithmetic (expiry-class safety).
+    // Normalize to exactly n (trim from the last rows, top up round-robin) — the popup must
+    // never refuse to fire over arithmetic.
     let sum = rows.reduce((a, r) => a + r.count, 0);
     for ( let i = rows.length - 1; sum > v.n && i >= 0; i-- ) {
       const cut = Math.min(rows[i].count, sum - v.n);
@@ -401,8 +339,8 @@ async function fireVolley(message, assignment) {
 
   try {
     const v = message.getFlag(MODULE_ID, "volley");
-    // Through the CARD (lookup.js): a scroll's last Scorching Ray is gone from the sheet by the
-    // time its rays are driven; the card's snapshot still carries the spell.
+    // Through the CARD (lookup.js): a scroll's last spell is gone from the sheet by the time its
+    // rays are driven; the card's snapshot still carries it.
     const activity = cardActivity(message, v.activityUuid);
     if ( !activity ) {
       console.warn(`${TITLE} | Volley activity ${v.activityUuid} no longer resolves — nothing driven.`);
@@ -415,7 +353,7 @@ async function fireVolley(message, assignment) {
   }
 }
 
-/** Aim the canvas at one actor uuid, run fn, restore — the maneuvers drive idiom. */
+/** Aim the canvas at one actor uuid, run fn, restore the prior targets. */
 async function aimed(uuid, fn) {
   const prior = [...game.user.targets].map(t => t.id);
   const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid);
@@ -430,28 +368,23 @@ async function aimed(uuid, fn) {
 }
 
 /**
- * DARTS: one aggregated damage roll per target that takes any. The roll message's own
- * target snapshot (stamped from the canvas aim) is what polish.js's spellDamage claim and
- * hold/spell-damage.js's applier key on — per-target application, hold deferral and the per-target
- * concentration check are all the EXISTING machinery. `volleyDarts` is read by the
- * preRollDamageV2 multiplier below; per-dart damage never scales with the slot (the count
- * does — measured: MM's part carries no scaling mode).
+ * DARTS: one aggregated damage roll per target that takes any. The roll's target snapshot (from
+ * the canvas aim) is what the spell-damage claim and applier key on. `volleyDarts` feeds the
+ * multiplier below; per-dart damage never scales with the slot — the count does.
  */
 async function driveDarts(message, activity, v) {
   for ( const a of (v.assignment ?? []) ) {
     if ( !(a.count > 0) ) continue;
     await aimed(a.uuid, async () => {
-      // Nested, never dotted: a preRollDamageV2 stamp nests under the same flags and would
-      // displace a dotted key (auto-damage.js rollDamageForAttack says how it was found).
+      // ⚠ Nested, never dotted: a preRollDamageV2 stamp nests under the same flags and would
+      // displace a dotted key.
       const rolls = await activity.rollDamage({}, { configure: false }, { data: {
         ...originData(message.id),
         flags: { [MODULE_ID]: { volleyFor: message.id, volleyTarget: a.uuid, volleyDarts: a.count } }
       } });
-      // The caster's own claim release (hold/spell-hold.js's releaseUnheldSpellDamage cannot see these
-      // rolls — it polls at USE time and the volley rolls arrive a popup later): a
-      // blocklisted spell's roll is born spellHoldPending, and when the usage card carries
-      // NO hold — nobody eligible, everyone spent — the claim must fold or the applier
-      // waits forever. A stamped hold needs nothing here: its resolution owns the release.
+      // ⚠ A blocklisted spell's roll is born spellHoldPending; with NO hold on the usage card the
+      // claim must be released here or the applier waits forever (hold/spell-hold.js's release
+      // runs at use time, before these rolls exist). A stamped hold owns its own release.
       const rollMsg = rolls?.[0]?.parent;
       if ( (rollMsg instanceof ChatMessage)
         && !message.getFlag(MODULE_ID, "hold")
@@ -463,16 +396,12 @@ async function driveDarts(message, activity, v) {
 }
 
 /**
- * RAYS: one REAL attack per ray at its chosen target, sequentially so the cards land in
- * ray order. Each drive is the ordinary pipeline from rollAttackV2 on: auto-damage or the
- * player's own offer, a hold pausing that ray's damage, riders folding per ray. Sequential
- * DRIVING, not sequential resolution — a hold on ray 1 never makes ray 2 wait.
+ * RAYS: one real attack per ray, driven sequentially so the cards land in ray order — driving,
+ * not resolution: a hold on ray 1 never makes ray 2 wait.
  */
 async function driveRays(message, activity, v) {
-  // The judge runs again as each ray fires — the same computation the popup showed, the spends
-  // carried forward — and the record lands on the ray's own attack message (the gate's flag,
-  // the gate's shape), so the spend hook honours against the net it showed and the card says
-  // what was on the table. `mode` is the ray's pick; no pick is a normal roll.
+  // The judge runs again as each ray fires, spends carried forward, and the record lands on the
+  // ray's own attack message in the gate's shape, so the spend hook and the card read it.
   const caster = activity.item?.actor ?? null;
   const spent = new Set();
   for ( const [i, ray] of (v.assignment ?? []).entries() ) {
@@ -489,11 +418,8 @@ async function driveRays(message, activity, v) {
     } catch(err) {
       console.error(`${TITLE} | Ray ${i + 1} judgement failed — rolling without a record.`, err);
     }
-    // The ray's mode rides the roll's own advantage/disadvantage booleans — the
-    // concentration answer's channel (applyKeybindings recomputes advantageMode from
-    // exactly this pair, and mergeConfigs lets the explicit boolean out-vote the
-    // data-driven one). No mode passes nothing, so sheet-borne modifiers keep applying
-    // themselves.
+    // The mode rides the roll's advantage/disadvantage booleans: applyKeybindings recomputes
+    // advantageMode from this pair and an explicit boolean out-votes the data-driven one.
     const cfg = (ray.mode === "advantage")
       ? { rolls: [{ options: { advantage: true, disadvantage: false } }] }
       : (ray.mode === "disadvantage")
@@ -507,10 +433,8 @@ async function driveRays(message, activity, v) {
 }
 
 /**
- * The dart multiplier: k darts at one target = k copies of the base damage entry in ONE
- * roll message — dice-correct for any content (a formula rewrite would re-roll shared dice),
- * one aggregate application, and the card reads as k visible dart groups. The armed state
- * IS the pending message's own flag, so nothing here can leak across rolls.
+ * The dart multiplier: k darts = k copies of the base damage entry in ONE roll (a formula rewrite
+ * would share dice). Armed by the pending message's own flag, so nothing leaks across rolls.
  */
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   const k = Number(foundry.utils.getProperty(message?.data ?? {}, `flags.${MODULE_ID}.volleyDarts`)) || 0;
@@ -527,22 +451,18 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * The table's view + the author's resume (render is the convergence floor, as everywhere)
+ * The table's view + the author's resume
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const v = message.getFlag(MODULE_ID, "volley");
   if ( !v ) return void renderVolleyAim(message, html);
   renderVolleyRow(message, v, html);
-  // Author-side resume: re-arm the buzzer and re-raise the popup after an F5. An already-
-  // overdue deadline fires the default spread now — the volley never strands on a reload.
-  //
-  // ⚠ THE CEILING REACHES HERE TOO (core.js), and this path needs it stated separately
-  // because it fires the spread DIRECTLY rather than through `armDeadline` — the guard in
-  // the primitive cannot see it. Without this, a volley left pending in the world rolls its
-  // darts the instant the author next opens it, however many months later. Past the ceiling
-  // the clock is history: raise the popup and let a human aim it, the same answer the
-  // caster-who-never-came-back already gets.
+  // Author-side resume after a reload: re-arm the buzzer and re-raise the popup; an overdue
+  // deadline fires the default spread now.
+  // ⚠ This path fires DIRECTLY, not through `armDeadline`, so it checks the deadline ceiling
+  // itself (core.js `deadlineIsLive`): past it, a months-old pending volley raises the popup
+  // for a human instead of rolling on open.
   if ( (v.status === "pending") && message.isAuthor ) {
     const stale = v.deadline && !deadlineIsLive(v.deadline);
     if ( !stale && v.deadline && (Date.now() >= v.deadline) ) void fireVolley(message, null);
@@ -555,11 +475,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-// The delete sweep. Every other timer-owning machine registers one (concentration, maneuvers,
-// mastery, saves) and this file was the exception: `volleyTimers` was disarmed only when a
-// volley FIRED, so deleting a pending volley card left its buzzer armed to call `fireVolley`
-// on a message that no longer exists. The shared sweep in ui.js closes the popup and clears
-// the latch, but it disarms the hold's clock only — each machine still owns its own.
+// The delete sweep: ui.js's shared sweep closes the popup but disarms only the hold's clock —
+// each machine disarms its own, or a deleted pending volley's buzzer fires on nothing.
 Hooks.on("deleteChatMessage", message => {
   disarmDeadline(volleyTimers, message.id);
 });
@@ -592,11 +509,8 @@ function renderVolleyRow(_message, v, html) {
 }
 
 /**
- * (ee): every driven volley roll names its target on the card — token icon (tooltip, law 8)
- * + name, read off the roll's own dnd5e target snapshot (the aimed() canvas target at drive
- * time), so the render is pure and needs no lookups. Dart damage rolls carry volleyTarget,
- * ray attacks volleyRay; a ray's follow-up damage chains off its attack card, which names
- * the target right above it.
+ * Every driven volley roll names its target on the card, read off the roll's own target snapshot
+ * (pure, no lookups). A ray's damage chains off its attack card, which names the target above it.
  */
 function renderVolleyAim(message, html) {
   if ( !message.getFlag(MODULE_ID, "volleyFor") ) return;

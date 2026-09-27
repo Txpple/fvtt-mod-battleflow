@@ -1,10 +1,7 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES — Phase 3's save slice, per target, receipts
- * throughout: effects per outcome, the SAVE_PRESSES status press, Evasion and Circle of Power,
- * the chained damage at the verdict's multiplier.
- * The machine-tier pass, Stage 4c (2026-09-05, ruling 3): saves.js became this directory —
- * one flag, one machine, one part per spine step; index.js is the only public face and fixes
- * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
+ * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CONSEQUENCES, per
+ * target, receipts throughout: effects per outcome, the SAVE_PRESSES status press, Evasion and
+ * Circle of Power, the chained damage at the verdict's multiplier.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { applicableProfiles, cardActivity, resolveUuid } from "../lookup.js";
@@ -22,15 +19,14 @@ import { applyEffectsWithReceipt } from "../effect-riders.js";
 import { gateSaveChoice, announceBashOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
 
-/* --- the consequences: Phase 3's save slice, per target, receipts throughout ---------------- */
+/* --- the consequences: per target, receipts throughout -------------------------------------- */
 
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
 const saveApplications = new Set();
 
 /**
- * One target's consequences, once: wait out the dice (the verdict pause — mechanics are
- * already written, only the table-facing part holds), then effects per outcome, then any
- * already-rolled damage per outcome. The flag is RE-READ after the pause on purpose: a
+ * One target's consequences, once: wait out the dice (the verdict pause), then effects per
+ * outcome, then any already-rolled damage. ⚠ The flag is RE-READ after the pause: a
  * legendary-resistance flip landing mid-pause overturns the outcome before anything applied.
  */
 export async function applySaveConsequences(card, uuid, rollMessage = null) {
@@ -48,11 +44,8 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     entry = flag?.targets?.find(t => t.uuid === uuid);
     if ( !entry?.done || entry.applied ) return;
 
-    // ⚠ THE CONSEQUENCE IS A WRITE TO THE SAVER (v1.27.2). With no GM connected this splits by
-    // WHO SAVED: a party-wide demand — fireball, a dragon's breath — lands on PCs their own
-    // players own, so the damage and the chips apply exactly as always. A demand aimed at
-    // monsters cannot land, and the announcement below is the point at which to say so: the
-    // verdict is already public and true, only the press is missing.
+    // ⚠ The consequence is a write to the SAVER. With no GM connected, a PC saver's own player
+    // can still apply; a monster's cannot, so say so — the verdict on the card stands.
     const saver = resolveUuid(uuid);
     if ( (saver instanceof Actor) && !canApplyTo(saver) ) {
       await whisperNoGM(`${entry.name ?? saver.name}'s save consequences`,
@@ -60,14 +53,11 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
       return;
     }
 
-    // NO public verdict card (user, 2026-09-18, the 6.0 walk): the usage card carries the verdict
-    // — in the platform's summary row or its own line — and v1.19.0's line (FLOW item 7) said it
-    // a third time. "Cards say one thing, once."
+    // No verdict card here: the usage card already carries the verdict, once.
 
-    // A fold CHOICE can hold this target's pass here (v1.19.x, findings ⑤/⑥): Interpose on
-    // a successful DEX save, the bash's Prone-or-push on a failed listed save. `applied`
-    // stays false, so the update/render floors resume the pass the moment the answer (or
-    // the buzzer's default) lands in the flag.
+    // A fold CHOICE can hold this target's pass (Interpose on a successful DEX save, the bash's
+    // Prone-or-push on a failed listed save). `applied` stays false, so the update/render floors
+    // resume the pass when the answer (or the buzzer's default) lands.
     if ( await gateSaveChoice(card, flag, entry) ) return;
     flag = card.getFlag(MODULE_ID, "saves");   // the choice write moved the flag — re-read
     entry = flag?.targets?.find(t => t.uuid === uuid);
@@ -78,12 +68,8 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
 
-    // ⚠ THROUGH THE SERIALIZER, not a bare read-modify-write (core.js). Per-target
-    // independence means two targets' consequence passes run at once against this one card,
-    // and a clone-merge-set here can land without the other pass's entry. Losing THIS field
-    // is the measured double-application itself: `reconcileSaveDamage` reads the receipt as
-    // its idempotence guard, so a dropped `applied` reads as "not applied yet" and the
-    // damage lands on that target a second time.
+    // ⚠ THROUGH THE SERIALIZER: two targets' passes run at once against this card, and a lost
+    // `applied` reads as "not applied yet" to the reconcile — the damage lands twice.
     await queueFlagWrite(card, "saves", current => {
       const done = current.targets?.find(t => t.uuid === uuid);
       if ( done && !done.applied ) done.applied = true;
@@ -97,32 +83,28 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
 }
 
 /**
- * The activity's effects, filtered by the verdict: a failure applies them all, a success
- * applies only the entries whose own `onSave` says so — the flag the system stores and
- * nothing native reads. Through the shared applier: same origin rule (the caster's
- * concentration effect when the card carries one — the native dependentOn cascade rides
- * along), same receipts, same revert.
+ * The activity's effects, filtered by the verdict: a failure applies them all, a success only
+ * the entries whose own `onSave` says so (the system stores it; nothing native reads it).
+ * Through the shared applier, with the caster's concentration effect as origin when the card
+ * carries one, so the native dependentOn cascade rides along.
  */
 async function applySaveEffects(card, flag, entry) {
-  // A bash ANSWER replaces the generic pass entirely (v1.19.x ⑤ + walk-5 (x)): the push is
-  // the Push idiom (a card, a hand-moved token), and the Prone press is the STANDARD chip
-  // via forceStatus — never the item's own custom effect. announceBashOutcome owns both.
+  // A bash ANSWER replaces the generic pass: announceBashOutcome owns the push card and the
+  // standard Prone chip (never the item's own custom effect).
   if ( (entry.choice?.kind === "bash") && entry.choice.answer ) return;
-  // An emanation's TRIGGERED demand (emanations.js, 2026-09-03): the activity's effect (Spirit
-  // Guardians' Half Speed) is the area's STANDING effect, kept by the region while the creature
-  // stands inside — applying it again here would double it. The demand says so; damage still lands.
+  // An emanation's triggered demand: the activity's effect is the area's STANDING effect, kept
+  // by the region — applying it again would double it. Damage still lands.
   if ( flag.effectsHandled ) return;
-  // Through the CARD (lookup.js, 2026-09-22): an item the use deleted (a thrown vial, a scroll's
-  // last use) is read off the card's snapshot — the old "accepted corner" is closed.
+  // Through the CARD (lookup.js): an item the use deleted (a thrown vial, a scroll's last use)
+  // is read off the card's snapshot.
   const activity = cardActivity(card, flag.activityUuid);
   if ( !activity ) return;
   // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const toApply = (await applicableProfiles(activity))
     .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)
     .map(({ effect }) => effect);
-  // A pack that brought NO effect for a failure the text names (Web's Restrained — SAVE_PRESSES,
-  // 2026-09-02): press the standard status, the caster as its origin, and receipt it on the card
-  // so the revert is there — the Topple idiom, as data.
+  // A pack that brought NO effect for a failure the text names (Web's Restrained — SAVE_PRESSES):
+  // press the standard status, the caster as origin, receipted on the card so the revert is there.
   if ( !toApply.length && (entry.outcome === "failed") ) {
     const press = SAVE_PRESSES[activity.item?.name] ?? null;
     if ( press?.onFail ) await pressSaveStatus(card, flag, entry, press);
@@ -177,18 +159,15 @@ async function pressSaveStatus(card, flag, entry, press) {
   });
 }
 
-/** Every damage roll chained to the demand card — the card's own Damage button chains its
- * click natively, and the module's suite rolls pass the origin explicitly. Whole log. */
+/** Every damage roll chained to the demand card (its origin is the card), across the whole log. */
 export function saveDamageMessages(card) {
   return game.messages.contents.filter(m =>
     isCard(m, CARD.damage) && (originIdOf(m) === card.id));
 }
 
 /** Land one chained damage roll on one target at its verdict's multiplier — the receipt says
- * why. Shared by the reconcile pass (behind its guards) and the legendary-resistance unwind
- * (which reverts first and re-applies DIRECTLY, because the guard below deliberately treats
- * any existing receipt entry — reverted included — as "handled": a human's manual ↩ revert
- * must stick, never be re-fought by the machine). */
+ * why. Shared by the reconcile pass (behind its guards) and the legendary-resistance unwind,
+ * which reverts first and re-applies DIRECTLY past the reconcile's receipt guard. */
 export async function applyOneSaveDamage(damageMessage, flag, entry) {
   const damageOnSave = onSaveOf(damageMessage) ?? flag.damageOnSave ?? "half";
   const multiplier = saveMultiplier(entry, damageOnSave);
@@ -210,38 +189,29 @@ export async function applyOneSaveDamage(damageMessage, flag, entry) {
 const saveDamageApplications = new Set();
 
 /**
- * Land every chained damage roll on every DONE target that has no receipt entry yet, at the
- * verdict's multiplier — the applier records a non-1 multiplier on the entry, so the card
- * says why the number halved. Order-independent: damage before verdicts, verdicts before
- * damage, or interleaved per target, the receipt gate makes every path idempotent. Gated on
- * Auto-Apply Damage — a table that keeps its trays keeps them here too; the verdict rows
- * still say who saved.
+ * Land every chained damage roll on every DONE target with no receipt entry yet, at the
+ * verdict's multiplier (the receipt records a non-1 multiplier). Order-independent: the receipt
+ * gate makes every path idempotent. Gated on Auto-Apply Damage.
  */
 export async function reconcileSaveDamage(card, onlyUuid = null) {
   if ( !setting(S.autoApply) ) return;
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
-  // A demand with no damage dimension (no parts, or rider damage the save doesn't
-  // modulate — the onSave "full" stamp rule) never applies chained damage by verdict:
-  // a Web-burn enricher click chains to the card, and per-verdict application would
-  // re-create finding ③ through the side door. The native tray owns those rolls.
+  // A demand with no damage dimension (no parts, or rider damage the save does not modulate)
+  // never applies chained damage by verdict: an enricher click chains to the card too, and the
+  // native tray owns those rolls.
   if ( !flag.hasDamage ) return;
   for ( const damageMessage of saveDamageMessages(card) ) {
     for ( const entry of flag.targets ) {
       if ( !entry.done ) continue;
-      // The general passes (damage arrival, render resume, update watcher) apply only
-      // targets whose consequence pass has FINISHED — the verdict pause gates every
-      // table-facing consequence, damage included, and the fold's flag write must not let
-      // a reconcile racing ahead of the pause undercut it (caught by smoke-saves 3d: the
-      // damage landed while the effects were still waiting out the dice). The explicit
-      // per-target path (the post-pause consequence pass, the LR unwind) applies regardless.
+      // ⚠ The general passes apply only targets whose consequence pass FINISHED — the verdict
+      // pause gates damage too, and a reconcile racing ahead of it would land damage while the
+      // effects still wait. The explicit per-target path (`onlyUuid`) applies regardless.
       if ( onlyUuid ? (entry.uuid !== onlyUuid) : !entry.applied ) continue;
       const key = `${damageMessage.id}|${entry.uuid}`;
       if ( saveDamageApplications.has(key) ) continue;
-      // ANY receipt entry — reverted included — means this pairing is handled: applied by an
-      // earlier pass, or applied and then manually reverted by a human whose ↩ the machine
-      // must never re-fight. (The legendary-resistance unwind re-applies through
-      // applyOneSaveDamage directly, not through this guard.)
+      // ANY receipt entry — reverted included — means handled: a human's manual ↩ revert must
+      // stick, never be re-fought by the machine.
       if ( damageMessage.getFlag(MODULE_ID, "receipt")?.targets
         ?.some(t => t.uuid === entry.uuid) ) continue;
       saveDamageApplications.add(key);

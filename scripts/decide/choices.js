@@ -4,13 +4,9 @@
  *
  * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
  *
- * THE SHAPE (user, 2026-09-05: "when i apply warm or chill shield, it applies both … this should
- * also be a popup asking the player which shield to apply"). A pack activity carries several
- * effects and marks nothing to say they are alternatives — Fire Shield's Warm Shield OR Chill
- * Shield, "as you choose" — so the cast slice, reading "a utility with effects", landed them
- * all. The choice is the caster's (R1: judgment is never played), asked at the cast the way
- * Spirit Guardians' damage type is asked; only the pick lands. What is decided here is WHICH
- * of the activity's effects are the alternatives, and which land once the pick is made.
+ * A pack activity can carry alternative effects with nothing marking them so (Fire Shield's Warm
+ * OR Chill Shield); the caster picks at the cast and only the pick lands (RULINGS *Effect
+ * choices*). Decided here: which effects are the alternatives, and which land after the pick.
  */
 
 const lower = s => String(s ?? "").toLowerCase();

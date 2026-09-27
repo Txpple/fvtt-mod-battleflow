@@ -2,7 +2,7 @@
  * Battle Flow — DECISION (ARCHITECTURE.md §2): THE FIGHTING STYLES' arithmetic — what the owner
  * holds, whether a style's face is live, whether a roll fits it, and what a damage floor raised.
  * Pure: plain facts in, plain answers out; fighting-styles.js reads the sheet and the roll.
- * The rows are decide/registry.js FIGHTING_STYLES (user, 2026-09-26).
+ * The rows are decide/registry.js FIGHTING_STYLES; RULINGS *The fighting styles*.
  */
 
 /** A melee weapon's types, as dnd5e names them (a natural weapon is never "held"). */
@@ -20,8 +20,8 @@ const ARMOR = new Set(["light", "medium", "heavy"]);
  */
 
 /**
- * What the owner HOLDS and WEARS, off the sheet's Equipped boxes — "holding" is equipped (the
- * prototype's ruling). A natural weapon (a claw, the Unarmed Strike) is never held.
+ * What the owner HOLDS and WEARS, off the sheet's Equipped boxes — held is equipped (RULINGS
+ * *Where the table bends the rule*). A natural weapon (a claw, the Unarmed Strike) is never held.
  * @param {ItemFact[]} items
  * @returns {{weapons: ItemFact[], armor: ItemFact|null, shield: ItemFact|null}}
  */
@@ -41,8 +41,8 @@ const isMelee = item => MELEE.has(item?.kind);
 
 /**
  * A style's face: live, or off with the reason. `word` is the one-word state (the item, the
- * die, why it is off), kept on the face's record; the panel shows the name alone (user,
- * 2026-09-26). `detail` is the long line, the hover title ("a second weapon held (Dagger)").
+ * die, why it is off), kept on the face's record; the panel shows the name alone. `detail` is
+ * the long line, the hover title ("a second weapon held (Dagger)").
  * @param {string} gate
  * @param {ReturnType<typeof heldOf>} held
  * @param {{small?: string, large?: string}} [dice]  Unarmed Fighting's two dice, as the feat ships them
@@ -58,7 +58,7 @@ export function faceState(gate, held, dice = {}) {
         : { live: false, word: "unequipped", detail: "no Two-Handed or Versatile melee weapon equipped" };
     }
     // always on: the attack's thrown mode is the whole gate, and a thrown weapon need not be
-    // equipped to be thrown (user, 2026-09-26: "the user selects the thrown attack mode")
+    // equipped to be thrown
     case "thrown": return { live: true, word: "", detail: "thrown attacks" };
     case "offhand": {
       const light = w.filter(i => has(i, "lgt"));
@@ -128,8 +128,8 @@ export function rollFits(gate, roll) {
 }
 
 /**
- * The damage types a `typed` row reads off the feat's NAME (user, 2026-09-26: "item name for adept") —
- * "Elemental Adept (Fire)", "Elemental Adept (Fire, Cold)" — every copy on the sheet adding its own.
+ * The damage types a `typed` row reads off the feat's NAME — "Elemental Adept (Fire)",
+ * "Elemental Adept (Fire, Cold)" — every copy on the sheet adding its own.
  * Only a real damage type counts; a copy with no type in its name adds nothing.
  * @param {string[]} names        the feat copies' names
  * @param {string} base           the row's name
@@ -153,7 +153,7 @@ export function typesInNames(names, base, known) {
 }
 
 /**
- * THE TYPE PICK (the user, 2026-09-26): the choices a new copy of a typed feat may still take — the
+ * THE TYPE PICK: the choices a new copy of a typed feat may still take — the
  * row's own, less the types the actor's other copies already name (Elemental Adept is repeatable,
  * "a different damage type each time").
  * @param {string[]} choices   the row's `choices`
@@ -259,11 +259,9 @@ export function styleLine(entry) {
 }
 
 /*
- * THE DICE (L4 + F7, ruled 2026-09-26 off the Artifact "GWF Notice Options": "the empower where you
- * pick dice is fun, or savage attacker, but oviously for these it cant require clicks"). The card
- * line and the canvas both show the damage dice as Empowered's chips; a die Great Weapon Fighting
- * raised turns over from its face to what it counts, and a flat bonus (Dueling, Thrown, Two-Weapon)
- * is one more chip. The chips are the attack's own dice, so nothing is invented for the show.
+ * THE DICE (RULINGS *The dice that rise*): the card line and the canvas show the damage dice as
+ * chips; a die Great Weapon Fighting raised turns over from its face to what it counts, and a
+ * flat bonus (Dueling, Thrown, Two-Weapon) is one more chip. Nothing is invented for the show.
  */
 
 /** Chips at most: a crit of 4d6 is 8; anything past this is summed into the row's own total. */

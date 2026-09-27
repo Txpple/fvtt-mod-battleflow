@@ -1,31 +1,14 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the REBUKE — a Reaction to taking damage, aimed at
- * the creature that dealt it (the Goliath walk, 2026-09-25: "Storms thunder is not triggering
- * anything. when you fix it, also make sure the 60ft range calc is in there. Also … pick up
- * hellish rebuke and anything else in that family"). The table is decide/registry.js REBUKES, the
- * arithmetic decide/rebukes.js.
+ * the creature that dealt it (decide/registry.js REBUKES, arithmetic in decide/rebukes.js). The
+ * shape is Riposte's: a popup, a card with the bar, a clock that passes; Use drives the REAL use at
+ * the damager on the answering client, and the ordinary pipeline does the rest.
  *
- * THE SHAPE IS RIPOSTE'S (riposte.js): the defender is offered a strike back, a popup to the one
- * who answers for it, a card with the same bar, a clock that passes; Use drives the REAL use at the
- * attacker on the answering client (their dice, their slot), so everything after is the ordinary
- * pipeline — a bare damage activity is rolled by damage-casts.js and applied by
- * hold/spell-damage.js with its receipt (Storm's Thunder), a save activity demands through the
- * saves machine (Hellish Rebuke, Fount of Moonlight), an attack rolls and auto-damage takes it from
- * there (Sword of Answering; Retaliation with the weapon last swung).
- *
- * THE TRIGGER IS THE DAMAGE LANDING: dnd5e.applyDamage, on the client that applied it — the one
- * seam that knows the ORIGINATING card, and so the creature behind the damage (its speaker). Both
- * the module's own applier (auto-apply.js, the originatingMessage it passes) and the card's native
- * buttons pass it, so hand-applied damage offers too; a raw HP edit names no source and offers
- * nothing (the honest floor, concentration.js's). That client stamps the card: it is the moment's
- * author and folds the answers (the relay), or, with the author gone, the active GM does.
- *
- * WHAT THE GATE READS (decide/rebukes.js rebukeBlocked), all facts: the bearer up after the damage,
- * its Reaction unspent, the row's `while` effect standing, the item held when it must be, a use or
- * a slot left, and the damager within the reaction's own reach — measured token to token on the
- * grid (geometry.js nearestFeet), a Large body from its nearest square. "That you can see" is the
- * table's (the row's caveat, said on the popup).
- * ------------------------------------------------------------------------------------------- */
+ * The trigger is `dnd5e.applyDamage` — the one seam that knows the ORIGINATING card, and so the
+ * damager. Native buttons pass it too; a raw HP edit names no source and offers nothing. The
+ * applying client stamps the card and folds answers (or the active GM, with the author gone).
+ * The gate (decide/rebukes.js rebukeBlocked) reads facts only; "that you can see" is the table's.
+ */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./settings.js";
@@ -65,8 +48,8 @@ function reactionActivity(item, row) {
 
 /**
  * Every listed rebuke this bearer may take at this damager, right now — the options its popup offers.
- * `ward`: the WARD rows only (Sentinel — the bearer a bystander to a hit on someone else, 2026-09-27),
- * else the bearer's own rebukes only; `attackHit`: the damage came from an attack (a `hit` row's need).
+ * `ward`: the WARD rows only (Sentinel — the bearer a bystander to a hit on someone else), else the
+ * bearer's own rebukes only; `attackHit`: the damage came from an attack (a `hit` row's need).
  */
 function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
   const listed = listedNames(rebukeEntries());
@@ -83,10 +66,9 @@ function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
     const activity = reactionActivity(item, row);
     if ( !activity && !row.attack ) continue;
     const pool = activity ? poolOf(actor, activity) : null;
-    // A SPELL WITH USES OF ITS OWN (the Tiefling walk, 2026-09-25: "hellish rebuke did not trigger"):
-    // Fiendish Legacy grants Hellish Rebuke "once without a spell slot" per Long Rest — the spell
-    // item's own uses — and a Fighter has no slots at all. While a free cast is left, the slot is not
-    // asked for; the drive casts it slotless and the use pays (`free`). With none left, a slot is.
+    // A SPELL WITH USES OF ITS OWN (Fiendish Legacy's Hellish Rebuke "once without a spell slot"):
+    // while a free cast is left no slot is asked for — the drive casts slotless and the use pays
+    // (`free`). With none left, a slot is.
     const ownUses = (item.type === "spell") && (Number(item.system?.uses?.max) > 0);
     const usesMax = Number((pool ?? (ownUses ? item : null))?.system?.uses?.max ?? 0);
     const usesLeft = (usesMax > 0) ? Number((pool ?? item).system.uses.value ?? 0) : null;
@@ -160,12 +142,10 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
 }
 
 /**
- * THE WARDS (Sentinel's Guardian — the PHB feats, group 6, 2026-09-27): "Immediately after a creature
- * within 5 feet of you ... hits a target other than you with an attack, you can make an Opportunity
- * Attack against that creature." The same damage landing, asked of every OTHER creature on the scene
- * holding a listed ward row — never the one hit, never the one hitting — within the row's reach of
- * the hitter and on another side of the map from it (offersFor, the gate). One ask per bearer per
- * card that dealt it: a second application of the same damage asks nothing more.
+ * THE WARDS (Sentinel's Guardian: an Opportunity Attack when a creature within 5 feet hits a
+ * target other than you): the same damage landing, asked of every OTHER creature holding a listed
+ * ward row, within reach of the hitter and on another side from it (offersFor). One ask per bearer
+ * per dealing card — a second application of the same damage asks nothing more.
  */
 const wardsAsked = new Set();
 async function stampWards(hurt, source, amount, origin) {
@@ -220,8 +200,8 @@ async function answerRebuke(message, answer, index = null) {
     if ( claimed && option ) await driveRebuke(message, option);
     return;
   }
-  // The relay (riposte's §4.1 split): the answer travels as the answerer's own card, the keeper
-  // folds it; the drive runs here at once — waiting for the round trip would idle their dice.
+  // The relay: the answer travels as the answerer's own card and the keeper folds it; the drive
+  // runs here at once — waiting for the round trip would idle their dice.
   const actor = resolveUuid(flag.actorUuid);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -267,8 +247,8 @@ async function driveRebuke(message, option) {
       } else {
         const activity = item?.system?.activities?.get(option.activityId) ?? null;
         if ( activity?.type !== "attack" ) {
-          // The free cast (2026-09-25): no slot; the use pays — through the activity's own item-use
-          // target when it has one, by hand when the uses sit on the spell with no target naming them.
+          // The free cast: no slot; the use pays — through the activity's own item-use target when
+          // it has one, by hand when the uses sit on the spell with no target naming them.
           const usage = option.free ? { consume: { spellSlot: false } } : {};
           if ( activity ) {
             const done = await activity.use(usage, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
