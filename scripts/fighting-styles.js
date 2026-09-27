@@ -39,6 +39,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage } from "./shared.js";
+import { attackMessageForDamage } from "./auto-damage.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
   registerRelay } from "./ui.js";
@@ -228,7 +229,9 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     const held = heldOf(itemFacts(attacker));
     const facts = {
       kind: weapon.system?.type?.value ?? null, base: weapon.system?.type?.baseItem ?? null, properties: [...(weapon.system?.properties ?? [])],
-      mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0), ownTurn: ownTurnOf(attacker)
+      mode: config.attackMode ?? null, mod: Number(roll?.data?.mod ?? 0),
+      // Pole Strike's swing is a BONUS ACTION, never "part of the Attack action" (Heavy Weapon Mastery)
+      ownTurn: ownTurnOf(attacker) && !attackMessageForDamage(config, message)?.getFlag?.(MODULE_ID, "poleStrike")
     };
     const resolve = f => { try { return Roll.replaceFormulaData(String(f), roll?.data ?? {}); } catch { return String(f); } };
     const styles = [];

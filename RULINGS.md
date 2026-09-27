@@ -1110,6 +1110,14 @@ swung (`rebukes.js`).
     (`hew.js`, the `hew` kind — Great Weapon Master's row keeps the crit-or-kill trigger, and a `hew`
     entry not in the table keeps it too). After the attack RESOLVES: on the hit's damage card, or on
     the attack card when it missed. The Maneuver Folds list's `Polearm Master:hew` is the switch.
+    **The walk (2026-09-27): an OFFER, driven** (*"an offer to attack, using bonus action, player
+    chooses yes or no, and then it does the attack for them"*): the popup asks **Pole Strike / Pass**;
+    Use drives the WEAPON's own attack at the creature the triggering attack was aimed at, its damage
+    die made a d4 and its type Bludgeoning before the roll (the Unarmed Strike's swap), a line on the
+    card. So the weapon's own +1, masteries and styles ride it (the user: *"then pole strike will
+    actually carry enhancements like +1 and stuff too"*) — the pack's feat-borne Pole Strike activity
+    would carry none. Great Weapon Master's +PB stays off it: a Bonus Action is not "part of the Attack
+    action" (`fighting-styles.js`, the `heavy` gate).
   - **Reactive Strike** — an `EMANATIONS` feature row: while the owner HOLDS a qualifying weapon, an
     invisible, quiet ring of that weapon's reach (10 ft with Reach) stands around it (`holding`,
     `range: "weaponReach"`, `effect: null`, `quiet`); a hostile creature MOVING into it — Foundry's own

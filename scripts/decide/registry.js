@@ -264,14 +264,18 @@ export const RULE_TEXT = {
  *   weapons   ("attack") the weapons that qualify: a base item named in `base`, or one carrying every
  *             property in `properties` (dnd5e's ids)
  *   label     what the popup and the card call the swing
- *   swing     the line saying what to swing, from the sheet
+ *   swing     the line saying what to swing
+ *   drive     true — the reminder is an OFFER (Pole Strike / Pass): Use drives the weapon's own attack at the
+ *             same creature, its die a d4 of Bludgeoning (the walk, 2026-09-27: "an offer to attack, using
+ *             bonus action, player chooses yes or no, and then it does the attack for them")
  *   rule      the benefit's sentence, verbatim (law 8)
  */
 export const BONUS_SWINGS = Object.freeze({
   "Great Weapon Master": Object.freeze({ when: "critOrKill", label: "Hew", rule: RULE_TEXT.hew }),
   "Polearm Master": Object.freeze({ when: "attack", label: "Pole Strike",
     weapons: Object.freeze({ base: Object.freeze(["quarterstaff", "spear"]), properties: Object.freeze(["hvy", "rch"]) }),
-    swing: "Use <strong>Pole Strike</strong> on the feat, from the sheet — the other end, 1d4 Bludgeoning.",
+    drive: true,
+    swing: "A Bonus Action: the other end of the weapon, a d4 of Bludgeoning — <strong>Pole Strike</strong> makes the attack for you.",
     rule: "Pole Strike. Immediately after you take the Attack action and attack with a Quarterstaff, a Spear, or a weapon that has the Heavy and Reach properties, you can use a Bonus Action to make a melee attack with the opposite end of the weapon. The weapon deals Bludgeoning damage, and the weapon’s damage die for this attack is a d4.",
     from: "General feat" })
 });

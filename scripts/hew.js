@@ -8,12 +8,14 @@
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor, combatStamp } from "./core.js";
 import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
+import { attackMessageForDamage } from "./auto-damage.js";
+import { tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./settings.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
-import { hitTargets, modeAllows } from "./shared.js";
+import { hitTargets, modeAllows, withTargets } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
-import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
+import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
   momentAcknowledged } from "./ui.js";
 
@@ -36,7 +38,7 @@ const swingRowOf = name => {
 };
 const whenOf = name => swingRowOf(name)?.when ?? "critOrKill";
 
-async function postHewReminder(attacker, featItem, weapon, why, row = null) {
+async function postHewReminder(attacker, featItem, weapon, why, row = null, offer = null) {
   const label = row?.label ?? "Hew";
   // The card is the durable record; the POPUP is the moment (walk finding (c), the user's
   // design law verbatim: "our design language is to give players popup notifications on
@@ -59,6 +61,7 @@ async function postHewReminder(attacker, featItem, weapon, why, row = null) {
       weaponName: weapon?.name ?? null, why,
       ...(row ? { label, rule: row.rule, swing: row.swing ?? null } : {}),
       ...(row?.when === "attack" ? { stamp: combatStamp() } : {}),
+      ...(offer ? { offer } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     } } }
   });
@@ -76,8 +79,15 @@ async function showHewPopup(message, notice) {
       lines: [ruleLine(notice.rule ?? RULE_TEXT.hew),
         notice.swing ?? `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }) + momentBarHTML(notice, "reminder"),
-    // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere.
-    buttons: [{ action: "ok", label: "OK", default: true,
+    // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere. A notice
+    // carrying an OFFER (Pole Strike, the walk 2026-09-27: "an offer to attack, using bonus action,
+    // player chooses yes or no, and then it does the attack for them") asks Use / Pass instead; Use
+    // drives the swing on this client (the owner's dice), and either answer acknowledges.
+    buttons: notice.offer ? [
+      { action: "use", label: notice.label ?? "Swing", default: true,
+        callback: () => { void answerSwingOffer(message, true); } },
+      { action: "pass", label: "Pass", callback: () => { void answerSwingOffer(message, false); } }
+    ] : [{ action: "ok", label: "OK", default: true,
       callback: () => acknowledgeMoment(message, "hewNotice") }],
     autoCloseAt: notice.deadline || null
   });
@@ -252,11 +262,16 @@ async function maybeSwingReminder(attackMessage) {
   try {
     if ( !isActiveGM() || swingPosted.has(attackMessage.id) ) return;
     if ( attackMessage.getFlag(MODULE_ID, "swingNoticed") ) return;
+    if ( attackMessage.getFlag(MODULE_ID, "poleStrike") ) return;   // the swing itself never offers another
     const ctx = attackSwingFor(attackMessage);
     if ( !ctx || !swingTurnOpen(ctx.attacker, ctx.row) ) return;
     swingPosted.add(attackMessage.id);
     await attackMessage.setFlag(MODULE_ID, "swingNoticed", true);
-    await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}`, ctx.row);
+    // A row with `drive` OFFERS the swing (Pole Strike): the weapon, and the creature the attack was aimed at.
+    const target = ctx.row.drive ? (targetsOf(attackMessage)[0] ?? null) : null;
+    const offer = (ctx.row.drive && target) ? { weaponId: ctx.activity.item.id, activityId: ctx.activity.id,
+      targetUuid: target.uuid, targetName: target.name, attackId: attackMessage.id } : null;
+    await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}`, ctx.row, offer);
   } catch(err) {
     console.error(`${TITLE} | The bonus swing reminder failed.`, err);
   }
@@ -277,4 +292,73 @@ Hooks.on("createChatMessage", message => {
       : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
     if ( attack && isCard(attack, CARD.attack) ) void maybeSwingReminder(attack);
   }
+});
+
+/* --- THE DRIVEN SWING (Pole Strike, the walk 2026-09-27) ------------------------------------------
+ * "The weapon deals Bludgeoning damage, and the weapon's damage die for this attack is a d4": the
+ * WEAPON's own attack, at the creature the triggering attack was aimed at, marked `poleStrike` — its
+ * damage roll's die swapped for a d4 and its type made Bludgeoning below, before the roll is built (the
+ * Unarmed Strike's swap, unarmed-dice.js). The weapon's own bonuses, masteries and styles ride it; the
+ * pack's feat-borne Pole Strike activity would carry none of them. Riposte's drive: aim, use, roll.
+ * ------------------------------------------------------------------------------------------------ */
+
+const swinging = new Set();
+async function answerSwingOffer(message, use) {
+  const notice = message.getFlag(MODULE_ID, "hewNotice");
+  if ( !notice?.offer || momentAcknowledged(message, "hewNotice") || swinging.has(message.id) ) return;
+  swinging.add(message.id);
+  try {
+    await acknowledgeMoment(message, "hewNotice");
+    if ( !use ) return;
+    const attacker = resolveUuid(notice.attackerUuid);
+    const weapon = attacker?.items?.get(notice.offer.weaponId);
+    const activity = weapon?.system?.activities?.get(notice.offer.activityId);
+    const token = tokenForUuid(notice.offer.targetUuid);
+    if ( !activity || !token ) { ui.notifications?.warn(`${TITLE}: ${notice.label} — the weapon or the target is gone; swing from the sheet.`); return; }
+    await withTargets([token], async () => {
+      const done = await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { poleStrike: message.id } } } });
+      const usageId = done?.message?.id ?? null;
+      await activity.rollAttack({}, { configure: false },
+        { data: { ...(usageId ? originData(usageId) : {}), flags: { [MODULE_ID]: { poleStrike: message.id } } } });
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The ${notice?.label ?? "bonus"} swing could not be driven — swing from the sheet.`, err);
+  } finally {
+    swinging.delete(message.id);
+  }
+}
+
+const DIE = /(\d*)d(\d+)/i;
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+  try {
+    const activity = config?.subject;
+    if ( activity?.type !== "attack" ) return;
+    const attackMessage = attackMessageForDamage(config, message);
+    if ( !attackMessage?.getFlag(MODULE_ID, "poleStrike") ) return;
+    const roll = config.rolls?.[0];
+    const parts = Array.isArray(roll?.parts) ? roll.parts : null;
+    const i = parts ? parts.findIndex(p => DIE.test(String(p))) : -1;
+    if ( i < 0 ) return;
+    const was = String(parts[i]);
+    parts[i] = was.replace(DIE, (_m, n) => `${n || 1}d4`);
+    roll.options ??= {};
+    roll.options.type = "bludgeoning";
+    roll.options.types = ["bludgeoning"];
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.poleStrikeDie`, { was, now: parts[i] });
+  } catch(err) {
+    console.error(`${TITLE} | Pole Strike's d4 could not be swapped in — the damage is the weapon's own.`, err);
+  }
+});
+
+// The damage card says the swap (one line, the Unarmed Strike's shape).
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const f = message.getFlag(MODULE_ID, "poleStrikeDie");
+  if ( !f ) return;
+  const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+  if ( !content || content.querySelector(".bf-pole-strike-line") ) return;
+  const div = document.createElement("div");
+  div.className = "bf-pole-strike-line";
+  div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+  div.textContent = `Pole Strike — the other end: ${f.now} Bludgeoning in place of ${f.was}`;
+  content.appendChild(div);
 });

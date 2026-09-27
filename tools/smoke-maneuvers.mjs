@@ -1307,14 +1307,24 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const { msg } = await attack(spearAct, victimToken);
         await waitDamage(msg?._source.system?.origin, 10000);
         const card = await until(() => pole(t0)[0] ?? null, 10000);
-        ok('PS1. an attack with a Spear, held by a Polearm Master, posts Pole Strike\'s reminder — the rule and the swing from the sheet',
-          !!card && /Pole Strike\. Immediately after you take the Attack action/.test(card.content ?? '') && /other end/.test(card.content ?? ''),
-          `card=${!!card}`);
-        const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="ok"]')), 6000);
-        ok('PS2. the reminder POPS (Hew\'s OK-only shape)', !!popup, `popup=${!!popup}`);
-        popup?.querySelector('button[data-action="ok"]')?.click();
-        await sleep(400);
-        ok('PS3. one reminder for the attack, and no Hew beside it', (pole(t0).length === 1)
+        const offerOf = card?.getFlag(MOD, 'hewNotice')?.offer ?? null;
+        ok('PS1. an attack with a Spear, held by a Polearm Master, posts Pole Strike\'s OFFER — the rule and the other end',
+          !!card && /Pole Strike\. Immediately after you take the Attack action/.test(card.content ?? '') && /other end/.test(card.content ?? '') && !!offerOf,
+          `card=${!!card} offer=${JSON.stringify(offerOf)}`);
+        const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="use"]')), 6000);
+        ok('PS2. the offer POPS with Pole Strike / Pass (the walk, 2026-09-27)', !!popup?.querySelector('button[data-action="pass"]'), `popup=${!!popup}`);
+        const tUse = Date.now();
+        popup?.querySelector('button[data-action="use"]')?.click();
+        const swing = await until(() => game.messages.contents.find(m => (m.timestamp >= tUse) && m.rolls?.length
+          && (m.getFlag(MOD, 'poleStrike') === card?.id)), 10000);
+        const die = await until(() => game.messages.contents.find(m => (m.timestamp >= tUse) && m.getFlag(MOD, 'poleStrikeDie')), 12000);
+        const dieFlag = die?.getFlag(MOD, 'poleStrikeDie') ?? null;
+        const dieTypes = [...(die?.rolls?.[0]?.options?.types ?? [])];
+        ok('PS2b. Use drives the SPEAR\'s own attack at the same target; its damage is a d4 of Bludgeoning, and the card says so',
+          !!swing && !!dieFlag && /d4/.test(dieFlag.now ?? '') && ((die.rolls?.[0]?.options?.type === 'bludgeoning') || dieTypes.includes('bludgeoning')),
+          `swing=${!!swing} die=${JSON.stringify(dieFlag)} type=${die?.rolls?.[0]?.options?.type} types=[${dieTypes}]`);
+        await sleep(600);
+        ok('PS3. one offer for the attack (the driven swing offers none), and no Hew beside it', (pole(t0).length === 1)
           && !game.messages.contents.some(m => (m.timestamp >= t0) && /Hew — /.test(m.content ?? '')), `pole=${pole(t0).length}`);
         const t1 = Date.now();
         const { msg: m2 } = await attack(pcAttackAct(), victimToken);
