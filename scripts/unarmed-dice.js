@@ -1,18 +1,10 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE — a feature whose owner's
- * Unarmed Strike deals a die "instead of the normal damage" (decide/registry.js UNARMED_DICE;
- * Tavern Brawler the one row). The origin-feat walk, 2026-09-25 — the user, on the plain Unarmed
- * Strike always dealing 4 beside Tavern Brawler: "Module swaps it" — "but give some kind of notice
- * somwhere".
- *
- * THE SEAM: `dnd5e.preRollDamageV2`, before the roll is built — the plain strike's parts (the flat
- * `1 + @mod`, no die) become the feature's own unarmed attack's formula, read off that activity
- * (the pack's "Enhanced Unarmed Strike", `1d4r1 + @abilities.str.mod`), so crits double the die
- * and every reader of the total sees the new number. A strike that already rolls a die (a Monk's
- * Martial Arts) is left alone. The feature's own attack is never touched: it already rolls it.
- *
- * THE NOTICE: one line on the damage card — "Tavern Brawler — 1d4r1 + 3 in place of 1 + 3".
- * Nothing is asked: the die's lowest is the flat number, so the swap is never worse.
+ * Unarmed Strike deals a die "instead of the normal damage" (decide/registry.js UNARMED_DICE).
+ * At `dnd5e.preRollDamageV2`, before the roll is built, the plain strike's flat parts become the
+ * feature's own unarmed attack's formula, so crits double the die and every reader sees the new
+ * total. A strike that already rolls a die, and the feature's own attack, are left alone. One line
+ * on the damage card says the swap; nothing is asked, since the die is never worse than the flat.
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { lower } from "./lookup.js";
@@ -49,8 +41,8 @@ function dieMax(formula) {
 }
 
 /**
- * Does the owner hold nothing — no weapon (a natural one is not held) and no Shield? Unarmed
- * Fighting's "If you aren't holding any weapons or a Shield", read off the Equipped boxes.
+ * No weapon (a natural one is not held) and no Shield equipped — Unarmed Fighting's "If you
+ * aren't holding any weapons or a Shield".
  */
 function handsEmpty(actor) {
   return !(actor?.items ?? []).some(i => (i.system?.equipped === true) && (
@@ -72,9 +64,8 @@ function formulaFor(row, feature, actor) {
 }
 
 /**
- * The listed row this actor holds, with the formula its feature carries — or null. Two listed rows
- * on one actor (Tavern Brawler and Unarmed Fighting) swap in the LARGER die: both say "instead of
- * the normal damage", and the owner would take the better one.
+ * The listed row this actor holds, with its formula — or null. With two listed rows, the LARGER
+ * die wins: both say "instead of the normal damage".
  */
 function rowFor(actor) {
   const on = listedNames(unarmedDiceEntries());

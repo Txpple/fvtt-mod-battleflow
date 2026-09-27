@@ -1,27 +1,15 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the DAMAGE HOLD — a reduction "when you take damage"
- * asked before ANY damage lands, not only an attack's (the Goliath walk, 2026-09-25: "what is the
- * level of effort to trigger stones endurance on any damage applied from not only attack but also
- * applied damage from a spell"; ruled "Hold before it lands"). The row is decide/registry.js
- * INTERRUPT_REDUCTIONS with `any: true` (Stone's Endurance); Parry stays an attack hold's.
- *
- * THE SEAM is the applier's claim (auto-apply.js `registerDamageClaim`): every damage the module
- * applies — a save's, an area's, an emanation's pulse, a rider's, a shield's — passes through
- * `applyDamagesWithReceipt`, and before a target's share lands this machine may claim it. A claimed
- * share is stamped whole on a card of its own (the damages, the multiplier, the note, the card the
- * receipt belongs on) and the damage WAITS; the owner answers in a popup — Stone's Endurance rolls
- * its 1d12 + CON in the open, spends a use and the Reaction — or takes it, or the clock takes it for
- * them; then the keeper lands the share, short by the roll, through the same applier (`held`, never
- * claimed twice), the receipt row saying why. An attack HIT the attack hold already asked about is
- * not claimed again (hold/ owns that moment, and one Reaction is one Reaction).
- *
- * ⚠ THE BEND (RULINGS' register): damage applied with the card's OWN buttons, or typed on a sheet,
- * never passes the module's applier — it is not held, and Stone's Endurance there is the table's.
- *
- * THE ORDER, by the rule: a save's multiplier (half on a success) first, then the reduction, then
- * the system's own resistances and immunities as it applies the number (PHB: resistance "after all
- * other modifiers to damage").
- * ------------------------------------------------------------------------------------------- */
+ * (INTERRUPT_REDUCTIONS rows with `any: true`, Stone's Endurance) or a guard's (`ally`,
+ * Interception) asked before ANY module-applied damage lands, not only an attack's.
+ * The seam is the applier's claim (auto-apply.js `registerDamageClaim`): a claimed share is
+ * stamped whole on its own card and WAITS; the owner answers in a popup (or the clock takes it),
+ * then the keeper lands it, short by the roll, through the same applier (`held`, never claimed
+ * twice). An attack hit the attack hold already asked about stays the hold's (one Reaction).
+ * ⚠ Damage applied with the card's own buttons or typed on a sheet is never held (RULINGS
+ * *Where the table bends the rule*). Order: the save's multiplier, then the reduction, then the
+ * system's resistances.
+ */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
@@ -62,10 +50,10 @@ function anyReductionOf(actor) {
 }
 
 /**
- * THE GUARDS (Interception, the fighting styles 2026-09-26, ruled P1): the creatures within a row's
- * `ally` reach of the one being hit who could reduce the damage for it — on its side, not the
- * attacker, the row's feature on the sheet with its reduction, the Reaction free, holding what the
- * row demands. `[{ actorUuid, actorName, itemId, activityId, formula, passed }]`, with the row's key.
+ * THE GUARDS (Interception): the creatures within a row's `ally` reach of the one being hit who
+ * could reduce the damage for it — its side, not the attacker, the feature on the sheet, the
+ * Reaction free, holding what the row demands. Returns the row's key and
+ * `[{ actorUuid, actorName, itemId, activityId, formula, passed }]`.
  */
 function interceptorsFor(defender, attacker) {
   const guarded = tokenForUuid(defender?.uuid);
@@ -98,9 +86,8 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const own = listed(), guarded = guardsListed();
   if ( !own && !guarded ) return false;
   if ( !damages?.length || damages.every(d => NOT_DAMAGE.has(d.type)) ) return false;
-  // ONE CLAIM PER SHARE (the pass-2 walk, 2026-09-25: "i get two popups instead of 1"): a save's
-  // damage reaches the applier twice, and a claimed share has no receipt yet to stop the second
-  // pass — the same receipt and target inside the window is the share already held.
+  // ONE CLAIM PER SHARE: a save's damage reaches the applier twice, and a claimed share has no
+  // receipt yet to stop the second pass — same receipt and target inside the window is the same share.
   const key = `${receiptMessage.id}|${target.uuid}`;
   const at = claimedShares.get(key);
   if ( at && ((Date.now() - at) < CLAIM_WINDOW_MS) ) return true;
@@ -110,8 +97,7 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const heldByAttack = !!attack?.getFlag(MODULE_ID, "hold")?.targets?.some(t => t.uuid === target.uuid);
   const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
   if ( !found ) {
-    // THE GUARDS (Interception): an ATTACK's damage to a creature with a guard beside it — "hits
-    // another creature within 5 feet of you with an attack roll" — held for the guards to answer.
+    // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer.
     const guards = (guarded && attack) ? interceptorsFor(actor, attack.getAssociatedActor?.() ?? null) : null;
     if ( !guards ) return false;
     claimedShares.set(key, Date.now());
@@ -138,8 +124,7 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   const amount = Math.floor(damages.reduce((n, d) => n + (Number(d.value) || 0), 0) * multiplier);
   const source = receiptMessage.getAssociatedActor?.() ?? null;
-  // A guarded share (Interception): nobody reacts yet — the guards are asked, the one who
-  // intercepts becomes the reactor (actorUuid) at the answer.
+  // A guarded share has no reactor yet; the guard who intercepts becomes it at the answer.
   const who = guarded ? { actorUuid: null, actorName: null, itemId: null, activityId: null, formula: null, guards: found.guards }
     : { actorUuid: actor.uuid, actorName: target.name ?? actor.name, itemId: found.item.id, activityId: found.activity.id, formula: found.formula };
   const flag = {
@@ -183,9 +168,8 @@ function armTimer(message) {
 /* --- the answer ------------------------------------------------------------------------------- */
 
 /**
- * One answer folded onto the hold (the keeper's write and the relay's fold share it). A guarded
- * share (Interception, ruled P1): the first guard to intercept takes it and becomes the reactor; a
- * guard's pass is recorded and the share lands whole only once every guard has passed.
+ * One answer folded onto the hold (the keeper's write and the relay's fold share it). On a guarded
+ * share the first guard to intercept becomes the reactor; it lands whole once every guard passed.
  */
 function foldAnswer(current, { answer, reduceBy = 0, poolSpend = null, who = null }) {
   if ( current.status !== "pending" ) return false;
@@ -229,8 +213,7 @@ async function answerHold(message, answer, who = null) {
       } else {
         try {
           const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();
-          // a reaction that modifies a roll: the dice rise off whoever reduced it, the number drifting
-          // to whom it protected (RULINGS, the dice that rise)
+          // A reaction that modifies a roll: the dice rise off the reducer toward the protected.
           const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
           await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.reaction} — the die, plus the modifier`,
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
@@ -285,8 +268,7 @@ async function landHeld(message) {
   let applyMultiplier = multiplier;
   const by = Number(flag.reduceBy) || 0;
   if ( (flag.answer === "cast") && (by > 0) ) {
-    // The save's multiplier first, then the reduction (the rule's order); the system's own
-    // resistances still apply as it lands the number.
+    // The save's multiplier first, then the reduction; the system's resistances apply as it lands.
     if ( multiplier !== 1 ) damages = damages.map(d => ({ ...d, value: Math.floor((Number(d.value) || 0) * multiplier) }));
     damages = reduceDamages(damages, by);
     applyMultiplier = 1;
@@ -307,7 +289,7 @@ registerResumable(HOLD_FLAG, {
 
 /* --- the popup and the card ------------------------------------------------------------------- */
 
-/** A guard's popup (Interception, ruled P1): its own, keyed apart, closed by any intercept or its own pass. */
+/** A guard's own popup, keyed apart, closed by any intercept or its own pass. */
 async function showGuardPopup(message, guard) {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
   if ( (flag?.status !== "pending") || guard.passed ) return;
@@ -352,7 +334,7 @@ async function showPopup(message) {
   });
 }
 
-/** The card's line — source, then result (law 6). */
+/** The card's line — source, then result. */
 function holdLine(flag) {
   const guarded = !!flag.guards?.length;
   const to = guarded ? ` to ${flag.target?.name}` : "";
@@ -389,7 +371,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   } catch(err) { console.warn(`${TITLE} | The damage hold's line could not render.`, err); }
 });
 
-// An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
+// An answer anywhere closes the popup everywhere; the clock stands down with it.
 Hooks.on("updateChatMessage", message => {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
   if ( !flag ) return;

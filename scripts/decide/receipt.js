@@ -1,40 +1,18 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): receipt arithmetic.
- *
- * Moved out of auto-apply.js (the write side), receipts.js (the read side) and
- * effect-riders.js (the effect merge) — ARCHITECTURE §10 D5, "move, do not rewrite". One receipt
- * entry is prior → delta → taken → reason; this file owns that arithmetic, the merge
- * discipline both receipt flags share, and the revert inverse.
- *
- * ⚠ THIS IS THE LAYER THAT MOVES PEOPLE'S HIT POINTS. It was correct and untested — every
- * number a card shows, and every number a revert restores, lived in code that only the slow
- * live suites could reach. That is why it came out first among what remained.
- *
- * ⚠ Two copies of the same arithmetic disagreed on tolerance — the row read `t.delta.value`
- * and mastery read `entry.delta?.value`. The tolerant form won everywhere: every entry written
- * here carries both `prior` and `delta`, so nothing live changes, and there is now one copy
- * left to disagree with.
- *
- * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js. The
- * damage-type LABEL lookup stays at the EDGE (it reads CONFIG.DND5E) — `traitPhrase` is handed
- * the label it should speak.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): receipt arithmetic. One entry is
+ * prior → delta → taken → reason; this owns that arithmetic, the merge discipline both receipt
+ * flags share, and the revert inverse. ⚠ This layer moves hit points — unit-test changes.
+ * ⚠ Depends downward only: no machine, no spine, no core.js; labels that read CONFIG.DND5E are
+ * resolved at the edge and handed in.
  */
 
 /* --- writing an entry ----------------------------------------------------------------------- */
 
 /**
- * The data-plane fields every stamped record carries (the party-stats commission): `combat`
- * (core.js `combatStamp`'s `"id:round:turn"`, null out of combat) and `sourceUuid` (the actor
- * whose action caused the record, null when none can honestly be named). The CONTEXT is built
- * at the EDGE (`statContext`, core.js — it reads game.combat); this normalizer only shapes it
- * into an entry, which is why it may live here.
- *
- * ⚠ Both fields are ALWAYS written, null included: explicit null means "resolved at write
- * time, and the answer was nothing", absent means the record predates the data plane. A
- * reader tells legacy from out-of-combat by exactly that difference — do not "tidy" the nulls
- * away.
- *
+ * The data-plane fields of a stamped record (the context is built at the edge by `statContext`).
+ * ⚠ Both are ALWAYS written, null included: null means "resolved, nothing"; absent means the
+ * record predates the plane. Do not tidy the nulls away.
  * @param {{combat?: string|null, sourceUuid?: string|null}|null|undefined} context
  */
 export function statFields(context) {
@@ -42,18 +20,11 @@ export function statFields(context) {
 }
 
 /**
- * What a target's traits made of one damage part, in one word — or null when the number did
- * not move (resist and vulnerable cancel to ×1 and stay silent).
- *
- * `active` is dnd5e's own annotation from `calculateDamage`, and that is the whole point:
- * recomputing di/dr/dv here would drift from bypasses, modification and thresholds, while
- * asking the system's own method cannot.
- *
- * ⚠ `active.multiplier` is the traits' factor TIMES the caller's own `multiplier` (a saved
- * half, Uncanny Dodge): actor.mjs multiplies `options.multiplier` into it before the traits.
- * Read raw, a halved save labelled every target "resistant" and a resistant target that saved
- * (× 0.25) got no label at all (session 8's dragon breath, found by the scribe 2026-09-24).
- * The caller's share is divided out first; immunity and a threshold are ×0 either way.
+/**
+ * What a target's traits made of one damage part, in one word — or null when the number did not
+ * move. `active` is dnd5e's own annotation from `calculateDamage`, so bypasses and thresholds
+ * never drift. ⚠ `active.multiplier` already includes the caller's `multiplier` (a saved half,
+ * Uncanny Dodge), so the caller's share is divided out first.
  */
 export function traitOutcome(active, multiplier = 1) {
   const a = active ?? {};
@@ -68,12 +39,8 @@ export function traitOutcome(active, multiplier = 1) {
 }
 
 /**
- * The reason list a receipt row renders: one entry per (type, outcome), deduped — several
- * parts of one type share one story and the row tells it once. `multiplier` is the caller's
- * (the entry's own), divided out of each part's annotation.
- *
- * `calc` is `calculateDamage`'s return, which is an ARRAY carrying an `amount` property — and
- * `false` when a hook cancelled the calculation, which is why it is guarded rather than mapped.
+ * The reason list a receipt row renders: one per (type, outcome), deduped. `calc` is
+ * `calculateDamage`'s return — an array carrying `amount`, or `false` when a hook cancelled it.
  */
 export function traitReasons(calc, multiplier = 1) {
   const traits = [];
@@ -95,36 +62,23 @@ export function hpDelta(prior, after) {
 }
 
 /**
- * One receipt entry, from the snapshots either side of the application.
- *
- * ⚠ `taken` and `delta` are DIFFERENT QUANTITIES and both are kept on purpose. `taken` is the
- * post-trait, pre-clamp total — what the hit dealt, a number an assertion can trust; `delta` is
- * what the pool did. A target already at 0 HP clamps every delta to −0 while `taken` still
- * reads 14 (reported live 2026-08-15: a vulnerable Ice Mephit's row said "−0 HP" beside the
- * native tray's −14).
- *
- * `note` and `multiplier` ride only when they say something — a Graze line names itself, and a
- * non-1 multiplier is how the row explains a halved number.
- *
- * `context` is the data-plane stamp (statFields above), PER ENTRY on purpose: a spell hold
- * splits one roll's application in time, and the held target's entry belongs to the turn its
- * verdict landed on, not the turn the rest of the volley did.
+ * One receipt entry, from the snapshots either side of the application. ⚠ `taken` (post-trait,
+ * pre-clamp: what the hit dealt) and `delta` (what the pool did) differ — a target at 0 HP clamps
+ * the delta to −0 while `taken` still reads the hit. `context` is stamped PER ENTRY: a held
+ * target's entry belongs to the turn its verdict landed on.
  */
 export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, prior, after, calc, context }) {
   return {
     uuid,
     name,
-    img, // the portrait the row leads with (user call, 2026-08-15)
+    img, // the portrait the row leads with
     ...(note ? { note } : {}),
     ...(multiplier !== 1 ? { multiplier } : {}),
     prior,
     delta: hpDelta(prior, after),
     taken: calc ? calc.amount : null,
-    // Per-part POST-trait amounts (the stats plane's second pass, 2026-08-27): measured —
-    // calculateDamage rewrites each part's `value` through the multiplier story (fire 9
-    // under resistance comes back 4), so this is what each type actually DEALT; the message's
-    // own rolls stay the pre-mitigation side, and the difference IS the damage-lost-to-traits
-    // meter. Healing-typed parts arrive negated, same sign convention as `taken`.
+    // Per-part POST-trait amounts (calculateDamage rewrites each part's value), so rolls minus
+    // parts is the damage lost to traits. Healing parts arrive negated, like `taken`.
     parts: (calc || []).map(d => ({ type: d.type ?? null, amount: d.value ?? 0 })),
     traits: traitReasons(calc, multiplier),
     reverted: false,
@@ -133,13 +87,8 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
 }
 
 /**
- * One applied-effect record, THE constructor for every effectReceipt entry's `effects[]`
- * element — the rider loop, the mastery chips and the reaction sliver all build through here,
- * so the record shape (and the data-plane stamp riding it) can never drift between writers.
- * Stamped per RECORD for the same reason receipt entries are: effects accumulate on one flag
- * across moments (a rider now, a mastery chip a turn later), and each record belongs to the
- * moment that applied it.
- *
+ * THE constructor for every effectReceipt `effects[]` record, so the shape and its stamp never
+ * drift between writers. Stamped per record: effects accumulate on one flag across moments.
  * @param {{id: string, name: string, img?: string|null, description?: string}} applied
  * @param {{combat?: string|null, sourceUuid?: string|null}|null|undefined} context
  */
@@ -150,18 +99,10 @@ export function effectRecord({ id, name, img = null, description }, context) {
 /* --- the merge discipline, shared by every writer of either flag ---------------------------- */
 
 /**
- * Merge damage entries into a `receipt` flag.
- *
- * ⚠ MERGE, never overwrite (v1.6.0): a spell hold can split one roll's application in time —
- * unheld targets land at once, a held target lands after its verdict — and the second write
- * must not eat the first's entries. Run it inside `queueFlagWrite` so two CONCURRENT writers
- * cannot each merge into the same pre-read copy and drop one another's entries; a lost entry
- * also defeats reconcileSaveDamage's idempotence guard and the damage lands twice. The
- * measurement that found it is recorded in core.js.
- *
- * ⚠ An existing entry for a uuid is REPLACED here where the effect side accumulates, and the
- * asymmetry is deliberate: a target has ONE HP story per damage message — a re-application
- * supersedes it — and several effects.
+ * Merge damage entries into a `receipt` flag. ⚠ MERGE, never overwrite: a spell hold splits one
+ * roll's application in time. Run it inside `queueFlagWrite`, or concurrent writers drop each
+ * other's entries and the damage lands twice. An entry for a uuid is REPLACED (one HP story per
+ * damage message), where the effect side accumulates.
  */
 export function joinDamageReceipt(flag, entries) {
   flag.targets ??= [];
@@ -173,10 +114,8 @@ export function joinDamageReceipt(flag, entries) {
 }
 
 /**
- * Merge one applied-entry into an effectReceipt flag object — THE receipt bookkeeping, shared
- * by every writer (the rider and cast appliers, the mastery chips, the hold's answer paths) so
- * the merge discipline can never drift between them: entries keyed by uuid, effects deduped by
- * id, nothing ever overwritten.
+ * Merge one applied-entry into an effectReceipt flag: entries keyed by uuid, effects deduped by
+ * id, nothing overwritten. Every effect writer goes through here.
  */
 export function joinEffectReceipt(flag, entry) {
   flag.targets ??= [];
@@ -194,12 +133,8 @@ export function joinEffectReceipt(flag, entry) {
 /* --- reading an entry ----------------------------------------------------------------------- */
 
 /**
- * What this target actually TOOK — the number the table is owed, and the Vex/Slow gate's
- * "hit AND dealt damage" test.
- *
- * `taken` is the truth whenever it was recorded. An entry written before the field existed
- * falls back to the pool's own movement, which under-reads at 0 HP; that is the best such an
- * entry can offer, and a target-specific immunity is invisible in it.
+ * What this target actually TOOK. `taken` when recorded; an older entry falls back to the pool's
+ * movement, which under-reads at 0 HP.
  */
 export function takenOf(entry) {
   return (typeof entry?.taken === "number") ? entry.taken
@@ -207,25 +142,11 @@ export function takenOf(entry) {
 }
 
 /**
- * Every number one receipt row shows, and the voice it speaks in. The words are here with the
- * arithmetic that chooses them, because twice now the numbers were right and the sentence was
- * wrong; the colours stay at the EDGE, where the stylesheet is.
- *
- * ⚠ Healing arrives as a NEGATIVE take (calculateDamage inverts healing types), and "−-25 HP"
- * in damage red is what that looked like (user report 2026-08-16). A gain reads +N.
- *
- * ⚠ TEMP HP IS A THIRD KIND, not a signed HP number (user report 2026-08-19, Morgash's Dash
- * read "−0 HP" in damage maroon). dnd5e 5.3.3's calculateDamage routes a `temphp` entry into
- * `damages.temp` and NEVER into `damages.amount` — and the healing-negation block right above
- * it covers "healing" and "maximum" ONLY, so temp is not inverted either. A pure temp grant
- * therefore lands with `taken === 0`, which failed a `taken < 0` gain test and fell through to
- * the damage voice. The pool genuinely did not move; `hp.temp` did, and only the delta knows
- * it — the value itself applies correctly (applyDamage sets hp.temp to the greater of old and
- * new), so this was always a card that lied, never a grant that went missing. (`taken === 0`
- * also catches −0, which is what a zeroed calc actually produces.)
- *
- * `from`/`after` are the GM's book — the pool either side, which is what says the −14 landed on
- * a creature already at 0.
+ * Every number one receipt row shows, and its voice (the colours stay at the edge).
+ * ⚠ Healing arrives as a NEGATIVE take (calculateDamage inverts healing types); a gain reads +N.
+ * ⚠ Temp HP is a third kind: calculateDamage routes `temphp` into `damages.temp`, never
+ * `amount`, and does not invert it — a pure grant lands with `taken === 0` (or −0) and only the
+ * delta knows. `from`/`after` are the pool either side.
  */
 export function receiptAmounts(entry) {
   const taken = takenOf(entry);
@@ -238,19 +159,12 @@ export function receiptAmounts(entry) {
     taken, from, after: from - lost, tempGained, tempOnly, healed,
     amountText: tempOnly ? `+${tempGained} temp HP`
       : healed ? `+${-taken} HP` : `−${taken} HP`,
-    // A MIXED entry (damage or healing that also granted temp) keeps its own number and
-    // appends the temp rather than hiding one behind the other.
+    // A mixed entry keeps its own number and appends the temp.
     tempExtraText: ((tempGained > 0) && !tempOnly) ? ` · +${tempGained} temp` : null
   };
 }
 
-/**
- * One receipt reason in table English.
- *
- * ⚠ The LABEL is resolved at the EDGE and handed in: the lookup reads CONFIG.DND5E, which this
- * layer may not touch (§2 rule 1). `type` stays as the fallback so an unknown key still reads
- * as something rather than as "undefined".
- */
+/** One receipt reason in table English; `label` is resolved at the edge, `type` the fallback. */
 export function traitPhrase({ type, outcome, label }) {
   const text = (label ?? type ?? "damage").toLowerCase();
   switch ( outcome ) {
@@ -266,19 +180,10 @@ export function traitPhrase({ type, outcome, label }) {
 /* --- the revert inverse --------------------------------------------------------------------- */
 
 /**
- * What reverting one damage entry has to do — or null when there is nothing to do.
- *
- * ⚠ Idempotent by construction: an entry already marked reverted plans nothing, so a second
- * click, a second client or a re-render can never re-fight a human's ↩. The returned `entry` is
- * the LIVE object inside `receipt` — the caller marks it and writes the flag back, which is
- * what re-renders the card on every client.
- *
- * `clearDefeated` carries the combatplus interaction contract (ARCHITECTURE.md §7): a revert
- * that raises the target back above 0 also clears the defeated mark and the dead overlay its
- * auto-defeated set at 0.
- *
- * Deliberately NOT rewound: rolls, resources, ammo, concentration (ARCHITECTURE.md §4) —
- * re-applying to the right target is the native tray's job.
+ * What reverting one damage entry has to do, or null. ⚠ Idempotent: an entry already reverted
+ * plans nothing, so a second click or client never re-fights a human's ↩. `entry` is the LIVE
+ * object — the caller marks it and writes the flag back. `clearDefeated` is the combatplus
+ * contract (ARCHITECTURE.md §7). Rolls, resources, ammo and concentration are not rewound.
  */
 export function revertPlan(receipt, uuid) {
   const entry = receipt?.targets?.find(t => t.uuid === uuid);
@@ -295,9 +200,8 @@ export function revertPlan(receipt, uuid) {
 }
 
 /**
- * The effect twin: the entry one ✕ Revert click owns, or null when there is nothing to do.
- * Same idempotence, same reason — the concentration cascade, a manual right-click or the
- * target's death may all beat the button, and none of them may un-mark what a human reverted.
+ * The effect twin: the entry one ✕ Revert owns, or null. Same idempotence — a cascade, a manual
+ * removal or a death may beat the button.
  */
 export function revertableEffect(flag, targetUuid, effectId) {
   const target = flag?.targets?.find(t => t.uuid === targetUuid);

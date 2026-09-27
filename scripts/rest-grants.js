@@ -1,18 +1,8 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE REST GRANTS — a feature whose text gives
- * the creature something "whenever you finish a Long Rest" that the platform does not give it
- * (decide/registry.js REST_GRANTS; Resourceful the first row: Heroic Inspiration). The Human walk,
- * 2026-09-25 (user: "human i think just needs initiatve to be ticked on long rest" — the sheet's
- * Heroic Inspiration box; the pack's own note: "Usage of this feature's activity does not
- * automatically grant Heroic Inspiration").
- *
- * THE SEAM: `dnd5e.preRestCompleted` — the rest's result is computed and its ONE actor update not
- * yet made, so the grant rides that update (`result.updateData`), landing with the hit points and
- * the uses it restores. The rest card then says what was gained (`dnd5e.restCompleted`, the card
- * made; the line reads the stamp).
- *
- * WHERE IT RUNS: the resting client — the rest runs where it was asked (the sheet, the GM's Rest
- * request), and the result is that client's. Nothing is asked: the feature's text grants it.
+ * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): THE REST GRANTS — what a feature gives at a
+ * rest that the platform does not (decide/registry.js REST_GRANTS; Resourceful's Heroic
+ * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
+ * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
@@ -90,31 +80,19 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /* =============================================================================================
- * THE SONG — a grant GIVEN to allies, asked after the rest (Musician, the origin feats,
- * 2026-09-25; the row's `to: "allies"`). The user: "give a courtesy popup after long and short
- * rest, listing the allies within 30 ft, player picks which ones to give inspiration. grey out
- * the ones that already have and so note it"; "you can leverage the general form of careful
- * spell". Careful Spell's picker is the shape (area-ask.js): ticks grouped Party / Non-Party, the
- * cap enforced as they are made, a tick pinging the creature's token, one OK.
- *
- *   - THE ASK is a card the resting client posts once the rest is done, naming the allies the map
- *     puts within the row's reach (characters on the owner's side, nearest edges — R1; the owner
- *     too where the row says `self`; every one on the scene where the rule names no distance),
- *     each marked with whether it already has the grant. Nobody who could take it: no card.
- *   - THE POPUP opens on whoever answers for the owner (canAnswerFor); no clock — a rest is nobody
- *     else's wait, and the card's button reopens it. The allies without it start ticked, the Party
- *     first, up to the cap (the row's — the owner's Proficiency Bonus for the song).
- *   - THE WRITE is to OTHER actors, so it is the GM's: a GM answering folds directly; a player's
- *     answer is an envelope the elect folds (the relay registry), and the elect lands the picks.
- *     With no GM on, the player is told to give it by hand.
- *
- * THE PHB FEATS, group 5 (2026-09-27 — RULINGS *The PHB feats — groups 4–6*): the same popup gives
- * Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats — the amount read off the feat's
- * own heal activity, given only where it is more than the creature holds), and Chef's Replenishing
- * Meal: the activity's extra die, healed to an eater that spends Hit Dice in the SAME Short Rest.
- * Each creature rests on its own client in any order, so an eater whose rest already ended is
- * judged off its rest card (the Hit Dice it spent, stamped below) and healed at once; one still
- * resting carries the meal on its sheet (`mealFed`) and is healed as its own rest ends.
+ * THE SONG — a grant GIVEN to allies, asked after the rest (a row's `to: "allies"`: Musician,
+ * Inspiring Leader, Chef). Careful Spell's picker is the shape (area-ask.js).
+ *   - THE ASK: a card the resting client posts, naming the allies within the row's reach (same
+ *     side, nearest edges; the owner too where the row says `self`), each marked if it already has
+ *     the grant. Nobody who could take it: no card.
+ *   - THE POPUP opens on whoever answers for the owner; no clock (a rest is nobody's wait). Those
+ *     without it start ticked, Party first, up to the cap.
+ *   - THE WRITE is to other actors, so it is the GM's: a player's answer is an envelope the elect
+ *     folds. With no GM on, the player is told to give it by hand.
+ * Temp HP grants are read off the feat's heal activity and given only above what a creature holds.
+ * Chef's Replenishing Meal heals eaters who spent Hit Dice in the same Short Rest (RULINGS *Where
+ * the table bends the rule*): an eater whose rest ended is judged off its rest card; one still
+ * resting carries the meal (`mealFed`) and is healed as its own rest ends.
  * ========================================================================================== */
 
 const SONG_FLAG = "restSong";
@@ -137,9 +115,8 @@ function songRowsFor(actor, restType) {
 }
 
 /**
- * The heal activity a row reads its amount from — the named one, or (Inspiring Leader) the one that
- * stands for the ability the feat raised: its own Ability Score Improvement's record, else the higher
- * modifier among the activities the sheet still carries (the pack: "delete the other").
+ * The heal activity a row reads its amount from — the named one, or (Inspiring Leader) the one for
+ * the ability the feat raised: its ASI record, else the higher modifier among those the sheet keeps.
  */
 function grantActivityOf(actor, item, row) {
   if ( row.activity ) return activityNamed(item, row.activity);
@@ -235,8 +212,8 @@ function grantText(flag) {
   return GRANT_LABEL[flag.grant] ?? flag.grant;
 }
 
-// Every Short Rest card records the Hit Dice its creature spent (the meal reads it — dnd5e's card
-// says it only in its words), on the resting client, which authored the card.
+// Every Short Rest card records the Hit Dice its creature spent (dnd5e's card says it only in
+// words), on the resting client, which authored the card.
 Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   try {
     const type = result?.type ?? config?.type;
@@ -284,17 +261,15 @@ Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   }
 });
 
-// THE REST CARD'S OWN ACTIVITY LIST (the walk, 2026-09-27 — Inspiring Leader's card listed "Inspire with
-// Wisdom" AND "Inspire with Charisma": "can just say inspiring performance. saying with wis or cha is
-// nonsensical"). The pack ships one activity per ability ("delete the other"); the feat raised ONE, and
-// the sheet settles which (grantActivityOf). The card keeps that one row, called by the row's `label`.
+// The rest card's own activity list: the pack ships one activity per ability and the feat raised
+// ONE (grantActivityOf); the card keeps that row, called by the row's `label`.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     if ( message.type !== "rest" ) return;
     const root = html instanceof HTMLElement ? html : html?.[0];
     const rows = root?.querySelectorAll?.(SURFACES.cardActivityRow);
     if ( !rows?.length ) return;
-    // the rest message's own actor (dnd5e lists ITS activities) — never the speaker's token copy
+    // the rest message's own actor (dnd5e lists ITS activities), never the speaker's token copy
     const actor = message.system?.actor ?? ChatMessage.getSpeakerActor(message.speaker);
     const restType = message.system?.type;
     if ( !actor || !restType ) return;
@@ -413,7 +388,7 @@ async function landSong(message) {
           ? (holdsTemp(target.system?.attributes?.hp?.temp, flag.amount) ? null : { "system.attributes.hp.temp": flag.amount })
           : GRANT_WRITES[flag.grant]?.(target);
         if ( write ) await target.update(write);
-        // Temporary Hit Points name only those who gained them (a pool that grew since the ask keeps its own).
+        // Temp HP names only those who gained them (a pool that grew since the ask keeps its own).
         if ( write || (flag.grant !== "temphp") ) given.push(flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name);
       }
     }
@@ -433,9 +408,8 @@ registerResumable(SONG_FLAG, {
   drive: landSong
 });
 
-// An eater that was still resting when the Chef's meal was served: its own rest's end heals it, when it
-// spent Hit Dice in that rest — on its own client, which owns the sheet. A meal from another sitting is
-// dropped unserved; so is one whose eater spent none.
+// An eater still resting when the meal was served is healed at its own rest's end, on its own
+// client, if it spent Hit Dice in that rest; a meal from another sitting is dropped.
 Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;

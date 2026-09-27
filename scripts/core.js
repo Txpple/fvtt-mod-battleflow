@@ -1,6 +1,7 @@
 /**
- * Battle Flow — The shared constants: module id, title, the setting-key map, the setting getter, and the single-writer elect test. A leaf — imports nothing.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — the shared constants and who/when facts: module id, title, setting keys, the
+ * elect and flow-elect tests, combat identity, the deadline roof and the flag-write serializer.
+ * A leaf — imports nothing.
  */
 
 export const MODULE_ID = "fvtt-mod-battleflow";
@@ -10,11 +11,11 @@ export const TITLE = "Battle Flow";
 export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
-  diceWait: "diceWait",                 // the verdict pause's wait for Dice So Nice (the user, 2026-09-26: default 0)
+  diceWait: "diceWait",                 // the verdict pause's wait for Dice So Nice
   playerRollDamage: "playerRollDamage",
-  effectBar: "effectBar",       // the effect view's bar above the hotbar (client, 2026-09-15 draft)
-  effectHover: "effectHover",   // the effect view's hover card and held key (client, 2026-09-15 draft)
-  measuredCover: "measuredCover", // the 2024 DMG's corner lines: the hover card's Cover section and the attack's AC (world, 2026-09-27)
+  effectBar: "effectBar",       // the effect view's bar above the hotbar (client)
+  effectHover: "effectHover",   // the effect view's hover card and held key (client)
+  measuredCover: "measuredCover", // the 2024 DMG's corner lines: the hover card's Cover section and the attack's AC (world)
   damageTimer: "damageTimer",
   autoApply: "autoApply",
   requireTarget: "requireTarget",
@@ -61,19 +62,19 @@ export const S = {
   metamagicList: "metamagicList",
   spentAreaList: "spentAreaList",
   chosenAreaList: "chosenAreaList",
-  initiativeSwapList: "initiativeSwapList",   // Alert (the origin feats, 2026-09-25)
-  healRerollList: "healRerollList",       // Healer (the origin feats, 2026-09-25)
-  kitTendList: "kitTendList",             // Healer's Battle Medic on the kit's use (the origin-feat walk, 2026-09-25)
-  fightingStyleList: "fightingStyleList", // the fighting styles' faces, gates and numbers (2026-09-26)
-  unarmedDiceList: "unarmedDiceList",     // Tavern Brawler's die on the plain Unarmed Strike (the origin-feat walk, 2026-09-25)
-  damageEitherList: "damageEitherList",   // Savage Attacker's list (Slice A, 2026-09-24)
-  tokenLightList: "tokenLightList",        // Inner Radiance and Light (the Aasimar walk, 2026-09-25)
-  tokenSenseList: "tokenSenseList",        // Stonecunning (the Dwarf walk, 2026-09-25)
-  tokenSizeList: "tokenSizeList",          // Large Form, Enlarge/Reduce (the Goliath walk, 2026-09-25)
-  rebukeList: "rebukeList",                // Storm's Thunder, Hellish Rebuke … (the Goliath walk, 2026-09-25)
-  cardChipList: "cardChipList",            // Tinker (the Gnome walk, 2026-09-25)
-  restGrantList: "restGrantList",          // Resourceful (the Human walk, 2026-09-25)
-  dropToOneList: "dropToOneList"           // Relentless Endurance, Death Ward (the Orc walk, 2026-09-25)
+  initiativeSwapList: "initiativeSwapList",   // Alert
+  healRerollList: "healRerollList",       // Healer
+  kitTendList: "kitTendList",             // Healer's Battle Medic on the kit's use
+  fightingStyleList: "fightingStyleList", // the fighting styles' faces, gates and numbers
+  unarmedDiceList: "unarmedDiceList",     // Tavern Brawler's die on the plain Unarmed Strike
+  damageEitherList: "damageEitherList",   // Savage Attacker, Piercer
+  tokenLightList: "tokenLightList",        // Inner Radiance and Light
+  tokenSenseList: "tokenSenseList",        // Stonecunning
+  tokenSizeList: "tokenSizeList",          // Large Form, Enlarge/Reduce
+  rebukeList: "rebukeList",                // Storm's Thunder, Hellish Rebuke …
+  cardChipList: "cardChipList",            // Tinker
+  restGrantList: "restGrantList",          // Resourceful
+  dropToOneList: "dropToOneList"           // Relentless Endurance, Death Ward
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);
@@ -82,45 +83,26 @@ export const setting = key => game.settings.get(MODULE_ID, key);
 export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
 
 /**
- * Whose client rolls for this actor: the first active non-GM owner (their character, their
- * dice), the active-GM elect otherwise. Deterministic on every client — same sorted user list,
- * so every client elects the same roller without anyone coordinating.
- *
- * ⚠ Only the AUTOMATIC paths consult this — auto mode's volunteer, and nobody for the buzzer,
- * which the elect owns. A human pressing Roll is answered by `canAnswerFor`, like every other
- * surface. (Was copied verbatim in concentration.js and saves.js; saves.js's own comment
- * called it "the concentration election", which is a duplicate announcing itself.)
+ * Whose client rolls for this actor: the first active non-GM owner (sorted by id, so every client
+ * elects the same one), the active GM otherwise. Only the AUTOMATIC paths consult this; a human
+ * pressing Roll is answered by `canAnswerFor`.
  */
 export const rollerUserFor = actor => game.users
   .filter(u => u.active && !u.isGM && actor.testUserPermission(u, "OWNER"))
   .sort((a, b) => a.id.localeCompare(b.id))[0] ?? game.users.activeGM;
 
-/* --- THE FLOW ELECT: the machines keep running when the GM drops (v1.27.0, user call) --------
- * `isActiveGM()` was the ONLY gate on the payout chain, so a GM disconnect stopped Battle Flow
- * dead — no chip, no card, no popup, and **no error**. The table read that as the module being
- * flaky; nobody was ever told the reason. The user's ruling: the popups all run WITHOUT a GM,
- * the effects that need GM permission simply do not apply, and whoever is running the flow is
- * TOLD which consequence was skipped.
- *
- * The split the code actually falls along is presentation vs consequence. A player client may
- * create chat messages, write flags on their OWN attack message, and write flags on their own
- * actor — so every card, ask and popup is reachable. It may NOT create an ActiveEffect on an
- * unowned monster, toggle its Prone, or change its HP — so every consequence is not.
- *
- * ⚠ ONE elect, never two. This module has been bitten more than once by two clients both
- * believing they own a moment (the twin-ask supersede in mastery.js is the scar), so the
- * fallback is not a second election running beside the first: it is the SAME question with the
- * GM removed from the answer. With a GM active this returns exactly what `isActiveGM()` did.
+/* --- THE FLOW ELECT (ARCHITECTURE §4 *The flow elect*) -----------------------------------------
+ * Presentation runs without a GM; consequence does not. A player client can create messages and
+ * write its own attack message and actor, so every card, ask and popup is reachable; it cannot
+ * write an unowned monster, so those consequences are skipped and the driver is told.
+ * ⚠ ONE elect, never two: the fallback is the same question with the GM removed, and with a GM
+ * active it answers exactly as `isActiveGM()` does.
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * The client that drives world-visible flow FOR THIS ACTOR: the active GM, and with no GM
- * connected the actor's own player (their swing, their client). Actor-local rather than a
- * room-wide fallback on purpose — the chain's writes land on the ATTACK MESSAGE, which only
- * its author may update, and its author is the attacker's player. A room-wide "lowest active
- * user" elect would hand the flow to someone with no permission to record it.
- *
- * Returns undefined when nobody can drive (no GM, no active owner) — the correct no-op.
+ * The client that drives world-visible flow for this actor: the active GM, else the actor's own
+ * player. Actor-local on purpose: the chain writes to the attack message, which only its author
+ * (the attacker's player) may update. Undefined when nobody can drive.
  */
 const flowElectFor = actor =>
   game.users.activeGM ?? (actor ? rollerUserFor(actor) : undefined);
@@ -129,13 +111,8 @@ const flowElectFor = actor =>
 const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
 
 /**
- * Does THIS client drive a moment whose subject is `subjectUuid`? The one question every
- * machine asks, in one place (v1.27.2 — mastery.js grew the first copy, and three more were
- * about to follow it).
- *
- * With a GM connected the answer is exactly `isActiveGM()`, so nothing changes for a normal
- * table. With none, the subject's own player drives — and a subject that cannot be resolved
- * drives nothing, which is the correct no-op rather than a guess.
+ * Does THIS client drive a moment whose subject is `subjectUuid`? With a GM on, exactly
+ * `isActiveGM()`; with none, the subject's own player — an unresolvable subject drives nothing.
  */
 export function drivesMomentFor(subjectUuid) {
   if ( isActiveGM() ) return true;
@@ -145,17 +122,14 @@ export function drivesMomentFor(subjectUuid) {
 }
 
 /**
- * May this client actually WRITE to that actor — apply an effect, press a condition, move HP?
- * GMs own everything; a player owns their own sheet and nothing on the monster side. This is
- * the guard that turns a silent permission failure into a spoken one.
+ * May this client WRITE to that actor (apply an effect, set a condition, move HP)? The guard that
+ * turns a silent permission failure into a spoken one.
  */
 export const canApplyTo = actor => !!actor?.isOwner;
 
 /**
- * Tell the flow's driver what did NOT happen, and what still stands. Whispered, because it is
- * an operational notice about the room rather than a table moment — and self-addressed, so it
- * never lands in front of players as an error. Best-effort: a notice that cannot be posted is
- * never worth throwing over.
+ * Tell the flow's driver what did NOT happen and what still stands — whispered to self, since it
+ * is an operational notice, not a table moment. Best-effort.
  */
 export async function whisperNoGM(what, stands = null) {
   try {
@@ -180,44 +154,26 @@ export function canAnswerFor(actor) {
 }
 
 /**
- * Should THIS client drive the continuation? The client that rolled the attack owns it (its
- * attack, its dice); if that user has gone offline the active GM takes over so a hold can
- * never strand the chain.
+ * Should THIS client drive the continuation? The attack's roller owns it; if that user is offline
+ * the active GM takes over so a hold never strands the chain.
  */
 export function isContinuingClient(hold) {
   const owner = game.users.get(hold?.continuedBy);
   return owner?.active ? owner.isSelf : isActiveGM();
 }
 
-/** Is this actor a combatant in a combat that has actually started? Matched the way the platform
- * matches (see `activeCombatFor` below): a synthetic actor carries its BASE actor's id, so an id
- * compare read a tracked SIBLING token as "in combat" (user call 2026-09-02, the review's
- * finding 4 applied here too). */
+/** Is this actor a combatant in any started combat? ⚠ Matched the platform's way (see `activeCombatFor`). */
 export function inRunningCombat(actor) {
   if ( !actor ) return false;
   return game.combats.some(c => c.started && c.getCombatantsByActor(actor).length);
 }
 
 /**
- * The started combat this actor is in **and that the world is actually running** — i.e. it is
- * `game.combat` — or null.
- *
- * ⚠ WHY THIS IS NOT `inRunningCombat` (v1.27.1, reported from the table). A round-based
- * ActiveEffect duration is meaningless except against `game.combat`: Foundry measures
- * `rounds` from `startRound` against the ACTIVE combat, and nothing else. `inRunningCombat`
- * answers a broader question — is this actor in ANY started combat, anywhere in the world —
- * and using that answer to choose `{ rounds: 1 }` produced chips whose clock could never
- * resolve. dnd5e files those under **Unavailable Effects**: born expired, invisible on the
- * token, present only as a line on the sheet with a bare clock and no duration. Sapped landed
- * exactly that way while Vex and Slow — applied when the same combat happened to be active —
- * looked fine, which is what made it read as "Sap is broken" rather than "the clock is".
- *
- * ⚠ MATCHED THE WAY THE PLATFORM MATCHES (review finding 4, 2026-09-01). A synthetic
- * (unlinked-token) actor carries its BASE actor's id, so `cb.actor?.id === actor.id` said "in
- * the combat" for a goblin token whose SIBLING was tracked — and the chip then got
- * `start.combat` with a null combatant, the one shape Foundry's expiry never matches (an
- * immortal Cleave chit, never swept). `Combat#getCombatantsByActor` matches a synthetic actor
- * by TOKEN id and a linked one by actor id — the same question `placeOf` asks a line later.
+ * The started combat this actor is in AND that is `game.combat`, or null.
+ * ⚠ Not `inRunningCombat`: Foundry measures a `rounds` duration against the ACTIVE combat only,
+ * so a round clock chosen off any other combat is born expired (dnd5e files it under Unavailable
+ * Effects). ⚠ `getCombatantsByActor` matches a synthetic actor by TOKEN id — an actor-id compare
+ * would match an untracked sibling token of the same base actor.
  */
 export function activeCombatFor(actor) {
   const combat = game.combat;
@@ -226,20 +182,9 @@ export function activeCombatFor(actor) {
 }
 
 /**
- * WHEN we are, as a comparable string: `${combat.id}:${round}:${turn}`, or null out of combat.
- *
- * The once-per-turn idiom, and the reason it needs no hook and no elect: a stamp is written
- * beside the thing it governs (a cleave arm, a bash offer) and **any mismatch at read time IS
- * expiry** — no timer to fire, no sweep to miss, and it survives a reload because both halves
- * are persisted facts. Out of combat there is no turn to end, so callers that still need a
- * bound fall back to their own TTL (mastery's cleave arm is the reference).
- *
- * ⚠ It lived in `mastery.js` until 2026-08-23 and `maneuvers.js` imported it from there — a
- * combat-identity fact inside a feature, which is the D1 pattern and was pinned as §10 D9(b).
- * It is a "who/when" fact, so it belongs in this family beside `inRunningCombat`.
- * ⚠ Its old doc line carried the provenance and it is kept here: it was exported for **the
- * walk's (g)** — the bash offer's once-per-turn discipline reuses it — which is precisely the
- * second customer that made it a service rather than a favour.
+ * WHEN we are, as `${combat.id}:${round}:${turn}`, or null out of combat. The once-per-turn
+ * idiom: a stamp is written beside what it governs and any mismatch at read time IS expiry — no
+ * timer, no sweep, survives a reload. Out of combat, callers fall back to their own TTL.
  */
 export const combatStamp = () => {
   const c = game.combat;
@@ -247,37 +192,18 @@ export const combatStamp = () => {
 };
 
 /**
- * THE DATA-PLANE STAMP (the party-stats commission, 2026-08-27): every consequence this module
- * assigns — damage, healing, an applied effect, a spend, a table moment — carries WHEN it
- * happened (`combat`, the stamp above; null out of combat BY CONTRACT, and reports group that
- * bucket as "out of combat" rather than dropping it) and WHO caused it (`sourceUuid`, an actor
- * uuid; null when no actor can honestly be named). An external reader (the stats MCP) folds
- * cards into a ledger off these two fields without parsing HTML and without re-deriving
- * context after the fact — both facts are resolved HERE, at write time, where they are still
- * live. A reader reconstructing either later is the drift the commission's R-A ruling forbids.
- *
- * ⚠ ONE SHAPE, SPREAD — never hand-rolled at a write site. Writers spread `...statContext(src)`
- * into the flag or entry they already write; the receipt families thread it through
- * decide/receipt.js's constructors. Both fields are ALWAYS present on a stamped record: an
- * explicit null means "resolved at write time, and the answer was nothing", while an ABSENT
- * field marks a record from before this plane existed — the distinction a scan uses to tell
- * legacy history from an out-of-combat event.
- *
- * ⚠ Deliberately NOT a post-hoc hook. A central createChatMessage/update stamper was considered
- * and rejected: it would re-derive context after the consequence (exactly what this exists to
- * prevent), and a receipt whose entries land across turns — a held target's verdict arriving
- * next round — needs PER-ENTRY stamps only the write site can supply. The chat log stays the
- * bus; the baseline is this function, not a listener.
+ * THE DATA-PLANE STAMP (ARCHITECTURE *The data plane*): every consequence carries WHEN
+ * (`combat`, null out of combat) and WHO (`sourceUuid`, null when no actor can be named),
+ * resolved at write time where both are still live. ⚠ Spread `...statContext(src)` at the write
+ * site; never hand-roll it, never stamp post-hoc. Both fields are always present on a stamped
+ * record — an absent field marks a record from before the plane.
  */
 export const statContext = (sourceUuid = null) => ({ combat: combatStamp(), sourceUuid });
 
 /**
- * The effects the sheet is APPLYING, as plain facts for decide/reminders.js `modeSources` — the
- * gates' read of the platform's own roll mode (user, 2026-09-04). `appliedEffects` is the
- * system's own answer to "which effects shape this sheet right now": enabled, not suppressed,
- * a transferred item effect only while its item is equipped and attuned as the item demands.
- * Each carries the item it rides on, because the box names the ITEM (The Duskheart), not the
- * effect's often-generic name ("Bonus AC/Saves: +1").
+ * The effects the sheet is applying (the system's `appliedEffects`: enabled, unsuppressed, item
+ * effects only while equipped/attuned), as plain facts for decide/reminders.js. Each carries its
+ * item's name, because the box names the item, not the effect's often-generic name.
  * @param {Actor} actor
  * @returns {{id: string, name: string, item: string|null, changes: {key: string, value: string}[]}[]}
  */
@@ -290,9 +216,8 @@ export function sheetModeEffects(actor) {
 }
 
 /**
- * The roll in the table's words, for the mode box's rule line — "Wisdom saving throws",
- * "Stealth checks", "Thieves' Tools checks". The system's labels where it has them; the id
- * where it does not, which is honest rather than wrong.
+ * The roll in the table's words ("Wisdom saving throws", "Stealth checks"): the system's labels
+ * where it has them, the id otherwise.
  * @param {{kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean}} roll
  */
 export function rollLabelFor({ kind, ability = null, skill = null, tool = null, concentration = false }) {
@@ -309,26 +234,11 @@ export function rollLabelFor({ kind, ability = null, skill = null, tool = null, 
 }
 
 /* ---------------------------------------------------------------------------------------------
- * THE DEADLINE CEILING — the moment clocks have a floor and need a roof.
- *
- * `armDeadline` (ui.js) arms with `Math.max(0, deadline - Date.now())`, so a deadline already in
- * the past fires on the NEXT TICK. That is correct for a window the table just missed: a client
- * that F5s mid-moment is MEANT to resume and let the buzzer land (the volley popup's reload
- * behaviour is specified that way — the even spread fires on reload rather than stranding).
- *
- * It is wrong without a bound. A card left `status: "pending"` in the world is re-armed by the
- * elect's next render however old it is, and two of the five buzzers ACT rather than pass:
- * `fireSaveTimer` rolls saves for every unanswered target, `fireConcTimer` rolls the
- * concentration save. A demand from a fight that ended months ago would roll dice the instant
- * somebody opened the world — the module deciding where a human never did.
- *
- * ⚠ The bound CANNOT be a session epoch, though that is the tempting shape. Session start is
- * per-CLIENT, so an F5'd player's own reload would read every still-live deadline as some other
- * session's history and refuse it — killing precisely the resume the design asks for. An
- * absolute staleness ceiling makes the only distinction that matters: seconds-to-minutes stale
- * is a reload that ate the window (fire), and past that the table has moved on (never fire).
- * Ten minutes clears the widest measured cold boot (a cold Molten start has needed ~540s of
- * headroom) with room to spare.
+ * THE DEADLINE CEILING. `armDeadline` fires a past deadline on the next tick — right for a reload
+ * that ate the window, wrong without a bound: a card left pending is re-armed however old it is,
+ * and some buzzers roll dice. ⚠ The bound cannot be a session epoch (session start is
+ * per-client, so a reloaded player would refuse every live deadline); an absolute ceiling of ten
+ * minutes clears the slowest cold boot.
  * ------------------------------------------------------------------------------------------- */
 
 export const DEADLINE_CEILING_MS = 600_000;
@@ -338,34 +248,19 @@ export const deadlineIsLive = deadline =>
   !!deadline && ((Date.now() - deadline) <= DEADLINE_CEILING_MS);
 
 /* ---------------------------------------------------------------------------------------------
- * SERIALIZED FLAG WRITES — read-modify-write on a message flag, with no other writer interleaving.
- *
- * ⚠ THIS EXISTS BECAUSE OF A MEASURED BUG (2026-08-20), not as a precaution. Both receipt flags
- * are merged rather than overwritten, because one roll's application can be split across time
- * (v1.6.0's spell hold). That merge is correct when the writes are sequential and WRONG when
- * they overlap: each writer deep-clones the flag, merges only its own target, and the last
- * setFlag lands without the other's entry.
- *
- * The save slice makes them overlap by design — per-target independence means two targets'
- * consequence passes run at once against one card. The lost entry is two faults at once: the
- * card under-reports who took damage, and `reconcileSaveDamage` uses the receipt as its
- * idempotence guard, so a missing entry reads as "not applied yet" and the damage lands on that
- * target a SECOND time. Measured at three applyDamage calls for two targets, a flat-10 spell
- * taking 20 off the failed save, and a receipt naming only the target that saved.
- *
- * Client-local is sufficient: every write comes from the one elect (isActiveGM).
+ * SERIALIZED FLAG WRITES — read-modify-write on a message flag with no other writer interleaving.
+ * ⚠ Receipt flags are merged, and overlapping merges lose an entry (each clones, merges its own
+ * target, and the last setFlag wins) — a lost receipt entry then reads as "not applied yet" and
+ * the damage lands twice. Client-local is enough: every write comes from the one elect.
  * ------------------------------------------------------------------------------------------- */
 
 const flagWrites = new Map();
 
 /**
- * Apply `mutate` to `message`'s `key` flag under a per-(message, key) lock. `mutate` receives the
- * current value (deep-cloned, defaulting to `{ targets: [] }`) and mutates it in place.
- *
- * ⚠ Return `false` from `mutate` to SKIP the write entirely. Some writers are driven from the
- * render hook, where an unconditional write is a write → render → write loop; their "nothing
- * changed, write nothing" guard is loop protection, not tidiness, and it has to survive the
- * move onto the serializer. Any other return value (including undefined) writes as normal.
+ * Apply `mutate` to `message`'s `key` flag under a per-(message, key) lock; `mutate` gets the
+ * current value (deep-cloned, default `{ targets: [] }`) and edits it in place.
+ * ⚠ Return `false` to SKIP the write: writers driven from a render hook need it, or they loop
+ * write → render → write.
  */
 export function queueFlagWrite(message, key, mutate) {
   const lock = `${message.id}|${key}`;

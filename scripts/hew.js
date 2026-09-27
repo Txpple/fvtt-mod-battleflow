@@ -1,10 +1,6 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): Hew, the `hew` fold (v1.19.x, walk scope-add ②)
- * — Great Weapon Master's Bonus Action attack, a reminder card and popup, nothing driven.
- * The machine-tier pass, Stage 4a (2026-09-05): split out of maneuvers.js by MOMENT — one
- * feature per file, the shared readers in lookup.js, the rules text in decide/registry.js. Every
- * body here is the one maneuvers.js carried; nothing was rewritten.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the `hew` fold — a bonus swing's reminder card and
+ * popup (Great Weapon Master's Hew; Polearm Master's Pole Strike, which is also offered and driven).
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor, combatStamp } from "./core.js";
 import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
@@ -20,15 +16,11 @@ import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledge
   momentAcknowledged } from "./ui.js";
 
 /* =============================================================================================
- * HEW (v1.19.x, walk scope-add ②) — reminder-card-only by the user's ruling: Great Weapon
- * Master's third bullet ("Immediately after you score a Critical Hit with a Melee weapon or
- * reduce a creature to 0 Hit Points with one, you can make one attack with the same weapon
- * as a Bonus Action"). Nothing rolls, nothing arms, nothing times out — the Push mastery's
- * announce idiom: the card states the option, the player swings from the sheet.
- * Two triggers, one card per swing: the CRIT posts from the roller's own client at attack
- * time; the KILL posts from the elect when a receipt shows a target at 0 HP — and defers to
- * the crit's card when both fire on one swing. A hand-tray kill posts no receipt and so no
- * reminder; module-applied damage is the only exact witness of "reduced to 0".
+ * HEW — reminder only: "Immediately after you score a Critical Hit with a Melee weapon or reduce
+ * a creature to 0 Hit Points with one, you can make one attack ... as a Bonus Action". Nothing
+ * rolls or arms; the player swings from the sheet. One card per swing: the CRIT and the KILL both
+ * post from the elect, and a crit that kills reminds once. A hand-tray kill posts no receipt and
+ * so no reminder — module-applied damage is the only exact witness of "reduced to 0".
  * ========================================================================================== */
 
 /** The bonus-swing row a listed `hew` feat stands for — its own row, or Hew's shape (a crit or a kill). */
@@ -40,10 +32,8 @@ const whenOf = name => swingRowOf(name)?.when ?? "critOrKill";
 
 async function postHewReminder(attacker, featItem, weapon, why, row = null, offer = null) {
   const label = row?.label ?? "Hew";
-  // The card is the durable record; the POPUP is the moment (walk finding (c), the user's
-  // design law verbatim: "our design language is to give players popup notifications on
-  // easy things to forget" — the first walk's crit card posted and was scrolled past).
-  // The notice family's shape exactly: OK-only, drain bar, auto-close at the deadline.
+  // The card is the durable record; the popup is the moment (an easy thing to forget). The
+  // notice family's shape: OK-only, drain bar, auto-close at the deadline.
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
@@ -51,8 +41,7 @@ async function postHewReminder(attacker, featItem, weapon, why, row = null, offe
       img: featItem.img, eyebrow: `Feat — ${featItem.name}`, tone: "good",
       title: `${label} — ${attacker.name} can attack again`,
       subtitle: why,
-      // (z): the rule line is the feat's own sentence, verbatim; the swing note stays as
-      // the module's hint.
+      // The rule line is the feat's own sentence; the swing note is the module's hint.
       lines: [ruleLine(row?.rule ?? RULE_TEXT.hew),
         row?.swing ?? `Swing <strong>${weapon?.name ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }),
@@ -79,10 +68,8 @@ async function showHewPopup(message, notice) {
       lines: [ruleLine(notice.rule ?? RULE_TEXT.hew),
         notice.swing ?? `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }) + momentBarHTML(notice, "reminder"),
-    // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere. A notice
-    // carrying an OFFER (Pole Strike, the walk 2026-09-27: "an offer to attack, using bonus action,
-    // player chooses yes or no, and then it does the attack for them") asks Use / Pass instead; Use
-    // drives the swing on this client (the owner's dice), and either answer acknowledges.
+    // OK acknowledges everywhere. A notice carrying an OFFER (Pole Strike) asks Use / Pass
+    // instead; Use drives the swing on this client, and either answer acknowledges.
     buttons: notice.offer ? [
       { action: "use", label: notice.label ?? "Swing", default: true,
         callback: () => { void answerSwingOffer(message, true); } },
@@ -111,21 +98,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-/* --- the Hew triggers (finding (k)): BOTH live on the damage side now ------------------------
- * The old crit trigger posted from rollAttackV2 — the reminder arrived BEFORE the damage was
- * rolled, so "attack again" preceded the attack's own resolution on screen (and with the
- * damage popup open, preceded it by the whole window). Both triggers now key off the crit's
- * damage MESSAGE: damage first, then "attack again", and the dedupe is ONE flag on that
- * message — a crit that kills still reminds once (create precedes the receipt update, so the
- * crit's post wins and the kill defers). Both run on the elect; the per-message check queue
- * serializes the two triggers so neither can double-post nor eat the other's turn.
+/* --- the Hew triggers, both on the damage side -----------------------------------------------
+ * Both key off the crit's damage MESSAGE, so "attack again" never shows before its own damage,
+ * and the dedupe is one flag on it. Both run on the elect; a per-message queue serializes them
+ * so neither double-posts nor eats the other's turn.
  * ------------------------------------------------------------------------------------------- */
 
 const hewChecks = new Map();
 
 function queueHewCheck(damageMessage, fn) {
-  // The queueFlagWrite idiom (core.js): the stored link never rejects, so the chain cannot
-  // break, and the map self-cleans when its tail drains.
+  // The queueFlagWrite idiom: the stored link never rejects, and the map self-cleans.
   const prior = hewChecks.get(damageMessage.id) ?? Promise.resolve();
   const next = prior.then(fn, fn);
   const tail = next.catch(() => {});
@@ -134,9 +116,8 @@ function queueHewCheck(damageMessage, fn) {
   return next;
 }
 
-/** The chain behind a damage message, resolved for Hew — the die injection's measured shape:
- * the damage's originatingMessage is the USAGE card, not the attack roll. Null when this
- * damage cannot earn a Hew (no melee attack chain, no listed carrier, resolver off). */
+/** The chain behind a damage message: its originatingMessage is the USAGE card, not the attack
+ * roll. Null when this damage cannot earn a Hew (no melee attack, no listed carrier, resolver off). */
 async function hewChainContext(damageMessage) {
   const originId = originIdOf(damageMessage);
   const origin = originId ? game.messages.get(originId) : null;
@@ -175,8 +156,7 @@ Hooks.on("createChatMessage", message => {
   void queueHewCheck(message, () => maybeHewCritReminder(message));
 });
 
-/** The kill trigger — the elect, off the receipt it just wrote. A hand-tray kill posts no
- * receipt and so no reminder (recorded and accepted). */
+/** The kill trigger — the elect, off the receipt it just wrote. */
 async function maybeHewKillReminder(damageMessage) {
   try {
     if ( !isActiveGM() ) return;
@@ -200,25 +180,21 @@ async function maybeHewKillReminder(damageMessage) {
 }
 
 Hooks.on("updateChatMessage", message => {
-  // The Hew kill trigger rides receipt writes — the elect's own update landing back. Through
-  // the check queue, so it can never interleave with the crit trigger's create-side check.
+  // The kill trigger rides receipt writes, through the check queue.
   if ( message.getFlag(MODULE_ID, "receipt") && isActiveGM() ) {
     void queueHewCheck(message, () => maybeHewKillReminder(message));
   }
-  // A durably-acknowledged Hew notice closes its popup wherever it lives (the ACK, law 2).
+  // A durably-acknowledged notice closes its popup wherever it lives.
   if ( message.getFlag(MODULE_ID, "hewNotice")?.acknowledged ) {
     const dialog = livePopups.get(popupKey(message.id, "hew"));
     if ( dialog ) void dialog.close();
   }
 });
 
-/* --- the ATTACK trigger (the PHB feats, 2026-09-27 — Polearm Master's Pole Strike, the user's "P1") --
- * "Immediately after you take the Attack action and attack with a Quarterstaff, a Spear, or a weapon
- * that has the Heavy and Reach properties, you can use a Bonus Action ...": a BONUS_SWINGS row with
- * `when: "attack"`. The same reminder, after the attack RESOLVES (finding (k)'s order — never ahead of
- * its own damage): on the damage card of a hit, or on the attack card when it missed every target.
- * On the owner's own turn in a running combat, once per turn (Extra Attack's second swing asks
- * nothing more); out of combat, every such attack. The elect posts; the swing is from the sheet.
+/* --- the ATTACK trigger (Polearm Master's Pole Strike: a BONUS_SWINGS row, `when: "attack"`) ------
+ * The same reminder after the attack RESOLVES: on the damage card of a hit, or on the attack card
+ * when it missed every target. On the owner's own turn in a running combat, once per turn; out of
+ * combat, every such attack. The elect posts.
  * ------------------------------------------------------------------------------------------- */
 
 /** Does this weapon qualify for the row — a named base item, or every named property? */
@@ -267,7 +243,7 @@ async function maybeSwingReminder(attackMessage) {
     if ( !ctx || !swingTurnOpen(ctx.attacker, ctx.row) ) return;
     swingPosted.add(attackMessage.id);
     await attackMessage.setFlag(MODULE_ID, "swingNoticed", true);
-    // A row with `drive` OFFERS the swing (Pole Strike): the weapon, and the creature the attack was aimed at.
+    // A row with `drive` OFFERS the swing: the weapon, at the creature the attack was aimed at.
     const target = ctx.row.drive ? (targetsOf(attackMessage)[0] ?? null) : null;
     const offer = (ctx.row.drive && target) ? { weaponId: ctx.activity.item.id, activityId: ctx.activity.id,
       targetUuid: target.uuid, targetName: target.name, attackId: attackMessage.id } : null;
@@ -294,12 +270,10 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
-/* --- THE DRIVEN SWING (Pole Strike, the walk 2026-09-27) ------------------------------------------
- * "The weapon deals Bludgeoning damage, and the weapon's damage die for this attack is a d4": the
- * WEAPON's own attack, at the creature the triggering attack was aimed at, marked `poleStrike` — its
- * damage roll's die swapped for a d4 and its type made Bludgeoning below, before the roll is built (the
- * Unarmed Strike's swap, unarmed-dice.js). The weapon's own bonuses, masteries and styles ride it; the
- * pack's feat-borne Pole Strike activity would carry none of them. Riposte's drive: aim, use, roll.
+/* --- THE DRIVEN SWING (Pole Strike) --------------------------------------------------------------
+ * The WEAPON's own attack at the triggering attack's target, marked `poleStrike`; its damage die is
+ * swapped for a d4 and made Bludgeoning below (the Unarmed Strike's swap). The weapon's bonuses,
+ * masteries and styles ride it, which the pack's feat-borne activity would not carry.
  * ------------------------------------------------------------------------------------------------ */
 
 const swinging = new Set();
@@ -363,9 +337,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   content.appendChild(div);
 });
 
-// The swing's own usage card is titled for what it is — "Quarterstaff — Pole Strike" (the walk, 2026-09-27:
-// "it would be nice if the card indicated it was pole strike"): the card's item snapshot is renamed as the
-// card is born (the card's DATA, never its HTML), on the swing's card alone.
+// The swing's usage card is titled "<weapon> — Pole Strike": its item snapshot is renamed as the
+// card is born (the card's DATA, never its HTML).
 Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
   try {
     const data = messageConfig?.data;
@@ -378,8 +351,7 @@ Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
   }
 });
 
-// …and the swing's ATTACK and DAMAGE cards (the walk: "needs suffix for attack and dmg cards too"): their
-// header reads the LIVE item (`getAssociatedItem()`), so the label is drawn at render, on those cards alone.
+// …and its attack and damage cards: their header reads the LIVE item, so the label is drawn at render.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     if ( !message.getFlag(MODULE_ID, "poleStrike") && !message.getFlag(MODULE_ID, "poleStrikeDie") ) return;

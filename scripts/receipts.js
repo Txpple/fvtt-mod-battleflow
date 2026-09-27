@@ -1,6 +1,6 @@
 /**
- * Battle Flow — Receipts: the revert row on damage cards. Public facts, GM-only pools and controls.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
+ * what is public; HP pools and the revert controls are GM-only.
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { clearStatus } from "./shared.js";
@@ -8,14 +8,7 @@ import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Receipts — the revert row on damage cards. Public facts, GM-only pools and controls.
- * The flag is the state; this is a view.
- * ------------------------------------------------------------------------------------------- */
-
-/** EDGE: the system's own name for a damage or healing type. The phrase built from it is
- * decide/receipt.js's, which may not read CONFIG — the fallback when this finds nothing
- * lives there with the rest of the wording. */
+/** EDGE: the system's own name for a damage or healing type (the phrase is decide/receipt.js's). */
 function typeLabel(type) {
   return CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label;
 }
@@ -24,23 +17,14 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
   const effectReceipt = message.getFlag(MODULE_ID, "effectReceipt");
   if ( !receipt?.targets?.length && !effectReceipt?.targets?.length ) return;
-  // Everyone sees WHO the damage landed on — otherwise a rolled number sits on the card with
-  // no indication of who took it. Only the GM sees the HP pool and the revert control: the
-  // party has no business reading a monster's hit points off a chat card.
+  // Everyone sees WHO the damage landed on; only the GM sees the pool and the revert.
   const isGM = game.user.isGM;
 
-  // While an un-reverted application stands, every render of the card starts with its damage
-  // tray collapsed, as if Apply had been pressed (same "manual" setting guard as the native
-  // handler, damage-application.mjs:337). Stateless and per-tree by hard-won necessity: a
-  // message renders into SEVERAL DOM trees (chat log, the notifications pane, popouts), and
-  // any latched once-per-message guard collapses a tree that gets replaced while the ones on
-  // screen skip (bit live 2026-08-15). A manually reopened tray survives until the next
-  // re-render — which only a receipt change or a log rebuild triggers — because the flag is
-  // the state and the tray, like the receipt row, is just a view of it.
-  // ⚠ Toggle the ATTRIBUTE, never the property: this render tree is detached, so custom
-  // elements in it are not yet upgraded — `tray.open = false` writes a plain property that
-  // shadows the accessor and never touches the attribute (the system's own _collapseTrays
-  // uses toggleAttribute for the same reason, chat-message.mjs:166).
+  // While an un-reverted application stands, every render collapses the damage tray as if Apply
+  // had been pressed (honouring the "manual" setting like the native handler). Stateless and per
+  // tree: a message renders into SEVERAL DOM trees, so a once-per-message latch misses some.
+  // ⚠ Toggle the ATTRIBUTE, never the property: the tree is detached and its custom elements are
+  // not upgraded yet, so `tray.open = false` would shadow the accessor and change nothing.
   if ( receipt?.targets?.some(t => !t.reverted)
     && (game.settings.get("dnd5e", "autoCollapseChatTrays") !== "manual") ) {
     html.querySelector(SURFACES.damageTray)?.toggleAttribute("open", false);
@@ -55,12 +39,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   });
 
   for ( const t of receipt?.targets ?? [] ) {
-    // The row mirrors the native tray's target entry (user call, 2026-08-15, third try):
-    // 32px portrait, a STACKED name column, numbers on the right. The stack is what makes
-    // it squeeze-proof — the title ellipsizes and the reason wraps BELOW the name inside
-    // the column, so no flex fight can ever render "Ice Mephit" one character per line
-    // again. The first attempt put the reason in the flex row (squeezed the name); the
-    // second styled it as a block but left it appended in the row (same squeeze).
+    // Mirrors the native tray's target entry: portrait, a STACKED name column, numbers right. The
+    // stack keeps a long reason from squeezing the name.
     const line = document.createElement("div");
     Object.assign(line.style, { display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0" });
 
@@ -75,12 +55,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         borderRadius: "4px",
         ...(t.reverted ? { filter: "grayscale(1)", opacity: "0.5" } : {})
       });
-    } else { // old receipts carry no img — they keep the plain state glyph
+    } else { // older receipts carry no img — they keep the plain state glyph
       icon = document.createElement("i");
       icon.className = t.reverted ? "fa-solid fa-rotate-left" : "fa-solid fa-heart-crack";
       Object.assign(icon.style, { flex: "0 0 auto", opacity: t.reverted ? "0.5" : "0.85" });
     }
-    icon.dataset.tooltip = t.name; // walk-5 (aa): every card icon names itself on hover
+    icon.dataset.tooltip = t.name; // every card icon names itself on hover
 
     const title = document.createElement("span");
     title.textContent = t.name;
@@ -92,12 +72,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
     line.append(icon, title);
 
-    // The second row carries the story (user's layout call, 2026-08-15): the reason and the
-    // NUMBER, together, below the name — the top row is just who and the revert.
-    //
-    // ⚠ The number is `taken` (post-trait, pre-clamp), not the HP delta: the delta answers
-    // "what did the pool do", but the table is owed "what did the hit deal". Pools stay
-    // GM-only. Every number below, and the voice it speaks in, is decide/receipt.js.
+    // The second row: the reason and the number. ⚠ The number is `taken` (what the hit dealt),
+    // not the pool delta; every number and its voice is decide/receipt.js.
     const amounts = receiptAmounts(t);
     const sub = document.createElement("div");
     Object.assign(sub.style, { margin: "0 0 0 40px", lineHeight: "1.4" });
@@ -115,9 +91,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         Object.assign(why.style, { fontStyle: "italic", opacity: "0.8" });
         sub.append(why);
       }
-      // A gain — healing, or a temp-HP grant — reads in a friendly blue; damage keeps the
-      // tray's own maroon voice. Which of the three it is, and what it says, is decided one
-      // layer down; the colours are the only part of it the stylesheet owns.
+      // A gain reads blue; damage keeps the tray's maroon.
       const amount = document.createElement("span");
       amount.textContent = amounts.amountText;
       Object.assign(amount.style, {
@@ -152,9 +126,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         flex: "0 0 auto", width: "auto", margin: "0",
         padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4"
       });
-      // ⚠ THE CATCH IS LOAD-BEARING. An un-caught `await` inside a listener rejects into
-      // nothing — NOTES.md §1 records the class, and the revert lost a marker to it for three
-      // battery runs before anyone saw a stack. A revert that fails must SAY so.
+      // ⚠ The catch is load-bearing: an un-caught await in a listener rejects into nothing
+      // (NOTES.md §1). A failed revert must SAY so.
       button.addEventListener("click", () => revertTarget(message, t.uuid).catch(err => {
         console.error(`${TITLE} | Revert failed.`, err);
         ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
@@ -165,8 +138,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     row.append(line, sub);
   }
 
-  // Effect riders (Phase 1.9A): what landed, per target — same stacked shape as the damage
-  // lines, led by the EFFECT's icon since that is the thing that arrived.
+  // Effect lines: the same stacked shape, led by the EFFECT's icon.
   for ( const t of effectReceipt?.targets ?? [] ) {
     for ( const e of t.effects ?? [] ) {
       const line = document.createElement("div");
@@ -188,7 +160,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         icon.className = "fa-solid fa-wand-magic-sparkles";
         Object.assign(icon.style, { flex: "0 0 auto", opacity: e.reverted ? "0.5" : "0.85" });
       }
-      icon.dataset.tooltip = e.name; // walk-5 (aa): every card icon names itself on hover
+      icon.dataset.tooltip = e.name; // every card icon names itself on hover
 
       const stack = document.createElement("div");
       Object.assign(stack.style, {
@@ -210,9 +182,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
       line.append(icon, stack);
 
-      // What the effect DOES, on hover (user call 2026-08-16). The description is stored on
-      // the receipt entry at application time so the tooltip survives the effect's later
-      // deletion (cascade, revert, death); older entries fall back to the live document.
+      // What the effect DOES, on hover: stored on the entry at application so it survives the
+      // effect's deletion; older entries fall back to the live document.
       const tip = e.description || (() => {
         try { return fromUuidSync(t.uuid)?.effects?.get(e.id)?.description ?? ""; }
         catch { return ""; }
@@ -232,7 +203,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           flex: "0 0 auto", width: "auto", margin: "0",
           padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4"
         });
-        // Same reason as the damage revert above — the twin had the same silence.
+        // Same catch as the damage revert above.
         button.addEventListener("click", () => revertEffect(message, t.uuid, e.id).catch(err => {
           console.error(`${TITLE} | Effect revert failed.`, err);
           ui.notifications.error(`${TITLE}: the revert did not complete — see the console.`);
@@ -248,10 +219,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /**
- * Restore one receipt target to its pre-application HP snapshot. Reload-proof: state is
- * re-read from the message flag at click time, never from the DOM, and the reverted marker is
- * written back to the flag (whose update re-renders the card on every client). What the revert
- * owes — and what it deliberately leaves alone — is decide/receipt.js's `revertPlan`.
+ * Restore one receipt target to its pre-application HP. State is re-read from the flag at click
+ * time, never the DOM, and the reverted marker written back (re-rendering every client). What
+ * the revert owes is decide/receipt.js's `revertPlan`.
  */
 export async function revertTarget(message, uuid) {
   const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
@@ -266,8 +236,7 @@ export async function revertTarget(message, uuid) {
 
   await actor.update(plan.update);
 
-  // combatplus's own heal-up handler usually beats us to the defeated mark; this covers the
-  // table where that feature is off at revert time, and no-ops when everything is clean.
+  // combatplus usually clears the defeated mark first; this covers a table where it is off.
   if ( plan.clearDefeated ) await clearDefeated(actor);
 
   plan.entry.reverted = true;
@@ -275,16 +244,9 @@ export async function revertTarget(message, uuid) {
 }
 
 /**
- * Mirror of combatplus's combatant matching (its updateActor handler), run in reverse.
- *
- * ⚠ EVERY WRITE IN HERE IS BEST-EFFORT, AND THAT IS THE CONTRACT, NOT LAZINESS. By the time
- * this runs the revert has already happened — the pool is restored — and this is the cosmetic
- * tail: a defeated mark and a dead overlay that something else is very likely clearing at the
- * same moment, because raising HP above zero is exactly what makes dnd5e clear them. **A lost
- * race here must not cost the caller its marker write**, which is precisely what it used to do
- * (`ActiveEffect "dnd5edead0000000" does not exist!`, thrown from the server backend into an
- * un-caught listener). `clearStatus` carries that tolerance for the status; the combatant
- * update gets the same treatment for the same reason.
+ * Mirror of combatplus's combatant matching, in reverse. ⚠ Every write here is best-effort: the
+ * revert already happened, and raising HP above 0 makes dnd5e clear the same marks at the same
+ * moment — a lost race must not cost the caller its marker write.
  */
 async function clearDefeated(actor) {
   for ( const combat of game.combats ) {

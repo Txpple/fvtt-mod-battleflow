@@ -1,6 +1,7 @@
 /**
- * Battle Flow — The hit menu: on a hit, the options the sheet grants are offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is spent, the save goes through the saves machine.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — the hit menu (RULINGS *The hit menu*): on a hit, the options the sheet grants are
+ * offered before the dice, grouped by the feature that pays; the die rides the roll, the pool is
+ * spent, a save goes through the saves machine.
  */
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
@@ -20,61 +21,20 @@ import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRel
 import { SURFACES } from "./surfaces.js";
 
 /* ---------------------------------------------------------------------------------------------
- * THE HIT MENU (user, 2026-09-04 — "the actor should be given a choice if they have maneuvers,
- * to pick when they hit"; the prototype *Battle Flow Hit Menu*, "looks good"; the sweep's ruling
- * of 2026-09-03: ONE popup per hit, grouped by the feature that grants the rows). Cunning Strike
- * (sneak.js) was the first instance of "on a hit, pick what rides before the dice"; this is the
- * general machine, and the Battle Master's eight on-hit maneuvers are its first rows
- * (decide/registry.js HIT_GROUPS / HIT_OPTIONS; membership is the Hit Menu list).
- *
- *   THE OFFER (auto-damage.js, through `registerOfferPart`) — a group per paying feature on the
- *   sheet (Combat Superiority), a checkbox per listed option the sheet grants, the row the name
- *   and its cost and nothing else (user: "just give the cost for the sup die, just like Cunning
- *   Strike"), one pick per group. An affordable row OPENS the offer even under auto damage —
- *   there is a decision pending. The pick is written on the attack message BEFORE the dice.
- *
- *   THE RIDER (`preRollDamageV2`, the hit-riders seam, on the roller's client) — the die, read
- *   off the option's own damage activity and resolved on the sheet, rides the damage roll as its
- *   own part in the weapon's type, crit-doubled by the same stamp; the pool the activity names
- *   is spent (one use, the way a clock rider's limited use is spent); the card says what rode.
- *   A SWEEP rides nothing: its die is rolled apart, below.
- *
- *   THE CONSEQUENCES (the damage message landing, on the roller's client — which owns the
- *   fighter and its items, so `use()` is theirs) — the option's save activity is used at the hit
- *   target, so the demand, the timer, the roll and the failed-save press are the saves machine's
- *   and the condition the activity carries lands through it; a condition the pack left on the
- *   ITEM unlinked (Trip's Prone) is pressed on the failure by the follow-up, on the elect; an
- *   option whose damage activity carries an effect and no save (Distracting Strike) has it
- *   applied on the elect, receipted; a LINE option (Maneuvering Attack, Pushing, Disarming)
- *   says on the card what the table plays.
- *
- *   THE SWEEP (Sweeping Attack) — a card lists the creatures within 5 feet of the original
- *   target and a POPUP asks the attacker to pick one (user, 2026-09-04: "sweeping attack should
- *   be a popup choice, its just on the card"): the moment spine — a button per creature, the
- *   clock (the hold family's window), a default when it runs out (the only creature when there
- *   is one; nobody otherwise — the die is already spent, and the card says so). A GM writes the
- *   pick straight, a player's click travels as an envelope (the relay idiom); the elect rolls the
- *   die in the open, judges the ORIGINAL attack roll against the second creature's AC
- *   (decide/hit-menu.js `sweepVerdict`), and applies the die through the receipt chokepoint
- *   when it would hit.
- *
- *   GIANT ANCESTRY (Slice A, 2026-09-24) — Hill's Tumble, a second group: no feature to require
- *   (the parent is text), the boon paying from its OWN uses, Prone pressed with no save,
- *   receipted, on a target of Large or smaller read off the sheet. Fire's Burn and Frost's Chill
- *   are CLOCK RIDERS instead (user, 2026-09-24: "yes you should switch" — a Goliath owns one
- *   boon: use-it-or-not is the rider's question, not the menu's). A die-carrying option-pool row
- *   would ride in its own damage type; none ships today.
- *
- *   ONE PICK PER GROUP, EVERY GROUP ON THE ONE HIT (2026-09-27; one pick per hit from 2026-09-24
- *   until then): the records are lists — `hitPick` on the attack, `hitManeuver` on the damage roll
- *   (`picks`, decide/hit-menu.js `picksOf` the one reader) — so a Goliath Battle Master knocks the
- *   target Prone with Hill's Tumble AND rides a maneuver: a part per pick on the roll, a spend per
- *   pick, a card per pick, the moment published per pick. A tick unticks only its own group.
- *
- * WHAT IS READ, NEVER TYPED (N1): the die formula, the pool (the activity's consumption target
- * — an id, an identifier, or a compendium source: the three shapes the 2024 pack ships), the
- * save and its DC, the condition, the damage type, the target's size. The table carries only
- * names and rules text.
+ * The machine, in four parts (rows: decide/registry.js HIT_GROUPS / HIT_OPTIONS; membership: the
+ * Hit Menu list):
+ *   THE OFFER (auto-damage.js `registerOfferPart`) — a group per paying feature, a checkbox per
+ *   granted option, one pick per group. An affordable row opens the offer even under auto damage.
+ *   The picks are written on the attack message BEFORE the dice.
+ *   THE RIDER (`preRollDamageV2`, on the roller's client) — the die, read off the option's damage
+ *   activity, rides the roll as its own part; the pool the activity names is spent.
+ *   THE CONSEQUENCES (the damage message landing, on the roller's client, which owns the items) —
+ *   the option's save activity is used at the target through the saves machine; an unlinked item
+ *   condition (Trip's Prone) is pressed on the failure; a no-save effect or press is applied on
+ *   the elect, receipted; a line option says on the card what the table plays.
+ *   THE SWEEP — the die is rolled apart at a second creature the attacker picks in a popup.
+ * Every pick on one hit is a list entry (`picksOf` the one reader): a part, a spend and a card each.
+ * Read, never typed: the die, the pool, the save and DC, the condition, the damage type, the size.
  * ------------------------------------------------------------------------------------------- */
 
 /** The die behind an option — its damage activity's first part, resolved on the sheet. "d8" reads as "1d8". */
@@ -100,21 +60,20 @@ function menuFor(attackMessage, activity) {
   const fits = {};
   const hits = attackMessage ? hitTargets(attackMessage) : [];
   for ( const [gkey, group] of Object.entries(HIT_GROUPS) ) {
-    // A group with no paying feature (Giant Ancestry's text-only parent) requires nothing.
+    // A group with no paying feature (a text-only parent) requires nothing.
     if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
     const perOption = group.pool === "option";
     for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
       if ( row.group !== gkey ) continue;
       const feat = featureNamed(attacker, row.feature);
       const die = feat ? activityOfType(feat, "damage") : null;
-      // A no-save press (Hill's Tumble) ships a utility activity and no die — its uses are the cost.
+      // A no-save press ships a utility activity and no die — its uses are the cost.
       const paying = die ?? ((feat && row.press) ? activityOfType(feat, "utility") : null);
       if ( !feat || !paying ) continue;
       const pool = poolOf(attacker, paying);
       const formula = die ? dieFormulaOf(attacker, die) : null;
-      // The boon's OWN damage type (Fire's Burn: fire), read off its damage part — never the weapon's.
-      // ⚠ Only for an option-pool group: a maneuver's die part lists SEVERAL types (the die takes
-      // the weapon's), and its first read "bludgeoning" on a greataxe (measured live, 2026-09-24).
+      // An option-pool group's damage type is the boon's own. ⚠ Only there: a maneuver's die part
+      // lists several types (the die takes the weapon's), and its first is arbitrary.
       const partType = (die && perOption) ? ([...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null) : null;
       edge[key] = { item: feat, dieActivity: die, saveActivity: activityOfType(feat, "save"), pool, formula, type: partType };
       if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: formula, type: partType } : null;
@@ -132,10 +91,8 @@ function menuFor(attackMessage, activity) {
 }
 
 /**
- * THE SIZE JUDGE (`maxSize`, Hill's Tumble — "a Large or smaller creature", Slice A 2026-09-24):
- * every hit target's size read off its sheet against the system's own ordering
- * (`CONFIG.DND5E.actorSizes[size].numerical`). False when one is larger; null when a size cannot
- * be read — the row stays open and the table judges (the gate never guesses).
+ * Does every hit target fit `maxSize`, by the system's size ordering? False when one is larger;
+ * null when a size cannot be read — the row stays open and the table judges.
  */
 function sizeFits(hits, maxSize) {
   const sizes = CONFIG.DND5E?.actorSizes ?? {};
@@ -154,19 +111,14 @@ function sizeFits(hits, maxSize) {
 /* --- the pack's transfer flag, corrected on the sheet --------------------------------------- */
 
 /**
- * THE PACK SHIPS GOADED AS A TRANSFER EFFECT (measured 2026-09-04): Goading Attack's "Goaded" —
- * linked to its save activity, meant for the TARGET — carries `transfer: true`, so Foundry
- * treats it as a passive on the WIELDER: Morgash's own sheet showed Goaded (user: "but he should
- * never have the effect … it should be who he hits"), and the first turn expiry or a hand tidy
- * of that sheet deleted the item's only copy, leaving the save nothing to apply. A row's
- * target-facing effects are the save activity's (rows with `save`), the damage activity's (rows
- * with `effects`) and the status the row presses on a failure (`onFail`); any of those with the
- * flag set is corrected on the wielder's own copy of the item — the actor's world data, never
- * the compendium — by the client that owns it, at ready and when the item lands.
+ * ⚠ The pack ships some target-facing effects (Goading Attack's Goaded) with `transfer: true`,
+ * so Foundry puts them on the WIELDER, where expiry or a tidy deletes the item's only copy. Any
+ * target-facing effect of a row (its save's, its damage activity's, its `onFail` status) carrying
+ * the flag is corrected on the wielder's own item copy, by its owner, at ready and when the item lands.
  */
 async function targetFacingEffects(row, item) {
   const out = [];
-  // 6.0: an activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+      // An activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   if ( row.save ) for ( const { effect } of await profileEffects(activityOfType(item, "save")?.effects) ) if ( effect ) out.push(effect);
   if ( row.effects ) for ( const { effect } of await profileEffects(activityOfType(item, "damage")?.effects) ) if ( effect ) out.push(effect);
   if ( row.onFail ) { const e = item.effects.find(x => x.statuses?.has?.(row.onFail)); if ( e ) out.push(e); }
@@ -174,10 +126,8 @@ async function targetFacingEffects(row, item) {
 }
 
 /**
- * The compendium's own copy of an item on a sheet: its recorded source when it has one, else
- * the premium packs' item of the same name (a copy made from pack data records no source —
- * the fixture's, the MCP importer's, a GM's hand-built one; measured 2026-09-04 — and the SRD
- * packs come last, the house order). The pack's effect ids are the ones the activity names.
+ * The compendium's copy of an item on a sheet: its recorded source, else a premium pack's item of
+ * the same name (a copy made from pack data records no source), SRD packs last.
  */
 async function compendiumCopyOf(item) {
   const src = item?._stats?.compendiumSource;
@@ -234,7 +184,7 @@ registerOfferPart({
     if ( !read?.menu.groups.length ) return null;
     const { menu, edge, type } = read;
     const chosen = new Set();
-    // An option-pool group (Giant Ancestry) counts USES, a shared pool DICE — each in its own words.
+    // An option-pool group counts USES, a shared pool DICE.
     const leftTag = g => g.perOption
       ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : `${g.dieLabel}s`} left` : `no ${g.dieLabel}s left`)
       : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
@@ -243,8 +193,7 @@ registerOfferPart({
       tag: leftTag(g),
       rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
     }));
-    // The offer line in the group's own voice ("Maneuvers — … one maneuver per attack"); with two
-    // groups on one sheet, the one rule both share: one pick per group (2026-09-27).
+    // The offer line in the group's own voice; with two groups, the rule both share.
     const live = menu.groups.some(g => g.left > 0);
     const solo = menu.groups.length === 1 ? menu.groups[0] : null;
     const heading = menu.groups.map(g => g.heading).join(" · ");
@@ -259,8 +208,7 @@ registerOfferPart({
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
-              // ONE pick per group (the rules — "only one maneuver per attack"); another group's
-              // pick rides beside it (2026-09-27): only the box's own group gives way.
+              // One pick per group: only the box's own group gives way.
               for ( const other of boxes ) {
                 if ( (other !== box) && other.checked && (other.dataset.bfHitGroup === box.dataset.bfHitGroup) ) {
                   other.checked = false; chosen.delete(other.value);
@@ -308,19 +256,17 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       const rides = (pick.mode !== "sweep") && !!pick.formula;
       if ( rides ) {
         config.rolls.push({
-          // No `properties`: the die is the weapon's type but not its magic — it must not inherit
-          // the flags that decide physical-resistance bypass (hit-riders' rule).
+          // No `properties`: the die takes the weapon's type but not its magic, which decides
+          // physical-resistance bypass.
           data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
           parts: [pick.formula],
           options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
         });
       }
-      // The pool: one die spent, on the item the activity names — the clock riders' idiom for a
-      // limited use. The count left is read AFTER the spend for the card.
+      // One use spent on the item the activity names; the count left is read after the spend.
       const pool = resolveUuid(pick.poolUuid);
       const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
-      // The one pass-through (shared.js `spendSuperiorityDie`): the spend and its record, which the
-      // card line, the flash and the subtitle all read (user, 2026-09-05: uniform).
+      // The one spend path (shared.js `spendSuperiorityDie`); the card, flash and subtitle read its record.
       const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
       if ( pool ) {
         void spendSuperiorityDie(attacker, pool, row.feature)
@@ -341,7 +287,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       attackRoll: roll ? { total: roll.total, isCritical: !!roll.isCritical, isFumble: !!roll.isFumble } : null,
       picks: out
     });
-    // Spent by dealing the damage: the card's Damage button pressed twice must not ride twice.
+    // Marked rolled: the card's Damage button pressed twice must not ride twice.
     void attackMessage.setFlag(MODULE_ID, "hitPick", { ...record, rolled: true })
       .catch(err => console.warn(`${TITLE} | Could not mark the maneuver rolled.`, err));
   } catch(err) {
@@ -359,8 +305,7 @@ Hooks.on("createChatMessage", message => {
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
   if ( !hm || hm.done || consequencesRun.has(message.id) ) return;
   consequencesRun.add(message.id);
-  // THE MOMENT is the gate's (events.js version 2): the `hitManeuver` record landing on this
-  // message IS the resolve, and decide/moments.js publishes `maneuver` from it.
+  // The `hitManeuver` record landing IS the resolve; decide/moments.js publishes `maneuver` from it.
   void runConsequences(message, hm);
 });
 
@@ -372,10 +317,10 @@ async function runConsequences(damageMessage, record) {
     const hits = hitTargets(attackMessage);
     const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
     const notes = [];
-    // One pick at a time, in the order they rode (2026-09-27: a pick per group on the one hit).
+    // One pick at a time, in the order they rode.
     for ( const pick of picksOf(record) ) {
       const hm = { ...pick, attackId: record.attackId, attackRoll: record.attackRoll ?? pick.attackRoll ?? null };
-      // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
+      // the paying feature is never used up, so the sheet is the truth
       const item = resolveUuid(hm.itemUuid);
       if ( !item ) continue;
       await consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes });
@@ -393,9 +338,8 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
     const act = activityOfType(item, "save");
     if ( act ) {
       await repairTransferEffects(attacker);
-      // A linked effect the item has LOST (the transfer-flag story above, before the repair
-      // ran) is pressed on the failure from the compendium's own copy — the same effect id
-      // on the source item; the content is read, never typed.
+      // A linked effect the item has lost is pressed on the failure from the compendium copy
+      // (same effect id on the source item).
       const missing = (await profileEffects(act.effects)).filter(({ profile, effect }) => !effect && !profile.onSave).map(({ profile }) => profile._id);
       const source = missing.length ? await compendiumCopyOf(item) : null;
       const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
@@ -432,10 +376,10 @@ async function settleHitEffects(message) {
     const attackMessage = game.messages.get(record.attackId);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     for ( const { p: hm, index } of picks ) {
-      // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
+      // the paying feature is never used up, so the sheet is the truth
       const item = resolveUuid(hm.itemUuid);
       if ( hm.effects ) {
-        // The shared path (effect-riders.js, 2026-09-24): the clock riders' `effects` rows use it too.
+        // The shared path (effect-riders.js), also used by the clock riders' `effects` rows.
         const attacker = resolveUuid(record.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
         await applyActivityEffectsOnHit(message, item ? activityOfType(item, "damage") : null, hits,
           { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
@@ -448,10 +392,8 @@ async function settleHitEffects(message) {
 }
 
 /**
- * THE NO-SAVE PRESS (Hill's Tumble, Slice A 2026-09-24): the status on every hit target, receipted
- * as an applied effect on the damage card — the SAVE_PRESSES shape (saves/consequences.js), with
- * no save in front of it. A target already wearing the status is skipped (nothing to press,
- * nothing to receipt); one the module may not write is skipped and said on the card.
+ * THE NO-SAVE PRESS (Hill's Tumble): the status on every hit target, receipted on the damage card.
+ * A target already wearing it is skipped; one the module may not write is said on the card.
  */
 async function pressOnHit(message, hm, hits, item, index = null) {
   const pressed = [];
@@ -471,7 +413,7 @@ async function pressOnHit(message, hm, hits, item, index = null) {
     });
   }
   await queueFlagWrite(message, "hitManeuver", current => {
-    // the pick's own record in the list (a record from before the list holds its fields itself)
+    // the pick's own record in the list (an older single record holds its fields itself)
     const target = ((index !== null) && current.picks?.[index]) ? current.picks[index] : current;
     target.pressed = pressed;
     if ( skipped.length ) current.notes = [...(current.notes ?? []), `${hm.feature}: ${skipped.join(", ")} — apply ${hm.press} by hand`];
@@ -487,7 +429,7 @@ async function settleHitFollowups(card) {
   const hc = card.getFlag(MODULE_ID, "hitManeuverCard");
   const saves = card.getFlag(MODULE_ID, "saves");
   const uuids = [...(hc?.effectUuid && hc.onFail ? [hc.effectUuid] : []), ...(hc?.pressUuids ?? [])];
-  const verdicts = verdictsOn(saves);   // the answered targets, through the one reader (Stage 2)
+  const verdicts = verdictsOn(saves);   // the answered targets, through the one reader
   if ( !uuids.length || !verdicts.length ) return;
   if ( !drivesMomentFor(saves.sourceUuid ?? hc.sourceUuid ?? null) ) return;
   for ( const t of verdicts ) {
@@ -519,9 +461,7 @@ async function settleHitFollowups(card) {
 async function postSweepCard(damageMessage, hm, attackMessage, attacker, hits, item) {
   const target = hits[0] ? tokenForUuid(hits[0].uuid) : null;
   const attackerToken = tokenOfActor(attacker);
-  // "within 5 feet of the original target AND within your reach" (user, 2026-09-04: "do you
-  // exclude stuff not in reach of the weapon?" — now yes): the weapon's reach read off the
-  // sheet (the system's own field — 5 feet, 10 with the Reach property), never typed here.
+  // Within 5 feet of the original target AND within the weapon's reach, read off the sheet.
   const weapon = messageActivity(attackMessage)?.item ?? null;
   const reach = Number(weapon?.system?.range?.reach) || 5;
   const candidates = [];
@@ -549,8 +489,7 @@ async function postSweepCard(damageMessage, hm, attackMessage, attacker, hits, i
   });
 }
 
-// The pick is a fold onto the card (R2): a GM writes it straight, a player's click travels as an
-// envelope the elect folds — the relay idiom every answer in this module rides.
+// The pick folds onto the card: a GM writes it straight, a player's click travels as an envelope.
 registerRelay("sweepAnswer", {
   flagKey: "sweepCard",
   targetOf: a => a.cardId,
@@ -596,9 +535,7 @@ async function showSweepPopup(card) {
       { action: "none", label: "Nobody", callback: () => chooseSweep(card, "none") }
     ]
   });
-  // Which one is which (user, 2026-09-04: "is there a way to signal which practice dummy is the
-  // target on mouseover?"): hovering a button pings that token on the map and lights its hover
-  // state; leaving puts it back. Public API only — canvas.ping, the token's own hover handlers.
+  // Hovering a creature's button pings its token and lights its hover state (public API only).
   for ( const b of (dialog?.element?.querySelectorAll('button[data-action^="pick-"]') ?? []) ) {
     const c = sc.candidates[Number(b.dataset.action.slice(5))];
     const token = c?.tokenUuid ? canvas.tokens?.get(fromUuidSync(c.tokenUuid)?.id ?? "") : null;
@@ -669,12 +606,8 @@ async function settleSweep(card) {
   }
 }
 
-// The three resume floors, declared to the spine's resumable registry (Stage 3, 2026-09-05) —
-// their create/update registrations, their render-time resume lines and the two per-message
-// latches (effectsRun, sweepsRun) were this file's; the per-target latch inside the follow-ups
-// and every claim through the serializer are unchanged. The causes are the triggers as they
-// were: the effects on arrival and reload, never on an update; the follow-ups and the sweep on
-// the answer's write and on reload.
+// The three resume floors: the effects on arrival and reload (never an update); the follow-ups
+// and the sweep on the answer's write and on reload.
 registerResumable("hitManeuver", {
   pending: (flag, _message, cause) => (cause !== "update") && picksOf(flag).some(p => p.effects || p.press) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
@@ -696,11 +629,11 @@ registerResumable("sweepCard", {
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const record = message.getFlag(MODULE_ID, "hitManeuver");
   const picks = picksOf(record);
-  // A card per pick (2026-09-27); the record's notes ride the last.
+  // A card per pick; the record's notes ride the last.
   picks.forEach((pick, i) => {
     const hm = { ...pick, notes: (i === picks.length - 1) ? [...(pick.notes ?? []), ...(Array.isArray(record.picks) ? (record.notes ?? []) : [])] : (pick.notes ?? []) };
     const line = document.createElement("div");
-    // A no-die press (Hill's Tumble) says what it pressed; the eyebrow is the group's family word.
+    // A no-die press says what it pressed; the eyebrow is the group's family word.
     const pressTitle = hm.press
       ? `${hm.feature} — ${hm.pressed?.length ? `${hm.pressed.join(", ")} ${hm.pressed.length === 1 ? "has" : "have"}` : "the target has"} the ${hm.press.charAt(0).toUpperCase()}${hm.press.slice(1)} condition`
       : null;

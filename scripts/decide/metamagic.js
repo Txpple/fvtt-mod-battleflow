@@ -1,31 +1,16 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: metamagic. Which options the cast dialog offers for THIS spell, which
- * the points can pay for, whether a pick is legal, and what the card says after.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * THE FLOW AS DRAWN (user rulings 2026-09-09, the prototype *Battle Flow Metamagic* — DESIGN §6
- * *Metamagic*): the cast dialog carries one group, a row per option the sheet grants and the
- * list admits — a tick, the name, the cost in Sorcery Points as the tag, the rule folded under,
- * nothing above it. A row the spell does not fit, or the points cannot afford, stays and greys
- * with the reason as its tag. ONE option per cast (the feature's own text); the two later
- * moments (Empowered on the damage, Seeking on the miss) are not rows here. The spend is by hand
- * on the spell's card.
- *
- * What is decided here is the reading and the arithmetic, never the choice: which rows fit the
- * spell (the option's activation is PROSE on the pack, so the predicate is the registry's), which
- * the pool can pay for, and whether the pick stands. The ask at the area — Careful's protected
- * set, Heightened's mark, a chosen area's choice, the popup's defaults and words — is
- * decide/area-ask.js since 2026-09-24; the flag consts live there too.
+ * Battle Flow — DECISION: metamagic (RULINGS *Metamagic*). Which options the cast dialog offers
+ * for THIS spell, which the points can pay for, whether a pick is legal, and what the card says
+ * after. Pure functions over plain data (ARCHITECTURE.md §2). The reading and the arithmetic,
+ * never the choice; the ask at the area lives in decide/area-ask.js.
  */
 
 /** The flag the cast's card carries: `{ key, feature, cost, ... }` (metamagic.js writes it). */
 export const METAMAGIC_FLAG = "metamagic";
 /**
  * The named predicates a registry row's `when` resolves to, over the facts of the spell being
- * cast (the machine builds the facts off the item and the activity; the tests build them by
- * hand). Unknown names fit nothing.
+ * cast. Unknown names fit nothing.
  * @typedef {{save: boolean, rangeFeet: number|null, touch: boolean, minutes: number,
  *            action: boolean, damageTypes: string[], damageRoll: boolean, spellAttack: boolean,
  *            scalesTargets: boolean, choosesTargets?: boolean}} SpellFacts
@@ -56,10 +41,8 @@ const WHY = {
 };
 
 /**
- * A row's `unless`: a spell the option's WHEN admits but where the option's own words do nothing.
- * Careful Spell on a spell that chooses its targets (user ruling 2026-09-24, off the prototype:
- * "greyed, you choose its targets") — the creatures Careful would spare are the ones the caster
- * already leaves out, so the point would buy nothing.
+ * A row's `unless`: a spell its WHEN admits but where the option does nothing — Careful Spell on a
+ * spell whose caster already chooses its targets.
  */
 const UNLESS = {
   choosesTargets: f => !!f.choosesTargets
@@ -89,15 +72,16 @@ function whyNot(row, facts, transmutedTypes) {
 }
 
 /**
- * The rows of the cast dialog's group, in table order: every listed option the sheet grants
- * whose moment is `cast`, with its fit and its affordability read.
+ * The rows of the cast dialog's group, in table order: every listed option the sheet grants whose
+ * moment is `cast`, with its fit and affordability.
+ *
  *
  * @param {{table: Readonly<Record<string, any>>, listed: Iterable<string>, known: Iterable<string>,
  *          facts: SpellFacts, points: number, costs: Record<string, number>,
  *          transmutedTypes?: readonly string[], moment?: string}} args
- *        `listed` = the Metamagic list's names; `known` = the metamagic feat names on the sheet;
- *        `points` = Sorcery Points left; `costs` = per feat name, the option's own consumption
- *        value read off the sheet (an option with no readable cost is unaffordable, never free)
+ *        `listed` = the Metamagic list's names; `known` = the feat names on the sheet;
+ *        `costs` = per feat, the consumption value read off the sheet (unreadable = unaffordable,
+ *        never free)
  * @returns {{key: string, feature: string, cost: number|null, picks: string|null, moment: string,
  *            eligible: boolean, why: string|null, affordable: boolean, tag: string}[]}
  */
@@ -124,8 +108,7 @@ export function metamagicMenu({ table, listed, known, facts, points, costs, tran
 }
 
 /**
- * The PICK: one row, eligible and affordable, or nothing. The dialog keeps the pick legal as it
- * is made (a tick greys the rest); this is the arithmetic behind it.
+ * The PICK: one row, eligible and affordable, or nothing.
  * @param {{menu: ReturnType<typeof metamagicMenu>, chosen?: string|null}} args
  */
 export function metamagicPick({ menu, chosen = null }) {
@@ -135,8 +118,8 @@ export function metamagicPick({ menu, chosen = null }) {
 }
 
 /**
- * The option's rule, read off the feat's own description (law 8) with the pack's cost line
- * dropped — the cost is the row's tag, not the quote — and the tags stripped.
+ * The option's rule, read off the feat's own description, the pack's cost line dropped (the cost
+ * is the row's tag) and the tags stripped.
  * @param {string} html
  */
 export function metamagicRuleText(html) {
@@ -144,7 +127,7 @@ export function metamagicRuleText(html) {
     .replace(/<blockquote>[\s\S]*?<\/blockquote>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
-    // The pack's live lookups go, and the phrase that framed one with them ("minimum of one, currently [[lookup …]]").
+    // The pack's live lookups go, with the phrase that framed one ("currently [[lookup …]]").
     .replace(/,?\s*currently\s*\[\[\/?lookup[^\]]*\]\]/gi, "")
     .replace(/\[\[\/?lookup[^\]]*\]\]/g, "")
     .replace(/\s+/g, " ").trim();
@@ -152,6 +135,7 @@ export function metamagicRuleText(html) {
 }
 
 /**
+ * The line the spell's card carries after the press — source, then result.
  * The line the spell's card carries after the press — source, then result (law 6).
  * @param {{key: string, feature: string, rangeFeet?: number|null, protected?: {name: string}[], target?: {name: string}|null, type?: string|null}} record
  */
@@ -174,10 +158,9 @@ export function metamagicCardLine(record) {
 }
 
 /**
- * TWINNED SPELL'S FIT, read off the data after all (measured 2026-09-09, Stage 3): a spell that
- * gains a target at a higher slot level carries its target count as a FORMULA over the cast's
- * level in the pack's source (`@item.level - 1` on Hold Person and Charm Person); a fixed count
- * (Magic Missile's darts), a blank one (an attack spell) or a template are not it.
+ * Twinned Spell's fit, read off the data: a spell that gains a target at a higher level carries
+ * its target count as a FORMULA over the cast's level (`@item.level - 1`); a fixed count, a blank
+ * one or a template does not.
  * @param {string|number|null|undefined} countFormula the item's SOURCE `target.affects.count`
  * @param {{name?: string|null, exceptions?: {except?: readonly string[], also?: readonly string[]}|null}} [opts]
  *        the spell's name and the table's exceptions (registry.js TWINNED_EXCEPTIONS): `also` fits
@@ -192,9 +175,8 @@ export function scalesTargetsFrom(countFormula, { name = null, exceptions = null
 }
 
 /**
- * EXTENDED SPELL'S ARITHMETIC: the duration doubled, to a maximum of 24 hours (the option's own
- * words). Seconds cap at 86,400; rounds and turns double as they are (a combat clock has no
- * hours to cap against). A duration with nothing on it stays as it is.
+ * Extended Spell: the duration doubled, to a maximum of 24 hours. Rounds and turns double as they
+ * are; an empty duration stays.
  * @param {{seconds?: number|null, rounds?: number|null, turns?: number|null}} duration
  * @returns {{seconds?: number, rounds?: number, turns?: number}} the fields that changed
  */
@@ -210,10 +192,8 @@ export function extendedDuration(duration) {
 }
 
 /**
- * Is this roll one Empowered Spell reaches? "When you roll damage for a spell" — damage, so never a
- * spell's HEALING (dnd5e rolls a heal through the same damage roll; the walk, 2026-09-26: Cure Wounds
- * was offered Empowered beside Healer's reroll). A heal activity, or rolls that are all healing or
- * temporary Hit Points, is out.
+ * Does Empowered Spell reach this roll? Damage only — dnd5e rolls healing through the same damage
+ * roll, so a heal activity, or rolls all healing or temp HP, is out.
  * @param {{activityType?: string|null, rollTypes?: (string|null|undefined)[]}} facts
  */
 export function empoweredReaches({ activityType = null, rollTypes = [] } = {}) {
@@ -223,8 +203,7 @@ export function empoweredReaches({ activityType = null, rollTypes = [] } = {}) {
 }
 
 /**
- * The arithmetic of the reroll: the new total is the old one moved by every die's change, and the
- * sentence the card says — the old faces, an arrow, the new, then the totals.
+ * The reroll's arithmetic: the old total moved by every die's change, and the card's sentence.
  * @param {{oldTotal: number, picks: {old: number, new: number}[]}} args
  */
 export function empoweredOutcome({ oldTotal, picks }) {

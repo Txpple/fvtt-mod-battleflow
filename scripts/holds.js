@@ -1,51 +1,13 @@
 /**
- * Battle Flow — THE HOLD REGISTRY: the one place that answers "is anything keeping this
- * quiet?" (2026-09-09, generalised out of metamagic.js the day after it was born there).
- *
- * WHAT A HOLD IS. While the module is asking its caster a question the table cannot answer
- * without — Careful Spell's *who does the spell spare?*, asked only once the template has
- * landed — the cast's usage card is held BACK. Nothing downstream fires, because nothing
- * downstream exists yet: no card, no picture, no dice, no saves. The hold is how a module
- * that keys on the card (FX Studio's area picture plays on the template's Region, which the
- * system draws BEFORE the question) can be told *not yet* without knowing why.
- *
- * ⚠ THIS IS A COURTESY, NEVER A GUARANTEE OF LIVENESS. A consumer bounds its own wait. The
- * registry does everything it can to settle every hold it opens — every terminal path calls
- * `release`, a deleted carrier releases, and a hold whose moment carries a clock is bounded by
- * that clock plus slack — but a consumer that waits forever on a promise is a consumer that
- * can hang on a bug in here, and that trade is not the consumer's to lose.
- *
- * ⚠ IT IS CLIENT-LOCAL, AND THAT IS THE THING TO KNOW BEFORE READING IT. These are plain Maps
- * in one client's memory: the client that cast. Everywhere else `holdFor()` answers `null`,
- * which does NOT mean "nothing is holding" — it means "nothing HERE can see one". Today that
- * is harmless because the consumer that asks (the template's placer) is the caster, but a GM
- * placing a template on a player's behalf is already outside that luck. Promoting a hold to
- * world state is a real change with a real cost; it is not done, and it is not pretended.
- *
- * THE FOUR DECISIONS THAT ARE LOAD-BEARING (BACKLOG, *The modal sequence*). The module wants,
- * long term, a MODAL SEQUENCE: several windows answered in order, with the visual chain waiting
- * for the whole sequence to drain. That is buildable on this file only while all four hold, and
- * each is cheap now and expensive later:
- *   1. REFCOUNTED, never a boolean. A sequence of N windows raises N holds on one subject.
- *      Today exactly one thing ever holds — which is precisely why a boolean would have looked
- *      correct forever and then cost a migration.
- *   2. Keyed by an OPAQUE SUBJECT, never an activity uuid. A sequence's subject may be a popup
- *      key or a message id; an activity-only key locks this to casts.
- *   3. Release is an EXPLICIT LIFECYCLE CALL, never coupled to "the card posted". In a sequence
- *      the card posts at step 1 while steps 2..N still stand.
- *   4. `ui.js`'s `openManagedPopup` stays the one place a decision popup opens, so a sequence
- *      can be counted without editing every machine.
- *
- * THE PUBLIC SURFACE (`game.modules.get("fvtt-mod-battleflow").api`), read by other modules and
- * never imported by them:
- *   holdFor(subject)   a promise that settles when the hold lifts, or null when nothing holds.
- *                      THREE outcomes: the CARD (play it), `null` (nothing was posted — play
- *                      NOTHING), or a truthy sentinel (the hold lifted, nothing is known — carry
- *                      on). ⚠ A null RETURN and a null RESOLUTION mean opposite things: the first
- *                      is "play now", the second "play nothing".
- *   castHold(uuid)     the original name, kept forever — FX Studio shipped against it 2026-09-09.
- *   holds              { version, keys } so a consumer can tell this contract from the first one.
- * and the hooks `battleflow.holdOpened` / `battleflow.castReleased`.
+ * Battle Flow — THE HOLD REGISTRY: "is anything keeping this quiet?" While the module asks its
+ * caster a question the table cannot answer without (Careful Spell's who-to-spare), the cast's
+ * card is held back, and a consumer keyed on the card (FX Studio) is told *not yet* without
+ * knowing why. Contract: ARCHITECTURE *The public API* — holdFor, castHold (a permanent alias),
+ * holds, and the hooks `battleflow.holdOpened` / `battleflow.castReleased`.
+ * ⚠ A courtesy, never a liveness guarantee: consumers bound their own wait.
+ * ⚠ CLIENT-LOCAL (the casting client's memory): elsewhere `holdFor()` is null, meaning "nothing
+ * HERE can see one", not "nothing holds". ⚠ Refcounted, opaque-subject keys and an explicit
+ * release are load-bearing for BACKLOG *The modal sequence*.
  */
 
 import { MODULE_ID, TITLE } from "./core.js";
@@ -54,31 +16,21 @@ import { MODULE_ID, TITLE } from "./core.js";
 const HOLD_CONTRACT = Object.freeze({ version: 1, keys: ["activity", "message", "document"] });
 
 /**
- * ⚠ THE THIRD OUTCOME, and the reason it exists (FX Studio, 2026-09-09, reviewing its gate against
- * this contract). A hold settles three ways, not two: with the CARD, with `null` — nothing was
- * posted, play nothing — and with THIS, meaning *the hold lifted and nothing is known; carry on*.
- *
- * Collapsing the third into `null` is a real bug and it was shipped for an hour. A hold that
- * outlives its own clock has NOT established that the cast came to nothing — the points were spent
- * before the question was ever asked and the template is on the map — so a consumer reading that
- * `null` as "the thing never happened" suppresses the picture PERMANENTLY for what is only a late
- * answer. Fail open: the sentinel is truthy, so a consumer's "truthy plays" rule does the right
- * thing with no code on its side.
+ * The third outcome: *the hold lifted and nothing is known; carry on*. ⚠ Never collapse it into
+ * `null` ("nothing was posted, play nothing"): a hold that outlives its clock is only a late
+ * answer, and reading it as null would suppress the picture for good. Truthy, so it fails open.
  */
 const HOLD_LIFTED = Object.freeze({ lifted: true });
 
 /**
- * subject key → the live hold. `count` is the refcount (decision 1); `settled` guards against a
+ * subject key → the live hold. `count` is the refcount; `settled` guards a double release.
  * double release resolving a promise nobody is waiting on any more.
  * @type {Map<string, {promise: Promise<any>, resolve: (v:any)=>void, count: number, reason: string, timer: any, settled: boolean}>}
  */
 const holds = new Map();
 
-// ⚠ NO ALIASING YET, DELIBERATELY. `holdFor` is documented to take an activity uuid, a message id
-// or a document uuid, and today every hold is raised on an activity uuid, so the other two answer
-// only when they ARE that string. Teaching one hold a second name is four lines — and it is not
-// written until something asks, because a seam built from one caller is a guess (the house lesson,
-// BACKLOG *the two sideways edges*). The contract is shaped to accept it without a version bump.
+// No aliasing: every hold is raised on an activity uuid today, so a message id or document uuid
+// answers only when it IS that string. The contract accepts aliasing without a version bump.
 
 /** The subject a caller means, as the string this file keys by; anything document-shaped answers by uuid. */
 function subjectKey(subject) {
@@ -95,15 +47,10 @@ function holdEntry(subject) {
 }
 
 /**
- * RAISE a hold on a subject and get back the function that lowers it. Every raise must be
- * matched by exactly one call of what it returns — the returned function is idempotent, so a
- * machine that lowers twice on two paths (the answer AND the carrier's deletion) is safe.
- *
- * `bound` is a millisecond ceiling after which the hold LIFTS itself (the truthy sentinel — never
- * `null`, which would read as "play nothing" for what is only a late answer). Pass it
- * whenever the moment carries a clock, and pass nothing when it does not: a moment waits
- * forever only by explicit setting (ARCHITECTURE §5 law 11), and a self-bound under a
- * deliberately clockless ask would release while the caster is still reading.
+ * RAISE a hold and get back its (idempotent) lowering function; every raise is matched by one
+ * call. `bound` is a millisecond ceiling after which the hold LIFTS itself (the sentinel, never
+ * `null`) — pass it whenever the moment carries a clock, and nothing when it deliberately has
+ * none (ARCHITECTURE §5 law 11).
  */
 export function raiseHold(subject, { reason = "unspecified", bound = null } = {}) {
   const key = subjectKey(subject);
@@ -134,10 +81,8 @@ export function raiseHold(subject, { reason = "unspecified", bound = null } = {}
 }
 
 /**
- * Lower one raise. The hold settles only when the last raise has been lowered (decision 1), and
- * lowering the last one with no card in hand LIFTS the hold rather than cancelling it — the
- * windows drained and the moment carries on. Only an explicit `releaseHold(subject, null)` says
- * nothing was posted.
+ * Lower one raise; the hold settles when the last is lowered. With no card in hand it LIFTS
+ * rather than cancels — only an explicit `releaseHold(subject, null)` says nothing was posted.
  */
 function lowerHold(key, message = null) {
   const entry = holds.get(key);
@@ -160,9 +105,8 @@ function settle(key, message) {
 }
 
 /**
- * Settle a subject's hold NOW, however many raises stand — for the terminal paths where the
- * question has stopped being askable at all: the card posted, the carrier deleted, the cast
- * cancelled. `message` is what the waiters receive: the card, or null for "nothing was posted".
+ * Settle a subject's hold NOW, whatever its refcount — the card posted, the carrier deleted, the
+ * cast cancelled. `message` is the card, or null for "nothing was posted".
  */
 export function releaseHold(subject, message = null) {
   const key = subjectKey(subject);
@@ -183,7 +127,7 @@ Hooks.once("init", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, {
     holdFor,
-    /** The first name this surface had (FX Studio, 2026-09-09). Kept forever; `holdFor` is the general one. */
+    /** The first name of this surface, kept forever; `holdFor` is the general one. */
     castHold: holdFor,
     holds: HOLD_CONTRACT
   });

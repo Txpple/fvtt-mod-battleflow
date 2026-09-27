@@ -1,9 +1,8 @@
 /**
- * Battle Flow — the reaction hold, part 6: THE CONTINUATION. Every held target answered → the
- * continuing client re-tests the attack against the LIVE AC after the settle window, writes
- * the verdicts, announces, and releases the dice rolled at attack time. Also the watcher's
- * popup-closing (presentation law 4) — it sits with the update watcher that calls it, which is
- * what keeps the parts a DAG (views → continue, never back).
+ * Battle Flow — the reaction hold: THE CONTINUATION. Every held target answered → the continuing
+ * client re-tests the attack against the LIVE AC after the settle window, writes the verdicts,
+ * announces, and releases the dice rolled at attack time. Also closes answered popups — it sits
+ * with the update watcher that calls it, keeping the parts a DAG (views → continue, never back).
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, isContinuingClient, drivesMomentFor, canApplyTo } from "../core.js";
 import { chipClock } from "../decide/chips.js";
@@ -21,14 +20,11 @@ import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
 
-// Drive the continuation whenever a held message changes and every held target has answered.
-// Deliberately reads the message's CURRENT state rather than inspecting the update diff:
-// setFlag issues a flattened `flags.<module>.hold` key, so a nested-path test against
-// `changed` silently never matches (bit live 2026-08-15). The early-outs are cheap.
+// ⚠ Reads the message's CURRENT state, not the update diff: setFlag issues a flattened
+// `flags.<module>.hold` key, so a nested-path test against `changed` never matches.
 Hooks.on("updateChatMessage", message => {
-  // Every client closes popups whose decision has already been made — this runs before the
-  // continuing-client gate on purpose, because the popup to close is usually on a DIFFERENT
-  // client from the one driving the continuation.
+  // Every client closes answered popups — before the continuing-client gate, because the popup is
+  // usually on a different client from the one driving.
   closeAnsweredHoldPopups(message);
 
   const hold = message.getFlag(MODULE_ID, "hold");
@@ -39,28 +35,17 @@ Hooks.on("updateChatMessage", message => {
 });
 
 /**
- * Continuations this client is already driving. The body below AWAITS for up to holdSettle
- * seconds with the flag still `pending`, and any OTHER update landing on the held message in
- * that window (a mastery ask stamped on the same attack, a receipt) re-fires the
- * updateChatMessage watcher, which would find "pending, all answered" and run the whole
- * continuation AGAIN — double announcements and a second damage roll. Over-applying damage
- * is the worst failure this module has, so the claim is taken before the first await.
- * In-memory on purpose: the race is same-client re-entry (the watcher is already gated to
- * one client by isContinuingClient), and a persisted claim would strand the hold if the
- * claiming client died mid-continuation — the render hook's resume check below needs the
- * flag still readable as "pending and ready".
+ * Continuations this client is driving. ⚠ The body awaits up to holdSettle seconds with the flag
+ * still `pending`, and any other update in that window re-fires the watcher — a second run would
+ * roll damage twice. So the claim is taken before the first await. In memory on purpose: a
+ * persisted claim would strand the hold if this client died mid-continuation.
  */
 const continuationsInFlight = new Set();
 
 /**
- * Re-resolve a fully-answered hold and continue the chain.
- *
- * ⚠ The re-test runs against the target's LIVE AC, never the stored descriptor — that
- * snapshot was taken before the Shield existed. And the AC does not move the instant a
- * reaction is cast: Shield's +5 arrives as a non-transfer active effect the native tray
- * applies (monster reactions ship theirs DISABLED for the GM to switch on), so a cast is
- * given a settle window to let the change land before the verdict is taken. Phase 3 closes
- * this properly by applying the effect itself.
+ * Re-resolve a fully-answered hold and continue the chain. ⚠ The re-test reads the target's LIVE
+ * AC, never the stored snapshot, and a cast is given a settle window: Shield's +5 arrives as an
+ * effect that must land before the verdict.
  */
 export async function continueHold(attackMessage) {
   if ( continuationsInFlight.has(attackMessage.id) ) return;
@@ -76,32 +61,23 @@ export async function continueHold(attackMessage) {
 
 async function driveHoldContinuation(attackMessage, hold) {
 
-  // Safety net before the verdict: make sure a cast reaction's effect is actually ON the
-  // actor. The casting client is supposed to have done this, but it only will if it owns the
-  // actor AND is running current code — and if it didn't, the re-test silently reads the
-  // pre-reaction AC and calls a miss a hit (exactly what happened live 2026-08-15: "Shield
-  // raises AC to 12"). Idempotent: an effect already present is left alone.
-  //
-  // ⚠ This net only catches what the continuing client OWNS. On an NPC attack that client is
-  // the GM, who owns everything — but on a PC attack (autoDamage "pc"/"all") it is the
-  // attacking PLAYER, who owns none of the monsters holding reactions, so the net no-ops and
-  // the monster side rests entirely on the answering GM's applyReactionEffect. Monster
-  // reactions ship their effects DISABLED, so watch this seam when dogfooding PC attacks.
+  // Safety net: make sure a cast reaction's effect is actually ON the actor, or the re-test reads
+  // the pre-reaction AC and calls a miss a hit. Idempotent. ⚠ It only catches what this client
+  // OWNS: on a PC attack that is the attacking player, so the monster side rests on the answering
+  // GM's applyReactionEffect (and monster reactions ship their effects disabled).
   if ( setting(S.holdApplyEffect) ) {
     for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
       const actor = await fromUuid(target.uuid);
       if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
-      // The reaction's own ITEM is what matters here, not the activity — applyReactionEffect
-      // falls back to that item's effects, which is the only place a statblock's Shield keeps
-      // Imperceptible Barrier (its cast activity carries none). `target` carries the itemId and
-      // activityId the hold recorded, so the cached spell is found rather than a worn shield.
+      // The reaction's ITEM matters, not the activity: applyReactionEffect falls back to the item's
+      // effects, the only place a statblock's Shield keeps its effect. The recorded itemId finds
+      // the cached spell rather than a worn shield.
       const item = reactionItem(actor, target.reaction, target);
       const activity = item?.system.activities?.contents?.[0];
       const entries = await applyReactionEffect(activity, actor, target.reaction, target);
       if ( entries.length ) {
-        // The continuing client owns the held message (its roll, or the GM fallback), so
-        // the safety net's receipt lands there — same shape, same rows, same revert. Through
-        // the serializer (D3): this loop runs per target, so it is its own concurrent writer.
+        // The continuing client owns the held message, so the receipt lands there — through the
+        // serializer, since this loop is its own concurrent writer.
         await queueFlagWrite(attackMessage, "effectReceipt", flag => {
           for ( const entry of entries ) joinEffectReceipt(flag, entry);
         });
@@ -109,9 +85,7 @@ async function driveHoldContinuation(attackMessage, hold) {
     }
   }
 
-  // A negate hold ends here: there is nothing to re-test, so there is nothing to settle for
-  // either. The effect above still went on — casting Shield against Magic Missile really does
-  // also give you the +5 until your next turn — but this verdict does not depend on it.
+  // A negate hold has nothing to re-test (the reaction's effect above still went on).
   if ( hold.trigger === "spell" ) return continueSpellHold(attackMessage, hold);
 
   if ( hold.targets.some(t => t.answer === "cast") ) await settleForACChange(hold);
@@ -121,9 +95,8 @@ async function driveHoldContinuation(attackMessage, hold) {
   for ( const target of hold.targets ) {
     const actor = await fromUuid(target.uuid);
     const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
-    // THE COMPOSED ROLL (Slice A, 2026-09-24): a `roll` answer's bent d20 is a `replace` — it
-    // carries its own crit and fumble (a natural 20 under Disadvantage can stop being one), so the
-    // verdict is the fold layer's arithmetic over it, never the raw total (decide/verdict.js).
+    // A `roll` answer's bent d20 is a `replace` carrying its own crit and fumble, so the verdict is
+    // the fold arithmetic over it, never the raw total (decide/verdict.js).
     const rolled = foldedRoll({ total: roll.total, isCritical: roll.isCritical, isFumble: roll.isFumble },
       bentFold(target));
     const hit = rolled.isCritical || (!rolled.isFumble && (rolled.total >= liveAC));
@@ -136,20 +109,11 @@ async function driveHoldContinuation(attackMessage, hold) {
     if ( target.answer !== "cast" ) continue;
     const img = reactionImg(actor, target.reaction, target);
     if ( target.kind === "ac" ) {
-      // If the reaction's AC never arrived, the number we just tested against is the one the
-      // target had BEFORE reacting — so say so instead of reporting a stale value as fact.
-      // A silent "still hits" here is the worst possible outcome: it looks authoritative.
+      // The reaction's AC never arrived: say so rather than report a stale number as fact.
       if ( !reactionACArrived(actor, target) ) {
-        // ⚠ A FLAT AC can never receive this, and saying so is the whole difference between a
-        // one-field fix and a mystery. dnd5e's prepareArmorClass RETURNS on the flat branch
-        // before ac.bonus is added ("Flat AC (no additional bonuses)"), so an actor whose AC is
-        // a fixed number silently ignores every AC effect — Shield included. The effect really
-        // did land; the system simply refuses to count it, and the old wording ("its AC has not
-        // arrived") sent the reader looking for a module bug that was not there. Reported live
-        // 2026-08-15 on a hand-authored Skeletal Mage; the official Monster Manual pack has
-        // exactly one flat statblock out of 500, so this is bad data, not a shape to support.
-        // 6.0's AC model (the 6.0 pass, 2026-09-15): the fixed number is `ac.override` (the 5.x
-        // `calc: "flat"` migrates to it); `calc` is derived and never says "flat" any more.
+        // ⚠ A FIXED AC (`ac.override`, or 5.x `calc: "flat"`) ignores every AC bonus — dnd5e
+        // returns before adding ac.bonus — so the effect landed and the system refuses to count
+        // it. Name that, so nobody hunts a module bug; it is a statblock to fix.
         const ac = actor?.system?.attributes?.ac;
         const flatAC = ((ac?.override !== null) && (ac?.override !== undefined) || (ac?.calc === "flat"))
           && hasReactionEffect(actor, target.reaction, target);
@@ -179,12 +143,11 @@ async function driveHoldContinuation(attackMessage, hold) {
       }
     } else {
       // A damage-kind reaction the module can settle (Uncanny Dodge halves; Parry's roll reduces)
-      // is applied by the applier and receipted; the rest are reduced by hand, as before.
+      // is applied and receipted; the rest are reduced by hand.
       const settled = interruptMultiplier(target, INTERRUPT_MULTIPLIERS);
       const reduced = (Number(target.reduceBy) > 0) ? Number(target.reduceBy) : null;
       const how = settled ? ((settled.multiplier === 0.5) ? "halved" : `×${settled.multiplier}`) : reduced ? `reduced by <strong>${reduced}</strong>` : null;
-      // Parry: the maneuver family's words (user, 2026-09-05); Stone's Endurance the same shape in
-      // its own voice — the row's eyebrow and spend, stamped on the flag (Slice A, 2026-09-24).
+      // Parry and Stone's Endurance speak in their own row's eyebrow and spend, stamped on the flag.
       const maneuver = !!target.reduce;
       const r = target.reduce ?? {};
       announcements.push(bfCard({
@@ -207,35 +170,25 @@ async function driveHoldContinuation(attackMessage, hold) {
     speaker: { alias: TITLE }
   });
 
-  // (gg), the v1.20.0 walk-1 ruling: the dice rolled AT ATTACK TIME (auto-damage.js stamps
-  // them `attackHoldPending`), so resolution RELEASES the claim instead of rolling — the
-  // darts' pattern on the attack chain. The applier re-reads hitTargets, whose verdict
-  // override drops every Shield-flipped target, so an all-flipped release applies to nobody
-  // and the dice do nothing (the announcement above already said "The attack misses").
-  // A roll still in an open offer window needs nothing here: rollDamageForAttack reads the
-  // hold at ROLL time, finds it resolved, stamps no claim, and applies straight.
+  // The dice were rolled at attack time (`attackHoldPending`); resolution RELEASES the claim. The
+  // applier re-reads hitTargets, whose verdicts drop every flipped target. A roll still in an open
+  // offer window reads the resolved hold at roll time and needs nothing here.
   for ( const dmg of game.messages.contents.filter(m =>
     (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)
     && (m.getFlag(MODULE_ID, "attackHoldPending") === true) ) ) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }
 
-  // A CRIT THE HOLD COULD UNDO (Slice A, 2026-09-24): its dice were never rolled at the hit
-  // (trigger.js stamps `critAtStake`, auto-damage.js stands aside), so they are rolled NOW — once,
-  // by this continuing client, the one that rolled the attack — crit or not as the answer left
-  // it (auto-damage.js `critFor` reads the bent roll), and only if anyone is still hit.
+  // A crit the hold could undo was never rolled (`critAtStake`): roll it now, once, on this client,
+  // crit or not as the answer left it, and only if anyone is still hit.
   if ( hold.critAtStake ) await damageAfterHold(attackMessage);
 }
 
 /**
- * PROTECTION'S STANDING HALF (the fighting styles, 2026-09-26): "all other attack rolls against the
- * target until the start of your next turn if you remain within 5 feet of the target". Once a guard's
- * answer has bent the roll and the hold resolved, the pack's own effect on the guard's feat
- * ("Protected") lands on the protected creature as "Protected — <guard>", clocked to the start of
- * the GUARD's next turn (the Reaction chip's window, pinned to the guard's place — the reaction
- * clock's rule); the gate reads it (EFFECT_BENDS "Protected (Protection)", while the guard stands
- * within 5 feet). Landed by the client that drives moments for the protected creature, once — the
- * hold records it where that client may write the attack card, an in-memory set where it may not.
+ * Protection's standing half (RULINGS *The fighting styles*): once a guard's answer bent the roll,
+ * the pack's "Protected" lands on the protected creature as "Protected — <guard>", clocked to the
+ * start of the GUARD's next turn. Landed once by the client that drives the protected creature —
+ * recorded on the hold where it may write the card, an in-memory set where it may not.
  */
 const protectionsLanding = new Set();
 async function landProtection(message, hold) {
@@ -285,15 +238,14 @@ function bentFold(target) {
 }
 
 /**
- * The defender's card after a `roll` answer (prototype scenes 2b, 2b2): the row, what it cost,
- * and — when the hit still lands — that it did not turn it. The attacker's view (who bent the
- * roll, the arrow, the verdict) is the attack card's own row (views.js).
+ * The defender's card after a `roll` answer: the row, its cost, and whether it turned the hit
+ * (the attacker's view is the attack card's own row, views.js).
  */
 function bentAnnouncement(actor, target, hit) {
   const found = Object.keys(INTERRUPT_ROLLS).find(k => k.toLowerCase() === String(target.rescue ?? "").toLowerCase());
   const row = found ? INTERRUPT_ROLLS[found] : null;
   const spend = rescueSpendText({ row, poolSpend: target.poolSpend ?? null });
-  // A guard's (Protection, 2026-09-26): the guard's card — who protected whom.
+  // A guard's card says who protected whom.
   const by = target.guardedBy ?? null;
   const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
   return bfCard({
@@ -304,10 +256,8 @@ function bentAnnouncement(actor, target, hit) {
 }
 
 /**
- * Wait (briefly) for every cast reaction's AC to actually arrive. Resolves as soon as it has.
- * Deliberately waits on arrival rather than on "the number changed from a baseline": a
- * baseline captured after the recompute never changes again, and one captured before it can
- * be moved by something unrelated.
+ * Wait (briefly) for every cast reaction's AC to arrive. Waits on arrival, not on a number moving
+ * from a baseline: a baseline may be taken after the recompute, or moved by something unrelated.
  */
 async function settleForACChange(hold) {
   const deadline = Date.now() + (Math.max(1, Number(setting(S.holdSettle)) || 8) * 1000);
@@ -324,15 +274,9 @@ async function settleForACChange(hold) {
 }
 
 /**
- * PRESENTATION LAW 4 (§5): a popup asking something already answered is a lie on screen, so a
- * decision made ANYWHERE closes the popup asking for it — the card, another client, or the
- * buzzer.
- *
- * ⚠ D2 (2026-08-23) moved this out of ui.js, where it was the last thing in the spine that knew
- * this feature existed. It read the hold flag by STRING, so it made no import edge and D6's
- * cycle break went straight past it. Every other machine already closed its own popups exactly
- * like this; the hold was the one whose popup-closing lived in the spine. Per-target, because
- * one casting can answer many holds and only the answered target's popup should go.
+ * ARCHITECTURE §5 law 4: a decision made ANYWHERE closes the popup asking for it. Per target —
+ * one casting can answer many holds, and only the answered target's popup should go. The spine
+ * must not know the hold flag, so this lives here.
  */
 function closeAnsweredHoldPopups(message) {
   const hold = message.getFlag(MODULE_ID, "hold");
