@@ -426,20 +426,26 @@ describe("the moment registry — shape", () => {
         choice: { options: ["Warm Shield", "Chill Shield"], chosen: "Warm Shield" }
       },
       metamagic: { key: "quickened", feature: "Quickened Spell", cost: 2, spent: true },
-      empowered: { status: "used", picks: [0, 2], newTotal: 21, delta: 6 },
-      either: {
+      diceChange: {
         status: "used",
-        feature: "Savage Attacker",
-        key: "savage-attacker",
         actorUuid: "Actor.f",
         attackId: "atk",
-        formula: "1d8",
-        first: 5,
-        second: 7,
-        stands: "second",
-        delta: 2,
-        total: 11,
-        sourceUuid: "Actor.f"
+        sourceUuid: "Actor.f",
+        rows: [
+          {
+            key: "savage-attacker",
+            feature: "Savage Attacker",
+            kind: "set",
+            status: "used",
+            formula: "1d8",
+            first: 5,
+            second: 7,
+            stands: "second",
+            delta: 2,
+            after: 11
+          },
+          { key: "piercer", feature: "Piercer", kind: "one", status: "kept" }
+        ]
       },
       areaChoice: {
         spell: "Slow",
@@ -603,40 +609,56 @@ describe("the moment registry — the edges", () => {
     expect(out[0].facts.details.mode).toBeUndefined();
   });
 
-  it("Savage Attacker's record resolves once it is used — kept, due, pending, spent and moot resolve nothing", () => {
-    const base = {
-      feature: "Savage Attacker",
-      actorUuid: "Actor.f",
-      attackId: "atk",
-      formula: "2d6",
-      first: 5,
-      second: 10
-    };
+  it("the dice changers' record resolves once it is used, one resolve per row used — kept, due, pending, spent and moot resolve nothing", () => {
+    const rows = [
+      { key: "empowered", feature: "Empowered Spell", kind: "pick", status: "pending", cap: 3 },
+      {
+        key: "savage-attacker",
+        feature: "Savage Attacker",
+        kind: "set",
+        status: "pending",
+        formula: "2d6",
+        first: 5
+      },
+      { key: "piercer", feature: "Piercer", kind: "one", status: "pending", faces: 6, first: 2 }
+    ];
+    const base = { actorUuid: "Actor.f", attackId: "atk", rows };
     for (const status of ["due", "pending", "answering", "kept", "spent", "moot"]) {
-      expect(markers("either", { ...base, status }), status).toEqual([]);
+      expect(markers("diceChange", { ...base, status }), status).toEqual([]);
     }
-    const out = resolves("either", {
+    const out = resolves("diceChange", {
       ...base,
       status: "used",
-      stands: "second",
-      delta: 5,
-      total: 14
+      rows: [
+        {
+          ...rows[0],
+          status: "used",
+          picks: [{ key: "0:0:0", old: 1, new: 5 }],
+          delta: 4,
+          after: 16
+        },
+        { ...rows[1], status: "used", second: 10, stands: "second", delta: 5, after: 21 },
+        { ...rows[2], status: "kept" }
+      ]
     });
-    expect(out.length).toBe(1);
-    expect(out[0].events).toEqual(["fold"]);
-    expect(out[0].facts).toMatchObject({
+    expect(out.map(o => [o.marker, o.events])).toEqual([
+      ["empowered", ["metamagic"]],
+      ["savage-attacker", ["fold"]]
+    ]);
+    expect(out[1].facts).toMatchObject({
       actor: "Actor.f",
       ability: "Savage Attacker",
       attackId: "atk",
       targetsFrom: "attack"
     });
-    expect(out[0].facts.details).toMatchObject({
+    expect(out[1].facts.details).toMatchObject({
       first: 5,
       second: 10,
       stands: "second",
       delta: 5,
-      total: 14
+      total: 21
     });
+    expect(out[0].facts.details).toMatchObject({ newTotal: 16, delta: 4 });
   });
 
   it("the saves flag resolves one save per target done — and the attacker's choice beside it", () => {
@@ -842,7 +864,7 @@ describe("the moment registry — the edges", () => {
     expect(markers("emanationCard", { chosen: false })).toEqual([]);
     expect(markers("castApply", { choice: { options: ["a", "b"], chosen: null } })).toEqual([]);
     expect(markers("metamagic", { key: "quickened", spent: false })).toEqual([]);
-    expect(markers("empowered", { status: "answering" })).toEqual([]);
+    expect(markers("diceChange", { status: "answering", rows: [] })).toEqual([]);
     expect(markers("riposte", { reactors: [{ uuid: "Actor.f", answer: null }] })).toEqual([]);
     expect(markers("topple", { targets: [{ uuid: "Actor.g", done: false }] })).toEqual([]);
   });

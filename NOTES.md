@@ -731,8 +731,8 @@ gates on `message.isAuthor` (sneak.js).
 "fired 2 for this roll") — the literal `dnd5e.rollDamageV2` and the templated
 ``dnd5e.roll${name}V2`` name the same hook, so one registration runs twice. A never-re-stamp read cannot see a
 `setFlag` still in flight, so an offer raised there opens twice. **One in-flight set per
-moment** keeps the offer, the popup and the spend single: metamagic.js (`empoweredOffering`) and,
-since 2026-09-24, damage-either.js (Savage Attacker's `offering`). A new machine on this hook
+moment** keeps the offer, the popup and the spend single: dice-changers.js's `offering` (since
+2026-09-27 the one home of Empowered's and Savage Attacker's, which each carried a copy). A new machine on this hook
 takes the same guard.
 
 **`dnd5e.preApplyDamage(actor, amount, updates, options)` cancels on an explicit `false`**, and the

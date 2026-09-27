@@ -55,6 +55,45 @@ export async function foldSaveAutoFail(card, uuid, { sources = [], timedOut = fa
   }
 }
 
+/**
+ * THE MIRROR (Trance, 2026-09-27 — "magic can't put you to sleep"): a save the rules PASS before it
+ * is rolled, recorded as the success it is — the automatic failure's write with the outcome
+ * turned, the feature standing where the total would. The consequences follow as for a rolled
+ * success (a sleep spell's failed-save effect is never applied).
+ */
+export async function foldSaveAutoSucceed(card, uuid, { sources = [], timedOut = false } = {}) {
+  const key = `${card.id}|${uuid}`;
+  if ( saveFolds.has(key) ) return;
+  saveFolds.add(key);
+  try {
+    const passing = sources.filter(s => s.autoSucceed);
+    let folded = false;
+    let allDone = false;
+    await queueFlagWrite(card, "saves", current => {
+      if ( current.status !== "pending" ) return false;
+      const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
+      if ( !entry ) return false;
+      entry.done = true;
+      entry.outcome = "saved";
+      entry.total = null;
+      entry.rollMessageId = null;
+      entry.autoSucceeded = true;
+      entry.autoSucceededBy = [...new Set(passing.map(s => s.feature ?? s.label))].join(", ");
+      if ( timedOut ) entry.timedOut = true;
+      if ( current.targets.every(t => t.done) ) {
+        current.status = "done";
+        allDone = true;
+      }
+      folded = true;
+    });
+    if ( !folded ) return;
+    if ( allDone ) disarmSaveTimer(card.id);
+    await applySaveConsequences(card, uuid, null);
+  } finally {
+    saveFolds.delete(key);
+  }
+}
+
 /* --- the fold: the elect judges the roll against the stored DC ------------------------------ */
 
 /** Which pending demand target a save roll answers, or null. */

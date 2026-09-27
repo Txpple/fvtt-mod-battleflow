@@ -771,7 +771,10 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
       }
     }
   }
-  return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+  // A save that cannot fail is a DEMAND's (Trance's "magic can't put you to sleep"); a concentration
+  // check answers no such demand, so a pending one's facet never passes it.
+  const own = concentration ? sources.map(s => (s.autoSucceed ? { ...s, autoSucceed: false } : s)) : sources;
+  return new DialogCarried({ ...saveGate(own), actorUuid: actor.uuid, ability, failed: false });
 }
 
 /**
@@ -828,7 +831,7 @@ Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
     if ( !gate.sources.length ) return;
     dialog.configure = true;
     // Fails takes the focus itself below; the dialog's own default stays Normal behind it.
-    dialog.options.defaultButton = gate.autoFail ? "normal" : gate.net;
+    dialog.options.defaultButton = (gate.autoFail || gate.autoSucceed) ? "normal" : gate.net;
   } catch(err) {
     console.error(`${TITLE} | Save gate failed — rolling natively.`, err);
   }
@@ -874,9 +877,28 @@ function drawSaveGate(app, element, gate, demand) {
       sibling.insertAdjacentElement("beforebegin", fails);
     }
   }
-  // The highlighted default follows the net — Fails when the save cannot succeed — marked to
-  // stay marked (ui.js markDefaultButton).
-  markDefaultButton(element, gate.autoFail ? "bf-fails" : gate.net);
+  // THE MIRROR (Trance, 2026-09-27): a save that cannot FAIL gets Succeeds — no dice, the success
+  // recorded on the demand. Only with a demand: the facet never passes a bare sheet roll.
+  if ( gate.autoSucceed && demand && !element.querySelector("[data-bf-succeeds]") ) {
+    const sibling = modeButtonsEl.find(b => b.dataset.action !== "bf-succeeds");
+    if ( sibling ) {
+      const succeeds = document.createElement("button");
+      succeeds.type = "button";
+      succeeds.className = sibling.className;
+      succeeds.dataset.action = "bf-succeeds";
+      succeeds.setAttribute("data-bf-succeeds", "");
+      succeeds.innerHTML = `<i class="fa-solid fa-check" inert></i> Succeeds`;
+      succeeds.style.cssText = `border-color:${TONE.good};`;
+      succeeds.addEventListener("click", () => {
+        try { demand.succeeded = gate.sources.filter(s => s.autoSucceed); }
+        finally { void app.close(); }
+      });
+      sibling.insertAdjacentElement("beforebegin", succeeds);
+    }
+  }
+  // The highlighted default follows the net — Fails when the save cannot succeed, Succeeds when it
+  // cannot fail — marked to stay marked (ui.js markDefaultButton).
+  markDefaultButton(element, gate.autoFail ? "bf-fails" : (gate.autoSucceed && demand) ? "bf-succeeds" : gate.net);
 }
 
 /** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card

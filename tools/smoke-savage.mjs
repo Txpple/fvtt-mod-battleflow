@@ -22,7 +22,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
 // it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
 export const COVERS = [
-  'damage-either.js',       // the whole fold — the birth flag, the popup, the set, the card, the chit
+  'dice-changers.js',       // the whole shell — the birth flag, the popup, the set, the one die, the card, the chit
   'hold/continue.js'        // §6 — the hold's release is what lets the offer open
 ];
 
@@ -37,6 +37,7 @@ const SECTIONS = {
   8: 'the clock keeps the roll: an unanswered offer times out kept, and the damage lands',
   9: 'the list is the switch: an empty Damage Rolled Twice list offers nothing',
   10: 'the registrations FIRED (§11): dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 moved with the offer on them',
+  12: `Savage Attacker AND Piercer on one hit (the dice changers' one popup, 2026-09-27 — BACKLOG's "one question per hit", closed): ONE popup, both rows, "change the dice?", both ticked under the average; Apply runs Savage's set first (1 → 5, the 5 stands), then Piercer's one die off the face standing (5 → 6); the damage lands once at 6 + the modifier; two fold resolves`,
   11: `Piercer's Puncture (the PHB feats, group 3, 2026-09-26 — a \`one\` row): the Shortsword (Piercing) rolls a 1 — the popup asks "roll the 1 on the d6 again?"; Roll again → 5 stands, the total 5 + the modifier, the card line; a 4 rerolled to a 2 — the new roll stands, LOWER`
 };
 const DEPENDS = { 2: ['1'] };   // §2 answers the popup §1 opened
@@ -99,7 +100,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
   };
   const eitherPopup = () => [...foundry.applications.instances.values()]
-    .find(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-either"]')) ?? null;
+    .find(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-dice"]')) ?? null;
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       const ours = app.element?.querySelector?.('[data-bf-ticks]') || (app.element?.innerHTML ?? '').includes('Damage — your roll');
@@ -205,15 +206,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => damageFor(originId), 8000);
       return { attackMsg, dmg, originId };
     };
-    const either = dmg => dmg?.getFlag(MOD, 'either') ?? null;
-    const tick = popup => { const box = popup?.element?.querySelector('input[name="bf-either"]'); if (box && !box.checked) box.click(); return box; };
+    // THE ONE RECORD (the dice changers, 2026-09-27): a row of `diceChange`, read the way the old
+    // `either` flag read — a row still asking speaks with the record's status.
+    const either = (dmg, key = null) => {
+      const f = dmg?.getFlag(MOD, 'diceChange');
+      if (!f) return null;
+      const row = (key ? f.rows?.find(x => x.key === key) : f.rows?.[0]) ?? {};
+      return { ...row, status: ['pending', 'due'].includes(row.status) ? f.status : row.status, timedOut: f.timedOut,
+        one: row.kind === 'one', total: row.after, record: f.status };
+    };
+    const tick = popup => { const box = popup?.element?.querySelector('input[name="bf-dice"]'); if (box && !box.checked) box.click(); return box; };
     // The tick picks the live button (the hint, option D: a low first roll starts TICKED, which
     // greys "Keep the roll"), so a press sets the tick first, as a player would — a click on the
     // greyed button left the popup open and cascaded into §6, §7 and §9 (the battery of 2026-09-26).
     const press = (popup, action) => {
-      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      const box = popup?.element?.querySelector('input[name="bf-dice"]');
       if (box && (box.checked !== (action === 'again'))) box.click();
-      popup?.element?.querySelector(`button[data-action="${action}"]`)?.click();
+      popup?.element?.querySelector(`button[data-action="${action === 'again' ? 'apply' : action}"]`)?.click();
     };
     const receiptOf = dmg => dmg?.getFlag(MOD, 'receipt') ?? null;
     const startCombat = async () => {
@@ -232,8 +241,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
       s1 = await swing({ d20: 15, die: 2 });
       const popup = await waitFor(eitherPopup, 6000);
-      const rollBtn = popup?.element?.querySelector('button[data-action="again"]');
-      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      const rollBtn = popup?.element?.querySelector('button[data-action="apply"]');
+      const box = popup?.element?.querySelector('input[name="bf-dice"]');
       ok('1a. the popup asks: the tick row names Savage Attacker with "1d6 again" and "once per turn", the rule folded under; a 2 is under the average, so the die meter reads low, the row starts TICKED and "Roll again" is live (the hint, option D)',
         !!popup && /Savage Attacker/.test(textOf(popup.element)) && /1d6 again/.test(textOf(popup.element)) && /once per turn/i.test(textOf(popup.element))
           && /the rule/.test(textOf(popup.element)) && !!popup.element.querySelector('[data-bf-die-meter="low"]')
@@ -277,8 +286,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(receipt?.targets?.map(t => ({ taken: t.taken, note: t.note }))));
       const announce = game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'respondsTo') === s1.dmg.id));
       ok('2d. the second set rolled on its own card, in the open', !!announce && (announce.rolls?.[0]?.total === 5), `announce=${!!announce} total=${announce?.rolls?.[0]?.total}`);
-      const ev = momentsOf('fold', since).filter(p => (p.kind === 'either') && (p.messageId === s1.dmg.id));
-      ok('2e. the resolve was PUBLISHED as `fold` (kind either), once', ev.length === 1, JSON.stringify(ev.map(p => p.marker)));
+      const ev = momentsOf('fold', since).filter(p => (p.kind === 'diceChange') && (p.messageId === s1.dmg.id));
+      ok('2e. the resolve was PUBLISHED as `fold` (kind diceChange), once', ev.length === 1, JSON.stringify(ev.map(p => p.marker)));
       ok('2f. out of combat no chit is written — the next hit asks again', !halfling.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), '');
     }
 
@@ -287,11 +296,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
       const s = await swing({ d20: 15, die: 5 });
       const popup = await waitFor(eitherPopup, 6000);
-      const box = popup?.element?.querySelector('input[name="bf-either"]');
+      const box = popup?.element?.querySelector('input[name="bf-dice"]');
       const keepBtn = popup?.element?.querySelector('button[data-action="keep"]');
       ok('3c. a 5 is above the average: the meter reads high, the row starts UNTICKED, "Keep the roll" live and "Roll again" greyed (the hint, option D)',
         !!popup?.element?.querySelector('[data-bf-die-meter="high"]') && box?.checked === false
-          && keepBtn?.disabled === false && popup.element.querySelector('button[data-action="again"]')?.disabled === true,
+          && keepBtn?.disabled === false && popup.element.querySelector('button[data-action="apply"]')?.disabled === true,
         `checked=${box?.checked} keep=${keepBtn?.outerHTML?.slice(0, 160)}`);
       faces([[2, 6]]);
       tick(popup);
@@ -433,7 +442,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const popup = await waitFor(eitherPopup, 6000);
           ok('11a. a 1 on the Shortsword\'s d6: the popup asks "roll the 1 on the d6 again?", Piercer\'s row, ticked (a 1 is under the average)',
             !!popup && /roll the 1 on the d6 again\?/.test(textOf(popup.element)) && /Piercer/.test(textOf(popup.element))
-              && (popup.element.querySelector('input[name="bf-either"]')?.checked === true) && (either(s.dmg)?.one === true),
+              && (popup.element.querySelector('input[name="bf-dice"]')?.checked === true) && (either(s.dmg)?.one === true),
             `text="${textOf(popup?.element).slice(0, 200)}" flag=${JSON.stringify(either(s.dmg))}`);
           faces([[5, 6]]);
           press(popup, 'again');
@@ -452,6 +461,54 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const total2 = used2?.rolls?.reduce((n, r) => n + r.total, 0);
           ok('11c. a 4 rolled again to a 2: the new roll stands, LOWER ("you must use the new roll")', (either(used2)?.second === 2) && (total2 === 2 + dexMod),
             `flag=${JSON.stringify(either(used2))} total=${total2}`);
+        } finally {
+          await closeDialogs();
+          await set('damageEitherList', prior.damageEitherList);
+        }
+      }
+    }
+
+    // ================================================== 12. Savage and Piercer on one hit
+    if (want(12)) {
+      await clearChips();
+      let piercer = halfling.items.find(i => i.name === 'Piercer') ?? null;
+      if (!piercer) {
+        for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === 'Piercer') && (e.type === 'feat'));
+          if (hit) { const [lent] = await halfling.createEmbeddedDocuments('Item', [(await pack.getDocument(hit._id)).toObject()]); created.items.push([halfling.id, lent.id]); piercer = lent; break; }
+        }
+      }
+      if (!piercer) ok('12. the PHB ships Piercer', false, '');
+      else {
+        await set('damageEitherList', 'Savage Attacker, Piercer');
+        try {
+          const since = Date.now();
+          const s = await swing({ d20: 15, die: 1 });
+          const popup = await waitFor(eitherPopup, 6000);
+          await sleep(400);
+          const popups = [...foundry.applications.instances.values()].filter(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-dice"]'));
+          const boxes = [...(popup?.element?.querySelectorAll('input[name="bf-dice"]') ?? [])];
+          ok('12a. ONE popup with both rows — Savage Attacker then Piercer — "change the dice?", both ticked (a 1 is under both averages), "Apply" live',
+            (popups.length === 1) && (boxes.map(b => b.value).join(',') === 'savage-attacker,piercer') && boxes.every(b => b.checked)
+              && /change the dice\?/.test(textOf(popup?.element)) && (popup?.element?.querySelector('button[data-action="apply"]')?.textContent?.trim() === 'Apply'),
+            `popups=${popups.length} rows=${boxes.map(b => `${b.value}:${b.checked}`).join(',')} text="${textOf(popup?.element).slice(0, 160)}"`);
+          faces([[5, 6], [6, 6]]);
+          popup?.element?.querySelector('button[data-action="apply"]')?.click();
+          const used = await waitFor(() => (game.messages.get(s.dmg.id)?.getFlag(MOD, 'diceChange')?.status === 'used') ? game.messages.get(s.dmg.id) : null, 15000);
+          const sv = either(used, 'savage-attacker');
+          const pc = either(used, 'piercer');
+          const total = used?.rolls?.reduce((n, r) => n + r.total, 0);
+          ok('12b. Savage first: the set 1 → 5, the 5 stands; then Piercer off the face standing: the 5 → 6, the new roll stands; the total 6 + the modifier',
+            (sv?.status === 'used') && (sv.first === 1) && (sv.second === 5) && (sv.stands === 'second')
+              && (pc?.status === 'used') && (pc.first === 5) && (pc.second === 6) && (total === 6 + dexMod),
+            `savage=${JSON.stringify(sv)} piercer=${JSON.stringify(pc)} total=${total}`);
+          const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
+          ok('12c. the damage landed ONCE with the final total', (receipt?.targets?.length === 1) && (receipt.targets[0].taken === 6 + dexMod),
+            JSON.stringify(receipt?.targets?.map(t => t.taken)));
+          const line = await waitFor(() => { const t = cardText(s.dmg.id); return /Piercer — the 5 on the d6 again → 6/.test(t) ? t : null; }, 4000);
+          ok('12d. the card says both, source then result', /Savage Attacker — 1d6 → 1, again → 5/.test(line ?? '') && /Piercer — the 5 on the d6 again → 6/.test(line ?? ''), (line ?? '').slice(0, 240));
+          const ev = momentsOf('fold', since).filter(p => (p.kind === 'diceChange') && (p.messageId === s.dmg.id)).map(p => p.marker).sort();
+          ok('12e. two `fold` resolves, one per row', ev.join(',') === 'piercer,savage-attacker', ev.join(','));
         } finally {
           await closeDialogs();
           await set('damageEitherList', prior.damageEitherList);

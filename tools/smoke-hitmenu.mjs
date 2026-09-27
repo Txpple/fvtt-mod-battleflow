@@ -39,7 +39,7 @@ const SECTIONS = {
   9: 'a critical hit doubles the die; Goaded lands on the target and NEVER on the fighter (the pack ships it transfer:true)',
   11: 'a copy that has lost its effect: Goaded still lands, pressed from the compendium',
   12: 'Giant Ancestry — Hill\'s Tumble (Slice A, 2026-09-24): the Goliath\'s own group, no feature required; no die, one use of the boon\'s own — Prone pressed with NO save, receipted, the card in the Giant Ancestry voice; a Huge target greys the row "too large"',
-  13: 'one pick per hit across groups: a Battle Master with Hill\'s Tumble sees both groups; a tick in one unticks the other; the line says "one pick per hit"',
+  13: 'a pick per group on one hit (2026-09-27, BACKLOG closed): a Battle Master with Hill\'s Tumble sees both groups; ticks in both STAND, the line says "one pick per group"; the damage carries both picks — Trip\'s die rides and spends a Superiority Die, Hill\'s Tumble presses Prone — one resolve per pick',
   10: 'the registration FIRED (§11): preRollDamageV2 moved with a maneuver on it'
 };
 const DEPENDS = { 10: ['3'], 11: ['9'] };
@@ -262,6 +262,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
+    /** The hit menu's first pick on a damage roll — the list since 2026-09-27 (`picks`), read as the old one-record shape. */
+    const firstPick = dmg => { const r = dmg?.getFlag(MOD, 'hitManeuver'); return r ? (Array.isArray(r.picks) ? (r.picks[0] ?? null) : r) : null; };
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
       && (m._source.system?.origin === originId));
     const cardsWith = flagKey => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flagKey));
@@ -293,7 +295,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(60);
       rollButton(offer)?.click();
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      return { msg, originId, dmg, hm: dmg?.getFlag(MOD, 'hitManeuver') ?? null };
+      return { msg, originId, dmg, hm: firstPick(dmg) };
     };
     const settle = async () => { await sleep(400); await clearChips(); await healFull(); };
 
@@ -615,7 +617,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await sleep(60);
             rollButton(offer)?.click();
             const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-            return { msg, dmg, hm: dmg?.getFlag(MOD, 'hitManeuver') ?? null, offerText };
+            return { msg, dmg, hm: firstPick(dmg), offerText };
           };
           const cardOf = m => textOf(document.querySelector(`.message[data-message-id="${m?.id}"]`));
 
@@ -663,14 +665,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await sleep(50);
             box(offer, 'hills-tumble')?.click();
             await sleep(50);
-            ok('13a. both groups on one offer, and a tick in Giant Ancestry unticks Combat Superiority\'s — one pick per hit, said on the line',
-              (groups.join() === 'combat-superiority,giant-ancestry') && !box(offer, 'trip-attack')?.checked && !!box(offer, 'hills-tumble')?.checked && /one pick per hit/.test(textOf(offer)),
+            ok('13a. both groups on one offer, and a tick in each STANDS — one pick per group, said on the line',
+              (groups.join() === 'combat-superiority,giant-ancestry') && !!box(offer, 'trip-attack')?.checked && !!box(offer, 'hills-tumble')?.checked && /one pick per group/.test(textOf(offer)),
               `groups=${groups.join()} trip=${box(offer, 'trip-attack')?.checked} hill=${box(offer, 'hills-tumble')?.checked} line="${textOf(offer).slice(0, 200)}"`);
+            const since13 = Date.now();
             rollButton(offer)?.click();
             const dmg = await waitFor(() => { const x = damageFor(msg?._source.system?.origin ?? msg?.id); return x?.getFlag(MOD, 'receipt') ? x : null; }, 12000);
             await waitFor(() => victim.statuses?.has?.('prone'), 6000);
-            ok('13b. the one pick is Hill\'s Tumble — the victim Prone — and the Superiority Die is untouched',
-              (dmg?.getFlag(MOD, 'hitManeuver')?.key === 'hills-tumble') && victim.statuses?.has?.('prone') && (poolLeft() === 4), `hm=${dmg?.getFlag(MOD, 'hitManeuver')?.key} pool=${poolLeft()}`);
+            const picks13 = (dmg?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key);
+            const formulas13 = (dmg?.rolls ?? []).map(r => r.formula);
+            ok('13b. both picks ride the one hit: Trip Attack\'s 1d8 on the roll and a Superiority Die spent, Hill\'s Tumble\'s Prone on the victim',
+              (picks13.join() === 'trip-attack,hills-tumble') && formulas13.some(f => /^1d8$/.test(f)) && victim.statuses?.has?.('prone') && (poolLeft() === 3),
+              `picks=${picks13.join()} formulas=${formulas13.join(' | ')} prone=${victim.statuses?.has?.('prone')} pool=${poolLeft()}`);
+            const pub13 = moments.filter(p => (p.at >= since13) && (p.kind === 'hitManeuver') && (p.messageId === dmg?.id)).map(p => `${p.event}:${p.marker}`).sort();
+            ok('13c. one resolve per pick: maneuver for Trip Attack, rider for Hill\'s Tumble',
+              pub13.join() === 'maneuver:trip-attack,rider:hills-tumble', pub13.join());
             await settle();
           }
         } finally {

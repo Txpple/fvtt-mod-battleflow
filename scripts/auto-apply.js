@@ -9,6 +9,7 @@ import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
 import { CARD, isCard } from "./decide/card.js";
+import { DICE_CHANGE_FLAG, DICE_CHANGE_WAITS } from "./decide/dice-changers.js";
 import { registerResumable } from "./ui.js";
 import { applyEffectRiders } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
@@ -39,18 +40,17 @@ function payoutSubject(message) {
 // render is the reload resume — only an ex-claimed, unreceipted roll resumes. The re-entry guard
 // (the release write and a render can land in one tick, and over-applying damage is the worst
 // failure this module has) is the spine's `attackDamage|<id>` latch now.
-// ⚠ A SECOND CLAIM (Slice A, 2026-09-24): Savage Attacker's question — roll the weapon's dice
-// again? — is asked AFTER the dice and BEFORE they land ("the damage waits for the answer", the
-// ruled prototype), so a damage message born with `either` due holds the application until the
-// answer settles it; the settling write is the bus event, the same as the hold's release. The
-// dice land once, with whichever set stood — nothing applied has to be moved.
-const EITHER_WAITS = new Set(["due", "pending", "answering"]);
-const eitherWaits = message => EITHER_WAITS.has(message.getFlag(MODULE_ID, "either")?.status);
+// ⚠ A SECOND CLAIM (Slice A, 2026-09-24; every dice changer's since 2026-09-27): the dice changers'
+// question — Savage Attacker, Piercer, Empowered Spell on a spell attack — is asked AFTER the dice
+// and BEFORE they land ("the damage waits for the answer", the ruled prototype), so a damage message
+// born with `diceChange` due holds the application until the answer settles it; the settling write
+// is the bus event, the same as the hold's release. The dice land once, with what stood.
+const eitherWaits = message => DICE_CHANGE_WAITS.includes(message.getFlag(MODULE_ID, DICE_CHANGE_FLAG)?.status);
 registerResumable("attackDamage", {
   flagless: true,
   pending: (_flag, message, cause) => (cause === "create")
     || ((message.getFlag(MODULE_ID, "attackHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
-    || (!!message.getFlag(MODULE_ID, "either") && !eitherWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
+    || (!!message.getFlag(MODULE_ID, DICE_CHANGE_FLAG) && !eitherWaits(message) && !message.getFlag(MODULE_ID, "receipt")),
   drives: (_flag, message) => drivesMomentFor(payoutSubject(message))
     && (setting(S.autoApply) || setting(S.effectRiders) || setting(S.masteryRiders)),
   drive: resolveAttackDamage
@@ -67,7 +67,7 @@ async function resolveAttackDamage(message) {
     const hold = attackMessage.getFlag(MODULE_ID, "hold");
     if ( !hold || (hold.status === "pending") ) return;
   }
-  if ( eitherWaits(message) ) return;   // Savage Attacker's answer first (the claim above)
+  if ( eitherWaits(message) ) return;   // the dice changers' answer first (the claim above)
   if ( message.getFlag(MODULE_ID, "receipt") ) return;               // applied already (resume)
   const hits = hitTargets(attackMessage);
   if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing, by ruling

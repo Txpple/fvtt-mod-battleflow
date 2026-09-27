@@ -301,8 +301,9 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     unpark the advantage on our own d20"): the gate's buy box (`ADVANTAGE_BUYS`, reminder kind
     `buy`, `advantage-buys.js`), and the `advantage` D20 fold for an initiative rolled with no
     dialog (a bend in RULINGS' register). Vocabulary 10's chip window was not needed.
-  - **Trance** — a named-spell scope + an immunity bend. Reopens when an elf sits down against
-    a sleep effect.
+  - ~~**Trance**~~ — **BUILT 2026-09-27** (the user: "fix them all"): the effect table's
+    `succeeds` facet — a save against magic that would put the Elf to sleep cannot fail, the gate's
+    Succeeds button the mirror of Fails (RULINGS *Trance*).
   - ~~**Healer's healing rerolls on spells**~~ — **BUILT 2026-09-25** in the origin-feat round
     (user: "use the empower spell form as a baseline"): the `HEAL_REROLLS` table, `heal-rerolls.js`
     — Empowered's dice popup on a healing spell AND Battle Medic (its `r1` taken off), the healing
@@ -325,7 +326,7 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
 | **Brave** (Halfling), **Fey Ancestry** (Elf), **Dwarven Resilience** (Poisoned saves) | text-only, no effect | ROW+VOCAB → `EFFECT_BENDS` `saves` `{bend: advantage, statuses: [frightened / charmed / poisoned]}`; the save gate matches effect names only today → the feature match. **Tier 1** |
 | **Stone's Endurance** (Goliath) | heal activity, Reaction, `1d12 + @abilities.con.mod` (the formula IS the reduction — Parry's shape); ITEM `@prof` lr | ROW → `INTERRUPT_REDUCTIONS`. ⚠ **Corrected:** its spend and lookup already work as Parry's — dnd5e fills the empty activity name with the type title "Heal", and an empty consumption target makes `poolOf` return the item, so `pool: true` spends its own uses. The lookup is made locale-proof (name, or type `heal` when unnamed). Attack hits only; save and area damage stays by hand. **Tier 1** |
 | **Fire's Burn**, **Frost's Chill**, **Hill's Tumble** (Goliath) | damage 1d10 fire / damage 1d6 cold + effect "Chilled" (−10 speed) / utility, no save; each ITEM `@prof` lr | ROW+VOCAB → `HIT_OPTIONS` under a Giant Ancestry group paid per option; Hill's Tumble needs a no-save press and a size judge (≤ Large). ⚠ **Corrected:** "Chilled" DOES carry a 1-turn clock (`turnStart`); it is still pinned the Slow mastery's way, so an opportunity attack's clock is the attacker's. **Tier 2** |
-| **Trance** (Elf) | text-only | ROW+VOCAB, low priority. **PARKED** |
+| **Trance** (Elf) | text-only | ROW+VOCAB → `EFFECT_BENDS` feature row with a `succeeds` save facet; the demand stamps `sleep`. **BUILT 2026-09-27** |
 | **Celestial Revelation — the extra damage** (Aasimar) | nothing rolls it | ROW+VOCAB → `CLOCK_RIDERS` (`amount`, a `transformed` judge, `forms`, `spells`). **BUILT 2026-09-25** in the walk (RULINGS *The Aasimar walk*) |
 | **Celestial Revelation — Inner Radiance** | damage on use, 10-ft template | an `EMANATIONS` feature row (`while`, `reach: "all"`, `pulse`) plus the new `TOKEN_LIGHTS` table for its light. **BUILT 2026-09-25** in the walk |
 | **Relentless Endurance** (Orc) | heal activity, no activation ("reduced to 0 HP"); ITEM `1` lr | the kill moment. ~~HELD → Slice B~~ **BUILT 2026-09-25** — `DROP_TO_ONE` + `drop-to-one.js` (with Death Ward; RULINGS *The species walk, continued*) |

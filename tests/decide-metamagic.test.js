@@ -15,9 +15,9 @@ import {
   distantRange,
   scalesTargetsFrom,
   extendedDuration,
-  empoweredPlan,
   empoweredOutcome
 } from "../scripts/decide/metamagic.js";
+import { empoweredPlan } from "../scripts/decide/dice-changers.js";
 import {
   carefulProtects,
   heightenedMark,

@@ -51,7 +51,7 @@
  *   sneak          Sneak Attack's dice rode a hit, with the Cunning Strike picks
  *   fold           a die or reroll folded into a d20 test (Bardic, Heroic, Tactical, Seeking;
  *                  Precision also, being a die on an attack), and Tactical Mind's refund; a
- *                  weapon's damage dice rolled again as a set (Savage Attacker, 2026-09-24)
+ *                  weapon's damage dice rolled again as a set (Savage Attacker, 2026-09-24) or one die (Piercer)
  *   rider          a clock rider's damage rode a hit (Dreadful Strike, Divine Strike, …)
  *   hold-answered  a held roll's reaction was answered — cast OR passed (`details.answer`)
  *   mastery        a weapon mastery's ask resolved (Vex, Sap, Slow, Topple, Push, Graze, Cleave)
@@ -66,7 +66,7 @@
  *   volley         a volley's darts or rays were assigned and fired
  *   choice         a choice answered in a Battle Flow window that is none of the above
  *                  (an emanation's damage type, a cast's alternative effect, a save's option)
- *   metamagic      a Metamagic option resolved on the spell's card (the pick, Empowered's reroll)
+ *   metamagic      a Metamagic option resolved on the spell's card (the pick), or Empowered's reroll on the damage roll
  */
 export const MOMENT_WORDS = Object.freeze([
   "maneuver", "sneak", "fold", "rider", "hold-answered", "mastery", "shield", "spend", "damage",
@@ -131,14 +131,19 @@ export const MOMENT_RECORDS = Object.freeze({
 
   hitManeuver: {
     events: ["maneuver", "rider"],
-    means: "a pick from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message. A Combat Superiority die publishes maneuver; a Giant Ancestry boon (maneuver false, 2026-09-24) publishes rider",
-    resolved: (r, ctx) => whole([(r.maneuver === false) ? "rider" : "maneuver"], {
-      actor: source(r) ?? ctx.actorUuid, item: r.itemUuid ?? null, ability: r.feature ?? null, attackId: r.attackId ?? null,
-      targetsFrom: "attack", spend: r.poolSpend ?? null,
-      details: { key: r.key ?? null, group: r.group ?? null, formula: r.formula ?? null, type: r.type ?? null,
-        mode: r.mode ?? "ride", critical: !!r.attackRoll?.isCritical }
-    })
+    means: "a pick from the hit menu rode the damage roll (hit-menu.js); the record arrives resolved on the damage message, a resolve PER PICK (a list since 2026-09-27, a pick per group; a record from before it is its one pick). A Combat Superiority die publishes maneuver; a Giant Ancestry boon (maneuver false, 2026-09-24) publishes rider",
+    resolved: (r, ctx) => (Array.isArray(r?.picks) ? r.picks : (r?.key ? [r] : [])).map(p => ({
+      marker: Array.isArray(r?.picks) ? (p.key ?? "pick") : "message",
+      events: [(p.maneuver === false) ? "rider" : "maneuver"],
+      facts: {
+        actor: source(r) ?? ctx.actorUuid, item: p.itemUuid ?? null, ability: p.feature ?? null, attackId: r.attackId ?? null,
+        targetsFrom: "attack", spend: p.poolSpend ?? null,
+        details: { key: p.key ?? null, group: p.group ?? null, formula: p.formula ?? null, type: p.type ?? null,
+          mode: p.mode ?? "ride", critical: !!(r.attackRoll ?? p.attackRoll)?.isCritical }
+      }
+    }))
   },
+
 
   commandRide: {
     events: ["maneuver"],
@@ -344,15 +349,20 @@ export const MOMENT_RECORDS = Object.freeze({
     }) : []
   },
 
-  either: {
-    events: ["fold"],
-    means: "a weapon's damage dice were rolled again as a set and the higher set stood — Savage Attacker (damage-either.js, Slice A 2026-09-24); resolved when `status` is used",
-    resolved: (r, ctx) => (r?.status === "used") ? whole(["fold"], {
-      actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, itemName: r.feature ?? null, ability: r.feature ?? null,
-      attackId: r.attackId ?? null, targetsFrom: "attack",
-      details: { formula: r.formula ?? null, first: r.first ?? null, second: r.second ?? null,
-        stands: r.stands ?? null, delta: r.delta ?? null, total: r.total ?? null }
-    }) : []
+  diceChange: {
+    events: ["fold", "metamagic"],
+    means: "the dice changers' one popup on a damage roll resolved (dice-changers.js, 2026-09-27) — per row used: Savage Attacker's set and Piercer's one die publish fold, Empowered Spell's picked dice publish metamagic; resolved when `status` is used",
+    resolved: (r, ctx) => (r?.status === "used") ? (r.rows ?? []).filter(x => x?.status === "used").map(x => ({
+      marker: x.key ?? x.feature ?? "row",
+      events: [(x.kind === "pick") ? "metamagic" : "fold"],
+      facts: (x.kind === "pick")
+        ? { actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, itemName: x.feature ?? null,
+          ability: x.feature ?? null, details: { picks: x.picks ?? [], newTotal: x.after ?? null, delta: x.delta ?? null } }
+        : { actor: r.actorUuid ?? source(r) ?? ctx.actorUuid, itemName: x.feature ?? null, ability: x.feature ?? null,
+          attackId: r.attackId ?? null, targetsFrom: "attack",
+          details: { kind: x.kind ?? null, formula: x.formula ?? null, first: x.first ?? null, second: x.second ?? null,
+            stands: x.stands ?? null, delta: x.delta ?? null, total: x.after ?? null } }
+    })) : []
   },
 
   healReroll: {
@@ -568,7 +578,8 @@ export const MOMENT_RECORDS = Object.freeze({
         if ( t.done ) out.push({ marker: `${t.uuid}`, events: ["save"],
           facts: { actor: t.uuid ?? null, item: ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid, ability: r.item?.name ?? null,
             targets: [], details: { outcome: t.outcome ?? null, total: t.total ?? null, dc: r.dc ?? null, abilities: r.abilities ?? [],
-              autoFailed: !!t.autoFailed, autoFailedBy: t.autoFailedBy ?? null, timedOut: !!t.timedOut, casterUuid: source(r), casterName: r.casterName ?? null,
+              autoFailed: !!t.autoFailed, autoFailedBy: t.autoFailedBy ?? null,
+              autoSucceeded: !!t.autoSucceeded, autoSucceededBy: t.autoSucceededBy ?? null, timedOut: !!t.timedOut, casterUuid: source(r), casterName: r.casterName ?? null,
               damageOnSave: r.damageOnSave ?? null, rollMessageId: t.rollMessageId ?? null } } });
         // The save-side choice is the ATTACKER's (Shield Master's push on a failed save): the chooser
         // is the spec's subject, the saver its target.
@@ -679,15 +690,6 @@ export const MOMENT_RECORDS = Object.freeze({
     resolved: (r, ctx) => r?.spent ? whole(["metamagic"], {
       actor: ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, itemName: r.feature ?? null, ability: r.feature ?? null,
       details: { key: r.key ?? null, feature: r.feature ?? null, cost: r.cost ?? null, ...(r.type ? { type: r.type } : {}) }
-    }) : []
-  },
-
-  empowered: {
-    events: ["metamagic"],
-    means: "Empowered Spell's reroll was taken — the picked dice rerolled, the point spent (metamagic.js); resolved when `status` is used",
-    resolved: (r, ctx) => (r?.status === "used") ? whole(["metamagic"], {
-      actor: ctx.actorUuid, item: ctx.itemUuid, activity: ctx.activityUuid, itemName: "Empowered Spell", ability: "Empowered Spell",
-      details: { picks: r.picks ?? [], newTotal: r.newTotal ?? null, delta: r.delta ?? null }
     }) : []
   }
 });

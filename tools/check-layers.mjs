@@ -109,7 +109,7 @@ export const LAYER_OF = {
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
   "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card (2026-09-09)
-  "damage-either.js": "machines",   // the damage dice rolled twice — Savage Attacker on a weapon hit (Slice A, 2026-09-24)
+  "dice-changers.js": "machines",   // the dice changers' one popup per damage roll — Empowered Spell, Savage Attacker, Piercer (2026-09-27; was damage-either.js, Slice A, 2026-09-24)
   "emanations.js": "machines",
   "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light (the Aasimar walk, 2026-09-25)
   "hit-menu.js": "machines",
@@ -142,6 +142,7 @@ export const LAYER_OF = {
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
   "decide/geometry.js": "decision",
   "decide/metamagic.js": "decision",
+  "decide/dice-changers.js": "decision",
   "decide/area-ask.js": "decision",
   "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set (2026-09-24)
@@ -201,6 +202,13 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
  * ------------------------------------------------------------------------------------------- */
 
 const ALLOW = [
+  {
+    from: "dice-changers.js", to: "metamagic.js", disposition: "BY DESIGN",
+    why: "machine → machine: Empowered Spell's row asks metamagic.js whether the caster can take it on "
+      + "this roll (`empoweredOffer`: the option known and listed, a point in the pool) — the Metamagic "
+      + "list and the pool are metamagic's knowledge, and a second reader would drift (2026-09-27, the "
+      + "dice changers' one popup)"
+  },
   {
     from: "auto-damage.js", to: "hold/index.js", disposition: "PERMANENT",
     why: "hold's own feature API (stampHoldIfInterrupted) on the deliberate order-pinning edge; "

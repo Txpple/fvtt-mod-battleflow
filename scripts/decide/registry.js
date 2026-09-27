@@ -1678,7 +1678,10 @@ export const CHECK_BENDS = Object.freeze({
  *   saves     { bend, statuses?, spells?, halfToNone? } — a bend on the bearer's SAVING THROWS,
  *             scoped by the DEMAND the save gate finds: against an effect imposing one of the
  *             statuses (Aura of Purity), or against a spell (Circle of Power); `halfToNone` turns
- *             a success against half-on-save damage into none (2026-09-05)
+ *             a success against half-on-save damage into none (2026-09-05). { succeeds, sleep }
+ *             (Trance, 2026-09-27) — the save CANNOT FAIL against magic that would put the bearer
+ *             to sleep (the demand's `spell` and `sleep`): the mirror of the save table's
+ *             `autoFail`, a fourth button (Succeeds: no dice, the success recorded)
  *   rule      the ability's own sentence, from the pack (enrichers rendered as plain words)
  *   from      where it comes from, for the reader
  *
@@ -1958,6 +1961,15 @@ export const EFFECT_BENDS = Object.freeze({
   "Dwarven Resilience": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Dwarf",
     saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["poisoned"]) }),
     rule: "You have Resistance to Poison damage. You also have Advantage on saving throws you make to avoid or end the Poisoned condition." }),
+  // TRANCE (2026-09-27, the user: "fix them all"; BACKLOG since Slice A): "magic can't put you to
+  // sleep" — a save against magic whose failure would put the Elf to sleep cannot fail (the 2024
+  // Sleep spell says it outright: "Creatures that don't sleep, such as elves ... automatically
+  // succeed"). The demand says whether it sleeps (decide/demand.js `putsToSleep`, off the spell
+  // and its failed-save effects); the gate offers Succeeds and the buzzer takes it. A sheet roll
+  // with no demand lists the row, as every row is listed there.
+  "Trance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Elf",
+    saves: Object.freeze({ succeeds: true, sleep: true }),
+    rule: "You don’t need to sleep, and magic can’t put you to sleep. You can finish a Long Rest in 4 hours if you spend those hours in a trancelike meditation, during which you retain consciousness." }),
   // The Goliath walk (2026-09-25, ruled: "Build a proxy"): the check to END the Grappled condition
   // is not a roll the module can tell from any other — so while the Goliath IS Grappled, its
   // Athletics and Acrobatics checks (the escape's two skills) count as the escape (a bend, RULINGS'
@@ -2034,8 +2046,9 @@ const METAMAGIC_NAMES = tableIndex(METAMAGIC).names;
  * that lets the attacker roll a weapon's damage dice a second time and use either roll. The popup
  * asks only WHETHER to use it on this hit; on yes the weapon's dice — every die of the activity's
  * own damage rolls, the doubled set on a crit, never a modifier and never a rider — are rolled
- * again AS A SET, and the higher set total stands with no second question (damage-either.js the
- * machine, decide/damage-dice.js the arithmetic). One customer today.
+ * again AS A SET, and the higher set total stands with no second question (dice-changers.js the
+ * machine since 2026-09-27 — every row a character holds is a row of ONE popup per roll, beside
+ * Empowered Spell's — decide/damage-dice.js the arithmetic).
  *   key     the once-per-turn chit's riderKey (TURN_CHITS `rider`, the clock riders' shape)
  *   weapon  true — "when you hit a target with a weapon": a weapon item only
  * Once per turn is counted only for a combatant (RULINGS *Chips and clocks*); out of combat
@@ -2054,8 +2067,8 @@ export const DAMAGE_EITHER = Object.freeze({
   // THE PHB FEATS, group 3 (2026-09-26): `one` — ONE die rolled again and the new roll stands (the
   // rule: "you must use the new roll"), on any attack that deals `dealt` damage. The die is the
   // one with the most to gain (its size's average less its face) — rerolling any other is worse on
-  // average, so the popup asks only whether, never which. One row per hit: a sheet holding Savage
-  // Attacker too is asked Savage's question (BACKLOG).
+  // average, so the popup asks only whether, never which. A sheet holding Savage Attacker too is
+  // asked both in one popup (2026-09-27): Savage's set first, then Piercer's die off what stands.
   "Piercer": Object.freeze({ key: "piercer", one: true, dealt: "piercing",
     rule: "Puncture. Once per turn, when you hit a creature with an attack that deals Piercing damage, you can reroll one of the attack’s damage dice, and you must use the new roll.",
     from: "General feat" })
@@ -2544,8 +2557,8 @@ export const LIST_SPECS = {
   damageEither: {
     label: "Damage Rolled Twice", setting: "damageEitherList",
     // Which rows of the rolled-twice table offer on a weapon hit — the FEATURE names, whole-chunk,
-    // case-insensitive. Membership over DAMAGE_EITHER; the mechanism is damage-either.js (Slice A,
-    // 2026-09-24). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
+    // case-insensitive. Membership over DAMAGE_EITHER; the mechanism is dice-changers.js (Slice A,
+    // 2026-09-24; the one popup since 2026-09-27). The list is the switch (ARCHITECTURE §8 rule 1): an empty list offers nothing.
     columns: ["kind"], kindColumn: "kind", kinds: DAMAGE_EITHER_NAMES, fallback: null, membership: true, whole: true,
     default: Object.keys(DAMAGE_EITHER).join(", ")
   },

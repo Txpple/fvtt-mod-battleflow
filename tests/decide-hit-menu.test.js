@@ -214,7 +214,7 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
     expect(unread.caveat).toMatch(/could not be read/);
   });
 
-  it("a Goliath Battle Master sees both groups, and ONE pick on the whole hit: two across groups pick nothing", () => {
+  it("a Goliath Battle Master sees both groups, and a pick in EACH rides the hit (2026-09-27)", () => {
     const m = giant(
       ["Combat Superiority", "Trip Attack", "Hill's Tumble"],
       { "combat-superiority": { left: 4, die: "1d8" }, "hills-tumble": { left: 3, die: null } },
@@ -225,8 +225,11 @@ describe("Giant Ancestry — a group with no feature, paying per option (Slice A
       "hills-tumble"
     ]);
     const both = h.hitPick({ menu: m, chosen: ["trip-attack", "hills-tumble"] });
-    expect(both.picks).toEqual([]);
-    expect(both.dropped.sort()).toEqual(["hills-tumble", "trip-attack"]);
+    expect(both.picks.map(p => [p.group, p.row.key])).toEqual([
+      ["combat-superiority", "trip-attack"],
+      ["giant-ancestry", "hills-tumble"]
+    ]);
+    expect(both.dropped).toEqual([]);
   });
 });
 

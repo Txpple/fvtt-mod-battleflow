@@ -11,10 +11,10 @@ import { resolveUuid } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
 import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer } from "../ui.js";
-import { SAVE_BENDS } from "../decide/registry.js";
-import { saveGate, saveSources } from "../decide/reminders.js";
-import { conditionEntries, reminderEntries } from "../settings.js";
-import { foldSaveAnswer, foldSaveAutoFail } from "./verdict.js";
+import { SAVE_BENDS, EFFECT_BENDS } from "../decide/registry.js";
+import { saveGate, saveSources, effectSaveSources } from "../decide/reminders.js";
+import { conditionEntries, effectEntries, reminderEntries } from "../settings.js";
+import { foldSaveAnswer, foldSaveAutoFail, foldSaveAutoSucceed } from "./verdict.js";
 import { SURFACES } from "../surfaces.js";
 import { originData } from "../decide/card.js";
 
@@ -120,7 +120,7 @@ export async function openSaveDialog(card, uuid) {
     if ( !owed ) return;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    const demand = new DialogCarried({ cardId: card.id, uuid, failed: null });
+    const demand = new DialogCarried({ cardId: card.id, uuid, failed: null, succeeded: null });
     const rolls = await actor.rollSavingThrow(
       { ability: owed.flag.abilities[0], target: owed.flag.dc },
       { configure: true, options: { bfSaveDemand: demand } },
@@ -129,6 +129,8 @@ export async function openSaveDialog(card, uuid) {
     // Fails pressed: the dialog closed with no roll and the demand carries the sources that
     // failed it. The fold is the same fold — the number is the condition.
     if ( !rolls?.length && demand.failed ) await foldSaveAutoFail(card, uuid, { sources: demand.failed });
+    // Succeeds pressed (Trance, 2026-09-27): the mirror — the success recorded, no dice.
+    else if ( !rolls?.length && demand.succeeded ) await foldSaveAutoSucceed(card, uuid, { sources: demand.succeeded });
   } catch(err) {
     console.error(`${TITLE} | Save dialog failed — roll it from the sheet.`, err);
   } finally {
@@ -218,6 +220,19 @@ function autoFailSources(actor, ability) {
   return saveGate(sources).autoFail ? sources : [];
 }
 
+/**
+ * A save that cannot FAIL (Trance, 2026-09-27): the effect table's `succeeds` rows the roller
+ * carries, read against THIS demand — the gate's own reading, off decide/ directly as the
+ * automatic failures are. Empty when the save must be rolled.
+ */
+function autoSucceedSources(actor, flag) {
+  if ( !reminderEntries().some(e => e.kind === "effect") ) return [];
+  return effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+    enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null, name: actor.name })
+    .filter(s => s.autoSucceed);
+}
+
 async function fireSaveTimer(card) {
   const flag = card.getFlag(MODULE_ID, "saves");
   if ( !flag || (flag.status !== "pending") ) return;
@@ -257,6 +272,9 @@ async function fireSaveTimer(card) {
     // A save the rules fail before the dice is recorded as that failure, not rolled.
     const failing = autoFailSources(actor, flag.abilities[0]);
     if ( failing.length ) { await foldSaveAutoFail(card, entry.uuid, { sources: failing, timedOut: true }); continue; }
+    // …and a save the rules pass before the dice is recorded as that success (Trance).
+    const passing = autoSucceedSources(actor, flag);
+    if ( passing.length ) { await foldSaveAutoSucceed(card, entry.uuid, { sources: passing, timedOut: true }); continue; }
     // Heightened Spell's mark (metamagic, 2026-09-09): the buzzer rolls the marked target at
     // Disadvantage, as the gate would have defaulted it.
     const heightened = flag.demand?.heightened?.uuid === entry.uuid;

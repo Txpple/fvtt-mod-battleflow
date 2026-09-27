@@ -200,7 +200,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     // activity's damage parts first and every rider (a mark, Sneak Attack, a clock rider, a
     // maneuver's die) pushes its roll AFTER — and this registration is the first on the hook
     // (tools/hook-order.snapshot), so the count is taken before any rider has run. Savage Attacker
-    // rolls "the weapon's damage dice" again: these, never a rider's (damage-either.js).
+    // rolls "the weapon's damage dice" again: these, never a rider's (dice-changers.js).
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.weaponRolls`, config.rolls?.length ?? 0);
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;

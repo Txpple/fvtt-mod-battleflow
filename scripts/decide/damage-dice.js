@@ -2,8 +2,8 @@
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): the damage-dice folds' pure half — what a
  * rerolled die does to a damage message's own roll data. Two customers, one shape of patch:
- *   Empowered Spell (metamagic.js, 2026-09-09)  PER DIE: the ticked faces struck, a new face each
- *   Savage Attacker (damage-either.js, Slice A, ruled 2026-09-24 off prototypes/slice-a.html)
+ *   Empowered Spell (dice-changers.js, 2026-09-09)  PER DIE: the ticked faces struck, a new face each
+ *   Savage Attacker (dice-changers.js since 2026-09-27; Slice A, ruled 2026-09-24 off prototypes/slice-a.html)
  *                                                 PER SET: the weapon's dice rolled again as one
  *                                                 set, the two set totals compared, the higher stands
  * Lifted out of metamagic.js on 2026-09-24 when the second customer arrived (the brief: generalise
@@ -168,38 +168,6 @@ export function eitherOdds(dice, first) {
 export function eitherDue({ listed, owned, weapon, chitStands }) {
   if ( !listed || !owned || !weapon ) return null;
   return chitStands ? "spent" : "due";
-}
-
-/**
- * The card's line for the fold, from its record — source, then result (law 6). The prototype's
- * copy: "1d8 → 5, again → 7 — the higher stands: 11", the tag "Savage Attacker — used this turn".
- * @param {{status: string, feature?: string, formula?: string, first?: number, second?: number,
- *          stands?: string, total?: number|null, timedOut?: boolean, one?: boolean, faces?: number}} flag
- */
-export function eitherCardLine(flag) {
-  const name = flag?.feature ?? "Savage Attacker";
-  // ONE die (Piercer, the PHB feats group 3): "the 1 on the d8 again → 6 — the new roll stands: 12"
-  if ( flag?.one && (flag.status === "used") ) {
-    const tail = Number.isFinite(flag.total) ? `: ${flag.total}` : "";
-    return `${name} — the ${flag.first} on the d${flag.faces} again → ${flag.second} — the new roll stands${tail} · used this turn`;
-  }
-  if ( flag?.one && (flag.status === "answering") ) return `${name} — rolling one die again`;
-  if ( flag?.one && (flag.status === "moot") ) return `${name} — the attack missed; nothing to roll again`;
-  switch ( flag?.status ) {
-    case "used": {
-      const firstWon = flag.stands !== "second";
-      const tail = Number.isFinite(flag.total) ? `: ${flag.total}` : "";
-      return `${name} — ${flag.formula ?? "the weapon's dice"} → ${flag.first}, again → ${flag.second} — `
-        + `${firstWon ? "the first stands" : "the higher stands"}${tail} · used this turn`;
-    }
-    case "spent": return `${name} — used this turn`;
-    case "kept": return `${name} — not used${flag.timedOut ? " (the clock ran out)" : ""}, still ready this turn`;
-    case "moot": return `${name} — the attack missed; nothing to roll again`;
-    case "answering": return `${name} — rolling the weapon's dice again`;
-    // Due: the question waits for the hit to stand (a defender's reaction first — the ruled order).
-    case "due": return `${name} — asks once the hit stands`;
-    default: return `${name} — offered: roll the weapon's dice again?`;
-  }
 }
 
 /* ---------------------------------------------------------------------------------------------

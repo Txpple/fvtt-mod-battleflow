@@ -948,8 +948,72 @@ one sensible answer, the way Great Weapon Fighting's does.
 - **The choices keep their popups**: Empowered Spell (a point, the dice picked), Savage Attacker and
   Piercer (once per turn).
 - **One shared dice popup** was drawn and liked (*"the ui looks good for the dice rerollers"*,
-  [prototypes/dice-popup.html](prototypes/dice-popup.html)), then PARKED the same hour: with the
-  automatic two above, what it would unify is three machines no character combines (BACKLOG).
+  [prototypes/dice-popup.html](prototypes/dice-popup.html)), parked the same hour, and BUILT on
+  2026-09-27 — *The dice changers — one popup*, below.
+
+## The dice changers — one popup (2026-09-27)
+
+**Every feature that changes a damage roll's landed dice is a row of ONE popup per roll** (the
+user: *"maybe its time to solve for dice changers to fix the piercer/savage attacker"*; the shape
+off [prototypes/dice-popup.html](prototypes/dice-popup.html), less Healer and Elemental Adept, which
+were ruled automatic). One machine, [dice-changers.js](scripts/dice-changers.js), replaces the two
+copies (Empowered's in metamagic.js, Savage's and Piercer's in damage-either.js — gone).
+
+- **The rows.** Empowered Spell (pick up to CHA-mod dice, 1 SP at the answer), Savage Attacker (the
+  weapon's set again, the higher stands), Piercer (one die again, the new roll stands). A character
+  holding two of them on one roll gets one popup with both rows — the Piercer-beside-Savage gap
+  (BACKLOG, 2026-09-26) is closed. A spell attack dealing Piercing damage (Ice Knife) can show
+  Empowered and Piercer together.
+- **The order: pick, then set, then one** (the user's pick, *"Savage first, auto die"*). One Apply
+  runs the ticked rows in that order; **Piercer's die is chosen AFTER Savage's set stands**, off the
+  faces standing then — still never asked which die (the group 3 ruling), and never wasted by a set
+  that replaced it.
+- **The ticks.** A roll-again row starts where its die meter leans (option D, 2026-09-25: under the
+  average, ticked); the meter shows the first roll-again row's odds. Empowered's row follows its
+  chips — a pick ticks it, the last chip let go unticks it — so a point is spent only on dice chosen.
+- **The buttons** — both, the ticks pick which is live (the Savage popup's rule, 2026-09-25): Apply
+  while the plan does something, Keep the roll while nothing is ticked. One row asking keeps its own
+  words ("Roll again", "Reroll the picked dice"); two or more say "Apply" and ask "change the dice?".
+- **The record** is `diceChange` on the damage message, one per roll, a row per feature; born due at
+  `preRollDamageV2` (Empowered too, now), promoted once the attack's hold is off the roll, a claim
+  on an attack's application while it asks (the dice land once). The old `either` and `empowered`
+  keys are no longer written; a card from v2.4.0 or earlier still reads its line on a reload.
+- **One announce card** carries every step's fresh dice (Dice So Nice rolls them), a line per step,
+  and the canvas replay of all of them in order; each roll-again row writes its own once-per-turn
+  chit; the moment publishes once per row (`fold` for a set or one die, `metamagic` for Empowered).
+
+## The hit menu — a pick per group (2026-09-27)
+
+**One pick per GROUP, and a pick in each group rides the one hit** (the user: "fix them all";
+BACKLOG since Slice A, 2026-09-24). "You can use only one maneuver per attack" binds Combat
+Superiority's own rows; Giant Ancestry's Hill's Tumble is not a maneuver, and the rules let a
+Goliath Battle Master knock the target Prone AND ride a maneuver on one hit.
+
+- **The offer**: a tick unticks only its own group's other rows; with two groups the line says
+  "one pick per group".
+- **The records are lists** — `hitPick` on the attack (`picks`), `hitManeuver` on the damage roll
+  (`picks`), read through one reader (decide/hit-menu.js `picksOf`, which reads a record from
+  before the list as a list of one). A die rides the roll as its own part per pick, a pool is
+  spent per pick, a card per pick, the moment published per pick (`maneuver` for a Superiority
+  die, `rider` for a Giant Ancestry boon).
+
+## Trance (2026-09-27)
+
+**"Magic can't put you to sleep" — a save against magic whose failure would put the Elf to sleep
+cannot fail** (the user: "fix them all"; parked since Slice A). The 2024 Sleep spell says it
+outright ("Creatures that don't sleep, such as elves … automatically succeed").
+
+- **Which demands sleep is read off the data**, never a spell list: the demand stamps `sleep` when
+  the spell's name or one of its failed-save effects' names says sleep (Sleep, Symbol's Sleep,
+  Eyebite's Asleep — decide/demand.js `putsToSleep`), beside `spell` (a spell or a magical item —
+  "magic"). A sleep that is not magic (a monster's breath) is not Trance's.
+- **The shape is the automatic failure's mirror**: a `succeeds` facet on the effect table's feature
+  row; the save gate nets `succeeds` and adds a green **Succeeds** button, the default; pressed, the
+  verdict is SAVED with no die ("cannot fail (Trance)") and the failed-save effect never lands;
+  the buzzer takes the same fold. A condition's automatic failure stands over it.
+- **A sheet roll with no demand lists the row** (the facet's scope, "it cannot fail if this is
+  one"), as every save facet is listed there; a concentration check never takes it.
+- **The Long Rest in 4 hours** is the platform's rest, untouched.
 
 ## The PHB feats — groups 1–3 (2026-09-26)
 

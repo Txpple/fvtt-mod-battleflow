@@ -145,7 +145,7 @@ import "./metamagic.js";
 // hit's dice, beside it — the same seams (preRollDamageV2's birth flag, rollDamageV2's offer), a
 // card line under the damage roll's own. Its preRollDamageV2 registration lands after every rider's,
 // which is nothing it reads: the weapon's roll count is auto-damage.js's, taken first.
-import "./damage-either.js";
+import "./dice-changers.js";
 // heal-rerolls.js (2026-09-25, the origin feats — Healer): the healing roll's dice, Empowered's
 // popup beside Savage's — the same seams (a preRollDamageV2 birth flag, rollDamageV2's offer) on a
 // HEALING roll, which no damage machine reads; cast.js's heal applier waits on its claim.

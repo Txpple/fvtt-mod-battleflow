@@ -203,6 +203,18 @@ export function saveDemandData({ status = "pending", stat, abilities, dc, damage
 }
 
 /**
+ * DOES THIS DEMAND PUT ITS TARGET TO SLEEP (Trance, 2026-09-27 — "magic can't put you to sleep")?
+ * Read off the data the stamp holds: the spell's own name (Sleep) or a failed-save effect named
+ * for sleep (Symbol's Sleep, Eyebite's Asleep, any pack effect of the kind). A word match on
+ * names the packs ship, never a list of spells — a new sleeping effect is one the data names.
+ * @param {{itemName?: string|null, effectNames?: (string|null|undefined)[]}} facts
+ */
+export function putsToSleep({ itemName = null, effectNames = [] } = {}) {
+  const sleeps = n => /\b(a)?sleep(s|ing)?\b/i.test(String(n ?? ""));
+  return sleeps(itemName) || (effectNames ?? []).some(sleeps);
+}
+
+/**
  * The verdicts a demand card carries — every target that has answered, with what it rolled and
  * how it went. A follow-up keyed on failure (the hit menu's effect, Cunning Strike's) reads
  * these and never the array's shape.

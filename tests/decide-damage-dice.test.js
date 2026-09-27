@@ -7,10 +7,13 @@ import { beforeAll, describe, expect, it } from "vitest";
  */
 /** @type {typeof import("../scripts/decide/damage-dice.js")} */
 let d;
+/** @type {typeof import("../scripts/decide/dice-changers.js")} */
+let dc;
 /** @type {typeof import("../scripts/decide/registry.js")} */
 let reg;
 beforeAll(async () => {
   d = await import("../scripts/decide/damage-dice.js");
+  dc = await import("../scripts/decide/dice-changers.js");
   reg = await import("../scripts/decide/registry.js");
 });
 
@@ -196,7 +199,7 @@ describe("eitherDue — once per turn, on a weapon, listed and owned", () => {
 describe("eitherCardLine — source, then result", () => {
   it("the used line shows both sets and the tag", () => {
     expect(
-      d.eitherCardLine({
+      dc.eitherCardLine({
         status: "used",
         feature: "Savage Attacker",
         formula: "1d8",
@@ -207,7 +210,7 @@ describe("eitherCardLine — source, then result", () => {
       })
     ).toBe("Savage Attacker — 1d8 → 5, again → 7 — the higher stands: 11 · used this turn");
     expect(
-      d.eitherCardLine({
+      dc.eitherCardLine({
         status: "used",
         feature: "Savage Attacker",
         formula: "1d8",
@@ -219,20 +222,20 @@ describe("eitherCardLine — source, then result", () => {
     ).toBe("Savage Attacker — 1d8 → 5, again → 2 — the first stands: 9 · used this turn");
   });
   it("spent, kept and moot say so", () => {
-    expect(d.eitherCardLine({ status: "spent", feature: "Savage Attacker" })).toBe(
+    expect(dc.eitherCardLine({ status: "spent", feature: "Savage Attacker" })).toBe(
       "Savage Attacker — used this turn"
     );
-    expect(d.eitherCardLine({ status: "kept", feature: "Savage Attacker" })).toBe(
+    expect(dc.eitherCardLine({ status: "kept", feature: "Savage Attacker" })).toBe(
       "Savage Attacker — not used, still ready this turn"
     );
     expect(
-      d.eitherCardLine({ status: "kept", feature: "Savage Attacker", timedOut: true })
+      dc.eitherCardLine({ status: "kept", feature: "Savage Attacker", timedOut: true })
     ).toContain("the clock ran out");
-    expect(d.eitherCardLine({ status: "moot", feature: "Savage Attacker" })).toContain(
+    expect(dc.eitherCardLine({ status: "moot", feature: "Savage Attacker" })).toContain(
       "the attack missed"
     );
     // Due: waiting on the defender's hold — the ruled order, the hit stands first.
-    expect(d.eitherCardLine({ status: "due", feature: "Savage Attacker" })).toBe(
+    expect(dc.eitherCardLine({ status: "due", feature: "Savage Attacker" })).toBe(
       "Savage Attacker — asks once the hit stands"
     );
   });
@@ -401,7 +404,7 @@ describe("ONE die rolled again — Piercer's Puncture (the PHB feats, group 3, 2
 
   it("the card line: the face, the new roll, the total", () => {
     expect(
-      d.eitherCardLine({
+      dc.eitherCardLine({
         status: "used",
         one: true,
         feature: "Piercer",

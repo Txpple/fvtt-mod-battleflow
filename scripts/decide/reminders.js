@@ -180,15 +180,19 @@ export function saveSources({ statuses = [], ability, enabled, table, name = "Yo
  * says the save cannot succeed — then the net is `fails`, drawn as the red tag, and the
  * header's tooltip says why instead of counting. One object for the dialog, the default button
  * and the record.
- * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string, autoFail?: boolean}[]} sources
- * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal"|"fails", autoFail: boolean, view: object}}
+ * A source that says the save cannot FAIL (Trance, 2026-09-27) nets `succeeds`, the mirror —
+ * unless another says it cannot succeed: a condition's automatic failure stands over it.
+ * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string, autoFail?: boolean, autoSucceed?: boolean}[]} sources
+ * @returns {{sources: object[], net: "advantage"|"disadvantage"|"normal"|"fails"|"succeeds", autoFail: boolean, autoSucceed: boolean, view: object}}
  */
 export function saveGate(sources) {
   const autoFail = sources.some(s => s.autoFail);
-  const net = autoFail ? "fails" : netMode(sources);
+  const autoSucceed = !autoFail && sources.some(s => s.autoSucceed);
+  const net = autoFail ? "fails" : autoSucceed ? "succeeds" : netMode(sources);
   const view = reminderView(sources, net);
   if ( autoFail ) view.head.why = "This save cannot succeed — the rules fail it before any die is rolled. Fails records the failure without dice; a mode button still rolls.";
-  return { sources, net, autoFail, view };
+  if ( autoSucceed ) view.head.why = "This save cannot fail — the rules pass it before any die is rolled. Succeeds records the success without dice; a mode button still rolls.";
+  return { sources, net, autoFail, autoSucceed, view };
 }
 
 /**
@@ -273,7 +277,9 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
  * every row is.
  * @param {{effects?: {id: string, name: string}[], features?: string[], enabled: Iterable<string>,
  *          table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null, statuses?: string[]|null}|null, name?: string}} facts
+ *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null}|null, name?: string}} facts
+ * A `succeeds` row (Trance, 2026-09-27) is not a bend: against a demand it matches the save
+ * cannot fail — the source carries `autoSucceed` and the gate's net is `succeeds`.
  */
 export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
@@ -285,11 +291,19 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     if ( !carriers.length ) continue;
     const scope = facet.statuses?.length
       ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
-      : facet.spells ? "a save against a spell or other magical effect" : "this save";
+      : facet.sleep ? "a save against magic that would put you to sleep"
+        : facet.spells ? "a save against a spell or other magical effect" : "this save";
     let bend = null;
     let caveat = "";
+    let succeeds = false;
     if ( !demand ) {
-      caveat = ` (listed — ${scope}; press ${facet.bend === "advantage" ? "Advantage" : "Disadvantage"} if this is one)`;
+      caveat = facet.succeeds ? ` (listed — ${scope}; it cannot fail if this is one)`
+        : ` (listed — ${scope}; press ${facet.bend === "advantage" ? "Advantage" : "Disadvantage"} if this is one)`;
+    } else if ( facet.sleep ) {
+      if ( !demand.spell || !demand.sleep ) continue;
+      succeeds = !!facet.succeeds;
+      bend = succeeds ? null : (facet.bend ?? null);
+      caveat = succeeds ? ": this save cannot fail — magic can't put you to sleep" : " — against magic that would put you to sleep";
     } else if ( facet.statuses?.length ) {
       const hits = (demand.statuses ?? []).filter(s => facet.statuses.includes(String(s).toLowerCase()));
       if ( !hits.length ) continue;
@@ -303,7 +317,8 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       bend = facet.bend;
     }
     for ( const e of carriers ) {
-      out.push(Object.assign(reminderSource("effect", bend, `${name} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {}));
+      out.push(Object.assign(reminderSource("effect", bend, `${name} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {},
+        succeeds ? { autoSucceed: true, feature: key } : {}));
     }
   }
   return out;
@@ -558,7 +573,7 @@ export function netMode(sources) {
 
 /** The mode, as a title or a button reads it. */
 export const modeTitle = mode => (mode === "advantage") ? "Advantage"
-  : (mode === "disadvantage") ? "Disadvantage" : (mode === "fails") ? "Fails" : "Normal roll";
+  : (mode === "disadvantage") ? "Disadvantage" : (mode === "fails") ? "Fails" : (mode === "succeeds") ? "Succeeds" : "Normal roll";
 
 /**
  * How a roll WENT OUT, in a sentence — "rolled with Advantage", "rolled flat". ONE vocabulary
@@ -736,7 +751,7 @@ export function acWithoutCover(ac, cover) {
  * The arithmetic (`resolutionLine`) rides the header as its tooltip, for the reader who wants
  * it, and costs no vertical space.
  * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail?: string}[]} sources
- * @param {"advantage"|"disadvantage"|"normal"|"fails"} net   "fails" is the save gate's fourth answer
+ * @param {"advantage"|"disadvantage"|"normal"|"fails"|"succeeds"} net   "fails" is the save gate's fourth answer ("succeeds" its mirror)
  */
 export function reminderView(sources, net) {
   const n = sources.length;

@@ -8,7 +8,7 @@
 import { MODULE_ID, TITLE, S, setting, statContext } from "../core.js";
 import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
-import { saveDemandData, saveTargetEntry } from "../decide/demand.js";
+import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
 import { METAMAGIC_FLAG, metamagicRuleText } from "../decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
 import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
@@ -319,6 +319,9 @@ async function stampSaveDemand(activity, message, results) {
       // these off the pending demand when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))],
+        // Trance (2026-09-27): whether a failure would put the target to sleep — read off the
+        // spell's name and its failed-save effects' names (decide/demand.js `putsToSleep`).
+        sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),
         // Heightened Spell's mark (2026-09-09): the one target whose gate opens at Disadvantage.
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,

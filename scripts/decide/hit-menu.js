@@ -11,7 +11,9 @@
  * nothing else — the save and the condition live in the rule folded under it and on the card
  * after. One pick per group ("You can use only one maneuver per attack"); a group with no die left
  * keeps its rows, greyed. The die rides the damage roll for every option but a sweep, whose die
- * is rolled apart at a second creature. One pick on the whole hit (2026-09-24): the record is one.
+ * is rolled apart at a second creature. One pick PER GROUP, and a pick in each group rides the one
+ * hit (2026-09-27, BACKLOG closed: a Goliath Battle Master knocks the target Prone with Hill's
+ * Tumble AND rides a maneuver — the rules allow both; the record is a list, a part per pick).
  *
  * What is decided here is the reading and the arithmetic, never the choice: which rows the sheet
  * grants and the list admits, which the pool can pay for, whether a pick is legal, and whether
@@ -89,11 +91,11 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
 }
 
 /**
- * The PICK: the chosen rows, one per group at most, every one affordable — and ONE on the whole
- * hit (Slice A, decided 2026-09-24: the pick is recorded as one record, so a second group's pick
- * would be dropped in silence; the offer's wire keeps one tick on the menu). The offer keeps the
- * pick legal as it is made; this is the arithmetic that stands behind it, and an illegal pick —
- * two in one group, two across groups, or an unaffordable row — picks nothing.
+ * The PICK: the chosen rows, one per group at most ("You can use only one maneuver per attack"),
+ * every one affordable — a pick in EACH group rides the hit (2026-09-27: the record is a list since
+ * then; before it one record held one pick and a second group's was dropped). The offer keeps the
+ * pick legal as it is made; this is the arithmetic that stands behind it, and an illegal pick — two
+ * in one group, or an unaffordable row — is dropped.
  * @param {{menu: ReturnType<typeof hitMenu>, chosen?: Iterable<string>}} facts
  * @returns {{picks: {group: string, row: any}[], dropped: string[]}}
  */
@@ -109,8 +111,19 @@ export function hitPick({ menu, chosen = [] }) {
       else dropped.push(row.key);
     }
   }
-  if ( picks.length > 1 ) return { picks: [], dropped: [...dropped, ...picks.map(p => p.row.key)] };
   return { picks, dropped };
+}
+
+/**
+ * The picks a hit-menu record holds — the list since 2026-09-27 (`picks`, a part per pick), and a
+ * record from before it (one pick, its fields on the record itself) read as a list of one. The one
+ * reader for `hitPick` on the attack and `hitManeuver` on the damage roll.
+ * @param {any} record
+ * @returns {any[]}
+ */
+export function picksOf(record) {
+  if ( Array.isArray(record?.picks) ) return record.picks;
+  return record?.key ? [record] : [];
 }
 
 /**

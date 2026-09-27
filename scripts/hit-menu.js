@@ -9,7 +9,7 @@ import { hitMenuEntries } from "./settings.js";
 import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
-import { hitMenu, hitPick, sweepVerdict } from "./decide/hit-menu.js";
+import { hitMenu, hitPick, picksOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -65,8 +65,11 @@ import { SURFACES } from "./surfaces.js";
  *   boon: use-it-or-not is the rider's question, not the menu's). A die-carrying option-pool row
  *   would ride in its own damage type; none ships today.
  *
- *   ONE PICK PER HIT (decided 2026-09-24): the pick is one record, so a tick anywhere on the menu
- *   unticks every other; the array shape is BACKLOG's.
+ *   ONE PICK PER GROUP, EVERY GROUP ON THE ONE HIT (2026-09-27; one pick per hit from 2026-09-24
+ *   until then): the records are lists — `hitPick` on the attack, `hitManeuver` on the damage roll
+ *   (`picks`, decide/hit-menu.js `picksOf` the one reader) — so a Goliath Battle Master knocks the
+ *   target Prone with Hill's Tumble AND rides a maneuver: a part per pick on the roll, a spend per
+ *   pick, a card per pick, the moment published per pick. A tick unticks only its own group.
  *
  * WHAT IS READ, NEVER TYPED (N1): the die formula, the pool (the activity's consumption target
  * — an id, an identifier, or a compendium source: the three shapes the 2024 pack ships), the
@@ -240,12 +243,12 @@ registerOfferPart({
       rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
     }));
     // The offer line in the group's own voice ("Maneuvers — … one maneuver per attack"); with two
-    // groups on one sheet, the one rule both share: one pick per hit (2026-09-24).
+    // groups on one sheet, the one rule both share: one pick per group (2026-09-27).
     const live = menu.groups.some(g => g.left > 0);
     const solo = menu.groups.length === 1 ? menu.groups[0] : null;
     const heading = menu.groups.map(g => g.heading).join(" · ");
     const summary = live
-      ? `pick one to ride this hit, or none; ${solo ? solo.per : "one pick per hit"}.`
+      ? `pick one to ride this hit, or none; ${solo ? solo.per : "one pick per group"}.`
       : `${solo?.perOption ? `no ${solo.dieLabel}s left` : "no dice left"}; the rows stay for the record.`;
     return {
       html: hitMenuHTML({ groups: groupsView }),
@@ -255,10 +258,12 @@ registerOfferPart({
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
-              // ONE pick on the whole hit (the rules — "only one maneuver per attack" — within a
-              // group; the one-record pick across groups, decided 2026-09-24): every other gives way.
+              // ONE pick per group (the rules — "only one maneuver per attack"); another group's
+              // pick rides beside it (2026-09-27): only the box's own group gives way.
               for ( const other of boxes ) {
-                if ( (other !== box) && other.checked ) { other.checked = false; chosen.delete(other.value); }
+                if ( (other !== box) && other.checked && (other.dataset.bfHitGroup === box.dataset.bfHitGroup) ) {
+                  other.checked = false; chosen.delete(other.value);
+                }
               }
               chosen.add(box.value);
             } else chosen.delete(box.value);
@@ -268,13 +273,13 @@ registerOfferPart({
       /** The pick, on the attack message BEFORE the roll — the rider reads it there. */
       async commit() {
         const { picks } = hitPick({ menu, chosen });
-        const pick = picks[0] ?? null;
-        const facts = pick ? edge[pick.row.key] : null;
+        const records = picks.filter(p => edge[p.row.key]).map(p => {
+          const facts = edge[p.row.key];
+          return { key: p.row.key, group: p.group, feature: p.row.feature, mode: p.row.mode,
+            formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null };
+        });
         try {
-          await attackMessage.setFlag(MODULE_ID, "hitPick", pick && facts ? {
-            key: pick.row.key, group: pick.group, feature: pick.row.feature, mode: pick.row.mode,
-            formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null
-          } : { key: null });
+          await attackMessage.setFlag(MODULE_ID, "hitPick", records.length ? { picks: records } : { key: null });
         } catch(err) {
           console.error(`${TITLE} | Could not record the maneuver pick — the weapon rolls alone.`, err);
         }
@@ -290,46 +295,53 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
     const attackMessage = attackMessageForDamage(config, message);
-    const pick = attackMessage?.getFlag(MODULE_ID, "hitPick");
-    if ( !pick?.key || pick.rolled ) return;
-    const row = HIT_OPTIONS[pick.key];
-    const group = HIT_GROUPS[row?.group];
-    if ( !row || !group ) return;
+    const record = attackMessage?.getFlag(MODULE_ID, "hitPick");
+    if ( !record || record.rolled ) return;
     const attacker = activity.actor;
-    const rides = (pick.mode !== "sweep") && !!pick.formula;
-    if ( rides ) {
-      config.rolls.push({
-        // No `properties`: the die is the weapon's type but not its magic — it must not inherit
-        // the flags that decide physical-resistance bypass (hit-riders' rule).
-        data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
-        parts: [pick.formula],
-        options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
+    const roll = attackMessage.rolls?.[0];
+    const out = [];
+    for ( const pick of picksOf(record) ) {
+      const row = HIT_OPTIONS[pick.key];
+      const group = HIT_GROUPS[row?.group];
+      if ( !row || !group ) continue;
+      const rides = (pick.mode !== "sweep") && !!pick.formula;
+      if ( rides ) {
+        config.rolls.push({
+          // No `properties`: the die is the weapon's type but not its magic — it must not inherit
+          // the flags that decide physical-resistance bypass (hit-riders' rule).
+          data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
+          parts: [pick.formula],
+          options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
+        });
+      }
+      // The pool: one die spent, on the item the activity names — the clock riders' idiom for a
+      // limited use. The count left is read AFTER the spend for the card.
+      const pool = resolveUuid(pick.poolUuid);
+      const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
+      // The one pass-through (shared.js `spendSuperiorityDie`): the spend and its record, which the
+      // card line, the flash and the subtitle all read (user, 2026-09-05: uniform).
+      const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
+      if ( pool ) {
+        void spendSuperiorityDie(attacker, pool, row.feature)
+          .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
+      }
+      out.push({
+        key: pick.key, feature: row.feature, group: group.label, dieLabel: group.dieLabel,
+        eyebrow: group.eyebrow ?? "Maneuver", maneuver: (group.eyebrow ?? "Maneuver") === "Maneuver",
+        formula: pick.formula, type: pick.type ?? null, mode: pick.mode ?? "ride", rides,
+        rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
+        save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
+        clock: row.clock ?? null, press: row.press ?? null
       });
     }
-    // The pool: one die spent, on the item the activity names — the clock riders' idiom for a
-    // limited use. The count left is read AFTER the spend for the card.
-    const pool = resolveUuid(pick.poolUuid);
-    const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
-    // The one pass-through (shared.js `spendSuperiorityDie`): the spend and its record, which the
-    // card line, the flash and the subtitle all read (user, 2026-09-05: uniform).
-    const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
-    if ( pool ) {
-      void spendSuperiorityDie(attacker, pool, row.feature)
-        .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
-    }
-    const roll = attackMessage.rolls?.[0];
+    if ( !out.length ) return;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.hitManeuver`, {
-      ...statContext(attacker?.uuid ?? null),
-      attackId: attackMessage.id, key: pick.key, feature: row.feature, group: group.label, dieLabel: group.dieLabel,
-      eyebrow: group.eyebrow ?? "Maneuver", maneuver: (group.eyebrow ?? "Maneuver") === "Maneuver",
-      formula: pick.formula, type: pick.type ?? null, mode: pick.mode ?? "ride", rides,
-      rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
-      save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
-      clock: row.clock ?? null, press: row.press ?? null,
-      attackRoll: roll ? { total: roll.total, isCritical: !!roll.isCritical, isFumble: !!roll.isFumble } : null
+      ...statContext(attacker?.uuid ?? null), attackId: attackMessage.id,
+      attackRoll: roll ? { total: roll.total, isCritical: !!roll.isCritical, isFumble: !!roll.isFumble } : null,
+      picks: out
     });
     // Spent by dealing the damage: the card's Damage button pressed twice must not ride twice.
-    void attackMessage.setFlag(MODULE_ID, "hitPick", { ...pick, rolled: true })
+    void attackMessage.setFlag(MODULE_ID, "hitPick", { ...record, rolled: true })
       .catch(err => console.warn(`${TITLE} | Could not mark the maneuver rolled.`, err));
   } catch(err) {
     console.error(`${TITLE} | The maneuver's die failed to ride — add it by hand.`, err);
@@ -351,52 +363,63 @@ Hooks.on("createChatMessage", message => {
   void runConsequences(message, hm);
 });
 
-async function runConsequences(damageMessage, hm) {
+async function runConsequences(damageMessage, record) {
   try {
-    const attackMessage = game.messages.get(hm.attackId);
+    const attackMessage = game.messages.get(record.attackId);
     const attacker = attackMessage?.getAssociatedActor();
-    // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
-    const item = resolveUuid(hm.itemUuid);
-    if ( !attackMessage || !attacker || !item ) return;
+    if ( !attackMessage || !attacker ) return;
     const hits = hitTargets(attackMessage);
     const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
     const notes = [];
-    if ( hm.save ) {
-      const act = activityOfType(item, "save");
-      if ( act ) {
-        await repairTransferEffects(attacker);
-        // A linked effect the item has LOST (the transfer-flag story above, before the repair
-        // ran) is pressed on the failure from the compendium's own copy — the same effect id
-        // on the source item; the content is read, never typed.
-        const missing = (await profileEffects(act.effects)).filter(({ profile, effect }) => !effect && !profile.onSave).map(({ profile }) => profile._id);
-        const source = missing.length ? await compendiumCopyOf(item) : null;
-        const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
-        if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
-        const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
-        const card = results?.message;
-        if ( card instanceof ChatMessage ) {
-          // The follow-up's effect: a condition the pack left on the ITEM, unlinked (Trip's Prone).
-          const effectUuid = hm.onFail ? (item.effects.find(e => e.statuses?.has?.(hm.onFail))?.uuid ?? null) : null;
-          await card.setFlag(MODULE_ID, "hitManeuverCard", { ...statContext(attacker.uuid), attackId: attackMessage.id,
-            damageId: damageMessage.id, key: hm.key, feature: hm.feature, rule: hm.rule, line: hm.line, attackerName: attacker.name,
-            onFail: hm.onFail ?? null, effectUuid, pressUuids, applied: [] });
-        }
-      } else notes.push(`${hm.feature}: no save activity on the sheet`);
+    // One pick at a time, in the order they rode (2026-09-27: a pick per group on the one hit).
+    for ( const pick of picksOf(record) ) {
+      const hm = { ...pick, attackId: record.attackId, attackRoll: record.attackRoll ?? pick.attackRoll ?? null };
+      // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
+      const item = resolveUuid(hm.itemUuid);
+      if ( !item ) continue;
+      await consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes });
     }
-    if ( hm.mode === "sweep" ) await postSweepCard(damageMessage, hm, attackMessage, attacker, hits, item);
-    await damageMessage.setFlag(MODULE_ID, "hitManeuver", { ...hm, done: true, ...(notes.length ? { notes } : {}) })
+    await damageMessage.setFlag(MODULE_ID, "hitManeuver", { ...record, done: true, ...(notes.length ? { notes: [...(record.notes ?? []), ...notes] } : {}) })
       .catch(() => { /* the latch above holds for this session */ });
   } catch(err) {
     console.error(`${TITLE} | The maneuver's consequences failed — use the feature's activity by hand.`, err);
   }
 }
 
+/** One pick's consequences: its save at the target, its sweep card. */
+async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes }) {
+  if ( hm.save ) {
+    const act = activityOfType(item, "save");
+    if ( act ) {
+      await repairTransferEffects(attacker);
+      // A linked effect the item has LOST (the transfer-flag story above, before the repair
+      // ran) is pressed on the failure from the compendium's own copy — the same effect id
+      // on the source item; the content is read, never typed.
+      const missing = (await profileEffects(act.effects)).filter(({ profile, effect }) => !effect && !profile.onSave).map(({ profile }) => profile._id);
+      const source = missing.length ? await compendiumCopyOf(item) : null;
+      const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
+      if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
+      const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
+      const card = results?.message;
+      if ( card instanceof ChatMessage ) {
+        // The follow-up's effect: a condition the pack left on the ITEM, unlinked (Trip's Prone).
+        const effectUuid = hm.onFail ? (item.effects.find(e => e.statuses?.has?.(hm.onFail))?.uuid ?? null) : null;
+        await card.setFlag(MODULE_ID, "hitManeuverCard", { ...statContext(attacker.uuid), attackId: attackMessage.id,
+          damageId: damageMessage.id, key: hm.key, feature: hm.feature, rule: hm.rule, line: hm.line, attackerName: attacker.name,
+          onFail: hm.onFail ?? null, effectUuid, pressUuids, applied: [] });
+      }
+    } else notes.push(`${hm.feature}: no save activity on the sheet`);
+  }
+  if ( hm.mode === "sweep" ) await postSweepCard(damageMessage, hm, attackMessage, attacker, hits, item);
+}
+
 /* --- the effect on the hit, on the elect (Distracting Strike) -------------------------------- */
 
 async function settleHitEffects(message) {
-  const hm = message.getFlag(MODULE_ID, "hitManeuver");
-  if ( !(hm?.effects || hm?.press) || hm.effectsApplied ) return;
-  if ( !drivesMomentFor(hm.sourceUuid ?? null) ) return;
+  const record = message.getFlag(MODULE_ID, "hitManeuver");
+  const picks = picksOf(record).map((p, index) => ({ p, index })).filter(({ p }) => p.effects || p.press);
+  if ( !picks.length || record.effectsApplied ) return;
+  if ( !drivesMomentFor(record.sourceUuid ?? null) ) return;
   try {
     let claimed = false;
     await queueFlagWrite(message, "hitManeuver", current => {
@@ -405,17 +428,19 @@ async function settleHitEffects(message) {
       claimed = true;
     });
     if ( !claimed ) return;
-    const attackMessage = game.messages.get(hm.attackId);
-    // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
-    const item = resolveUuid(hm.itemUuid);
+    const attackMessage = game.messages.get(record.attackId);
     const hits = attackMessage ? hitTargets(attackMessage) : [];
-    if ( hm.effects ) {
-      // The shared path (effect-riders.js, 2026-09-24): the clock riders' `effects` rows use it too.
-      const attacker = resolveUuid(hm.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
-      await applyActivityEffectsOnHit(message, item ? activityOfType(item, "damage") : null, hits,
-        { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
+    for ( const { p: hm, index } of picks ) {
+      // live only: the paying maneuver FEATURE — never used up, so the sheet is the truth
+      const item = resolveUuid(hm.itemUuid);
+      if ( hm.effects ) {
+        // The shared path (effect-riders.js, 2026-09-24): the clock riders' `effects` rows use it too.
+        const attacker = resolveUuid(record.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
+        await applyActivityEffectsOnHit(message, item ? activityOfType(item, "damage") : null, hits,
+          { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
+      }
+      if ( hm.press ) await pressOnHit(message, { ...hm, sourceUuid: record.sourceUuid ?? null }, hits, item, Array.isArray(record.picks) ? index : null);
     }
-    if ( hm.press ) await pressOnHit(message, hm, hits, item);
   } catch(err) {
     console.error(`${TITLE} | The maneuver's effect failed to apply.`, err);
   }
@@ -427,7 +452,7 @@ async function settleHitEffects(message) {
  * no save in front of it. A target already wearing the status is skipped (nothing to press,
  * nothing to receipt); one the module may not write is skipped and said on the card.
  */
-async function pressOnHit(message, hm, hits, item) {
+async function pressOnHit(message, hm, hits, item, index = null) {
   const pressed = [];
   const skipped = [];
   for ( const h of hits ) {
@@ -445,7 +470,9 @@ async function pressOnHit(message, hm, hits, item) {
     });
   }
   await queueFlagWrite(message, "hitManeuver", current => {
-    current.pressed = pressed;
+    // the pick's own record in the list (a record from before the list holds its fields itself)
+    const target = ((index !== null) && current.picks?.[index]) ? current.picks[index] : current;
+    target.pressed = pressed;
     if ( skipped.length ) current.notes = [...(current.notes ?? []), `${hm.feature}: ${skipped.join(", ")} — apply ${hm.press} by hand`];
   });
 }
@@ -648,7 +675,7 @@ async function settleSweep(card) {
 // were: the effects on arrival and reload, never on an update; the follow-ups and the sweep on
 // the answer's write and on reload.
 registerResumable("hitManeuver", {
-  pending: (flag, _message, cause) => (cause !== "update") && !!(flag.effects || flag.press) && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && picksOf(flag).some(p => p.effects || p.press) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleHitEffects
 });
@@ -666,8 +693,11 @@ registerResumable("sweepCard", {
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
-  const hm = message.getFlag(MODULE_ID, "hitManeuver");
-  if ( hm ) {
+  const record = message.getFlag(MODULE_ID, "hitManeuver");
+  const picks = picksOf(record);
+  // A card per pick (2026-09-27); the record's notes ride the last.
+  picks.forEach((pick, i) => {
+    const hm = { ...pick, notes: (i === picks.length - 1) ? [...(pick.notes ?? []), ...(Array.isArray(record.picks) ? (record.notes ?? []) : [])] : (pick.notes ?? []) };
     const line = document.createElement("div");
     // A no-die press (Hill's Tumble) says what it pressed; the eyebrow is the group's family word.
     const pressTitle = hm.press
@@ -682,7 +712,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
-  }
+  });
   const hc = message.getFlag(MODULE_ID, "hitManeuverCard");
   if ( hc ) {
     const line = document.createElement("div");

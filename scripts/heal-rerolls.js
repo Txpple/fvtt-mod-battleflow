@@ -15,7 +15,7 @@
  * The roll message is born with `healReroll` DUE (preRollDamageV2, a birth flag like Savage
  * Attacker's), and the heal applier (cast.js) holds the healing while it waits — so it lands ONCE,
  * with the faces that stood. When the dice land (rollDamageV2, the roller's client) the record goes
- * pending if a 1 shows and settles "none" if not. The popup is Empowered Spell's (metamagic.js):
+ * pending if a 1 shows and settles "none" if not. The popup is Empowered Spell's (now dice-changers.js):
  * every die as a chip, eight to a row — the 1s pickable and TICKED, every other face shown and
  * greyed; "Reroll the picked dice" / "Keep the roll"; the clock keeps the roll. The feat has no
  * cost and no cap: every 1 may go.

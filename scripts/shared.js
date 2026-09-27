@@ -614,7 +614,8 @@ export function poolSpendsOn(message) {
   if ( flagged ) hand.push(...(Array.isArray(flagged) ? flagged : [flagged]));
   for ( const t of (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
   const hm = message?.getFlag?.(MODULE_ID, "hitManeuver");
-  if ( hm?.poolSpend ) hand.push(hm.poolSpend);
+  // a spend per pick (the hit menu's list, 2026-09-27); a record from before it holds one itself
+  for ( const pick of (Array.isArray(hm?.picks) ? hm.picks : (hm ? [hm] : [])) ) if ( pick?.poolSpend ) hand.push(pick.poolSpend);
   for ( const r of hand ) {
     let spender = null;
     try { spender = r.actorUuid ? fromUuidSync(r.actorUuid) : null; } catch { spender = null; }

@@ -48,7 +48,7 @@ export const TONE = {
 };
 
 /** The tone a roll mode wears: Advantage good, Disadvantage bad, Normal and Listed neutral. */
-export const modeTone = mode => (mode === "advantage") ? TONE.good
+export const modeTone = mode => ((mode === "advantage") || (mode === "succeeds")) ? TONE.good
   : ((mode === "disadvantage") || (mode === "fails")) ? TONE.bad : TONE.neutral;
 
 /**
@@ -56,14 +56,15 @@ export const modeTone = mode => (mode === "advantage") ? TONE.good
  * same wherever a mode is shown (the gate's header line, its boxes, a volley's ray rows).
  * Listed is the outline of the Normal tag: both are "no bend counted", told apart by fill,
  * never by hue — colour is spent on bends alone. `fails` is the save gate's fourth answer (a
- * save the rules fail before the dice): red, because it is bad for the roller.
- * @param {"advantage"|"disadvantage"|"normal"|"listed"|"fails"} mode
+ * save the rules fail before the dice): red, because it is bad for the roller; `succeeds` its
+ * mirror (a save that cannot fail — Trance, 2026-09-27): green.
+ * @param {"advantage"|"disadvantage"|"normal"|"listed"|"fails"|"succeeds"} mode
  */
 export function modeTagHTML(mode) {
   const listed = (mode === "listed");
   const tone = listed ? TONE.neutral : modeTone(mode);
   const text = listed ? "Listed" : (mode === "advantage") ? "Advantage" : (mode === "disadvantage") ? "Disadvantage"
-    : (mode === "fails") ? "Fails" : "Normal";
+    : (mode === "fails") ? "Fails" : (mode === "succeeds") ? "Succeeds" : "Normal";
   const fill = listed
     ? `background:transparent;border:1px solid ${tone};color:inherit;opacity:0.85;`
     : `background:${tone};border:1px solid transparent;color:${((mode === "disadvantage") || (mode === "fails")) ? "#fff" : "#111"};`;

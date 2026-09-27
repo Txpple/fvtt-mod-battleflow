@@ -387,7 +387,8 @@ export function verdictText(flag, t) {
   if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";
   // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
   // no total to print — the condition that failed it is the number's replacement.
-  const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}` : `${t.total}`;
+  const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}`
+    : t.autoSucceeded ? `cannot fail${t.autoSucceededBy ? ` (${t.autoSucceededBy})` : ""}` : `${t.total}`;
   return `${roll} ${verdictStakes(flag, t)}`;
 }
 
@@ -400,7 +401,7 @@ export function verdictText(flag, t) {
  * failure that rolled no die — those keep Battle Flow's own line, `verdictText`.
  */
 export function verdictTail(flag, t) {
-  if ( !t?.done || (t.outcome === "gone") || t.autoFailed ) return null;
+  if ( !t?.done || (t.outcome === "gone") || t.autoFailed || t.autoSucceeded ) return null;
   return verdictStakes(flag, t);
 }
 

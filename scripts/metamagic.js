@@ -22,31 +22,29 @@
  * spell spares or who saves at Disadvantage once the area has landed — is area-ask.js since
  * 2026-09-24 (one service, three kinds, two customers); this file raises it on a held card's
  * carrier and registers the answer part that writes the metamagic record. The later moments:
- * Empowered is the fold on the damage dice at the end of this file (Stage 4); Seeking is a d20
+ * Empowered is a row of the dice changers' one popup on the damage roll (dice-changers.js, 2026-09-27;
+ * its offer — known, listed, a point — is `empoweredOffer` below); Seeking is a d20
  * fold KIND in d20-folds.js — the machine that already owns the reroll, the verdict and the
  * withheld save.
  */
-import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, isActiveGM } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./settings.js";
-import { poolOf, spendPoolUses, isPartyMember, rebuildRolls } from "./shared.js";
+import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
-import { bfCard, foldedRuleHTML, esc, holdBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
+import { bfCard, foldedRuleHTML, esc } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, empoweredPlan, empoweredOutcome, empoweredReaches } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
 import { newAsk, registerAskAnswerPart } from "./area-ask.js";
-import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync, dramaticVerdictPause, registerResumable, paintDieChip } from "./ui.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
-import { moveAppliedDamage } from "./auto-apply.js";
-import { rerollFaces } from "./decide/damage-dice.js";
-import { rerollRise } from "./decide/dice-chips.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
-const POOL_NAME = "Sorcery Points";
+export const SORCERY_POINTS = "Sorcery Points";
+const POOL_NAME = SORCERY_POINTS;
 
 /* ---------------------------------------------------------------------------------------------
  * The sheet: the options the caster knows, and the pool they draw on
@@ -555,310 +553,27 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * Empowered Spell: a fold on the spell's damage dice (the metamagic pass, Stage 4, 2026-09-09;
- * user: "let's try default")
- *
- * THE MOMENT is the damage roll. When a spell's damage lands on the caster's own client, a popup
- * shows the dice as chips; the caster ticks up to CHA-mod of them and presses Reroll, or keeps
- * the roll; the buzzer keeps it. Reroll spends the point BY HAND (the record on the damage
- * message — the flash and the card line read it), rerolls the ticked dice, and PATCHES THE
- * MESSAGE'S OWN ROLL the way the dice rules do: the old face stays, struck through and inactive,
- * the new face joins active, and the total moves — so every reader downstream (the verdicts, the
- * appliers) sees the new number without knowing why, and the card shows both. The rolled-result
- * obligation (§11 rule 4) is carried the honest way: damage ALREADY applied off this message (a
- * receipt stands) is moved by the difference through the one applier, as its own receipt, on the
- * elect; a client that cannot apply says so in a whisper. Empowered stands outside the one-per-cast
- * rule by its own text, so a Careful or Transmuted cast can still take it.
+ * Empowered Spell: a row of the dice changers' one popup since 2026-09-27 (dice-changers.js — the
+ * birth flag, the popup, the clock, the patch and the completion live there; its own copy here,
+ * from the metamagic pass's Stage 4 of 2026-09-09, is gone). This file keeps what only it knows:
+ * whether the caster can take it on this roll — the option known and listed, a point in the pool.
  * ------------------------------------------------------------------------------------------- */
 
-const EMPOWERED_FLAG = "empowered";
-const empoweredTimers = new Map();
-// ⚠ dnd5e dispatches the damage hook TWICE per roll (the literal `dnd5e.rollDamageV2` and the templated
-// `dnd5e.roll${name}V2` — measured 2026-09-09: "fired 2 for this roll"), and the never-re-stamp read
-// cannot see a setFlag still in flight. One in-flight set per moment keeps the offer, the popup and
-// the spend single.
-const empoweredOffering = new Set();
-const empoweredResolving = new Set();
-
-/** The dice a damage message shows — every active face of every die term, keyed `roll:term:index`. */
-function empoweredDice(rolls) {
-  const out = [];
-  (rolls ?? []).forEach((roll, i) => {
-    (roll?.terms ?? []).forEach((term, j) => {
-      if ( !Number.isFinite(term?.faces) || !Array.isArray(term.results) ) return;
-      term.results.forEach((r, k) => {
-        if ( r.active === false ) return;
-        // What the die COUNTS, not what it showed (the walk, 2026-09-26: Gren's Fireball showed a 1 that
-        // Elemental Adept's min2 had made a 2) — a floored face keeps its roll for the tooltip.
-        const counted = Number(r.count ?? r.result);
-        out.push({ key: `${i}:${j}:${k}`, roll: i, term: j, index: k, faces: term.faces, result: counted,
-          ...(counted !== Number(r.result) ? { rolled: r.result } : {}) });
-      });
-    });
-  });
-  return out;
-}
-
-Hooks.on("dnd5e.rollDamageV2", (rolls, data) => {
-  try { void offerEmpowered(rolls, data?.subject ?? null); }
-  catch(err) { console.error(`${TITLE} | Empowered Spell's offer failed.`, err); }
-});
-
-async function offerEmpowered(rolls, activity) {
-  if ( !activity || (activity.item?.type !== "spell") ) return;
-  // damage only - a spell's healing rides the same roll (the walk, 2026-09-26)
-  if ( !empoweredReaches({ activityType: activity.type, rollTypes: (rolls ?? []).map(r => r?.options?.type) }) ) return;
-  const actor = activity.actor;
-  if ( !actor?.isOwner ) return;
-  const message = rolls?.[0]?.parent;
-  if ( !(message instanceof ChatMessage) ) return;
-  if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG) || empoweredOffering.has(message.id) ) return;   // never re-stamp
+/**
+ * Empowered Spell's row for a caster, or null: the option on the sheet and in the Metamagic list,
+ * its cost in the pool now, the cap (the Charisma modifier, minimum one) and its rule verbatim.
+ * @param {Actor} actor
+ * @returns {{cost: number, cap: number, poolId: string, rule: string}|null}
+ */
+export function empoweredOffer(actor) {
   const item = knownOptions(actor).get("Empowered Spell");
-  if ( !item ) return;
-  empoweredOffering.add(message.id);
-  try { await stampEmpowered(message, actor, item); }
-  finally { empoweredOffering.delete(message.id); }
-}
-
-async function stampEmpowered(message, actor, item) {
+  if ( !item ) return null;
   const pool = poolFor(actor, item);
   const cost = costOf(item) ?? 1;
-  if ( !pool || ((pool.system?.uses?.value ?? 0) < cost) ) return;
-  const dice = empoweredDice(message.rolls);
-  if ( !dice.length ) return;
-  const cap = Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1);
-  const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
-  await message.setFlag(MODULE_ID, EMPOWERED_FLAG, {
-    status: "pending", feature: "Empowered Spell", actorUuid: actor.uuid, poolId: pool.id, cost, cap, dice,
-    oldTotal: (message.rolls ?? []).reduce((sum, r) => sum + (Number(r.total) || 0), 0),
-    rule: metamagicRuleText(item.system?.description?.value ?? ""),
-    ...statContext(actor.uuid),
-    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
-  });
-  armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
-  // The table sees the dice land before the question about them opens (the verdict pause's rule).
-  await dramaticVerdictPause(message);
-  await showEmpoweredPopup(message);
+  if ( !pool || ((pool.system?.uses?.value ?? 0) < cost) ) return null;
+  return { cost, cap: Math.max(1, Number(actor.system?.abilities?.cha?.mod) || 1), poolId: pool.id,
+    rule: metamagicRuleText(item.system?.description?.value ?? "") };
 }
-
-/** The picked chips in a popup's form, in the order they were ticked. */
-const picksIn = form => [...(form?.querySelectorAll?.('[data-bf-die][data-picked="1"]') ?? [])]
-  .sort((a, b) => Number(a.dataset.order) - Number(b.dataset.order)).map(b => b.dataset.bfDie);
-
-async function showEmpoweredPopup(message) {
-  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
-  if ( !flag || (flag.status !== "pending") ) return;
-  const actor = resolveUuid(flag.actorUuid);
-  if ( !actor ) return;
-  const pool = actor.items?.get(flag.poolId) ?? null;
-  // Eight to a row (user, 2026-09-09: "make this horizontal rows, 8 die per row").
-  const chips = flag.dice.map(d => `<button type="button" data-bf-die="${esc(d.key)}" data-picked="0" data-tooltip="d${d.faces}${(d.rolled !== undefined) ? ` · rolled ${d.rolled}, counts ${d.result}` : ""}"
-      style="width:2.2rem;height:2.2rem;margin:0;padding:0;font-weight:bold;${d.result <= 2 ? "color:#b4463c;" : ""}">${d.result}</button>`).join("");
-  const dialog = await openMomentPopup(message, EMPOWERED_FLAG, actor, {
-    title: `Empowered Spell — ${actor.name}`, icon: "fa-solid fa-wand-sparkles", width: 460,
-    content: bfCard({
-      img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
-      eyebrow: "Metamagic — Empowered Spell", tone: "pending",
-      title: `${flag.oldTotal} damage — reroll up to ${flag.cap} ${flag.cap === 1 ? "die" : "dice"}?`,
-      subtitle: `${POOL_NAME}: ${pool?.system?.uses?.value ?? "?"} of ${pool?.system?.uses?.max ?? "?"} · ${flag.cost} SP`,
-      lines: [ruleLine(flag.rule)]
-    }) + `<div data-bf-empowered-dice data-cap="${flag.cap}" style="margin:0.4rem 0;display:grid;grid-template-columns:repeat(8, 2.2rem);gap:0.3rem;justify-content:start;">${chips}</div>` + holdBarHTML(flag, "to answer"),
-    buttons: [
-      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
-      // closing"). DialogV2 AWAITS a button's callback before it closes, and the resolution now waits
-      // out the dice - so a callback that returned the resolution held the window open for the whole
-      // animation. The picks are read while the form is still in the DOM; the work is fired, not awaited.
-      { action: "reroll", label: "Reroll the picked dice", default: true, callback: (event, button) => { const picks = picksIn(button.form); void resolveEmpowered(message, picks); } },
-      { action: "keep", label: "Keep the roll", callback: () => { void keepEmpowered(message); } }
-    ]
-  });
-  // NO PICK, NO REROLL (user, 2026-09-12: "if a person doesn't have dice selected, the reroll dice
-  // should be greyed out"). The button opens disabled; the chip toggles below keep it honest.
-  syncEmpoweredReroll(dialog?.element?.querySelector?.("[data-bf-empowered-dice]") ?? null);
-}
-
-/** The Reroll button is live only while at least one die is ticked. */
-function syncEmpoweredReroll(box) {
-  const button = box?.closest?.("form")?.querySelector?.('button[data-action="reroll"]');
-  if ( !button ) return;
-  button.disabled = !box.querySelector('[data-picked="1"]');
-}
-
-// The chips toggle by delegation — the popup's element is the dialog's own, and one listener on
-// the document serves every open popup. The cap is enforced as the ticks are made.
-Hooks.once("ready", () => document.addEventListener("click", ev => {
-  const chip = ev.target?.closest?.("[data-bf-die]");
-  if ( !chip ) return;
-  ev.preventDefault();
-  const box = chip.closest("[data-bf-empowered-dice]");
-  const cap = Number(box?.dataset?.cap) || 99;
-  const picked = [...(box?.querySelectorAll('[data-picked="1"]') ?? [])];
-  if ( chip.dataset.picked === "1" ) paintDieChip(chip, false);
-  else if ( picked.length < cap ) { chip.dataset.order = String(Date.now()); paintDieChip(chip, true); }
-  syncEmpoweredReroll(box);
-}));
-
-async function keepEmpowered(message, { timedOut = false } = {}) {
-  await queueFlagWrite(message, EMPOWERED_FLAG, current => {
-    if ( current.status !== "pending" ) return false;
-    current.status = "kept";
-    if ( timedOut ) current.timedOut = true;
-  });
-}
-
-async function resolveEmpowered(message, picks) {
-  if ( empoweredResolving.has(message.id) ) return;
-  empoweredResolving.add(message.id);
-  let record = null;   // the spend, once it has happened - the failure path below must not lose it
-  try {
-    const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
-    if ( !flag || (flag.status !== "pending") ) return;
-    const chosen = empoweredPlan({ dice: flag.dice, picks, cap: flag.cap });
-    if ( !chosen.length ) { await keepEmpowered(message); return; }
-    const actor = resolveUuid(flag.actorUuid);
-    const pool = actor?.items?.get(flag.poolId) ?? null;
-    if ( !actor || !pool ) return;
-    // ANSWERED IS NOT PENDING (the d20 folds' rule, the same day). The status leaves "pending" HERE,
-    // before the spend, the roll and the dice: the updateChatMessage handler below closes any popup
-    // and stands the buzzer down, the card says the dice are rolling, and the clock can no longer
-    // "keep" a roll the caster has already chosen to reroll.
-    await queueFlagWrite(message, EMPOWERED_FLAG, current => {
-      if ( current.status !== "pending" ) return false;
-      current.status = "answering";
-      current.answered = chosen.map(d => d.key);
-    });
-    if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG)?.status !== "answering" ) return;   // somebody else got there
-    record = await spendPoolUses(actor, pool, "Empowered Spell", flag.cost, POOL_NAME);
-    // THE DICE ARE ONE ROLL, AND THEY RIDE THE ANNOUNCE CARD (user, 2026-09-10: "on a reroll, the
-    // dice so nice, if avail, should roll again"). The module's other rerolls post their die as a
-    // message (`roll.toMessage`, d20-folds.js) and Dice So Nice animates it on the create, unasked;
-    // this one PATCHES the damage message's own roll instead, so a fresh Roll per die evaluated in
-    // memory was never seen by anyone. So: the ticked dice are rolled as ONE Roll, in pick order,
-    // and that Roll is the announce card's — the card every roll-reader and DSN already keys on. No
-    // DSN-specific call; a table without it loses nothing.
-    const data = (message.rolls ?? []).map(r => r.toJSON());
-    const live = chosen.filter(d => data[d.roll]?.terms?.[d.term]?.results?.[d.index]);
-    if ( !live.length ) { await keepEmpowered(message); return; }
-    const fresh = await new Roll(live.map(d => `1d${d.faces}`).join(" + ")).evaluate();
-    const faces = fresh.dice.map(die => die.results.find(r => r.active !== false)?.result ?? die.total);
-    // The patch and the rebuild are the damage-dice folds' shared pieces since 2026-09-24 (Savage
-    // Attacker, the second customer): decide/damage-dice.js strikes each old face and adds the new,
-    // shared.js rebuilds the rolls with their totals taken again.
-    const { data: patched, done } = rerollFaces(data, live, faces);
-    const rebuilt = rebuildRolls(patched);
-    const outcome = empoweredOutcome({ oldTotal: flag.oldTotal, picks: done });
-    // The dice land BEFORE the total moves — the same order every verdict in the module keeps
-    // (dramaticVerdictPause: capped, cosmetic, never blocking).
-    const rise = rerollRise({ done, on: actor.uuid });
-    const announce = await ChatMessage.create({
-      speaker: ChatMessage.getSpeaker({ actor }),
-      rolls: [fresh],
-      content: bfCard({ img: actor.items?.find(i => i.name === "Empowered Spell")?.img ?? null,
-        eyebrow: "Metamagic — Empowered Spell", tone: outcome.delta >= 0 ? "good" : "neutral",
-        title: `Empowered Spell — ${outcome.line}`,
-        subtitle: spendPhrase(record ? [record] : [], "Sorcery Point") || `${POOL_NAME} spent`,
-        lines: [outcome.delta === 0 ? "The total stands." : `The damage is ${outcome.newTotal} now — the new rolls stand.`] }),
-      // the rerolled dice turn over on the canvas, over the caster (the dice that rise, group 3)
-      flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
-    });
-    // THE DURABLE INTENT, BEFORE THE PAUSE (the 2026-09-10 review). The pause is seconds, and a
-    // client that died inside it used to leave "answering" for ever: the point gone from the sheet,
-    // nothing on the message, the dice never patched. So everything the completion needs is written
-    // FIRST - the spend where every spend is read, the patched rolls, the picks, the outcome - and
-    // the completion is one idempotent step that this client takes after the dice, and that the
-    // elect's resume takes instead if this client never does (registerResumable, below).
-    await queueFlagWrite(message, EMPOWERED_FLAG, current => {
-      if ( current.status !== "answering" ) return false;
-      current.pending = { rolls: rebuilt.map(r => JSON.stringify(r.toJSON())), picks: done, newTotal: outcome.newTotal, delta: outcome.delta, at: Date.now() };
-    });
-    if ( record ) await message.setFlag(MODULE_ID, "poolSpend", record);
-    if ( announce ) await dramaticVerdictPause(announce);
-    await completeEmpowered(message);
-  } catch(err) {
-    console.error(`${TITLE} | Empowered Spell's reroll failed — reroll the dice by hand.`, err);
-    // Never strand "answering", and never offer a second point for the same dice: if nothing was
-    // spent the offer comes back; if the point went, the moment is used, the spend is recorded on
-    // the message like every spend (the flash and the ledger read it there), and the error above
-    // says the dice are the caster's to reroll by hand.
-    const spent = record;
-    if ( message.getFlag(MODULE_ID, EMPOWERED_FLAG)?.pending ) { await completeEmpowered(message).catch(() => {}); }
-    else {
-      await queueFlagWrite(message, EMPOWERED_FLAG, current => {
-        if ( current.status !== "answering" ) return false;
-        current.status = spent ? "used" : "pending";
-        if ( !spent ) delete current.answered;
-      }).catch(() => {});
-      if ( spent && !message.getFlag(MODULE_ID, "poolSpend") ) await message.setFlag(MODULE_ID, "poolSpend", spent).catch(() => {});
-    }
-  } finally {
-    empoweredResolving.delete(message.id);
-  }
-}
-
-/**
- * THE COMPLETION - the one step between "answering" and "used": the patched rolls onto the message,
- * the picks and the outcome onto the flag, the applied damage moved. Idempotent by status: the first
- * writer flips "answering" to "used" and the second finds nothing to do. The clicking client takes it
- * after the dice; the elect's resume takes it instead when that client never does.
- */
-async function completeEmpowered(message) {
-  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
-  if ( (flag?.status !== "answering") || !flag.pending ) return;
-  const { rolls, picks, newTotal, delta } = flag.pending;
-  const { pending: _done, answered: _keys, ...rest } = flag;
-  void _done; void _keys;
-  await message.update({
-    rolls,
-    flags: { [MODULE_ID]: { [EMPOWERED_FLAG]: { ...rest, status: "used", picks, newTotal, delta, "-=pending": null, "-=answered": null } } }
-  });
-  await moveAppliedDamage(message, { delta, feature: "Empowered Spell" });   // auto-apply.js — the one mover since 2026-09-24
-}
-
-/** Past the longest the pause can be (six seconds of dice, up to ten of dramatic beat), with slack. */
-const EMPOWERED_RESUME_MS = 20_000;
-registerResumable(EMPOWERED_FLAG, {
-  pending: flag => (flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > EMPOWERED_RESUME_MS),
-  drives: () => isActiveGM(),
-  drive: message => completeEmpowered(message)
-});
-
-// The card while the fold is pending: the offer and a recall; the elect arms the buzzer on render
-// (a player's roll stamps on the player's client, where armAskTimer is a no-op — the folds' lesson).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
-  try {
-    const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
-    if ( !flag ) return;
-    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
-    if ( !content || content.querySelector(".bf-empowered-line") ) return;
-    const div = document.createElement("div");
-    div.className = "bf-empowered-line";
-    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    if ( flag.status === "pending" ) {
-      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — offered: reroll up to ${flag.cap} ${flag.cap === 1 ? "die" : "dice"} ${holdBarHTML(flag, "to answer")}`;
-      const actor = resolveUuid(flag.actorUuid);
-      if ( actor?.isOwner ) div.appendChild(momentButton("Answer", () => { void showEmpoweredPopup(message); }));
-      scheduleBarSync(div);
-      armAskTimer(empoweredTimers, message, EMPOWERED_FLAG, live => keepEmpowered(live, { timedOut: true }));
-    } else if ( flag.status === "answering" ) {
-      const n = (flag.answered ?? []).length;
-      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — answered: rerolling ${n} ${n === 1 ? "die" : "dice"}, the dice are rolling`;
-    } else if ( flag.status === "used" ) {
-      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(`Empowered Spell — ${empoweredOutcome({ oldTotal: flag.oldTotal, picks: flag.picks ?? [] }).line}`)}`;
-    } else {
-      div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> Empowered Spell — kept${flag.timedOut ? " (the clock ran out)" : ""}`;
-    }
-    content.appendChild(div);
-  } catch(err) { console.warn(`${TITLE} | The Empowered line could not render.`, err); }
-});
-
-// A resolved fold closes its popup (law 4) and stands its buzzer down.
-Hooks.on("updateChatMessage", message => {
-  const flag = message.getFlag(MODULE_ID, EMPOWERED_FLAG);
-  if ( !flag || (flag.status === "pending") ) return;
-  disarmAskTimer(empoweredTimers, message.id);
-  const open = livePopups.get(popupKey(message.id, EMPOWERED_FLAG));
-  if ( open ) { try { void open.close(); } catch { /* gone */ } }
-});
 
 /* ---------------------------------------------------------------------------------------------
  * THE ASK AT THE AREA (user ruling 2026-09-09, third look): when a Careful or Heightened cast

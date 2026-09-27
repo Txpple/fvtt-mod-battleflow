@@ -28,6 +28,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
 export const COVERS = [
   'metamagic.js',           // the casting window's group, the spend, every option
+  'dice-changers.js',       // §16 / §23 — Empowered Spell's row of the dice changers' one popup
   'saves/demand.js',        // §9-§11 / §17 / §18 — Careful's protected leave the demand, Heightened's mark
   'saves/areas.js',         // §9 / §11 / §18 / §20–§22 — the ask at the placed area, a chosen area's too
   'saves/views.js',         // §20 / §21 — a chosen area's card line
@@ -126,7 +127,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const uiMod = await import(`/modules/${MOD}/scripts/ui.js`);
   /** The module's own moment popup for a message + sub-key, or null. */
   const popupFor = (messageId, sub) => uiMod.livePopups.get(`${messageId}|${sub}`) ?? null;
-  const closeMomentPopups = async () => { for (const [key, dlg] of [...uiMod.livePopups]) { if (/|(empowered|d20fold|armed|metamagicAsk)$/.test(key) || key.includes('|empowered')) { try { await dlg.close(); } catch { /* gone */ } } } };
+  /** Empowered Spell's row of the dice changers' one record (2026-09-27), read the way its own flag read. */
+  const emp = m => {
+    const f = m?.getFlag(MOD, 'diceChange');
+    const row = f?.rows?.find(x => x.key === 'empowered');
+    if (!row) return null;
+    return { status: ['pending', 'due'].includes(row.status) ? f.status : row.status, dice: f.dice, cap: row.cap,
+      oldTotal: f.total, picks: row.picks, newTotal: row.after, delta: row.delta };
+  };
+  const closeMomentPopups = async () => { for (const [key, dlg] of [...uiMod.livePopups]) { if (/\|(diceChange|d20fold|armed|metamagicAsk)$/.test(key)) { try { await dlg.close(); } catch { /* gone */ } } } };
   const closeDialogs = async () => {
     for (const app of foundry.applications.instances.values()) {
       if (/ActivityUsageDialog|UsageDialog|RollConfigurationDialog/.test(app.constructor?.name ?? '') || app.element?.querySelector?.('[data-bf-metamagic-field]')) { try { await app.close(); } catch { /* gone */ } }
@@ -495,7 +504,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.type === 'damage') ?? null, 6000);
       ok('13d. the damage roll wears cold, not fire, and says why', dmg?.rolls?.[0]?.options?.type === 'cold' && dmg?.getFlag(MOD, 'metamagicType')?.type === 'cold', `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'metamagicType'))}`);
       // The same roll is offered Empowered (its own moment, §16): keep it, so its popup is not the one §16 finds.
-      await sleep(300); try { await popupFor(dmg?.id, 'empowered')?.close(); } catch { /* gone */ }
+      await sleep(300); try { await popupFor(dmg?.id, 'diceChange')?.close(); } catch { /* gone */ }
     }
 
     if (want(14) && victim) {
@@ -617,20 +626,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await spellAct('Fireball').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
       await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
-      const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && m.getFlag(MOD, 'empowered')) ?? null, 8000);
-      const flag = dmg?.getFlag(MOD, 'empowered');
+      const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null, 8000);
+      const flag = emp(dmg);
       ok('16a. the spell\'s damage roll is offered Empowered: eight dice, the cap 3, the total recorded', flag?.status === 'pending' && flag?.dice?.length === 8 && flag?.cap === 3 && flag?.oldTotal === dmg?.rolls?.[0]?.total, JSON.stringify({ status: flag?.status, dice: flag?.dice?.length, cap: flag?.cap, old: flag?.oldTotal }));
       // ⚠ The popup opens AFTER dramaticVerdictPause — Dice So Nice's animation, capped at 6 s, plus
       // the beat — so a 6 s wait started at the stamp raced it and lost once (2026-09-24, 97/107,
       // chips=0 with the card correctly "offered"). The wait now outlasts the pause's cap and says
       // how long the popup took, so a slow animation is a number, not a red.
       const stamped16 = Date.now();
-      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 12000);
+      const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; }, 12000);
       log.push(`§16 popup ${popup ? `fronted ${Date.now() - stamped16} ms after the stamp` : 'never fronted (12 s)'}`);
       const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
       ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
       // NO PICK, NO REROLL (user, 2026-09-12): the button opens greyed out and wakes on the first tick.
-      const rerollBtn = () => popup?.element?.querySelector('button[data-action="reroll"]');
+      const rerollBtn = () => popup?.element?.querySelector('button[data-action="apply"]');
       ok('16b2. Reroll is disabled before any die is ticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
       chips[0]?.click(); await sleep(30);
       ok('16b3. Reroll wakes on the first tick', rerollBtn()?.disabled === false, `disabled=${rerollBtn()?.disabled}`);
@@ -644,13 +653,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const oldTotal = dmg.rolls[0].total;
       const oldFaces = picked.map(c => Number(c.textContent));
       const clicked16 = Date.now();
-      popup?.element?.querySelector('button[data-action="reroll"]')?.click();
+      popup?.element?.querySelector('button[data-action="apply"]')?.click();
       // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
       // closing") - the dice are still landing for up to six seconds after this.
       const gone16 = popup ? await waitFor(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000) : null;   // a popup that never fronted cannot "close at the click"
-      const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 10000);
+      const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 10000);
       log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
-      log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => m.getFlag(MOD, 'empowered')).map(m => `${m.id.slice(-4)}:${m.getFlag(MOD, 'empowered').status}`).join(',')} | spent=${pool().system.uses.spent}`);
+      log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => emp(m)).map(m => `${m.id.slice(-4)}:${emp(m).status}`).join(',')} | spent=${pool().system.uses.spent}`);
       ok('16d. Reroll: the point spent, three dice rerolled, the flag says which and what', !!used && used.picks?.length === 3 && pool().system.uses.value === 4 && used.picks.every(pk => Number.isFinite(pk.old) && Number.isFinite(pk.new)), JSON.stringify({ picks: used?.picks, pool: pool().system.uses.value }));
       const roll = game.messages.get(dmg.id)?.rolls?.[0];
       const results = roll?.terms?.find(t => Array.isArray(t.results))?.results ?? [];
@@ -659,7 +668,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('16e. the message\'s own roll is patched: three faces struck and inactive, eight active, the total moved by the difference', struck === 3 && active === 8 && roll?.total === (oldTotal + used.delta) && roll?.total === used.newTotal, `struck=${struck} active=${active} total=${roll?.total} old=${oldTotal} delta=${used?.delta} new=${used?.newTotal}`);
       const announce = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.getFlag(MOD, 'respondsTo') === dmg.id && /Empowered Spell/.test(m.content ?? '')) ?? null, 6000);
       ok('16f. the announce card says the old faces, the arrow, the new, and the totals', !!announce && new RegExp(`${oldFaces.sort((a, b) => a - b).join(', ')}|${used?.picks?.map(pk => pk.old).join(', ')}`).test(announce.content) && /→/.test(announce.content), announce?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 140));
-      const line = dmg ? await renderedLine(dmg, 'bf-empowered-line') : null;
+      const line = dmg ? await renderedLine(dmg, 'bf-dice-line') : null;
       ok('16g. the damage card carries the Empowered line', /Empowered Spell — .*→/.test(line ?? ''), line);
       // THE DICE ROLL AGAIN (user, 2026-09-10). Empowered PATCHES the damage message's own roll, so no
       // created message ever carried the fresh dice and Dice So Nice never saw them. Now the ticked dice
@@ -970,20 +979,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           pin([1, 7], 10);
           await spellAct('Fire Bolt').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
           CONFIG.Dice.randomUniform = realPRNG23;
-          const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && m.getFlag(MOD, 'empowered')) ?? null, 8000);
-          const flag = dmg?.getFlag(MOD, 'empowered');
+          const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null, 8000);
+          const flag = emp(dmg);
           const lifted = (flag?.dice ?? []).find(d => d.rolled === 1);
           ok('23a. the floored die reads what it COUNTS: 2 (rolled 1), the total 9',
             !!lifted && (lifted.result === 2) && (dmg?.rolls?.[0]?.total === 9) && (flag?.oldTotal === 9),
             `dice=${JSON.stringify(flag?.dice?.map(d => ({ r: d.result, rolled: d.rolled })))} total=${dmg?.rolls?.[0]?.total} old=${flag?.oldTotal}`);
-          const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'empowered'); return (d?.rendered && d.element?.querySelector?.('[data-bf-empowered-dice]')) ? d : null; }, 12000);
+          const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; }, 12000);
           const chip = popup?.element?.querySelector(`[data-bf-die="${lifted?.key}"]`);
           ok('23b. the chip shows 2, its tooltip says rolled 1', (chip?.textContent?.trim() === '2') && /rolled 1, counts 2/.test(chip?.dataset?.tooltip ?? ''),
             `text=${chip?.textContent?.trim()} tooltip=${chip?.dataset?.tooltip}`);
           chip?.click(); await sleep(50);
           pin([1], 10);
-          popup?.element?.querySelector('button[data-action="reroll"]')?.click();
-          const used = await waitFor(() => { const f2 = dmg.getFlag(MOD, 'empowered'); return f2?.status === 'used' ? f2 : null; }, 12000);
+          popup?.element?.querySelector('button[data-action="apply"]')?.click();
+          const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 12000);
           CONFIG.Dice.randomUniform = realPRNG23;
           const roll = game.messages.get(dmg.id)?.rolls?.[0];
           ok('23c. rerolled into another 1, the die still counts 2: the pick 2 → 2 (face 1), the total stands at 9',

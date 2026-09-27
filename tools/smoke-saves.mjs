@@ -67,6 +67,7 @@ const SECTIONS = {
   24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)',
   25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card',
   26: 'a FEATURE row\'s saves facet (Slice A, 2026-09-24): Brave, a text-only trait on the sheet, counts Advantage against a demand that would frighten, and nothing against one that would poison',
+  28: 'Trance (the Elf, 2026-09-27): against a SPELL whose failed-save effect puts the target to sleep ("Asleep"), a text-only Trance on the sheet says the save cannot fail — Net Succeeds, a Succeeds button the default; pressed, the verdict is SAVED with no die ("cannot fail (Trance)"), the sleep never lands; against a demand that does not sleep, Trance is nowhere in the section',
   27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
@@ -2129,6 +2130,74 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Brave, Fey Ancestry and Dwarven Resilience ship as TEXT alone — no effect on the sheet — so
     // the save gate reads them by the feature's name (decide/reminders.js rowCarriers, 2026-09-24).
     // The pack item is text, so a bare feat named Brave IS the pack's shape; §23's demand, re-aimed.
+    if (want(28)) {
+      const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
+      const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
+      const priorName = failEff?.name;
+      let trait = null;
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        if (!/\beffect\b/.test(priorLists.reminderList)) await set('reminderList', `${priorLists.reminderList}, effect`);
+        if (!/(^|,\s*)Trance(\s*,|$)/i.test(priorLists.effectList)) await set('effectList', `${priorLists.effectList}, Trance`);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const castDexAt = async () => {
+          target(victimToken);
+          await sleep(120);
+          const use = await dexActivity().use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+        const settle = async card => {
+          await until(() => card?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+          await until(() => game.messages.contents.some(m => (m._source.system?.origin === card?.id) && m.getFlag(MOD, 'receipt')), 12000);
+          await sleep(300);
+          await healFull(victim);
+        };
+        [trait] = await victim.createEmbeddedDocuments('Item', [{ name: 'Trance', type: 'feat',
+          system: { type: { value: 'race' }, description: { value: '<p>You don’t need to sleep, and magic can’t put you to sleep.</p>' } } }]);
+
+        // 28a: a spell whose failure puts the target to sleep — the save cannot fail.
+        await failEff.update({ name: 'Asleep' });
+        const cardA = await castDexAt();
+        ok('28a0. the demand says it would put its target to sleep', cardA?.getFlag(MOD, 'saves')?.demand?.sleep === true,
+          JSON.stringify(cardA?.getFlag(MOD, 'saves')?.demand));
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        const succeedsBtn = dlgA?.querySelector('button[data-action="bf-succeeds"]');
+        ok('28a. a text-only Trance meets the gate: "Trance: this save cannot fail", a Succeeds button, the default',
+          !!dlgA && /Trance: this save cannot fail/.test(textA) && !!succeedsBtn && (defaultOf(dlgA) === 'bf-succeeds'),
+          `text="${textA.slice(0, 220)}" default=${defaultOf(dlgA)} button=${!!succeedsBtn}`);
+        succeedsBtn?.click();
+        const entryA = await until(() => { const t = game.messages.get(cardA?.id)?.getFlag(MOD, 'saves')?.targets?.[0]; return t?.done ? t : null; }, 10000);
+        await settle(cardA);
+        ok('28b. Succeeds: the verdict is SAVED with no die — cannot fail (Trance) — and the sleep never lands',
+          (entryA?.outcome === 'saved') && (entryA?.autoSucceeded === true) && (entryA?.autoSucceededBy === 'Trance') && (entryA?.total === null)
+            && !victim.effects.some(e => e.name === 'Asleep'),
+          `entry=${JSON.stringify(entryA)} effects=${victim.effects.map(e => e.name).join(',')}`);
+
+        // 28c: a spell that does not sleep — Trance is not in the section at all.
+        await failEff.update({ name: priorName });
+        const cardB = await castDexAt();
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        ok('28c. …and against a demand that does not sleep, Trance is nowhere in the section and no Succeeds button stands',
+          !!dlgB && !/Trance/.test(textB) && !dlgB.querySelector('button[data-action="bf-succeeds"]'), `text="${textB.slice(0, 200)}"`);
+        dlgB?.querySelector('button[data-action="normal"]')?.click();
+        await settle(cardB);
+      } finally {
+        await trait?.delete().catch(() => {});
+        if (priorName) await failEff?.update({ name: priorName }).catch(() => {});
+        await saveBonus(victim, '');
+        await set('reminderList', priorLists.reminderList);
+        await set('effectList', priorLists.effectList);
+      }
+    }
+
     if (want(26)) {
       const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
       const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);

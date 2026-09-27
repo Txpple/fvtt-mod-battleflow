@@ -284,7 +284,7 @@ Hooks.once("init", () => {
   // asks on a weapon hit whether to roll the weapon's dice again. A list; the list is the switch.
   game.settings.register(MODULE_ID, S.damageEitherList, {
     name: "Damage Rolled Twice",
-    hint: "A feature that rolls a weapon's damage dice twice and keeps either roll, by the feature's own name, separated by commas — Savage Attacker. On a weapon hit, once any reaction the target holds is answered, a popup asks the attacker whether to use it on THIS hit (once per turn in combat) while the damage waits; on yes the weapon's dice are rolled again as a set — never the modifier, never a rider's dice — and the higher set stands, the card showing both. Remove a name to keep that feature by hand.",
+    hint: "A feature that rolls an attack's damage dice again, by the feature's own name, separated by commas — Savage Attacker (the weapon's dice again as a set, the higher standing), Piercer (one die again on a Piercing hit, the new roll standing). On a hit, once any reaction the target holds is answered, ONE popup asks the attacker about every such feature they hold (once per turn each, in combat) while the damage waits — beside Empowered Spell on a spell — and applies the ticked ones in order: Savage's set, then Piercer's die. Remove a name to keep that feature by hand.",
     scope: "world", config: true, type: String, default: LIST_SPECS.damageEither.default
   });
 
