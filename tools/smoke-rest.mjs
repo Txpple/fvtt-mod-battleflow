@@ -340,12 +340,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // 8d. A feat taken through its Ability Score Improvement names the ability — the LOWER one here
         // (Wisdom 16, Charisma 10, the record says Charisma), so the amount is level + 0, not level + 3;
         // the rest card keeps that one activity row, called "Inspire with Performance" (the walk).
-        const asi = Object.entries(feat.system.advancement ?? {}).find(([, v]) => v?.type === 'AbilityScoreImprovement');
+        // The live item's advancement is a collection (`feat.advancement.byId`, lookup.js asiAssigned's
+        // read); the write goes to the SOURCE, which may be keyed by id or a list — both are written back whole.
+        const asi = Object.values(feat.advancement?.byId ?? {}).find(v => v?.type === 'AbilityScoreImprovement');
         if (!asi) skips.push('8d. the lent feat carries no Ability Score Improvement advancement');
         else {
           const was = { wis: actor.system.abilities.wis.value, cha: actor.system.abilities.cha.value };
           await actor.update({ 'system.abilities.wis.value': 16, 'system.abilities.cha.value': 10 });
-          await feat.update({ [`system.advancement.${asi[0]}.value.assignments`]: { cha: 1 } });
+          const src = foundry.utils.deepClone(feat.toObject().system.advancement);
+          const row = Array.isArray(src) ? src.find(r => r._id === asi.id) : src[asi.id];
+          foundry.utils.setProperty(row, 'value.assignments', { cha: 1 });
+          await feat.update({ 'system.advancement': src });
           for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
           const want8d = Number(actor.system.details.level) + actor.system.abilities.cha.mod;
           const t1 = Date.now();
@@ -358,7 +363,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const subs = rows.map(li => li.querySelector('.subtitle')?.textContent?.trim());
           ok('8d. the feat’s own Ability Score Improvement names the ability (Charisma, the lower): level + its modifier; the rest card lists ONE row, "Inspire with Performance"',
             (f8d?.amount === want8d) && (subs.filter(n => /Inspire with/.test(n ?? '')).length === 1) && subs.includes('Inspire with Performance'),
-            `amount=${f8d?.amount} expected=${want8d} rows=[${subs.join(' | ')}]`);
+            `amount=${f8d?.amount} expected=${want8d} rows=[${subs.join(' | ')}] rest=${rest?.id}/${rest?.system?.type}/${rest?.system?.actor?.uuid} lis=[${rows.map(li => li.dataset.activityUuid).join(',')}] acts=[${[...feat.system.activities].map(x => x.uuid).join(',')}]`);
           const app8d = await waitFor(() => popupFor('Temporary Hit Points'), 6000);
           app8d?.close?.();
           await actor.update({ 'system.abilities.wis.value': was.wis, 'system.abilities.cha.value': was.cha });

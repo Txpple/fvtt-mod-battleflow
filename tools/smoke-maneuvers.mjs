@@ -182,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       name: 'BF Combat Superiority', type: 'feat',
       system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
     }]);
-    const [precisionItem, riposteItem] = await pc.createEmbeddedDocuments('Item', [
+    const pair = await pc.createEmbeddedDocuments('Item', [
       { name: 'Precision Attack', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
           bfprecision00000: {
@@ -203,6 +203,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         } } }
     ]);
+    // by name — the result's order is not the request's (see §C)
+    const precisionItem = pair.find(i => i.name === 'Precision Attack');
+    const riposteItem = pair.find(i => i.name === 'Riposte');
     const poolUses = () => pc.items.get(pool.id)?.system.uses?.value ?? -1;
     log.push(`fixture: ${pc.name} · weapon ${enemyWeapon.name} · pool ${poolUses()}/4`);
 
@@ -1043,7 +1046,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('C0. the PHB ships Crusher, a Mace and a Dagger', false, JSON.stringify(Object.fromEntries(Object.entries(srcs).map(([k, v]) => [k, !!v]))));
       } else {
         const made = await pc.createEmbeddedDocuments('Item', [srcs.crusher.toObject(), srcs.mace.toObject(), srcs.dagger.toObject()]);
-        const [, mace, dagger] = made;
+        // BY NAME, never by position: createEmbeddedDocuments' result order is not the request's — the
+        // 2026-09-27 reds (a "Mace" with no attack; the Mace's push on the "Dagger") were the three shuffled.
+        const mace = made.find(i => (i.name === 'Mace') && (i.type === 'weapon'));
+        const dagger = made.find(i => (i.name === 'Dagger') && (i.type === 'weapon'));
         const actOf = item => () => pc.items.get(item.id)?.system.activities.find(a => a.type === 'attack');
         const sizeBefore = victim.system._source.traits?.size ?? 'med';
         await set('maneuverFolds', 'Crusher:shove');

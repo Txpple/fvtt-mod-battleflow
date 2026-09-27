@@ -89,7 +89,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const ledger = globalThis.__bfHookLedger ?? null;
   const count = name => ledger?.[name] ?? 0;
   const origError = console.error, origWarn = console.warn;
-  console.error = (...a) => { errors.push(a.map(String).join(' ')); origError(...a); };
+  console.error = (...a) => { errors.push(a.map(x => (x instanceof Error) ? `${x} @ ${(x.stack ?? '').split('\n').slice(1, 5).join(' < ')}` : String(x)).join(' ')); origError(...a); };   // the stack's top frames: a red names its line
   console.warn = (...a) => { if (String(a[0]).includes('Battle Flow')) errors.push(a.map(String).join(' ')); origWarn(...a); };
 
   const mod = game.modules.get(MOD);

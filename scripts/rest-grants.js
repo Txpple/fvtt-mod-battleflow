@@ -294,7 +294,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const root = html instanceof HTMLElement ? html : html?.[0];
     const rows = root?.querySelectorAll?.(SURFACES.cardActivityRow);
     if ( !rows?.length ) return;
-    const actor = ChatMessage.getSpeakerActor(message.speaker);
+    // the rest message's own actor (dnd5e lists ITS activities) — never the speaker's token copy
+    const actor = message.system?.actor ?? ChatMessage.getSpeakerActor(message.speaker);
     const restType = message.system?.type;
     if ( !actor || !restType ) return;
     for ( const { row, item } of songRowsFor(actor, restType) ) {
