@@ -1,6 +1,5 @@
-// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on Party Camp — the
-// user, 2026-09-26: "clear it and make it appropriate for testing 1-3 feats". CLEARS every token
-// on Party Camp, then builds one walker per feat and the dummies each rule needs, and places them:
+// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on Party Camp.
+// CLEARS every token on Party Camp, then builds one walker per feat and the dummies each rule needs:
 //   melee (north):  Slasher W, Piercer E, Crusher N of the Dummy; the Huge Dummy beside Crusher
 //                   (its push must NOT be offered — two sizes larger); Poisoner beside the
 //                   Resistant Dummy (fire, poison), Elemental Adept 15 ft from it

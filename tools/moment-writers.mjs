@@ -1,15 +1,6 @@
-// WHO WRITES WHICH RECORD — the flag-write scan and the world-writer pins, shared.
-//
-// Moved out of `check-moments.mjs` on 2026-09-23 because a second reader needed the same answer:
-// the claim-proof half of `hook-coverage.mjs` (tools/claim-proof.mjs) asks "which moment kinds can
-// this file's work publish?", and that is exactly the table the moments gate already keeps. Two
-// readers, one scan — the `hook-registrations.mjs` precedent: SHARED BECAUSE THE TRICK IS SUBTLE.
-// The comment-blanking, the `[CONST]` resolution and the literal walker below are the kind of
-// machinery that gets copied, then fixed in one copy, and a claim report whose idea of "file X
-// writes record K" drifted from the gate's would prove things the gate does not believe.
-//
-// ⚠ IMPORTING THIS RUNS THE SCAN — every file under scripts/, read and walked once, milliseconds.
-// It is pure reading: no Foundry, no world, nothing written. What it exports:
+// WHO WRITES WHICH RECORD — the flag-write scan and the world-writer pins, shared by the moments
+// gate (check-moments.mjs) and the claim proof (tools/claim-proof.mjs) so the two never drift.
+// ⚠ Importing this runs the scan (every scripts/ file, pure reading). What it exports:
 //   - `files`          every scripts/ file, `{ rel, src }`, comments blanked (indices still line up)
 //   - `writes`         flag key → Set of "file:line" — every site that WRITES that key
 //   - `WORLD_WRITERS`  file → the record key(s) its world writes resolve into, or the reason none does
@@ -23,7 +14,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(ROOT, "scripts");
 
-/* --- the files --------------------------------------------------------------------------------- */
+/* --- the files */
 
 function walk(dir) {
   const out = [];
@@ -35,17 +26,14 @@ function walk(dir) {
   return out;
 }
 /**
- * Comments blanked — a `'` in "the caster's" would otherwise open a string the key scan never
- * closes. Blanked, not removed: every character becomes a space and every newline stays, so an
- * index into the stripped text is an index into the source and the lines this tool prints are the
- * source's. Rough on purpose: block comments and whole-line `//` comments go; a trailing `// …` on
- * a code line stays (it cannot carry a key).
+ * Comments blanked (a `'` in "the caster's" would open a string the scan never closes). Blanked,
+ * not removed, so indices and lines match the source. A trailing `// …` on a code line stays.
  */
 const blank = text => text.replace(/[^\n]/g, " ");
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/^\s*\/\/.*$/gm, blank);
 const files = walk(SCRIPTS).map(p => ({ rel: relative(SCRIPTS, p).split("\\").join("/"), src: stripComments(readFileSync(p, "utf8")) }));
 
-/* --- the constants a key may be written through ------------------------------------------------ */
+/* --- the constants a key may be written through */
 
 const CONSTS = new Map();
 for (const f of files) {
@@ -57,7 +45,7 @@ const resolveKey = raw => {
   return k;
 };
 
-/* --- the scan: every write site, by key -------------------------------------------------------- */
+/* --- the scan: every write site, by key */
 
 /** key → Set of "file:line" */
 const writes = new Map();
@@ -69,10 +57,8 @@ const note = (key, f, at) => {
 const lineAt = (src, idx) => src.slice(0, idx).split("\n").length;
 
 /**
- * The keys of one `{ … }` literal at the flag level. A key whose VALUE is an object (`hold: { … }`)
- * opens a nested scope that is skipped; a spread's own literal (`...(cond ? { reduceBy } : {})`)
- * is transparent, because its keys land beside the others. Returns the keys and the index past
- * the closing brace.
+ * The keys of one `{ … }` literal at the flag level, and the index past its closing brace. A value
+ * object's keys are skipped; a spread's literal is transparent (its keys land beside the others).
  */
 function literalKeys(src, open) {
   const keys = [];
@@ -159,14 +145,12 @@ for (const f of files) {
   }
 }
 
-/* --- the world writers ---------------------------------------------------------------------- */
+/* --- the world writers */
 
 /**
- * Files that write the WORLD other than through a message flag — a document update, an embedded
- * create or delete, an activity's use — and what their writes resolve into. A record key names the
- * message record that carries the resolve; a sentence says why none does. ⚠ Read before you add a
- * row: "its consequence lands as a receipt" is the house answer (state law 4), and a write that has
- * no receipt and no record is the class this table exists to catch.
+ * Files that write the WORLD other than through a message flag, and the record key(s) their writes
+ * resolve into, or a sentence saying why none does. ⚠ A consequence lands as a receipt (state law
+ * 4); a write with no receipt and no record is the class this table catches.
  */
 const WORLD_WRITERS = {
   "auto-apply.js": ["receipt"],
@@ -176,17 +160,17 @@ const WORLD_WRITERS = {
   "topple.js": ["topple", "effectReceipt"],
   "chip-spend.js": ["chipSpend"],
   "use-chips.js": ["useChip"],
-  "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card (2026-09-24)
+  "hit-menu.js": ["hitManeuver", "sweepCard", "receipt", "effectReceipt"],   // effectReceipt: Hill's Tumble's no-save press, receipted on the damage card
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
-  "initiative-swap.js": ["initiativeSwap"],   // Alert's swap, landed by the elect (2026-09-25)
-  "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll (2026-09-25)
-  "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect (2026-09-25)
-  "fighting-styles.js": ["grappleDamage"],   // Unarmed Fighting's turn-start damage (2026-09-26); the faces are bookkeeping, the damage numbers ride the roll's own config (fightingStyle: state)
+  "initiative-swap.js": ["initiativeSwap"],   // Alert's swap, landed by the elect
+  "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll
+  "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect
+  "fighting-styles.js": ["grappleDamage"],   // Unarmed Fighting's turn-start damage; the faces are bookkeeping, the damage numbers ride the roll's own config (fightingStyle: state)
   "unarmed-dice.js": "the plain Unarmed Strike's damage formula swapped before it rolls — the damage message is the platform's and its receipt the resolve (unarmedDice: presentation)",
-  "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic (2026-09-25)
-  "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect (2026-09-25)
-  "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate (2026-09-25): the use spent by hand, recorded on the roll's message
+  "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic
+  "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect
+  "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate: the use spent by hand, recorded on the roll's message
   "clock-riders.js": ["clockRiders", "poolSpend", "spellRiderCard", "receipt"],
   "token-lights.js": ["effectReceipt"],
   "command.js": ["commandRide"],
@@ -199,8 +183,8 @@ const WORLD_WRITERS = {
   "hew.js": "a reminder's card and its notice latch — presentation; the extra attack is a real roll with its own card",
   "d20-folds.js": ["d20fold", "tacticalRefund", "poolSpend"],
   "metamagic.js": ["metamagic", "poolSpend"],
-  "dice-changers.js": ["diceChange", "poolSpend"],   // the dice changers (2026-09-27; Savage's record since Slice A, Empowered's since 2026-09-09): the patched rolls land with the record; Empowered's point is the poolSpend record; a damage already applied moves through auto-apply.js's receipt
-  "area-ask.js": ["metamagic", "areaChoice", "saves"],   // the ask at the area (2026-09-24, out of metamagic.js): its answer writes the metamagic record, a chosen area's choice and the demand it fills
+  "dice-changers.js": ["diceChange", "poolSpend"],   // the dice changers (Savage's and Empowered's rows): the patched rolls land with the record; Empowered's point is the poolSpend record; a damage already applied moves through auto-apply.js's receipt
+  "area-ask.js": ["metamagic", "areaChoice", "saves"],   // the ask at the area: its answer writes the metamagic record, a chosen area's choice and the demand it fills
   "concentration.js": ["concentration", "effectReceipt"],
   "saves/areas.js": ["saves"],
   "saves/choices.js": ["saves"],
@@ -238,8 +222,7 @@ const WRITE_CALL = /\.(?:update|create|use|createEmbeddedDocuments|deleteEmbedde
 const writers = files.filter(f => WRITE_CALL.test(f.src)).map(f => f.rel);
 
 /**
- * The scan turned inside out — file (scripts/-relative) → the flag keys it writes. The claim report
- * reads it; the gate reads `writes` the other way round.
+ * The scan turned inside out — file (scripts/-relative) → the flag keys it writes.
  * @returns {Map<string, Set<string>>}
  */
 export function keysByFile() {

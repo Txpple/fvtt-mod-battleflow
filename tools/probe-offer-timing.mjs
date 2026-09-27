@@ -1,6 +1,5 @@
-// One-off probe (2026-09-02): how long does the damage OFFER take to open on the hook path for
-// the goblin fixture, and where does the time go? smoke-battleflow §5d found the popup absent
-// 1.2 s after the attack, present by the buzzer.
+// Probe: how long the damage OFFER takes to open on the hook path for the goblin fixture, and
+// where the time goes (the cold imports against the warm).
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const env = loadEnv();

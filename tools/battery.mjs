@@ -10,35 +10,17 @@
  *   node tools/battery.mjs --changed main     ...the branch since main, plus the working tree
  *   node tools/battery.mjs --files scripts/emanations.js --list   the plan for a list by hand
  *
- * ⚠ `--changed` IS CHANGE-SCOPED, NOT A SHORTCUT (user ruling 2026-09-23). Each suite declares
- * the machines it drives (`COVERS`), the verify gate checks the claims both ways, and the plan
- * says per suite which changed file claimed it. A SPINE change (core, spine, services, entry —
- * tools/check-layers.mjs's tiers) is the full battery, honestly, and the plan says that too.
+ * `--changed` is change-scoped: each suite's `COVERS` names its machines and the plan says which
+ * changed file claimed each suite; a SPINE change (tools/check-layers.mjs's tiers) is the full battery.
  *
- * ⚠ THIS EXISTS TO MAKE THREE HANDOFF RULES STRUCTURAL RATHER THAN REMEMBERED.
- *
- * 1. **Always redirect a suite to a file.** `smoke-battleflow` has twice reported exactly
- *    "2 FAILURE(S)" and BOTH times the assertions were lost to a `| tail` — a suite prints its
- *    failures in the BODY and its count in the summary, so a tail throws away the only evidence
- *    that matters and the class stays unnamed for another session. Here every suite's full
- *    output lands in a run directory before anything is summarised. It cannot be skipped.
- * 2. **The order is not arbitrary.** `smoke-hold` refuses unless `smoke-battleflow` ran
- *    immediately before it — anything in between strips the fixture tokens it rides — and
- *    `reset-fixture-state` must run before `smoke-effects`. Both facts lived in prose and were
- *    re-learned by two sessions. They are ORDER's `needs` now (tools/coverage-map.mjs), and any
- *    subset — a positional, `--from`, `--changed` — pulls what it needs and says so. ⚠ The two
- *    TWO-CLIENT entries need the player test account to be free; they connect a second client
- *    themselves, which is not a lock violation (one suite, two clients) but does mean no human
- *    should be logged in as it.
- * 3. **Settings are verified after, not assumed.** A crashed run launders its pins into the
- *    next run's "prior", so eleven settings can drift while every suite reports success. Only
- *    the external reference table catches it, so the battery ends by running it.
- *
- * ⚠ `--snapshot` IS THE CURE FOR THE LAUNDERING, NOT A CONVENIENCE. It takes a world snapshot
- * before the first suite and rolls it back after the last, so whatever the battery did — including
- * a crash mid-teardown — is undone by construction. It costs two world bounces (~30s each) and
- * REQUIRES the local sandbox with no clients connected. Deliberately opt-in: rolling the world
- * back also discards anything you did at the table while it ran.
+ * 1. Every suite's full output lands in a run directory: failures print in the BODY, so a
+ *    `| tail` would throw the evidence away.
+ * 2. The order matters: ORDER's `needs` (tools/coverage-map.mjs) are pulled into any subset.
+ *    ⚠ The two-client entries need the player test account free (no human logged in as it).
+ * 3. Settings are VERIFIED after (the reference table): a crashed run launders its pins into
+ *    the next run's "prior".
+ * ⚠ `--snapshot` rolls the world back after the last suite, undoing even a crashed teardown. It
+ * needs the local sandbox with no clients, costs two world bounces, and discards table changes.
  */
 import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -50,14 +32,9 @@ import { ORDER, planFor, rowsFor, rowsFrom } from "./coverage-map.mjs";
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const node = process.execPath;
 
-// ⚠ THE ORDER LIVES IN tools/coverage-map.mjs NOW (2026-09-23), comments and all — it is the
-// record of why each row sits where it does, and the change selector reads it too. This file
-// imports it; nothing here may re-declare it.
+// ⚠ The ORDER lives in tools/coverage-map.mjs (with why each row sits where it does); never re-declare it here.
 
-/**
- * `--changed [base]` and `--files a b c` take a variable tail that parseArgs cannot express
- * (an optional value; a list), so they are lifted off argv first and the rest is parsed as before.
- */
+/** Lift `--changed [base]` and `--files a b c` off argv: parseArgs cannot express their tails. */
 function liftTail(argv) {
   const rest = [];
   let changed = null;
@@ -86,9 +63,8 @@ function git(args) {
 }
 
 /**
- * The files a `--changed` run is about. With no base: the working tree against HEAD, the index,
- * and the untracked files (a new suite or machine is a change too). With a base: everything the
- * branch changed since it left the base (`base...HEAD`), plus the same working-tree set.
+ * The files a `--changed` run is about: the working tree, index and untracked files against HEAD;
+ * with a base, also `base...HEAD`.
  */
 function changedFiles(base) {
   const tree = [
@@ -170,9 +146,7 @@ if (byChange) {
   }
   console.log("");
 } else if (positionals.length) {
-  // ⚠ Needs are pulled, not refused (2026-09-23): asking for smoke-hold runs smoke-battleflow
-  // immediately before it, and the plan says so. The adjacency rule survives a subset because
-  // a need is the nearest row above, and nothing stands between those two in ORDER.
+  // Needs are pulled, not refused: smoke-hold runs smoke-battleflow immediately before it.
   const unknown = positionals.filter(a => !ORDER.some(s => s.name === a));
   if (unknown.length) {
     console.error(`no such suite: ${unknown.join(", ")}. Try --list.`);
@@ -180,15 +154,11 @@ if (byChange) {
   }
   plan = rowsFor(positionals);
   for (const r of plan) if (r.why[0] !== "asked for") console.log(`[battery] ${r.name}: ${r.why.join("; ")}`);
-  // ⚠ `--section` is per-SUITE vocabulary — smoke-hold's "4d3" means nothing to smoke-volleys —
-  // so it is only accepted alongside exactly one named suite, and only THAT suite receives it: a
-  // need pulled in front of it runs whole. Passing it to a whole battery would silently skip
-  // almost everything and still print a green summary.
+  // ⚠ `--section` is per-SUITE vocabulary: only with exactly one named suite, and its pulled needs run whole.
 } else if (values.from) {
   const at = ORDER.findIndex(s => s.name === values.from);
   if (at < 0) { console.error(`--from: no such suite "${values.from}". Try --list.`); process.exit(2); }
-  // A resume pulls what its rows need from above the cut — `--from smoke-hold` re-runs
-  // smoke-battleflow first, rather than starting a suite that refuses at its own door.
+  // A resume pulls what its rows need from above the cut.
   plan = rowsFrom(at);
   for (const r of plan) if (r.at < at) console.log(`[battery] ${r.name}: ${r.why.join("; ")}`);
 } else {
@@ -200,8 +170,7 @@ if (values.list) {
   process.exit(0);
 }
 
-// The run directory is named by the caller, not by a clock — a battery is something you come
-// back to, and "the newest one" is a worse handle than a name you chose.
+// The run directory is named by the caller, not by a clock.
 if (values.section && (positionals.length !== 1)) {
   console.error("--section names sections of ONE suite; pass exactly one suite name with it.");
   process.exit(2);
@@ -213,19 +182,15 @@ const runDir = join(REPO, "dist", "battery", stamp);
 mkdirSync(runDir, { recursive: true });
 console.log(`[battery] output -> ${runDir}\n`);
 
-// ⚠ THE HOOK LEDGERS ARE CLEARED FIRST, and that is not tidiness. Each suite drops one on
-// disconnect and `hook-coverage.mjs` unions whatever it finds, so a leftover ledger from a
-// PREVIOUS battery would report a hook as exercised by a run that never touched it — a coverage
-// report that lies in the reassuring direction, which is the only direction that matters.
+// ⚠ Clear the hook ledgers first: hook-coverage.mjs unions whatever it finds, and a previous
+// battery's ledger would report coverage this run never had.
 rmSync(join(REPO, "dist", "hook-ledger"), { recursive: true, force: true });
 
 const run = (script, args = []) => {
   const r = spawnSync(node, [join(REPO, "tools", `${script}.mjs`), ...args], {
     cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024
   });
-  // ⚠ stdout and stderr are captured separately and CANNOT be interleaved without a pty, so the
-  // file says so rather than pretending the order is chronological. The connection banners live
-  // on stderr, which is why a naive concatenation looks like the suite reconnected at the end.
+  // stdout and stderr are captured separately (no pty), so the file does not claim chronological order.
   const err = (r.stderr ?? "").trim();
   const SEP = "\n──────── stderr (not interleaved) ────────\n";
   const body = err ? `${r.stdout ?? ""}${SEP}${err}\n` : (r.stdout ?? "");
@@ -262,8 +227,7 @@ for (const suite of plan) {
   if (bad) failed++;
   results.push({ name: suite.name, code, secs, verdict, bad });
   console.log(`${bad ? "FAILED" : "ok"} (${secs}s) — ${verdict}`);
-  // ⚠ Failures print HERE, in full, as well as landing in the file — the whole point of rule 1
-  // is that the evidence must not need a second command to find.
+  // Failures print here in full, as well as landing in the file.
   if (bad) {
     console.log(`\n──────── ${suite.name} — the failing lines ────────`);
     for (const l of body.split("\n")) if (/FAIL|FATAL|ERROR/.test(l)) console.log(l);
@@ -271,9 +235,8 @@ for (const suite of plan) {
   }
 }
 
-// ⚠ COVERAGE IS PRINTED, NEVER ENFORCED (ARCHITECTURE §10 D11). It runs BEFORE the settings
-// check so that a drifted-settings exit still leaves the coverage on screen — the one number
-// here that says anything about BEHAVIOUR should not be the one a failure scrolls away.
+// Coverage is printed, never enforced (ARCHITECTURE §10 D11), and before the settings check so a
+// drifted-settings exit still leaves it on screen.
 console.log("\n[battery] hook coverage — which registrations actually fired…");
 const coverage = run("hook-coverage");
 if (coverage.code !== 0) {

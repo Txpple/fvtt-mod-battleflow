@@ -1,23 +1,13 @@
-// Battle Flow fighting-style smoke test — THE FIGHTING STYLES (user, 2026-09-26, ruled off
-// prototypes/fighting-styles.html: "one table"; "gate it on what pc is holding"; "effects on the
-// player ... so itd show in the detailed buff bar"; option B for the notice).
-//
-// Fixtures: BF Test Fighter (tools/fixture-suite.mjs) is lent the PHB's six styles — Great Weapon
-// Fighting (it may carry its own), Thrown Weapon Fighting, Two-Weapon Fighting, Dueling, Defense,
-// Unarmed Fighting — and the PHB's Greatsword, Longsword, Dagger, Javelin, Shield, Chain Mail and
-// Unarmed Strike for the run. Every item it already had is unequipped for the run and put back.
-// The damage is rolled straight off the weapon's attack activity with its attack mode (no attack
-// roll), the dice forced; BF Test Victim's token stands targeted for the floating number.
-//
-// Harness discipline: every setting touched is restored; the lent items, the placed token and every
-// message this run creates are deleted; the fighter's equipped boxes are put back.
-//
-// Sections: `--section 4`, `--list`. Fixtures and teardown ALWAYS run.
+// Fighting-style smoke suite: one table, gated on what the PC holds, the styles shown as effects
+// on the player. BF Test Fighter (tools/fixture-suite.mjs) is lent the PHB's styles, feats and
+// weapons for the run (its own gear unequipped and put back). Damage is rolled straight off the
+// weapon's attack activity in its attack mode, dice forced; BF Test Victim stands targeted.
+// Settings, lent items, the token, messages and equipped boxes are all restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner (the PHB feats, group 1); §14 Crossbow Expert's Dual Wielding (group 2); §15 Elemental Adept's type pick
+  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner; §14 Crossbow Expert's Dual Wielding; §15 Elemental Adept's type pick
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];
@@ -126,8 +116,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('damageEitherList', '');   // Savage Attacker's popup is not this suite's
     await set('reminderList', '');
 
-    // -------------------------------------------------- fixtures
-    // by name AND type: the PHB has a Shield SPELL beside the Shield (the first run lent the spell)
+    // ---- fixtures
+    // By name AND type: the PHB has a Shield SPELL beside the Shield.
     const findPHB = async (name, type = null) => {
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
         const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (!type || (e.type === type)));
@@ -167,12 +157,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (let i = 0; i < 40 && !canvas.tokens.get(vdoc.id); i++) await sleep(250);
     canvas.tokens.get(vdoc.id)?.setTarget(true, { releaseOthers: true });
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const face = name => actor.effects.find(e => (e.getFlag(MOD, 'fightingStyle')?.key) && (e.name === name)) ?? null;
     const faceLine = name => face(name)?.getFlag(MOD, 'fightingStyle')?.detail ?? '';
     const packEffect = name => actor.items.find(i => (i.type === 'feat') && (i.name === name))?.effects?.find(e => (e.changes ?? []).length) ?? null;
     const textOf = id => (document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
-    // the style lines draw the dice as chips (L4, 2026-09-26); each keeps its words on data-bf-style-line
+    // The style lines draw the dice as chips; each keeps its words on data-bf-style-line.
     const linesOf = id => [...(document.querySelector(`.message[data-message-id="${id}"]`)?.querySelectorAll('.bf-fighting-style-line') ?? [])]
       .map(e => e.dataset.bfStyleLine ?? '').join(' | ');
     const chipsOf = id => [...(document.querySelector(`.message[data-message-id="${id}"]`)?.querySelectorAll('.bf-fighting-style-line .bf-chip') ?? [])]
@@ -193,7 +183,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const style = (msg, key) => (msg?.getFlag(MOD, 'fightingStyle')?.styles ?? []).find(s => s.key === key) ?? null;
 
-    // ================================================== 1. the faces
+    // ---- 1. the faces
     if (want(1)) {
       const acBare = actor.system.attributes.ac.value;
       await equip(['Chain Mail', 'Longsword', 'Shield']);
@@ -214,7 +204,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push(`§1 AC bare=${acBare} armored=${actor.system.attributes.ac.value}`);
     }
 
-    // ================================================== 2. the gates close
+    // ---- 2. the gates close
     if (want(2)) {
       await equip(['Chain Mail', 'Longsword', 'Shield']);
       const acOn = actor.system.attributes.ac.value;
@@ -234,7 +224,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `armored=${acOn}/${acBack} shield only=${acShieldOnly} no armor=${acNoArmor}`);
     }
 
-    // ================================================== 3. Dueling's number
+    // ---- 3. Dueling's number
     if (want(3)) {
       await equip(['Longsword', 'Shield']);
       const one = await damage(gear.Longsword, 'oneHanded', [[5, 8]]);
@@ -250,7 +240,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `style=${JSON.stringify(s2)} formula="${two?.rolls?.[0]?.formula}"`);
     }
 
-    // ================================================== 4. Great Weapon Fighting's floor
+    // ---- 4. Great Weapon Fighting's floor
     if (want(4)) {
       await equip(['Greatsword']);
       dicePlays.length = 0;
@@ -269,13 +259,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       dicePlays.length = 0;
       const high = await damage(gear.Greatsword, 'twoHanded', [[4, 6], [6, 6]]);
       await sleep(600);
-      // the fighter's own Great Weapon Master (+PB on a Heavy weapon, the feats slice) may ride this roll — only the style is asserted
+      // The fighter's own Great Weapon Master may ride this roll; only the style is asserted.
       ok('4d. 4 and 6: no Great Weapon Fighting record, line or float (Dueling, off at the equipment, says nothing on a Greatsword)',
         !style(high, 'great-weapon-fighting') && !/Great Weapon Fighting|Dueling/.test(textOf(high?.id)) && !dicePlays.some(p => p.key !== 'great-weapon-master'),
         `flag=${JSON.stringify(high?.getFlag(MOD, 'fightingStyle'))} dice=${JSON.stringify(dicePlays)}`);
     }
 
-    // ================================================== 5. Thrown Weapon Fighting
+    // ---- 5. Thrown Weapon Fighting
     if (want(5)) {
       await equip(['Javelin']);
       const thrown = await damage(gear.Javelin, 'thrown', [[3, 6]]);
@@ -285,7 +275,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5b. the Javelin in melee: nothing', !style(melee, 'thrown-weapon-fighting'), JSON.stringify(melee?.getFlag(MOD, 'fightingStyle') ?? null));
     }
 
-    // ================================================== 6. Two-Weapon Fighting
+    // ---- 6. Two-Weapon Fighting
     if (want(6)) {
       await equip(['Dagger', 'Longsword']);
       const offhand = await damage(gear.Dagger, 'offhand', [[2, 4]]);
@@ -299,7 +289,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b. the Dagger in the main hand: nothing added', !style(main, 'two-weapon-fighting'), JSON.stringify(main?.getFlag(MOD, 'fightingStyle') ?? null));
     }
 
-    // ================================================== 7. Unarmed Fighting's die
+    // ---- 7. Unarmed Fighting's die
     if (want(7)) {
       const us = gear['Unarmed Strike'];
       await equip([]);
@@ -316,11 +306,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7c. the face says which die', /d6 — a weapon or Shield held/.test(faceLine('Unarmed Fighting')), `line="${faceLine('Unarmed Fighting')}"`);
     }
 
-    // ================================================== 8. off the list
+    // ---- 8. off the list
     if (want(8)) {
       await equip(['Chain Mail', 'Longsword', 'Shield']);
       await set('fightingStyleList', 'Great Weapon Fighting');
-      // the takeovers come back one feat at a time (four since the feats slice): poll, don't guess
+      // The takeovers come back one feat at a time: poll, don't guess.
       for (let i = 0; i < 25 && !((packEffect('Defense')?.disabled === false) && (packEffect('Dueling')?.disabled === false)); i++) await sleep(200);
       await sleep(400);
       ok('8a. unlisted styles lose their face; the listed one keeps it', !face('Defense') && !face('Dueling') && !!face('Great Weapon Fighting'),
@@ -333,7 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(1200);
     }
 
-    // ================================================== 9. Blind Fighting
+    // ---- 9. Blind Fighting
     if (want(9)) {
       await set('reminderList', def('reminderList'));
       const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
@@ -365,7 +355,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.toggleStatusEffect('invisible', { active: false });
     }
 
-    // ================================================== 10. Unarmed Fighting's grapple damage
+    // ---- 10. Unarmed Fighting's grapple damage
     if (want(10)) {
       await set('autoDamage', 'all');
       await set('autoApply', true);
@@ -377,7 +367,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!placed.includes(fdoc.id)) placed.push(fdoc.id);
       for (let i = 0; i < 40 && !canvas.tokens.get(fdoc.id); i++) await sleep(250);
       // A creature of its own, so no other token inherits the Grappled (the fixture's unlinked BF Test
-      // Victim wears its base actor's effects — the first run grappled two).
+      // Victim wears its base actor's effects).
       const held = (await Actor.create({ ...victim.toObject(), _id: undefined, name: 'BF Temp Grappled', folder: null }));
       const [hdoc] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(held.prototypeToken.toObject(),
         { x: 1600, y: 1900, actorId: held.id, actorLink: true, disposition: -1 }, { inplace: false })]);
@@ -443,7 +433,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 11. Great Weapon Master's Heavy Weapon Mastery
+    // ---- 11. Great Weapon Master's Heavy Weapon Mastery
     if (want(11)) {
       // the lines off the card's own render: after §10's combat the log on screen is not the chat
       const cardLines = async id => {
@@ -488,7 +478,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 12. Heavy Armor Master's block
+    // ---- 12. Heavy Armor Master's block
     if (want(12)) {
       const ham = await lend('Heavy Armor Master', 'feat');
       const pb = Number(actor.system.attributes.prof);
@@ -513,7 +503,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const flag = actor.getFlag(MOD, 'armorBlock');
         ok(`12c. applied: ${9 - pb} lands, and the actor's own update carries the pop`, (hpA - Number(actor.system.attributes.hp.value) === 9 - pb) && (flag?.amount === pb) && (pops.length === 1),
           `took=${hpA - Number(actor.system.attributes.hp.value)} flag=${JSON.stringify(flag ?? null)} pops=${pops.length}`);
-        // the walk (2026-09-26): the SECOND block of the same amount sent only its time — it must pop too
+        // A SECOND block of the same amount must pop too (only its time differs).
         await sleep(20);
         await actor.applyDamage(nine, { originatingMessage: card });
         await sleep(300);
@@ -538,7 +528,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 13. Elemental Adept and Poisoner (group 1)
+    // ---- 13. Elemental Adept and Poisoner
     if (want(13)) {
       const adept = await lend('Elemental Adept', 'feat');
       const poisoner = await lend('Poisoner', 'feat');
@@ -596,7 +586,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 15. Elemental Adept's type pick
+    // ---- 15. Elemental Adept's type pick
     if (want(15)) {
       const waitFor = async (test, timeout = 8000) => { const until = Date.now() + timeout; while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); } return test(); };
       const source = await findPHB('Elemental Adept', 'feat');
@@ -657,7 +647,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 14. Crossbow Expert's Dual Wielding (group 2)
+    // ---- 14. Crossbow Expert's Dual Wielding
     if (want(14)) {
       const ce = await lend('Crossbow Expert', 'feat');
       const hand = await lend('Hand Crossbow', 'weapon');

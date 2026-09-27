@@ -1,26 +1,16 @@
-// Battle Flow guards smoke test — THE TWO FIGHTING STYLES THAT ANSWER FOR SOMEONE ELSE (the fighting
-// styles, 2026-09-26, ruled off prototypes/fighting-styles.html: P1 "each gets a popup", R1 "asked
-// after the hit shows"). Protection: a guard beside the creature being hit bends the attack roll
-// (Disadvantage, the second d20, the lower standing) and the protected creature carries
-// "Protected — <guard>" until the guard's next turn, read by the gate while the guard stays within
-// 5 ft. Interception: a guard beside it reduces the attack's damage by 1d10 + PB at the applier.
-//
-// Fixtures: BF Test Attacker swings at BF Test Halfling; BF Test Fighter stands beside the Halfling
-// and is lent the PHB's Protection and Interception feats, a Shield and a Longsword (equipped for
-// the run). The Halfling's own Lucky is a second party to the P1 cases. The three tokens are placed
-// for the run (the Halfling and the Fighter friendly, the Attacker hostile) and removed after.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is deleted;
-// the lent items, the placed tokens and the Luck Points go back; the Fighter's equipped boxes too.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Guards smoke suite: the fighting styles that answer for someone else, each guard its own popup,
+// asked after the hit shows. Protection: the second d20, the lower standing, and "Protected —
+// <guard>" read by the gate while the guard stays within 5 ft. Interception: 1d10 + PB off the
+// damage at the applier.
+// Fixtures: BF Test Attacker swings at BF Test Halfling (its Lucky a second party); BF Test Fighter
+// beside it is lent the PHB's styles, a Shield and a Longsword. Everything written is restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'hold/trigger.js',        // the guards stamped on the held target
   'hold/answer.js',         // a guard's answer, the parties' passes (P1)
-  'hold/dice.js',            // Protection's d20s rise over the creature it guards (2026-09-26)
+  'hold/dice.js',            // Protection's d20s rise over the creature it guards
   'hold/views.js',          // the guard's own popup, the attacker's card naming the guard
   'hold/continue.js',       // "Protected — <guard>" landed at the resolve
   'damage-holds.js',        // Interception: the attack's damage claimed for the guards
@@ -158,7 +148,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('effectList', def('effectList'));
     await refillLuck();
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     const findPHB = async (name, type) => {
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
         const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
@@ -199,7 +189,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { token: halflingToken } = await placeToken(halfling, 1500, 2100, 1);
     await placeToken(fighter, 1600, 2100, 1);
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -239,7 +229,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const targetOf = msg => holdOf(msg)?.targets?.find(t => t.uuid === halfling.uuid) ?? null;
     const hp = () => Number(halfling.system.attributes.hp.value);
 
-    // ================================================== 1. Protection turns the hit
+    // ---- 1. Protection turns the hit
     if (want(1)) {
       await closeDialogs(); await dropProtected(); await refillLuck();
       const msg = await swing({ d20: [12] });
@@ -262,7 +252,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1d. both popups closed; no damage landed', !guardPopup() && !rescuePopup() && (hp() === 400), `guard=${!!guardPopup()} own=${!!rescuePopup()} hp=${hp()}`);
     }
 
-    // ================================================== 2. the standing half
+    // ---- 2. the standing half
     if (want(2)) {
       const eff = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'protectedBy') === fighter.uuid), 6000);
       ok('2a. "Protected — BF Test Fighter" on the Halfling', /Protected — BF Test Fighter/.test(eff?.name ?? ''), `effect=${eff?.name ?? null}`);
@@ -274,7 +264,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2b. the next attack at the Halfling: Disadvantage in the gate, the row named, the spell\'s "Protected" not matched',
         src?.bend === 'disadvantage' && (near?.net === 'disadvantage') && !(near?.sources ?? []).some(x => / — Protected$/.test(x.label)),
         `net=${near?.net} sources=${JSON.stringify((near?.sources ?? []).map(s => [s.label, s.bend]))}`);
-      // Re-placed, not moved: a position update is constrained by the range's walls (it never moved).
+      // Re-placed, not moved: a position update is constrained by the range's walls.
       const moveFighter = async x => {
         const live = created.tokens.filter(id => scene.tokens.get(id)?.actorId === fighter.id);
         if (live.length) await scene.deleteEmbeddedDocuments('Token', live);
@@ -290,7 +280,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await dropProtected();
     }
 
-    // ================================================== 3. P1 — a guard's pass waits for the others
+    // ---- 3. P1 — a guard's pass waits for the others
     if (want(3)) {
       await closeDialogs(); await refillLuck();
       const msg = await swing({ d20: [12] });
@@ -309,7 +299,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `answer=${targetOf(msg)?.answer} dmg=${!!dmg} hp=${hp()}`);
     }
 
-    // ================================================== 4. the guard alone; no Shield, no guard
+    // ---- 4. the guard alone; no Shield, no guard
     if (want(4)) {
       await closeDialogs(); await spendLuck();
       const msg = await swing({ d20: [12] });
@@ -331,7 +321,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refillLuck();
     }
 
-    // ================================================== 5. Interception
+    // ---- 5. Interception
     if (want(5)) {
       await closeDialogs(); await spendLuck();
       await set('interruptList', def('interruptList').replace(/,\s*Protection:roll/, ''));
@@ -352,7 +342,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       void msg;
     }
 
-    // ================================================== 6. Interception passed
+    // ---- 6. Interception passed
     if (want(6)) {
       await closeDialogs(); await spendLuck();
       await set('interruptList', def('interruptList').replace(/,\s*Protection:roll/, ''));

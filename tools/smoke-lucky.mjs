@@ -1,19 +1,10 @@
-// Battle Flow Lucky smoke test — LUCKY'S ADVANTAGE HALF (2026-09-25, the Halfling walk: "we need to
-// unpark the advantage on our own d20"; ruled off the prototype lucky-advantage.html, "looks good";
-// initiative with no dialog ruled "After the roll"): the gate's BUY box in the system's own roll
-// dialog, and the `advantage` D20 fold on an initiative rolled with no dialog.
-//
-// Fixtures: BF Test Halfling (Rogue 3 with the Lucky FEAT at its proficiency's Luck Points, a
-// Shortsword; built by tools/fixture-suite.mjs) and BF Test Attacker (the target). Linked tokens are
-// placed on the Battle Flow Test Range for the run and removed after.
-//
-// Harness discipline: every setting touched is restored; the Luck Points are refilled; the Poisoned
-// status, the combat, the tokens and every message this run creates are deleted.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Lucky's Advantage smoke suite: the gate's BUY box in the system's own roll dialog, and the
+// `advantage` D20 fold AFTER an initiative rolled with no dialog.
+// Fixtures (tools/fixture-suite.mjs): BF Test Halfling with the Lucky feat, BF Test Attacker as the
+// target. Settings, Luck Points, status, combat, tokens and messages are all restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'advantage-buys.js',      // §1–§5 — the box, the tick in the net, the spend, the record, initiative's dialog
   'd20-folds.js'            // §6, §7 — the `advantage` fold on an initiative rolled with no dialog
@@ -67,8 +58,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const lucky = () => halfling.items.find(i => (i.name === 'Lucky') && (Number(i.system?.uses?.max) > 0));
   if (!lucky()) return { fatal: 'BF Test Halfling lacks the Lucky FEAT (with Luck Points) — re-run fixture-suite' };
   const luckLeft = () => Number(lucky()?.system?.uses?.value ?? -1);
-  // The pool is the fixture's proficiency (Rogue 3: 2 points) — every count reads off it, never a
-  // literal (the first battery, 2026-09-26, pinned the level-5 roster Halfling's 3).
+  // The pool is the fixture's proficiency: every count reads off it, never a literal.
   const FULL = Number(lucky()?.system?.uses?.max ?? 0);
   const ONE_SPENT = FULL - 1;
 
@@ -139,7 +129,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await refillLuck();
     if (game.combat) await game.combat.delete();
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
@@ -156,7 +146,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const { token: attackerToken } = await placeToken(attacker, 1400, 1700);
     const { doc: halflingDoc, token: halflingToken } = await placeToken(halfling, 1500, 1700);
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -191,7 +181,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return combat.combatants.find(c => c.actorId === halfling.id);
     };
 
-    // ================================================== 1. an attack, ticked
+    // ---- 1. an attack, ticked
     if (want(1)) {
       await refillLuck(); await closeDialogs();
       halflingToken.control({ releaseOthers: true });
@@ -218,7 +208,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // ================================================== 2. a save, left unticked
+    // ---- 2. a save, left unticked
     if (want(2)) {
       await refillLuck(); await lucky()?.update({ 'system.uses.spent': 1 }); await closeDialogs();
       void halfling.rollSavingThrow({ ability: 'dex' });
@@ -235,7 +225,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // ================================================== 3. beside a Disadvantage
+    // ---- 3. beside a Disadvantage
     if (want(3)) {
       await refillLuck(); await closeDialogs();
       await set('reminderList', 'buy, condition');
@@ -257,7 +247,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // ================================================== 4. none left
+    // ---- 4. none left
     if (want(4)) {
       await closeDialogs();
       await lucky()?.update({ 'system.uses.spent': Number(lucky().system.uses.max) });
@@ -270,7 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refillLuck();
     }
 
-    // ================================================== 5. initiative's dialog
+    // ---- 5. initiative's dialog
     if (want(5)) {
       await refillLuck(); await closeDialogs();
       const combatant = await newCombat();
@@ -293,12 +283,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // ================================================== 6. no dialog: the higher stands
+    // ---- 6. no dialog: the higher stands
     const noDialog = async (first, second) => {
       await refillLuck(); await closeDialogs();
       const combatant = await newCombat();
-      // THIS roll's message: the fold's flag is stamped just after the message posts, so "the newest
-      // with the flag" found §6's message in §7 (the first battery, 2026-09-26) — exclude the old ones.
+      // THIS roll's message: the flag is stamped just after the message posts, so "the newest with
+      // the flag" can find an earlier one. Exclude the old ids.
       const seen = new Set(game.messages.contents.map(m => m.id));
       faces([[first, 20]]);
       await combat.rollInitiative([combatant.id], { updateTurn: false });
@@ -323,7 +313,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // ================================================== 7. no dialog: the first stands
+    // ---- 7. no dialog: the first stands
     if (want(7)) {
       const r = await noDialog(15, 4);
       ok('7a. the second d20 lower (4): the first (15) stands, the point spent either way',

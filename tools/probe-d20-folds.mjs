@@ -1,19 +1,13 @@
-// Live forensic for the D20 FOLD content assumptions (v1.23.0). Prints, asserts nothing.
-//
-// ⚠ This exists because three of the scoping facts can ONLY be read from a prepared, live
-// actor, and every one of them is a silent-death risk if it is wrong:
-//
-//   1. Tactical Mind's consumption target is a COMPENDIUM UUID on disk. dnd5e re-links it to
-//      the actor's own Second Wind in prepareData (Activity#_remapConsumptionTarget, via
-//      actor.sourcedItems). If that remap does not happen, `actor.items.get(target)` finds
-//      nothing and the fold offers NOTHING FOREVER with no error raised.
-//   2. Heroic Inspiration is `system.attributes.inspiration`, a bare boolean — confirm the
-//      path exists on a character and is writable.
-//   3. A Bardic die's size lives on the GRANTING BARD as @scale.bard.inspiration, reachable
-//      only by walking the Inspired effect's `origin` back to the bard.
+// Live forensic for the D20 FOLD content assumptions. Prints, asserts nothing. Three facts can
+// only be read from a prepared, live actor, and each fails silently when wrong:
+//   1. Tactical Mind's consumption target is a COMPENDIUM UUID on disk, re-linked to the actor's
+//      own Second Wind in prepareData (Activity#_remapConsumptionTarget via actor.sourcedItems).
+//   2. Heroic Inspiration is `system.attributes.inspiration`, a bare boolean.
+//   3. A Bardic die's size lives on the GRANTING BARD (@scale.bard.inspiration), reached through
+//      the Inspired effect's `origin`.
 //
 // Run:  node tools/probe-d20-folds.mjs
-// ⚠ Read HANDOFF.md's operational rules first: disconnect the bridge, one suite at a time.
+// ⚠ Disconnect the bridge first; one suite at a time.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const TAG = "probe-d20-folds";
@@ -24,7 +18,7 @@ const out = await f.evaluate(async () => {
   const report = {};
   const byName = name => game.actors.getName(name);
 
-  /* --- 1: the consumption remap --------------------------------------------------------- */
+  /* --- 1: the consumption remap */
   const fighter = byName("BF Test Fighter");
   if (!fighter) report.fighter = { error: "no actor named 'BF Test Fighter'" };
   else {
@@ -49,7 +43,7 @@ const out = await f.evaluate(async () => {
     };
   }
 
-  /* --- 2: the heroic boolean ------------------------------------------------------------ */
+  /* --- 2: the heroic boolean */
   const anyPC = byName("BF Test Fighter") ?? game.actors.find(a => a.type === "character");
   report.heroic = {
     actor: anyPC?.name ?? null,
@@ -59,7 +53,7 @@ const out = await f.evaluate(async () => {
     type: typeof anyPC?.system?.attributes?.inspiration
   };
 
-  /* --- 3: the bard's scale value -------------------------------------------------------- */
+  /* --- 3: the bard's scale value */
   const bard = byName("BF Test Bard");
   report.bardic = bard
     ? {
@@ -69,7 +63,7 @@ const out = await f.evaluate(async () => {
       }
     : { error: "no actor named 'BF Test Bard' yet" };
 
-  /* --- 4: what the module itself thinks it can spend ------------------------------------- */
+  /* --- 4: what the module itself thinks it can spend */
   const api = game.modules.get("fvtt-mod-battleflow")?.api;
   report.module = {
     active: !!game.modules.get("fvtt-mod-battleflow")?.active,

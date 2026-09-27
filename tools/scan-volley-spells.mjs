@@ -1,9 +1,6 @@
-// VOLLEY CENSUS (read-only): the user's 2026-08-21 directive — the graft hack dies, a
-// module-owned registry of official volley spells replaces it. This scan seeds that
-// registry: sweep EVERY Item compendium pack for multi-projectile spells (a
-// target.affects.count field, or description prose like "three rays" / "additional beam"),
-// then read every WORLD copy of the candidates so per-copy data drift (Salyth's imports)
-// is measured, not guessed.
+// VOLLEY CENSUS (read-only), which seeds the module-owned volley registry: sweep EVERY Item
+// compendium pack for multi-projectile spells (a target.affects.count field, or prose like "three
+// rays" / "additional beam"), then read every WORLD copy of the candidates to measure per-copy drift.
 //
 //   node tools/scan-volley-spells.mjs             (local sandbox)
 //   BF_TARGET=prod node tools/scan-volley-spells.mjs
@@ -49,7 +46,7 @@ const out = await f.evaluate(async () => {
     };
   };
 
-  // ---- Part A: the compendium census ----
+  // ---- Part A: the compendium census
   const candidates = [];
   const packStats = [];
   for (const pack of game.packs) {
@@ -75,7 +72,7 @@ const out = await f.evaluate(async () => {
     }
   }
 
-  // ---- Part B: every world copy of the candidate names (plus the three knowns) ----
+  // ---- Part B: every world copy of the candidate names (plus the three knowns)
   const names = new Set(candidates.map(c => c.name));
   ['Magic Missile', 'Scorching Ray', 'Eldritch Blast'].forEach(n => { names.add(n); });
   const carriers = [];

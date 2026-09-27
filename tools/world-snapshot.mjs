@@ -1,40 +1,16 @@
 // THE DISPOSABLE TEST WORLD — snapshot the sandbox's databases, run a battery, roll it back.
-//
-// ⚠ WHY THIS EXISTS. Almost every piece of suite ceremony in NOTES.md §5 is there because the
-// suites mutate a SHARED, LONG-LIVED world that also holds the user's real configuration:
-//
-//   - every teardown must restore settings FIRST, in its own guard, because a cleanup error
-//     that skips the restore leaves residue on the live table;
-//   - a CRASHED run launders its pins into the next run's "prior", so eleven settings can
-//     drift with every suite reporting success;
-//   - a fixture that plants a status must use canonical ids only, or it poisons later runs;
-//   - suites must run ONE AT A TIME, because a late teardown sweep pollutes the next suite.
-//
-// None of that is a property of testing against a live world. It is a property of testing
-// against a world you cannot throw away. Roll the databases back and every one of those
-// hazards stops existing — the suites get SIMPLER, not just faster.
-//
-// The cost is small because the world's bulk is assets: this world is 468 MB, of which the
-// LevelDB databases under worlds/<id>/data are 24 MB. Assets are never written by a suite, so
-// only data/ is snapshotted.
+// Rolling back removes the hazards of a shared, long-lived world (NOTES.md §5): settings residue,
+// a crashed run's laundered pins, poisoned statuses, late teardown sweeps. Only the LevelDB data/
+// is snapshotted; suites never write assets.
 //
 //   node tools/world-snapshot.mjs take      # bounce down, copy data/ -> snapshot, bounce up
 //   node tools/world-snapshot.mjs restore   # bounce down, copy snapshot -> data/, bounce up
 //   node tools/world-snapshot.mjs status
 //   node tools/world-snapshot.mjs drop      # delete the snapshot
 //
-// ⚠ THE WORLD MUST BE DOWN FOR BOTH DIRECTIONS. Foundry holds LevelDB open while a world is
-// active; copying a live database yields a torn snapshot, and writing over one corrupts it.
-// Both commands stop the world through the sibling repo's own launcher, which deactivates
-// (db.disconnect + world.save — the flush that matters) before ending the process.
-//
-// ⚠ THE DATA DIRECTORY SHRINKS AFTER A RESTORE, AND THAT IS NOT DATA LOSS. LevelDB compacts
-// on a clean open, so a snapshot taken from a running world (24.0 MB, uncompacted logs)
-// restores and settles at 14.2 MB. Measured 2026-08-22 on the full take/restore proof: a
-// canary chat message written after the snapshot was gone afterwards, and all 145 actors —
-// every PC and every BF Test fixture — were present and correct. Verify a restore by
-// CONTENT, never by directory size.
-//
+// ⚠ The world must be DOWN both ways: Foundry holds LevelDB open, so a live copy is torn and a
+// live overwrite corrupts. The sibling launcher deactivates (db.disconnect + world.save) first.
+// ⚠ data/ shrinks after a restore (LevelDB compacts on a clean open): verify by CONTENT, never size.
 // LOCAL ONLY, ALWAYS. There is no prod path here and there must never be one.
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";

@@ -1,41 +1,14 @@
-// CLAIM PROOF — did each file a suite CLAIMS to cover actually ACT in that suite?
-// (the runtime half of "checked both ways", ruled by the user 2026-09-23)
-//
-// The static half is the declared coverage map (tools/coverage-map.mjs): every live suite writes
-// down the machine files it exercises. A declaration is a statement about intent, and intent is
-// exactly what D11 does not trust — v1.23.0's four dead fold paths sat behind suites that
-// "covered" them. So this half MEASURES: the harness counts every `battleflow.moment` the page
-// hears, per suite, by `kind` (the record key), and a file whose record kind was published in the
-// suite that claims it is PROVEN to have acted there. The same ledger read the other way finds the
-// file that acted in a suite that never claimed it — a missing claim.
-//
-// ⚠ WHAT A MOMENT CAN AND CANNOT PROVE, and the report says so line by line rather than
-// flattening it into one score:
-//   - PROVEN               a kind only this file writes was published in the suite. The file ran.
-//   - PROVEN (shared kind) only kinds OTHER files also write (or that the file is merely pinned
-//                          to in WORLD_WRITERS) were published. Something ran; this file is one
-//                          of the candidates. Kind granularity is this instrument's `Hooks.call`
-//                          caveat — coarser than the truth, never wrong in the reassuring direction
-//                          about the kinds themselves.
-//   - UNPROVEN             the file writes moment kinds and NONE was published in this suite. A
-//                          stale or generous claim, or a path that stopped resolving — the useful
-//                          kind to see.
-//   - UNPROVABLE-BY-MOMENTS the file writes no moment kind at all (a view, a reader, a pure
-//                          decision, a state-only machine). Not a gap in the suite: a limit of the
-//                          instrument, derived from the gate's own tables, never a hand list.
-//   - NOT MEASURED         the suite left no moment ledger (not run, crashed before disconnect,
-//                          a ledger from before the moment half existed). Never read as UNPROVEN.
-//
-// ⚠ A MOMENT IS PUBLISHED ON ONE CLIENT (events.js: the writer's, or the one a row names). The
-// ledger lives in the tester's page, so a resolve published on a SECOND client — a two-client
-// suite's player writing its own record, a hold answered from the player's side — is not heard.
-// That under-reports; it never over-reports, which is the direction an instrument may be wrong in.
-//
-// ⚠ PRINT, NEVER FAIL (ARCHITECTURE §10 D11) — the hook report's contract, inherited whole. A claim
-// that is UNPROVEN is for a person to read; the exit code says only whether the instrument worked.
-//
-// Pure functions below take plain data, so tests/claim-proof.test.js drives them with fakes; the
-// loaders at the bottom read the tree (the scan, the tag constants, the battery's order).
+// CLAIM PROOF — did each file a suite CLAIMS to cover (tools/coverage-map.mjs) actually ACT there?
+// The harness counts every `battleflow.moment` per suite by `kind`; a file whose kind was published
+// in its claiming suite is proven, and the same ledger read backwards finds a missing claim.
+//   - PROVEN               a kind only this file writes was published.
+//   - PROVEN (shared kind) only kinds other files also write (or WORLD_WRITERS pins) were published.
+//   - UNPROVEN             the file writes moment kinds and none was published: a stale claim.
+//   - UNPROVABLE-BY-MOMENTS the file writes no moment kind (a view, a reader, a pure decision).
+//   - NOT MEASURED         the suite left no moment ledger; never read as UNPROVEN.
+// ⚠ A moment publishes on ONE client, so a second client's resolve is not heard: under-reports only.
+// ⚠ Print, never fail (ARCHITECTURE §10 D11): the exit code says only whether the instrument worked.
+// Pure functions take plain data (tests/claim-proof.test.js); the loaders at the bottom read the tree.
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,20 +18,12 @@ import { keysByFile, WORLD_WRITERS } from "./moment-writers.mjs";
 const TOOLS = dirname(fileURLToPath(import.meta.url));
 const SCRIPTS = join(TOOLS, "..", "scripts");
 
-/* --- 1. file → moment kinds ------------------------------------------------------------------ */
+/* --- 1. file → moment kinds */
 
 /**
- * What each scripts/ file's work can publish, from the gate's own tables.
- *
- * Two sources, kept apart because they prove different things:
- *   - `writes`  the MOMENT_RECORDS keys the file writes as a flag (the gate's scan). A published
- *               kind here is the file's own record landing.
- *   - `pinned`  the keys WORLD_WRITERS pins the file's world writes to — its consequence lands as
- *               that record, usually written by a service it calls (hold/lookup.js → effectReceipt).
- * A file with neither is UNPROVABLE-BY-MOMENTS, and `reason` says why in the gate's words: the
- * WORLD_WRITERS sentence when it has one, else the state keys it writes, else "acts only through
- * its callers".
- *
+ * What each scripts/ file's work can publish, from the gate's own tables: `writes` (MOMENT_RECORDS
+ * keys it writes itself) and `pinned` (WORLD_WRITERS keys its consequences land as, via a service).
+ * A file with neither is UNPROVABLE-BY-MOMENTS, `reason` saying why in the gate's words.
  * @param {{ keysByFile: Map<string, Set<string>>, worldWriters: Record<string, string[]|string>,
  *   momentKinds: Iterable<string>, stateKeys: Iterable<string>, allFiles: Iterable<string> }} input
  * @returns {Map<string, { writes: Set<string>, pinned: Set<string>, state: Set<string>, reason: string|null }>}
@@ -94,9 +59,7 @@ export const kindsWrittenBy = (fileKinds, file) => {
 
 /**
  * The kinds exactly ONE file writes — the only kinds that ATTRIBUTE a publication to a file.
- * ⚠ Direct writes only, never pins: a pin says "my consequence lands as a receipt", and the receipt
- * is written by a service eight files call. A kind two files write (the `mastery` key is also an
- * ActiveEffect fingerprint in five others) cannot say which of them ran.
+ * ⚠ Direct writes only, never pins: a pinned receipt is written by a service many files call.
  * @returns {Map<string, string>} kind → its sole writer
  */
 export function soleWriters(fileKinds) {
@@ -107,7 +70,7 @@ export function soleWriters(fileKinds) {
   return new Map([...by].filter(([, fs]) => fs.length === 1).map(([k, fs]) => [k, fs[0]]));
 }
 
-/* --- 2. the tag → suite table ----------------------------------------------------------------- */
+/* --- 2. the tag → suite table */
 
 /**
  * Suites that can never leave a ledger, and why. Checked both ways by `tagTable`: a row whose
@@ -153,11 +116,10 @@ export function tagTable({ order, tags, ledgerTags }) {
   return { suiteToTag, tagToScript, problems, notSuites };
 }
 
-/* --- 3. the classification --------------------------------------------------------------------- */
+/* --- 3. the classification */
 
 /**
  * Every claim, classified; every attributable publication nobody claimed.
- *
  * @param {{ coverage: Map<string, string[]>, suiteToTag: Map<string, string|null>,
  *   moments: Map<string, Record<string, number>>, fileKinds: ReturnType<typeof deriveFileKinds>,
  *   sole: Map<string, string> }} input
@@ -205,7 +167,7 @@ export function classifyClaims({ coverage, suiteToTag, moments, fileKinds, sole 
   return { rows, unclaimed, notMeasured, unknownSuites };
 }
 
-/* --- the loaders: the tree, read ------------------------------------------------------------- */
+/* --- the loaders: the tree, read */
 
 /** Every scripts/-relative .js path. */
 function scriptFiles(dir = SCRIPTS, prefix = "") {
@@ -226,10 +188,8 @@ export function loadFileKinds() {
 }
 
 /**
- * Script name → the tag its `connectSuite` uses, read from each tools/*.mjs source — `tag: 'x'`
- * literally or `tag: TAG` through the file's own `const TAG = "x"`. ⚠ Read, not listed: the tags
- * are spelled four ways (`smoke`, `conc`, `2client`, `smoke-surfaces`) and a hand table is the
- * copy that drifts the day a suite is renamed.
+ * Script name → the tag its `connectSuite` uses, read from each tools/*.mjs source (`tag: 'x'` or
+ * `tag: TAG` through its own `const TAG = "x"`). Read, not listed: a hand table drifts on a rename.
  */
 export function loadSuiteTags(dir = TOOLS) {
   const tags = new Map();
@@ -245,13 +205,9 @@ export function loadSuiteTags(dir = TOOLS) {
 }
 
 /**
- * The battery's order, `[{ name, reset }]` — coverage-map.mjs's exported ORDER, its one home.
- *
- * ⚠ THE FALLBACK READS battery.mjs's SOURCE TEXT, because battery.mjs RUNS when imported: the
- * ORDER moved to coverage-map.mjs on 2026-09-23 while this was being built beside it, and a
- * coverage map that fails to import (a suite mid-edit) must not also cost the tag table. The
- * pattern leans on the old one-entry-per-line shape; once ORDER's home is settled, the fallback
- * can go — the orchestrator's reconcile.
+ * The battery's order, `[{ name, reset }]` — coverage-map.mjs's exported ORDER.
+ * ⚠ The fallback reads battery.mjs's SOURCE TEXT (battery.mjs runs when imported), so a coverage
+ * map that fails to import mid-edit does not also cost the tag table.
  */
 export async function loadOrder(dir = TOOLS) {
   try {

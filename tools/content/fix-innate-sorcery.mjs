@@ -1,9 +1,6 @@
-// The 2026-08-18 session's finding ⑦ — WORLD CONTENT, not module code: Gren's Innate
-// Sorcery arrived from the DDB import with its embedded ActiveEffect stripped (the same
-// silent pattern as Thomas's Divine Favor and Salyth's Thaumaturgy, grafted back
-// 2026-08-17 — that audit covered the 42 SPELL copies; this one grafts the feat and
-// sweeps every PC's FEATURES for activity→ghost-effect references). The graft preserves
-// the compendium's _id so the activity's existing reference binds.
+// WORLD CONTENT, not module code: a DDB-imported Innate Sorcery arrives with its embedded
+// ActiveEffect stripped. Sweeps every PC's FEATURES for activity→ghost-effect references and
+// grafts Gren's back, keeping the compendium's _id so the activity's existing reference binds.
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 const env = loadEnv();
 setTimeout(() => { console.error('[fix] WATCHDOG 120s'); process.exit(3); }, 120_000);

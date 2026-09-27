@@ -1,26 +1,11 @@
-// Battle Flow Savage Attacker smoke test — THE DAMAGE DICE, ROLLED TWICE (Slice A, ruled 2026-09-24
-// off prototypes/slice-a.html; RULINGS.md owes the section). On a weapon hit the attacker is asked ONE
-// question — use it on THIS hit? — a tick row, "Roll again" / "Keep the roll", a clock that keeps the
-// roll. On "Roll again" the weapon's dice (never the modifier, never a rider) are rolled again as a
-// set and the higher set stands; the damage waits for the answer (auto-apply.js's claim) and lands
-// once; once per turn by the `rider` chit; the defender's hold resolves FIRST.
-//
-// Fixtures: BF Test Halfling (Rogue 3 with Lucky and Savage Attacker and a Shortsword — added to
-// tools/fixture-suite.mjs by the Slice A tier 1+2 build) and BF Test Victim (the goblin).
-//
-// Written blind 2026-09-24 (the sandbox was in use by the parallel build) and first run the same night:
-// 26/26 after two CODE fixes it caught (7eca747 nested flag stamps, 32894d7 dnd5e's adv/dis markers).
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the chits it writes are cleared; the tokens it places are removed; its combat is deleted.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Savage Attacker smoke suite (RULINGS *Savage Attacker*): on a weapon hit, one question (use it on
+// THIS hit?); "Roll again" rerolls the weapon's dice as a set and the higher set stands; the damage
+// waits for the answer and lands once; once per turn by the `rider` chit; the defender's hold first.
+// Fixtures: BF Test Halfling (tools/fixture-suite.mjs) and BF Test Victim. Everything it writes is
+// restored or removed.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'dice-changers.js',       // the whole shell — the birth flag, the popup, the set, the one die, the card, the chit
   'hold/continue.js'        // §6 — the hold's release is what lets the offer open
@@ -154,7 +139,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('clockRiderList', '');
     await set('damageEitherList', game.settings.settings.get(`${MOD}.damageEitherList`)?.default ?? 'Savage Attacker');
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const strays = scene.tokens.filter(t => [victim.id, halfling.id].includes(t.actorId)).map(t => t.id);
@@ -179,7 +164,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await victim.update({ 'system.attributes.ac.override': 10, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
     const healFull = async () => victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -206,8 +191,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => damageFor(originId), 8000);
       return { attackMsg, dmg, originId };
     };
-    // THE ONE RECORD (the dice changers, 2026-09-27): a row of `diceChange`, read the way the old
-    // `either` flag read — a row still asking speaks with the record's status.
+    // Savage's row of the one `diceChange` record; a row still asking speaks with the record's status.
     const either = (dmg, key = null) => {
       const f = dmg?.getFlag(MOD, 'diceChange');
       if (!f) return null;
@@ -216,9 +200,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         one: row.kind === 'one', total: row.after, record: f.status };
     };
     const tick = popup => { const box = popup?.element?.querySelector('input[name="bf-dice"]'); if (box && !box.checked) box.click(); return box; };
-    // The tick picks the live button (the hint, option D: a low first roll starts TICKED, which
-    // greys "Keep the roll"), so a press sets the tick first, as a player would — a click on the
-    // greyed button left the popup open and cascaded into §6, §7 and §9 (the battery of 2026-09-26).
+    // ⚠ The tick picks the live button (a low first roll starts TICKED, greying "Keep the roll"), so
+    // set the tick first: a click on a greyed button leaves the popup open for later sections.
     const press = (popup, action) => {
       const box = popup?.element?.querySelector('input[name="bf-dice"]');
       if (box && (box.checked !== (action === 'again'))) box.click();
@@ -235,7 +218,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(500);
     };
 
-    // ================================================== 1. the popup asks, the damage waits
+    // ---- 1. the popup asks, the damage waits
     let s1 = null;
     if (want(1) || want(2)) {
       await clearChips();
@@ -265,7 +248,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `again=${rollBtn?.disabled} keep=${keepBtn1?.disabled}`);
     }
 
-    // ================================================== 2. roll again, higher
+    // ---- 2. roll again, higher
     if (want(2) && s1) {
       const popup = eitherPopup();
       const since = Date.now();
@@ -291,7 +274,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2f. out of combat no chit is written — the next hit asks again', !halfling.effects.some(e => e.getFlag(MOD, 'mastery') === 'rider'), '');
     }
 
-    // ================================================== 3. roll again, lower
+    // ---- 3. roll again, lower
     if (want(3)) {
       await clearChips();
       const s = await swing({ d20: 15, die: 5 });
@@ -315,7 +298,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3b. the damage landed with the first total', !!receipt, JSON.stringify(receipt?.targets?.map(t => t.taken)));
     }
 
-    // ================================================== 4. keep the roll
+    // ---- 4. keep the roll
     if (want(4)) {
       await clearChips();
       const s = await swing({ d20: 15, die: 4 });
@@ -328,7 +311,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4b. the card says it was not used and is still ready this turn', /not used, still ready this turn/.test(text ?? ''), (text ?? '').slice(0, 200));
     }
 
-    // ================================================== 5. once per turn
+    // ---- 5. once per turn
     if (want(5)) {
       await clearChips();
       await startCombat();
@@ -358,7 +341,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 6. the hold first
+    // ---- 6. the hold first
     if (want(6)) {
       await clearChips();
       await set('reactionHold', true);
@@ -385,7 +368,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('interruptList', prior.interruptList);
     }
 
-    // ================================================== 7. a crit's doubled set
+    // ---- 7. a crit's doubled set
     if (want(7)) {
       await clearChips();
       const s = await swing({ crit: true, die: [1, 2] });
@@ -399,7 +382,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(either(used)));
     }
 
-    // ================================================== 8. the clock keeps the roll
+    // ---- 8. the clock keeps the roll
     if (want(8)) {
       await clearChips();
       await set('holdTimer', 2);
@@ -412,7 +395,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('holdTimer', 0);
     }
 
-    // ================================================== 9. the list is the switch
+    // ---- 9. the list is the switch
     if (want(9)) {
       await clearChips();
       await set('damageEitherList', '');
@@ -423,7 +406,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('damageEitherList', prior.damageEitherList);
     }
 
-    // ================================================== 11. Piercer's Puncture (group 3)
+    // ---- 11. Piercer's Puncture
     if (want(11)) {
       await clearChips();
       let piercer = null;
@@ -468,7 +451,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 12. Savage and Piercer on one hit
+    // ---- 12. Savage and Piercer on one hit
     if (want(12)) {
       await clearChips();
       let piercer = halfling.items.find(i => i.name === 'Piercer') ?? null;
@@ -516,7 +499,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 10. FIRED
+    // ---- 10. FIRED
     if (want(10)) {
       ok('10a. dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 fired', (count('dnd5e.preRollDamageV2') > 0) && (count('dnd5e.rollDamageV2') > 0),
         `pre=${count('dnd5e.preRollDamageV2')} roll=${count('dnd5e.rollDamageV2')}`);

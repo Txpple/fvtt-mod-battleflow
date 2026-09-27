@@ -1,8 +1,7 @@
-// Read-only probe (2026-09-04, the overnight commissions): the SHAPE of a set of items as the
-// 2024 packs ship them — activities, effects, targets, ranges — dumped as JSON so a table row is
-// written from measurement rather than memory. Nothing is written to the world.
+// Read-only probe: the SHAPE of a set of items as the 2024 packs ship them (activities, effects,
+// targets, ranges), dumped as JSON so a table row is written from measurement.
 //
-//   node tools/probe-pack-shapes.mjs <out.json> [name ...]     default: the overnight set
+//   node tools/probe-pack-shapes.mjs <out.json> [name ...]     default: the built-in set
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
 import { writeFileSync } from "node:fs";
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";

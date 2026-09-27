@@ -1,20 +1,10 @@
-// Survey every DAMAGE RIDER in the world's compendia, so the curated rider table for
-// Phase 1.75 is built from what 5e 2024 actually ships rather than from memory. A rider is a
-// damage roll you press SEPARATELY from casting the thing that granted it — Hunter's Mark's
-// "Bonus Mark Damage", Hex's "Bonus Hex Damage" — which is exactly the click Phase 1.75 folds
-// into the weapon's own damage roll.
-//
-// The structural signature: an activity of type "damage" whose activation is OVERRIDDEN to
-// nothing (`activation.override === true` with an empty `activation.type`). That is the
-// system's way of saying "this costs no action; press it when it applies". Casting time stays
-// on the item (the same item-vs-activity split that made scan-reactions.mjs miss Shield), so
-// this signal has to be read off the ACTIVITY, never the item.
-//
-// Two passes: the index is cheap and finds candidates, then getDocument() on the (small) hit
-// set pulls the embedded effects — which is where the marker that lands on the target lives,
-// and the index cannot carry them.
-//
-// Writes raw JSON for classification afterwards. Usage:
+// Survey every DAMAGE RIDER in the world's compendia (a damage roll pressed separately from the
+// thing that granted it: Hunter's Mark's "Bonus Mark Damage", Hex's), so the rider table is built
+// from what 5e 2024 ships.
+// ⚠ The signature is on the ACTIVITY, never the item: a "damage" activity whose activation is
+// overridden to nothing (`override === true`, empty `type`). Casting time stays on the item.
+// Two passes: the index finds candidates; getDocument() pulls their effects (the target's marker),
+// which the index cannot carry. Writes raw JSON for classification. Usage:
 //   node tools/scan-riders.mjs [outfile.json]
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -38,8 +28,7 @@ const result = await f.evaluate(async () => {
   const errors = [];
   const packStats = [];
 
-  // A damage part is worth quoting verbatim: number/denomination is the common shape, but a
-  // custom formula is how Great Weapon Fighting (and anything with min3) is expressed.
+  // Quote a damage part verbatim: a custom formula carries shapes like min3.
   const partOf = p => ({
     formula: p?.custom?.enabled ? (p.custom.formula || '') : `${p?.number ?? ''}d${p?.denomination ?? ''}`,
     custom: !!p?.custom?.enabled,
@@ -60,9 +49,7 @@ const result = await f.evaluate(async () => {
       for (const entry of index) {
         const activities = entry.system?.activities ?? {};
         const list = Array.isArray(activities) ? activities : Object.values(activities);
-        // ⚠ Read the activation off the ACTIVITY. An activity only carries its own activation
-        // when override is true; otherwise it inherits the item's, and spells keep casting
-        // time at item level. A rider is precisely the override-to-nothing case.
+        // ⚠ An activity carries its own activation only when override is true; else it inherits the item's.
         const riders = list.filter(a => a?.type === 'damage'
           && a?.activation?.override === true && !a?.activation?.type);
         if (!riders.length) continue;
@@ -71,8 +58,7 @@ const result = await f.evaluate(async () => {
 
       let full = 0;
       for (const { entry, riders } of candidates) {
-        // Second pass: effects are not in the index, and the effect is the whole mechanism —
-        // it is the state on the TARGET that says the rider applies.
+        // Second pass: effects are not in the index, and the target's effect says the rider applies.
         let doc = null;
         try { doc = await pack.getDocument(entry._id); full++; } catch { /* index-only row */ }
         const effects = (doc?.effects ?? []).map(e => ({

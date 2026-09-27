@@ -1,22 +1,10 @@
-// Battle Flow Phase 1 smoke test — drives a real attack chain in the live world through the
-// bridge (same Foundry class the house scripts use) and asserts every link:
-//   hit → auto damage roll → auto apply → receipt → revert (real DOM click) →
-//   immunity receipt (rolled N, took 0, and the row says WHY) → miss → silence.
-// Fixtures live on a dedicated "Battle Flow Test Range" scene (viewed LOCALLY, never
-// activated — players' scene is untouched). Settings are switched on for the test and back
-// OFF at the end: defaults-off is the design's dogfood contract.
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 4b`, `--section 3,5`, `--list`. ⚠ THE SETTINGS PIN (§1),
-// THE FIXTURES (§2) AND THE RESTORE (§6) ALWAYS RUN — they are not sections, they are the
-// harness, and a filtered run that skipped them would leave the world dirty for the next one.
-// This suite gates in NODE rather than in the page: its sections are top-level blocks, each
-// with its own `f.evaluate`, so the plan never has to cross the serialization boundary.
+// Attack-chain smoke suite: hit → auto damage roll → auto apply → receipt → revert (real DOM
+// click) → immunity receipt → miss → silence. Fixtures live on the "Battle Flow Test Range"
+// scene, viewed locally, never activated. Settings are restored at the end.
+// ⚠ The settings pin (§1), fixtures (§2) and restore (§6) always run; sections gate in Node.
 import { announcePlan, connectSuite, loadEnv, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'receipts.js',            // §4 / §4b / §4c — the revert row, clicked
   'polish.js',              // §5b — the card always posts, the no-target gate
@@ -36,9 +24,7 @@ const SECTIONS = {
   '5d': 'the player-rolled damage offer + the crit-flag decoy pin (was probe-player-damage)',
   '5e': 'the automatic Critical Hit: a hit within 5 feet of a Paralyzed target doubles the dice; from 10 feet it does not'
 };
-// Each section drives its own attack from the shared fixtures and asserts on its own message
-// ids, so none of them names another. §4 reverts what §3 applied — but through the CARD it
-// finds for itself, not through a binding §3 left behind.
+// Each section drives its own attack from the shared fixtures; none names another.
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -52,16 +38,14 @@ const report = (name, ok, detail = '') => {
   console.log(`  ${ok ? 'PASS' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
 };
 
-// ---------------------------------------------------------------- 1. preflight + settings on
+// ---- 1. preflight + settings on
 let priorSettings = null;
 {
   const r = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-battleflow';
     const mod = game.modules.get(MOD);
     if (!mod?.active) return { ok: false, why: `module active=${mod?.active}` };
-    // Remember the table's current settings — the test restores THEM at the end, not
-    // hardcoded defaults, so running this mid-session never yanks settings out from under
-    // a GM who has already walked the dogfood ladder.
+    // The table's current settings, restored at the end (not hardcoded defaults).
     const prior = {
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
@@ -74,16 +58,13 @@ let priorSettings = null;
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
-    // The test exercises the primary (usage-card) chain and always targets first, so the
-    // no-target gate stays out of the way; restored with the rest at the end.
     await game.settings.set(MOD, 'requireTarget', false);
-    // This suite is about the Phase 1 chain; a reaction hold would legitimately stop it dead.
+    // A reaction hold would legitimately stop the chain.
     await game.settings.set(MOD, 'reactionHold', false);
-    // The 1.9 features get their own suite (smoke-effects).
+    // Effect riders are smoke-effects'.
     await game.settings.set(MOD, 'effectRiders', false);
     await game.settings.set(MOD, 'masteryRiders', false);
-    // Scrub any reaction the hold suite may have left on the test NPC — a stray Shield there
-    // holds every attack and makes this suite fail for the wrong reason.
+    // Scrub any reaction the hold suite left: a stray Shield holds every attack.
     for (const name of ['BF Test Victim', 'BF Test Attacker']) {
       const a = game.actors.getName(name);
       for (const it of a?.items.filter(i => i.type === 'spell' && i.name === 'Shield') ?? []) await it.delete();
@@ -110,16 +91,13 @@ let priorSettings = null;
     await f.disconnect?.();
     process.exit(1);
   }
-  // The auto-apply elect is whichever active GM outranks the rest — the bridge when alone,
-  // a logged-in human GM otherwise. Either topology is a valid test; the receipt poll and
-  // DOM asserts run on the bridge's own view regardless of which client applied.
-  // The applying client runs whatever code it LOADED — after a deploy, an open window is
-  // stale until refreshed. `node tools/reload-clients.mjs` refreshes every other client.
+  // The auto-apply elect is the highest-ranked active GM; either topology is valid.
+  // ⚠ The elect runs the code it LOADED: after a deploy run `node tools/reload-clients.mjs`.
   if (!r.isActiveGM) console.log(`  note: "${r.elect}" is the activeGM elect — ITS loaded code applies damage (stale until refreshed after a deploy)`);
   priorSettings = r.prior;
 }
 
-// ------------------------------------------------------- 2. fixtures: scene, actors, tokens
+// ---- 2. fixtures: scene, actors, tokens
 const fx = await f.evaluate(async () => {
   const out = { log: [] };
   try {
@@ -156,16 +134,12 @@ const fx = await f.evaluate(async () => {
       }
     }
 
-    // The attacker needs an attack activity to press.
     const item = actors.attacker.items.find(i =>
       i.system.activities?.some?.(a => a.type === 'attack'));
     if (!item) return { ok: false, why: 'attacker has no item with an attack activity' };
 
-    // Tokens (idempotent: reuse if already placed). ⚠ The fixture token is the UNLINKED one, and
-    // it must be the ONLY token of its actor: the auto-crit's distance reads from
-    // `actor.getActiveTokens()[0]` for a linked token, so a linked stray another suite left
-    // (smoke-rescue's, 2026-09-24) measured 5e's swing from the wrong square. Linked strays of
-    // the two actors are swept first, the way smoke-reminders does it.
+    // Tokens (idempotent). ⚠ The fixture token is the UNLINKED one and must be its actor's only
+    // token: the auto-crit measures from `actor.getActiveTokens()[0]`, so linked strays are swept.
     const ensureToken = async actor => {
       const linked = scene.tokens.filter(t => t.actorLink && (t.actorId === actor.id)).map(t => t.id);
       if (linked.length) await scene.deleteEmbeddedDocuments('Token', linked);
@@ -184,8 +158,7 @@ const fx = await f.evaluate(async () => {
     const attackerToken = await ensureToken(actors.attacker);
     const victimToken = await ensureToken(actors.victim);
 
-    // Full HP before every run: a previous run that died mid-flight can leave the victim at
-    // 0, and "applied 0 damage" then looks like a resolver failure instead of an empty pool.
+    // Full HP first: at 0, "applied 0 damage" looks like a resolver failure.
     for (const id of [victimToken, attackerToken]) {
       const ta = scene.tokens.get(id)?.actor;
       if (ta?.system.attributes?.hp?.max) {
@@ -196,7 +169,6 @@ const fx = await f.evaluate(async () => {
       }
     }
 
-    // View the scene locally and wait for token objects to exist on canvas.
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(victimToken)); i++) {
       await new Promise(r => setTimeout(r, 250));
@@ -217,17 +189,15 @@ if (!fx.ok) { process.exit(1); }
 // The player TEST account's name rides into §5c so BF Test PC Attacker can be granted to it.
 fx.playerName = loadEnv().MOLTEN_TEST_USER ?? null;
 
-// ------------------------------------------------------------------------- 3. the hit chain
+// ---- 3. the hit chain
 if (want('3')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     try {
-      // The token is UNLINKED (the monster norm): the thing attacked — and damaged — is the
-      // token's synthetic actor (base + delta), not the world actor. Assert against IT.
+      // The token is UNLINKED: assert against its synthetic actor, not the world actor.
       const base = game.actors.get(victimId);
       const victim = canvas.tokens.get(victimToken).actor;
       const attacker = game.actors.get(attackerId);
-      // Force a hit: flat AC 1 on the BASE (unlinked tokens derive live from base + delta,
-      // so this propagates). Nat-1 fumble still misses — advantage makes that 1/400.
+      // Force a hit: AC 1 on the BASE (propagates to the delta). Only a double fumble misses.
       await base.update({ 'system.attributes.ac.override': 1 });
       const hp0 = foundry.utils.deepClone(victim.system._source.attributes.hp);
 
@@ -246,15 +216,9 @@ if (want('3')) {
         { data: { 'system.origin': usageId } });
       if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
       const attackTotal = rolls[0].total;
-      // ⚠ THE ONE FORCING HOLE LEFT UNGUARDED UNTIL 2026-08-23. Flat AC 1 + advantage makes a
-      // miss a 1-in-400 double fumble, not an impossibility, and this section is the only one
-      // of the four that did not say so: sections 2 and 4 return `fumble`, section 3 tolerates
-      // a nat-20 crit through AC 40 explicitly. Here a fumble produced "no receipted damage
-      // message" and a hard exit - a correct module reported as a broken gate, with nothing in
-      // the output naming the dice. It rides in the failure detail now.
+      // A 1-in-400 double fumble still misses; it rides in the failure detail to read as a flake.
       const fumble = rolls[0].isFumble ?? false;
 
-      // Wait for the chain: damage message with a Battle Flow receipt flag.
       let damageMsg = null;
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
@@ -307,12 +271,8 @@ if (want('3')) {
   fx.expectedHp = r.hp0;
 }
 
-// ------------------------- 3b. the data-plane stamp — combat + source, in and out of combat
-// The party-stats commission's Stage 1 live assertion (HANDOFF.md): a damage application
-// carries `combat` + `sourceUuid` resolved at write time — `combat: null` out of combat (the
-// combatStamp contract; reports group that bucket, never drop it), and `"id:round:turn"`
-// inside a started combat. Self-contained like §3: drives its own two attacks, cleans up its
-// own combat document.
+// ---- 3b. the data-plane stamp: a damage application carries `combat` + `sourceUuid` resolved
+// at write time — `combat: null` out of combat, `"id:round:turn"` inside a started one
 if (want('3b')) {
   const driveOnce = async label => {
     const r = await f.evaluate(async ({ victimId, victimToken, attackerId, attackerToken, itemName }) => {
@@ -348,15 +308,12 @@ if (want('3b')) {
           ok: true,
           entry: { combat: entry?.combat, sourceUuid: entry?.sourceUuid },
           hasFields: !!entry && ('combat' in entry) && ('sourceUuid' in entry),
-          // Per-part post-trait amounts (the second pass): plain hit, so parts sum to taken.
+          // Per-part post-trait amounts: a plain hit, so parts sum to taken.
           parts: entry?.parts ?? null,
           taken: entry?.taken ?? null,
-          // rollCtx rides the ATTACK message, stamped at roll time on the rolling client.
-          // Read after the damage poll above, so its async setFlag has long since landed.
+          // rollCtx rides the ATTACK message (async setFlag, landed by the damage poll above).
           rollCtx: rolls[0]?.parent?.getFlag('fvtt-mod-battleflow', 'rollCtx') ?? null,
-          // The speaker of an unlinked-token attack is the TOKEN's synthetic actor — the more
-          // precise identity (THAT goblin, not the archetype) — so the expectation is the
-          // attacker token's actor uuid, never a name (both fixture tokens share one).
+          // An unlinked-token attack's speaker is the token's synthetic actor, never a name.
           expectedSource: canvas.tokens.get(attackerToken)?.actor?.uuid ?? null,
           expectedStamp: c?.started ? `${c.id}:${c.round}:${c.turn}` : null,
         };
@@ -388,9 +345,8 @@ if (want('3b')) {
   // IN combat: the stamp is the running combat's id:round:turn.
   const started = await f.evaluate(async ({ sceneId, attackerToken, victimToken }) => {
     try {
-      // ⚠ Deliberately NO scene binding — the tracker's own shape (encounters are
-      // scene-agnostic since v11), which is exactly what made the live card read "The
-      // field": the roster must resolve the scene from the COMBATANTS.
+      // ⚠ No scene binding (encounters are scene-agnostic): the roster must resolve the scene
+      // from the COMBATANTS.
       const combat = await Combat.create({});
       await combat.createEmbeddedDocuments('Combatant', [
         { tokenId: attackerToken, sceneId }, { tokenId: victimToken, sceneId }]);
@@ -403,8 +359,7 @@ if (want('3b')) {
   }, fx);
   report('3b combat fixture started', started.ok, started.ok ? started.combatId : started.why);
   if (started.ok) {
-    // The roster marker: combatStart fires on the elect (this client) and stamps a
-    // GM-whispered card carrying the static roster.
+    // combatStart on the elect stamps a GM-whispered roster card.
     const roster = await f.evaluate(async ({ combatId }) => {
       try {
         let flag = null;
@@ -441,9 +396,7 @@ if (want('3b')) {
         !!inC.rollCtx && inC.rollCtx.combat === inC.expectedStamp,
         JSON.stringify(inC.rollCtx));
     }
-    // Cleanup: the combat is this section's own fixture — never leave it running for §4+.
-    // Deletion also CLOSES the roster (endedRound), which is asserted before the marker is
-    // swept with the rest of the section's residue.
+    // Delete the combat (never leave it running); deletion also closes the roster (endedRound).
     const gone = await f.evaluate(async ({ combatId }) => {
       try {
         await game.combats.get(combatId)?.delete();
@@ -471,16 +424,8 @@ if (want('3b')) {
   }
 }
 
-// ------------------------- 3c. the data-plane stamp on a DEATH SAVE — the never-fired hook
-// `dnd5e.rollDeathSaveV2` sat in the D11 coverage report's NEVER FIRED list on every battery
-// since the stat plane shipped (BACKLOG, 2026-09-01: a coverage gap, not a dead handler —
-// nothing drove a PC to 0 HP). This is the exercise. The stamp is the same `rollCtx` §3b reads
-// off an attack; only the roll differs: a character-type actor, its HP at 0, dnd5e's own
-// `rollDeathSave` (the death-save subject has no hit dice to spend and no target, and the hook
-// fires under the V2 name — the header lesson of stats.js). A goblin cannot roll one, so the
-// subject is the PC fixture fixture-suite places, and the section says so if it is missing.
-// Out of combat is enough for the stamp's shape (§3b proved the in-combat half on the same
-// stamp); the assertion is the one BACKLOG named — the message carries `rollCtx`.
+// ---- 3c. the `rollCtx` stamp on a DEATH SAVE (`dnd5e.rollDeathSaveV2`): a character-type
+// fixture at 0 HP rolls dnd5e's own `rollDeathSave`; out of combat is enough for the shape
 if (want('3c')) {
   const r = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-battleflow';
@@ -498,15 +443,13 @@ if (want('3c')) {
           'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0,
           'system.attributes.death.success': 0, 'system.attributes.death.failure': 0,
         });
-        // `legacy: false` — the 5.x path (the same call the sheet's button makes); the dialog
-        // skipped and the roll kept to this client, like every other roll a suite drives.
+        // The sheet button's call, dialog skipped, roll kept to this client.
         const rolls = await pc.rollDeathSave({ legacy: false }, { configure: false }, { rollMode: 'selfroll' });
         if (!rolls?.length) return { ok: false, why: 'rollDeathSave produced no rolls (was HP really 0?)' };
         const message = rolls[0].parent;
         messageId = message?.id ?? null;
         if (!(message instanceof ChatMessage)) return { ok: false, why: 'the death save has no message to stamp' };
-        // The stamp is an async setFlag on the rolling client; wait for it the way §3b waits
-        // for the damage message rather than reading the flag on the same tick.
+        // The stamp is an async setFlag: wait for it.
         let ctx = null;
         for (let i = 0; i < 20 && !ctx; i++) {
           await new Promise(r => setTimeout(r, 250));
@@ -521,9 +464,7 @@ if (want('3c')) {
             failure: pc.system.attributes.death.failure },
         };
       } finally {
-        // The fixture is shared with §5c and the walk: HP and the death counters back to
-        // what they were (a natural 20 would have set HP 1 and cleared both; a 1 counts two
-        // failures), and the roll's own card off the log with the rest of the residue.
+        // Shared fixture: HP and the death counters back (a 20 or a 1 moves them).
         await pc.update({
           'system.attributes.hp.value': prior.hp, 'system.attributes.hp.temp': prior.temp,
           'system.attributes.death.success': prior.success, 'system.attributes.death.failure': prior.failure,
@@ -545,25 +486,21 @@ ${err.stack}` };
   }
 }
 
-// ------------------------------------------------------------- 4. revert via a real DOM click
+// ---- 4. revert via a real DOM click
 if (want('4')) {
   const r = await f.evaluate(async ({ damageMsgId, victimToken, expectedHp }) => {
     try {
       const button = document.querySelector(
         `[data-message-id="${damageMsgId}"] .battleflow-receipt button`);
       if (!button) return { ok: false, why: 'receipt revert button not found in chat DOM' };
-      // The applied card's damage tray must sit collapsed, as if Apply had been pressed
-      // (world setting is not "manual" here, so the guard doesn't apply). Report EVERY
-      // rendered instance of the card — chat log, notifications pane, popouts — because a
-      // message can render into several DOM trees and each has its own tray.
+      // The applied card's tray must sit collapsed; report every rendered instance (each has its own).
       const trays = Array.from(document.querySelectorAll(
         `[data-message-id="${damageMsgId}"] damage-application`)).map(t => ({
           open: t.open,
           container: t.closest('#chat-notifications') ? 'notifications'
             : t.closest('#chat') ? 'chat-log' : (t.closest('[id]')?.id ?? 'unknown'),
         }));
-      // Native Apply collapses only the tray that was clicked; other DOM instances keep
-      // their state. Parity target: the persistent chat-log instance must be collapsed.
+      // Native Apply collapses only the clicked tray; the chat-log instance is the parity target.
       const trayOpen = trays.some(t => t.container === 'chat-log' && t.open);
       button.click();
 
@@ -593,11 +530,8 @@ if (want('4')) {
     r.ok ? `hp back to ${r.hp.value}; button removed on re-render: ${r.buttonGone}` : r.why);
 }
 
-// ------------------------------------------- 4b. the immunity receipt (rolled N, took 0, WHY)
-// A cold-immune Ice Mephit "took" a rolled 9 with nothing on the card saying why (reported
-// live 2026-08-15) — the receipt now carries the system's own trait verdicts. Immunity to the
-// weapon's OWN damage type (read from the item, never hardcoded) makes the victim take
-// nothing while the roll still lands.
+// ---- 4b. the immunity receipt (rolled N, took 0, and the row says WHY): immunity to the
+// weapon's own damage type, read from the item
 if (want('4b')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const base = game.actors.get(victimId);
@@ -617,8 +551,7 @@ if (want('4b')) {
         'system.attributes.ac.override': 1,
         'system.traits.di.value': [...types],
       });
-      // Full pool first: an assertion that a number did not move is only worth anything if
-      // the number could have moved (smoke-hold's §6 lesson, generalised in the handoff).
+      // Full pool first: "did not move" only counts if it could have moved.
       await victim.update({
         'system.attributes.hp.value': victim.system.attributes.hp.max,
         'system.attributes.hp.temp': 0,
@@ -636,7 +569,7 @@ if (want('4b')) {
         { data: { 'system.origin': usageId } });
       const fumble = rolls?.[0]?.isFumble ?? false;
 
-      // Whole-log search by originating id — a tail window flakes (handoff ground truth).
+      // Whole-log search by originating id: a tail window flakes.
       let damageMsg = null;
       for (let i = 0; i < 40 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
@@ -652,7 +585,7 @@ if (want('4b')) {
       const rolled = damageMsg.rolls.reduce((n, r) => n + r.total, 0);
       const hp1 = victim.system._source.attributes.hp.value;
 
-      // What the table is TOLD: the receipt row in this client's own chat DOM.
+      // What the table is TOLD: the receipt row in this client's chat DOM.
       let rowText = '';
       for (let i = 0; i < 20 && !rowText.includes('immune'); i++) {
         await new Promise(r => setTimeout(r, 250));
@@ -680,8 +613,7 @@ if (want('4b')) {
     report('receipt records taken 0 + the immunity verdict',
       r.entry?.taken === 0 && (r.entry?.traits ?? []).some(t => t.outcome === 'immune' && r.types.includes(t.type)),
       JSON.stringify({ taken: r.entry?.taken, traits: r.entry?.traits }));
-    // textContent concatenates the flex spans without whitespace (the spacing is CSS gap),
-    // so match the phrase itself, pinned to the actual damage type.
+    // textContent joins the flex spans without whitespace (CSS gap), so match the phrase itself.
     report('the row SAYS it — "immune to <type>"',
       r.types.some(t => r.rowText.includes(`immune to ${t}`)),
       `row: "${r.rowText}"`);
@@ -689,27 +621,10 @@ if (want('4b')) {
 }
 
 
-// -------------------------------------------------- 4c. revert a KILL — the flake, deterministic
-// ⚠ THIS SECTION IS THE FLAKE, AND IT EXISTS BECAUSE §4 COULD NOT SEE IT. §4 reverts whatever
-// the dice did, and the Longsword is 1d8+3 into an 11 HP hobgoblin: only a MAX face kills, so
-// the lethal branch was walked about one run in eight. It showed up as "[smoke] 2 FAILURE(S)"
-// three times over two days, never on demand, and the first two sightings had their assertions
-// destroyed by a `| tail` before anyone could read them.
-//
-// The captured third sighting (battery 2026-08-24T13-05-19) named it in one line: the green runs
-// rolled 5, 6 and 7 and the red one rolled 11 — hp 11 -> 0. **A dead target was the whole
-// difference**, so this section takes the dice out of it: the pool is set to 1, any damage is
-// lethal, and the branch runs every time.
-//
-// What it was: revertTarget restores the pool ABOVE zero and then clears the dead mark — and
-// dnd5e's own "HP is positive again" handler is removing that same effect at that same moment.
-// toggleStatusEffect(id, {active:false}) resolves the canonical id and deletes without
-// re-checking, so the loser of that race throws `ActiveEffect "dnd5edead0000000" does not
-// exist!` out of the server backend. The click listener had no catch, so the rejection was
-// invisible AND it skipped the two lines after it: **the revert happened to the actor and was
-// never recorded on the card.** The GM sees HP come back, the Revert button stay put, and the
-// row never say "reverted" — one more press and it sticks, which is exactly what "flaky" looks
-// like from a table. Fixed by `clearStatus` (shared.js) + a catch on both revert buttons.
+// ---- 4c. revert a KILL, deterministically (the pool is set to 1, so any damage is lethal).
+// ⚠ The race under test: revertTarget restores HP above zero and clears the dead mark while
+// dnd5e's own "HP positive again" handler deletes the same effect; the loser throws "does not
+// exist". `clearStatus` (shared.js) and a catch on the revert buttons keep the card's record.
 if (want('4c')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const rejections = [];
@@ -723,8 +638,7 @@ if (want('4c')) {
       const attacker = game.actors.get(attackerId);
       await base.update({ 'system.attributes.ac.override': 1 });
       priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
-      // ⚠ THE FORCING, and it is the whole point of the section: a pool of 1 makes ANY damage
-      // lethal, so the dead-target branch is walked on every run instead of one in eight.
+      // ⚠ The forcing: a pool of 1 walks the dead-target branch every run.
       await victim.update({ 'system.attributes.hp.value': 1 });
 
       canvas.tokens.get(victimToken).setTarget(true, { releaseOthers: true });
@@ -751,8 +665,7 @@ if (want('4c')) {
       }
       if (!damageMsg) return { ok: false, why: 'no receipted damage message' };
 
-      // Wait for the DEATH, not a flat sleep — the dead mark is what this section is about,
-      // and asserting on it before it lands would test nothing.
+      // Wait for the dead mark, not a flat sleep.
       let died = false;
       for (let i = 0; i < 40 && !died; i++) {
         await new Promise(r => setTimeout(r, 250));
@@ -784,8 +697,7 @@ if (want('4c')) {
       return { ok: false, why: `${err.message}\n${err.stack}`, rejections };
     } finally {
       window.removeEventListener('unhandledrejection', onRejection);
-      // ⚠ Put the pool back whatever happened — every later section attacks this same token,
-      // and one left on 1 HP would turn each of them into this section by accident.
+      // ⚠ Put the pool back whatever happened: every later section attacks this token.
       try {
         if (victim && priorHp) await victim.update({
           'system.attributes.hp.value': priorHp.value,
@@ -803,14 +715,13 @@ if (want('4c')) {
       : r.why);
   report('…and the card drops its Revert button on the re-render',
     r.ok && r.buttonGone === true, r.ok ? `buttonGone=${r.buttonGone}` : r.why);
-  // ⚠ The rejection channel IS the assertion. The bug was never visible any other way: no
-  // failed await, no error toast, no log line — just two writes that quietly did not happen.
+  // ⚠ The rejection channel IS the assertion: the failure shows nowhere else.
   report('the revert rejects nothing into the void',
     r.ok && (r.rejections ?? []).filter(m => /does not exist|ActiveEffect/.test(m)).length === 0,
     JSON.stringify(r.rejections ?? []));
 }
 
-// -------------------------------------------------------------------------- 5. the miss test
+// ---- 5. the miss test
 if (want('5')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     try {
@@ -829,8 +740,7 @@ if (want('5')) {
         { data: { 'system.origin': usageId } });
       const isCritical = rolls?.[0]?.isCritical ?? false;
 
-      // Damage must NOT appear: a miss means the dice never exist. (A 1/400 nat-20 crit
-      // hits regardless of AC — reported so a flake reads as a flake, not a bug.)
+      // A miss means the dice never exist (a nat-20 crit is reported as a flake).
       let damageMsg = null;
       for (let i = 0; i < 16 && !damageMsg; i++) {
         await new Promise(r => setTimeout(r, 250));
@@ -848,10 +758,8 @@ if (want('5')) {
     r.ok ? `attack ${r.attackTotal} vs AC 40${r.isCritical ? ' (CRIT — flake, hit is correct)' : ''}; damage appeared: ${r.damageAppeared}` : r.why);
 }
 
-// ------------------------------------------- 5b. polish gates: the card always posts + no-target
-// v1.10.0 ripped the suppression machinery out (user call: cards always post, buttons hide).
-// What this section now owns: every use posts exactly one card, the suppress* settings stay
-// unregistered, and the no-target gate still refuses an untargeted attack.
+// ---- 5b. every use posts exactly one card, no suppress* setting is registered, and the
+// no-target gate refuses an untargeted attack
 if (want('5b')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-battleflow';
@@ -866,7 +774,7 @@ if (want('5b')) {
         (m.type === 'usage')
         && m.speaker?.alias?.startsWith('BF Test'));
 
-      // (a) The rip stayed ripped: no suppress* setting is registered.
+      // (a) No suppress* setting is registered.
       out.suppressGone = ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
         'suppressFeatureCards', 'suppressOtherCards']
         .every(k => !game.settings.settings.has(`${MOD}.${k}`));
@@ -901,26 +809,20 @@ if (want('5b')) {
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
 }
 
-// -------------------------------------------- 5c. the attacker-side mode gate (NPC / PC / all)
-// Section 3 covers "all". This one proves the two one-sided modes actually exclude the other
-// side — the gate is what lets the table dogfood the monster side and the player side
-// separately. NOTE: the bridge is a GM, so both attacks here are rolled by a GM client; what
-// is under test is the ACTOR-TYPE gate, not the player-client path (which needs a real player
-// login and is dogfooded at the table).
+// ---- 5c. the attacker-side mode gate: each one-sided mode excludes the other side. Both
+// attacks roll on the GM client, so this tests the ACTOR-TYPE gate, not a player client.
 if (want('5c')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName, playerName }) => {
     const MOD = 'fvtt-mod-battleflow';
     const priorMode = game.settings.get(MOD, 'autoDamage');
     const priorApply = game.settings.get(MOD, 'autoApply');
     try {
-      // Damage must be free to ROLL but never applied — four forced hits would otherwise kill
-      // the victim mid-matrix and the later attacks would resolve against a corpse.
+      // Roll but never apply: four forced hits would kill the victim mid-matrix.
       await game.settings.set(MOD, 'autoApply', false);
       const base = game.actors.get(victimId);
       await base.update({ 'system.attributes.ac.override': 1 });
 
-      // A character-type attacker, cloned from the NPC's own attack item so the two sides
-      // differ ONLY in actor.type. Idempotent by name; cleaned up with the rest by alias.
+      // A character-type attacker with the NPC's own attack item: the sides differ only in actor.type.
       const npcAttacker = game.actors.get(attackerId);
       let pcAttacker = game.actors.getName('BF Test PC Attacker');
       if (!pcAttacker) {
@@ -931,22 +833,14 @@ if (want('5c')) {
         });
       }
       if (pcAttacker.type !== 'character') return { ok: false, why: `PC fixture is type ${pcAttacker.type}` };
-      // ⚠ OWNED BY THE PLAYER TEST USER, default NONE — granted on EVERY run, not only at
-      // creation (the smoke-twoclient idiom). The 2026-08-23 grant lived only in the WORLD,
-      // and a prod mirror deleted it with the actor: this fixture then recreated the PC
-      // ownerless, smoke-saves' (h) sections stopped seeing a player-OWNED pc, and
-      // check-popup-routing's player could no longer cast from it (both found 2026-08-27).
-      // The world is disposable; anything a suite needs must live in a fixture step.
+      // ⚠ Owned by the player test user, granted on EVERY run: a prod mirror can delete the actor,
+      // and smoke-saves and check-popup-routing need a player-owned PC.
       const playerUser = playerName ? game.users.getName(playerName) : null;
       if (playerUser) {
         await pcAttacker.update({ ownership: { default: 0, [playerUser.id]: 3 } },
           { diff: false, recursive: false });
       }
-      // ⚠ AND A REAL HP POOL. A bare character create has hp.max 0, and the old world's copy
-      // owed its pool to history the mirror deleted — smoke-saves §11/§16 then demanded saves
-      // of a 0/0 sheet, a degenerate fixture no assertion was written for (found 2026-08-27,
-      // probe: hp "0/0"). Seeded on every run, like the ownership above: the world is
-      // disposable, so everything a suite needs must live in a fixture step.
+      // ⚠ And a real HP pool, every run: a bare character create has hp.max 0.
       if (!(pcAttacker.system.attributes?.hp?.max > 0)) {
         await pcAttacker.update({
           'system.attributes.hp.max': 20, 'system.attributes.hp.value': 20
@@ -972,8 +866,7 @@ if (want('5c')) {
             (m.type === 'damage')
             && (m._source.system?.origin === usageId));
         }
-        // vs AC 1 with advantage only a fumble misses (1/400) — reported so a flake reads
-        // as a flake rather than a broken gate.
+        // Only a double fumble misses AC 1; reported as a flake.
         return { rolled: !!dmg, total: rolls?.[0]?.total, fumble: rolls?.[0]?.isFumble ?? false };
       };
 
@@ -1004,14 +897,9 @@ if (want('5c')) {
   }
 }
 
-// ------------------------------ 5d. the player-rolled damage offer (was probe-player-damage)
-// The player-rolled damage popup (FLOW item 3, Pass B): the attacker is OFFERED their own
-// damage roll instead of having it taken, the offer says when the hit was a CRITICAL, and
-// every way out of the popup ends in the same roll. It rides §2's BF Test Attacker / BF Test
-// Victim fixtures, which is why it lives here.
-//
-// Eleven assertions:
-//   1  setting OFF        -> damage auto-rolls as before, NO popup          (no regression)
+// ---- 5d. the player-rolled damage offer: the attacker is OFFERED their damage roll, the offer
+// names a CRITICAL, and every way out of the popup ends in the same roll. Assertions:
+//   1  setting OFF        -> damage auto-rolls, NO popup
 //   2  setting ON         -> popup opens and damage does NOT roll yet
 //   3  two targets hit    -> exactly ONE popup (per ATTACK, never per target)
 //   4  non-crit           -> no crit badge, button reads "Roll Damage"
@@ -1019,21 +907,11 @@ if (want('5c')) {
 //   6  button pressed     -> damage rolls, stamped originatingMessage, crit honoured
 //   7  dismissed (X/Esc)  -> damage rolls IMMEDIATELY, not at the buzzer
 //   8  left alone         -> the buzzer rolls it (the damageTimer window, waited out for real)
-//  10  pending offer      -> walk-4 (w): damageOffer flag stamped AND the card runs the bar
-//  11  after the roll     -> walk-4 (w): the offer flag folds to done (the card's bar drops)
-//
-// ⚠ THE CRIT LEVER IS A DECOY TRAP, measured 2026-08-19 and the reason assertion 5 exists in
-// this shape. `D20Roll#isCritical` is `this.d20.isCriticalSuccess`, and D20Die reads
-// `this.options.criticalSuccess` — the DIE TERM's options. The ROLL also carries an
-// `options.criticalSuccess`, it is numeric, it looks exactly like the lever, and setting it
-// changes NOTHING. This section asserts both halves so the decoy can never be mistaken for
-// the real one again, and prints the getter's own reading if 5.3.x ever moves it.
-//
-// ⚠ FOLDED IN 2026-08-23 (git history). It was a separate script that could only run AFTER
-// smoke-battleflow, on smoke-battleflow's own fixtures, and was therefore forgotten twice.
-// As a section it cannot be: the fixtures are already standing and the restore below runs
-// whatever happens. Its own settings snapshot/restore is kept — it pins playerRollDamage
-// and damageTimer, which §1's pin does not name.
+//  10  pending offer      -> damageOffer flag stamped AND the card runs the bar
+//  11  after the roll     -> the offer flag folds to done (the card's bar drops)
+// ⚠ The crit lever is the D20 TERM's `options.criticalSuccess` (what `isCritical` reads); the
+// ROLL's numeric `options.criticalSuccess` is a decoy that changes nothing. §5 asserts both.
+// Keeps its own settings snapshot: it pins playerRollDamage and damageTimer.
 if (want('5d')) {
   const pd = await f.evaluate(async () => {
     const MOD = 'fvtt-mod-battleflow';
@@ -1055,7 +933,6 @@ if (want('5d')) {
       .find(a => a.type === 'attack');
     if (!activity) return { fatal: 'BF Test Attacker has no attack activity' };
 
-    // Prior state, restored in full at the end.
     const prior = {
       autoDamage: game.settings.get(MOD, 'autoDamage'),
       autoApply: game.settings.get(MOD, 'autoApply'),
@@ -1074,12 +951,11 @@ if (want('5d')) {
     await game.settings.set(MOD, 'reactionHold', false);
     await game.settings.set(MOD, 'riders', false);
     await game.settings.set(MOD, 'masteryRiders', false);
-    // Force the hit the way smoke-battleflow does: flat AC 1 on the base actor.
     await victim.update({ 'system.attributes.ac.override': 1 });
 
     const created = [];   // every message this probe makes, deleted at the end
 
-    /** Our popup, found by its eyebrow — the one string no other dialog in this module carries. */
+    /** Our popup, found by its eyebrow (no other dialog carries it). */
     const popupEls = () => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes('Damage &mdash; your roll')
                  || (el.innerHTML ?? '').includes('Damage — your roll'));
@@ -1128,10 +1004,8 @@ if (want('5d')) {
     const results = [];
     const one = [vTokens[0]];
 
-    // ⚠ A second target needs a DISTINCT ACTOR, not a second token of the same one: descriptors
-    // key on the actor uuid, so two tokens of one linked actor collapse to a single snapshot row
-    // and "one popup for two targets" becomes unanswerable (the Practice Dummy trap, HANDOFF
-    // 2026-08-19). Created hidden, at AC 1 so it is always hit, and deleted in teardown.
+    // ⚠ A second target needs a DISTINCT ACTOR: descriptors key on the actor uuid, so two tokens
+    // of one linked actor collapse to one row. Hidden, AC 1, deleted in teardown.
     const [extra] = await Actor.createDocuments([{
       name: 'BF Probe Second Target', type: 'npc',
       system: { attributes: { hp: { value: 30, max: 30 }, ac: { flat: 1, calc: 'flat' } } }
@@ -1143,7 +1017,7 @@ if (want('5d')) {
     await sleep(400);
     const two = extraTokDoc?.object ? [vTokens[0], extraTokDoc.object] : one;
 
-    /* 1 — setting OFF: nothing changes. -------------------------------------------------- */
+    /* 1 — setting OFF: nothing changes. */
     await game.settings.set(MOD, 'playerRollDamage', false);
     {
       const { usageId } = await attack(one);
@@ -1154,7 +1028,7 @@ if (want('5d')) {
       await closeAllPopups();
     }
 
-    /* 2 — setting ON: the popup opens and the dice WAIT. --------------------------------- */
+    /* 2 — setting ON: the popup opens and the dice WAIT. */
     await game.settings.set(MOD, 'playerRollDamage', true);
     let critLever = null;
     {
@@ -1166,7 +1040,7 @@ if (want('5d')) {
         pass: (popups.length === 1) && !early,
         detail: `popups=${popups.length} damageAlready=${!!early}` });
 
-      /* 10 — (w): the wait is a TABLE moment — flag stamped, bar on the card too. --------- */
+      /* 10 — the wait is a table moment: flag stamped, bar on the card too. */
       const offer = attackMsg?.getFlag(MOD, 'damageOffer');
       const cardBar = attackMsg ? document.querySelector(
         `[data-message-id="${attackMsg.id}"] .battleflow-damage-offer [data-bf-deadline]`) : null;
@@ -1175,22 +1049,20 @@ if (want('5d')) {
               && ((offer?.deadline ?? 0) > Date.now()) && !!cardBar,
         detail: `flag=${JSON.stringify(offer ?? null)} cardBarDOM=${!!cardBar}` });
 
-      /* 4 — a normal hit: NO crit badge, and the CELEBRATION title ((l), round 3). -------- */
+      /* 4 — a normal hit: NO crit badge, and the celebration title. */
       const html = popups[0]?.innerHTML ?? '';
       const label = popups[0]?.querySelector('button[data-action="roll"]')?.textContent?.trim() ?? '';
       const title4 = popups[0]?.querySelector('.window-title')?.textContent ?? '';
       const wasCrit = attackMsg?.rolls?.[0]?.isCritical ?? null;
       results.push({ n: 4, name: 'non-crit — no badge, plain label, "You hit!" celebrates',
-        // Only meaningful when the roll genuinely was not a crit; advantage crits ~10% of the time.
+        // Only meaningful on a non-crit (advantage crits ~10% of the time).
         pass: wasCrit === false ? (!html.includes('Critical Hit') && /Roll Damage/i.test(label)
                 && /You hit/i.test(title4)) : true,
         detail: `isCritical=${wasCrit} label="${label}" title="${title4}" badge=${html.includes('Critical Hit')}`
               + (wasCrit ? ' (rolled a crit — assertion skipped, rerun)' : '') });
 
-      /* 4b — (hh), v1.20.0 walk 1: the "Against …" line names each target WITH its token
-       * icon (law-8 tooltip = the name), so the roll popup stopped being the one volley-family
-       * surface that named targets in text alone. The icon sits directly before its own
-       * <strong>name</strong>, which is how it is told apart from the bfCard portrait. */
+      /* 4b — the "Against …" line names each target with its token icon (tooltip = the name),
+       * directly before its <strong>name</strong>, which tells it apart from the bfCard portrait. */
       const aimIcon = [...(popups[0]?.querySelectorAll('img[data-tooltip]') ?? [])].find(img =>
         (img.nextElementSibling?.tagName === 'STRONG')
         && (img.dataset.tooltip === img.nextElementSibling.textContent));
@@ -1198,7 +1070,7 @@ if (want('5d')) {
         pass: !!aimIcon,
         detail: aimIcon ? `icon for "${aimIcon.dataset.tooltip}"` : 'no icon+name pair in the popup' });
 
-      /* 6 — pressing the button rolls it, stamped and crit-honest. ----------------------- */
+      /* 6 — pressing the button rolls it, stamped and crit-honest. */
       popups[0]?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitDamage(usageId, 8000);
       results.push({ n: 6, name: 'button pressed — rolls, stamped',
@@ -1207,7 +1079,7 @@ if (want('5d')) {
         detail: `damage=${!!dmg} origin=${dmg?._source.system?.origin === usageId}`
               + ` attackCrit=${wasCrit} damageCrit=${dmg?.rolls?.[0]?.isCritical ?? null}` });
 
-      /* 11 — (w): the roll folds the offer — the card's bar has nothing left to draw. ----- */
+      /* 11 — the roll folds the offer; the card's bar drops. */
       await sleep(400);   // the done-write is fire-and-forget behind the roll
       const offerAfter = attackMsg?.getFlag(MOD, 'damageOffer');
       results.push({ n: 11, name: '(w) rolled — the offer flag folds to done',
@@ -1216,10 +1088,9 @@ if (want('5d')) {
       await closeAllPopups();
     }
 
-    /* 5 — CRIT: the decoy proven dead, then the real lever, then the badge. ------------- */
+    /* 5 — CRIT: the decoy proven dead, then the real lever, then the badge. */
     {
-      // Bounded retry for a NON-crit start: the decoy pin is only meaningful when the roll
-      // begins isCritical=false, and advantage crits ~10% of the time (flaked 2026-08-20).
+      // Bounded retry for a NON-crit start: the decoy pin only means something from isCritical=false.
       let attackMsg = null;
       for (let try9 = 0; try9 < 4; try9++) {
         ({ attackMsg } = await attack(one));
@@ -1231,12 +1102,12 @@ if (want('5d')) {
       const roll = attackMsg?.rolls?.[0];
       const critBefore = roll?.isCritical ?? null;
 
-      // (a) THE DECOY. The roll's own criticalSuccess is numeric and looks authoritative.
+      // (a) THE DECOY: the roll's own criticalSuccess.
       const rollOpts = Object.keys(roll?.options ?? {}).join(',');
       if (roll?.options) roll.options.criticalSuccess = 1;
       const afterDecoy = roll?.isCritical ?? null;
 
-      // (b) THE REAL LEVER: the D20 TERM's options, which is what the getter actually reads.
+      // (b) THE REAL LEVER: the D20 term's options.
       const dieOpts = Object.keys(roll?.d20?.options ?? {}).join(',');
       if (roll?.d20?.options) roll.d20.options.criticalSuccess = 1;
       const afterReal = roll?.isCritical ?? null;
@@ -1249,7 +1120,7 @@ if (want('5d')) {
       log.push(`  roll.d20.options=[${dieOpts}]`);
 
       results.push({ n: 9, name: 'the roll-level criticalSuccess is a DECOY (pins the trap)',
-        // Only meaningful from a non-crit start; four natural crits in a row skips it (rerun).
+        // Only meaningful from a non-crit start.
         pass: (critBefore === false) ? critLever.decoyIsDead : true,
         detail: `roll.options.criticalSuccess=1 left isCritical=${afterDecoy} (must be false)`
               + ((critBefore !== false) ? ' (started critical — assertion skipped, rerun)' : '') });
@@ -1274,7 +1145,7 @@ if (want('5d')) {
       await sleep(1500);
     }
 
-    /* 3 — two targets, ONE popup. --------------------------------------------------------- */
+    /* 3 — two targets, ONE popup. */
     {
       const { usageId, attackMsg } = await attack(two);
       await sleep(1200);
@@ -1284,14 +1155,14 @@ if (want('5d')) {
         pass: (popups.length === 1) && (hits >= 2),
         detail: `targeted=${two.length} snapshot=${hits} popups=${popups.length}` });
 
-      /* 7 — dismissing rolls IMMEDIATELY, not at the buzzer. ----------------------------- */
+      /* 7 — dismissing rolls IMMEDIATELY, not at the buzzer. */
       await closeAllPopups();
       const dmg = await waitDamage(usageId, 5000);   // well inside the 15s window
       results.push({ n: 7, name: 'dismissed — rolls immediately, not at the buzzer',
         pass: !!dmg, detail: `damage within 5s of dismissal = ${!!dmg}` });
     }
 
-    /* 8 — the buzzer. Waited out for real. ------------------------------------------------ */
+    /* 8 — the buzzer, waited out for real. */
     {
       const { usageId } = await attack(one);
       await sleep(1200);
@@ -1304,7 +1175,7 @@ if (want('5d')) {
       await closeAllPopups();
     }
 
-    /* teardown ---------------------------------------------------------------------------- */
+    /* teardown */
     await closeAllPopups();
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     await ChatMessage.deleteDocuments([...new Set(created)].filter(id => game.messages.has(id)))
@@ -1312,7 +1183,7 @@ if (want('5d')) {
     if (extraTokDoc) await canvas.scene.deleteEmbeddedDocuments('Token', [extraTokDoc.id]).catch(() => {});
     if (extra) await extra.delete().catch(() => {});
     await victim.update({
-      'system.attributes.ac.override': prior.victimAC?.override ?? null,   // 6.0: the forced AC is `override`
+      'system.attributes.ac.override': prior.victimAC?.override ?? null,
       'system.attributes.ac.flat': prior.victimAC?.flat ?? null
     }).catch(() => {});
     for (const [k, v] of Object.entries(prior)) {
@@ -1339,20 +1210,15 @@ if (want('5d')) {
   }
 }
 
-// ------------------------- 5e. the automatic Critical Hit (user, 2026-09-02)
-// The glossary's clause on Paralyzed and Unconscious, honoured as an OUTCOME: the attacker
-// steps next to a Paralyzed victim, hits (flat AC 1), and the damage roll is critical whatever
-// the d20 said; the same swing from 10 feet is not. Both attacks force the hit; a nat 20 on the
-// far swing is a 1-in-20 flake and is reported as one.
+// ---- 5e. the automatic Critical Hit (Paralyzed/Unconscious within 5 feet): adjacent, the
+// damage is critical whatever the d20 said; from 10 feet it is not (a nat 20 there is a flake)
 if (want('5e')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerToken, attackerId, itemName }) => {
     const MOD = 'fvtt-mod-battleflow';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const out = { log: [] };
-    // ⚠ WAIT FOR THE WALK, never sleep for it (Foundry 14.367, measured 2026-09-15 — the 6.0 pass):
-    // a moved token's document x/y are INTERIM while it animates and `_source` holds the
-    // destination; this section slept 400 ms and, with the tokens far from their fixture squares
-    // after a battery, judged the near swing mid-walk and the far swing at the near square.
+    // ⚠ Wait for the walk, never sleep: a moving token's document x/y are INTERIM while it
+    // animates (`_source` holds the destination).
     const arrived = async tok => {
       for (let i = 0; i < 100 && ((tok.document.x !== tok.document._source.x) || (tok.document.y !== tok.document._source.y)); i++) await sleep(100);
     };
@@ -1362,10 +1228,8 @@ if (want('5e')) {
     const attacker = game.actors.get(attackerId);
     if (!vTok || !aTok || !victim) return { ok: false, why: 'fixture tokens missing from the canvas' };
     const priorPos = { x: aTok.document.x, y: aTok.document.y };
-    // ⚠ The victim on its FIXTURE square first (the 6.0 pass, 2026-09-15): earlier suites walk the
-    // tokens about, and with the victim at the scene's left edge the "10 feet" square lay OFF the
-    // scene — the platform constrained the walk to the edge, the attacker stayed adjacent, and the
-    // far swing read as a crit that was the near square's. Restored with the attacker.
+    // ⚠ The victim on its FIXTURE square first: near the scene edge the "10 feet" square lies off
+    // the scene, the platform clamps the walk, and the far swing reads as adjacent.
     const vPrior = { x: vTok.document.x, y: vTok.document.y };
     const priorHp = foundry.utils.deepClone(victim.system._source.attributes.hp);
     let paralyzed = null;
@@ -1382,9 +1246,7 @@ if (want('5e')) {
         damageMsg = game.messages.contents.slice(-10).find(m =>
           (m.type === 'damage') && (m._source.system?.origin === usageId));
       }
-      // The topology the distance read assumes, on the detail line: how many tokens the attacker
-      // has on the scene and the squares between the two fixture tokens (2026-09-24: a linked
-      // stray made the auto-crit measure from the wrong square, and the line could not say so).
+      // The topology the distance read assumes, on the detail line (a stray token measures wrong).
       const aTokens = canvas.scene.tokens.filter(t => t.actorId === attacker.id).length;
       const squares = Math.max(Math.abs(aTok.document.x - vTok.document.x), Math.abs(aTok.document.y - vTok.document.y)) / canvas.scene.grid.size;
       return { d20Crit: rolls?.[0]?.isCritical ?? false, fumble: rolls?.[0]?.isFumble ?? false,
@@ -1437,7 +1299,7 @@ if (want('5e')) {
   }
 }
 
-// ---------------------- 6. restore the table's prior settings + test chat-log cleanup
+// ---- 6. restore the table's prior settings + test chat-log cleanup
 {
   const r = await f.evaluate(async prior => {
     const MOD = 'fvtt-mod-battleflow';
@@ -1461,9 +1323,7 @@ if (want('5e')) {
     JSON.stringify(r));
 }
 
-// ⚠ This suite keeps its OWN summary line rather than the harness reporter: "ALL PASS" and
-// "N FAILURE(S)" are the strings the handoff, the notes and two undiagnosed flake reports all
-// quote verbatim. A partial run is stamped so it can never be read as a battery.
+// ⚠ Its own summary line: "ALL PASS" and "N FAILURE(S)" stay verbatim; a partial run is stamped.
 const partial = plan ? `  ⚠ PARTIAL RUN — sections ${plan.join(', ')} only` : '';
 for (const id of Object.keys(SECTIONS)) {
   if (plan && !plan.includes(String(id))) console.log(`  SKIP §${id} ${SECTIONS[id]}`);

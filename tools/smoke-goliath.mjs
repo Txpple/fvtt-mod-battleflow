@@ -1,25 +1,15 @@
-// Battle Flow Goliath smoke test — THE GOLIATH WALK'S PASS 2 (2026-09-25): Large Form's token size
-// ("large form did not increase token size"), the rebuke family ("Storms thunder is not triggering
-// anything … make sure the 60ft range calc is in there … pick up hellish rebuke and anything else in
-// that family"), and Stone's Endurance on ANY damage (ruled "Hold before it lands").
-//
-// Fixtures: BF Test Goliath (Fighter 5, Stone's Endurance, Fire's Burn; friendly) is lent the PHB's
-// Storm's Thunder and Large Form for the run (and Sentinel for §5, with BF Test Cleric placed beside
-// the Victim as the one it hits); BF Test Victim (hostile) is the damager. Both linked,
-// tokens placed on the Battle Flow Test Range for the run. Built by tools/fixture-suite.mjs.
-//
-// Harness discipline: every setting touched is restored; the lent items, the effects, the tokens and
-// the messages this run creates are deleted; the Goliath's uses and both HP pools are put back.
-//
-// Sections: `--section 2`, `--list`. Fixtures and teardown ALWAYS run.
+// Goliath smoke suite: Large Form's token size, the rebuke family within its range (Storm's
+// Thunder), Stone's Endurance held before ANY damage lands, and Sentinel's Guardian and Halt.
+// Fixtures (tools/fixture-suite.mjs): BF Test Goliath (friendly), lent the PHB's items for the run;
+// BF Test Victim (hostile) the damager; BF Test Cleric for §5. Everything written is restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'rebukes.js',             // §2, §3 — the offer within reach, the drive at the damager; none out of reach
   'damage-holds.js',        // §4 — the applier's claim, the answer, the reduced landing
   'token-lights.js',        // §1 — Large Form's size on the pack's own effect
-  'clock-riders.js'         // §5 — Sentinel's Halt on the driven Opportunity Attack's hit (the PHB feats, group 6)
+  'clock-riders.js'         // §5 — Sentinel's Halt on the driven Opportunity Attack's hit
 ];
 
 const SECTIONS = {
@@ -124,7 +114,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('interruptList', def('interruptList'));
     await set('tokenSizeList', def('tokenSizeList'));
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const strays = scene.tokens.filter(t => [victim.id, gol.id].includes(t.actorId)).map(t => t.id);
@@ -156,7 +146,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return item;
     };
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -173,7 +163,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const damagerCard = async () => ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: victim }), content: 'BF Test — the damager\'s card' });
 
-    // ================================================== 1. Large Form
+    // ---- 1. Large Form
     if (want(1)) {
       const lf = await lend('Large Form');
       const data = lf.effects.contents[0].toObject();
@@ -187,7 +177,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. the effect removed: 1 × 1 and Medium again', back && (gol.system.traits.size === 'med'), `w=${golDoc.width} size=${gol.system.traits.size}`);
     }
 
-    // ================================================== 2-3. Storm's Thunder
+    // ---- 2-3. Storm's Thunder
     if (want(2) || want(3)) {
       await set('interruptList', '');     // Stone's Endurance is §4's; one reaction at a time here
       const storm = await lend("Storm's Thunder");
@@ -229,7 +219,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('interruptList', def('interruptList'));
     }
 
-    // ================================================== 4. Stone's Endurance on any damage
+    // ---- 4. Stone's Endurance on any damage
     if (want(4)) {
       await set('rebukeList', '');
       await heal();
@@ -238,7 +228,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const t0 = Date.now();
       const card = await damagerCard();
       const share = () => [{ value: 12, type: 'fire', properties: new Set() }];
-      // The same share twice, as a save's damage reaches the applier (the walk's two popups).
+      // The same share twice, as a save's damage reaches the applier: one card, one landing.
       await Promise.all([
         applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' }),
         applyDamagesWithReceipt(card, [{ uuid: gol.uuid, name: gol.name }], share(), { note: 'BF Test' })
@@ -268,12 +258,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
 
-    // ================================================== 5. Sentinel's Guardian and Halt
-    // (the PHB feats, group 6, 2026-09-27): "Immediately after a creature within 5 feet of you ... hits a
-    // target other than you with an attack, you can make an Opportunity Attack against that creature" —
-    // a WARD: the hostile Victim's attack hits the Cleric beside it, and the Goliath (lent Sentinel, the
-    // Victim's other neighbour) is asked; Use drives one melee attack at the Victim, marked an Opportunity
-    // Attack, whose hit offers Halt (ticked) and lands the pack's own "Halted" (Speed 0) on the Victim.
+    // ---- 5. Sentinel's Guardian and Halt: the Victim hits the Cleric beside it, the Goliath (the
+    // Victim's other neighbour) is asked; Use drives an Opportunity Attack whose hit offers Halt
+    // (ticked) and lands the pack's "Halted" (Speed 0).
     if (want(5)) {
       await set('rebukeList', def('rebukeList'));
       await set('clockRiderList', def('clockRiderList'));

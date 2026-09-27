@@ -1,25 +1,11 @@
-// Battle Flow Aasimar smoke test — CELESTIAL REVELATION AND THE TOKEN LIGHTS (the Aasimar walk,
-// 2026-09-25: "the transformations create a region/template, and i have to place it. it should
-// always just be centered on the token"; "inner radiance needs to pulse"; "necrotic shroud - put
-// the fix in the vendor fixes sister repo … implement the ability correctly"; "extra damage for
-// revelation - you need to add this in"; "inner radiance - add the bright/dim light settings …
-// edit the Light spell so it adds light emission to a token target as well").
-//
-// Fixtures: BF Test Halfling (Rogue 3 — Proficiency Bonus 2, a Shortsword; friendly) is lent the
-// PHB's Celestial Revelation, Light and Sacred Flame for the run; BF Test Victim (hostile) and BF
-// Test Ranger (friendly) stand beside it. All three linked, tokens placed on the Battle Flow Test
-// Range for the run. Built by tools/fixture-suite.mjs.
-//
-// Harness discipline: every setting touched is restored; the lent items, the effects, the tokens,
-// the regions, the combat and the messages this run creates are deleted.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Aasimar smoke suite (RULINGS *The Aasimar walk*): Celestial Revelation's self areas centred on
+// the token, Inner Radiance's light and pulse, Necrotic Shroud asking no ally, the Revelation's
+// extra damage on a hit and on a spell, and the Light spell's emission on a token target.
+// Fixtures (tools/fixture-suite.mjs): BF Test Halfling (PB 2) lent the PHB's items; BF Test Victim
+// (hostile) and BF Test Ranger (friendly) beside it. Everything written is restored or deleted.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'token-lights.js',        // §2, §7 — Searing Radiance with its light, the Light spell on a token
   'emanations.js',          // §1, §2, §4, §6 — the self area placed on the token, the `while` ring, the pulse
@@ -148,7 +134,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('emanationList', def('emanationList'));
     await set('tokenLightList', def('tokenLightList'));
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const strays = scene.tokens.filter(t => [victim.id, aas.id].includes(t.actorId)).map(t => t.id);
@@ -196,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const irAct = actNamed(rev, 'Inner Radiance');
     const freshUse = async () => rev.update({ 'system.uses.spent': 0 });
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -238,7 +224,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const ring = () => scene.regions.find(r => (r.getFlag(MOD, 'emanation')?.key === 'Inner Radiance') && (r.getFlag(MOD, 'emanation')?.tokenId === aasDoc.id)) ?? null;
     const lightOf = doc => ({ bright: scene.tokens.get(doc.id)?.light?.bright ?? null, dim: scene.tokens.get(doc.id)?.light?.dim ?? null });
 
-    // ================================================== 1. Necrotic Shroud
+    // ---- 1. Necrotic Shroud
     if (want(1)) {
       await freshUse();
       target();
@@ -279,7 +265,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healAll();
     }
 
-    // ================================================== 2. Inner Radiance
+    // ---- 2. Inner Radiance
     let searing = null;
     if (want(2)) {
       await freshUse();
@@ -314,7 +300,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(useCard?.getFlag(MOD, 'tokenLight')));
     }
 
-    // ================================================== 3. a spell's damage, the ONE target
+    // ---- 3. a spell's damage, the ONE target
     if (want(3) && searing) {
       await healAll();
       target(victimToken);
@@ -337,7 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `flag=${JSON.stringify(game.messages.get(spellDmg?.id)?.getFlag(MOD, 'spellRider'))} text=${textOf(cardEl(spellDmg?.id)).slice(0, 400)}`);
     }
 
-    // ================================================== 4. the pulse
+    // ---- 4. the pulse
     if (want(4) && searing) {
       await healAll();
       if (game.combat) await game.combat.delete();
@@ -363,7 +349,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4d. another creature\'s turn ending pays nothing', game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationPulse')).length === 1, '');
     }
 
-    // ================================================== 5. the rider on a hit, once per turn
+    // ---- 5. the rider on a hit, once per turn
     if (want(5) && searing) {
       await healAll();
       const first = await swing();
@@ -375,7 +361,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 6. the transformation ends
+    // ---- 6. the transformation ends
     if (want(6) && searing) {
       if (combat && game.combats.get(combat.id)) { await combat.delete(); combat = null; }
       const live = aas.effects.find(e => e.name === 'Searing Radiance');
@@ -386,7 +372,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b. the token\'s light goes with the effect', dark, JSON.stringify(lightOf(aasDoc)));
     }
 
-    // ================================================== 7. the Light spell on a token
+    // ---- 7. the Light spell on a token
     if (want(7)) {
       const act = light.system.activities.contents[0];
       const lightActorsBefore = scene.tokens.filter(t => /^Light/.test(t.name)).length;

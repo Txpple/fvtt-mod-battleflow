@@ -1,35 +1,11 @@
 // HOOK COVERAGE — which of this module's registrations actually FIRED (ARCHITECTURE §10 D11).
-//
-// The join nobody had made: `check-hook-order.mjs` knows all 83 registrations by name and file,
-// `battery.mjs` exercises everything the module can do, and until now nothing put the two
-// together. This does. It reads the per-suite ledgers a battery leaves in `dist/hook-ledger/`
-// and prints, for every hook this module listens to, whether the world ever dispatched it.
-//
-// ⚠ THIS IS A COVERAGE REPORT, NOT A GATE, AND THE DISTINCTION IS THE DESIGN. A registration
-// that never fires is not necessarily a bug — some are genuinely rare, and a battery is not the
-// universe. A rule that FAILED on one would be tuned into uselessness by the third rare hook,
-// and a tuned-out check is worse than none because it still reads as coverage. So the contract
-// is the one `check-hook-order` chose for its own order table: **print the truth, let a human
-// read it.** The exit code reports whether the INSTRUMENT worked, never what it found.
-//
-// ⚠ WHAT A NEVER-FIRED LINE ACTUALLY MEANS, in order of likelihood:
-//   1. the battery does not exercise that path — a coverage gap, and the useful kind to see;
-//   2. the handler is dead and nobody knows (this is the v1.23.0 failure, and it printed four
-//      lines here while every suite reported green);
-//   3. the hook is rare by nature (a system upgrade path, a document type nothing creates);
-//   4. THE PLATFORM NEVER DISPATCHES IT AT ALL — measured 2026-08-24 for the two MeasuredTemplate
-//      CRUD hooks, which Foundry 14 replaced with Region dispatches. That one is not a coverage
-//      result and does not belong in the same list as the others, so it has its own pinned
-//      category below and its own printed reason.
-// **Only a person can tell these apart**, which is exactly why this prints rather than fails.
-//
-// ⚠ A SECOND SECTION FOLLOWS THE HOOK REPORT (2026-09-23): THE CLAIM PROOF. The same ledgers carry
-// a `moments` half — every `battleflow.moment` the page heard, by record kind — and
-// tools/claim-proof.mjs reads it against the declared coverage map (tools/coverage-map.mjs): did
-// each file a suite claims actually ACT there, and did a file act in a suite that never claimed
-// it? Same contract, same exit code: printed, never enforced. It lives here rather than in its own
-// battery step because the battery already runs this file at its tail and prints from NEVER FIRED
-// to the end, so the proof lands on screen with no second command.
+// Reads the per-suite ledgers a battery leaves in `dist/hook-ledger/` against the registrations
+// `check-hook-order.mjs` knows, and prints whether the world ever dispatched each hook.
+// ⚠ A report, not a gate: a never-fired line may be a coverage gap, a dead handler, a rare hook,
+// or a hook the platform never dispatches, and only a person can tell them apart. The exit code
+// says whether the INSTRUMENT worked, never what it found.
+// A second section, THE CLAIM PROOF (tools/claim-proof.mjs), reads the ledgers' `moments` half
+// against the coverage map, under the same contract.
 //
 //   node tools/hook-coverage.mjs          # after a battery
 //   node tools/battery.mjs                # runs it for you, at the end
@@ -44,18 +20,12 @@ import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 const LEDGER_DIR = join(REPO, "dist", "hook-ledger");
 
-// ⚠ `Hooks.call` STOPS AT THE FIRST HANDLER RETURNING FALSE; `Hooks.callAll` never does. For a
-// name dispatched by `call`, "it fired" means at least the first listener ran — not all of them.
-// This module registers on exactly one such seam, and the report says so rather than implying a
-// coverage it cannot prove. (§9: `preApplyDamage` is the veto seam, and the hold's veto stopping
-// concentration.js's handler is CORRECT behaviour, not a gap.)
+// ⚠ `Hooks.call` stops at the first handler returning false: "fired" means at least the first
+// listener ran. `preApplyDamage` is the veto seam, where the hold stopping later handlers is correct.
 const SHORT_CIRCUITING = new Set(["dnd5e.preApplyDamage"]);
 
-// ⚠ HOOKS THAT FIRE BEFORE THE INSTRUMENT CAN EXIST. The ledger is armed by the harness right
-// after `connect()`, and a world has long since booted by then — so anything dispatched during
-// startup is unobservable BY CONSTRUCTION, not absent. Listing them as "never fired" would put a
-// permanent false alarm at the top of every report, and a report with a standing false alarm is
-// one nobody reads. Each row is pinned with a reason and the pin is checked both ways below.
+// ⚠ Hooks that fire before the ledger is armed (after `connect()`, long after boot): unobservable
+// by construction, pinned with a reason, checked both ways below.
 const BEFORE_THE_INSTRUMENT = new Map([
   ["init", "fires once during world boot, before any suite connects. settings.js registers the "
     + "settings surface here and volley-registry.js its kinds — both are proven every run by "
@@ -67,25 +37,10 @@ const BEFORE_THE_INSTRUMENT = new Map([
     + "the same sweep runs on canvasReady, which smoke-emanations exercises"]
 ]);
 
-// ⚠ HOOKS THE PLATFORM DOES NOT DISPATCH AT ALL — measured, not assumed, and pinned with the
-// Foundry version the measurement was taken on. This is the CORE-side twin of D10: the dispatch
-// gate reads dnd5e's own bundle and can prove a `dnd5e.*` name is real, and there is no
-// equivalent for core hooks, so a core name that has gone away registers cleanly and does
-// nothing forever. The difference from the boot pin above is what it admits: a boot hook is
-// unobservable by this INSTRUMENT, while these are unobservable in the PLATFORM — the battery
-// cannot walk a path the world never opens.
-//
-// ⚠ EVERY ROW MUST NAME ITS MEASUREMENT, and `tools/probe-surfaces.mjs` is how one is taken.
-// Excluded from the denominator for the same reason the boot rows are — a score that cannot be
-// reached is a score nobody chases — and checked BOTH WAYS below, so the day a platform upgrade
-// starts dispatching one the report says the pin is stale instead of quietly reading green.
-//
-// ⚠ EMPTY SINCE THE dnd5e 6.0 PASS (phase 3, 2026-09-16). The two rows it held — createMeasuredTemplate
-// and updateMeasuredTemplate, MEASURED ZERO on Foundry 14.365 (tools/probe-surfaces.mjs, 2026-08-24:
-// a template create moved scene.templates 0→1 AND scene.regions 0→1, and only the Region hooks
-// fired) — are retired with the registrations they pinned: saves/areas.js rides createRegion /
-// updateRegion now, which the platform dispatches (smoke-surfaces §3 still pins the measurement).
-// The category stays so the next platform-side absence has a home with a reason.
+// ⚠ Core hooks the PLATFORM never dispatches (a core name that has gone away registers cleanly
+// and does nothing; D10's dispatch gate covers only `dnd5e.*`). Each row names its measurement
+// (tools/probe-surfaces.mjs), is excluded from the denominator, and is checked both ways below.
+// Empty for now; the category is the home for the next such absence.
 const NOT_DISPATCHED_HERE = new Map([]);
 
 let files = [];
@@ -105,7 +60,7 @@ if (!files.length) {
   process.exit(1);
 }
 
-/* --- union the ledgers --------------------------------------------------------------------- */
+/* --- union the ledgers */
 
 const total = new Map();      // hook name -> times dispatched, across every suite
 const seenIn = new Map();     // hook name -> [suite tags]
@@ -122,7 +77,7 @@ for (const name of files.sort()) {
   }
 }
 
-/* --- against what the module registers ----------------------------------------------------- */
+/* --- against what the module registers */
 
 const reg = await loadRegistrations();
 const byHook = groupByHook(reg);
@@ -143,9 +98,7 @@ console.log(`  ${total.size} distinct hook names dispatched in the page; this mo
   + `to ${names.length} of them\n`);
 
 const w = Math.max(...names.map(h => h.length));
-// ⚠ The denominator EXCLUDES the boot hooks. Counting a hook that cannot be observed against
-// coverage would make the best achievable score less than 100%, and a score that can never be
-// reached is a score nobody chases.
+// The denominator excludes the pinned hooks, so 100% stays reachable.
 const observable = names.length - boot.length - undispatched.length;
 const bootRegistrations = boot.reduce((n, h) => n + byHook.get(h).length, 0);
 const pinnedRegistrations = bootRegistrations
@@ -166,9 +119,7 @@ if (boot.length) {
     console.log(`      ${BEFORE_THE_INSTRUMENT.get(h)}`);
   }
 }
-// ⚠ The pin is checked BOTH ways, like every other allowlist in this tree: a boot hook that
-// turns out to be observable after all must lose its excuse, or the excuse becomes a place to
-// hide a real silence.
+// Both ways: a boot hook that turns out observable loses its excuse.
 for (const [h, why] of BEFORE_THE_INSTRUMENT) {
   if (total.has(h)) {
     console.log(`\n  ⚠ STALE PIN: "${h}" is listed as unobservable (${why}) and the ledger `
@@ -188,8 +139,7 @@ if (undispatched.length) {
     console.log(`      ${NOT_DISPATCHED_HERE.get(h)}`);
   }
 }
-// ⚠ Both ways, like every other allowlist in this tree. A pin that has come back to life is the
-// INTERESTING event — it means the platform restored the name and a fast-path can be un-pinned.
+// Both ways: a pin that comes back to life means the platform restored the name.
 for (const [h, why] of NOT_DISPATCHED_HERE) {
   if (total.has(h)) {
     console.log(`\n  ⚠ STALE PIN: "${h}" is pinned as never dispatched (${why.slice(0, 60)}…) `
@@ -216,8 +166,7 @@ if (!silent.length) {
     + "releases.");
 }
 
-// ⚠ Coverage is never the exit code. See the header: a rule that failed on a rare hook would be
-// tuned out, and a tuned-out check still reads as coverage to the next person.
+// ⚠ Coverage is never the exit code.
 console.log(`\nREPORT ${fired.length}/${observable} observable hook names exercised `
   + `(${liveRegistrations}/${reg.length - pinnedRegistrations} registrations) across `
   + `${suites.length} suite(s)`
@@ -225,11 +174,8 @@ console.log(`\nREPORT ${fired.length}/${observable} observable hook names exerci
   + (undispatched.length ? `, ${undispatched.length} not dispatched by this Foundry` : "")
   + ". Coverage is reported, never enforced.");
 
-/* === THE CLAIM PROOF — did each claimed file ACT in the suite that claims it? ================== */
-//
-// ⚠ NOTHING BELOW MAY TURN THE EXIT CODE. The hook half above already decided whether the
-// instrument worked; a missing coverage map, a ledger without its moment half, an unreadable
-// battery order — each prints what it is and stops this half, never the battery's tail.
+/* === THE CLAIM PROOF — did each claimed file ACT in the suite that claims it? */
+// ⚠ Nothing below may turn the exit code: a missing input prints what it is and stops this half.
 
 console.log("\n\nCLAIM PROOF — each declared claim against the moments its suite published "
   + "(tools/claim-proof.mjs)");
@@ -291,8 +237,7 @@ if (coverage) {
       console.log(`    ${r.suite.padEnd(sw)}  ${r.file}  (writes ${r.expected.join(", ")})`);
     }
   } else if (rows.some(r => ["PROVEN", "PROVEN (shared kind)"].includes(r.status))) {
-    // ⚠ Only when something WAS measured: "none unproven" over zero measured claims reads as a
-    // clean result, and it is no result at all.
+    // Only when something WAS measured: "none" over zero claims is no result.
     console.log("\n  UNPROVEN — none among the measured claims.");
   }
 
@@ -313,7 +258,7 @@ if (coverage) {
     for (const r of shared) console.log(`    ${r.suite.padEnd(sw)}  ${r.file}  (${r.via.join(", ")})`);
   }
 
-  // The unprovable set once per FILE rather than once per claim — it is a fact of the file.
+  // The unprovable set once per FILE: it is a fact of the file.
   const unprovable = [...new Map(rows.filter(r => r.status === "UNPROVABLE-BY-MOMENTS")
     .map(r => [r.file, r.reason]))];
   if (unprovable.length) {

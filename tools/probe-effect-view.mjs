@@ -1,30 +1,16 @@
-// THE EFFECT VIEW, live on the sandbox (branch effect-view, 2026-09-15): the bar above the hotbar
-// for the controlled token, the hover card beside a token, the held key (Foundry's highlightObjects)
-// over every creature. Puts Bless and Prone on Invictus for the run, then takes them off.
-//
-// A BATTERY ENTRY since 2026-09-23 (the name stays `probe-` — battery.mjs's ORDER row carries it).
-// It was 16/16 outside the battery on 2026-09-15, and the battery's hook coverage named three
-// registrations only it drives (effect-view.js: `hoverToken`, `highlightObjects` and
-// `fvtt-mod-battleflow.effectViewChanged`) as never fired. Its seed is `fixture-suite` above it.
-//
-// Fixtures: the Battle Flow Test Range and INVICTUS (a campaign PC the prod copy carries — not a
-// BF Test fixture) wearing the Cloak (a "Bonus AC…" passive). The applied, clockless Death Armor
-// §1 and §6e read is WRITTEN for the run when he carries none (prod's cast of 2026-09-15 has since
-// ended — the class asserted is "an applied effect with no clock", not that one cast). His token
-// is placed on the range for the run if none stands there, and removed after.
-//
-// Harness discipline: the two client switches are restored; the effects it writes are deleted;
-// the sheet numbers (temp HP, Heroic Inspiration) are put back; the token it places is removed;
-// the scene that was active is re-activated.
+// THE EFFECT VIEW, live: the bar above the hotbar for the controlled token, the hover card beside
+// a token, the held key (Foundry's highlightObjects) over every creature. A battery entry (it is
+// the only suite driving effect-view.js's hooks); `fixture-suite` seeds it.
+// Fixtures: the Battle Flow Test Range and INVICTUS (a campaign PC, not a BF Test fixture) wearing
+// the Cloak. Bless, Prone and an applied clockless effect are written for the run; his token is
+// placed if missing. Switches, effects, sheet numbers, token and active scene are all restored.
 //
 //   node tools/probe-effect-view.mjs              the whole probe
 //   node tools/probe-effect-view.mjs --section 2  just §2; `--list` for the table
 // Setup and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from "./harness.mjs";
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Exported only so the linter reads it as the
-// declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = ["effect-view.js"];
 
 const SECTIONS = {
@@ -56,15 +42,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const until = async (fn, ms = 8000) => { const end = Date.now() + ms; while ( Date.now() < end ) { const v = fn(); if ( v ) return v; await sleep(120); } return fn(); };
 
-  // -------------------------------------------------- preflight
+  // ---- preflight
   const mod = game.modules.get(MOD);
   if ( !mod?.active ) return { fatal: `module active=${mod?.active}` };
   if ( !game.settings.settings.has(`${MOD}.effectBar`) ) return { fatal: "effectBar not registered — OLD code (deploy --local, reload)" };
   const scene = game.scenes.getName("Battle Flow Test Range");
   const invictus = game.actors.getName("Invictus");
   if ( !scene || !invictus ) return { fatal: `missing fixture: ${!scene ? "the Battle Flow Test Range (run tools/fixture-suite.mjs)" : "Invictus (a campaign PC — the sandbox is not a prod copy)"}` };
-  // §1 and §6e assert on the worn Cloak the prod copy carries on Invictus — not something this run
-  // writes: a red for a missing fact of the WORLD is a broken gauge, so it is refused up front.
+  // §1 and §6e read the Cloak the world carries on Invictus: refuse up front if it is missing.
   const standing = [...invictus.allApplicableEffects()].map(e => e.name);
   if ( !standing.some(n => n.startsWith("Bonus AC")) ) return { fatal: "Invictus lacks the Cloak's \"Bonus AC\" passive — the prod copy carries it; refresh the sandbox" };
   log.push(`module ${mod.version}`);
@@ -77,7 +62,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const CLOCKLESS = "Death Armor (probe)";
   let priorSheet = null;
   try {
-    // -------------------------------------------------- setup (always runs)
+    // ---- setup (always runs)
     await game.settings.set(MOD, "effectBar", true); await game.settings.set(MOD, "effectHover", true);
     if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await sleep(1500); }
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
@@ -96,11 +81,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       { name: "Bless", img: "icons/svg/upgrade.svg", duration: { seconds: 60 }, changes: [] },
       { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], changes: [] }
     ]);
-    // An applied, clockless effect (the Death Armor class) — ALWAYS the run's own, under its own
-    // name. ⚠ Invictus is a real party character, and a real Death Armor cast at the table is
-    // CLOCKED since dnd5e 6.0 (an empty clock takes the spell's), so it paints an icon: reusing
-    // whatever he wears made §1c test the table's play state, not the class (2026-09-24, the
-    // battery found him in a live Death Armor with 57 minutes left).
+    // An applied, clockless effect, always the run's own: a real cast at the table is clocked (an
+    // empty clock takes the spell's), so reusing his would test play state, not the class.
     seeded = await invictus.createEmbeddedDocuments("ActiveEffect", [
       { name: CLOCKLESS, img: "icons/svg/skull.svg", changes: [] }
     ]);
@@ -113,13 +95,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     priorSheet = { temp: invictus.system.attributes.hp.temp, insp: invictus.system.attributes.inspiration };
     await invictus.update({ "system.attributes.hp.temp": 7, "system.attributes.inspiration": true });
 
-    // THE BAR: control the token, the strip draws for him. Read in setup — §2's card is held to
-    // the same list, so the names are needed whether or not §1 is asked for.
+    // Control the token so the bar draws; read in setup because §2's card is held to the same list.
     token.control({ releaseOthers: true });
     const bar = await until(() => { const b = document.getElementById("bf-effect-view-bar"); return (b && !b.classList.contains("empty") && b.querySelector(".bf-ev-chip")) ? b : null; });
     const barNames = bar ? [...bar.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
 
-    // ================================================== 1. the bar
+    // ---- 1. the bar
     if ( want(1) ) {
       ok("1. the bar draws above the hotbar for the controlled token: Prone (debuff) first, Bless and the applied Death Armor listed, the worn Cloak not",
         !!bar && (barNames[0] === "Prone") && barNames.includes("Bless") && barNames.includes(CLOCKLESS) && !barNames.some(n => n.startsWith("Bonus AC")), `chips=${JSON.stringify(barNames)}`);
@@ -136,9 +117,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!bar && ![...bar.querySelectorAll(".bf-ev-chip .clk")].some(c => /none/i.test(c.textContent)), "");
     }
 
-    // ================================================== 2. the hover card
-    // The platform's hook, as a mouse-over would fire it. Not for a CONTROLLED token
-    // (user, 2026-09-18): the bar is its list already — so the card is proved on the token released.
+    // ---- 2. the hover card
+    // The platform's hook, as a mouse-over fires it. Never for a CONTROLLED token (the bar is its
+    // list), so the card is proved on the token released.
     if ( want(2) ) {
       Hooks.callAll("hoverToken", token, true);
       await sleep(150);
@@ -156,7 +137,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(150);
     }
 
-    // ================================================== 3. the held key
+    // ---- 3. the held key
     // Foundry fires highlightObjects on Alt.
     if ( want(3) ) {
       Hooks.callAll("highlightObjects", true);
@@ -168,9 +149,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("3b. and clears on release", document.querySelectorAll(".bf-ev-card").length === 0, "");
     }
 
-    // ⚠ Re-take the token before a section that reads the bar (2026-09-24, 14/17): a scene
-    // activation's redraw can drop control and stale the cached token object between sections,
-    // and the bar then stands for nobody. Each bar section holds Invictus again and says so.
+    // ⚠ Re-take the token before each bar section: a scene redraw can drop control and stale the
+    // cached token object.
     const hold = async section => {
       const live = canvas.tokens.get(doc.id);
       if ( live && !live.controlled ) live.control({ releaseOthers: true });
@@ -181,7 +161,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return !!held;
     };
 
-    // ================================================== 4. the bar follows the sheet
+    // ---- 4. the bar follows the sheet
     // Delete Bless, the chip leaves.
     if ( want(4) ) {
       await hold(4);
@@ -190,9 +170,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
     }
 
-    // ================================================== 6. the bar's actions
-    // (user ruling 2026-09-15): a chip opens a fold with Remove, for an owner. Runs before §5,
-    // whose switch takes the bar away.
+    // ---- 6. the bar's actions
+    // A chip opens a fold with Remove, for an owner. Runs before §5, whose switch takes the bar away.
     if ( want(6) ) {
       await hold(6);
       const barEl = () => document.getElementById("bf-effect-view-bar");
@@ -227,7 +206,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("6f. Escape closes it", !barEl()?.querySelector(".bf-ev-panel"), "");
     }
 
-    // ================================================== 5. the switch
+    // ---- 5. the switch
     // Off, the bar leaves — the setting's onChange publishes effectViewChanged, the bar's redraw hears it.
     if ( want(5) ) {
       await game.settings.set(MOD, "effectBar", false);

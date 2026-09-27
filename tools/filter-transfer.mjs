@@ -1,13 +1,9 @@
-// The universal transfer-flag pass (BACKLOG, 2026-09-04 — user: "a universal pass on that").
-// Offline, over scan-corpus.mjs's JSON. Which pack effects are the Goaded shape: flagged
-// `transfer: true` (a passive on the WIELDER) and ENABLED, on an item whose activity aims at
-// someone other than the wielder? That is the shape that lost the 2026-09-04 walk an afternoon
-// (NOTES §2): the wielder's sheet carried the effect, the first expiry or hand tidy deleted the
-// item's only copy, and the save had nothing to apply.
-//
-// ⚠ transfer:true + DISABLED is NOT that shape — it is dnd5e's own convention for a self-buff
-// the activity toggles on (Rage, Bladesong, Innate Sorcery: 70 items at 5.3.3). Those are
-// correct and are printed only under --all for the record.
+// The universal transfer-flag pass, offline over scan-corpus.mjs's JSON: which pack effects are
+// the Goaded shape — `transfer: true` (a passive on the WIELDER) and ENABLED, on an item whose
+// activity aims at someone else? Then the wielder carries the effect, and the first expiry or tidy
+// deletes the item's only copy, leaving the save nothing to apply (NOTES §2).
+// ⚠ transfer:true + DISABLED is dnd5e's convention for a self-buff the activity toggles on (Rage,
+// Bladesong, Innate Sorcery): correct, printed only under --all.
 //
 // Usage: node tools/scan-corpus.mjs out.json && node tools/filter-transfer.mjs out.json [--all]
 import { readFileSync } from 'node:fs';

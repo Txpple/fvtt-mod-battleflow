@@ -1,4 +1,4 @@
-// Place the BF Styles walk roster on Party Camp (the fighting styles walk, HANDOFF.md §1, 2026-09-26).
+// Place the BF Styles roster (the fighting styles) on Party Camp.
 // Linked tokens, friendly; the melee fighters around the west Practice Dummy, the thrower three
 // squares from the east one, the two guards beside Gren. Idempotent: an existing token of the same
 // actor on the scene is moved, not duplicated. A content tool, not a suite — it asserts nothing.

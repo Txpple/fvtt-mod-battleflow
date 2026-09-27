@@ -1,32 +1,18 @@
-// Battle Flow v1.20.0 (Pass C) smoke test — the volley folds, driven end to end in the live
-// world: membership is the REGISTRY (volley-registry.js, finding (ff) — fixtures join it
-// through the module api seam and real-name sections pin the shipped entries), the native
-// single follow-up is suppressed, the caster's popup aims every projectile (per-ray
-// Adv/Normal/Dis under (dd)), darts aggregate per target into ONE roll message (k dice
-// groups), rays drive N real attacks through the ordinary pipeline, every driven roll names
-// its target on the card ((ee)), the blocklist claim rides the driven rolls, distinct-target
-// entries never double up ((ff)/Steel Wind Strike), and expiry fires the even spread.
-//
-// Harness discipline (HANDOFF): settings restored to whatever was found (settings FIRST in
-// teardown, own guard); every message deleted on the way out; new-message searches by
-// ID-SET DIFFERENCE; fixture spells are the innate shape (consumption.spellSlot: false —
-// the §6 smoke-cast lesson: that is how an NPC casts without slots).
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 3,9`, `--list`. Fixtures, the settings pins
-// and teardown ALWAYS run; only the numbered assertion blocks are skippable. Every section
-// here restores whatever it changed (§4 the switch, §5 the timer, §6 the blocklist), which is
-// why none of them declare a dependency.
+// Volley smoke suite: membership is the REGISTRY (volley-registry.js; fixtures join through the
+// api seam), the native single follow-up is suppressed, the caster's popup aims every projectile
+// (per-ray Adv/Normal/Dis), darts aggregate per target into ONE roll, rays drive N real attacks,
+// each driven roll names its target, the blocklist claim rides the driven rolls, distinct-target
+// entries never double up, and expiry fires the even spread.
+// Settings restored first in teardown; new messages found by id-set difference; fixture spells
+// are innate (spellSlot: false: how an NPC casts without slots). Every section restores its own.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'volleys.js',             // the volley folds — darts, rays, the registry, expiry, the blocklist
   'reminders.js',           // §10 / §11 — the gate at the aim, judged per ray (judgeRoll)
-  'damage-casts.js',         // a volley spell's damage cast lands through the damage-cast machine — the claim proof saw damageCast published here (battery 2026-09-23)
-  'chip-spend.js'            // a chip spent on a ray's hit — chipSpend published here (the same reading)
+  'damage-casts.js',         // a volley spell's damage cast lands through the damage-cast machine (the claim proof sees damageCast published here)
+  'chip-spend.js'            // a chip spent on a ray's hit (chipSpend published here)
 ];
 
 const SECTIONS = {
@@ -54,18 +40,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. The closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The page-side section gate (tools/harness.mjs); the plan arrives as data.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // WAIT FOR THE THING, NOT FOR THE CLOCK. Every `sleep(N)` below used to be an unconditional
-  // N-millisecond stall sized for the worst case; this returns the moment the thing exists and
-  // only spends the full budget when it never does. Measured 2026-08-23: 49.1s of the volley
-  // suite's ~82s wall clock was fixed sleeping. Same helper smoke-maneuvers already had.
+  // Wait for the thing, not the clock: returns as soon as `fn` is truthy.
   const until = async (fn, ms = 8000) => {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(150); }
@@ -95,8 +77,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const created = { items: [], tokens: [] };
   const priorActor = {};
-  // Fixture registry entries — added in §0, deleted on the way out; the SHIPPED entries
-  // (Magic Missile, Scorching Ray, Eldritch Blast, Steel Wind Strike) are never touched.
+  // Fixture registry entries, deleted on the way out; the shipped entries are never touched.
   const TEST_ENTRIES = ['BF Volley Missile', 'BF Volley Up', 'BF Volley Rays', 'BF Volley Unlisted'];
   let restored = false;
   const teardown = async () => {
@@ -107,8 +88,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { for (const n of TEST_ENTRIES) registry.delete(n); }
     catch (err) { log.push(`TEARDOWN registry ERROR: ${err?.message}`); }
     try {
-      // §10 plants statuses and a chip; a crashed §10 must not leave them (they would bend
-      // the next suite's rolls).
+      // §10's statuses and chip must not outlive a crash: they bend the next suite's rolls.
       for (const a of [victim, shielder, npc]) {
         const carriers = a.effects.filter(e => e.getFlag(MOD, 'mastery')
           || ['prone', 'blinded'].some(s => e.statuses?.has?.(s)));
@@ -148,10 +128,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const fresh = beforeIds => game.messages.contents.filter(m => !beforeIds.has(m.id));
   const snap = () => new Set(game.messages.contents.map(m => m.id));
-  // ⚠ §4 asserts ABSENCE, and nothing can wait for a thing not to happen. So wait for what the
-  // cast DOES produce — its usage card, stamped in the same hook chain a volley would be —
-  // and settle briefly after it. That is the honest conversion; a bare `until` on the volley
-  // flag would return instantly and prove nothing (ARCHITECTURE §11 *Adding a TEST* rule 3).
+  // ⚠ §4 asserts ABSENCE: wait for what the cast does produce (its usage card, same hook chain),
+  // then settle (ARCHITECTURE §11 *Adding a TEST* rule 3).
   const castSettled = async beforeIds => {
     await until(() => fresh(beforeIds).some(m => (m.type === 'usage')
       ), 5000);
@@ -176,18 +154,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('castApply', false);
     await set('resourceNotices', false);   // the resources suite owns those asserts
 
-    // Fixture names join the registry through the api seam (the (ff) design's own test
-    // surface) — membership is name-keyed, so scratch spells register like premium ones.
+    // Membership is name-keyed, so fixture spells register through the api seam like real ones.
     registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
     registry.set('BF Volley Up',      { kind: 'damage', count: '2 + @item.level' });
     registry.set('BF Volley Rays',    { kind: 'attack', count: '1 + @item.level' });
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    // ⚠ The gate reads the CASTER's square off actor.getActiveTokens()[0] for a linked actor, so a
-    // linked stray of the NPC a killed suite left (smoke-hitmenu's, 2026-09-24) is the square
-    // every ray was judged from — "within 5 feet of BF Test Fighter" on all eleven §9-§11 lines.
-    // Linked strays of our three actors go first, and the row must stand on clear ground.
+    // ⚠ The gate reads a linked caster's square off actor.getActiveTokens()[0]: sweep linked
+    // strays of our three actors first, and stand the row on clear ground.
     {
       const strays = scene.tokens.filter(t => t.actorLink && [npc.id, victim.id, shielder.id].includes(t.actorId)).map(t => t.id);
       if (strays.length) { await scene.deleteEmbeddedDocuments('Token', strays); log.push(`swept ${strays.length} linked stray token(s)`); }
@@ -213,9 +188,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     priorActor[shielder.id] = { 'system.attributes.hp.value': shielder.system._source.attributes.hp.value,
       'system.attributes.ac.override': shielder.system._source.attributes.ac.override ?? null };
 
-    // The Magic Missile shape: damage activity, count "2 + @item.level", innate consumption
-    // (self-uses so the consumed-flag replication has something to record; no slots needed),
-    // scaling allowed so §2's upcast takes without slots.
+    // The Magic Missile shape: damage activity, innate self-uses (something to record), scaling allowed.
     const [mmItem] = await npc.createEmbeddedDocuments('Item', [{
       name: 'BF Volley Missile', type: 'spell',
       system: {
@@ -237,8 +210,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     created.items.push({ actorId: npc.id, id: mmItem.id });
     const mmAct = mmItem.system.activities.contents[0];
 
-    // The Scorching Ray shape: attack activity, count "1 + @item.level", flat +30 so every
-    // ray hits, 2d6 fire per ray.
+    // The Scorching Ray shape: attack activity, flat +30 so every ray hits, 2d6 fire per ray.
     const [srItem] = await npc.createEmbeddedDocuments('Item', [{
       name: 'BF Volley Rays', type: 'spell',
       system: {
@@ -264,13 +236,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victimToken.setTarget(true, { releaseOthers: true });
       shielderToken.setTarget(true, { releaseOthers: false });
     };
-    // The message-id watermark and its readout, out here rather than in §1: every section
-    // re-snaps `before` and reads `fresh(before)`, so a block-scoped `let` in the first one
-    // would leave §2 onwards with nothing to compare against.
+    // The message-id watermark, shared: every section re-snaps `before` and reads `fresh(before)`.
     let before;
     let msgs;
 
-    // ============================================================ §1 darts, aimed by hand
+    // ---- §1 darts, aimed by hand
     if (want(1)) {
       log.push('§1 darts');
       targetBoth();
@@ -290,8 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!dlg1 && (dlg1.element.querySelectorAll('[data-bf-volley-uuid]').length === 2)
           && !!dlg1.element.querySelector('[data-bf-deadline]'),
         dlg1 ? 'dialog found' : 'NO dialog');
-      // (hh), v1.20.0 walk 1 (user, on the dart popup screenshot): "in thee row where it
-      // says thomas -- 3" — every dart row leads with its target's token icon, law-8 tooltip.
+      // Every dart row leads with its target's token icon (tooltip = the name).
       ok('1c2 (hh) each dart row is one card-grammar line: [icon] Name is targeted [n]',
         !!dlg1 && [...dlg1.element.querySelectorAll('[data-bf-volley-uuid]')].every(inp =>
           !!inp.parentElement?.querySelector('img[data-tooltip]')
@@ -328,15 +297,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (v1r?.assignment?.find(a => a.uuid === victim.uuid)?.count === 2)
           && !!document.querySelector(`[data-message-id="${card1?.id}"] .bf-volley-row`),
         JSON.stringify(v1r?.assignment ?? null));
-      // ⚠ Measured ground truth: the system's createConsumedFlag records HIT DICE only and
-      // returns void for ordinary uses — Refund Resource's real channel is the usage
-      // message's own deltas, which consumption stamps whether or not subsequentActions run.
+      // ⚠ createConsumedFlag records hit dice only; Refund Resource reads the usage card's deltas,
+      // stamped whether or not subsequentActions run.
       ok('1i Refund Resource\'s channel survives the suppression: the usage card carries the consumption deltas',
         !!card1?.system?.deltas?.item && Object.keys(card1.system.deltas.item).length > 0
           && (mmItem.getFlag('dnd5e', 'consumed') == null),
         JSON.stringify(card1?.system?.deltas ?? null));
-      // ⚠ the name asserted is the SNAPSHOT's (token name — BF Test Victim's prototype token
-      // is named "Hobgoblin"), never the actor name.
+      // ⚠ The name is the SNAPSHOT's token name ("Hobgoblin"), never the actor name.
       ok('1j (ee) each dart roll names its target on the card — icon with tooltip + name',
         [forVictim, forShielder].every(m =>
           !!document.querySelector(`[data-message-id="${m?.id}"] .bf-volley-aim img[data-tooltip]`)
@@ -344,7 +311,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               ?.textContent.includes((m?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }))[0]?.name ?? '@@')));
     }
 
-    // ============================================================ §2 upcast — the count scales
+    // ---- §2 upcast — the count scales
     if (want(2)) {
       // The REAL channel: a slot pick. The system re-resolves bare `scaling` during consume
       // (measured — it reaches postUse as 0), so the fixture spends an actual 3rd-level slot
@@ -396,15 +363,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ v: upV?.rolls?.length, s: upS?.rolls?.length }));
     }
 
-    // ============================================================ §3 rays — real attacks
+    // ---- §3 rays — real attacks
     if (want(3)) {
       log.push('§3 rays');
-      // FORCE THE HIT (the idiom smoke-battleflow/hold/effects/concentration all use, and the
-      // one this suite was missing): the rays are REAL attack rolls, so against live AC some of
-      // them simply miss and no damage rolls - which is the module working correctly and the
-      // assertion failing anyway. That is the whole of the documented "38/39 first run"
-      // variance. Flat AC 1 leaves the natural 1 as the ONLY way to miss, and 3e now counts
-      // fumbles rather than assuming three hits, so the dice cannot make this suite lie.
+      // Force the hit: the rays are real attack rolls; at AC 1 only a natural 1 misses (3e counts them).
       await victim.update({ 'system.attributes.ac.override': 1 });
       await shielder.update({ 'system.attributes.ac.override': 1 });
       targetBoth();
@@ -420,9 +382,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dlg3 = findDialog('BF Volley Rays');
       ok('3b the popup offers one target pick per ray',
         !!dlg3 && (dlg3.element.querySelectorAll('[data-bf-volley-ray]').length === 3));
-      // (hh) "match that pattern for rays too": each ray row carries its PICK's token icon,
-      // and the icon tracks the select (the listener needs a real change event, so dispatch
-      // one — a bare .value write never fires it).
+      // Each ray row carries its pick's token icon, tracking the select (dispatch a real change
+      // event: a bare .value write never fires the listener).
       let rayIcon = null;
       if (dlg3) {
         const icon0 = dlg3.element.querySelector('[data-bf-volley-icon="0"]');
@@ -458,30 +419,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ((rays[0]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid)
           && ((rays[1]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === shielder.uuid)
           && ((rays[2]?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor })).map(t => t.uuid).join() === victim.uuid));
-      // vs flat AC 1 only a natural 1 misses, so hits === rays - fumbles. Counting it makes the
-      // assertion say what its own title always said - "each HITTING ray" - instead of assuming
-      // all three hit and failing on a 1-in-20 that is the module behaving correctly.
+      // At AC 1 hits === rays - fumbles.
       const fumbles = rays.filter(m => m.rolls?.[0]?.isFumble === true).length;
       const wantDamage = rays.length - fumbles;
-      // ⚠ The damages land AFTER their attacks, so the wait above (which watched for the ray
-      // ATTACKS) is not enough on its own - snapshotting here would race the pipeline. Now that
-      // the fumble count is known, wait for exactly the damages that should exist.
+      // ⚠ The damages land AFTER their attacks: wait for exactly the damages that should exist.
       const rayDamageOf = () => fresh(before).filter(m =>
         (m.type === 'damage') && !m.getFlag(MOD, 'volleyFor'));
       await until(() => rayDamageOf().length >= wantDamage
         && rayDamageOf().every(m => !!m.getFlag(MOD, 'receipt')), 4500);
       const rayDamage = rayDamageOf();
-      // ⚠ AND A NATURAL 20 IS THE SAME 1-IN-20 AT THE OTHER END OF THE DIE — the twin the
-      // fumble count above was missing. A crit DOUBLES the dice, so the formula stops reading
-      // "2d6" while the module is behaving exactly as it should, and this assertion went red on
-      // the battery of 2026-08-24 with `damage=3 want=3` — every clause it names satisfied,
-      // failing on a string it never meant to pin. Against flat AC 1 a crit is ~14% across
-      // three rays, which is often enough to cost a 22-minute re-run regularly.
-      //
-      // ⚠ COUNT THE DICE, DO NOT MATCH THE STRING, and do NOT assert dnd5e's crit arithmetic:
-      // how a critical doubles is the system's business and is settled elsewhere. What this
-      // suite is entitled to say is that the ordinary pipeline rolled THE WEAPON'S OWN dice —
-      // exactly two d6 on a clean hit, and no fewer than that when the die came up 20.
+      // ⚠ Count the d6s, never match the formula: a crit doubles the dice. Exactly two on a clean
+      // hit, at least two on a crit (dnd5e's crit arithmetic is not this suite's to assert).
       const d6of = roll => (roll?.dice ?? []).filter(d => d.faces === 6)
         .reduce((n, d) => n + (d.number ?? 0), 0);
       const critOf = m => game.messages.get(m.getFlag(MOD, 'attackFor'))?.rolls?.[0]?.isCritical === true;
@@ -491,11 +439,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && rayDamage.every(m => !!m.getFlag(MOD, 'receipt')),
         `damage=${rayDamage.length} want=${wantDamage} rays=${rays.length} fumbles=${fumbles} `
         + `d6=[${rayDamage.map(m => `${d6of(m.rolls?.[0])}${critOf(m) ? "!" : ""}`).join(", ")}]`);
-      // (ii): the walk's "the damage didnt auto apply" — the registry walk resolved every ray
-      // damage to the LAST ray's attack (three rays share one usage card), so ray 1's dice
-      // re-tested against ray 3's outcome. The attackFor stamp is the fix; this pins that each
-      // damage names its own attack AND its receipt landed on exactly that ray's aimed target
-      // — the identity assert 3e never made.
+      // Three rays share one usage card, so each damage's attackFor stamp must name ITS OWN
+      // attack, and its receipt land on that ray's aimed target.
       ok('3e2 (ii) each ray damage names ITS OWN attack; its receipt lands on THAT ray\'s target',
         rayDamage.every(m => {
           const atk = game.messages.get(m.getFlag(MOD, 'attackFor'));
@@ -515,7 +460,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             ?.textContent.includes('Ray 1'));
     }
 
-    // ============================================================ §4 negatives — never a volley
+    // ---- §4 negatives — never a volley
     if (want(4)) {
       log.push('§4 negatives');
       // (a) the switch
@@ -572,7 +517,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !fresh(before).some(m => m.getFlag(MOD, 'volley')));
     }
 
-    // ============================================================ §5 expiry fires the spread
+    // ---- §5 expiry fires the spread
     if (want(5)) {
       log.push('§5 expiry');
       await set('damageTimer', 3);
@@ -583,10 +528,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5a pending with a 3s deadline and the public card bar',
         (card5?.getFlag(MOD, 'volley')?.status === 'pending')
           && !!document.querySelector(`[data-message-id="${card5?.id}"] .bf-volley-row [data-bf-deadline]`));
-      // ⚠ The FLAG is not the ROLLS. `status === 'resolved'` flips when the buzzer fires, and
-      // the two spread rolls post after it — waiting on the status alone caught the first roll
-      // only and failed a working module (the tier rule's trap, second sighting — ARCHITECTURE §11 *Adding a TEST* rule 3). Wait for what 5b
-      // reads: both rolls, and the resolved status with them.
+      // ⚠ The flag is not the rolls: the status resolves before the two spread rolls post. Wait
+      // for both rolls (ARCHITECTURE §11 *Adding a TEST* rule 3).
       const expRollsNow = () => fresh(before).filter(m =>
         (m.type === 'damage') && m.getFlag(MOD, 'volleyFor'));
       await until(() => (card5?.getFlag(MOD, 'volley')?.status === 'resolved')
@@ -600,11 +543,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('damageTimer', 15);
     }
 
-    // ============================================================ §6 the blocklist claim rides
+    // ---- §6 the blocklist claim rides
     if (want(6)) {
-      // ⚠ VICTIM ONLY: BF Test Shielder exists to hold Shield, and a targeted holder stamps a
-      // real spell hold — a different (already-covered) machine. This section pins the claim
-      // WIRING on the driven rolls plus the volley's own release when no hold stamps.
+      // ⚠ VICTIM ONLY: a targeted Shield holder stamps a real spell hold (another machine). This
+      // pins the claim wiring on the driven rolls and the release when no hold stamps.
       log.push('§6 blocklist claim');
       await set('reactionHold', true);
       await set('blockList', 'BF Volley Missile:Shield');
@@ -633,14 +575,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('blockList', prior.blockList);
     }
 
-    // ============================================================ §7 the registry IS membership ((ff))
+    // ---- §7 the registry IS membership
     if (want(7)) {
       log.push('§7 registry');
       ok('7a the shipped registry carries the census four',
         ['Magic Missile', 'Scorching Ray', 'Eldritch Blast', 'Steel Wind Strike'].every(n => registry.has(n)),
         [...registry.keys()].join(', '));
-      // Real-name Scorching Ray with NO count field anywhere — the (bb) pin: the 2024 pack
-      // ships it bare, and the registry makes it volley anyway.
+      // Real-name Scorching Ray with NO count field (the 2024 pack ships it bare): the registry volleys it.
       const [srReal] = await npc.createEmbeddedDocuments('Item', [{
         name: 'Scorching Ray', type: 'spell',
         system: {
@@ -684,7 +625,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify([beams(4), beams(5), beams(11), beams(17), beams(0, 7)]));
     }
 
-    // ============================================================ §8 distinct targets (Steel Wind Strike)
+    // ---- §8 distinct targets (Steel Wind Strike)
     if (want(8)) {
       log.push('§8 distinct');
       const [sws] = await npc.createEmbeddedDocuments('Item', [{
@@ -729,7 +670,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(targets8));
     }
 
-    // ============================================================ §9 per-ray adv/dis ((dd))
+    // ---- §9 per-ray adv/dis
     if (want(9)) {
       log.push('§9 adv/dis');
       targetBoth();
@@ -763,12 +704,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(v9?.assignment ?? null));
     }
 
-    // ============================================================ §10 the gate meets the rays
-    // (user, 2026-09-02 — BACKLOG "Volley spells and the gate"): the rays roll with the dialog
-    // suppressed, so the gate judges them AT THE AIM, ray by ray, the spends carried forward.
-    // The table: the caster's token adjacent to the victim (Prone → Advantage within 5 feet),
-    // the shielder Blinded (Advantage), a Vex chip on the victim owned by the caster's own
-    // spell. Rays 1 and 2 at the victim: ray 1 spends the Vex, ray 2 must not be offered it.
+    // ---- §10 the gate meets the rays: with the dialog suppressed, the gate judges each ray AT
+    // THE AIM, spends carried forward. The victim Prone and adjacent, the shielder Blinded, a Vex
+    // chip on the victim: ray 1 spends the Vex, ray 2 must not be offered it.
     if (want(10)) {
       log.push('§10 the gate at the aim');
       await set('reminderList', 'vex, sap, prone, condition, range');
@@ -859,9 +797,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [i, t] of trio.entries()) await t.document.update({ disposition: priorDispo[i] }).catch(() => {});
     }
 
-    // ================================================== 11. a standing effect on every ray
-    // (user report 2026-09-02: Innate Sorcery showed on ray 1 alone — the aim carried every
-    // source with an effect id forward as "spent", not only Vex, Sap and the spend rows.)
+    // ---- 11. a standing effect (Innate Sorcery) on every ray: only Vex, Sap and the spend rows
+    // carry forward as spent
     if (want(11)) {
       log.push('§11 a standing effect on every ray');
       const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };

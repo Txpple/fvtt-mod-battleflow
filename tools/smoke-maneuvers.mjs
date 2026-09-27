@@ -1,35 +1,22 @@
-// Battle Flow v1.19.0 smoke test — the MANEUVER FOLDS (FLOW item 1): Precision Attack
-// patches a declared miss; Riposte answers an enemy melee miss with a real driven attack.
-//
-// Its own suite ON PURPOSE (recorded deviation from the plan's "extend smoke-hold"): the
-// folds deliberately share nothing with the hold machine — own flags, own popups, own
-// timers — and smoke-hold is the most fragile suite around the most fragile file. A fresh
-// suite keeps both untouched. Battery position: straight after smoke-hold.
-//
-// Determinism levers, all deliberate:
-//   - The fixture Precision die is "1d8 + 20" so a flip is GUARANTEED against AC 25
-//     (margin ≤ 19 < 21 ≤ die) while a natural 20 (which would hit and stamp nothing)
-//     just retries. The world's real die (@scale…) is probe-verified separately.
-//   - holdSkipFutile OFF for the stamp sections (a suite must never lose an offer to good
-//     rolling); its own section pins the hopeless gate with AC 60.
+// Maneuver-fold smoke suite: Precision Attack patches a declared miss; Riposte answers an enemy
+// melee miss with a real driven attack; plus the bash, shove, Interpose, Hew and Pole Strike
+// folds. The folds share nothing with the hold machine, so they have their own suite.
+// Determinism levers:
+//   - The fixture Precision die is "1d8 + 20", so a flip is guaranteed against AC 25; a
+//     natural 20 (a hit, no stamp) retries.
+//   - holdSkipFutile OFF for the stamp sections; its own section pins the hopeless gate (AC 60).
 //   - holdTimer 0 (popups wait for the suite's click); the buzzer section pins 2s locally.
-//
-// ⚠ Run `smoke-battleflow` FIRST — rides BF Test Attacker / BF Test Victim.
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): named after the fold they exercise — `--section B`, `--section P,R`,
-// `--list`. Fixtures and teardown ALWAYS run; only the fold groups are skippable.
+// ⚠ Run `smoke-battleflow` FIRST (BF Test Attacker / BF Test Victim). Sections are named after
+// their fold; fixtures and teardown always run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'precision.js',           // P, P8, M1, Q — Precision Attack
   'riposte.js',             // R, RP — Riposte's driven attack
   'hew.js',                 // H — the Hew reminder
   'bash-offer.js',          // B — the bash offer on a listed carrier's hit; T — Tavern Brawler's shove; C — Crusher's push
-  'unarmed-dice.js',        // T4 — Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
+  'unarmed-dice.js',        // T4 — Tavern Brawler's die on the plain Unarmed Strike
   'saves/choices.js',       // B / I — the Prone-or-push choice and Interpose
   'saves/verdict.js'        // I — Interpose on a save success
 ];
@@ -48,9 +35,7 @@ const SECTIONS = {
   PS: "Pole Strike (Polearm Master, 2026-09-27): an attack with a Spear posts Hew's reminder for the other end's Bonus Action swing, and it pops; a weapon that does not qualify says nothing",
   Q: '(s): the cascade is a staircase queue'
 };
-// Each group stands up its own fixtures and restores the settings it pinned, so none of them
-// names another. ⚠ `P` leaves the victim on flat AC 25 (its miss band); a group that needs a
-// different AC sets its own, which is why that is not a dependency.
+// Each group stands up its own fixtures and settings. `P` leaves the victim on AC 25; others set their own.
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -59,7 +44,7 @@ announcePlan('maneuvers', plan, pulled);
 
 const out = await f.evaluate(async ({ sections, titles }) => {
   const MOD = 'fvtt-mod-battleflow';
-  // The Reaction is a CHIP (2026-09-02): these stand in for the old flag's set, unset and read.
+  // The spent Reaction is an effect chip.
   const clearReaction = async a => { const ids = (a?.effects ?? []).filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id); if (ids.length) await a.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
   const spendReactionOf = async a => { await a.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]); };
   const reactionChip = a => !!a?.effects?.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
@@ -67,8 +52,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The page-side section gate (tools/harness.mjs); the plan arrives as data.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
@@ -77,8 +61,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
 
-  // Console-error capture (diagnostic, removed noise-free when green): the module logs its
-  // failures there and the suite otherwise cannot see them.
+  // Console-error capture: the module logs its failures there.
   const consoleErrors = [];
   const origConsoleError = console.error;
   console.error = (...a) => {
@@ -153,18 +136,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saves', false);
     await set('saveTimer', 1);
     await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte');
-    // The rows §B, §I and §H drive. Each sets them itself: §T (between §B and §I) rewrites the
-    // list for Tavern Brawler, and §I/§H once rode §B's write (the battery of 2026-09-26).
+    // The rows §B, §I and §H drive; each sets them itself because §T rewrites the list.
     const SUITE_FOLDS = 'Precision Attack:precision, Riposte:riposte, '
       + 'BF Shield Master:bash, BF Shield Master:interpose, BF Great Weapon Master:hew';
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    // ⚠ Sweep pre-existing fixture tokens FIRST (the smoke-saves §fixtures lesson, hit again
-    // here on this suite's first run): getSpeaker resolves through the actor's OLDEST token
-    // on the viewed scene, and smoke-battleflow leaves UNLINKED ones — the enemy's attack
-    // then speaks as a SYNTHETIC token actor, the riposte stamps that uuid as its attacker,
-    // and every base-uuid assertion fails while the machine works perfectly.
+    // ⚠ Sweep existing fixture tokens FIRST: getSpeaker resolves through the actor's OLDEST
+    // token, and an unlinked leftover makes the attack speak as a synthetic actor.
     const stale = scene.tokens.filter(t => [enemy.id, victim.id].includes(t.actorId)).map(t => t.id);
     if (stale.length) await scene.deleteEmbeddedDocuments('Token', stale);
     const enemyWeapon = enemy.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
@@ -177,7 +156,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       items: [foundry.utils.mergeObject(enemyWeapon.toObject(), {
         system: { equipped: true } }, { inplace: false })]
     });
-    // The pool first (the maneuvers' consumption targets its id), then the maneuvers.
+    // The pool first: the maneuvers' consumption targets its id.
     const [pool] = await pc.createEmbeddedDocuments('Item', [{
       name: 'BF Combat Superiority', type: 'feat',
       system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
@@ -257,14 +236,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const dialogsWith = text => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes(text));
     /**
-     * THE MERGED RESCUE WINDOW — precision no longer opens a popup of its own.
-     *
-     * ⚠ Since the rescue view merged the offer surfaces, a Battle Master holding a Bardic die
-     * gets ONE window with a row per rescue rather than one popup per machine. So the control
-     * is `[data-bf-rescue-action]` on a div and the old `Use <item name>` BUTTON is gone —
-     * which is why matching on that label found nothing and reported "the popup did not open".
-     * `Pass` is still a real footer button: it is the one thing that is not a choice between
-     * features, and the spine sends it to every pending source.
+     * The merged rescue window: one row per rescue, the control is `[data-bf-rescue-action]` on a
+     * div (no `Use <item>` button). `Pass` stays a footer button, sent to every pending source.
      */
     const rescueWindow = (action = 'use') => [...document.querySelectorAll('.application')]
       .find(el => (el.tagName === 'DIALOG')
@@ -290,9 +263,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
 
     const castAt = async (activity, token) => {
-      // Two tries with a stamp-wait: the demand rides the dnd5e targets snapshot, and a
-      // target that lands late stamps NOTHING (saves.js's targetless gate) — which is
-      // indistinguishable from a product bug unless the retry is logged.
+      // Two logged tries: a target that lands late in the dnd5e snapshot stamps nothing.
       for (let attempt = 1; attempt <= 2; attempt++) {
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         token.setTarget(true, { releaseOthers: true });
@@ -307,14 +278,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       return null;
     };
-    // ⚠ The victim must be ALIVE before every bash cast: it is an NPC, earlier sections'
-    // applied damage can leave it at 0, and the DEAD-TARGET GATE (walk item 11, correct
-    // behaviour) then stamps nothing — which reads exactly like a product bug (it cost a
-    // run to diagnose; the castAt retry log now names the gate's inputs for next time).
+    // ⚠ Revive the victim before every bash cast: the dead-target gate stamps nothing.
     const reviveVictim = () => victim.update({
       'system.attributes.hp.value': victim.system.attributes.hp.max });
 
-    /* ============================================== P1+P2 — the Precision stamp gates */
+    /* ==== P1+P2 — the Precision stamp gates */
     if (want('P')) {
       await acFlat(victim, 25);   // miss band: disadvantage total 6..25, nat-20 retries
       await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
@@ -380,9 +348,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (m.getFlag(MOD, 'respondsTo') === msg.id) && m.rolls?.length);
           ok('P5c. the die rolled PUBLICLY with provenance (respondsTo the attack)',
             !!dieMsg, `dieMsg=${!!dieMsg}`);
-          // The re-drive stamps the FLAT originating key — the exact property the riders key
-          // on (riderTargets branch 1), so this single assert pins the per-roll rider ruling's
-          // mechanism without a full rider fixture.
+          // The re-drive stamps the FLAT originating key the riders key on (riderTargets branch 1).
           const dmg = await waitDamage(msg._source.system?.origin, 12000);
           const applied = await until(() => {
             const r = dmg?.getFlag(MOD, 'receipt');
@@ -433,7 +399,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== R1+R2 — the Riposte offer + the driven attack */
+    /* ==== R1+R2 — the Riposte offer + the driven attack */
     if (want('R')) {
       await acFlat(pc, 40);   // the enemy always misses the PC
       await acFlat(enemy, 1);              // the riposte always hits back (a fumble retries below)
@@ -446,7 +412,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           JSON.stringify({ reactors: flag?.reactors?.map(r => r.name),
             attackerUuid: flag?.attackerUuid, want: enemy.uuid }));
         const popup = await until(() => dialogsWith('Riposte with')[0], 6000);
-        // v1.19.x finding ④: ONE equipped melee weapon skips the dropdown — the popup NAMES it.
+        // ONE equipped melee weapon skips the dropdown: the popup NAMES it.
         ok('R2a. the popup carries Riposte/Pass and NAMES the single weapon (no dropdown, ④)',
           !!popup && !!popup.querySelector('button[data-action="riposte"]')
             && !popup.querySelector('select[name="bf-riposte-weapon"]')
@@ -468,11 +434,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           skips.push('R2d/e — the driven attack rolled a natural 1 (miss); die-in-damage not exercised this run');
         } else {
           const dmg = await waitDamage(driven?._source.system?.origin, 12000);
-          // v1.19.x finding (d): the die folds INTO the base roll — ONE dice group, one
-          // total. Weapon d8 + die d8 ⇒ exactly two d8 TERMS in a single roll — counted by
-          // GROUP, not by literal "1d8": a driven CRIT doubles both to 2d8 (the 2024 rule,
-          // recorded in DESIGN.md), and the literal count read a crit as "no die" (flaked
-          // round 3, formula "2d8 + 3 + 2d8").
+          // The die folds INTO the base roll: two d8 terms in one roll, counted by group, not by
+          // literal "1d8" (a driven crit doubles both to 2d8).
           const d8s = (dmg?.rolls?.[0]?.formula?.match(/\d+d8/g) ?? []).length;
           ok('R2d. the superiority die is BAKED INTO the base damage roll — one group ((d))',
             !!dmg && (dmg.rolls?.length === 1) && (d8s === 2),
@@ -490,10 +453,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           rFlag?.reactors?.[0]?.weaponName === enemyWeapon.name,
           `weaponName=${rFlag?.reactors?.[0]?.weaponName} want=${enemyWeapon.name}`);
 
-        // (v) walk-4: the maneuver's own use must NOT chain dnd5e's follow-up damage roll —
-        // the walk found a native "Damage Roll — Riposte" config dialog orphaned over the
-        // table (the bare superiority d8; subsequentActions:false pins it shut now). The
-        // orphan opened ASYNC beside the drive, so this is a negative assert after a settle.
+        // The maneuver's own use must NOT chain dnd5e's follow-up damage dialog; it would open
+        // async, so this is a negative assert after a settle.
         await sleep(1200);
         const orphan = [...document.querySelectorAll('.application')].find(el =>
           (el.querySelector('.window-title')?.textContent ?? '').includes('Damage Roll')
@@ -567,9 +528,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       /* R6 — a DRIVEN attack never chains a second offer, even at an eligible reactor. */
       {
-        // Make the ENEMY riposte-eligible (own pool + Riposte + melee weapon already equipped),
-        // then force the PC's driven attack to miss them — the riposteFor guard is now the ONLY
-        // thing standing between that miss and a chained offer.
+        // Make the ENEMY riposte-eligible and force the driven attack to miss: only the
+        // riposteFor guard stops a chained offer.
         const [ePool] = await enemy.createEmbeddedDocuments('Item', [{
           name: 'BF Enemy Superiority', type: 'feat',
           system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
@@ -600,15 +560,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('R6. the driven attack misses an ELIGIBLE reactor and still never chains an offer',
             !!driven && !driven.getFlag(MOD, 'riposte'),
             `driven=${!!driven} chained=${!!driven?.getFlag(MOD, 'riposte')}`);
-          // (p) the announced miss: the strike back never ends in silence — the card posts
-          // BEFORE any Graze/Precision offer can arrive from nowhere ((e)-KEEP still fires).
-          //
-          // ⚠ A NATURAL 20 AUTO-HITS THROUGH FLAT AC 40, and then the miss card correctly never
-          // posts — the hit's moment is the damage offer instead. That is a 1-in-20 per run, and
-          // it is what produced the 53/54 seen 2026-08-23. R6 above cannot catch it: its
-          // predicate only checks that the driven attack EXISTS and never chained, so it passes
-          // on a hit too and R6b took the failure alone. Skipped rather than failed, the same
-          // way R2d/e and RP already skip on a natural 1 defeating THEIR forcing.
+          // The announced miss: the card posts before any Graze/Precision offer can arrive.
+          // ⚠ A natural 20 hits through AC 40 and correctly posts no miss card: skipped, not failed.
           const drivenCrit = driven?.rolls?.[0]?.isCritical === true;
           if (drivenCrit) {
             skips.push('R6b — the driven attack rolled a natural 20 and auto-hit through flat AC 40; '
@@ -625,19 +578,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== P8 — finding ①: player-owned, owner OFFLINE */
+    /* ==== P8 — player-owned, owner OFFLINE: player-first, GM fallback (the GM gets the popup) */
     if (want('P8')) {
-      // The walk's regression: the old fold gate (`isGM && hasPlayerOwner`) was mutually
-      // exclusive with canAnswerFor's own active-owner check, so a GM alone in the room got
-      // the card and the buzzer but never the popup. Ruling: player-first, GM fallback.
       {
         const playerUser = game.users.find(u => !u.isGM);
         if (!playerUser) {
           skips.push('P8 — no player user in this world; the ①-gate pin not exercised');
         } else {
-          // Object form, never a dotted key — the dotted write raises "ownership: is not a
-          // mapping" validation noise; and the ownership must PROVABLY land or this pin
-          // passes vacuously (the popup shows either way when hasPlayerOwner stayed false).
+          // Object form: a dotted key raises "is not a mapping". The grant must provably land, or
+          // the pin passes vacuously.
           await pc.update({ ownership: { [playerUser.id]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER } });
           ok('P8a. the fixture is really player-owned (the pin cannot pass vacuously)',
             pc.hasPlayerOwner === true, `hasPlayerOwner=${pc.hasPlayerOwner}`);
@@ -656,14 +605,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== M1 — finding ④: two weapons, smart default */
+    /* ==== M1 — two weapons, smart default */
     if (want('M1')) {
       {
         const [offhand] = await pc.createEmbeddedDocuments('Item', [
           foundry.utils.mergeObject(enemyWeapon.toObject(), {
             name: 'BF Test Offhand', system: { equipped: true } }, { inplace: false })]);
-        // Attack once WITH the offhand so it becomes the log's latest — the default must track
-        // USAGE, not inventory order (options[0] is the original weapon).
+        // Attack with the offhand first: the default tracks USAGE, not inventory order.
         const offAct = pc.items.get(offhand.id)?.system.activities.find(a => a.type === 'attack');
         await acFlat(victim, 1);
         const { msg: offMsg } = await attack(offAct, victimToken);
@@ -688,7 +636,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== RP — (l)+(p): the riposte HIT celebrates */
+    /* ==== RP — the riposte HIT celebrates */
     if (want('RP')) {
       {
         await pc.items.get(pool.id)?.update({ 'system.uses.spent': 0 });   // top the pool back up
@@ -706,8 +654,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             skips.push('RP — the driven attack fumbled (nat 1 vs flat AC 1); the celebration popup not exercised this run');
             await closeDialogs('Precision');
           } else {
-            // The offer popup on the DRIVING client — the riposte named as its own moment with
-            // the die-riding note ((p)'s hit half; (l): the one chokepoint, consistent flavors).
+            // The offer popup on the driving client names the riposte, with the die-riding note.
             const offer = await until(() => [...document.querySelectorAll('.application')]
               .find(el => el.querySelector('button[data-action="roll"]') && /riposte/i.test(el.innerHTML ?? '')), 8000);
             const title = offer?.querySelector('.window-title')?.textContent ?? '';
@@ -727,13 +674,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== B — finding ⑤: the bash choice (Prone or push) */
+    /* ==== B — the bash choice (Prone or push) */
     if (want('B')) {
       await set('saves', true);
       await set('maneuverFolds', SUITE_FOLDS);
-      // The bash fixture: a listed feat whose save activity presses an effect on failure —
-      // the Shield Bash shape (DC 30 so the victim ALWAYS fails; effect wired by REAL id
-      // after creation, never by assumed keepId).
+      // A listed feat whose save presses an effect on failure (DC 30: always fails; the effect
+      // wired by its real id after creation).
       const [bashFeat] = await pc.createEmbeddedDocuments('Item', [{
         name: 'BF Shield Master', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
@@ -765,8 +711,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('B1a. a failed listed save opens the bash choice instead of hard-pressing (⑤)',
           choice?.kind === 'bash',
           `choice=${choice ? choice.kind : JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.[0] ?? null)}`);
-        // The v1.19.0 verdict line is RETIRED (2026-09-18): the usage card carries the verdict —
-        // in the platform's summary row or its own line — and no public card posts for it.
+        // The usage card carries the verdict; no separate verdict card posts.
         const verdictCards = game.messages.contents.filter(m => m.getFlag(MOD, 'verdictLine')?.sourceMessageId === card?.id);
         const cardTextB1 = () => (ui.chat.element?.querySelector(`.message[data-message-id="${card?.id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
         const onCardB1 = await until(() => /vs DC \d+ — failed/.test(cardTextB1()) ? cardTextB1() : null, 6000);
@@ -790,8 +735,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `applied=${!!applied} pressed=${pressed} prone=${victim.statuses.has('prone')} pushMsg=${!!pushMsg}`);
       }
 
-      /* B2 — (x): the prone answer presses the STANDARD Prone chip (Topple's forceStatus
-       * idiom — canonical id, origin names the presser), never the item's own effect. */
+      /* B2 — the prone answer presses the STANDARD Prone chip (canonical id, origin names the
+       * presser), never the item's own effect. */
       {
         await reviveVictim();
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
@@ -808,16 +753,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await chip?.delete().catch(() => {});
       }
 
-      /* B3 — the choice bar is VISIBLE ((n)), then the buzzer defaults to Prone and says so. */
+      /* B3 — the choice bar is VISIBLE, then the buzzer defaults to Prone and says so. */
       {
         await set('holdTimer', 4);
         await reviveVictim();
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
         const card = await castAt(bashAct(), victimToken);
-        // (n): the pending choice draws its bar — card row AND popup — through momentBarHTML.
-        // The DOM is the assertion, because every flag-level one passed for a whole round
-        // while nothing rendered (the sub-object has no `status`; the status-gated wrapper
-        // silently returned "" at both call sites).
+        // The pending choice draws its bar (card row AND popup). The DOM is the assertion: the
+        // flags can be right while a status-gated wrapper renders "".
         const choiceStamped = await until(() => {
           const x = card?.getFlag(MOD, 'saves')?.targets?.[0];
           return (x?.choice && !x.choice.answer) ? x.choice : null;
@@ -842,17 +785,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('BF Shield Master');
       }
 
-      /* B4 — finding (g): the HIT is the trigger — offer → drive → demand → choice → press. */
+      /* B4 — the HIT is the trigger: offer → drive → demand → choice → press. */
       {
-        // Unkillable for the section: the swing's auto-applied damage must never turn the
-        // demand's target into a corpse mid-chain (the dead gate would eat it silently).
+        // Unkillable for the section: the dead gate would silently eat the demand.
         priorActor[victim.id]['system.attributes.hp.max'] = victim.system._source.attributes.hp.max;
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
         await victim.effects.find(e => e.statuses.has('prone'))?.delete().catch(() => {});
-        // THE FEAT'S REACH (Session 8, 2026-09-22 — the bash offered on hits beyond 5 feet): "if
-        // you attack a creature within 5 feet of you". The PC stands two squares off; a HIT from
-        // there stamps nothing. Then the PC steps beside the target, where the chain below runs.
+        // The feat's reach (within 5 feet): a hit from two squares off stamps nothing; then the
+        // PC steps beside the target for the chain below.
         {
           let far = null;
           for (let i = 0; i < 4 && !far; i++) {
@@ -873,8 +814,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (let i = 0; i < 6 && !offer; i++) {
           const { msg } = await attack(pcAttackAct(), victimToken);
           atkMsg = msg;
-          // THE SEQUENCE (user ruling 2026-09-13): the hit stamps the offer QUEUED, and it goes
-          // pending only once the damage has landed — the clock starts then, not at the hit.
+          // The hit stamps the offer QUEUED; it goes pending (clock starts) once the damage lands.
           const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
           if (stamped) {
             queuedFirst = stamped.status;
@@ -890,8 +830,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('B4a. a melee weapon HIT by the listed carrier stamps the bash offer ((g))',
           (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
           `offer=${!!offer} targets=${offer?.targets?.length}`);
-        // (holdTimer is 0 in this section — a clockless ask by setting — so the proof of "the clock
-        // starts at the promotion" is promotedAt, stamped by the promote write, after the damage.)
+        // holdTimer is 0 here, so promotedAt is the proof the clock starts at the promotion.
         ok('B4a2. THE SEQUENCE — stamped queued at the hit, pending only after the damage landed, promoted after it',
           (queuedFirst === 'queued') && Number.isFinite(dmgAtPromotion) && Number.isFinite(offer?.promotedAt)
             && (offer.promotedAt >= dmgAtPromotion) && (offer.promotedAt > (atkMsg?.timestamp ?? 0)),
@@ -920,10 +859,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== T — Tavern Brawler's push (the `shove` kind, 2026-09-25) */
+    /* ==== T — Tavern Brawler's push (the `shove` kind) */
     if (want('T')) {
-      // The PHB's own Tavern Brawler, lent to the PC: its Enhanced Unarmed Strike is the feat's
-      // attack activity, classified unarmed (probed 2026-09-25) — the real data, not a stand-in.
+      // The PHB's own Tavern Brawler: its Enhanced Unarmed Strike is an attack activity classified unarmed.
       let brawlerSrc = null;
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
         const hit = (await pack.getIndex()).find(e => e.name === 'Tavern Brawler');
@@ -1029,7 +967,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== C — Crusher's push (the PHB feats, group 3) */
+    /* ==== C — Crusher's push */
     if (want('C')) {
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -1043,8 +981,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('C0. the PHB ships Crusher, a Mace and a Dagger', false, JSON.stringify(Object.fromEntries(Object.entries(srcs).map(([k, v]) => [k, !!v]))));
       } else {
         const made = await pc.createEmbeddedDocuments('Item', [srcs.crusher.toObject(), srcs.mace.toObject(), srcs.dagger.toObject()]);
-        // BY NAME, never by position: createEmbeddedDocuments' result order is not the request's — the
-        // 2026-09-27 reds (a "Mace" with no attack; the Mace's push on the "Dagger") were the three shuffled.
+        // ⚠ BY NAME: createEmbeddedDocuments' result order is not the request's.
         const mace = made.find(i => (i.name === 'Mace') && (i.type === 'weapon'));
         const dagger = made.find(i => (i.name === 'Dagger') && (i.type === 'weapon'));
         const actOf = item => () => pc.items.get(item.id)?.system.activities.find(a => a.type === 'attack');
@@ -1055,7 +992,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 1);
         const hitUntil = async act => {
           if (!act) {
-            // the 2026-09-27 batteries: the Mace's attack came back undefined in a FULL battery only — say what the sheet held
+            // Say what the sheet held when the Mace's attack is missing.
             const it = pc.items.get(mace?.id);
             log.push(`§C: no attack activity — made=${JSON.stringify(made.map(x => [x.name, x.id]))} onSheet=${!!it} activities=${JSON.stringify(it ? [...it.system.activities].map(a => a.type) : null)} pc=${pc.name}/${pc.uuid} items=${pc.items.size}`);
             ok('C. the Mace on the sheet carries its attack', false, log.at(-1));
@@ -1104,10 +1041,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== I — finding ⑥: Interpose (save-success reaction) */
+    /* ==== I — Interpose (save-success reaction) */
     if (want('I')) {
-      // The saver's side: an equipped shield + the listed feat on the VICTIM, a DEX half-damage
-      // demand from the PC (DC 1 + dex 16 so the victim ALWAYS saves).
+      // A shield + the listed feat on the VICTIM; a DEX half-damage demand it always saves.
       await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       priorActor[victim.id]['system.abilities.dex.value'] = victim.system._source.abilities.dex.value;
       await victim.update({ 'system.abilities.dex.value': 16 });
@@ -1134,8 +1070,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         } } }]);
       const dexAct = () => pc.items.get(dexBlast.id)?.system.activities.get('bfdexblast000000');
 
-      /* I1 — walk-5 (y): NOTHING stamps with the demand; the SAVED verdict opens the choice;
-       * use turns the half into NONE. The 2024 text conditions the Reaction on succeeding. */
+      /* I1 — NOTHING stamps with the demand; the SAVED verdict opens the choice; use turns the
+       * half into NONE (the 2024 text conditions the Reaction on succeeding). */
       {
         await set('saveTimer', 1);    // the verdict lands fast — the choice is what we watch
         await set('holdTimer', 15);   // the post-verdict choice window — room to click
@@ -1173,8 +1109,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs('BF Shield Master');
       }
 
-      /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): the saved half applies.
-       * Post-verdict since (y): verdict at ~1s (saveTimer), the choice buzzer 2s after. */
+      /* I2 — the buzzer PASSES (a Reaction is never spent by a timer): the saved half applies. */
       {
         await set('holdTimer', 2);
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
@@ -1193,8 +1128,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       }
 
-      /* I3 — the (y) NEGATIVE: a FAILED save never offers and never spends — full damage,
-       * no choice, no popup, no settle card. (The old pre-roll gamble is overturned.) */
+      /* I3 — a FAILED save never offers and never spends: full damage, no choice, no popup. */
       const [dexHard] = await pc.createEmbeddedDocuments('Item', [{
         name: 'BF Test Dex Blast Hard', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
@@ -1229,13 +1163,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== H — ② + (c): the Hew reminder POPS now */
+    /* ==== H — the Hew reminder POPS */
     if (want('H')) {
       await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       {
-        // The bash feat and the blasts leave first — their offers would stack popups onto
-        // H's swings and muddy the dialog asserts. ⚠ BY NAME, not by binding: those fixtures
-        // are created inside §B and §I, and a `--section H` run never made them.
+        // The bash feat and the blasts leave first (their popups would stack). ⚠ BY NAME: a
+        // `--section H` run never made them.
         const inTheWay = ['BF Shield Master', 'BF Test Dex Blast', 'BF Test Dex Blast Hard'];
         await pc.deleteEmbeddedDocuments('Item',
           pc.items.filter(i => inTheWay.includes(i.name)).map(i => i.id)).catch(() => {});
@@ -1259,16 +1192,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && /Hew — /.test(m.content ?? '')).length;
         ok('H2. exactly ONE reminder for the swing (the crit-defers-to-kill dedupe)',
           hewCount === 1, `count=${hewCount}`);
-        // The design law ((c), the user verbatim): "give players popup notifications on easy
-        // things to forget" — the card alone was scrolled past at the walk.
+        // Easy-to-forget things pop a notice, not just a card.
         const hewPopup = await until(() => dialogsWith('Hew —')
           .find(d => d.querySelector('button[data-action="ok"]')), 6000);
         ok('H3. the reminder POPS — the OK-only notice shape on the fold\'s own namespace ((c))',
           !!hewPopup, `popup=${!!hewPopup}`);
         hewPopup?.querySelector('button[data-action="ok"]')?.click();
-        // (j) the ACK: OK resolves the reminder's pending presentation — the flag records it
-        // (this client authored the notice as the elect, the durable path) and the card
-        // renders no bar. The whole notice family rides the same acknowledgeMoment.
+        // The ACK: OK resolves the pending presentation (flag recorded, no bar). The notice family
+        // shares acknowledgeMoment.
         const hewAcked = await until(() => hew?.getFlag(MOD, 'hewNotice')?.acknowledged === true, 5000);
         await sleep(400);
         const hewBar = hew ? document.querySelector(`.message[data-message-id="${hew.id}"] [data-bf-deadline]`) : null;
@@ -1282,10 +1213,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== PS — Pole Strike's reminder (Hew's shape, 2026-09-27) */
-    // The user's pick "P1" off BACKLOG's Polearm Master options: after an attack with a Quarterstaff, a
-    // Spear or a Heavy + Reach weapon, Hew's OK-only reminder says a Bonus Action swing with the other
-    // end is there; a weapon that does not qualify says nothing. Out of combat, every such attack.
+    /* ==== PS — Pole Strike's reminder (Hew's shape): after a Quarterstaff, Spear or Heavy + Reach
+     * attack, an OK-only reminder of the Bonus Action swing; other weapons say nothing. */
     if (want('PS')) {
       await set('maneuverFolds', `${SUITE_FOLDS}, Polearm Master:hew`);
       const phb = async (name, type) => {
@@ -1343,11 +1272,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    /* ============================================== Q — (s): the cascade is a staircase queue */
+    /* ==== Q — the cascade is a staircase queue: common anchor, one header-height step per slot,
+     * slots reused as they free; the FIRST moment's popup stays in front. */
     if (want('Q')) {
-      // Walk-4 finding (s) + the event-order LAW (user ruling): common anchor, one header-height
-      // step per slot, slots reused as they free — and the FIRST moment's popup stays in FRONT,
-      // later arrivals layered behind, so the player clicks through in the order things happened.
       {
         const uiMod = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
         const anyMsg = game.messages.contents.at(-1);
@@ -1379,11 +1306,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `third=${JSON.stringify({ left: d3.position.left, top: d3.position.top })} anchor=${JSON.stringify(p1)}`);
         await d2.close(); await d3.close();
         await sleep(150);
-        // THE RANK (user ruling 2026-09-13, Thomas Invictus' sword): the bash offer is stamped
-        // on the attack roll and the mastery rides the damage message a beat later, so event
-        // order alone put the feat's offer in front of the weapon's own mastery. Ranked: the
-        // mastery fronts even though it arrived second; the unranked go behind both. The keys
-        // are the machines' real subs through the same opener the real popups take.
+        // THE RANK: the mastery fronts the bash offer though it arrives second; the unranked go
+        // behind both. Real subs, through the real popups' opener.
         const dBash = mk('BF Rank Bash');
         const dMast = mk('BF Rank Mastery');
         const dHold = mk('BF Rank Hold');

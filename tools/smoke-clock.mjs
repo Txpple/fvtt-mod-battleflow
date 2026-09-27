@@ -1,23 +1,12 @@
-// Battle Flow clock-rider smoke test — DAMAGE RIDERS ON THE COMBAT CLOCK (user ruling
-// 2026-09-02: "should just notify the player that they are available and will be added to the
-// damage. i believe crit should double those"). The Gloom Stalker's Dreadful Strike (once per
-// turn, limited uses) on the BUILT ranger fixture, the Assassin's first-round strike on the BUILT
-// rogue fixture (with its Advantage against a creature that has not acted, an effect-table row
-// with the clock as its judge), the offer's notice, the card's line, the list as the switch.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the chits it writes are cleared; the uses it spends are refilled; the tokens it
-// places are removed; its combat is deleted.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Clock-rider smoke suite: damage riders on the combat clock, offered by a notice and doubled on a
+// crit. Dreadful Strike (once per turn, limited uses) on the ranger fixture, Assassinate on the
+// rogue fixture (Advantage against a creature that has not acted), the Goliath's boons, the
+// on-hit feat riders; the card's line and the list as the switch. Everything written is restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
-  'clock-riders.js',        // Dreadful Strike and Assassinate on the combat clock; §8-9 the Goliath's boons (2026-09-24)
+  'clock-riders.js',        // Dreadful Strike and Assassinate on the combat clock; §8-9 the Goliath's boons
   'sneak.js',               // §5 — the sneak hit Assassinate rides
   'reminders.js'            // §5 — Advantage against a creature that has not acted (the effect table)
 ];
@@ -52,8 +41,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
-  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  // Every moment published during the run (the gate publishes from the record landing).
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -91,8 +79,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (const a of [victim, ranger, rogue]) {
       const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Vexed|Sapped|Sneak Attack|Dreadful Strike|Chilled|Hamstrung|Slashed|Crushed)/.test(e.name)
         || ['prone', 'poisoned', 'unconscious'].some(s => e.statuses?.has?.(s)));
-      // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
-      // (mastery.js's sweep), and a delete naming a gone id throws.
+      // Re-filtered: a deleted combat's sweep may have taken them, and deleting a gone id throws.
       const live = chips.map(e => e.id).filter(id => a.effects.get(id));
       if (live.length) await a.deleteEmbeddedDocuments('ActiveEffect', live).catch(() => {});
     }
@@ -145,14 +132,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('castApply', false);
     await set('concMode', 'off');
     await set('reminderList', 'vex, sap, prone, condition, range, effect, sneak');
-    // The effect table as SHIPPED — the world's stored list predates the Assassinate row (a
-    // list saved at one release is a copy; the registered default is the table).
+    // The effect table as SHIPPED: a world's stored list is a copy and may lack the Assassinate row.
     await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? prior.effectList);
     await set('clockRiderList', prior.clockRiderList || 'Dread Ambusher, Assassinate, Dreadful Strikes, Blessed Strikes: Divine Strike, Elemental Fury: Primal Strike, Divine Fury');
     if (!dread || !dreadAct()) return { fatal: 'the ranger fixture lacks Dread Ambusher / Dreadful Strike — re-run fixture-suite' };
     await refill();
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
     const strays = scene.tokens.filter(t => [victim.id, ranger.id, rogue.id].includes(t.actorId)).map(t => t.id);
@@ -179,7 +165,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
     const healFull = async () => victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -229,7 +215,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const rapier = weaponOf(rogue, 'Rapier');
     if (!longsword || !rapier) return { fatal: 'fixture weapons missing (Longsword on the ranger, Rapier on the rogue)' };
 
-    // ================================================== 1. out of combat
+    // ---- 1. out of combat
     if (want(1)) {
       await clearChips();
       await refill();
@@ -249,14 +235,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `spent ${spentBefore}→${dreadAct().uses.spent} left=${cr?.riders?.[0]?.usesLeft} value=${dreadAct().uses.value}`);
       const text = await waitFor(() => { const t = cardText(dmg?.id); return /rode this roll/.test(t) ? t : null; }, 4000);
       ok('1d. the damage card says what rode and why (R5)', /Dreadful Strike — 2d6 psychic rode this roll/.test(text ?? '') && /out of combat/.test(text ?? ''), (text ?? '').slice(0, 200));
-      // The uniform spend (user report 2026-09-09: no floating text when Dreadful Strike is consumed): the
-      // record every pool spend writes rides the damage message from birth, so the flash, the card line and the
-      // ledger read it (the line and the flash draw for player-owned actors; the record is there either way).
+      // The poolSpend record rides the damage message from birth; the flash and card line read it
+      // (they draw for player-owned actors only).
       const ps = [].concat(dmg?.getFlag(MOD, 'poolSpend') ?? []);
       ok('1x. the spend is recorded as every other pool spend is - Dreadful Strike, 1 spent, the uses left and the max, born on the damage message', ps.length === 1 && /Dreadful Strike/.test(ps[0].pool) && ps[0].spent === 1 && ps[0].max > 0 && ps[0].left === (dreadAct().uses.value ?? 0) && ps[0].actorUuid === ranger.uuid, JSON.stringify(ps));
-      // THE MOMENT EVENTS (events.js version 2): the clockRiders record landing on the damage message publishes
-      // `rider` through the GATE (decide/moments.js — no publisher in clock-riders.js), and the poolSpend record
-      // beside it publishes `spend`. The item is the FEATURE (Dread Ambusher), found by the activity's name.
+      // The clockRiders record publishes `rider` through the gate (decide/moments.js), the poolSpend
+      // record `spend`. The item is the FEATURE (Dread Ambusher).
       const rev = momentsOf('rider').filter(p => p.messageId === dmg?.id);
       const sev = momentsOf('spend').filter(p => p.messageId === dmg?.id);
       ok('1y. the resolve was PUBLISHED through the gate: battleflow.moment "rider" (kind clockRiders, marker dread-ambusher) — the ranger, Dreadful Strike on Dread Ambusher, the attack, the victim as a hit target, the formula, a momentId — and "spend" (kind poolSpend) beside it; once each, plain and frozen',
@@ -270,7 +254,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1e. one roll, one receipt — the victim took the weapon and the rider together', !!receipt && (receipt.taken === total), `taken=${receipt?.taken} total=${total}`);
     }
 
-    // ================================================== 2. the offer's notice
+    // ---- 2. the offer's notice
     if (want(2)) {
       await clearChips();
       await refill();
@@ -319,7 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('playerRollDamage', false);
     }
 
-    // ================================================== 3. once per turn, in combat
+    // ---- 3. once per turn, in combat
     if (want(3)) {
       await clearChips();
       await refill();
@@ -345,7 +329,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 4. the uses
+    // ---- 4. the uses
     if (want(4)) {
       await clearChips();
       const max = Number(dreadAct().uses.max) || 1;
@@ -357,12 +341,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
     }
 
-    // ================================================== 5. Assassinate
+    // ---- 5. Assassinate
     if (want(5)) {
       await clearChips();
       await startCombat([rogue, rogueDoc, 30], [victim, victimDoc, 20]);
-      // The GATE: Advantage against a creature that has not taken a turn — the effect table's
-      // clock row — so the roll nets Advantage and the Sneak Attack box ticks itself.
+      // The effect table's clock row: Advantage against a creature that has not acted, so the
+      // Sneak Attack box ticks itself.
       await healFull();
       rogueToken.control({ releaseOthers: true });
       target(victimToken);
@@ -421,7 +405,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 6. the list is the switch
+    // ---- 6. the list is the switch
     if (want(6)) {
       await clearChips();
       await refill();
@@ -433,10 +417,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('clockRiderList', prior.clockRiderList);
     }
 
-    // ================================================== 7. FIRED
-    // ================================================== 8-9. the Goliath's boons (Slice A, 2026-09-24)
-    // Moved off the hit menu the same day (user: "yes you should switch" — a Goliath owns one boon:
-    // use-it-or-not is the rider's question, not the menu's). Uses on the ITEM, due on any hit.
+    // ---- 7. FIRED
+    // ---- 8-9. the Goliath's boons: clock riders (one boon, use it or not), uses on the ITEM, due on any hit
     if (want(8) || want(9)) {
       const goliath = game.actors.getName('BF Test Goliath');
       const axe = goliath?.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'));
@@ -513,7 +495,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 10. the on-hit riders (the PHB feats, group 3)
+    // ---- 10. the on-hit riders
     if (want(10)) {
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {

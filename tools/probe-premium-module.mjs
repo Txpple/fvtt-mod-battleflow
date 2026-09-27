@@ -1,16 +1,12 @@
-// Read-only probe (2026-09-24, Arcana Unleashed): what a PREMIUM MODULE ships, pack by pack —
-// counts, document types, names — and which of its names the module already keys a row on
-// (a reprint under the same name matches a name-keyed table twice; a new option the table
-// closes over, a Metamagic or a maneuver, is missing from it). Written so the next book the
-// house buys is measured the same way rather than described from memory. Nothing is written
-// to the world.
+// Read-only probe: what a PREMIUM MODULE ships, pack by pack (counts, types, names), and which
+// names the module already keys a row on (a reprint matches a name-keyed table twice; a new
+// option a closed table lists, a Metamagic or a maneuver, is missing). Writes nothing to the world.
 //
 //   node tools/probe-premium-module.mjs <module-id> <out.json>
 //   node tools/probe-premium-module.mjs dnd-arcana-unleashed dist/arcana.json
 //
-// The preflight runs with `allowBridge`: this reads pack INDEXES and nothing else, so it does not
-// care who the elect is and the MCP bridge being connected (another Claude session's, as a rule —
-// target.mjs) cannot corrupt it. It resolves its target through target.mjs like every other tool.
+// `allowBridge`: it reads pack INDEXES only, so a connected MCP bridge cannot corrupt it. The
+// target resolves through target.mjs.
 import { writeFileSync } from "node:fs";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
 import * as R from "../scripts/decide/registry.js";

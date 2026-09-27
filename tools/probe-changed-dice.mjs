@@ -1,11 +1,8 @@
-// Probe (2026-09-26): HOW dnd5e 6.0 MARKS THE DICE IT CHANGES ITSELF — changedDice's one guess.
-//
-// The dice that rise read the platform's own rerolls and floors off the roll's JSON
-// (scripts/decide/dice-chips.js `changedDice`): a result marked `rerolled` pairs with the next
-// live result, and a result whose `count` beats its face is a floor. That is a guess about how
-// dnd5e 6.0 writes Halfling Luck (`r1=1`) and Reliable Talent (`min10`). This probe rolls both
-// through dnd5e's own D20Roll until the rule bites (a natural 1; a natural under 10), prints the
-// raw d20 term, and feeds the JSON to changedDice. Nothing is posted to chat. Prints, asserts nothing.
+// Probe: HOW dnd5e 6.0 MARKS THE DICE IT CHANGES ITSELF. `changedDice`
+// (scripts/decide/dice-chips.js) reads a `rerolled` result as paired with the next live one, and
+// a `count` above the face as a floor. This rolls Halfling Luck (`r1=1`) and Reliable Talent
+// (`min10`) through dnd5e's own D20Roll until each bites, prints the raw d20 term and feeds it to
+// changedDice. Nothing is posted to chat. Prints, asserts nothing.
 //
 //   node tools/probe-changed-dice.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";

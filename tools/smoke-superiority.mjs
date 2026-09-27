@@ -1,25 +1,12 @@
-// Battle Flow superiority smoke test — THE REST OF THE BATTLE MASTER'S MANEUVERS (user, 2026-09-04:
-// "do the rest of maneuvers"). Parry as a damage interrupt that REDUCES by a roll, the four Bonus
-// Action uses (Evasive Footwork's rolled AC, Bait and Switch's choice, Lunging Attack's ticked die,
-// Feinting Attack's marker + Advantage + die), Ambush and Tactical Assessment as scoped d20 folds
-// (Stealth / the three skills; Ambush on Initiative), Commander's Strike as a driven ally attack,
-// and Rally as the platform's own heal (nothing built — measured).
-//
-// Fixtures: BF Test Fighter (Morgash, Fighter 5 Battle Master — Combat Superiority, four d8s),
-// BF Test Ranger (the willing ally), BF Test Attacker (the goblin). The nine maneuvers are added
-// to the fighter from the 2024 PHB pack for the run and removed after.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the items it adds are removed; the pool it spends is refilled; the chips and markers
-// it writes are cleared; the tokens it places are removed; its combat is deleted.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Master maneuvers smoke suite: Parry as a damage interrupt that REDUCES by a roll, the four
+// Bonus Action uses (Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack), Ambush and
+// Tactical Assessment as scoped d20 folds, Commander's Strike as a notice and a chip, and Rally as
+// the platform's own heal.
+// Fixtures: BF Test Fighter (Battle Master 5), BF Test Ranger, BF Test Attacker; the maneuvers come
+// from the 2024 PHB pack for the run. Everything it writes is restored or removed.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'superiority-uses.js',    // §2-§5 — the four Bonus Action uses
   'command.js',             // §9 — Commander's Strike, the notice and the chip
@@ -28,9 +15,9 @@ export const COVERS = [
   'hold/trigger.js',
   'hold/answer.js',
   'hold/continue.js',
-  'hold/lookup.js',         // §1 / §12 — the reduction row found, its voice stamped (Stone's Endurance, 2026-09-24)
+  'hold/lookup.js',         // §1 / §12 — the reduction row found, its voice stamped (Stone's Endurance)
   'hold/views.js',          // §12 — the popup and the card in the row's voice
-  'cast.js',                // §6 — Rally's temp HP through the cast slice
+  'cast.js',                // §6 — Rally's temp HP through cast.js
   'reminders.js',           // §2 — the Feinting marker read by the attack gate
   'chip-spend.js'           // §2 / §3 / §9 — the marker and the chips spent by the roll
 ];
@@ -68,8 +55,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
-  // THE MOMENT EVENTS (events.js, 2026-09-11): every payload the module publishes during this run,
-  // so a section can assert the resolve it drove was PUBLISHED with plain facts (uuids, never documents).
+  // Every moment published during the run (events.js): plain facts, uuids, never documents.
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -178,8 +164,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('maneuverFolds', "Commander's Strike:command");
     await set('d20Folds', 'Ambush:tactical, Tactical Assessment:tactical');
     await set('d20FoldAsk', true);
-    // the fighter's own Great Weapon Fighting floors every die at 3 (fighting-styles.js, 2026-09-26) —
-    // not this suite's subject, and its formulas are pinned
+    // The fighter's Great Weapon Fighting floors every die at 3; its formulas here are pinned.
     await set('fightingStyleList', '');
     await set('clockRiderList', '');
     await set('hitMenuList', '');
@@ -188,15 +173,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('damageSaveList', '');
     await set('emanations', false);
 
-    // -------------------------------------------------- fixtures
+    // ---- fixtures
     const MANEUVERS = ['Parry', 'Feinting Attack', 'Lunging Attack', 'Evasive Footwork', 'Bait and Switch', 'Rally', 'Ambush', 'Tactical Assessment', "Commander's Strike"];
     const pack = game.packs.get('dnd-players-handbook.classes');
     if (!pack) return { fatal: 'the 2024 PHB classes pack is not in this world' };
     const index = await pack.getIndex();
-    // ⚠ Fresh copies EVERY run (2026-09-24, the smoke-hitmenu lesson): a killed run skips the
-    // teardown that removes the maneuvers this suite added, and "add if missing" then reused a
-    // leftover its sections had spent or edited. The reference Fighter carries none of these
-    // names natively, so the sweep touches only what a run of this suite left.
+    // ⚠ Fresh copies every run: a killed run leaves spent or edited maneuvers behind. The Fighter
+    // carries none of these names natively, so the sweep touches only this suite's leftovers.
     {
       const stale = fighter.items.filter(i => (i.type === 'feat') && MANEUVERS.includes(i.name)).map(i => i.id);
       if (stale.length) { await fighter.deleteEmbeddedDocuments('Item', stale); log.push(`swept ${stale.length} stale maneuver item(s) a previous run left`); }
@@ -221,7 +204,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    // LINKED strays only (2026-09-24, the smoke-hitmenu lesson): never the shared unlinked tokens.
+    // LINKED strays only: never the shared unlinked tokens.
     const strays = scene.tokens.filter(t => t.actorLink && [fighter.id, ranger.id, goblin.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
@@ -249,7 +232,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await goblin.update({ 'system.attributes.ac.override': 1 });
     const healFull = async () => { for (const a of [fighter, ranger, goblin]) await a.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }); };
 
-    // -------------------------------------------------- helpers
+    // ---- helpers
     const waitFor = async (test, timeout = 8000) => {
       const until = Date.now() + timeout;
       while (Date.now() < until) { const v = test(); if (v) return v; await sleep(200); }
@@ -266,12 +249,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && !app.element.querySelector('[data-bf-save-demand]')) ?? null;
-    // ⚠ A POPUP, never the sidebar: the chat log is an application too and carries every card's
-    // text, so a bare text match found the log and clicked nothing (first live run).
+    // ⚠ A POPUP, never the sidebar: the chat log is an application carrying every card's text.
     const dialogWith = text => [...foundry.applications.instances.values()]
       .find(app => app.rendered && !/ChatLog|Sidebar|Tab/.test(app.constructor?.name ?? '') && (app.element?.innerHTML ?? '').includes(text)) ?? null;
-    // The rescue window is the spine's own DOM window (the d20-fold suite's idiom): found in the
-    // document, its rows are `[data-bf-rescue-action]` elements, not dialog buttons.
+    // The rescue window's rows are `[data-bf-rescue-action]` elements, not dialog buttons.
     const rescueWindow = text => [...document.querySelectorAll('.application')]
       .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
@@ -298,7 +279,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const riderPart = (dmg, re) => (dmg?.rolls ?? []).find(r => re.test(r.formula));
 
-    // ================================================== 1. Parry
+    // ---- 1. Parry
     if (want(1)) {
       await clearChips(); await refill(); await healFull();
       const hpBefore = fighter.system.attributes.hp.value;
@@ -307,7 +288,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const t = hold?.targets?.find(x => x.uuid === fighter.uuid);
       ok('1a. the goblin\'s melee hit on the fighter stamps a hold for Parry as a DAMAGE interrupt with the pack\'s reduction formula — the Monster Manual\'s AC Parry of the same name is not this',
         !!t && (t.reaction === 'Parry') && (t.kind === 'damage') && /superiority\.die/.test(t.reduce?.formula ?? ''), `target=${JSON.stringify(t)}`);
-      const popup = await waitFor(() => dialogWith('Maneuver — Parry'), 6000);   // the maneuver family's popup (2026-09-05)
+      const popup = await waitFor(() => dialogWith('Maneuver — Parry'), 6000);   // the maneuver family's popup
       popup?.element?.querySelector('button[data-action="cast"]')?.click();
       const resolved = await waitFor(() => (msg?.getFlag(MOD, 'hold')?.status === 'resolved') ? msg.getFlag(MOD, 'hold') : null, 10000);
       const rt = resolved?.targets?.find(x => x.uuid === fighter.uuid);
@@ -337,7 +318,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 2. Feinting Attack
+    // ---- 2. Feinting Attack
     if (want(2)) {
       await clearChips(); await refill(); await healFull();
       const card = await useAt(feat('Feinting Attack'), 'Damage', goblinToken);
@@ -386,7 +367,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 3. Lunging Attack
+    // ---- 3. Lunging Attack
     if (want(3)) {
       await clearChips(); await refill(); await healFull();
       await useAt(feat('Lunging Attack'), 'Damage', null);
@@ -416,7 +397,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 4. Evasive Footwork
+    // ---- 4. Evasive Footwork
     if (want(4)) {
       await clearChips(); await refill();
       const acBefore = fighter.system.attributes.ac.value;
@@ -431,13 +412,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 5. Bait and Switch
+    // ---- 5. Bait and Switch
     if (want(5)) {
       await clearChips(); await refill();
       const rangerAC = ranger.system.attributes.ac.value;
       const card = await useAt(feat('Bait and Switch'), 'Switch Places', rangerToken);
       const bs = await waitFor(() => { const b = card?.getFlag(MOD, 'baitSwitch'); return b?.total ? b : null; }, 6000);
-      const popup = await waitFor(() => dialogWith('who gains the AC'), 6000);   // the maneuver popup's words (2026-09-05)
+      const popup = await waitFor(() => dialogWith('who gains the AC'), 6000);   // the maneuver popup's words
       ok('5a. the die is rolled and a popup asks who gains the AC — the fighter and the willing Ranger', !!bs && (bs.options?.length === 2) && !!popup, `flag=${JSON.stringify(bs && { total: bs.total, options: bs.options?.map(o => o.name) })} popup=${!!popup}`);
       popup?.element?.querySelector('button[data-action="pick-1"]')?.click();
       const chosen = await waitFor(() => card?.getFlag(MOD, 'baitSwitch')?.chosen ?? null, 6000);
@@ -451,7 +432,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 6. Rally — the platform's own heal
+    // ---- 6. Rally — the platform's own heal
     if (want(6)) {
       await clearChips(); await refill(); await healFull();
       fighterToken.control({ releaseOthers: true });
@@ -469,7 +450,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 7. the scoped folds on checks
+    // ---- 7. the scoped folds on checks
     if (want(7)) {
       await clearChips(); await refill();
       await closeDialogs();
@@ -492,21 +473,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Accept Ambush on a fresh Stealth check: the rescue window's row.
       const ste2 = await foldOf('ste');
       const win = await waitFor(() => rescueWindow('Ambush'), 6000);
-      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME since 2026-09-05 (two tactical rows can stand)
+      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
       const done = await waitFor(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
       ok('7d. accepting Ambush spends a Superiority Die, rolls the die in the open and patches the check\'s total; the card names Ambush, not Tactical Mind',
         (done?.outcome === 'used') && (done?.spends?.[0]?.name === 'Ambush') && (done?.spends?.[0]?.label === 'Ambush') && (done?.foldedTotal === done?.baseTotal + done?.spends?.[0]?.die) && (poolLeft() === 3)
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && /Second Wind isn't expended/.test(m.content ?? '')),
         `flag=${JSON.stringify(done && { outcome: done.outcome, spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} pool=${poolLeft()}`);
       await sleep(600);
-      // The rescue's spend USES the Ambush activity — it must not ARM a second die (2026-09-05, the walk).
+      // The rescue's spend USES the Ambush activity; it must not ARM a second die.
       ok('7e. the rescue\'s spend arms nothing — no chip on the fighter, no "which check" card', !fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')),
         `chip=${fighter.effects.some(e => e.getFlag(MOD, 'armed'))} armedCards=${game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'tacticalArmed')).length}`);
       await closeDialogs();
     }
 
-    // ================================================== 8. Ambush on Initiative
+    // ---- 8. Ambush on Initiative
     if (want(8)) {
       await clearChips(); await refill(); await closeDialogs();
       if (game.combat) await game.combat.delete();
@@ -522,13 +503,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8a. the initiative roll is offered Ambush (testKind initiative, the combatant named)', (flag?.testKind === 'initiative') && (flag?.offers?.[0]?.label === 'Ambush') && flag?.combatantIds?.includes(combatant?.id),
         `flag=${JSON.stringify(flag && { testKind: flag.testKind, offers: flag.offers?.map(o => o.label), combatants: flag.combatantIds, base: flag.baseTotal })} init=${initBefore}`);
       const win = await waitFor(() => rescueWindow('Ambush'), 6000);
-      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME since 2026-09-05 (two tactical rows can stand)
+      win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
       const done = await waitFor(() => { const fl = initMsg?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
       await sleep(400);
       ok('8b. accepting moves the combatant\'s initiative by the die and says so', (done?.outcome === 'used') && (combat.combatants.get(combatant?.id)?.initiative === initBefore + (done?.spends?.[0]?.die ?? 0)) && (poolLeft() === 3),
         `init ${initBefore}→${combat.combatants.get(combatant?.id)?.initiative} die=${done?.spends?.[0]?.die} pool=${poolLeft()}`);
-      // The COMBAT TRACKER's roll (Combat#rollInitiative) never fires dnd5e.rollInitiative — the
-      // walk's "does not work for initiative" (2026-09-05). The roll's own message is the witness.
+      // ⚠ The combat tracker's roll (Combat#rollInitiative) never fires dnd5e.rollInitiative
+      // (NOTES §2); the roll's own message is the witness.
       await closeDialogs(); await refill();
       const before = game.messages.size;
       face(10);
@@ -541,10 +522,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await combat.delete(); combat = null;
     }
 
-    // ================================================== 9. Commander's Strike
+    // ---- 9. Commander's Strike
     if (want(9)) {
       await clearChips(); await refill(); await healFull(); await closeDialogs();
-      // 2026-09-05 (user): NO driven attack — the ally's owner is TOLD (a notice popup), the ally
+      // No driven attack: the ally's owner gets a notice, the ally
       // attacks from their own sheet, and the fighter's die rides that hit off a chip on the ally.
       const card = await useAt(feat("Commander's Strike"), 'Directed Attack', rangerToken);
       const cmd = await waitFor(() => { const c = card?.getFlag(MOD, 'command'); return (c?.status === 'directed') ? c : null; }, 6000);
@@ -570,7 +551,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 11. ARMED from the sheet (2026-09-05)
+    // ---- 11. ARMED from the sheet
     if (want(11)) {
       await clearChips(); await refill(); await closeDialogs();
       if (game.combat) await game.combat.delete();
@@ -589,7 +570,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (JSON.stringify(chip.getFlag(MOD, 'armed')?.skills) === JSON.stringify(['his', 'inv', 'ins'])) && (poolLeft() === 3) && /History or Investigation/.test(armed.what ?? '') && !armed.spent,
         `chip=${JSON.stringify(chip?.getFlag(MOD, 'armed'))} card=${JSON.stringify(armed)} die=${dieMsg?.rolls?.[0]?.total} pool=${poolLeft()}`);
       const notice = await waitFor(() => dialogWith('the die rolled'), 6000);
-      // (user, 2026-09-05): the checks ARE the buttons — History, Investigation, Insight; no OK.
+      // The checks ARE the buttons (History, Investigation, Insight); no OK.
       const skillButtons = [...(notice?.element?.querySelectorAll('button[data-action^="skill-"]') ?? [])].map(b => b.dataset.action);
       ok('11b. the popup offers the three checks as buttons — History, Investigation, Insight — and no OK', !!notice && (JSON.stringify(skillButtons) === JSON.stringify(['skill-his', 'skill-inv', 'skill-ins'])) && !notice.element?.querySelector('button[data-action="ok"]'),
         `notice=${!!notice} buttons=${JSON.stringify(skillButtons)}`);
@@ -632,9 +613,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ================================================== 12. Stone's Endurance
+    // ---- 12. Stone's Endurance
     // INTERRUPT_REDUCTIONS' second row: the same machine as Parry, the row's own voice, the item's
-    // own uses. Before the row it held as a plain damage interrupt and Cast USED the heal.
+    // own uses, never the heal.
     if (want(12)) {
       const goliath = game.actors.getName('BF Test Goliath');
       const stone = goliath?.items.find(i => (i.type === 'feat') && (i.name === "Stone's Endurance"));
@@ -699,7 +680,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 10. FIRED
+    // ---- 10. FIRED
     if (want(10)) {
       ok('10a. dnd5e.rollSkill fired (the scoped folds\' hook)', count('dnd5e.rollSkill') > 0, `count=${count('dnd5e.rollSkill')}`);
       ok('10b. dnd5e.rollInitiative fired (Ambush on Initiative)', count('dnd5e.rollInitiative') > 0, `count=${count('dnd5e.rollInitiative')}`);

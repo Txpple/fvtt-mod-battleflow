@@ -1,31 +1,13 @@
-// Battle Flow metamagic smoke test — THE METAMAGIC PASS (user, 2026-09-09: "need metamagic
-// implemented … follow pattern like sneak attk/manuevers with check box"; DESIGN §6 *Metamagic*).
-// Stage 1: the group in the casting window (a row per option the sheet grants, the tag, the
-// rule folded under, one pick greys the rest), the spend BY HAND on the spell's card (the
-// poolSpend record the flash, the card line and the ledger read), and the three data-only
-// options — Subtle (a line), Quickened (a line, 2 SP), Distant (the gate's range doubled).
-// Stage 2: Careful's protected creatures leave the save demand (the area's adoption road), the
-// picker on the card adjusts the list, Heightened's mark rides the demand into the save gate.
-// Stage 3: Twinned's fit off the source target count, Transmuted's type on every roll of the cast,
-// Extended's doubled clock on the effects the cast lands and its Advantage on the concentration save.
-// §20–§22 (2026-09-24): a spell that chooses its targets — the ask at the area's third kind, raised
-// by the saves machine for a listed Chosen Area (the PHB's Slow, added to the Sorcerer for the run).
-//
-// Fixtures: BF Test Sorcerer (Sorcerer 5, Font of Magic at 5 points, all ten options, Fireball /
-// Hold Person / Chromatic Orb — tools/fixture-suite.mjs), BF Test Attacker and BF Test Victim (the
-// goblins), BF Test Ranger (an ally under the area).
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the pool it spends and the slots it burns are refilled; the token it moves goes home;
-// its dialogs are closed.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Metamagic smoke suite (RULINGS *Metamagic*). Stage 1: the group in the casting window, the
+// spend by hand on the spell's card, Subtle / Quickened / Distant. Stage 2: Careful's protected
+// leave the save demand, Heightened's mark rides it into the save gate. Stage 3: Twinned,
+// Transmuted, Extended. Stage 4: Seeking and Empowered. §20–§22: a spell that chooses its
+// targets (the PHB's Slow, added for the run).
+// Fixtures: BF Test Sorcerer (tools/fixture-suite.mjs), the goblins, BF Test Ranger. Settings,
+// messages, pool, slots, token positions and dialogs are all restored.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
   'metamagic.js',           // the casting window's group, the spend, every option
   'dice-changers.js',       // §16 / §23 — Empowered Spell's row of the dice changers' one popup
@@ -111,9 +93,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
   const attHome = { x: attTok.x, y: attTok.y };
   const sorcHome = { x: sorcTok.x, y: sorcTok.y };
-  // The uniform spend's reader (poolSpendsOn) draws the flash and the card line for PLAYER-OWNED
-  // actors only — the party's meters are the commission. The fixture is GM-owned (the harness's
-  // rule), so a player owner is granted for the run and taken back after, as BF Test PC Attacker's is.
+  // poolSpendsOn draws the flash and card line for PLAYER-OWNED actors only: grant a player owner
+  // for the run.
   const player = game.users.find(u => !u.isGM && (u.name === 'PC Assistant')) ?? game.users.find(u => !u.isGM) ?? null;
   const ownership0 = foundry.utils.deepClone(sorc.ownership);
   if (player) await sorc.update({ [`ownership.${player.id}`]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER });
@@ -126,7 +107,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const uiMod = await import(`/modules/${MOD}/scripts/ui.js`);
   /** The module's own moment popup for a message + sub-key, or null. */
   const popupFor = (messageId, sub) => uiMod.livePopups.get(`${messageId}|${sub}`) ?? null;
-  /** Empowered Spell's row of the dice changers' one record (2026-09-27), read the way its own flag read. */
+  /** Empowered Spell's row of the dice changers' one record. */
   const emp = m => {
     const f = m?.getFlag(MOD, 'diceChange');
     const row = f?.rows?.find(x => x.key === 'empowered');
@@ -198,11 +179,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('reminderList', game.settings.settings.get(`${MOD}.reminderList`).default);
     const p0 = pool();
     if (p0.system.uses.spent) await p0.update({ 'system.uses.spent': 0 });
-    // The Sorcerer at full HP: an earlier run's Fireball can leave him at 0, and a dead caster is
-    // filtered from every list and demand (found 2026-09-09 - 10c and 18a read him missing).
+    // Full HP: a dead caster is filtered from every list and demand.
     if (sorc.system.attributes.hp.value < sorc.system.attributes.hp.max) await sorc.update({ 'system.attributes.hp.value': sorc.system.attributes.hp.max });
     for (const e of sorc.effects.filter(e => e.statuses?.has?.('dead'))) await e.delete().catch(() => {});
-    // The Ranger too (2026-09-12): §10/§11's Fireballs can leave him dead for the next run.
+    // The Ranger too: §10/§11's Fireballs can kill him.
     const rgr0 = game.actors.getName('BF Test Ranger');
     if (rgr0 && rgr0.system.attributes.hp.value < rgr0.system.attributes.hp.max) await rgr0.update({ 'system.attributes.hp.value': rgr0.system.attributes.hp.max });
     for (const e of (rgr0?.effects ?? []).filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
@@ -266,11 +246,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     if (want(5)) {
-      // The range is a 100-ft square, so a target beyond Chromatic Orb's 90 ft and within Distant's
-      // 180 stands on the opposite corner: 85 ft on each axis, 120+ ft on the diagonal by any rule.
-      // …and the world measures that diagonal at 85 ft (its diagonal rule), short of Chromatic Orb's
-      // 90 — so the ORB's range is 60 ft for this section (restored after): 85 is beyond 60 and
-      // within Distant's 120.
+      // The world's diagonal rule measures the far corner at 85 ft, so the orb's range is 60 ft for
+      // this section (restored after): beyond 60, within Distant's 120.
       const orbItem = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Chromatic Orb'));
       const orbRange0 = orbItem.system._source.range.value;
       await orbItem.update({ 'system.range.value': 60 });
@@ -327,7 +304,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('metamagicList', prior.metamagicList);
     }
 
-    // --- Stage 2: the save demand -------------------------------------------------------------
+    // ---- Stage 2: the save demand
     const ranger = game.actors.getName('BF Test Ranger');
     const victim = game.actors.getName('BF Test Victim');
     const rgrTok = ranger ? tok(ranger) : null, vicTok = victim ? tok(victim) : null;
@@ -339,11 +316,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const keepCards = new Set();
     const gather = async () => {
       const g = scene.grid.size;
-      // A fresh pool (the earlier sections spent it), and no other waiting Fireball demand of this
-      // suite's making left to claim the area — the template's origin is the ACTIVITY, shared by
-      // every cast of the spell, and adoption serves the oldest waiting card.
+      // A fresh pool, and no other waiting Fireball demand: the area's origin is the ACTIVITY, and
+      // adoption serves the oldest waiting card.
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
-      // Let in-flight verdicts land before their cards go (the 2026-09-09 run: 'Verdict line failed - ChatMessage does not exist').
+      // Let in-flight verdicts land before their cards go.
       await closeDialogs(); await closeMomentPopups(); await sleep(1500);
       const stale = myCards().filter(m => !keepCards.has(m.id)).map(m => m.id);
       if (stale.length) await ChatMessage.deleteDocuments(stale);
@@ -371,15 +347,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       templates.push(tpl.id);
       await sleep(300);
       try { ui.chat?.updateMessage?.(card); } catch { /* the next render adopts */ }
-      // The ask at the area (the third look, 2026-09-09): the popup lists everyone inside; the demand waits until OK.
+      // The ask at the area lists everyone inside; the demand waits until OK.
       const askPopup = await waitFor(() => { const d = popupFor(card.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i, group: i.closest('[data-bf-ask-group]')?.dataset?.bfAskGroup ?? null, token: i.dataset.token }));
       const heldEmpty = !(card.getFlag(MOD, 'saves')?.targets?.length);
       // Everything waits on the answer: no damage dice, no damage popup, while the ask stands.
       const damageFor = () => game.messages.filter(m => (m._source.system?.origin === card.id) && (m.type === 'damage')).length;
       const damageBefore = damageFor();
-      // POPUPS only (the 2026-09-27 batteries: the Sidebar and the Chat Log matched — an earlier suite's
-      // card in the log says "Roll Damage", which is no damage popup)
+      // Popups only: the Chat Log sidebar matches "Roll Damage" off an earlier card.
       const offerApps = [...foundry.applications.instances.values()].filter(a => a.rendered && (a instanceof foundry.applications.api.DialogV2)
         && /Damage — your roll|Roll damage/i.test(a.element?.textContent ?? ''));
       const offerBefore = offerApps.length > 0;
@@ -405,8 +380,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push(`§9: saves=${JSON.stringify({ status: saves?.status, templated: saves?.templated, awaiting: saves?.awaitingTemplate, n: saves?.targets?.length, mmKeys: Object.keys(mm ?? {}) })} areas=${scene.regions.filter(r => r.getFlag('dnd5e', 'activity') === saves?.activityUuid).length} otherDemands=${game.messages.filter(m => m.id !== card?.id && m.getFlag(MOD, 'saves')?.activityUuid === saves?.activityUuid).length}`);
       log.push(`§9: demand targets=${names(saves?.targets)} protected=${names(mm?.protected)} dispositions sorc=${sorcTok.disposition} rgr=${rgrTok.disposition} att=${attTok.disposition} vic=${vicTok.disposition}`);
       ok('9a. the cast is born with Careful and the cap (Charisma +3)', mm?.key === 'careful' && mm?.cap === 3, why || JSON.stringify({ key: mm?.key, cap: mm?.cap }));
-      // The window's default: every non-hostile in reach up to the cap (three) - the Sorcerer first, the Ranger
-      // beside him, a third ally from the row (the Paladin, 35 ft off); the DEMAND protects the two the area holds.
+      // The default: every non-hostile in reach up to the cap (three); the DEMAND protects the two the area holds.
       ok('9b. the answer is the caster first and the Ranger, marked chosen', mm?.chosen === true && (mm?.protected?.length === 2) && (mm.protected[0].uuid === sorc.uuid) && (mm.protected[1].uuid === ranger.uuid), JSON.stringify(mm?.protected));
       ok('9c. the demand holds the two goblins and neither ally', (saves?.targets?.length === 2) && saves.targets.every(t => [attacker.id, victim.id].some(id => String(t.uuid).endsWith(id))), names(saves?.targets));
       const line = card ? await renderedLine(card, 'bf-metamagic-line') : null;
@@ -463,7 +437,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     await scatter();
 
-    // --- Stage 3: Twinned, Transmuted, Extended -----------------------------------------------
+    // ---- Stage 3: Twinned, Transmuted, Extended
     if (want(12)) {
       const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false } });
       const rows = rowsOf(fs);
@@ -495,12 +469,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('13b. the card carries the pick: cold, from fire', flag?.key === 'transmuted' && flag?.type === 'cold' && (flag?.from ?? []).includes('fire'), JSON.stringify({ key: flag?.key, type: flag?.type, from: flag?.from }));
       ok('13c. the card line says the damage is cold', /the damage is cold/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), '');
-      // The spell's own damage roll, chained to the card as the module and the card button chain it.
+      // The spell's own damage roll, chained to the card.
       const dmgBefore = new Set(game.messages.map(m => m.id));
       await spellAct('Fireball').rollDamage({}, { configure: false }, { data: { 'system.origin': card?.id } });
       const dmg = await waitFor(() => game.messages.find(m => !dmgBefore.has(m.id) && m.rolls?.length && m.type === 'damage') ?? null, 6000);
       ok('13d. the damage roll wears cold, not fire, and says why', dmg?.rolls?.[0]?.options?.type === 'cold' && dmg?.getFlag(MOD, 'metamagicType')?.type === 'cold', `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'metamagicType'))}`);
-      // The same roll is offered Empowered (its own moment, §16): keep it, so its popup is not the one §16 finds.
+      // The roll is offered Empowered too: close that popup so §16 finds its own.
       await sleep(300); try { await popupFor(dmg?.id, 'diceChange')?.close(); } catch { /* gone */ }
     }
 
@@ -518,8 +492,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { card, why } = await castWith('Hold Person', 'extended', { consume: { spellSlot: false } });
       const flag = card?.getFlag(MOD, 'metamagic');
       ok('14a. Extended cast: the pick on the card with the spell\'s uuid and its rule', flag?.key === 'extended' && flag?.spellUuid === sorc.items.find(i => i.name === 'Hold Person')?.uuid && /Advantage on any saving throw/.test(flag?.rule ?? ''), why || JSON.stringify({ key: flag?.key, spellUuid: flag?.spellUuid, rule: (flag?.rule ?? '').slice(0, 40) }));
-      // The buzzer rolls the forced failure; the verdict applies Paralyzed through the one applier.
-      // The applier creates the effect, THEN doubles its clock (a second write): wait for the doubled clock, not the effect.
+      // ⚠ The applier creates Paralyzed, THEN doubles its clock (a second write): wait for the clock.
       const paralyzed = await waitFor(() => { const e = vicActor.effects.find(x => x.statuses?.has?.('paralyzed') && x.getFlag(MOD, 'applied')); return (e && (e.duration?.seconds === 120)) ? e : null; }, 12000) ?? vicActor.effects.find(x => x.statuses?.has?.('paralyzed')) ?? null;
       const receiptCards = game.messages.filter(m => (m.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => t.uuid === vicActor.uuid)).map(m => `${m.id === card?.id ? 'THIS' : m.id}:${m.getFlag(MOD, 'metamagic')?.key ?? '-'}`);
       ok('14b. the failed save lands Paralyzed with its clock DOUBLED: 120 seconds, not 60', paralyzed?.duration?.seconds === 120, `seconds=${paralyzed?.duration?.seconds} outcome=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.map(t => t.outcome))} origin=${paralyzed?.origin} receipts=${receiptCards.join(',')} cardKey=${card?.getFlag(MOD, 'metamagic')?.key}`);
@@ -544,7 +517,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     } else if (want(14)) ok('14. fixtures', false, 'BF Test Victim missing');
 
-    // --- Stage 4: Seeking and Empowered ------------------------------------------------------
+    // ---- Stage 4: Seeking and Empowered
     if (want(15)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
       await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`).default);
@@ -555,10 +528,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await foe.update({ 'system.attributes.ac.override': 60 });   // a guaranteed miss
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
       await attTok.update({ x: sorcHome.x + scene.grid.size * 2, y: sorcHome.y }, { teleport: true, animate: false });
-      // ⚠ The MISS must be certain and the TARGET must be real (2026-09-24, 102/107: offers=[] with no
-      // way to tell a natural 20 — a hit even against AC 60, ~10% under Advantage — from an orb cast at
-      // nobody because the cached token had left the canvas). The d20 is pinned to a 10 for the
-      // original roll (real dice again for the reroll), the token is re-resolved, and 15-pre says so.
+      // ⚠ The miss must be certain (a natural 20 hits AC 60) and the target real: the d20 is pinned
+      // to 10 for the original roll only, and the token is re-resolved off the canvas.
       const foeTok = canvas.tokens.get(attTok.id) ?? canvas.tokens.placeables.find(t => t.document.actorId === attacker.id) ?? null;
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       foeTok?.setTarget(true, { releaseOthers: true });
@@ -570,9 +541,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Chromatic Orb').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
-      // WITH ADVANTAGE (user, 2026-09-10: 'it seemed like it rolled 4 dice not 2') - dnd5e 5.3 expands
-      // `1d20adv` to two dice at evaluation, so the original's formula reads `2d20adv`; a reroll rebuilt
-      // from it with the original's `configured` option skipped the normalisation and expanded AGAIN.
+      // With Advantage: dnd5e expands `1d20adv` to `2d20adv` at evaluation, and a reroll rebuilt with
+      // the original's `configured` option would expand it again (four dice).
       await spellAct('Chromatic Orb').rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': card?.id } });
       const attack = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'attack' && m.getFlag(MOD, 'd20fold')) ?? null, 8000);
       CONFIG.Dice.randomUniform = realPRNG15;   // the reroll rolls real dice
@@ -581,24 +551,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('15a. the missed spell attack is offered Seeking Spell as a d20 fold', !!fold && (fold.offers ?? []).some(o => o.kind === 'seeking') && fold.spell === true,
         `offers=${JSON.stringify((fold?.offers ?? []).map(o => `${o.kind}:${o.label}`))} spell=${fold?.spell} `
           + `attack=${!!attackAny} total=${attackAny?.rolls?.[0]?.total} crit=${attackAny?.rolls?.[0]?.isCritical} targets=${JSON.stringify((attackAny?.getFlag('dnd5e', 'targets') ?? []).map(t => `${t.name}:${t.ac}`))}`);
-      // Answer from the popup, as the player would: the offer's own button.
+      // Answer from the offer's own button.
       const popup = await waitFor(() => [...foundry.applications.instances.values()].find(a => a.rendered && a.element?.querySelector?.('[data-bf-rescue-action="seeking"]')) ?? null, 12000);   // after the verdict pause — see §16
       const clickedAt = Date.now();
       popup?.element?.querySelector('[data-bf-rescue-action="seeking"]')?.click();
-      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "the form stays for a few seconds"), not at the
-      // verdict - the dice are still landing for up to six seconds after this.
+      // The window goes at the click, not at the verdict (the dice land for up to six seconds more).
       const goneAfter = await waitFor(() => (!popup?.rendered || !popup?.element?.isConnected) ? { ms: Date.now() - clickedAt } : null, 5000);
-      // The spend is RECORDED before the dice are waited out (the 2026-09-10 review), so a spend on the flag
-      // is no longer the verdict - foldedTotal is. Wait for the verdict.
+      // The spend is recorded before the dice land, so wait for foldedTotal, the verdict.
       const resolved = await waitFor(() => { const f2 = attack?.getFlag(MOD, 'd20fold'); return ((f2?.spends ?? []).some(s => s.kind === 'seeking') && Number.isFinite(f2?.foldedTotal)) ? f2 : null; }, 15000);
       const f15 = attack?.getFlag(MOD, 'd20fold');
       ok('15b. Seeking rerolls the d20 — the spend records the reroll, the total replaced', !!resolved && Number.isFinite(resolved.spends.find(s => s.kind === 'seeking')?.reroll?.total) && Number.isFinite(resolved.foldedTotal), JSON.stringify({ popup: !!popup, status: f15?.status, outcome: f15?.outcome, answer: f15?.answer, spends: f15?.spends, folded: f15?.foldedTotal, base: f15?.baseTotal }));
       ok('15c. one Sorcery Point spent by hand, the record on the attack message', pool().system.uses.value === 4 && attack?.getFlag(MOD, 'poolSpend')?.pool === 'Sorcery Points' && attack?.getFlag(MOD, 'poolSpend')?.ability === 'Seeking Spell', `pool=${pool().system.uses.value} record=${JSON.stringify(attack?.getFlag(MOD, 'poolSpend'))}`);
       const res = attack ? await renderedLine(attack, 'bf-resource-line') : null;
       ok('15d. the attack card carries the resource line', /Sorcery Points: 4 of 5 remaining/.test(res ?? ''), res);
-      // THE DICE ROLL AGAIN (user, 2026-09-10: "the dice so nice, if avail, should roll again"). Dice So
-      // Nice animates any CREATED message that is a roll with dice, content visible, not flagged skip -
-      // its own gate, read from its source. The reroll rides its own message, so the gate must hold.
+      // The dice roll again: Dice So Nice animates a CREATED message that is a roll with dice,
+      // content visible, not flagged skip. The reroll rides its own message, so that gate must hold.
       const reroll15 = attack ? (game.messages.find(m => m.getFlag(MOD, 'respondsTo') === attack.id && m.isRoll) ?? null) : null;   // never `undefined === undefined`
       const gate15 = !!reroll15 && reroll15.rolls.some(r => r.dice.length > 0) && reroll15.isContentVisible && !reroll15.getFlag('dice-so-nice', 'skip');
       ok('15e. the reroll rides its own message and passes the Dice So Nice gate (a roll, dice, visible)', gate15 && reroll15.rolls[0].dice[0].faces === 20, JSON.stringify({ found: !!reroll15, isRoll: reroll15?.isRoll, dice: reroll15?.rolls?.[0]?.dice?.length, faces: reroll15?.rolls?.[0]?.dice?.[0]?.faces, visible: reroll15?.isContentVisible }));
@@ -626,16 +593,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => game.messages.find(m => !before.has(m.id) && m.type === 'damage' && (emp(m)?.status === 'pending')) ?? null, 8000);
       const flag = emp(dmg);
       ok('16a. the spell\'s damage roll is offered Empowered: eight dice, the cap 3, the total recorded', flag?.status === 'pending' && flag?.dice?.length === 8 && flag?.cap === 3 && flag?.oldTotal === dmg?.rolls?.[0]?.total, JSON.stringify({ status: flag?.status, dice: flag?.dice?.length, cap: flag?.cap, old: flag?.oldTotal }));
-      // ⚠ The popup opens AFTER dramaticVerdictPause — Dice So Nice's animation, capped at 6 s, plus
-      // the beat — so a 6 s wait started at the stamp raced it and lost once (2026-09-24, 97/107,
-      // chips=0 with the card correctly "offered"). The wait now outlasts the pause's cap and says
-      // how long the popup took, so a slow animation is a number, not a red.
+      // ⚠ The popup opens AFTER dramaticVerdictPause (the dice animation, capped at 6 s, plus the
+      // beat): the wait outlasts that cap and reports how long the popup took.
       const stamped16 = Date.now();
       const popup = await waitFor(() => { const d = popupFor(dmg?.id, 'diceChange'); return (d?.rendered && d.element?.querySelector?.('[data-bf-dice-chips]')) ? d : null; }, 12000);
       log.push(`§16 popup ${popup ? `fronted ${Date.now() - stamped16} ms after the stamp` : 'never fronted (12 s)'}`);
       const chips = [...(popup?.element?.querySelectorAll('[data-bf-die]') ?? [])];
       ok('16b. the popup shows the eight dice as chips', chips.length === 8, `chips=${chips.length}`);
-      // NO PICK, NO REROLL (user, 2026-09-12): the button opens greyed out and wakes on the first tick.
+      // No pick, no reroll: the button opens greyed and wakes on the first tick.
       const rerollBtn = () => popup?.element?.querySelector('button[data-action="apply"]');
       ok('16b2. Reroll is disabled before any die is ticked', rerollBtn()?.disabled === true, `disabled=${rerollBtn()?.disabled}`);
       chips[0]?.click(); await sleep(30);
@@ -651,8 +616,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const oldFaces = picked.map(c => Number(c.textContent));
       const clicked16 = Date.now();
       popup?.element?.querySelector('button[data-action="apply"]')?.click();
-      // THE WINDOW GOES AT THE CLICK (user, 2026-09-10: "when you pick the dice and roll, kinda lags
-      // closing") - the dice are still landing for up to six seconds after this.
+      // The window goes at the click; the dice land for up to six seconds more.
       const gone16 = popup ? await waitFor(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000) : null;   // a popup that never fronted cannot "close at the click"
       const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 10000);
       log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
@@ -667,10 +631,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('16f. the announce card says the old faces, the arrow, the new, and the totals', !!announce && new RegExp(`${oldFaces.sort((a, b) => a - b).join(', ')}|${used?.picks?.map(pk => pk.old).join(', ')}`).test(announce.content) && /→/.test(announce.content), announce?.content?.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 140));
       const line = dmg ? await renderedLine(dmg, 'bf-dice-line') : null;
       ok('16g. the damage card carries the Empowered line', /Empowered Spell — .*→/.test(line ?? ''), line);
-      // THE DICE ROLL AGAIN (user, 2026-09-10). Empowered PATCHES the damage message's own roll, so no
-      // created message ever carried the fresh dice and Dice So Nice never saw them. Now the ticked dice
-      // are ONE Roll on the announce card - a roll, dice, visible - and the faces on it are the faces
-      // the picks record, in order.
+      // Empowered PATCHES the damage roll, so Dice So Nice would never see the fresh dice: the ticked
+      // dice are ONE Roll on the announce card, faces in the picks' order.
       const gate16 = !!announce && announce.isRoll && announce.rolls.some(r => r.dice.length > 0) && announce.isContentVisible && !announce.getFlag('dice-so-nice', 'skip');
       const faces16 = announce?.rolls?.[0]?.dice?.map(d => d.results.find(r => r.active !== false)?.result) ?? [];
       const picksNew = (used?.picks ?? []).map(pk => pk.new);
@@ -679,12 +641,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // --- Careful's ticks in the window (user, 2026-09-09) ---------------------------------------
+    // ---- Careful's ticks
     if (want(17) && rgrTok) {
       const p17 = pool(); if (p17.system.uses.spent) await p17.update({ 'system.uses.spent': 0 });
-      // THE RANGER AT FULL HP (found 2026-09-12): the two Fireballs of §10 and §11 land on him and
-      // whether he survives them is dice - a dead Ranger is filtered from the demand (saveDemandable)
-      // and 17b reads him missing. The Sorcerer's heal at the top of the run is the same fix.
+      // The Ranger at full HP: a dead Ranger is filtered from the demand (saveDemandable).
       if (ranger.system.attributes.hp.value < ranger.system.attributes.hp.max) await ranger.update({ 'system.attributes.hp.value': ranger.system.attributes.hp.max });
       for (const e of ranger.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
       await set('saveTimer', 0);
@@ -696,10 +656,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
       await sleep(200);
-      // HOLD PERSON, not Fireball (2026-09-10): a template spell lists nobody in the window - the pick
-      // waits for the area (18w) - so the window's creature controls are exercised on a targeted spell.
+      // Hold Person, not Fireball: a template spell lists nobody in the window (18w).
       const { app, fs } = await openWindow('Hold Person', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
-      // HEIGHTENED'S RADIO IS INERT UNTIL HEIGHTENED IS TICKED (user, 2026-09-10).
+      // Heightened's radio is inert until Heightened is ticked.
       const radios17 = () => [...(fs?.querySelectorAll('[data-bf-metamagic-row="heightened"] input[name="bf-metamagic-mark"]') ?? [])];
       const hRow = rowsOf(fs).find(r => r.key === 'heightened');
       const inertBefore = radios17().length === 2 && radios17().every(r => r.disabled);
@@ -715,8 +674,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const before = new Set(game.messages.map(m => m.id));
       app.element.querySelector('button[data-action="use"], button[type="submit"]')?.click();
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage') && m.system?.activity?.uuid === spellAct('Hold Person')?.uuid) ?? null, 8000);
-      // THE ASK OPENS ON THE CARD (2026-09-18): the two the cast targeted, the ally ticked by default,
-      // the demand waiting empty until the answer.
+      // The ask opens on the card: the two targeted, the ally ticked, the demand empty until the answer.
       const askPopup = await waitFor(() => { const d = popupFor(card?.id, 'metamagicAsk'); return (d?.rendered && d.element?.querySelector?.('[data-bf-metamagic-ask]')) ? d : null; }, 8000);
       const askRows = [...(askPopup?.element?.querySelectorAll('input[name="bf-metamagic-ask"]') ?? [])].map(i => ({ name: i.dataset.name, uuid: i.value, checked: i.checked, el: i }));
       const askOf = uuid => askRows.find(r => r.uuid === uuid);
@@ -736,8 +694,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(18) && rgrTok) {
       await gather();
-      // 18w. A TEMPLATE SPELL WITH CREATURES TARGETED STILL LISTS NOBODY (user, 2026-09-10: Fireball with
-      // Thomas targeted "shouldn't have him in the check box") - the pick waits for the area.
+      // 18w. A template spell with creatures targeted still lists nobody: the pick waits for the area.
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
@@ -765,7 +722,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(19)) {
       const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-      // The real path: the default dialog config (configure undecided), which for a cantrip used to mean no window at all.
+      // The real path: the default dialog config (configure undecided) must still open a cantrip's window.
       const act19 = spellAct('Fire Bolt');
       const pending19 = act19?.use({ consume: { spellSlot: false } }, {}, { create: true });
       pending19?.catch?.(() => {});
@@ -775,11 +732,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rows19 = rowsOf(fs19);
       const on19 = rows19.filter(r => !r.off).map(r => r.key).sort();
       const off19 = rows19.filter(r => r.off).map(r => r.key).sort();
-      // Twinned (2024) fits only a spell that a HIGHER SLOT lets target one more creature - a cantrip cannot be
-      // cast with a slot at all, so it is greyed, rightly (the first draft of this line expected it lit).
+      // Twinned fits only a spell a higher slot lets target one more creature: greyed on a cantrip.
       ok('19b. the rows that fit a cantrip attack: Distant, Quickened, Subtle, Transmuted; Careful, Heightened, Extended and Twinned greyed', on19.join(',') === 'distant,quickened,subtle,transmuted' && ['careful', 'extended', 'heightened', 'twinned'].every(k => off19.includes(k)), JSON.stringify({ on: on19, off: off19 }));
       ok('19c. no scaling section was drawn for the cantrip - the lever is invisible', !app19?.element?.querySelector('[name="scalingValue"], [name="spell.slot"]'), 'scaling controls present');
-      // TRANSMUTED'S TYPE RADIOS ARE INERT UNTIL TRANSMUTED IS TICKED (user, 2026-09-10).
+      // Transmuted's type radios are inert until Transmuted is ticked.
       const types19 = () => [...(fs19?.querySelectorAll('[data-bf-metamagic-row="transmuted"] input[name="bf-metamagic-type"]') ?? [])];
       const tRow = rows19.find(r => r.key === 'transmuted');
       const inert0 = types19().length > 0 && types19().every(r => r.disabled);
@@ -792,9 +748,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
     }
 
-    // --- A SPELL THAT CHOOSES ITS TARGETS (2026-09-24, Session 8's Slow; the Chosen Areas list) --
-    // The real PHB Slow on the Sorcerer for the run (deleted in teardown): its area is where the
-    // caster chooses. The late-area road, as §9: a bare cast, then the area placed by hand.
+    // ---- A SPELL THAT CHOOSES ITS TARGETS (RULINGS *Spells that choose their targets*): the PHB's
+    // Slow for the run; a bare cast, then the area placed by hand, as §9.
     if ((want(20) || want(21) || want(22)) && rgrTok && vicTok) {
       const SLOW_UUID = 'Compendium.dnd-players-handbook.spells.Item.phbsplSlow000000';
       let slow = sorc.items.find(i => (i.type === 'spell') && (i.name === 'Slow'));
@@ -837,14 +792,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const goblinIds = [attacker.id, victim.id];
       const isGoblin = uuid => goblinIds.some(id => String(uuid).endsWith(id));
       /**
-       * ⚠ A CLEAN SLATE PER SECTION (the first battery run, 2026-09-24: 8 of these checks failed in the
-       * full suite and passed alone). The earlier sections' Fireballs leave the Sorcerer and a goblin
-       * DEAD — and a corpse is rightly never a candidate — and the previous section's cube still stands
-       * tied to Slow's activity, so the next cast's area read both. Everyone alive, no Slow area left.
+       * ⚠ A clean slate per section: everyone alive (a corpse is never a candidate) and no Slow area
+       * left standing (it is tied to the activity, so the next cast's area would read both).
        */
       const freshen = async () => {
-        // The TOKENS' actors: the goblins' tokens are unlinked, so the Fireballs hurt each token's own
-        // synthetic actor and healing the base actor changes nothing (the second run, 2026-09-24).
+        // Heal the TOKENS' actors: the goblins are unlinked, so healing the base changes nothing.
         for (const a of [sorcTok.actor ?? sorc, attTok.actor ?? attacker, vicTok.actor ?? victim, rgrTok.actor ?? ranger]) {
           if (a.system.attributes.hp.value < a.system.attributes.hp.max) await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
           for (const e of a.effects.filter(e => e.statuses?.has?.('dead') || e.statuses?.has?.('bloodied'))) await e.delete().catch(() => {});
@@ -861,7 +813,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await gather();
           await freshen();
           await set('saveTimer', 0);
-          // 20a. Careful greys in Slow's window, the reason its tag (user ruling 2026-09-24).
+          // 20a. Careful greys in Slow's window, the reason its tag.
           const w = await openWindow('Slow', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
           const careful = rowsOf(w.fs).find(r => r.key === 'careful');
           ok('20a. Careful greys in Slow\'s casting window: "you choose its targets"', !!careful && careful.off && /you choose its targets/i.test(careful.tag) && careful.box?.disabled === true, JSON.stringify({ off: careful?.off, tag: careful?.tag }));
@@ -873,7 +825,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The stamp lowers it in its `finally`, a beat after the demand is written — waited for, not read once.
           const lowered = await waitFor(() => ((mod.api?.holdFor?.(spellAct('Slow')?.uuid) ?? null) === null) ? true : null, 4000);
           ok('20h. the cast raised the chosen area\'s hold for the picture, and the stamp lowered it once no question stood', !!areaHold && lowered === true, JSON.stringify({ raised: holdsOpened.slice(opened0).map(h => h.reason), lowered }));
-          // The cube over the Sorcerer, the Ranger and both goblins — Session 8's shape.
+          // The cube over the Sorcerer, the Ranger and both goblins.
           await placeRect(card, sorcTok.x - g, sorcTok.y - (2 * g), 4 * g, 4 * g);
           const ask = await askFor(card);
           const rows = askRowsOf(ask?.element);
@@ -906,9 +858,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const before = moments.filter(p => p.kind === 'areaChoice').length;
           const card = await castSlow();
           await waitFor(() => card?.getFlag(MOD, 'saves') ?? null, 6000);
-          // The cube over the two goblins alone — nothing to choose. ⚠ INSET from the squares' edges:
-          // containment samples a token's edges (geometry.js), so a rectangle whose side lies ON the
-          // Sorcerer's and the Ranger's top edge holds them too (the first run of this section, 2026-09-24).
+          // The cube over the two goblins alone. ⚠ Inset from the squares' edges: containment samples
+          // a token's edges (geometry.js), so a side lying ON a neighbour's edge holds it too.
           await placeRect(card, sorcTok.x + 6, sorcTok.y - g + 6, (2 * g) - 12, g - 12);
           const filled = await waitFor(() => { const f2 = card.getFlag(MOD, 'saves'); return (f2?.targets?.length) ? f2 : null; }, 8000);
           const askFlag = card.getFlag(MOD, 'metamagicAsk');
