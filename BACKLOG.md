@@ -47,20 +47,6 @@ the sweep moves as fast as a table proves it.
 | 6 | **Platform passes stay their own step, never inside a slice** — one per dnd5e minor, one for Foundry 15; the 6.0 pass cost a major version. | standing rule |
 
 Why not an architecture pass instead: ARCHITECTURE's appendix *Decided against*.
-
-### On main, not released (2026-09-27)
-
-Built in one autonomous pass off the user's "fix them all" (RULINGS *The dice changers — one
-popup*, *The hit menu — a pick per group*, *Trance*): the dice changers' one popup (Savage
-Attacker beside Piercer asked together), the hit menu's pick per group (Hill's Tumble beside a
-maneuver), and Trance. Their own suites are green; NOT walked, NOT released. Two things the
-release must carry, because a file deploy does not:
-
-- **`damage-either.js` is GONE** (scripts/) — a WebDAV deploy never prunes; delete it on prod or ship
-  the zip (nothing imports it, so a stray copy is inert, but it is not the tree).
-- **Effect Sources gains `Trance`** in its default — a world that set the list keeps its own value,
-  so prod's list needs `Trance` appended (or Reset to default) for the Elf's row to read.
-
 ## Architecture
 
 ### The two sideways edges (2026-09-05)
