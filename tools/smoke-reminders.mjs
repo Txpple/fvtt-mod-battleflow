@@ -1243,6 +1243,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         log.push(`§14 other tokens on the scene: ${others.join('; ') || 'none'}`);
         await sleep(300);
         const baseAC = Number(victim.system.attributes.ac.value);
+        // the section labels are drawn in capitals (text-transform), so innerText reads "COVER" — match the label /i
         const hoverText = async () => {
           pcToken.control({ releaseOthers: true });
           Hooks.callAll('hoverToken', far, true);
@@ -1277,7 +1278,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const text = await hoverText();
           ok('14a. hovering the far victim with the attacker selected: the card opens with "Cover — Half Cover +2 AC", the adjacent victim in the way',
-            /Cover Half Cover \+2 AC/.test(text) && /in the way/.test(text) && /Effects/.test(text), text.slice(0, 200));
+            /Cover Half Cover \+2 AC/i.test(text) && /in the way/.test(text) && /Effects/i.test(text), text.slice(0, 200));
           const shot = await shoot();
           const rec = shot?.system?.targets?.[0]?.ac;
           ok(`14b. …and the attack RECORDS AC ${baseAC + 2} (base ${baseAC} + 2); the card says "Cover — the …: Half Cover (+2 AC)"`,
@@ -1291,7 +1292,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const text = await hoverText();
           const shot = await shoot();
           ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC, no line',
-            /Cover No Cover/.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured'),
+            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured'),
             `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         // 14d — a wall across the whole row between them: Total, the attack records no AC, Sharpshooter or not
@@ -1312,7 +1313,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const text = await hoverText();
           const shot = await shoot();
           ok('14e. a wall\'s corner: "Half Cover +2 AC", a wall in the way, and "Sharpshooter ignores it — ranged weapon attacks" on the card; the attack records the base AC and says Sharpshooter ignored the cover',
-            /Cover Half Cover \+2 AC/.test(text) && /a wall in the way/.test(text) && /Sharpshooter ignores it — ranged weapon attacks/.test(text)
+            /Cover Half Cover \+2 AC/i.test(text) && /a wall in the way/.test(text) && /Sharpshooter ignores it — ranged weapon attacks/.test(text)
               && (shot?.system?.targets?.[0]?.ac === baseAC) && (shot?.getFlag(MOD, 'coverIgnored')?.targets?.[0]?.cover === 2),
             `card="${text.slice(0, 200)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
