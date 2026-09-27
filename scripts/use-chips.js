@@ -6,7 +6,7 @@ import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite } from "./cor
 import { lower, featureNamed, activityNamed, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./settings.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
-import { bfCard, esc, ruleLine } from "./decide/present.js";
+import { bfCard, ruleLine } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
 import { tokenForUuid } from "./geometry.js";
