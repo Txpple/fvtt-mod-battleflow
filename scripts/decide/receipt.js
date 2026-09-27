@@ -181,7 +181,10 @@ export function joinDamageReceipt(flag, entries) {
 export function joinEffectReceipt(flag, entry) {
   flag.targets ??= [];
   let target = flag.targets.find(t => t.uuid === entry.uuid);
-  if ( !target ) flag.targets.push(target = { uuid: entry.uuid, name: entry.name, img: entry.img ?? null, effects: [] });
+  if ( !target ) {
+    target = { uuid: entry.uuid, name: entry.name, img: entry.img ?? null, effects: [] };
+    flag.targets.push(target);
+  }
   for ( const e of entry.effects ) {
     if ( !target.effects.some(x => x.id === e.id) ) target.effects.push(e);
   }

@@ -144,7 +144,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length || m.getFlag('core', 'initiativeRoll')));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
@@ -235,7 +235,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const { doc: fighterDoc, token: fighterToken } = await placeToken(fighter, 1500, 1200);
     const { doc: goblinDoc, token: goblinToken } = await placeToken(goblin, 1400, 1200);   // 5 ft left of the fighter
-    const { doc: rangerDoc, token: rangerToken } = await placeToken(ranger, 1500, 1300);   // 5 ft below the fighter
+    const { token: rangerToken } = await placeToken(ranger, 1500, 1300);   // 5 ft below the fighter
 
     for (const a of [fighter, ranger, goblin]) {
       priorActor[a.id] = {
@@ -276,7 +276,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     /** A programmatic hit (no dialog) by `actor` with `weapon` at `victimToken`. */
-    const swing = async (actor, actorToken, weapon, victimToken, { d20 = 19 } = {}) => {
+    const swing = async (_actor, actorToken, weapon, victimToken, { d20 = 19 } = {}) => {
       actorToken.control({ releaseOthers: true });
       target(victimToken);
       await sleep(80);
@@ -289,7 +289,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const useAt = async (item, activityName, token, opts = {}) => {
       fighterToken.control({ releaseOthers: true });
-      if (token) target(token); else game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      if (token) target(token); else game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       await sleep(80);
       const act = actOf(item, activityName);
       if (!act) throw new Error(`${item.name} has no activity "${activityName}"`);
@@ -577,7 +577,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const armedChip = () => fighter.effects.find(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed')) ?? null;
       // Tactical Assessment used from the sheet, no check rolled yet.
       fighterToken.control({ releaseOthers: true });
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const taAct = feat('Tactical Assessment').system.activities.contents[0];
       const taUse = await taAct.use({}, { configure: false }, {});
       const taCard = taUse?.message ?? null;

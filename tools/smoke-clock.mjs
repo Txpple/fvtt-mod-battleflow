@@ -118,7 +118,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -199,7 +199,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     /** A programmatic hit (no dialog): use + rollAttack configure:false, forced 19; returns the damage message with its receipt. */
-    const swing = async (actor, token, item) => {
+    const swing = async (_actor, token, item) => {
       await healFull();
       token.control({ releaseOthers: true });
       target(victimToken);
@@ -532,7 +532,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       };
       const priorEither = game.settings.get(MOD, 'damageEitherList');
       /** A hit with the d20 forced: 19 plain, 20 a Critical Hit. */
-      const swingAt = async (actor, token, item, d20) => {
+      const swingAt = async (_actor, token, item, d20) => {
         await healFull();
         token.control({ releaseOthers: true });
         target(victimToken);

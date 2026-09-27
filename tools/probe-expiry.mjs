@@ -111,7 +111,7 @@ const out = await f.evaluate(async () => {
   // Every `duration.expired` write the platform makes while this runs, with what it wrote —
   // the shape the module's tidy hook keys on.
   const expiryWrites = [];
-  const writeWatcher = Hooks.on("updateActiveEffect", (effect, changes, options, userId) => {
+  const writeWatcher = Hooks.on("updateActiveEffect", (effect, changes, _options, userId) => {
     if ( changes?.duration?.expired === undefined ) return;
     expiryWrites.push({ name: effect.name, expired: changes.duration.expired, byMe: userId === game.user.id,
       where: combat ? `r${combat.round}t${combat.turn}` : "ooc" });

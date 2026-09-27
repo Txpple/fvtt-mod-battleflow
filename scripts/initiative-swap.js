@@ -267,7 +267,7 @@ async function showSwapPopup(message) {
       lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
       + `<div data-bf-initiative-swap style="margin:0.4rem 0;">${rows}</div>` + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "swap", label: "Swap", default: true, callback: (event, button) => {
+      { action: "swap", label: "Swap", default: true, callback: (_event, button) => {
         const pick = button.form.querySelector('input[name="bf-initiative-swap"]:checked')?.value ?? null;
         void answerSwap(message, pick ? "swap" : "no", pick);
       } },

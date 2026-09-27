@@ -59,7 +59,7 @@ const recentDamageCauses = new Map();
  */
 const PRIVATE_ROLL_MODE = "gm";
 
-Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
+Hooks.on("dnd5e.preApplyDamage", (actor, amount, _updates, options) => {
   if ( setting(S.concMode) === "off" ) return;
   if ( !(Number(amount) > 0) || !actor?.uuid ) return;
   const message = options?.originatingMessage;
@@ -584,7 +584,7 @@ Hooks.on("updateChatMessage", message => {
     const next = pendingConcAsks(ask.actorUuid)[0];
     if ( next ) {
       shownMoments.delete(popupKey(next.id, "concentration"));
-      try { ui.chat?.updateMessage?.(next); } catch(err) { /* row refreshes next render */ }
+      try { ui.chat?.updateMessage?.(next); } catch { /* row refreshes next render */ }
     }
   }
 });

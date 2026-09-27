@@ -102,8 +102,8 @@ export function spellProse(html) {
     .replace(/<section class="secret"[\s\S]*?<\/section>/gi, " ")
     .replace(/<[^>]*>/g, " ")
     .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, "\"").replace(/&#39;/g, "'")
-    .replace(/\[\[[^\]]*\]\](?:\{([^}]*)\})?/g, (m, label) => label ?? "")
-    .replace(/[@&]\w+\[([^\]\s]+)[^\]]*\](?:\{([^}]*)\})?/g, (m, key, label) => label ?? key)
+    .replace(/\[\[[^\]]*\]\](?:\{([^}]*)\})?/g, (_m, label) => label ?? "")
+    .replace(/[@&]\w+\[([^\]\s]+)[^\]]*\](?:\{([^}]*)\})?/g, (_m, key, label) => label ?? key)
     .replace(/\s+/g, " ").trim();
 }
 
@@ -276,7 +276,7 @@ export function askOutcome(ask, picked, { mark: markPick = null, timedOut = fals
     mark = c ? entry(c) : null;
   }
   const protectedUuids = new Set(protectedList.map(p => p.uuid));
-  const chosenUuids = new Set(((areaChoice && areaChoice.chosen) || []).map(c => c.uuid));
+  const chosenUuids = new Set((areaChoice?.chosen || []).map(c => c.uuid));
   const stays = uuid => (ask.kind === "choose") ? chosenUuids.has(uuid) : !protectedUuids.has(uuid);
   return { chosen, protectedList, mark, areaChoice, stays, timedOut: !!timedOut };
 }

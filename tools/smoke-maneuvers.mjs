@@ -126,7 +126,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await clearReaction(enemy);
       if (pc) await pc.delete().catch(() => {});
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -182,7 +182,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       name: 'BF Combat Superiority', type: 'feat',
       system: { type: { value: 'feat' }, uses: { spent: 0, max: '4', recovery: [] } }
     }]);
-    const pair = await pc.createEmbeddedDocuments('Item', [
+    await pc.createEmbeddedDocuments('Item', [
       { name: 'Precision Attack', type: 'feat',
         system: { type: { value: 'feat' }, activities: {
           bfprecision00000: {
@@ -203,9 +203,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         } } }
     ]);
-    // by name — the result's order is not the request's (see §C)
-    const precisionItem = pair.find(i => i.name === 'Precision Attack');
-    const riposteItem = pair.find(i => i.name === 'Riposte');
     const poolUses = () => pc.items.get(pool.id)?.system.uses?.value ?? -1;
     log.push(`fixture: ${pc.name} · weapon ${enemyWeapon.name} · pool ${poolUses()}/4`);
 
@@ -238,8 +235,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const enemyAttackAct = () => enemy.items.get(enemyWeapon.id)
       ?.system.activities.find(a => a.type === 'attack');
 
-    const attack = async (activity, token, opts = {}) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+    const attack = async (activity, token, _opts = {}) => {
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       token.setTarget(true, { releaseOthers: true });
       await sleep(100);
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
@@ -297,7 +294,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // target that lands late stamps NOTHING (saves.js's targetless gate) — which is
       // indistinguishable from a product bug unless the retry is logged.
       for (let attempt = 1; attempt <= 2; attempt++) {
-        game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         token.setTarget(true, { releaseOthers: true });
         await sleep(250);
         const use = await activity.use({ subsequentActions: false }, { configure: false }, {});
@@ -531,7 +528,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { ...bowSrc, name: 'BF Test Bow', system: { ...bowSrc.system, equipped: true } }]);
           created.enemyItems.push(bow.id);
           const bowAct = bow.system.activities?.contents?.find(a => a.type === 'attack');
-          game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
           pcToken.setTarget(true, { releaseOthers: true });
           await sleep(100);
           const use = await bowAct.use({ subsequentActions: false }, { configure: false }, {});

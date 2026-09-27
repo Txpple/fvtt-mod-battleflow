@@ -53,7 +53,7 @@ describe("Celestial Revelation — a transformed rider (the Aasimar walk, 2026-0
 
 describe("riderDue — the clock, read plain", () => {
   const dread = () => reg.CLOCK_RIDERS["dread-ambusher"];
-  const assassinate = () => reg.CLOCK_RIDERS["assassinate"];
+  const assassinate = () => reg.CLOCK_RIDERS.assassinate;
   it("Dreadful Strike: once per turn, a use in hand, a weapon — due; the chit standing or the uses gone — not", () => {
     expect(c.riderDue(dread(), { inCombat: true, round: 3, usesLeft: 2, weapon: true })).toEqual({
       due: true,
@@ -215,7 +215,7 @@ describe("the registry's clock-rider data", () => {
     expect(entries.map(e => e.kind)).toEqual([...reg.CLOCK_RIDER_NAMES]);
   });
   it("Assassinate's Advantage is an effect-table row with the clock as its judge", () => {
-    expect(reg.EFFECT_BENDS["Assassinate"]).toMatchObject({
+    expect(reg.EFFECT_BENDS.Assassinate).toMatchObject({
       match: "feature",
       attacker: "advantage",
       judge: "targetNotActed"

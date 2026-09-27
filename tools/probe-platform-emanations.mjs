@@ -14,7 +14,6 @@ import { foundryConfig } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battlefl
 
 const phase = process.argv[2] ?? "read";
 const SPELLS = ["Crusader's Mantle", "Aura of Life", "Aura of Vitality", "Antilife Shell", "Spirit Guardians"];
-const sleepN = ms => new Promise(r => setTimeout(r, ms));
 
 async function connect() {
   const f = new Foundry(foundryConfig(loadEnv()));
@@ -23,7 +22,6 @@ async function connect() {
 }
 
 const READ = async (SPELLS) => {
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
   const cleric = game.actors.getName("BF Test Cleric");
   if (!cleric) return { fatal: "no BF Test Cleric" };
   const out = { system: game.system.version, module: game.modules.get("fvtt-mod-battleflow")?.active, spells: {} };

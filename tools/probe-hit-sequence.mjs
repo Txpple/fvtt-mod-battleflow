@@ -60,7 +60,7 @@ const out = await f.evaluate(async () => {
     if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await sleep(1500); }
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
     await until(() => canvas.ready);
-    const invTok = await ensureToken(invictus, 500, true);
+    await ensureToken(invictus, 500, true);
     const dumTok = await ensureToken(dummy, 600, false);
     await sleep(300);
     await invictus.unsetFlag(MOD, "bashUsed").catch(() => {});
@@ -70,7 +70,7 @@ const out = await f.evaluate(async () => {
 
     let atk = null, queuedAtHit = null, bashPopupAtHit = null;
     for ( let i = 0; i < 8 && !atk; i++ ) {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       canvas.tokens.get(dumTok.id)?.setTarget(true, { releaseOthers: true });
       await sleep(100);
       const use = await activity.use({ subsequentActions: false }, { configure: false }, {});

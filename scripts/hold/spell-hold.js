@@ -27,7 +27,7 @@ import { armHoldTimer, disarmHoldTimer } from "./clock.js";
  * verdict, and continueSpellHold is correspondingly short.
  * ------------------------------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   if ( !setting(S.reactionHold) ) return;
   // The usage card is the held document here, exactly as the attack message is over there — and
   // it already carries the same target snapshot, because getTargetDescriptors() is baked into

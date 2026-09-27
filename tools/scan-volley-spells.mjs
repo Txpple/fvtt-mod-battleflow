@@ -77,7 +77,7 @@ const out = await f.evaluate(async () => {
 
   // ---- Part B: every world copy of the candidate names (plus the three knowns) ----
   const names = new Set(candidates.map(c => c.name));
-  ['Magic Missile', 'Scorching Ray', 'Eldritch Blast'].forEach(n => names.add(n));
+  ['Magic Missile', 'Scorching Ray', 'Eldritch Blast'].forEach(n => { names.add(n); });
   const carriers = [];
   for (const actor of game.actors) {
     for (const item of actor.items) {

@@ -69,8 +69,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
     return fn();
   };
-  const dialogsWith = text => [...document.querySelectorAll(".application")]
-    .filter(el => (el.innerHTML ?? "").includes(text));
 
   try {
     const fighter = game.actors.getName("BF Test Fighter");
@@ -1169,7 +1167,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const attackMsg = rolls?.[0]?.parent ?? null;
           const win = await until(() => {
             const w = windows()[0];
-            return (w && w.querySelector('[data-bf-rescue-action="bardic"]')
+            return (w?.querySelector('[data-bf-rescue-action="bardic"]')
               && w.querySelector('[data-bf-rescue-action="use"]')) ? w : null;
           }, 8000);
           ok("§9 both rescues are on the window before anything is spent",

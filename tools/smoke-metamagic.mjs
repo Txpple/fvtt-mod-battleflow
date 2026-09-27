@@ -117,7 +117,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const player = game.users.find(u => !u.isGM && (u.name === 'PC Assistant')) ?? game.users.find(u => !u.isGM) ?? null;
   const ownership0 = foundry.utils.deepClone(sorc.ownership);
   if (player) await sorc.update({ [`ownership.${player.id}`]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER });
-  const px = scene.dimensions?.distancePixels ?? (scene.grid.size / scene.grid.distance);
 
   const pool = () => sorc.items.find(i => i.name === 'Font of Magic');
   const spellAct = name => { const it = sorc.items.find(i => (i.type === 'spell') && (i.name === name)); return it?.system.activities?.contents?.[0] ?? null; };
@@ -394,12 +393,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const names = list => (list ?? []).map(t => t.name).sort().join(',');
 
-    let carefulCard = null;
     if (want(9) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
       const { card, why, askRows, heldEmpty, damageBefore, offerBefore, deferred, damageAfter } = await castArea('careful');
-      carefulCard = card;
       ok('9x. the ask opened at the area listing everyone inside — four, the Sorcerer and the Ranger ticked, the goblins not — while the demand waited empty', askRows?.length === 4 && askRows.filter(r => r.checked).map(r => r.name).sort().join(',') === 'BF Test Ranger,BF Test Sorcerer' && heldEmpty === true, `rows=${askRows?.map(r => `${r.name}:${r.checked}`).join(',')} heldEmpty=${heldEmpty}`);
       ok('9z. the dice waited on the answer: no damage roll and no damage popup while the ask stood, the deferral on the card; the roll landed after OK', askRows && damageBefore === 0 && offerBefore === false && deferred === true && (damageAfter ?? 0) > 0, JSON.stringify({ damageBefore, offerBefore, deferred, damageAfter }));
       ok('9y. two groups: the Sorcerer (player-owned for the run) under Party, the Ranger and the goblins under Non-Party; every row names its token', askRows?.find(r => r.name === 'BF Test Sorcerer')?.group === 'Party' && askRows?.filter(r => r.name !== 'BF Test Sorcerer').every(r => r.group === 'Non-Party') && askRows.every(r => !!r.token), askRows?.map(r => r.name + '@' + r.group).join(','));
@@ -425,7 +422,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await gather();
       await set('saveTimer', 0);
       const { card, why } = await castArea('heightened');
-      const saves = card?.getFlag(MOD, 'saves'), mm = card?.getFlag(MOD, 'metamagic');
+      const saves = card?.getFlag(MOD, 'saves');
       const mark = saves?.demand?.heightened ?? null;
       ok('10a. the demand carries the mark on the first goblin, with the caster and the rule', !!mark && [attacker.id, victim.id].some(id => String(mark.uuid).endsWith(id)) && (mark.caster === sorc.name) && /Disadvantage on saves/.test(mark.rule ?? ''), why || JSON.stringify(mark));
       ok('10b. the card line names the marked creature', /Heightened Spell — .* saves with Disadvantage/.test((card ? await renderedLine(card, 'bf-metamagic-line') : '') ?? ''), '');
@@ -447,7 +444,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(11) && rgrTok && vicTok) {
       await gather();
       await set('saveTimer', 0);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       let radios = [];
       let windowRadios = 0;
       const { card, why } = await castArea('heightened', fs => {
@@ -515,7 +512,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const e of vicActor.effects.filter(e => e.statuses?.has?.('paralyzed'))) await e.delete();
       await set('saveTimer', 1);
       const vTok = canvas.tokens.get(scene.tokens.find(t => t.actorId === victim.id)?.id);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       vTok?.setTarget(true, { releaseOthers: true });
       await sleep(200);
       const { card, why } = await castWith('Hold Person', 'extended', { consume: { spellSlot: false } });
@@ -544,7 +541,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const e of vicActor.effects.filter(e => e.statuses?.has?.('paralyzed'))) await e.delete().catch(() => {});
       for (const e of sorc.effects.filter(e => e.statuses?.has?.('concentrating'))) await e.delete().catch(() => {});
       await vicActor.update({ 'system.abilities.wis.save.roll.bonus': bonus0 });
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     } else if (want(14)) ok('14. fixtures', false, 'BF Test Victim missing');
 
     // --- Stage 4: Seeking and Empowered ------------------------------------------------------
@@ -563,7 +560,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // nobody because the cached token had left the canvas). The d20 is pinned to a 10 for the
       // original roll (real dice again for the reroll), the token is re-resolved, and 15-pre says so.
       const foeTok = canvas.tokens.get(attTok.id) ?? canvas.tokens.placeables.find(t => t.document.actorId === attacker.id) ?? null;
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       foeTok?.setTarget(true, { releaseOthers: true });
       await sleep(200);
       ok('15-pre. the orb has its target — the foe token is on the canvas and targeted', !!foeTok && game.user.targets.has(foeTok),
@@ -612,7 +609,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
       await foe.update({ 'system.attributes.ac.override': priorAC.override });
       await attTok.update(attHome, { teleport: true, animate: false });
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     }
 
     if (want(16)) {
@@ -621,7 +618,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const t16 = Date.now();
       log.push(`§16 start: pool ${pool().system.uses.value}/${pool().system.uses.max}, rollDamageV2 fired ${fired0} so far`);
       await set('holdTimer', 0);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const before = new Set(game.messages.map(m => m.id));
       await spellAct('Fireball').use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
       const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
@@ -695,7 +692,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update({ x: sorcHome.x + scene.grid.size, y: sorcHome.y }, { teleport: true, animate: false });
       await attTok.update({ x: sorcHome.x, y: sorcHome.y - scene.grid.size }, { teleport: true, animate: false });
       await sleep(300);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
       await sleep(200);
@@ -733,7 +730,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const mm = card?.getFlag(MOD, 'metamagic'), saves = card?.getFlag(MOD, 'saves');
       ok('17b. the pick is honoured on the demand: the goblin protected, the Ranger owes the save', mm?.chosen === true && (mm?.protected ?? []).length === 1 && String(mm.protected[0].uuid).endsWith(attacker.id) && (saves?.targets ?? []).some(t => t.uuid === ranger.uuid) && !(saves?.targets ?? []).some(t => String(t.uuid).endsWith(attacker.id)), JSON.stringify({ protected: mm?.protected, targets: names(saves?.targets) }));
       await closeDialogs();
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       await scatter();
     } else if (want(17)) ok('17. fixtures', false, 'BF Test Ranger missing');
 
@@ -741,7 +738,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await gather();
       // 18w. A TEMPLATE SPELL WITH CREATURES TARGETED STILL LISTS NOBODY (user, 2026-09-10: Fireball with
       // Thomas targeted "shouldn't have him in the check box") - the pick waits for the area.
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       canvas.tokens.get(rgrTok.id)?.setTarget(true, { releaseOthers: true });
       canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: false });
       await sleep(200);
@@ -752,7 +749,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('18w. a template spell with two creatures targeted lists nobody in the window - Careful ticks none, Heightened radios none', ticksW.length === 0 && marksW.length === 0, JSON.stringify({ targeted: game.user.targets.size, ticks: ticksW.length, radios: marksW.length }));
       await w18.app?.close();
       await closeDialogs();
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const { app, fs } = await openWindow('Fireball', { consume: { spellSlot: false }, create: { measuredTemplate: false } });
       rowsOf(fs).find(r => r.key === 'careful')?.box?.click(); await sleep(80);
       const ticks = [...(fs?.querySelectorAll('[data-bf-metamagic-row="careful"] input[name="bf-metamagic-protect"]') ?? [])];
@@ -767,7 +764,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(19)) {
       const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       // The real path: the default dialog config (configure undecided), which for a cantrip used to mean no window at all.
       const act19 = spellAct('Fire Bolt');
       const pending19 = act19?.use({ consume: { spellSlot: false } }, {}, { create: true });
@@ -826,7 +823,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const castSlow = async (key = null) => {
         if (key) {
           const { card, why } = await castWith('Slow', key, { consume: { spellSlot: false }, create: { measuredTemplate: false } });
-          return card ? card : (ok(`chosen areas: the cast with ${key}`, false, why), null);
+          if (card) return card;
+          ok(`chosen areas: the cast with ${key}`, false, why);
+          return null;
         }
         const before = new Set(game.messages.map(m => m.id));
         await spellAct('Slow')?.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true });
@@ -925,7 +924,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await gather();
           await freshen();
           await set('saveTimer', 0);
-          game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
           const card = await castSlow('heightened');
           if (card) {
             await waitFor(() => card.getFlag(MOD, 'saves') ?? null, 6000);
@@ -971,7 +970,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await set('holdTimer', 0);
           const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
           await sleep(600);
-          game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
           const before = new Set(game.messages.map(m => m.id));
           await spellAct('Fire Bolt').use({ create: { measuredTemplate: false } }, { configure: false }, {});
           const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);

@@ -29,7 +29,7 @@ import { registerResumable } from "../ui.js";
  * applications instead would be worse — a hold answered Pass would then need a second Apply
  * click that nobody would remember to make. The card reads "held — waiting on …" throughout.
  */
-Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
+Hooks.on("dnd5e.preApplyDamage", (actor, _amount, _updates, options) => {
   if ( !setting(S.reactionHold) || !actor ) return;
   // The tray passes the DAMAGE message as originatingMessage (damage-application.mjs:76); the
   // usage card carrying the hold is one hop further back through the system's own registry.

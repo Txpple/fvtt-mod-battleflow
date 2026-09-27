@@ -160,7 +160,7 @@ try {
     // enforcement is the reminder, so the no-GM degradation should cost almost nothing.
     if (weapon.system.mastery !== 'sap') await weapon.update({ 'system.mastery': 'sap' });
     if (!pc.system.traits?.weaponProf?.mastery?.value?.has?.(weapon.system.type.baseItem)) {
-      await pc.update({ [`system.traits.weaponProf.mastery.value`]:
+      await pc.update({ "system.traits.weaponProf.mastery.value":
         [...(pc.system.traits?.weaponProf?.mastery?.value ?? []), weapon.system.type.baseItem] });
       log.push(`granted the ${weapon.system.type.baseItem} mastery trait`);
     }
@@ -299,7 +299,6 @@ try {
       if (!pc) return { error: 'no PC fixture' };
       const priorMode = game.settings.get(modId, 'concMode');
       const priorBreak = game.settings.get(modId, 'concBreak');
-      let effectId = null;
       try {
         // ⚠ Settings are WORLD-scoped: a player cannot write them. If the world is not already
         // in a state this section can use, say so rather than reporting a false red.
@@ -318,7 +317,6 @@ try {
         }]);
         await sleep(400);
         const eff = pc.effects.find(e => e.name === 'BF NoGM Concentration');
-        effectId = eff?.id ?? null;
         if (!eff) return { error: 'could not seed a concentration effect' };
         const concentrating = (pc.concentration?.effects?.size ?? 0) > 0;
 
@@ -459,7 +457,7 @@ try {
         await closeAll();
 
         // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
-        const second = await buttonSwing();
+        await buttonSwing();
         const system2 = await until(systemOpen, 6000);
         await sleep(300);
         const gate2 = gateOpen();

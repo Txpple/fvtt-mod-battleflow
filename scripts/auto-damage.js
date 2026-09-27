@@ -193,7 +193,7 @@ export function attackMessageForDamage(config, message) {
 // AFTER this hook and stamps `config.isCritical` onto every roll (hit-riders.js's note on the
 // order). Setting it here is exactly what a nat 20 sets. The fact rides the damage message
 // as a flag, so the card can say why the dice doubled (R5).
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     if ( config?.subject?.type !== "attack" ) return;
     // HOW MANY OF THESE ROLLS ARE THE ACTIVITY'S OWN (Slice A, 2026-09-24): dnd5e builds the

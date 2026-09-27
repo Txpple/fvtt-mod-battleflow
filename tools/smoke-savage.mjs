@@ -117,7 +117,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeDialogs();
       await clearChips();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
-      for (const [actorId, ids] of Object.entries(created.items.reduce((m, [a, id]) => ((m[a] ??= []).push(id), m), {}))) {
+      for (const [actorId, ids] of Object.entries(created.items.reduce((m, [a, id]) => { (m[a] ??= []).push(id); return m; }, {}))) {
         const actor = game.actors.get(actorId);
         const live = ids.filter(id => actor?.items.get(id));
         if (live.length) await actor.deleteEmbeddedDocuments('Item', live);
@@ -125,7 +125,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));

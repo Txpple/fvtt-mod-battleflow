@@ -226,7 +226,7 @@ await gm.evaluate(async ({ messageId }) => {
   return true;
 }, { messageId: cast.messageId });
 await player.evaluate(async ({ spellId }) => {
-  game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+  game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
   const spell = game.actors.getName('BF Test PC Attacker')?.items.get(spellId);
   if (spell) await spell.delete();
   return true;

@@ -119,7 +119,7 @@ const out = await f.evaluate(async () => {
   // (#preUpdateMovement), and a reused object throws "Cannot redefine property".
   const mv = () => ({ teleport: true, animate: false });
   // A data model or placeable read back raw carries cycles (PIXI events) — flatten to JSON-safe.
-  const safe = x => { const seen = new WeakSet(); try { return JSON.parse(JSON.stringify(x?.toObject?.() ?? x, (k, v) => {
+  const safe = x => { const seen = new WeakSet(); try { return JSON.parse(JSON.stringify(x?.toObject?.() ?? x, (_k, v) => {
     if ( v && (typeof v === "object") ) { if ( seen.has(v) ) return "[cycle]"; seen.add(v); if ( v.documentName ) return `[${v.documentName} ${v.id}]`; if ( v._events ) return `[${v.constructor?.name}]`; }
     return v; })); } catch (e) { return `[unserializable: ${e.message}]`; } };
   report.config.regionAttachmentSchema = (() => { const f = CONFIG.Region?.documentClass?.schema?.fields?.attachment; return f ? { type: f.constructor?.name, fields: Object.fromEntries(Object.entries(f.fields ?? {}).map(([k, v]) => [k, v.constructor?.name])) } : null; })();

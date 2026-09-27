@@ -118,7 +118,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));

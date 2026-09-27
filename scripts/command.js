@@ -49,7 +49,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not claim Commander's Strike's use.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     if ( (activity?.type !== "damage") || !activity.actor?.isOwner ) return;
     const found = foldEntryFor(activity.actor, "command", maneuverFoldEntries());
@@ -135,7 +135,7 @@ async function showCommandNotice(message) {
  * crit-doubled with it); the chip is spent, the ally's Reaction with it, and the damage message
  * says so. The fighter's card learns of it from the elect (below).
  */
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

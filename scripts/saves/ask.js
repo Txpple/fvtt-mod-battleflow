@@ -283,5 +283,6 @@ async function fireSaveTimer(card) {
   // A "gone" verdict never reaches applySaveConsequences (stamped applied above); the card's
   // own line says "gone — nothing to roll" (verdictText). The merged public card v1.19.0 posted
   // here retired with the verdict line (2026-09-18).
+  // biome-ignore lint/suspicious/noConsole: a debug trace of the creatures gone before the save was asked
   if ( goneNames.length ) console.debug(`${TITLE} | Gone at the buzzer: ${goneNames.join(", ")}.`);
 }

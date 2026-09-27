@@ -63,7 +63,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not switch off the summon for a token light.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const row = rowFor(activity);
     const actor = activity?.actor;

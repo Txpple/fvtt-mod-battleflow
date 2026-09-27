@@ -161,7 +161,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
@@ -234,7 +234,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { doc, token };
     };
     // The goblin one square LEFT of the Cleric (5 feet); the Ranger one square below the goblin.
-    const { doc: clericDoc, token: clericToken } = await placeToken(cleric, 1500, 1200);
+    const { token: clericToken } = await placeToken(cleric, 1500, 1200);
     const { doc: goblinDoc, token: goblinToken } = await placeToken(goblin, 1400, 1200);
     const { doc: rangerDoc, token: rangerToken } = await placeToken(ranger, 1400, 1300);
     const mv = () => ({ teleport: true, animate: false });

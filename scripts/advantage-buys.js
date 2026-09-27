@@ -118,17 +118,17 @@ function drawBuy(app) {
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
   }
-  fieldset.querySelectorAll("[data-bf-buy]").forEach(n => n.remove());
+  fieldset.querySelectorAll("[data-bf-buy]").forEach(n => { n.remove(); });
   for ( const row of buy.rows ) {
     const box = document.createElement("div");
     box.innerHTML = buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name });
     fieldset.appendChild(box.firstElementChild);
   }
   // One tick at a time — Advantage does not stack, so a second buy would only spend twice.
-  fieldset.querySelectorAll('input[name="bf-buy"]').forEach(input => input.addEventListener("change", ev => {
+  fieldset.querySelectorAll('input[name="bf-buy"]').forEach(input => { input.addEventListener("change", ev => {
     buy.armed = ev.target.checked ? ev.target.dataset.bfBuyName : false;
     drawBuy(app);
-  }));
+  }); });
   renet(app, element);
 }
 
@@ -171,7 +171,7 @@ Hooks.on("targetToken", () => {
  * among its sources, and the spend rides the uniform `poolSpend` record. An initiative roll carries
  * the facts on its own options instead: its message is made later, by the combat, from a clone.
  */
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const buy = config?.bfBuy;
     if ( !buy || !rolls?.length ) return;

@@ -71,7 +71,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  const skip = why => skips.push(why);
   // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
   // plan and the titles arrive as DATA and the predicate is spelled out here.
   const want = id => {
@@ -154,7 +153,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       // Sweep this run's chat: everything created since the suite's opening snapshot that is
       // ours — fixture speakers, the module's announcement alias, any module-flagged message
       // (asks and stamped rolls), and the native request card the off-half lets through.

@@ -201,7 +201,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
     // Aim first, so every card in the sequence says who it is aimed at.
     const priorTargets = [...game.user.targets].map(t => t.id);
     if ( attackerToken ) {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       attackerToken.setTarget(true, { releaseOthers: true });
     }
 
@@ -248,7 +248,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
       // usual work on the elect. Nothing else to drive.
     } finally {
       // Put the table back the way the reactor had it.
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       for ( const id of priorTargets ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {
@@ -259,7 +259,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
 }
 
 /** The die injection — the hit-riders push idiom, gated on the armed one-shot. */
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

@@ -32,7 +32,7 @@ const out = await f.evaluate(async () => {
   for ( const [k, v] of Object.entries({ autoDamage: "all", autoApply: true, dramaticBeat: 0, requireTarget: false, reactionHold: false, effectRiders: false, masteryRiders: false }) ) await game.settings.set(MOD, k, v);
 
   const facts = [];
-  const hookId = Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+  const hookId = Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
     try {
       const attack = attackMessageForDamage(config, message);
       const rec = { subjectType: config?.subject?.type ?? null, attackId: attack?.id ?? null,

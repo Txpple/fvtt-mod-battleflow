@@ -93,7 +93,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not claim a maneuver's use.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const row = useRowFor(activity);
     if ( !row ) return;
@@ -257,7 +257,7 @@ registerResumable("baitSwitch", {
 /* --- the offer: Lunging Attack's die is a ticked checkbox (the player's fact) ---------------- */
 
 const lungingRow = () => { const k = Object.keys(SUPERIORITY_USES).find(x => SUPERIORITY_USES[x].chip && SUPERIORITY_USES[x].rider); return k ? { key: k, ...SUPERIORITY_USES[k] } : null; };
-function lungeFor(attackMessage, activity) {
+function lungeFor(_attackMessage, activity) {
   const row = lungingRow();
   if ( !row || !listed().has(lower(row.key)) ) return null;
   const attacker = activity?.actor;
@@ -294,7 +294,7 @@ registerOfferPart({
 
 /* --- the rider: the die rides the hit's damage roll ---------------------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

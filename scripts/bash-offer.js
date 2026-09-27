@@ -257,7 +257,7 @@ async function resolveBashOffer(message) {
     const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === targetUuid);
     const priorTargets = [...game.user.targets].map(t => t.id);
     if ( token ) {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       token.setTarget(true, { releaseOthers: true });
     }
     try {
@@ -269,7 +269,7 @@ async function resolveBashOffer(message) {
         if ( stamp ) void attacker.setFlag(MODULE_ID, "bashUsed", { stamp });
       }
     } finally {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       for ( const id of priorTargets ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
     }
   } catch(err) {

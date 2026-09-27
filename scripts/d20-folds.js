@@ -975,7 +975,7 @@ const sumText = (flag, composed) => composed.replaced
   ? `${flag.baseTotal} → ${composed.total}`
   : `${flag.baseTotal} + ${composed.added} = ${composed.total}`;
 
-async function announce(message, actor, name, testKind, anyHit, lines, marker) {
+async function announce(_message, actor, name, testKind, anyHit, lines, marker) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({
@@ -995,7 +995,7 @@ async function announce(message, actor, name, testKind, anyHit, lines, marker) {
 }
 
 /** A pass with nothing spent says so on a WITHHELD save, where the table is waiting on it. */
-async function announceIfNeeded(message, flag) {
+async function announceIfNeeded(_message, flag) {
   if ( !flag?.resume ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;

@@ -566,7 +566,7 @@ Hooks.once("init", () => {
 
 // Settings-sheet polish (the combatplus idiom, from day one): a divider heading the module's
 // block, and dependent fields greying out live while their governing setting is off.
-Hooks.on("renderSettingsConfig", (app, element) => {
+Hooks.on("renderSettingsConfig", (_app, element) => {
   const el = element instanceof HTMLElement ? element : element?.[0];
   if ( !el ) return;
   const input = key => el.querySelector(`[name="${MODULE_ID}.${key}"]`);

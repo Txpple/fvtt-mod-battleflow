@@ -170,7 +170,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -353,8 +353,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const fullActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavefull000000');
     const tmplActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavetmpl000000');
     const target = (...tokens) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      tokens.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
     };
     const snap = () => new Set(game.messages.contents.map(m => m.id));
     const fresh = before => game.messages.contents.filter(m => !before.has(m.id));
@@ -430,7 +430,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await until(() => {
         const f2 = card1.getFlag(MOD, 'saves');
-        return f2 && f2.targets.every(t => t.done && t.applied);
+        return f2?.targets.every(t => t.done && t.applied);
       });
       const flag = card1.getFlag(MOD, 'saves');
       ok('1a. the save card posts and carries the demand stamp',
@@ -1945,7 +1945,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ============================================== 21. Evasion
     if (want(21)) {
       const rogue = game.actors.getName('BF Test Rogue');
-      if (!rogue || !rogue.items.some(i => i.name === 'Evasion')) { skips.push('§21: BF Test Rogue with Evasion missing — run fixture-suite'); }
+      if (!rogue?.items.some(i => i.name === 'Evasion')) { skips.push('§21: BF Test Rogue with Evasion missing — run fixture-suite'); }
       else {
         const rogueToken = await mkToken(rogue, 800);
         priorActor[rogue.id] = { 'system.attributes.hp.value': rogue.system._source.attributes.hp.value,
@@ -2725,8 +2725,8 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     const closeEverything = async () => { await closeEls([...popupEls(), ...savePopupEls()]); };
 
     const target = (...tokens) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      tokens.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
     };
 
     /** Cast one save activity at `tokens`; return its usage card. */
@@ -2997,7 +2997,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       // popup OFF, and this section is entirely about the popup appearing.
       await set('playerRollDamage', true);
       await set('autoApply', false);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       await sleep(200);
       const before = snap();
       // ⚠ A TEMPLATE-BEARING `use()` NEVER RESOLVES headless — it parks waiting for a human to
@@ -3027,7 +3027,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
 
     /* teardown ----------------------------------------------------------------------------- */
     await closeEverything();
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     // Any drawn template the bare cast managed to leave behind goes with it (a Region at Foundry 14).
     const strayTemplates = canvas.scene.regions
       .filter(r => r.getFlag('core', 'MeasuredTemplate') && !r.getFlag('dnd5e', 'activity')).map(r => r.id);

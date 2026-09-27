@@ -227,7 +227,7 @@ export async function showSaveChoicePopup(card, uuid) {
  * hand-moved token); the Prone press is the STANDARD Prone chip via forceStatus (walk-5 (x):
  * one universal prone — Topple's idiom, canonical id, origin names the presser — never the
  * item's own custom effect). */
-export async function announceBashOutcome(card, flag, entry) {
+export async function announceBashOutcome(card, _flag, entry) {
   const c = entry.choice;
   if ( !c?.answer || c.announced ) return;
   let claimed = false;

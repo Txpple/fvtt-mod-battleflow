@@ -325,7 +325,7 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
       // wins, the other's miss must not throw the floor off its next offer.
       try {
         if ( spent.length ) await scene.deleteEmbeddedDocuments("Region", spent.map(r => r.id));
-      } catch(err) { /* already gone — the other elect twin got there */ }
+      } catch { /* already gone — the other elect twin got there */ }
     }
   } finally {
     templateSweepsInFlight.delete(card.id);

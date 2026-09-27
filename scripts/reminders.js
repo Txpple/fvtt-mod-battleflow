@@ -356,7 +356,7 @@ Hooks.on("targetToken", () => {
  * `initiativeDialog`, and that is the skip. Nothing is applied: Poisoned's Disadvantage the
  * platform already rolls (CHECK_BENDS says so); the gate reminds and records.
  * ------------------------------------------------------------------------------------------- */
-Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
@@ -414,7 +414,7 @@ function drawCheckGate(element, gate) {
 }
 
 // The check's record — the same flag the attack and the save stamp, on the check's message.
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfCheckGate;
     if ( !gate?.sources?.length || !rolls?.length ) return;
@@ -432,7 +432,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
 // attack message's data after the dialog closes with rolls in hand (a closed dialog hands back
 // no rolls, and no roll is no record; a judgement that emptied out is no record either). The
 // spend reads it off the message at creation.
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfReminder;
     if ( !gate || !rolls?.length || (config.subject?.type !== "attack") ) return;
@@ -888,7 +888,7 @@ function pendingDemandFor(actor) {
 // sheet (option E folds the old option D in: one surface for every save). Templated like the
 // attack hook (dnd5e.preRoll<Name>V2 — pinned in check-hook-dispatch). A judgement with a
 // source forces the dialog open — a shift-clicked save still meets it — and sets the default.
-Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const actor = config?.subject;
@@ -994,7 +994,7 @@ function postSheetAutoFail(gate) {
 
 // The record: what the gate showed, what it netted to, what was pressed — on the save message,
 // the attack gate's flag and the attack gate's card line (reminders.js reads it for any roll).
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, dialog, message) => {
+Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfSaveGate;
     if ( !gate?.sources?.length || !rolls?.length ) return;

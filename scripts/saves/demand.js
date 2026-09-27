@@ -186,7 +186,7 @@ export function saveDemandable(t) {
   return !isDeadForSaves(actor);
 }
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   if ( !setting(S.saves) ) return;
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;

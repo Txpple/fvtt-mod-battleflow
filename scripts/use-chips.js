@@ -33,7 +33,7 @@ import { SURFACES } from "./surfaces.js";
 
 const USE_CHIP_INDEX = tableIndex(USE_CHIPS);
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     if ( !setting(S.riders) && !setting(S.masteryRiders) && !setting(S.effectRiders) ) { /* no feature switch of its own: the Effect Sources list is the switch */ }
     const item = activity?.item;
@@ -107,7 +107,7 @@ const CARD_FLAG = "cardChip";
 const devicesOf = (actor, row) => actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card")
   && (lower(e.name) === lower(row.chip)));
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
     const actor = activity?.actor;

@@ -880,7 +880,7 @@ if (want('5b')) {
 
       // (c) No-target gate: with nothing targeted the use is refused outright.
       await game.settings.set(MOD, 'requireTarget', true);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const before3 = game.messages.size;
       const result = await activity().use({ subsequentActions: false }, { configure: false }, {});
       await new Promise(r => setTimeout(r, 1000));
@@ -1094,9 +1094,9 @@ if (want('5d')) {
 
     /** Roll one attack at `targets` and return its usage + attack message. */
     const attack = async (targets) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       await sleep(150);
-      targets.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+      targets.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
       await sleep(250);
       const before = game.messages.size;
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
@@ -1306,7 +1306,7 @@ if (want('5d')) {
 
     /* teardown ---------------------------------------------------------------------------- */
     await closeAllPopups();
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     await ChatMessage.deleteDocuments([...new Set(created)].filter(id => game.messages.has(id)))
       .catch(() => {});
     if (extraTokDoc) await canvas.scene.deleteEmbeddedDocuments('Token', [extraTokDoc.id]).catch(() => {});

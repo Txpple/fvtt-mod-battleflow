@@ -126,7 +126,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -260,7 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const srAct = srItem.system.activities.contents[0];
 
     const targetBoth = () => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       victimToken.setTarget(true, { releaseOthers: true });
       shielderToken.setTarget(true, { releaseOthers: false });
     };
@@ -538,7 +538,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4b registry count 1: not a volley', !fresh(before).some(m => m.getFlag(MOD, 'volley')));
       registry.set('BF Volley Missile', { kind: 'damage', count: '2 + @item.level' });
       // (c) targetless
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       before = snap();
       await mmAct.use({}, { configure: false }, {});
       await castSettled(before);
@@ -608,7 +608,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push('§6 blocklist claim');
       await set('reactionHold', true);
       await set('blockList', 'BF Volley Missile:Shield');
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       victimToken.setTarget(true, { releaseOthers: true });
       before = snap();
       await mmAct.use({}, { configure: false }, {});

@@ -1081,7 +1081,7 @@ const r = await f.evaluate(async ({ sections }) => {
       const pcActivity = () => game.actors.getName('BF Test PC Attacker')
         .items.get(pcWeapon.id).system.activities.find(a => a.type === 'attack');
 
-      const { actor: npc, token: npcToken, feature, castId } = await ensureCastStatblock();
+      const { actor: npc, token: npcToken } = await ensureCastStatblock();
       const vAC = npc.system.attributes.ac.value;
 
       // (a) With auto-damage limited to NPC attackers, a PC's attack must not hold AT ALL. The
@@ -1759,7 +1759,7 @@ const r = await f.evaluate(async ({ sections }) => {
         if (!fixture) continue;
         try {
           await fixture.longRest({ dialog: false, chat: false, newDay: true });
-        } catch (restErr) {
+        } catch {
           // longRest's signature is the system's, not ours — fall back to the manual restore
           // so a system change degrades to "resources back" rather than "suite broken".
           const spells = {};

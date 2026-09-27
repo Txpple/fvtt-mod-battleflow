@@ -104,7 +104,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -217,8 +217,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     const activityOf = (item, type) => npc.items.get(item.id).system.activities.find(a => a.type === type);
     const target = (...tokens) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
-      tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      tokens.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
     };
     const snap = () => new Set(game.messages.contents.map(m => m.id));
     const fresh = before => game.messages.contents.filter(m => !before.has(m.id));

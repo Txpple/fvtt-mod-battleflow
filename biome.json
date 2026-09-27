@@ -81,7 +81,7 @@
       "style": {
         "noNonNullAssertion": "off",
         "useImportType": "off",
-        "useTemplate": "warn"
+        "useTemplate": "off"
       },
       "complexity": { "useOptionalChain": "warn" }
     }
@@ -95,7 +95,7 @@
       "includes": ["tools/**"],
       "linter": {
         "rules": {
-          "suspicious": { "noConsole": "off" },
+          "suspicious": { "noConsole": "off", "noAssignInExpressions": "off" },
           "nursery": { "noFloatingPromises": "off" }
         }
       }

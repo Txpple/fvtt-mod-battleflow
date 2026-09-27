@@ -125,7 +125,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -253,7 +253,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1d. the attacker\'s card: "Lucky bent the roll — Disadvantage, … MISS"', /Lucky bent the roll — Disadvantage, \d+ → \d+, MISS/.test(text ?? ''), (text ?? '').slice(0, 240));
       await sleep(1500);
       const dmg = damageFor(msg?.id);
-      ok('1e. the held damage was released and applies to NOBODY (the miss drops the target)', !dmg || !dmg.getFlag(MOD, 'receipt')?.targets?.length,
+      ok('1e. the held damage was released and applies to NOBODY (the miss drops the target)', !dmg?.getFlag(MOD, 'receipt')?.targets?.length,
         `dmg=${!!dmg} receipt=${JSON.stringify(dmg?.getFlag(MOD, 'receipt')?.targets?.map(x => x.name))}`);
     }
 

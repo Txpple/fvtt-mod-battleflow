@@ -67,7 +67,7 @@ const toppleDialogsOpening = new Set();
 // ⚠ Its Fails button (a save the rules fail before the dice) is honoured below but never
 // stands here today: Topple is a CONSTITUTION save and every automatic-failure row in
 // SAVE_BENDS names Strength and Dexterity only (measured 2026-09-03).
-async function showTopplePopup(message, topple, target) {
+async function showTopplePopup(message, _topple, target) {
   const key = popupKey(message.id, `topple:${target.uuid}`);
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }

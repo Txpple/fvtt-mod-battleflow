@@ -218,7 +218,6 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
         const box = fs.querySelector(`[data-bf-metamagic-row="${key}"] [data-bf-metamagic-sub="${sub}"]`);
         if ( box ) box.style.opacity = on ? "1" : "0.45";
       }
-      const row = menu.find(r => r.key === picked);
       const pick = metamagicPick({ menu, chosen: picked });
       if ( pick ) {
         const item = known.get(pick.feature);
@@ -316,7 +315,7 @@ function recordForRoll(activity, message) {
 
 // The emanation damage-type idiom (emanations.js): the roll's `options.type` is what the verdict
 // and the applier read, so the change lands there, on the roller's client, before the dice.
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.item?.type !== "spell" ) return;
@@ -434,7 +433,7 @@ Hooks.on("deleteChatMessage", message => {
   } catch(err) { console.error(`${TITLE} | The deleted ask's card could not be posted.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const pick = pending.get(activity?.uuid);
     if ( !pick ) return;

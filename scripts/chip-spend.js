@@ -86,7 +86,7 @@ async function spendChips(message, ctx) {
       const listed = listedNames(effectEntries());
       const rowFor = (e, side) => {
         const r = spendRows.get(String(e.name ?? "").toLowerCase());
-        if ( !(r && r[side] && listed.has(String(e.name).toLowerCase())) ) return null;
+        if ( !(r?.[side] && listed.has(String(e.name).toLowerCase())) ) return null;
         // `only: "source"` (Feinting Attack): a target's marker is spent by ITS source's roll alone.
         if ( (r.only === "source") && (side === "target") && (e.getFlag(MODULE_ID, "sourceUuid") !== attacker.uuid) ) return null;
         return r;

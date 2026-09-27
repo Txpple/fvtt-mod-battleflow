@@ -141,7 +141,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -222,7 +222,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { doc, token };
     };
     const { token: victimToken } = await placeToken(victim, 1500, 1600);
-    const { token: secondToken } = await placeToken(second, 1500, 1700);   // one square below the victim — 5 feet
+    await placeToken(second, 1500, 1700);   // one square below the victim — 5 feet
     const { token: fighterToken } = await placeToken(fighter, 1400, 1600);
     fighterToken.control({ releaseOthers: true });
 

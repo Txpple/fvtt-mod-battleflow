@@ -166,7 +166,7 @@ registerOfferPart({
 
 /* --- the rider: the sneak dice ride the weapon's damage roll --------------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -246,7 +246,7 @@ async function runCunningEffects(damageMessage, sd, activity) {
     };
     for ( const pick of (sd.cunning ?? []) ) {
       const row = CUNNING_OPTIONS[pick.key];
-      if ( !row || !row.activity ) continue;           // a line option — the card says it
+      if ( !row?.activity ) continue;           // a line option — the card says it
       const upgrade = row.upgrade && featureNamed(attacker, row.upgrade.feature) ? row.upgrade : null;
       const item = featureNamed(attacker, upgrade ? upgrade.feature : row.feature);
       const act = activityNamed(item, upgrade ? upgrade.activity : row.activity);

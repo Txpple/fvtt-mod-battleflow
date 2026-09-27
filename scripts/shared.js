@@ -644,12 +644,12 @@ export function targetDescriptorOf(token, actor) {
 export async function withTargets(tokens, fn) {
   const before = [...game.user.targets];
   try {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
-    tokens.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
+    tokens.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
     return await fn();
   } finally {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
-    before.forEach((t, i) => t.setTarget(true, { releaseOthers: i === 0 }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
+    before.forEach((t, i) => { t.setTarget(true, { releaseOthers: i === 0 }); });
   }
 }
 

@@ -453,7 +453,7 @@ function wireBar(bar) {
       const chip = ev.target.closest("button.bf-ev-chip");
       if ( chip ) {
         ev.preventDefault();
-        if ( chip.getAttribute("aria-expanded") === "true" ) { chip.closest(".bf-ev-panel") ? (bar.querySelector(".bf-ev-fold")?.remove(), chip.setAttribute("aria-expanded", "false")) : closeFolds(bar); }
+        if ( chip.getAttribute("aria-expanded") === "true" ) { if ( chip.closest(".bf-ev-panel") ) { bar.querySelector(".bf-ev-fold")?.remove(); chip.setAttribute("aria-expanded", "false"); } else closeFolds(bar); }
         else openFold(bar, chip, actor);
         return;
       }

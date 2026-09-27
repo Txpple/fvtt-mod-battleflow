@@ -131,7 +131,7 @@ function riderTargets(message) {
   return Array.from(game.user.targets).map(t => t.actor).filter(Boolean);
 }
 
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   if ( !setting(S.riders) ) return;
   const activity = config.subject;
   const attacker = activity?.actor;

@@ -451,17 +451,17 @@ async function grazePayout(attackMessage, ctx, targets) {
 const NOTICE_TEXT = {
   // (z): the rule line is the property's own text, verbatim; the claim/chip/arm notes stay
   // as the module's hints.
-  vex: (ctx, names) => ({
+  vex: (_ctx, names) => ({
     title: "Vex — Advantage on your next attack",
     lines: [ruleLine(MASTERY_RULES.vex),
       `Against ${names}.`]
   }),
-  sap: (ctx, names) => ({
+  sap: (_ctx, names) => ({
     title: `Sap — ${names} at Disadvantage`,
     lines: [ruleLine(MASTERY_RULES.sap),
       `The chip on ${names} carries the rule.`]
   }),
-  cleave: (ctx, names) => ({
+  cleave: (ctx, _names) => ({
     title: "Cleave — one extra attack available",
     // ⚠ v1.19.0 (FLOW item 8): the old copy said "Roll it from the sheet" and told the player
     // to omit the ability modifier — a move the sheet cannot make, so the instruction was
@@ -603,7 +603,7 @@ function cleaveArmedFor(item) {
 // offer (auto-damage.js `registerOfferPart`, 2026-09-04): a line, no menu, nothing to commit.
 registerOfferPart({
   key: "cleave",
-  parts: (attackMessage, activity) => cleaveArmedFor(activity.item)
+  parts: (_attackMessage, activity) => cleaveArmedFor(activity.item)
     ? { lines: ["<strong>Cleave</strong> — this is the armed Cleave swing: the ability modifier is dropped from this roll."] }
     : null
 });
@@ -613,7 +613,7 @@ registerOfferPart({
 // dice exist. The arm is consumed either way; the strip itself is skipped when the modifier
 // is NEGATIVE (the RAW corner, mirroring the system's own off-hand predicate at
 // AttackActivity#_processDamagePart: removing a minus would RAISE the damage).
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

@@ -202,6 +202,7 @@ async function repairTransferEffects(actor) {
       if ( !effect.transfer ) continue;
       try {
         await effect.update({ transfer: false });
+        // biome-ignore lint/suspicious/noConsole: tells the GM's console the item's data was corrected
         console.info(`${TITLE} | ${actor.name}'s ${item.name}: "${effect.name}" is a target's effect the pack flagged as the wielder's passive — corrected on the sheet.`);
       } catch(err) {
         console.warn(`${TITLE} | Could not correct ${item.name}'s "${effect.name}" on ${actor.name}.`, err);
@@ -214,7 +215,7 @@ Hooks.once("ready", () => {
   if ( !hitMenuEntries().length ) return;
   for ( const actor of game.actors.filter(a => a.isOwner) ) void repairTransferEffects(actor);
 });
-Hooks.on("createItem", (item, options, userId) => {
+Hooks.on("createItem", (item, _options, userId) => {
   if ( (userId !== game.user.id) || !(item.parent instanceof Actor) || (item.type !== "feat") ) return;
   if ( Object.values(HIT_OPTIONS).some(r => lower(r.feature) === lower(item.name)) ) void repairTransferEffects(item.parent);
 });
@@ -290,7 +291,7 @@ registerOfferPart({
 
 /* --- the rider: the die rides the weapon's damage roll, the pool is spent ------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

@@ -71,7 +71,7 @@ function potionDefaultsToDrinker(activity) {
   return true;
 }
 
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
+Hooks.on("dnd5e.preUseActivity", (activity, _usageConfig, _dialogConfig, messageConfig) => {
   if ( !potionDefaultsToDrinker(activity) ) return;
 
   // RULE 2 — a real target always wins. BOTH sides must be empty before filling: the snapshot
@@ -271,7 +271,7 @@ Hooks.on("preCreateChatMessage", doc => {
 // client reads the same answer.
 const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
-Hooks.on("dnd5e.preCreateUsageMessage", (activity, messageConfig) => {
+Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
   if ( !setting(S.hideCardButtons) ) return;
   const buttons = messageConfig?.data?.system?.buttons;
   if ( !Array.isArray(buttons) ) return;

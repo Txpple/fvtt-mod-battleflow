@@ -178,7 +178,7 @@ registerOfferPart({
 
 /* --- the rider: the clock's extra damage rides the weapon's roll ---------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -199,7 +199,8 @@ Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
     for ( const r of riders ) {
       // Piercer's extra die (group 3): dnd5e's own crit bonus on the first roll — never doubled
       if ( r.row.bonusDice && config.rolls?.[0] ) {
-        const opts = (config.rolls[0].options ??= {});
+        config.rolls[0].options ??= {};
+        const opts = config.rolls[0].options;
         opts.critical ??= {};
         opts.critical.bonusDice = (Number(opts.critical.bonusDice) || 0) + Number(r.row.bonusDice);
       }

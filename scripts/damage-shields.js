@@ -275,7 +275,7 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
 // `use()` ran) writes a chip named as the spell is, with the item's duration on the world clock
 // and the cast's level for the upcast — the use-chip idiom (use-chips.js). A standing chip is
 // refreshed, never doubled: a recast refreshes the temp HP too.
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
     const actor = activity?.actor;

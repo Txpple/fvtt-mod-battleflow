@@ -129,6 +129,7 @@ Hooks.once("init", () => {
         effect: new F.ObjectField({ nullable: true, initial: null, label: "Effect", hint: "The pack's effect with the source's numbers read in." })
       };
     }
+    // biome-ignore-start lint/complexity/noThisInStatic: Foundry calls a region behavior's event handlers with `this` bound to the behavior instance
     /** GM-side: the region's membership changed under this token. */
     static async #onEnter(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); await maybeTrigger(this, event.data?.token ?? null, "enter"); }
     static async #onExit(event) { if ( !gmHandles(event) ) return; await forgetInitial(this.region, event.data?.token ?? null); await reconcileMembers(this.region); }
@@ -136,6 +137,7 @@ Hooks.once("init", () => {
     static async #onTurnStart(event) { if ( !gmHandles(event) ) return; await maybeHeal(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnStart"); }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
     static async #onMoveIn(event) { if ( !gmHandles(event) ) return; await maybeAlert(this, event.data?.token ?? null, event.data?.movement ?? null); }
+    // biome-ignore-end lint/complexity/noThisInStatic: Foundry calls a region behavior's event handlers with `this` bound to the behavior instance
     static events = {
       [EV.TOKEN_ENTER]: this.#onEnter,
       [EV.TOKEN_EXIT]: this.#onExit,
@@ -312,7 +314,7 @@ async function maybeTrigger(behType, token, cause) {
     const beh = behType.behavior;
     const sys = behType;   // the type instance IS the system data
     const row = rowNamed(sys.key);
-    if ( !row?.trigger || !row.trigger.on.includes(cause) || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    if ( !row?.trigger?.on.includes(cause) || beh.disabled || !live() || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;   // a ring on a scene nobody is playing on demands nothing
     const source = resolveUuid(sys.source);
@@ -938,7 +940,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     if ( !live() || transformRowOf(activity) || !selfAreaOf(activity) ) return;
     if ( (results?.templates ?? []).flat().length ) return;   // the system placed one after all
@@ -1086,7 +1088,7 @@ const AREAS_FLAG = "areas";
 // concentration effect it made (`system.concentration`); the effect is the caster's own, so the
 // write is the caster's. A cast with no concentration ties nothing (its area is instantaneous
 // or the GM's — the saves machine's buckets).
-Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", async (activity, _usageConfig, results) => {
   try {
     const regions = (results?.templates ?? []).flat().filter(r => r?.parent && r.uuid);
     if ( !regions.length ) return;
@@ -1218,7 +1220,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 // Every roll of the cast wears the type: the save activity's own damage roll — the cast's, the
 // triggers' — carries the card's pick, or the alignment's default when no card stands yet (the
 // cast's first roll can land before the card does).
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( (activity?.type !== "save") || !live() ) return;

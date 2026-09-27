@@ -106,7 +106,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const back = actor.items.filter(i => ('equipped' in (i.system ?? {}))).map(i => ({ _id: i.id, 'system.equipped': equippedBefore.includes(i.id) }));
       if (back.length) await actor.updateEmbeddedDocuments('Item', back);
       await sleep(600);   // the faces' own sync after the list comes back
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart) && ((m.speaker?.actor === actor.id) || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (err) {

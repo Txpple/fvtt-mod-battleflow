@@ -74,7 +74,7 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * gates them; a struck row is a passive like the Cloak again.
  */
 export function listed(fact) {
-  if ( !fact || fact.active !== true ) return false;
+  if ( fact?.active !== true ) return false;
   return fact.temporary === true || (fact.statuses ?? []).length > 0 || fact.worn !== true || fact.aura === true;
 }
 

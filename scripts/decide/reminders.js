@@ -658,14 +658,14 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
  * the rule was met and answered. A target's cover the feat ignores is listed the same way.
  *
  * @param {{ranged?: boolean, distanceFeet?: number|null, normalFeet?: number|null, longFeet?: number|null,
- *          closeEnemies?: string[], attackerName?: string, targetName?: string,
+ *          closeEnemies?: string[], targetName?: string,
  *          cancels?: {feature: string, rows: string[], rule: string}[],
  *          coverBonus?: number, coverFeat?: {feature: string, rule: string}|null,
  *          rules: {long: string, single: string, close: string}}} facts
  *        `rules` = `RANGE_RULES` (decide/registry.js) — handed in because this layer imports nothing
  */
 export function rangeSources({ ranged = false, distanceFeet = null, normalFeet = null, longFeet = null,
-  closeEnemies = [], attackerName = "You", targetName = "the target", cancels = [], coverBonus = 0, coverFeat = null, rules }) {
+  closeEnemies = [], targetName = "the target", cancels = [], coverBonus = 0, coverFeat = null, rules }) {
   const out = [];
   if ( !ranged || !rules ) return out;
   const cancelOf = row => (cancels ?? []).find(c => (c.rows ?? []).includes(row)) ?? null;

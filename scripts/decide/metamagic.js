@@ -76,15 +76,15 @@ const WHY_UNLESS = {
  */
 export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
   const test = WHEN[row?.when];
-  if ( !test || !test(facts ?? {}, transmutedTypes) ) return false;
+  if ( !test?.(facts ?? {}, transmutedTypes) ) return false;
   const not = UNLESS[row?.unless];
-  return !(not && not(facts ?? {}));
+  return !not?.(facts ?? {});
 }
 
 /** Why a row the spell does not fit greys — its WHEN's reason, else its UNLESS's. */
 function whyNot(row, facts, transmutedTypes) {
   const test = WHEN[row?.when];
-  if ( !test || !test(facts ?? {}, transmutedTypes) ) return WHY[row?.when] ?? "does not fit this spell";
+  if ( !test?.(facts ?? {}, transmutedTypes) ) return WHY[row?.when] ?? "does not fit this spell";
   return WHY_UNLESS[row?.unless] ?? "does not fit this spell";
 }
 
@@ -131,7 +131,7 @@ export function metamagicMenu({ table, listed, known, facts, points, costs, tran
 export function metamagicPick({ menu, chosen = null }) {
   if ( !chosen ) return null;
   const row = menu.find(r => r.key === chosen);
-  return (row && row.eligible && row.affordable) ? row : null;
+  return (row?.eligible && row.affordable) ? row : null;
 }
 
 /**

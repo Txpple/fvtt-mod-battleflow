@@ -114,7 +114,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
     if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
     for (const [k, v] of Object.entries(prior)) await game.settings.set(MOD, k, v);
   };
 

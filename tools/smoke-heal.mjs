@@ -93,7 +93,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await cleric.update({ 'system.attributes.hp.value': clericPrior.hp });
         for (const [id, spent] of Object.entries(clericPrior.hd)) await cleric.items.get(id)?.update({ 'system.hd.spent': spent });
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && ((m.speaker?.actor === cleric.id) || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
@@ -153,7 +153,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const wound = () => victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 1 });
     /** Roll a heal activity at the victim with the dice pinned; the healing message comes back. */
     const heal = async (activity, spec) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       victimToken.setTarget(true, { releaseOthers: true });
       await sleep(100);
       faces(spec);
@@ -167,7 +167,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /** Roll a heal activity with the dice pinned through the automatic reroll too; the message back once settled. */
     const healThrough = async (activity, spec) => {
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       victimToken.setTarget(true, { releaseOthers: true });
       await sleep(100);
       faces(spec);
@@ -261,7 +261,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await cls.update({ 'system.hd.spent': 0 });
         await cleric.update({ 'system.attributes.hp.value': 1 });
         const faces0 = Number(String(cls.system.hd.denomination).replace(/^d/i, ''));
-        game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         clericToken.setTarget(true, { releaseOthers: true });
         await sleep(100);
         const use = await cleric.items.get(kit.id)?.system.activities.contents[0]?.use({}, { configure: false }, {});

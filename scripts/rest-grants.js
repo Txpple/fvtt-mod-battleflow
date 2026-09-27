@@ -63,7 +63,7 @@ Hooks.on("dnd5e.preRestCompleted", (actor, result, config) => {
 });
 
 // The rest card says what was gained — stamped once the card exists.
-Hooks.on("dnd5e.restCompleted", (actor, result) => {
+Hooks.on("dnd5e.restCompleted", (_actor, result) => {
   const grants = result?.bfRestGrants;
   const message = result?.message;
   if ( !grants?.length || !message?.isOwner ) return;
@@ -481,7 +481,7 @@ async function showSongPopup(message) {
       lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
       + `<div data-bf-rest-song data-cap="${flag.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>`,
     buttons: [
-      { action: "ok", label: "OK", default: true, callback: (event, button) => {
+      { action: "ok", label: "OK", default: true, callback: (_event, button) => {
         const picks = [...button.form.querySelectorAll('input[name="bf-rest-song"]:checked')].map(i => i.value);
         void answerSong(message, picks);
       } }

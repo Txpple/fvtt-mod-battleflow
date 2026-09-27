@@ -92,7 +92,7 @@ function regen(dir) {
     const text = read(source.file);
     anchors[key] = {
       where: "dnd5e", file: source.file, proof: source.proof,
-      found: text !== null && text.includes(collapse(source.proof))
+      found: text?.includes(collapse(source.proof)) ?? false
     };
   }
   let prev = { version: "(none)", anchors: {} };

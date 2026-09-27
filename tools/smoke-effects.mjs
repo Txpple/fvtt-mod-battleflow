@@ -154,7 +154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const [actorId, data] of Object.entries(priorActor)) {
         await game.actors.get(actorId)?.update(data);
       }
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       // Sweep this run's own chat: everything since suiteStart that is ours — fixture
       // speakers, the module's announcement alias, or a module flag.
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
@@ -541,7 +541,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           JSON.stringify({ deadline: !!pending?.deadline, answer: done?.answer,
             timedOut: done?.timedOut, outcome: done?.outcome, slowed: !!slowed }));
         // Close the popup the timeout orphaned, if the close hook missed it.
-        document.querySelectorAll('.application.dialog button[data-action="pass"]').forEach(b => b.click());
+        document.querySelectorAll('.application.dialog button[data-action="pass"]').forEach(b => { b.click(); });
       }
       await set('holdTimer', 0);
     }

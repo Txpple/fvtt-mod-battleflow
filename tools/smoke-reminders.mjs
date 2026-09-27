@@ -104,8 +104,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (gate || system) { try { await app.close(); } catch { /* gone */ } }
     }
   };
-  const systemDialogOpen = () => [...foundry.applications.instances.values()]
-    .some(app => /AttackRollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered);
   const teardown = async () => {
     if (restored) return;
     restored = true;
@@ -126,7 +124,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -251,7 +249,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       game.messages.contents.find(x => (x.type === 'damage')
         && (x._source.system?.origin === originId)
         && (!flag || x.getFlag(MOD, flag))), timeout);
-    const chipOn = (actor, key) => actor.effects.find(e => e.getFlag(MOD, 'mastery') === key);
     const target = token => { token.setTarget(true, { releaseOthers: true }); };
     /** A programmatic swing (no dialog): use + rollAttack with configure:false — never gated. */
     const swing = async (key, { advantage = false } = {}) => {

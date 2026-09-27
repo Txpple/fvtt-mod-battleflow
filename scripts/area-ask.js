@@ -143,7 +143,7 @@ export async function showAreaAsk(message) {
     content: bfCard({ img, eyebrow: words.eyebrow, tone: "pending", title: words.title, subtitle: words.subtitle, lines: [ask.rule ? ruleLine(ask.rule) : ""] })
       + `<div data-bf-metamagic-ask="${esc(ask.kind)}" data-cap="${ask.cap ?? ""}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>` + holdBarHTML(ask, "to answer"),
     buttons: [
-      { action: "ok", label: "OK", default: true, callback: (event, button) => answerAsk(message,
+      { action: "ok", label: "OK", default: true, callback: (_event, button) => answerAsk(message,
         [...button.form.querySelectorAll('input[name="bf-metamagic-ask"]:checked')].map(i => i.value),
         { mark: button.form.querySelector('input[name="bf-metamagic-ask-mark"]:checked')?.value ?? null }) }
     ]

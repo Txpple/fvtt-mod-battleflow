@@ -73,7 +73,7 @@ export async function openManagedPopup(key, message, dialog) {
     livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;   // the staircase dies with its pile
-    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+    try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
     return close(...args);
   };
   // THE CASCADE (ARCHITECTURE.md §5 law 7, recut by walk-4 finding (s), ranked 2026-09-13):
@@ -100,7 +100,7 @@ export async function openManagedPopup(key, message, dialog) {
       // class, its turn coming when the earlier moments are answered.
       for ( const k of pileBackToFront(popupSlots) ) {
         const d = livePopups.get(k);
-        if ( d?.rendered ) { try { d.bringToFront?.(); } catch(err) { /* fronting is best-effort */ } }
+        if ( d?.rendered ) { try { d.bringToFront?.(); } catch { /* fronting is best-effort */ } }
       }
     }
     scheduleBarSync(dialog.element);
@@ -275,7 +275,7 @@ export function adoptManagedPopup(key, message, dialog) {
     if ( livePopups.get(key) === dialog ) livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+    try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
     return close(...args);
   };
   const slot = nextCascadeSlot(popupSlots.values());
@@ -288,8 +288,8 @@ export function adoptManagedPopup(key, message, dialog) {
       const want = cascadePosition(cascadeAnchor, slot);
       if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
     }
-  } catch(err) { /* the platform's own position stands */ }
-  try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+  } catch { /* the platform's own position stands */ }
+  try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
 }
 
 /**
@@ -356,7 +356,7 @@ export async function acknowledgeMoment(message, flagKey) {
   // spent: the ack travels as its own message and the card's owner folds it, exactly as every
   // other cross-client answer in this module already does.
   localAcks.add(`${message.id}|${flagKey}`);
-  try { ui.chat?.updateMessage?.(message); } catch(err) { /* row refreshes next render */ }
+  try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
   try {
     await ChatMessage.create({
       whisper: [game.user.id],           // the fold deletes it; this only limits a brief flash
@@ -427,7 +427,7 @@ export function momentButton(label, onClick, style = {}) {
  * call can land while the element is still not being rendered.
  */
 function syncHoldBars(root) {
-  const scope = (root && root.querySelectorAll) ? root : document;
+  const scope = root?.querySelectorAll ? root : document;
   for ( const bar of scope.querySelectorAll("[data-bf-deadline]") ) {
     const deadline = Number(bar.dataset.bfDeadline);
     const seconds = Number(bar.dataset.bfWindow);
@@ -452,7 +452,7 @@ function syncHoldBars(root) {
       ], { duration, fill: "forwards", easing: "linear" })
     ];
     for ( const animation of animations ) {
-      try { animation.currentTime = elapsed; } catch(err) { /* the next pass gets it */ }
+      try { animation.currentTime = elapsed; } catch { /* the next pass gets it */ }
     }
   }
 }
@@ -537,7 +537,7 @@ export async function dramaticVerdictPause(rollMessage) {
     const dice = wait ? game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id) : null;
     if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, wait))]);
   }
-  catch(err) { /* dice are cosmetic; never let them block a verdict */ }
+  catch { /* dice are cosmetic; never let them block a verdict */ }
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
   if ( beat ) await new Promise(r => setTimeout(r, beat));
 }
@@ -621,7 +621,7 @@ export function cardRow(draw) {
 
 // The summary host: every summary inside a rendering card is a chained roll's — run that
 // roll's drawers there, the summary element both host and root.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+Hooks.on("dnd5e.renderChatMessage", (_message, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
   if ( !root ) return;
   for ( const el of root.querySelectorAll(SURFACES.cardSummary) ) {
@@ -725,7 +725,7 @@ Hooks.on("createChatMessage", message => {
 registerRelay("momentAck", {
   flagKey: envelope => envelope.flagKey,
   targetOf: envelope => envelope.cardId,
-  owns: (flag, target) => !!target?.isOwner,
+  owns: (_flag, target) => !!target?.isOwner,
   cleanup: true,
   fold: current => {
     if ( current.acknowledged ) return false;
@@ -910,7 +910,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
     if ( open ) {
       livePopups.delete(key);
       shownMoments.delete(key);
-      try { await open.close(); } catch(err) { /* a closed dialog is the state we wanted */ }
+      try { await open.close(); } catch { /* a closed dialog is the state we wanted */ }
     }
     return;
   }
@@ -939,7 +939,7 @@ async function drawRescueWindow(message, { recall = false } = {}) {
   if ( open ) {
     livePopups.delete(key);
     shownMoments.delete(key);
-    try { await open.close(); } catch(err) { /* a closed dialog is the state we wanted */ }
+    try { await open.close(); } catch { /* a closed dialog is the state we wanted */ }
   }
   rescueContent.set(key, content);
   shownMoments.add(key);

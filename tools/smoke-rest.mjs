@@ -63,7 +63,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const prior = { restGrantList: game.settings.get(MOD, 'restGrantList') };
   const set = (k, v) => game.settings.set(MOD, k, v);
-  const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const actor = game.actors.getName('BF Test Halfling');
   if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BF Test Halfling (a character) — run tools/fixture-suite.mjs' };

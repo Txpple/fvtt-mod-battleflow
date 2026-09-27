@@ -93,7 +93,7 @@ function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
  * The claim (preUse) and the stamp (postUse) — both on the casting client
  * ------------------------------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
   const snapshot = targetsInData(messageConfig?.data);
   const spec = volleySpec(activity, usageConfig, snapshot ? snapshot.length : 0);
   if ( !spec ) return;
@@ -248,7 +248,7 @@ async function openVolleyPopup(message) {
       style="width:22px;height:22px;border:none;border-radius:4px;object-fit:cover;flex:0 0 auto;${t?.img ? "" : "display:none;"}">`;
   const rows = (v.kind === "damage")
     // One stepper per target: how many darts land there.
-    ? v.targets.map((t, i) => {
+    ? v.targets.map((t, _i) => {
       const def = defaultAssignment(v).find(a => a.uuid === t.uuid)?.count ?? 0;
       // One row, the card grammar (user tweak 2026-08-21): [icon] **Name** is targeted [n]
       return `<div style="display:flex;align-items:center;gap:0.5rem;margin:0.15rem 0;">
@@ -303,7 +303,7 @@ async function openVolleyPopup(message) {
     }) + `<div style="margin:0.35rem 0.25rem;">${rows}</div>` + bar,
     buttons: [{
       action: "fire", label: `Fire the ${noun}s`, icon: "fa-solid fa-meteor", default: true,
-      callback: (event, button, d) => fireVolley(message, readAssignment(message, d.element ?? d))
+      callback: (_event, _button, d) => fireVolley(message, readAssignment(message, d.element ?? d))
     }],
     rejectClose: false
   });
@@ -420,11 +420,11 @@ async function aimed(uuid, fn) {
   const prior = [...game.user.targets].map(t => t.id);
   const token = canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid);
   try {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     if ( token ) token.setTarget(true, { releaseOthers: true });
     await fn();
   } finally {
-    game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+    game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     for ( const id of prior ) canvas.tokens?.get(id)?.setTarget(true, { releaseOthers: false });
   }
 }
@@ -512,7 +512,7 @@ async function driveRays(message, activity, v) {
  * one aggregate application, and the card reads as k visible dart groups. The armed state
  * IS the pending message's own flag, so nothing here can leak across rolls.
  */
-Hooks.on("dnd5e.preRollDamageV2", (config, dialog, message) => {
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   const k = Number(foundry.utils.getProperty(message?.data ?? {}, `flags.${MODULE_ID}.volleyDarts`)) || 0;
   if ( k < 2 ) return;
   const base = config.rolls?.[0];
@@ -564,7 +564,7 @@ Hooks.on("deleteChatMessage", message => {
   disarmDeadline(volleyTimers, message.id);
 });
 
-function renderVolleyRow(message, v, html) {
+function renderVolleyRow(_message, v, html) {
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
   if ( !content || content.querySelector(".bf-volley-row") ) {
     // Re-render with a resolved flag: replace the pending row so the bar never lingers.

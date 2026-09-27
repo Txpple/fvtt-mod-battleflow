@@ -327,8 +327,7 @@ describe("rangeSources — a ranged attack's own geometry, both glossary rules",
 });
 
 describe("reminderView — the header line and the boxes the section draws", () => {
-  const GLOSS = "A roll can’t be affected by more than one Advantage.";
-  it("one box per source: the fact, the bend as a badge, the rule; the net line; the glossary only when sources contend", () => {
+  it("one box per source: the fact, the bend as a badge, the rule; the net line only when sources contend", () => {
     const sources = [
       r.reminderSource("sap", "disadvantage", "Gruk — Sapped by Thomas", "sap rule"),
       r.reminderSource("vex", "advantage", "Gruk Vexed Thomas", "vex rule")

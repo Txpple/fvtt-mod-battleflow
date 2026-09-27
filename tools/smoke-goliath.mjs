@@ -96,7 +96,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const liveTokens = created.tokens.filter(id => scene.tokens.get(id));
       if (liveTokens.length) await scene.deleteEmbeddedDocuments('Token', liveTokens);
       for (const [actorId, data] of Object.entries(priorActor)) await game.actors.get(actorId)?.update(data);
-      game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: true }));
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
@@ -140,7 +140,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const g = scene.grid.size;
     const { doc: golDoc } = await placeToken(gol, 1 * g, 12 * g);
-    const { doc: victimDoc, token: victimToken } = await placeToken(victim, 7 * g, 12 * g);   // 6 squares: 30 ft
+    const { doc: victimDoc } = await placeToken(victim, 7 * g, 12 * g);   // 6 squares: 30 ft
     for (const a of [gol, victim]) {
       priorActor[a.id] = { 'system.attributes.hp.value': a.system._source.attributes.hp.value, 'system.attributes.hp.max': a.system._source.attributes.hp.max };
       await a.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
@@ -303,7 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         skips.push('§5: BF Test Victim carries no attack activity — Sentinel unexercised');
       } else {
         // The Victim's attack DAMAGE, on its own card (an attack's damage: the ward's `hit` fact), landed on the Cleric.
-        game.user.targets.forEach(t => t.setTarget(false, { releaseOthers: false }));
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
         await set('autoApply', false);
         const t0 = Date.now();
         const rolls = await act.rollDamage({}, { configure: false }, {});

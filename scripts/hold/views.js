@@ -253,7 +253,7 @@ async function holdPopupContent(target, roll, actor, hold) {
   try {
     description = await editor.enrichHTML(item?.system?.description?.value ?? "",
       { rollData: actor?.getRollData?.() ?? {}, secrets: false });
-  } catch(err) {
+  } catch {
     description = item?.system?.description?.value ?? "";
   }
 

@@ -316,7 +316,7 @@ async function castSpellName(activity) {
   if ( activity?.type !== "cast" ) return null;
   const uuid = activity.spell?.uuid;
   if ( !uuid ) return null;
-  try { return (await fromUuid(uuid))?.name ?? null; } catch(err) { return null; }
+  try { return (await fromUuid(uuid))?.name ?? null; } catch { return null; }
 }
 
 /** Whatever a used activity should be MATCHED against: its linked spell, or its item. */

@@ -66,7 +66,7 @@ function drives(activity, targetCount) {
 // the use, and the dice are the module's (straight, or offered). Measured 2026-09-05: the empty
 // `_triggerSubsequentActions` this file first assumed is the ATTACK activity's; the damage
 // activity's calls rollDamage with a dialog.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageConfig) => {
+Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
   try {
     const snapshot = targetsInData(messageConfig?.data);   // null: not written yet — the client's targets
     const n = snapshot ? snapshot.length : game.user.targets.size;
@@ -78,7 +78,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig, messageCo
 });
 const { rowNamed } = tableIndex(DAMAGE_SAVES);
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;                                          // used with create: false — no card, no bus

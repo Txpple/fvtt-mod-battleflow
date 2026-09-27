@@ -96,7 +96,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const live = created.items.filter(id => victim.items.get(id));
       if (live.length) await victim.deleteEmbeddedDocuments('Item', live);
       await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
-      document.querySelectorAll('.bf-resource-banner').forEach(b => b.remove());
+      document.querySelectorAll('.bf-resource-banner').forEach(b => { b.remove(); });
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || Object.keys(m.flags?.[MOD] ?? {}).length
           || (m.type === 'usage')));
