@@ -1,19 +1,9 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE EFFECT VIEW's rows — what a creature's
- * effects LOOK like as a list, from plain facts.
- *
- * DESIGN §6 (user ruling 2026-09-15): buffs and debuffs, visible on demand, the icon-less ones
- * included; never actions. The edge (effect-view.js) reads the sheet and draws; this file decides
- * which effects are listed, what each row says, and how it is toned.
- *
- * ⚠ DRAFT HEURISTICS (2026-09-15, on the branch) — two calls the user has not ruled:
- *   - TONE: ruled 2026-09-15 as a PATTERN, not a list (`toneOf` below): a condition or a module
- *     mark; else what the effect's CHANGES do to the numbers (a penalty is a debuff); else who
- *     put it there (an enemy's is a debuff); else a buff. Found on the Miasma's "Damaged: −2 AC".
- *   - NO ICON: measured on the sandbox 2026-09-15 (Foundry 14.365): the token paints an icon for
- *     a CLOCKED effect (Bless, a mastery mark) and for a condition (Prone); an applied effect with
- *     no clock (Death Armor, Healed by Prayer) paints nothing. Those are the rows tagged.
- *
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE EFFECT VIEW's rows — what a creature's effects
+ * LOOK like as a list, from plain facts (RULINGS *The effect view*). The edge (effect-view.js)
+ * reads the sheet and draws; this file decides which effects are listed, what each row says, and
+ * how it is toned. ⚠ The token paints an icon only for a CLOCKED effect or a condition — an applied
+ * clockless effect (Death Armor) paints nothing; those rows are tagged no-icon.
  * Pure: no Foundry, no documents, no settings.
  */
 
@@ -30,7 +20,7 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  * @property {string} name
  * @property {string|null} img
  * @property {boolean} active        core's `active` — not disabled, not suppressed
- * @property {boolean} temporary     core's `isTemporary` — has a clock (measured 2026-09-15 on Foundry 14.365: a bare status does NOT count)
+ * @property {boolean} temporary     core's `isTemporary` — has a clock (a bare status does NOT count)
  * @property {boolean} worn          a transfer effect from an item on the sheet — worn gear, a passive
  * @property {boolean} [aura]        a worn effect that is the bearer's OWN standing aura — the pack's effect on a feature the emanation table names, while the module runs that row (Aura of Protection's "Protected" on the Paladin)
  * @property {string[]} statuses     the condition ids it carries
@@ -59,19 +49,11 @@ export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
  */
 
 /**
- * Which effects are listed: the ACTIVE ones that are a clocked effect, a condition, or an effect
- * APPLIED to the creature (a cast's — Death Armor, Bless, Hunter's Mark); never a worn item's
- * transfer effect (the Cloak's +1, a passive). Measured 2026-09-15: Death Armor sits on the
- * sheet with no clock and Prone with no clock either, and both are exactly what the view is for.
- *
- * ⚠ ONE worn effect IS in force: the bearer's own standing aura (user, 2026-09-15, on prod:
- * "protected doesnt show on invictus tho, even tho he is"). A feature's emanation sits on its
- * bearer as the pack's transfer effect, and the floor (emanations.js) marks everyone else inside
- * the ring but never doubles the bearer — so the one creature radiating the aura was the one the
- * view would not show. The bearer stands inside the ring like anyone: listed, a buff, named as
- * the pack names it ("Protected"; the allies' copies read "Protected — Invictus"). The class is
- * every feature row of the emanation table (Protection, Courage, Warding), gated as the floor
- * gates them; a struck row is a passive like the Cloak again.
+ * Which effects are listed: the ACTIVE ones that are clocked, a condition, or APPLIED to the
+ * creature (Death Armor, Bless, Hunter's Mark); never a worn item's transfer effect (a passive).
+ * ⚠ One worn effect IS in force: the bearer's own standing aura (the `aura` fact). The floor
+ * (emanations.js) marks everyone else in the ring but never the bearer, so without this the one
+ * creature radiating the aura would not show it.
  */
 export function listed(fact) {
   if ( fact?.active !== true ) return false;
@@ -104,25 +86,19 @@ export function changeSign(change) {
 }
 
 /**
- * THE TONE (user, 2026-09-15, the Miasma's "Damaged: −2 AC" drawn green: "look for the pattern to
- * fix this, so it catches other cases"). Four signals, in order:
- *   1. a condition (a status) is a debuff; one of the module's marks on a victim is a debuff;
- *   2. the effect's own CHANGES — any penalty (a subtraction, a halving, a downgrade, a
- *      disadvantage flag) makes it a debuff, else any bonus makes it a buff. A penalty outranks
- *      a bonus when both appear: a thing that costs you is worth the red;
- *   3. WHO PUT IT THERE — an effect whose origin is a creature on the other side (hostile to the
- *      bearer) is a debuff; a marker with no readable change, like Hunter's Mark on the target,
- *      lands here;
- *   4. else a buff — the effect's own cast, an ally's, a worn thing.
+ * THE TONE — a pattern, not a list. Four signals, in order:
+ *   1. a condition (a status) or one of the module's marks on a victim is a debuff;
+ *   2. the effect's own CHANGES — any penalty makes it a debuff (a penalty outranks a bonus),
+ *      else any bonus a buff;
+ *   3. WHO PUT IT THERE — an origin on the other side from the bearer is a debuff (Hunter's Mark);
+ *   4. else a buff.
  * @param {EffectFact} fact @returns {"buff"|"debuff"}
  */
 export function toneOf(fact) {
-  // Concentration first (user, 2026-09-15: "a special mechanic frequently used, so lets make that
-  // yellow"): dnd5e's own concentration effect carries the `concentrating` status.
+  // Concentration first, its own tone: dnd5e's concentration effect carries `concentrating`.
   if ( (fact.statuses ?? []).includes("concentrating") ) return "concentration";
-  // A CONDITION is red; the module's own MARKER status is not one (the user, 2026-09-27: Aura of
-  // Protection's copy on an ally drew red — it wears `bfEmanation` so the token shows it). Its
-  // changes decide, like any effect's.
+  // A CONDITION is red; the module's own MARKER status (`bfEmanation`, worn so the token shows an
+  // aura copy) is not one — its changes decide, like any effect's.
   if ( (fact.statuses ?? []).some(s => !MARKER_STATUSES.includes(s)) ) return "debuff";
   if ( fact.chipKey && MARK_KEYS.includes(fact.chipKey) ) return "debuff";
   const signs = (fact.changes ?? []).map(changeSign).filter(Boolean);
@@ -140,11 +116,8 @@ export function effectRows(facts) {
 }
 
 /**
- * THE SHEET ROWS (user, 2026-09-15: "temp hps would be a good buff ... its not listed in effects tho"):
- * two buffs dnd5e keeps as NUMBERS on the sheet, never as effects — Temporary HP and Heroic
- * Inspiration. Read off the sheet, listed as buffs with no clock and no source (the sheet does not
- * record where the temp HP came from, so the row says only what the sheet says). Not effects, so
- * the no-icon tag does not apply to them.
+ * THE SHEET ROWS: Temporary HP and Heroic Inspiration are buffs dnd5e keeps as NUMBERS, never as
+ * effects — listed with no clock and no source (the sheet does not record one), never tagged no-icon.
  * @param {{tempHp?: number|null, inspiration?: boolean}} sheet
  * @returns {EffectRow[]}
  */
@@ -156,13 +129,10 @@ export function sheetRows({ tempHp = null, inspiration = false } = {}) {
 }
 
 /**
- * THE ACTION a row offers on the bar (user ruling 2026-09-15: click a buff, a fold opens with
- * Remove, and the DM has it for any creature). What "remove" means depends on where the row lives:
- *   remove   an effect that sits on the creature — deleted
- *   disable  an effect that belongs to an item on the sheet (a worn thing's condition) — turned
- *            off, never deleted, because deleting it would edit the item
+ * THE ACTION a row offers on the bar, for any viewer who can write to the creature (else null):
+ *   remove   an effect on the creature — deleted
+ *   disable  an effect belonging to an item on the sheet — turned off, since deleting edits the item
  *   clear    a sheet row — the number set back to nothing (temp HP 0, inspiration off)
- * Null when the viewer cannot write to the creature: the fold never opens.
  * @param {{id: string, onItem?: boolean}} row
  * @param {{owner: boolean}} viewer
  * @returns {{action: "remove"|"disable"|"clear", label: string}|null}
@@ -179,9 +149,7 @@ export function rowAction(row, { owner }) {
 function rowOf(f) {
   return {
     id: f.id, onItem: f.worn === true || f.onItem === true,
-    // a fighting style reads by its feat, one line, no suffix (user, 2026-09-26: "just remove the
-    // (weapon) suffix"; "make it consistent, so it would be Fighting Stlye: Blindfighting, etc,
-    // whatever the official feat name is") — the module's faces and a style feat's own effects alike
+    // a fighting style reads by its official feat name ("Fighting Style: …"), no suffix
     name: (f.style && f.feat) ? f.name : f.style ? `Fighting Style: ${f.name}` : f.styleFeat ? `Fighting Style: ${f.styleFeat}` : f.name,
     img: f.img ?? null, tone: toneOf(f), clock: f.clock ?? "",
     ...(f.style ? { style: true, why: f.detail ?? "" } : {}),
@@ -190,16 +158,12 @@ function rowOf(f) {
 }
 
 /**
- * THE PANEL'S GROUPS (user ruling 2026-09-15: "if i click morgash, it should show ALL, including
- * passives"): the name's panel mirrors the SHEET's own sections, not the bar's rule —
- *   Temporary    active, with a clock or a condition
- *   Passive      active, clockless — the worn gear, the class features, the applied clockless
- *                casts the bar also shows (Death Armor)
- *   Unavailable  enabled but SUPPRESSED by the platform — the item unequipped or unattuned, or the
- *                clock expired and the leftover never swept (the user, on the Luckstone and the
- *                Miasma's −2 AC) — listed so the GM can sweep it; never a disabled one, that is a
- *                choice the sheet already shows as off
- * The sheet rows (temp HP, inspiration) join Temporary. Empty groups are dropped.
+ * THE PANEL'S GROUPS mirror the SHEET's own sections, not the bar's rule:
+ *   Temporary    active, with a clock or a condition (plus the sheet rows)
+ *   Passive      active, clockless — worn gear, class features, applied clockless casts
+ *   Unavailable  enabled but SUPPRESSED (unequipped, unattuned, a clock expired and never swept) —
+ *                listed so the GM can sweep it; a disabled one is the sheet's own choice, not listed
+ * Empty groups are dropped.
  * @param {EffectFact[]} facts
  * @param {{tempHp?: number|null, inspiration?: boolean}} [sheet]
  * @returns {{label: string, rows: EffectRow[]}[]}
@@ -218,7 +182,7 @@ export function panelGroups(facts, sheet = {}) {
     else if ( (f.disabled !== true) || (f.style === true) ) unavailable.push({ ...rowOf(f), noIcon: false, unavailable: true });
   }
   temporary.push(...sheetRows(sheet));
-  // concentration leads the Temporary group as it leads the bar (user, 2026-09-15: "should be moved up top")
+  // concentration leads the Temporary group as it leads the bar
   const ordered = ["concentration", "debuff", "buff"].flatMap(tone => temporary.filter(r => r.tone === tone));
   temporary.splice(0, temporary.length, ...ordered);
   return [
@@ -239,8 +203,8 @@ export function allRows(facts, sheet) {
 }
 
 /**
- * The marks a creature HOLDS on others (question 2, drafted IN as a second group): an effect on
- * another creature whose origin is this creature or one of its items.
+ * The marks a creature HOLDS on others: an effect on another creature whose origin is this
+ * creature or one of its items.
  * @param {string} holderUuid
  * @param {{bearer: string, fact: EffectFact}[]} others  effects on OTHER creatures, with the bearer's name
  * @returns {(EffectRow & {bearer: string})[]}

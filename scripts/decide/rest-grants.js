@@ -1,17 +1,14 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the rest grants given to allies (rest-grants.js) — what a creature
- * already holds, and whether a Chef's meal reaches it.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports. The PHB feats,
- * group 5 (2026-09-27 — RULINGS *The PHB feats — groups 4–6*): Inspiring Leader and Chef.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): the rest grants given to allies (rest-grants.js) —
+ * Inspiring Leader and Chef: what a creature already holds, and whether a Chef's meal reaches it.
+ * Pure functions over plain data, no imports.
  */
 
 /**
- * TEMPORARY HIT POINTS DO NOT STACK (the Rules Glossary: "if you have Temporary Hit Points and
- * receive more of them, you decide whether to keep the ones you have or to gain the new ones").
- * Nobody keeps the smaller pool on purpose, so a grant lands only where it is MORE than the
- * creature holds — and a creature already holding as many is shown greyed, "has it".
+ * TEMPORARY HIT POINTS DO NOT STACK — a creature keeps the pool it chooses, and nobody keeps the
+ * smaller on purpose, so a grant lands only where it is MORE than the creature holds; one already
+ * holding as many is shown greyed, "has it".
  * @param {number} current  the creature's Temporary Hit Points now
  * @param {number} amount   the grant
  * @returns {boolean}       true when the grant would give it nothing
@@ -23,11 +20,9 @@ export function holdsTemp(current, amount) {
 }
 
 /**
- * WHERE A CHEF'S MEAL STANDS FOR ONE EATER (Replenishing Meal: "At the end of the Short Rest, any
- * creature who eats the food and spends one or more Hit Dice to regain Hit Points regains an extra
- * 1d8 Hit Points"). Every creature rests on its own client, in any order, so the eater's own rest
- * may have finished before the Chef's, or not yet begun. Read off the eater's LATEST Short Rest
- * card (its Hit Dice spent, stamped by rest-grants.js) against the Chef's rest:
+ * WHERE A CHEF'S MEAL STANDS FOR ONE EATER (Replenishing Meal: an eater who spends Hit Dice in the
+ * Short Rest regains an extra 1d8). Each creature rests on its own client in any order, so this
+ * reads the eater's LATEST Short Rest card (its Hit Dice spent, stamped by rest-grants.js):
  *   "spent"    it finished a Short Rest in the same sitting and spent Hit Dice — the extra lands now
  *   "none"     it finished one and spent none — the food does it no good (greyed)
  *   "resting"  no Short Rest of its own in this sitting yet — the extra waits for its rest's end

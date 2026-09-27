@@ -13,34 +13,22 @@ import { usableReaction, reactionNameFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
 
 /* ---------------------------------------------------------------------------------------------
- * The SECOND trigger: a listed spell, not an attack (ARCHITECTURE.md §5).
- *
- * Shield's own text is "you have a +5 bonus to AC … and you take no damage from Magic Missile",
- * and the 2024 statblock condition says the same: "when you are hit by an attack roll or
- * targeted by the Magic Missile spell". That second half is unreachable from rollAttackV2 —
- * Magic Missile is a plain `damage` activity with no attack roll anywhere in it — so the hold
- * gets a second entry point here, at the moment of USE.
- *
- * The kind is neither of the existing two. There is no attack roll to re-test (`ac`) and
- * nothing to reduce by hand (`damage`): the spell's damage simply never lands on that target.
- * So a `negate` hold has no re-test, no settle window and no AC arithmetic — the answer IS the
- * verdict, and continueSpellHold is correspondingly short.
+ * The SECOND trigger: a listed spell, not an attack (ARCHITECTURE.md §5). Shield also stops Magic
+ * Missile, a plain `damage` activity with no attack roll, so rollAttackV2 never sees it — the hold
+ * enters here, at the moment of USE. A `negate` hold has no re-test, no settle window and no AC
+ * arithmetic: the spell's damage simply never lands on that target.
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   if ( !setting(S.reactionHold) ) return;
-  // The usage card is the held document here, exactly as the attack message is over there — and
-  // it already carries the same target snapshot, because getTargetDescriptors() is baked into
-  // every activity's messageFlags (mixin.mjs), not into attack rolls specifically. Cards are
-  // never suppressed (v1.10.0), so the native card is always the bus.
+  // The usage card is the held document, as the attack message is for an attack — it carries the
+  // same target snapshot (every activity's messageFlags bake it in), and cards are never suppressed.
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // used with create: false — no card, no bus, nothing to hold
 
   void (async () => {
-    // ⚠ Match what was CAST, not what owns the activity — the same rule the answer side lives
-    // by. A statblock casting Magic Missile does it through a `cast` activity on a feature
-    // called "Spellcasting", and CastActivity#use hands this hook the CACHED SPELL's activity,
-    // whose item is genuinely named "Magic Missile". reactionNameFor covers both shapes.
+    // ⚠ Match what was CAST, not what owns the activity: a statblock casts through a `cast` activity
+    // on "Spellcasting", and this hook gets the CACHED SPELL's activity. reactionNameFor covers both.
     const spellName = (await reactionNameFor(activity))?.toLowerCase();
     if ( !spellName ) return;
     const entries = blockEntries().filter(e => e.spell.toLowerCase() === spellName);
@@ -51,11 +39,9 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 });
 
 /**
- * When NO hold stamped (nobody eligible, everyone spent), clear the damage roll's pending
- * claim (spellHoldPending: false) so the auto-applier stops waiting and applies. A stamped
- * hold needs nothing here: the native chain already ties the roll to the usage card, and
- * the hold's own resolution releases the claim. The subsequent damage roll can land a beat
- * after this runs — poll briefly for it.
+ * When NO hold stamped, clear the damage roll's pending claim (spellHoldPending: false) so the
+ * auto-applier applies; a stamped hold's resolution releases it instead. The damage roll can land
+ * a beat after this runs — poll briefly for it.
  */
 async function releaseUnheldSpellDamage(activity, holdMessage) {
   try {
@@ -82,10 +68,9 @@ async function releaseUnheldSpellDamage(activity, holdMessage) {
 }
 
 /**
- * Stamp a `negate` hold on a usage card for every target holding a reaction that stops it.
- * Same flag shape as the attack hold, so the popup, the card row, the timer, all three answer
- * channels and the reaction-spent guard are reused verbatim — the only new thing on it is
- * `trigger: "spell"`, which is how the roll-dependent paths know to branch.
+ * Stamp a `negate` hold on a usage card for every target holding a reaction that stops it — the
+ * attack hold's flag shape, so the popup, card row, timer, answer channels and reaction guard are
+ * reused; `trigger: "spell"` is how the roll-dependent paths know to branch.
  */
 async function stampSpellHold(message, entries) {
   if ( message.getFlag(MODULE_ID, "hold") ) return;      // already held; never re-stamp
@@ -110,8 +95,7 @@ async function stampSpellHold(message, entries) {
   }
   if ( !held.length ) return;
 
-  // ⚠ Deliberately NO holdSkipFutile test. A hopeless hold is one that cannot change the
-  // outcome, and this one always can: negating means zero damage regardless of the numbers.
+  // ⚠ Deliberately NO holdSkipFutile test: negating always changes the outcome.
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   await message.setFlag(MODULE_ID, "hold", {
     status: "pending",
@@ -126,12 +110,9 @@ async function stampSpellHold(message, entries) {
 }
 
 /**
- * Resolve a `negate` hold — the whole of it. The answer IS the verdict: there is no roll to
- * re-test, no live AC to read and no dice waiting on the outcome, because this module never
- * rolled the spell's damage in the first place (Magic Missile is not an attack, so Phase 1a
- * ignores it and the caster presses their own Damage button).
- *
- * The verdict is what the preApplyDamage veto below reads, so writing it IS the block.
+ * Resolve a `negate` hold — the answer IS the verdict: no roll to re-test and no dice waiting,
+ * since the module never rolls a non-attack spell's damage. The verdict is what the
+ * preApplyDamage veto reads, so writing it IS the block.
  */
 export async function continueSpellHold(message, hold) {
   const announcements = [];
@@ -144,9 +125,7 @@ export async function continueSpellHold(message, hold) {
       img: reactionImg(actor, target.reaction, target),
       eyebrow: "Reaction — it worked", title: target.reaction, subtitle: target.name,
       tone: "good",
-      // One sentence, because it already says the whole thing. A second line spelling out
-      // "its damage is not applied to them" restated the first in mechanical language, and
-      // naming the other targets answered a question nobody watching had asked.
+      // One sentence says the whole thing.
       lines: [`<strong>${hold.spell}</strong> does nothing to <strong>${target.name}</strong>.`]
     }));
   }

@@ -1,10 +1,8 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict opens — Interpose on a listed shield-bearer's
- * success, the bash's Prone-or-push on the listed feat's failure — on the same `saves` flag, no
- * new key: spec, gate, answer, relay, clock, popup, announce, settle.
- * The machine-tier pass, Stage 4c (2026-09-05, ruling 3): saves.js became this directory —
- * one flag, one machine, one part per spine step; index.js is the only public face and fixes
- * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
+ * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict
+ * opens — Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed
+ * feat's failure — on the same `saves` flag, no new key: spec, gate, answer, relay, clock, popup,
+ * announce, settle.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, 
   drivesMomentFor } from "../core.js";
@@ -15,33 +13,24 @@ import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../
 import { RULE_TEXT } from "../decide/registry.js";
 import { maneuverFoldEntries } from "../settings.js";
 
-/* --- the fold choices (v1.19.x, walk findings ⑤/⑥ + walk-5 (y)): a verdict opens a decision *
- * Two choices, both keyed off the maneuver-folds list (the list stays the switch), both
- * opened BY the verdict, and both holding one target's consequence pass between the
- * verdict's announce and its application:
+/* --- the fold choices: a verdict opens a decision ---------------------------------------------
+ * Both are keyed off the maneuver-folds list (the list is the switch), and both hold one target's
+ * consequence pass between the verdict's announce and its application.
  *
- *   INTERPOSE (kind "interpose", the saver's): the save SUCCEEDED against DEX half-on-success
- *   damage, shield in hand, Reaction free — the Reaction turns half into NONE. The 2024 text
- *   conditions the Reaction on succeeding, so a failure never offers and never spends
- *   (walk-5 (y) — finding (f)'s pre-roll gamble is overturned). Expiry passes; a Reaction is
- *   never spent by a timer.
+ *   INTERPOSE (the saver's): the save SUCCEEDED against Dex half-on-success damage, shield in hand,
+ *   Reaction free — the Reaction turns half into NONE. The text conditions it on succeeding, so a
+ *   failure never offers. Expiry passes; a timer never spends a Reaction.
+ *   BASH (the attacker's): the listed feat's own save FAILED — knock Prone (the standard Prone chip
+ *   via forceStatus) or push 5 feet (a card, a hand-moved token). Expiry defaults to Prone.
  *
- *   BASH (kind "bash", the attacker's): this demand IS the listed feat's own save and it
- *   FAILED — the feat's either/or: knock Prone (the STANDARD Prone chip via forceStatus —
- *   walk-5 (x), Topple's press) or the 5-foot push (the Push mastery's idiom: a card, a
- *   hand-moved token, no press). Expiry defaults to Prone — the machine finishes what the
- *   failure started, and says so.
- *
- * The answer travels like every fold answer (finding ①'s routing): the popup goes to the
- * subject's owner, the GM when no owning player is connected; a non-owner's answer rides its
- * own message (§4.1) and the elect folds it in. The consequence pass resumes off the update.
+ * The popup goes to the subject's owner, else the GM; a non-owner's answer rides its own message
+ * and the elect folds it in. The consequence pass resumes off the update.
  * ------------------------------------------------------------------------------------------- */
 
 const saveChoiceTimers = new Map();
 
-/** What choice, if any, this VERDICT opens — bash on the listed feat's own failure (the
- * attacker's either/or), interpose on a listed shield-bearer's SUCCESS (walk-5 (y)).
- * Null for almost every save. */
+/** What choice, if any, this VERDICT opens — bash on the listed feat's own failure, interpose on a
+ * listed shield-bearer's SUCCESS. Null for almost every save. */
 async function saveChoiceSpec(card, flag, entry) {
   if ( entry.outcome === "saved" ) {
     // Interpose eligibility, read at VERDICT time: half-on-success DEX damage, the listed
@@ -64,7 +53,7 @@ async function saveChoiceSpec(card, flag, entry) {
   if ( !found ) return null;
   if ( found.item.name.toLowerCase() !== String(flag.item?.name ?? "").toLowerCase() ) return null;
   const activity = cardActivity(card, flag.activityUuid);
-  // 6.0: the activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
+  // The activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const presses = (await applicableProfiles(activity)).some(({ profile }) => !profile.onSave);
   if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
   return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
@@ -97,9 +86,8 @@ async function answerSaveChoice(card, uuid, answer) {
   if ( !c || c.answer ) return;
   if ( !card.isOwner ) {
     const subject = await fromUuid(c.subjectUuid ?? uuid).catch(() => null);
-    // Law 3 (declaration never claims an outcome) still governs the BASH labels — the press
-    // follows the choice. Interpose is POST-VERDICT since walk-5 (y): the save already held,
-    // so its accept states the known result; the settle card remains the durable record.
+    // Law 3 (declaration never claims an outcome) governs the BASH labels — the press follows the
+    // choice. Interpose is post-verdict, so its accept may state the known result.
     const labels = {
       use: `${c.itemName} — ${entry.name} spends the Reaction: no damage`,
       pass: `${c.itemName} — passed, the Reaction is kept`,
@@ -127,8 +115,8 @@ async function answerSaveChoice(card, uuid, answer) {
   });
 }
 
-/** A relayed choice answer landing: the ELECT folds it in (idempotent, first answer wins).
- * ⚠ Through the spine's relay registry since the §4.1 consolidation. */
+/** A relayed choice answer landing: the ELECT folds it in through the spine's relay registry
+ * (idempotent, first answer wins). */
 registerRelay("saveChoiceAnswer", {
   flagKey: "saves",
   targetOf: a => a.cardId,
@@ -188,9 +176,8 @@ export async function showSaveChoicePopup(card, uuid) {
     icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist",
     content: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
-      // Interpose is POST-VERDICT since walk-5 (y): the save already succeeded, and the ask
-      // is only whether the Reaction turns the half into none. (z): the rule line is the
-      // feature's own sentence, verbatim; the module's read of it rides as the hint.
+      // Interpose asks only whether the Reaction turns the half into none — the save already
+      // succeeded. The rule line is the feature's own sentence, verbatim; the module's read is the hint.
       title: interpose ? `${c.itemName} — take no damage?`
                        : `${c.itemName} — ${entry.name} failed: choose`,
       subtitle: interpose
@@ -201,16 +188,14 @@ export async function showSaveChoicePopup(card, uuid) {
            "Use it: the Reaction is spent and the half damage becomes none."]
         : [ruleLine(RULE_TEXT.bashChoice),
            "The push is by hand — nothing moves the token for you."]
-      // The choice sub-object through momentBarHTML, NEVER holdBarHTML (finding (n)): it
-      // carries no `status`, and the status-gated wrapper silently ate the bar at both of
-      // this machine's call sites — the suite asserts the bar's DOM now.
+      // ⚠ The choice sub-object goes through momentBarHTML, NEVER holdBarHTML: it has no `status`,
+      // and the status-gated wrapper silently eats the bar.
     }) + momentBarHTML(c, "to answer"),
     buttons: interpose
       ? [
         { action: "use", label: `Use ${c.itemName}`, default: true,
           callback: () => answerSaveChoice(card, uuid, "use") },
-        // "Take half" states a KNOWN outcome now — the verdict is already in (walk-5 (y));
-        // law 3 barred it only while the save was unrolled.
+        // "Take half" states a KNOWN outcome — the verdict is already in (law 3 bars it only unrolled).
         { action: "pass", label: "Take half",
           callback: () => answerSaveChoice(card, uuid, "pass") }
       ]
@@ -223,10 +208,9 @@ export async function showSaveChoicePopup(card, uuid) {
   });
 }
 
-/** The bash outcome, announced once — the push follows the Push mastery's idiom (a card, a
- * hand-moved token); the Prone press is the STANDARD Prone chip via forceStatus (walk-5 (x):
- * one universal prone — Topple's idiom, canonical id, origin names the presser — never the
- * item's own custom effect). */
+/** The bash outcome, announced once — the push a card and a hand-moved token; the Prone press the
+ * STANDARD Prone chip via forceStatus (canonical id, origin names the presser), never the item's
+ * own custom effect. */
 export async function announceBashOutcome(card, _flag, entry) {
   const c = entry.choice;
   if ( !c?.answer || c.announced ) return;
@@ -256,14 +240,13 @@ export async function announceBashOutcome(card, _flag, entry) {
   });
 }
 
-/** Interpose settles on the ACCEPT (walk-5 (y): the choice only ever opens after a
- * SUCCESSFUL save, so the settle card states the known outcome — no damage — and the
- * Reaction is spent here and only here; a pass or a buzzer spends nothing). The card is the
- * durable record: a zeroed number must never read as a dropped machine. */
+/** Interpose settles on the ACCEPT: the save already succeeded, so the settle card states the known
+ * outcome (no damage) and the Reaction is spent here and only here — a pass or a buzzer spends
+ * nothing. The card is the durable record: a zeroed number must never read as a dropped machine. */
 export async function settleInterpose(card, flag, entry) {
   const c = entry.choice;
   if ( (c?.answer !== "use") || c.validated ) return;
-  if ( entry.outcome !== "saved" ) return; // the (y) invariant — an accept exists only past a held save
+  if ( entry.outcome !== "saved" ) return; // an accept exists only past a held save
   let claimed = false;
   await queueFlagWrite(card, "saves", current => {
     const t = current.targets?.find(x => x.uuid === entry.uuid);

@@ -1,27 +1,18 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): THE DICE CHANGERS' pure half — one popup per
- * damage roll, a row per feature that changes the landed dice (the user, 2026-09-27: "maybe its
- * time to solve for dice changers to fix the piercer/savage attacker"; the shape drawn and liked
- * 2026-09-26, prototypes/dice-popup.html; RULINGS *The dice changers — one popup*).
- *
- * THE ROWS, by KIND (the prototype's table, less the two ruled automatic — Healer, Elemental Adept):
- *   pick  Empowered Spell   the caster picks up to CHA-mod of the roll's dice; each rerolled, the
- *                           new faces stand; a Sorcery Point at the answer
+ * damage roll, a row per feature that changes the landed dice (RULINGS *The dice changers — one popup*):
+ *   pick  Empowered Spell   up to CHA-mod of the roll's dice rerolled, the new faces stand; a Sorcery Point
  *   set   Savage Attacker   the weapon's dice rolled again AS A SET, the higher set stands
  *   one   Piercer           ONE die — the one with the most to gain — rolled again, the new stands
- *
- * THE ORDER (ruled 2026-09-27, the user's pick "Savage first, auto die"): pick, then set, then one.
- * Piercer's die is chosen AFTER Savage's set has stood, off the faces that stand then — so it is
- * never asked which die, and a pick made before the set could never be wasted by it.
- *
- * ⚠ PURE. Plain data in, plain data out: the rows are the flag's own, the dice are roll JSON.
+ * They run pick, then set, then one: Piercer's die is chosen off the faces that stand after the set.
+ * ⚠ PURE: the rows are the flag's own, the dice are roll JSON.
  */
 
 /** The flag's key on the damage message — one record per roll, every row on it. */
 export const DICE_CHANGE_FLAG = "diceChange";
 
-/** The order the kinds run in at the answer — the ruling above. */
+/** The order the kinds run in at the answer. */
 const KIND_ORDER = Object.freeze({ pick: 0, set: 1, one: 2 });
 
 /** The statuses that hold the damage's application: the dice land ONCE, with what stood. */
@@ -54,8 +45,8 @@ export function birthStatus(rows) {
 
 /**
  * Every active face of every die term, keyed `roll:term:index` — the popup's chips. What the die
- * COUNTS, not what it showed (the walk, 2026-09-26: Gren's Fireball showed a 1 that Elemental
- * Adept's min2 had made a 2) — a floored face keeps its roll for the tooltip.
+ * COUNTS, not what it showed (Elemental Adept's floor makes a 1 count as a 2); a floored face
+ * keeps its roll for the tooltip.
  * @param {any[]} rollsData   the rolls' JSON
  * @returns {{key: string, roll: number, term: number, index: number, faces: number, result: number, rolled?: number}[]}
  */
@@ -95,9 +86,8 @@ export function answerPlan({ rows, ticked, picks = [], dice = [] }) {
 }
 
 /**
- * BOTH BUTTONS, THE TICKS PICK WHICH IS LIVE (the user, 2026-09-25, Savage's popup: "you can just
- * grey the opposing one out") — Apply is live while the plan does something; Keep the roll while
- * nothing is ticked.
+ * Both buttons, the ticks pick which is live: Apply while the plan does something, Keep the roll
+ * while nothing is ticked.
  * @param {{rows: ChangerRow[], ticked: string[], picks?: string[], dice?: any[]}} args
  */
 export function buttonState(args) {
@@ -192,9 +182,8 @@ export function mergeRises(rises) {
 }
 
 /**
- * EMPOWERED SPELL'S PICK (Stage 4, 2026-09-09): the dice the caster ticked, up to the cap (the
- * Charisma modifier, minimum one), each found among the dice the roll showed. A key is
- * `roll:term:index` — the die's place in the message's rolls.
+ * EMPOWERED SPELL'S PICK: the dice the caster ticked, up to the cap (the Charisma modifier, minimum
+ * one), each found among the dice the roll showed by its `roll:term:index` key.
  * @param {{dice: {key: string, faces: number, result: number}[], picks: string[], cap: number}} args
  */
 export function empoweredPlan({ dice, picks, cap }) {
@@ -213,14 +202,14 @@ export function empoweredPlan({ dice, picks, cap }) {
 }
 
 /**
- * The card's line for the fold, from its record — source, then result (law 6). The prototype's
- * copy: "1d8 → 5, again → 7 — the higher stands: 11", the tag "Savage Attacker — used this turn".
+ * The card's line for the fold, from its record — source, then result (law 6): "1d8 → 5, again → 7
+ * — the higher stands: 11 · used this turn".
  * @param {{status: string, feature?: string, formula?: string, first?: number, second?: number,
  *          stands?: string, total?: number|null, timedOut?: boolean, one?: boolean, faces?: number}} flag
  */
 export function eitherCardLine(flag) {
   const name = flag?.feature ?? "Savage Attacker";
-  // ONE die (Piercer, the PHB feats group 3): "the 1 on the d8 again → 6 — the new roll stands: 12"
+  // ONE die (Piercer): "the 1 on the d8 again → 6 — the new roll stands: 12"
   if ( flag?.one && (flag.status === "used") ) {
     const tail = Number.isFinite(flag.total) ? `: ${flag.total}` : "";
     return `${name} — the ${flag.first} on the d${flag.faces} again → ${flag.second} — the new roll stands${tail} · used this turn`;
@@ -238,7 +227,7 @@ export function eitherCardLine(flag) {
     case "kept": return `${name} — not used${flag.timedOut ? " (the clock ran out)" : ""}, still ready this turn`;
     case "moot": return `${name} — the attack missed; nothing to roll again`;
     case "answering": return `${name} — rolling the weapon's dice again`;
-    // Due: the question waits for the hit to stand (a defender's reaction first — the ruled order).
+    // Due: the question waits for the hit to stand (a defender's reaction comes first).
     case "due": return `${name} — asks once the hit stands`;
     default: return `${name} — offered: roll the weapon's dice again?`;
   }

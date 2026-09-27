@@ -1,17 +1,8 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE — what a hit's offer does
- * next, from facts alone.
- *
- * ⚠ The ruling (user, 2026-09-13, Thomas Invictus' sword against the Practice Dummy — the
- * Shield Master offer in front of the damage prompt, the Sap notice never seen): *"damage,
- * nothing until damage. then mastery rider. then other stuff."* A hit's offers used to open the
- * instant the attack roll landed; now they QUEUE behind the damage, and behind the weapon
- * mastery's DECISION when the mastery asks one (Slow, Topple, Push). A mastery NOTICE (Vex,
- * Sap, Cleave) is not a decision (§6) and never holds the offer: it posts, the rank fronts it
- * (present.js `POPUP_RANK`), and the offer opens behind it.
- *
- * Pure: no Foundry, no documents, no settings. The edge (bash-offer.js) gathers the facts and
- * writes what this returns.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE HIT'S SEQUENCE — what a hit's offer does next,
+ * from facts alone. A hit's offers QUEUE behind the damage, and behind the weapon mastery's
+ * DECISION when it asks one (Slow, Topple, Push); a mastery NOTICE (Vex, Sap, Cleave) never holds
+ * them (ARCHITECTURE *The presentation laws*, law 7). Pure; the edge (bash-offer.js) gathers the facts.
  */
 
 /**
@@ -36,11 +27,9 @@ export function hitOfferStep({ status, masteryStatus = null, damageLanded, livin
 }
 
 /**
- * Can this struck creature be bashed? Shield Master: *"If you attack a creature within 5 feet of
- * you … and hit with a Melee weapon"* — the reach is the feat's own clause, and the map settles it
- * (DESIGN R1, "game logic is not judgment"): Session 8 offered the bash on reach-weapon and thrown
- * hits well beyond 5 feet (2026-09-22). A distance that could not be measured — no tokens, theatre
- * of the mind — keeps the offer: it is a question the player can pass, never an outcome.
+ * Can this struck creature be bashed? Shield Master's "a creature within 5 feet of you" is the
+ * feat's own clause and the map settles it (DESIGN R1, "game logic is not judgment"). An
+ * unmeasurable distance (no tokens) keeps the offer — a question the player can pass.
  * @param {number|null} distanceFeet  attacker to target, nearest edges, in FEET (null: unmeasured)
  * @returns {boolean}
  */
@@ -50,9 +39,9 @@ export function withinBashReach(distanceFeet) {
 }
 
 /**
- * "If the target is no more than one size larger than you" (Crusher's push — the PHB feats, group 3,
- * 2026-09-26): the two sizes' places in the system's own order. A size the order does not know, or
- * no limit, allows the push (the rule is the data's to settle; unreadable data never refuses).
+ * "If the target is no more than one size larger than you" (Crusher's push): the two sizes' places
+ * in the system's own order. An unknown size, or no limit, allows the push — unreadable data never
+ * refuses.
  * @param {string[]} order   CONFIG.DND5E.actorSizes' keys, smallest first
  * @param {string|null} pusher
  * @param {string|null} target

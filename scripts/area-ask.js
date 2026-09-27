@@ -7,18 +7,12 @@
  * that choose their targets*). Both RAISE the ask by writing its flag (`newAsk`, `raiseAsk`);
  * this file draws it, takes the answer, and publishes `battleflow.areaAskAnswered`.
  *
- * Built out of metamagic.js on 2026-09-24 (the user: "better to pay this debt now than later"):
- * the second customer had proved the shape — a third KIND of the same ask — and a non-metamagic
- * question was being answered in a file named for metamagic. A SERVICE, not a machine: it owns no
- * feature and no moment of its own; it is the chokepoint two machines route one question through,
- * so both import it downward (ARCHITECTURE §7). The flag KEY stays `metamagicAsk` — stored on
- * cards, read by the moment registry and the suites; a rename is a migration for nothing.
- *
- * What a customer may add: an ANSWER PART (`registerAskAnswerPart`, the offer's idiom) — called
- * with the outcome once the answer is made, returning flags to write beside the ask's own, or
- * `handled` when the customer posted the answer elsewhere (metamagic's held card: the real card is
- * born with the answer and the carrier is deleted). The kinds' words and defaults are pure
- * (decide/area-ask.js), so this file knows no kind by name except where the hold is concerned.
+ * A SERVICE, not a machine: it owns no feature and no moment, it is the chokepoint two machines
+ * route one question through, so both import it downward (ARCHITECTURE §7). The flag KEY stays
+ * `metamagicAsk` — stored on cards and read by the moment registry; a rename is a migration for
+ * nothing. A customer may register an ANSWER PART (`registerAskAnswerPart`): called with the
+ * outcome, it returns flags to write beside the ask's own, or `handled` when it posted the answer
+ * elsewhere (metamagic's held card). The kinds' words and defaults are pure (decide/area-ask.js).
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, canAnswerFor } from "./core.js";
 import { resolveUuid } from "./lookup.js";
@@ -45,10 +39,8 @@ function tokenDocOf(c) {
 }
 
 /**
- * The ask's rows for the creatures an area holds — disposition and token filled from the canvas.
- * A TARGETED cast's rows are the card's target snapshot (actor uuid, token uuid, name) with no
- * disposition and no token id, so the ask ticked nobody by default until the token filled both
- * (the walk's suite, 2026-09-18).
+ * The ask's rows for the creatures an area holds — disposition and token filled from the canvas,
+ * since a TARGETED cast's snapshot rows carry neither and would tick nobody by default.
  */
 export function askCandidates(contained) {
   return (contained ?? []).map(c => {
@@ -150,8 +142,8 @@ export async function showAreaAsk(message) {
   });
 }
 
-// A tick pings the creature's token on the map (user, 2026-09-09: "so a person can confirm which"),
-// and the cap holds as the ticks are made — one listener, every popup (the Empowered chips' idiom).
+// A tick pings the creature's token on the map so the caster can confirm which, and the cap holds
+// as the ticks are made — one listener, every popup.
 Hooks.once("ready", () => document.addEventListener("change", ev => {
   const any = ev.target?.closest?.('input[name="bf-metamagic-ask"]');
   if ( !any ) return;
@@ -206,13 +198,12 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
       [AREA_ASK_FLAG]: done
     } } });
     // Who stays on the demand: Careful's spared leave it, a chosen area keeps only the chosen. The
-    // demand is the saves machine's flag, filled here because the answer is what fills it — the
-    // one write into another machine's record, made through the serializer and said out loud.
+    // one write into another machine's record (the saves flag), made through the serializer.
     const window = Math.max(0, Number(ask.window) || 0);
     const heightenedRule = ask.heightened?.rule ?? rule;
     await queueFlagWrite(message, "saves", flag => {
-      // A demand already closed takes no new targets — nothing would ever ask them, and its area
-      // would never be swept (areas.js, the same guard, 2026-09-23).
+      // A demand already closed takes no new targets — nothing would ask them, and its area would
+      // never be swept (areas.js has the same guard).
       if ( (flag.status ?? "pending") !== "pending" ) return false;
       const prev = flag.targets ?? [];
       const fresh = ask.candidates.filter(c => outcome.stays(c.uuid) && !prev.some(t => t.uuid === c.uuid)).map(c => saveTargetEntry(c.uuid, c.name));
@@ -235,9 +226,8 @@ Hooks.on("updateChatMessage", message => {
   disarmAskTimer(askTimers, message.id);
   const open = livePopups.get(popupKey(message.id, AREA_ASK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
-  // A chosen area's picture waited on its question (saves/demand.js raised the hold as the card was
-  // born, on the caster's client): the answer lifts it — here, on every client, because the answer
-  // may have come from the elect's clock. Only the client that raised it holds anything; the rest
-  // no-op. A carrier's ask names no activity: its real card's birth lifts that hold instead.
+  // A chosen area's picture waited on its question (saves/demand.js raised the hold on the
+  // caster's client): the answer lifts it on every client, since it may come from the elect's
+  // clock; the rest no-op. A carrier's ask names no activity — its real card's birth lifts that hold.
   if ( ask.kind === "choose" ) { const uuid = activityUuidOf(message); if ( uuid ) releaseHold(uuid, message); }
 });

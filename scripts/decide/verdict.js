@@ -1,75 +1,36 @@
 // @ts-check
 /**
  * Battle Flow — DECISION layer (ARCHITECTURE.md §2): who was hit, who saved, and what that
- * costs them.
- *
- * Moved out of shared.js and saves.js (ARCHITECTURE §10 D5, 2026-08-22; "move, do not rewrite"). This is the
- * most-copied logic in the module and the most consequential: it decides whether an attack
- * landed and how much damage a save lets through. Everything here takes plain objects and
- * returns plain values — no `game`, no `dnd5e`, no documents, no settings.
- *
- * `saveMultiplier` and `verdictText` arrived already pure and moved verbatim. `hitsAmong` and
- * `modeAdmits` are the pure cores of `hitTargets` and `modeAllows`, whose remaining shells in
- * shared.js do nothing but read a message or a setting and call in here — which is precisely
- * the shape ARCHITECTURE §2 asks every handler to end up in.
- *
- * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
+ * costs them. Plain objects in, plain values out — no `game`, no `dnd5e`, no documents, no
+ * settings; `hitTargets` and `modeAllows` in shared.js are the shells that read a message or a
+ * setting and call in here. ⚠ Depend downward only: nothing here may import a machine, the
+ * spine, or core.js.
  */
 
 /* ---------------------------------------------------------------------------------------------
- * THE POST-ROLL FOLD — the mechanism, not any one feature's special case (debt D8)
+ * THE POST-ROLL FOLD — anything that changes an already-rolled outcome after the fact. A fold is
+ * a spec entry plus whatever stamps its flag, never a new parameter to `hitsAmong`.
  *
- * A fold is anything that changes an already-rolled outcome after the fact. The module has
- * shipped two since v1.19.0 — a reaction HOLD (the defender's AC moved) and PRECISION ATTACK
- * (the attacker added a die) — and `hitsAmong` took each as its own named parameter, so a third
- * would have added a third. The three surveyed d20 features (Heroic Inspiration's reroll,
- * Tactical Mind's +1d10, Bardic Inspiration's die) are all that one kind. R4's tripwire: kinds
- * arriving faster than the registry can absorb them, because the mechanism was never lifted out
- * of the first feature that needed it.
- *
- * ⚠ THE OLD PRECEDENCE ARGUMENT IS GONE, AND IT HAD TO GO. This function used to reason "hold
- * verdicts take precedence; in practice the sets are disjoint, because a hold stamps hits and
- * precision stamps misses." A REROLL goes either way — "you must use the new roll" can turn a
- * hit into a miss — so disjointness stops being true the moment a third fold exists.
- *
- * ⚠ USER RULING 2026-08-23: COMPOSE THE ARITHMETIC. Folds do not carry verdicts to be ordered;
- * they carry CONTRIBUTIONS to the two numbers, and the verdict is computed once at the end. The
- * attacker's folds move the TOTAL, the defender's move the AC, and the table sees one line:
- * *"18 + 4 = 22 vs AC 20 (Shield) — hits."* **Precedence stops existing** — there is nothing left
- * to order, which is why this is the only answer that cannot be wrong about a case nobody thought
- * of. Both alternatives were put and both rejected: "the defender always wins" silently eats a
- * spent resource, and "last fold wins" tests the new total against the STALE snapshot AC and
- * announces a hit against a number the defender has already changed.
- *
- * A contribution is one of four shapes, all keyed by `uuid`:
+ * ⚠ Folds COMPOSE, they are never ordered by precedence (ARCHITECTURE §11, "Adding a FOLD"): the
+ * attacker's folds move the TOTAL, the defender's move the AC, and one verdict is computed at the
+ * end — "18 + 4 = 22 vs AC 20 (Shield) — hits." A contribution, keyed by `uuid`, is one of:
  *
  *   { uuid, ac }        the number to test against changed  (a hold's live AC)
  *   { uuid, add }       a delta on the total                (a superiority die, a bardic die)
  *   { uuid, replace }   a whole new roll: `{total, isCritical, isFumble}`  (a REROLL)
- *   { uuid, verdict }   no arithmetic at all — the answer IS the verdict   (a negate hold)
- *
- * ⚠ `verdict` wins outright and by design: a `negate` hold has no AC story to tell, and
- * inventing arithmetic for it would answer a question nobody asked.
+ *   { uuid, verdict }   no arithmetic — the answer IS the verdict  (a negate hold; wins outright)
  * ------------------------------------------------------------------------------------------- */
 
 /**
- * One spend's contribution — shared by the attack side and the save side, because "a reroll
- * replaces the roll and a die adds to it" is the same sentence whichever number it is tested
- * against. `uuid` is supplied on the attack side and omitted on the save side.
- *
- * ⚠ `heroic` is the module's first shipped `replace`, and it is a replace precisely because a
- * REROLL carries its own crit and fumble: a rerolled natural 20 crits and a rerolled natural 1
- * fumbles, neither of which an `add` can express.
+ * One spend's contribution, for the attack side (`uuid` given) and the save side (omitted).
+ * ⚠ A reroll is a `replace` because it carries its own crit and fumble, which an `add` cannot.
  */
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
-  // Guarded Mind (the PHB feats, group 4, 2026-09-27): "you can cause yourself to succeed instead" —
-  // no number moves; the save's VERDICT is the contribution (`foldedSave` reads it as `forced`).
-  // A save's alone — the attack side (a uuid) has no "saved" to force.
+  // Guarded Mind: no number moves; the save's VERDICT is the contribution — a save's alone, the
+  // attack side has no "saved" to force.
   if ( spend?.kind === "succeed" ) return (uuid === undefined) ? { verdict: "saved" } : null;
-  // Seeking Spell (2026-09-09) is the second reroll — the same replace, the same crit and fumble.
-  // Lucky's Advantage on initiative (2026-09-25) replaces too: the resolver records the HIGHER of
-  // the two d20s as its `reroll` (d20-folds.js), so the kept one's total and crit are what stand.
+  // Seeking Spell and Lucky's Advantage replace too; the resolver records Lucky's HIGHER d20.
   if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") || (spend?.kind === "advantage") ) {
     return Number.isFinite(spend.reroll?.total)
       ? { ...at, replace: {
@@ -83,34 +44,26 @@ function contributionOf(spend, uuid) {
 }
 
 /**
- * Where the folds come from, declared rather than hard-coded. Each spec names a MESSAGE FLAG and
- * turns one of that flag's per-target entries into a contribution (or null for "no opinion yet").
- *
- * ⚠ Adding a fold to this module is an entry here plus whatever stamps the flag. It is NOT a new
- * parameter to `hitsAmong`, and that is the whole of D8.
+ * Where the attack folds come from: each spec names a MESSAGE FLAG and turns one of its
+ * per-target entries into a contribution (or null for "no opinion yet").
  */
 export const ATTACK_FOLDS = [
   {
     flag: "hold",
     entries: flag => flag?.targets ?? [],
     /**
-     * ⚠ A resolved AC-type hold contributes the AC IT WAS JUDGED AGAINST, not its own baked
-     * verdict. That is what makes composition possible: after a Shield, a later attacker-side
-     * fold must test its new total against the SHIELDED number, and a stored "miss" cannot be
-     * re-tested against anything. `acAtVerdict` has been stamped since the hold was written, so
-     * the number is already there — but a message from before that field existed falls back to
-     * the verdict, because a stale answer is safer than a wrong AC (ARCHITECTURE §5, the
-     * stale-AC trap: auto-apply must never damage a target already announced as missed).
+     * ⚠ A resolved AC-type hold contributes the AC IT WAS JUDGED AGAINST, not its baked verdict,
+     * so a later attacker-side fold re-tests against the shielded number. A message without
+     * `acAtVerdict` falls back to the verdict — a stale answer is safer than a wrong AC.
      */
     contribute: (_flag, t) => {
       if ( !t?.verdict ) return null;                       // unanswered — no opinion yet
       if ( (t.kind === "negate") || (t.verdict === "negated") ) {
         return { uuid: t.uuid, verdict: t.verdict };
       }
-      // A `roll` answer (Slice A, 2026-09-24 — Lucky, Warding Flare, Shadowy Dodge): Disadvantage
-      // imposed after the hit showed. The bent d20 is a REPLACE for this target alone — it carries
-      // its own crit and fumble (a natural 20 under Disadvantage can stop being one), which is why
-      // it cannot be an `add` — beside the AC it was judged against, so a later fold still composes.
+      // A `roll` answer (Lucky, Warding Flare, Shadowy Dodge): Disadvantage imposed after the hit.
+      // The bent d20 is a REPLACE for this target alone (it carries its own crit and fumble), beside
+      // the AC it was judged against, so a later fold still composes.
       const bent = Number.isFinite(t.bent?.total)
         ? { replace: { total: t.bent.total, isCritical: t.bent.isCritical === true, isFumble: t.bent.isFumble === true } }
         : {};
@@ -119,31 +72,10 @@ export const ATTACK_FOLDS = [
     }
   },
   {
-    /**
-     * THE THREE SURVEYED FEATURES, AS ONE SPEC (v1.23.0).
-     *
-     * ⚠ One entry serves all three kinds, and that is the point of D8 rather than a shortcut:
-     * `heroic`/`tactical`/`bardic` differ in what they SPEND, which is d20-folds.js's problem,
-     * and agree completely on what they contribute — a number on the attacker's side. By the
-     * time a contribution reaches here the spend has already happened and the die is on the
-     * flag, so there is nothing left for the kind to change.
-     *
-     * ⚠ `heroic` is the module's first `replace`, and it is a replace precisely because a
-     * REROLL carries its own crit and fumble: a rerolled natural 20 crits and a rerolled
-     * natural 1 fumbles, neither of which an `add` can express. `foldedRoll` has handled this
-     * since D8 and is unit-tested for it; this is the first shipped caller.
-     */
+    // Every d20 fold kind as one spec: the kinds differ in what they SPEND (d20-folds.js), not in
+    // what they contribute. ⚠ One entry per (target × spend) — a roll can carry several spends —
+    // and read `spends`, never `offers`, or dice nobody paid for would fold.
     flag: "d20fold",
-    /**
-     * ⚠ ONE ENTRY PER (TARGET × SPEND), because a roll can carry SEVERAL spends. v1 modelled a
-     * single fold per roll and the table found it immediately: heroic — first in the shipped
-     * list — masked Tactical Mind and Bardic entirely. The rules allow stacking (reroll with
-     * Heroic Inspiration, still fail, then add a Bardic die) and `foldedRoll` has composed
-     * `replace`-then-`add` correctly since D8, so admitting the list costs nothing here.
-     *
-     * ⚠ Read `spends`, never `offers`: an offer is what the player COULD burn, a spend is what
-     * they DID. Contributing from `offers` would fold dice nobody paid for.
-     */
     entries: flag => (flag?.targets ?? []).flatMap(t =>
       (flag.spends ?? []).map(spend => ({ t, spend }))),
     contribute: (_flag, { t, spend }) => contributionOf(spend, t.uuid)
@@ -152,10 +84,8 @@ export const ATTACK_FOLDS = [
     flag: "precision",
     entries: flag => flag?.targets ?? [],
     /**
-     * ⚠ Only a SPENT die contributes. A passed or expired offer leaves the snapshot test alone,
-     * which is why the outcome is checked rather than merely the presence of the flag.
-     * ⚠ And the die is ADDED, never resolved: the fumble it might have rescued cannot reach here,
-     * because the stamp refuses a natural 1 outright ("a natural 1 stands", maneuvers.js).
+     * ⚠ Only a SPENT die contributes (a passed or expired offer leaves the snapshot alone). The
+     * die is ADDED, never a fumble rescue: the stamp refuses a natural 1 (maneuvers.js).
      */
     contribute: (flag, t) => ((flag?.outcome === "used") && Number.isFinite(flag?.die))
       ? { uuid: t.uuid, add: flag.die } : null
@@ -163,9 +93,8 @@ export const ATTACK_FOLDS = [
 ];
 
 /**
- * Collect every fold contribution a message carries. `read(flagKey)` hands back that flag — a
- * one-argument reader keeps this pure, so the EDGE shell supplies the document and the
- * arithmetic stays testable with plain objects.
+ * Collect every fold contribution a message carries. `read(flagKey)` hands back that flag, which
+ * keeps this pure: the edge shell supplies the document.
  */
 export function foldsFrom(read, specs = ATTACK_FOLDS) {
   const out = [];
@@ -181,12 +110,8 @@ export function foldsFrom(read, specs = ATTACK_FOLDS) {
 }
 
 /**
- * The rolled number, composed. Shared by the attack side and the save side, because "a reroll
- * replaces the roll and a die adds to it" is the same sentence whichever number it is tested
- * against.
- *
- * ⚠ A `replace` carries its own crit and fumble: a rerolled natural 20 crits, and that is the
- * whole reason a reroll cannot be modelled as an `add`.
+ * The rolled number, composed — the same on the attack and save sides. ⚠ A `replace` carries its
+ * own crit and fumble: a rerolled natural 20 crits.
  */
 export function foldedRoll(roll, folds = []) {
   const replaced = folds.findLast(f => f.replace)?.replace;
@@ -201,14 +126,9 @@ export function foldedRoll(roll, folds = []) {
 }
 
 /**
- * One target's verdict after every fold that names it.
- *
- * ⚠ A null AC (total cover, or a target with no AC data) is a MISS — the platform's own verdict
- * since dnd5e 6.0 (`AttackMessageData#evaluatedTargets`: `isMiss = ac === null || …`, a crit
- * included), adopted by user ruling 4 of the 6.0 pass (2026-09-15). Until then this returned
- * `"unresolved"` and left the row to humans, because 5.3.3's tray classed it a HIT (`total <
- * null` is false) and neither reading was data we trusted; the platform has since made up its
- * mind. A fold's FORCED verdict (the negate hold) still beats it — a ruling, not a modifier.
+ * One target's verdict after every fold that names it. ⚠ A null AC (total cover, no AC data) is a
+ * MISS, crit included — the platform's own verdict (`AttackMessageData#evaluatedTargets`). A
+ * fold's FORCED verdict (the negate hold) still beats it.
  */
 export function foldedVerdict(target, roll, folds = []) {
   const mine = folds.filter(f => f.uuid === target.uuid);
@@ -235,10 +155,7 @@ export function hitsAmong({ targets, roll, folds = [] }) {
   return (targets ?? []).filter(t => foldedVerdict(t, roll, folds) === "hit");
 }
 
-/**
- * Does the attacker-side mode admit this side of the table? One home for the npc/pc/all gate
- * — Phase 1a and Graze both read it, and a mode added here reaches both.
- */
+/** Does the attacker-side mode admit this side of the table? One home for the npc/pc/all gate. */
 export function modeAdmits(mode, isPC) {
   if ( mode === "off" ) return false;
   if ( (mode === "npc") && isPC ) return false;
@@ -253,42 +170,16 @@ export function saveOutcome(total, dc, forced = false) {
 }
 
 /**
- * THE SAVE SIDE OF THE FOLD (debt D8, the half that did not exist).
- *
- * ⚠ `hitsAmong` folded verdicts for ATTACKS only, so a rerolled *save* had nowhere to land —
- * and that, not the offer or the popup, was the real new work in D8. The three surveyed
- * features do not care which kind of d20 they are changing: Heroic Inspiration rerolls "any
- * die", Tactical Mind adds 1d10 to an ability CHECK, and a Bardic die goes on a save as
- * readily as an attack. A mechanism that only knew about attacks would have had to be built
- * twice.
- *
- * It is the same composition, one dimension shorter: the attack side tests a total against an
- * AC that a defender's fold can move; a save tests a total against a DC that the ask OWNS (the
- * ask's-DC rule), so there is no defence-side channel here and a `{ dc }` contribution is
- * deliberately not a shape. Everything else — `add`, `replace`, a forced `outcome` — is shared.
- *
- * ⚠ THIS SHIPPED WITH AN EMPTY REGISTRY, ON PURPOSE — and v1.23.0 is the seam paying off.
- * D8 declared `SAVE_FOLDS` empty so that `saves.js` already routed its verdict through the fold
- * path while the arithmetic was provably unchanged; the first feature to need one is therefore
- * an ENTRY IN A LIST rather than a change to the resolver. That is exactly what happened: the
- * spec below is the whole of the save-side work for all three surveyed features, and
- * `foldSaveVerdict` in saves.js was not touched to admit it.
+ * THE SAVE SIDE OF THE FOLD — the same composition, one dimension shorter. The ask OWNS the DC,
+ * so there is no defence-side channel and no `{ dc }` shape; `add`, `replace` and a forced
+ * verdict are shared. A new save fold is an entry here, not a change to the resolver.
  */
 export const SAVE_FOLDS = [
   {
     /**
-     * The save side of the same three features, and deliberately the SAME FLAG the attack side
-     * reads (`d20fold`) — one stamp, both channels, because "reroll the d20" and "add a die to
-     * the d20" do not care which kind of test the d20 was.
-     *
-     * ⚠ NO `uuid`, AND NO PER-TARGET DIMENSION AT ALL. An attack is one roll judged against
-     * many targets, so its contributions are keyed by target. A save is the mirror image: many
-     * rollers, but each one rolls its OWN message, and the flag rides that roll (the locality
-     * `foldSaveVerdict` already uses). So there is exactly one contribution per flag, it names
-     * nobody, and `foldedSave` — which never filters by uuid — folds it straight in.
-     *
-     * ⚠ There is no `dc` shape here and there must not be: the ask OWNS the DC (the ask's-DC
-     * rule), so a save has no defence-side channel the way an attack has `ac`.
+     * The same `d20fold` flag the attack side reads — one stamp, both channels. ⚠ No `uuid`: each
+     * saver rolls its OWN message and the flag rides that roll, so there is one contribution per
+     * flag and `foldedSave` folds it straight in.
      */
     flag: "d20fold",
     entries: flag => flag?.spends ?? [],
@@ -297,15 +188,10 @@ export const SAVE_FOLDS = [
 ];
 
 /**
- * A save's verdict after every fold that names it. Returns the composed TOTAL as well as the
- * outcome, because the card prints the number it judged (`verdictText`), and a card whose
- * sentence disagrees with its arithmetic is the exact bug class receipt arithmetic was unified
- * to kill.
- *
- * ⚠ `forced` (legendary resistance) still wins regardless — it is not arithmetic, it is a
- * ruling, and folding a die into a save that was never going to be rolled makes no sense. A fold
- * whose contribution IS the verdict (Guarded Mind's `succeed`, 2026-09-27) is the same ruling,
- * spent by the roller: `made` says which of the two made it a success, for the card.
+ * A save's verdict after every fold that names it. Returns the composed TOTAL as well, because the
+ * card prints the number it judged (`verdictText`). ⚠ `forced` (legendary resistance) wins
+ * regardless; a fold whose contribution IS the verdict (Guarded Mind) is the same ruling, spent by
+ * the roller — `made` tells the card which.
  */
 export function foldedSave({ total, dc, forced = false, folds = [] }) {
   const rolled = foldedRoll({ total }, folds);
@@ -315,10 +201,9 @@ export function foldedSave({ total, dc, forced = false, folds = [] }) {
 }
 
 /**
- * A HELD ATTACK's damage against one reactor, from the hold's own record (user, 2026-09-02:
- * "uncanny dodge … doesn't half the damage"): a `damage`-kind reaction answered CAST, named
- * in the multiplier table, lands at the table's multiplier — Uncanny Dodge halves. Anything
- * else is null: full damage, no note, the "reduce by hand" card stands for the rest.
+ * A HELD ATTACK's damage against one reactor: a `damage`-kind reaction answered CAST and named in
+ * the multiplier table lands at its multiplier (Uncanny Dodge halves). Anything else is null — full
+ * damage, the "reduce by hand" card stands.
  * @param {{answer?: string|null, kind?: string, reaction?: string}|null|undefined} target  the hold's target entry
  * @param {Readonly<Record<string, {multiplier: number, rule?: string}>>} table
  * @returns {{multiplier: number, reaction: string, note: string}|null}
@@ -334,9 +219,8 @@ export function interruptMultiplier(target, table) {
 }
 
 /**
- * A HELD ATTACK's damage short by a REDUCTION the reactor rolled (Parry, 2026-09-05): the number
- * comes off the parts in order, none below zero — one subtraction, the way the rule reads it,
- * and the receipt keeps the parts it produced. Untouched when nothing is to be taken.
+ * A HELD ATTACK's damage short by a REDUCTION the reactor rolled (Parry): the number comes off the
+ * parts in order, none below zero. Untouched when nothing is to be taken.
  * @param {{value: number, type?: string|null, properties?: Set<string>}[]} damages
  * @param {number} amount
  */
@@ -357,17 +241,14 @@ export function reduceDamages(damages, amount) {
  * ⚠ null means no application AND NO RECEIPT — never a receipt for zero.
  */
 export function saveMultiplier(entry, damageOnSave) {
-  // Interpose (finding ⑥, recut by walk-5 (y)): an accepted Reaction turns the successful
-  // save's half into NOTHING — no application, no receipt; the settle card is the record.
-  // Only a SAVED entry ever carries the choice, so there is no failed-with-spend case.
+  // Interpose Shield: an accepted Reaction turns a successful save's half into NOTHING — no
+  // application, no receipt; the settle card is the record. Only a SAVED entry carries the choice.
   if ( (entry.choice?.kind === "interpose") && (entry.choice.answer === "use")
     && (entry.outcome === "saved") ) return null;
-  // EVASION (2026-09-02): the entry carries it when the saver has the feature, the save is
-  // Dexterity, the effect deals half on a success, and the saver is not Incapacitated — read at
-  // the fold. A success takes NONE (0 — applied and receipted, never silent), a failure HALF.
+  // Evasion (Dex save, half on a success, saver not Incapacitated — read at the fold): a success
+  // takes NONE (0 — applied and receipted, never silent), a failure HALF.
   if ( entry.evasion ) return (entry.outcome === "saved") ? 0 : (entry.outcome === "failed") ? 0.5 : null;
-  // CIRCLE OF POWER (2026-09-05): a standing effect whose row says a success against half-on-save
-  // spell damage takes NONE — the fold stamps the row's key; a success is 0, applied and receipted.
+  // Circle of Power: a success against half-on-save spell damage takes NONE (0, receipted).
   if ( entry.noneOnSuccess && (entry.outcome === "saved") ) return 0;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
@@ -377,28 +258,22 @@ export function saveMultiplier(entry, damageOnSave) {
 }
 
 /**
- * One verdict, in table English — derived here and NOWHERE else: the card row and the
- * v1.19.0 public verdict line (`announceSaveVerdict`) are its only two callers, which is what
- * makes it impossible for the card to disagree with the row. Any third rendering of a verdict
- * calls this rather than composing its own sentence.
+ * One verdict, in table English — derived here and nowhere else, so the card and the row cannot
+ * disagree. Any other rendering of a verdict calls this.
  */
 export function verdictText(flag, t) {
   if ( !t.done ) return null;
   if ( t.outcome === "gone" ) return "the target is gone — nothing to roll";
-  // The save gate's automatic failure (option E, 2026-09-02): no die was rolled, so there is
-  // no total to print — the condition that failed it is the number's replacement.
+  // The save gate's automatic failure rolled no die: the condition that failed it replaces the total.
   const roll = t.autoFailed ? `cannot succeed${t.autoFailedBy ? ` (${t.autoFailedBy})` : ""}`
     : t.autoSucceeded ? `cannot fail${t.autoSucceededBy ? ` (${t.autoSucceededBy})` : ""}` : `${t.total}`;
   return `${roll} ${verdictStakes(flag, t)}`;
 }
 
 /**
- * The verdict WITHOUT its total — "vs DC 15 — saved — half damage" — for the one place the total
- * is already printed: the platform's summary row inside the usage card, which shows the die and
- * gains this beside it (user ruling 2026-09-18, the 6.0 walk: the summary row and Battle Flow's
- * line said each verdict twice; one row per creature, the platform's, carrying these words).
- * Null when there is no such row to write into: unresolved, the target gone, or an automatic
- * failure that rolled no die — those keep Battle Flow's own line, `verdictText`.
+ * The verdict WITHOUT its total — "vs DC 15 — saved — half damage" — for the platform's summary
+ * row inside the usage card, which already shows the die. Null where no such row exists
+ * (unresolved, gone, automatic) — those keep `verdictText`.
  */
 export function verdictTail(flag, t) {
   if ( !t?.done || (t.outcome === "gone") || t.autoFailed || t.autoSucceeded ) return null;

@@ -1,57 +1,24 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, once, as data.
- *
- * THE GATE (the user, 2026-09-11: "if an ability/card is folded in a battle flow, it should be
- * exposed to fx studio as well … something architecturally solid so as this grows, it's not
- * missed / no drift, like a gate that any time an embedded card is played, it goes through that
- * hook"). State law 3 already says the flag is the state and the card and the popup are views of
- * it — so an ability folded into a Battle Flow moment resolves at exactly one kind of instant: a
- * RECORD lands on a message. That instant is the gate. Not the popup, not the receipt card, not
- * each machine's own code: watch the records, and every resolve is caught, including the ones
- * written by machines that do not exist yet.
- *
- * THREE PARTS, THIS FILE THE FIRST:
- *   1. `MOMENT_RECORDS` (here) — one row per flag key that means "something resolved": the word(s)
- *      it publishes under, what resolving means, and `resolved(record, ctx)` — every resolved
- *      moment in the record, each with a stable MARKER (a target uuid, an index, "message") and
- *      plain facts. `STATE_KEYS` (here) — every other key the module writes, each with the reason
- *      it is state and not a resolve. Together they CLASSIFY every key; the checker holds them to it.
- *   2. events.js (the spine) — ONE publisher that watches message creates and updates, computes the
- *      markers of every registered record, and publishes the markers it has not seen. The edge
- *      from unresolved to resolved IS the idempotence; no machine keeps a latch for it.
- *   3. tools/check-moments.mjs — every flag key the module writes is in ONE of the two lists, or
- *      the build fails. A new machine cannot land a resolve quietly; forgetting to classify is the
- *      only failure left, and it is loud.
- *
- * ⚠ THIS FILE CLASSIFIES, IT DOES NOT CURATE. A key is a resolve or it is state — a fact about
- * the code — never "interesting" or not. Whether a moment gets a picture is FX Studio's manager's
- * call (the user, 2026-09-11: "if it is shown or not, that is up to the manager of fx studio");
- * this side publishes every resolve and knows nobody is listening.
- *
- * ⚠ PURE. Plain objects in, plain objects out: no `game`, no documents, no imports. The spine
- * hands a row the record and a small `ctx` of facts it read off the message (its id, the item and
- * activity a usage card names, the speaker's actor), so a row may default to them; a row's facts
- * are uuids, ids and strings, which is what lets tests/decide-moments.test.js pin every row
- * against fixture records with no Foundry at all.
- *
- * MARKERS. A marker names ONE resolve inside a record so that a record which grows (a saves flag
- * gaining verdicts one target at a time, a receipt gaining entries) publishes each once: a target
- * uuid for per-target arrays, an index or a key for lists, "message" for a record that arrives
- * resolved whole. A revert is its own marker — the undo is a resolve too.
- *
- * WORDS (the contract's vocabulary, version 2). A word names a MECHANISM FAMILY, the way DESIGN §6
- * groups them; the payload's `kind` names the exact record. A consumer keys on either.
+ * Battle Flow — DECISION layer (ARCHITECTURE.md §2): WHAT A RESOLVE IS, once, as data — THE GATE.
+ * A moment resolves when a RECORD lands on a message (the flag is the state), so watching records
+ * catches every resolve, including those of machines not yet written. `MOMENT_RECORDS` has one row
+ * per resolve key (its word(s), what resolving means, and `resolved(record, ctx)` listing each
+ * resolve under a stable MARKER — a target uuid, an index, "message"; a revert is its own marker);
+ * `STATE_KEYS` gives every other key its reason. events.js publishes each marker once, and
+ * tools/check-moments.mjs fails the build on an unclassified key. ⚠ This file CLASSIFIES, never
+ * curates — whether a moment gets a picture is FX Studio's call. ⚠ PURE: no `game`, no imports.
  */
 
 /**
- * The vocabulary — closed; a new word is a contract change (events.js MOMENT_CONTRACT bumps).
+ * The vocabulary — closed; a new word is a contract change (events.js MOMENT_CONTRACT bumps). A
+ * word names a MECHANISM FAMILY; the payload's `kind` names the exact record.
  *   maneuver       a Combat Superiority die resolved (the hit menu, Parry, Precision, Riposte,
  *                  Commander's Strike, the Bonus Action maneuvers and their rides)
  *   sneak          Sneak Attack's dice rode a hit, with the Cunning Strike picks
  *   fold           a die or reroll folded into a d20 test (Bardic, Heroic, Tactical, Seeking;
  *                  Precision also, being a die on an attack), and Tactical Mind's refund; a
- *                  weapon's damage dice rolled again as a set (Savage Attacker, 2026-09-24) or one die (Piercer)
+ *                  weapon's damage dice rolled again as a set (Savage Attacker) or one die (Piercer)
  *   rider          a clock rider's damage rode a hit (Dreadful Strike, Divine Strike, …)
  *   hold-answered  a held roll's reaction was answered — cast OR passed (`details.answer`)
  *   mastery        a weapon mastery's ask resolved (Vex, Sap, Slow, Topple, Push, Graze, Cleave)
@@ -76,8 +43,7 @@ export const MOMENT_WORDS = Object.freeze([
 /* --- small readers, shared by the rows ------------------------------------------------------- */
 
 /**
- * The shapes, once (the comments check wants a doc block on a declaration, so they sit on the
- * first one — decide/demand.js's precedent).
+ * The shapes, once (sitting on the first declaration so the doc block attaches).
  *
  * @typedef {{ uuid: string|null, name?: string|null, hit?: boolean }} TargetRow
  * @typedef {object} MomentFacts
@@ -402,19 +368,17 @@ export const MOMENT_RECORDS = Object.freeze({
     events: ["hold-answered"],
     means: "a held roll's reaction was answered by its target — cast or pass (hold/answer.js, hold/clock.js); one resolve per target with an answer. Parry's die publishes under maneuver too; Stone's Endurance's use does not (reduce.maneuver false, 2026-09-24)",
     resolved: (r, ctx) => (r?.targets ?? []).filter(t => t.answer).map(t => {
-      // A `roll` answer (Slice A, 2026-09-24) names the row that bent the roll — its item, not the
-      // reaction the hold was stamped around — and its spend is a Luck Point or a feature's use,
-      // never a Superiority Die: only Parry's die publishes under `maneuver`.
+      // A `roll` answer names the row that bent the roll — its item, not the hold's reaction — and
+      // its spend is a Luck Point or a use, never a Superiority Die.
       const bent = (t.answer === "roll") ? ((t.rescues ?? []).find(x => x.name === t.rescue) ?? { name: t.rescue ?? null }) : null;
       const item = itemUuid(t.uuid, bent ? (bent.itemId ?? null) : t.itemId);
       const die = !!t.poolSpend && !bent;
       return {
         marker: `${t.uuid}`,
-        // Merged 2026-09-24: a Superiority Die publishes under maneuver (Parry); a use that is not a
-        // maneuver (Stone's Endurance, reduce.maneuver false) and a `roll` rescue's spend do not.
+        // Only a Superiority Die publishes under maneuver (Parry); a non-maneuver use (Stone's
+        // Endurance) and a `roll` rescue's spend do not.
         events: (die && (t.reduce?.maneuver !== false)) ? ["hold-answered", "maneuver"] : ["hold-answered"],
-        // The answerer's client, when the write was the elect's (a relayed answer) — the picture
-        // fired there before this gate existed, and still does.
+        // The answerer's client, when the write was the elect's (a relayed answer).
         publisher: t.answeredBy ?? null,
         facts: { actor: t.uuid ?? null, item, activity: activityUuid(item, bent ? (bent.activityId ?? null) : t.activityId),
           ability: (bent ? bent.name : t.reaction) ?? null, attackId: ctx.messageId,
@@ -695,10 +659,9 @@ export const MOMENT_RECORDS = Object.freeze({
 });
 
 /**
- * EVERY OTHER KEY THE MODULE WRITES, and why it is state rather than a resolve. The checker
- * (tools/check-moments.mjs) fails on a key in neither list — and on a key in both, and on a row
- * here whose key nothing writes any more. ⚠ A reason is a sentence somebody will read; "misc"
- * is how this list becomes a dumping ground, and the checker refuses reasons under 20 characters.
+ * EVERY OTHER KEY THE MODULE WRITES, and why it is state rather than a resolve. The checker fails
+ * on a key in neither list, in both, or listed here but no longer written. ⚠ A reason is a sentence
+ * somebody will read — the checker refuses reasons under 20 characters.
  */
 export const STATE_KEYS = Object.freeze({
   // the hold's lifecycle and provenance

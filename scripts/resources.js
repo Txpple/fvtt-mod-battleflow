@@ -1,55 +1,11 @@
 /**
- * Battle Flow — resource use notices (v1.20.0, the user's ask verbatim: "if an ability has
- * x of y per day or short rest, give a notification like it does on combat plus on turn
- * notice (a screen flash and fade of text). say something like used [ability], x of y
- * remaining").
- *
- * THE NOTICES ARE STATELESS, THE STAMP IS NOT (amended 2026-08-27, the party-stats
- * commission — the original header claimed ZERO NEW STATE, and for the notices that stays
- * true): dnd5e stamps every consumption onto the usage message itself —
- * `message.system.deltas` = { actor: [{keyPath, delta}], item: { itemId: [{keyPath, delta}] } }
- * (measured 2026-08-21, 5.3.3: Activity#consume sets messageConfig.data.system.deltas before
- * the message is created). The message replicates to every client, so every client can read
- * the spend and flash locally — the chat log is the bus, as everywhere in this module. The
- * data plane adds ONE write on top: the elect stamps a `spend` flag beside the deltas (the
- * section at the bottom), because the ledger needs combat context and pool truths resolved AT
- * SPEND TIME, and the handoff's trap 3 forbids the reader re-deriving what this file already
- * derives — one derivation, used by the flash, the card line and the stamp alike.
- *
- * THE RHYTHM GATE (structural, no name list): a spend announces only when its pool's uses
- * carry a RECOVERY period — "x per short rest / long rest / day" is exactly the user's own
- * definition of the abilities worth announcing. That one shape covers every named candidate
- * (Innate Sorcery, sorcery points via Font of Magic, superiority dice, Channel Divinity and
- * Vow of Enmity, Second Wind, Action Surge, Hunter's Mark's free casts, First Light's and
- * the Maul's daily item casts — all measured in the world) and structurally excludes the
- * noise: torches, rations, potions and healer's kits have uses but NO recovery, and spell
- * slots decrement ACTOR keyPaths this reader never looks at. Negative deltas (refunds,
- * Font of Magic regains) stay quiet — this is a "you spent it" notice, not a ledger.
- *
- * THREE POOL SHAPES, all measured in the party:
- *   - item uses           keyPath "system.uses.spent"                    (Second Wind)
- *   - cross-item pool     same keyPath, on the CONSUMED item's id        (Vow of Enmity →
- *                         Channel Divinity; maneuvers → Combat Superiority)
- *   - activity uses       keyPath "system.activities.<id>.uses.spent"    (Favored Enemy's
- *                         free Hunter's Mark)
- *
- * WHO: player-owned actors only, announced to EVERY client — the combatplus turn banner's
- * own publicity. NPC spends never flash anywhere; monster resources are the GM's secret and
- * the GM already sees the card.
- *
- * Surfaces, per the pairing rule's spirit: the FLASH is the attention (combatplus's exact
- * banner idiom — fixed, huge, fades, pointer-events none), the CARD LINE is the durable
- * record (idempotent render decoration; scrollback keeps what was spent). History is inert:
- * only a message younger than 10s flashes, and each flashes once per client.
- *
- * (cc), 2026-08-21 — the flash waits for the ability's own dice: an activity that carries
- * dice still to roll (Second Wind's heal, a damage feat) holds its flash in a pending map
- * and releases when the linked roll message arrives — its origin (`system.origin`) for
- * card-button rolls, the activity uuid for sheet-driven rolls (BOTH measured 2026-08-21;
- * a sheet roll has no enclosing card and never stamps the first key). A 12s fallback means
- * a player who never rolls still flashes. Client-local like everything here: the roll
- * replicates, each client self-resolves, `flashed` still dedupes. The card LINE stays
- * immediate — it is the ledger, not the attention.
+ * Battle Flow — resource use notices: "used [ability], x of y remaining" as a screen flash, plus a
+ * durable line on the usage card. dnd5e stamps every consumption onto the usage message
+ * (`system.deltas`), so every client reads the spend and flashes locally — the chat log is the bus.
+ * THE RHYTHM GATE: a spend announces only when its pool recovers (per short rest / long rest /
+ * day) — no name list; torches and potions have uses but no recovery, and spell slots are actor
+ * keyPaths the notices never read. Refunds stay quiet. Player-owned actors only, shown to every
+ * client; NPC pools are the GM's secret. The elect also stamps a `spend` flag for the ledger.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, statContext } from "./core.js";
 import { poolSpendsOn } from "./shared.js";
@@ -59,21 +15,15 @@ import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
 import { cardItem } from "./lookup.js";
 
 const flashed = new Set();
-// (cc): flashes held for an ability's own dice — usage message id → the armed flash.
+// Flashes held for an ability's own dice — usage message id → the armed flash.
 const pendingFlash = new Map();
 const FLASH_FALLBACK_MS = 12_000;
 
 const isUsage = m => isCard(m, CARD.usage);
 
-/**
- * The qualifying spends on a usage message: [{pool, spent, left, max}]. `left`/`max` are
- * read LIVE off the post-consumption document — the item update commits before the message
- * is created, so by the time any client renders this, the remaining count is the truth.
- */
-// ⚠ MOVED to shared.js `poolSpendsOn` (2026-09-05, user: "a single pass-through function all the
-// maneuvers call so it's uniform"): the same reader now also returns the module's own hand spends
-// (Parry at the hold, the hit menu at the damage — `poolSpend` records written by
-// `spendSuperiorityDie`), so the flash, the card line and every maneuver's subtitle agree.
+// The qualifying spends [{pool, spent, left, max}], read live post-consumption — shared.js
+// `poolSpendsOn`, which also returns the module's own hand spends, so the flash, the card line
+// and every maneuver's subtitle agree.
 const spendRows = message => poolSpendsOn(message);
 
 /** The ability that was used, as the card names it — through the card, so a used-up item still names itself. */
@@ -83,12 +33,8 @@ function usedName(message) {
 
 /**
  * Spell-slot spends on a usage message: [{slot, level, spent, left, max}] — the ledger's rows,
- * not the flash's. The rhythm gate above deliberately excludes slots from the NOTICES (the
- * flash would fire on every leveled cast); the data plane wants them precisely because three
- * of the party's four burn slots, and "spend economy" without slots is not an economy.
- * `left`/`max` are read live off the post-consumption actor, same contract as spendRows.
- * A slot spend arrives as a NEGATIVE delta on the slot's `.value` (a positive one is a
- * regain — Font of Magic conversion — and stays out of a "you spent it" row).
+ * never the flash's (it would fire on every leveled cast). A spend is a NEGATIVE delta on the
+ * slot's `.value`; a positive one is a regain and stays out.
  */
 function slotRows(message) {
   if ( !isUsage(message) ) return [];
@@ -106,9 +52,8 @@ function slotRows(message) {
 }
 
 /* ---------------------------------------------------------------------------------------------
- * The flash — combatplus's turn-banner idiom exactly (fixed, centered, fades, un-clickable),
- * seated lower (26%) so a turn banner and a spend never overlap, stacking downward when two
- * spends land together.
+ * The flash — a turn-banner idiom (fixed, centered, fades, un-clickable), seated at 26% so a turn
+ * banner and a spend never overlap, stacking downward when two spends land together.
  * ------------------------------------------------------------------------------------------- */
 
 function flashBanner(actorName, ability, rows) {
@@ -130,9 +75,8 @@ function flashBanner(actorName, ability, rows) {
 }
 
 /**
- * (cc): does this use's activity carry dice of its own still to roll? Heal formulas and
- * damage parts do (the card offers the roll, or a module fold drives it); utility, attack
- * and save activities do not — attacks and saves run whole machines of their own.
+ * Does this use's activity carry dice of its own still to roll (a heal formula, damage parts)? Its
+ * flash then waits for the roll, with a 12s fallback for a player who never rolls.
  */
 function awaitsOwnDice(message) {
   try {
@@ -149,8 +93,8 @@ function awaitsOwnDice(message) {
   } catch { return false; }
 }
 
-/** (cc): a roll message releases the flash it was holding up — by the card link when the
- * roll has one, by the activity uuid when it came from the sheet. */
+/** A roll message releases the flash it was holding up — by the card link when the roll has one,
+ * by the activity uuid when it came from the sheet (a sheet roll has no enclosing card). */
 function releasePending(message) {
   if ( !pendingFlash.size || !message.rolls?.length ) return;
   const originId = originIdOf(message);
@@ -190,10 +134,8 @@ Hooks.on("createChatMessage", message => {
   flashBanner(actorName, ability, rows);
 });
 
-// A HAND spend arrives as an UPDATE (Parry's answer folds onto the attack message; the hit
-// menu's record rides the damage message's birth flag, which `createChatMessage` above already
-// reads). Same idiom: young messages only, each record flashes once per client, the ability
-// named by the record itself. (2026-09-05, the uniform spend.)
+// A HAND spend arrives as an UPDATE (Parry's answer folds onto the attack message). Same idiom:
+// young messages only, each record flashed once per client, named by the record itself.
 Hooks.on("updateChatMessage", message => {
   if ( !setting(S.resourceNotices) ) return;
   const rows = spendRows(message).filter(r => r.at);
@@ -207,16 +149,11 @@ Hooks.on("updateChatMessage", message => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * The data-plane stamp — the ledger's spend record, written once at spend time (2026-08-27)
- *
- * The ELECT writes it (single-writer discipline — every world write in this module), at
- * CREATION only: the pool truths (`left`/`max`) and the combat context are only honest in the
- * moment of the spend, so there is deliberately no render-resume — a stamp recovered later
- * would carry NOW's turn on last week's spend, which is worse than the reader falling back to
- * the message's own `system.deltas` (always there, just contextless). Unconditional by ruling:
- * no setting gates it — a toggle that silently punches holes in the ledger is a footgun, and
- * the freight is invisible at the table. Player-owned actors only, the same line the notices
- * draw: the party's meters are the commission; NPC pools are the GM's secret either way.
+ * The data-plane stamp — the ledger's spend record, written by the ELECT at CREATION only: the
+ * pool truths and the combat context are honest only at the moment of the spend, so there is no
+ * render-resume (a late stamp would put NOW's turn on an old spend; the reader falls back to
+ * `system.deltas`). No setting gates it — a toggle would punch silent holes in the ledger.
+ * Player-owned actors only, the notices' line.
  * ------------------------------------------------------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {

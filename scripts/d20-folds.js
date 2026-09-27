@@ -1,62 +1,11 @@
 /**
- * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): the post-roll D20 FOLDS.
- *
- * Heroic Inspiration, Tactical Mind and a Bardic Inspiration die — the three surveyed features,
- * built together because they are ONE mechanism (ARCHITECTURE.md §11, "Adding a FOLD").
- * Precision Attack in maneuvers.js is the working template: `activity.use()` where there is an
- * activity, the die posts as its own public message stamped `respondsTo`, the verdict is
- * recomputed ON A MODULE FLAG with the original `Roll` never touched, and `hitTargets` re-reads
- * it and re-drives the chain.
- *
- * ⚠ Depend downward only: core → decide → spine (ui) → here.
- *
- * ---------------------------------------------------------------------------------------------
- * ⚠ THE v1 OF THIS FILE SHIPPED WITH FOUR OF SIX OFFER PATHS DEAD, AND A GREEN SUITE. Every
- * finding below came from the user testing it at the table, not from the checks. Read this
- * before touching the offer half; the arithmetic was never implicated in any of it.
- *
- *   1. `dnd5e.rollAbilityCheckV2` AND `dnd5e.rollSavingThrowV2` DO NOT EXIST. Measured in the
- *      5.3.3 source: `Actor5e##rollD20Test` serves BOTH ability checks and saving throws and
- *      fires only the non-V2 `dnd5e.roll${name}`. Only `#rollSkillTool` fires a V2 pair — and
- *      its tool hook is `rollToolCheck`, not `rollTool`. Registering a hook name that is never
- *      dispatched costs nothing and does nothing, forever, silently. **The suite now asserts
- *      that each hook FIRES** (smoke-d20-folds §4) rather than that it is registered.
- *   2. Saving throws were not hooked at all — neither the native kind nor the demanded kind.
- *   3. A DEMANDED save (Fireball, Shatter, Hold Person) folds its verdict the instant the roll
- *      lands, so an offer arriving afterwards is already too late. saves.js now WITHHOLDS that
- *      fold while an offer is live — see `offerFoldOnSave`.
- *   4. Only the FIRST listed fold was offered. `heroic` is first in the shipped list, so it
- *      masked Tactical Mind and Bardic entirely. The offer is now MULTI-SELECT.
- *   5. Nothing matched a fold to the KIND of roll, so Tactical Mind — an ability-check feature —
- *      was offerable on an attack. Each kind now declares the tests it is legal on.
- *
- * ---------------------------------------------------------------------------------------------
- * THE THREE SPENDS (measured 2026-08-23, dnd5e 5.3.3 + this world's PHB pack)
- *
- *   heroic    has NO ACTIVITY ANYWHERE. `system.attributes.inspiration` is a bare BooleanField
- *             and a boolean is not one of the five consumption kinds, so there is no route to
- *             `use()`. Spending it is a WRITE — what the system's own sheet toggle does.
- *   bardic    lands on the recipient as an ACTIVE EFFECT ("Inspired", 1 hour, transfer:false)
- *             with no item and no activity. Spending it is a DELETE. Its die formula,
- *             `@scale.bard.inspiration`, is a scale value on the GRANTING BARD, read
- *             cross-actor through the effect's `origin`.
- *   tactical  is the only Precision-shaped one: a real utility activity with `roll.formula`
- *             "1d10", consuming `itemUses` against Second Wind.
- *
- * ---------------------------------------------------------------------------------------------
- * WHERE THE MODULE MAY OFFER BY ITSELF (HANDOFF ruling 2b)
- *
- * `Actor5e##rollD20Test` never sets `options.target` for a plain check: dnd5e records no DC for
- * a raw ability check anywhere, because the GM holds it in their head. So the gate exists only
- * where the module OWNS the number:
- *
- *   attack             AC on the attack's own target snapshot   → auto-offer on a clean miss
- *   DEMANDED save      the DC the ask owns                      → auto-offer on a failure
- *   native save        nothing                                  → the player presses a button
- *   ability/skill/tool nothing, ever                            → the player presses a button
- *
- * ⚠ `d20FoldAsk` can turn auto-offering OFF; it cannot turn it on where no number exists.
- * ------------------------------------------------------------------------------------------- */
+ * Battle Flow — MACHINE layer (ARCHITECTURE.md §2): the post-roll D20 FOLDS, the spends that patch
+ * an already-rolled d20 (ARCHITECTURE.md §11, "Adding a FOLD"). The original `Roll` is never
+ * touched: the die posts as its own message stamped `respondsTo` and the verdict is recomputed on
+ * a module flag. The module offers by itself only where it owns the number (an attack's snapshot
+ * AC, a demanded save's DC); a raw check has no DC in dnd5e, so `d20FoldAsk` can turn
+ * auto-offering off but never on. Depend downward only: core → decide → spine (ui) → here.
+ */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries, metamagicEntries, listedNames } from "./settings.js";
@@ -72,19 +21,8 @@ import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, op
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 
-/**
- * THE PER-KIND TABLES ARE VIEWS ONTO `RESCUE_KINDS` (decide/present.js), NOT COPIES.
- *
- * ⚠ ONE COPY OF EACH QUOTE. The rescue view draws the same labels, glyphs, cost sentences and
- * verbatim rules text into its rows, and presentation law 8 says the quote IS the rule — so two
- * copies that drift are the module telling the table something untrue. The strings, and the
- * long arguments for why each of them is per-kind data (the lookup-key/label split, the cost
- * sentences that get two of three wrong if you guess at them), live there now.
- *
- * ⚠ The local names stay because every call site in this file reads better with them, and
- * because a per-kind lookup is exactly what this file wants. `RESCUE_KINDS` also carries
- * `precision`, which is another machine's kind and simply never appears as a `d20fold` key.
- */
+/** Per-kind views onto `RESCUE_KINDS` (decide/present.js) — one copy of each quoted string, since
+ * the rescue view draws the same labels and rules text (presentation law 8: the quote IS the rule). */
 const kindTable = pick => Object.fromEntries(
   Object.entries(RESCUE_KINDS).map(([kind, spec]) => [kind, spec[pick]]));
 const KIND_LABEL = kindTable("label");
@@ -92,13 +30,8 @@ const SPEND_COST = kindTable("cost");
 const labelOf = rescueLabel;
 
 /* =============================================================================================
- * THE SPEND RESOLVERS — one per kind (ARCHITECTURE.md §6 rule 3)
- *
- * ⚠ `tests` is the eligibility half and it is NOT decoration: it is the feature's own trigger,
- * read off its rules text. Tactical Mind says "when you fail an ABILITY CHECK" and is illegal
- * on an attack; the other two say "any die" / "a D20 Test" and reach everything. v1 had no such
- * matching and would have offered Tactical Mind on an attack roll whenever heroic happened to
- * be unavailable — a bug the shipped list ORDER was accidentally hiding.
+ * THE SPEND RESOLVERS — one per kind (ARCHITECTURE.md §6 rule 3). ⚠ `tests` is each feature's
+ * own trigger read off its rules text (Tactical Mind: ability checks only), not decoration.
  * ========================================================================================== */
 
 const HEROIC = {
@@ -106,26 +39,16 @@ const HEROIC = {
   find: actor => ((actor?.type === "character") && (actor.system?.attributes?.inspiration === true))
     ? { kind: "heroic" } : null,
   die: () => null,                                        // a REROLL contributes no die
-  /**
-   * ⚠ THE WRITE IS THE SPEND. dnd5e's consumption kinds are activityUses · itemUses · material ·
-   * hitDice · spellSlots · attribute, and a boolean is none of them; there is no reroll code
-   * anywhere in 5.3.3 either. This is the same update the system's own sheet toggle performs.
-   */
+  /** ⚠ The write IS the spend: a boolean is none of dnd5e's consumption kinds, so there is no
+   * activity to `use()` — this is the sheet toggle's own update. */
   spend: async actor => { await actor.update({ "system.attributes.inspiration": false }); return true; }
 };
 
 /**
  * Tactical Mind — checks only, by its own rules text.
- *
- * ⚠ THE CONSUMPTION TARGET IS A COMPENDIUM UUID ON DISK AND A LOCAL ITEM ID IN MEMORY. The
- * shipped item consumes `itemUses` against
- * `Compendium.dnd-players-handbook.classes.Item.phbftrSecondWind`; dnd5e re-links that to the
- * actor's own copy in `prepareData` (`Activity#_remapConsumptionTarget`), but ONLY via
- * `actor.sourcedItems`, which matches on recorded compendium source. An actor whose Second Wind
- * came from a DDB import or a hand-made copy fails the remap, the target stays a UUID, and the
- * feature would offer NOTHING FOREVER with no error. The pool miss is therefore REPORTED rather
- * than read as "no uses left" — a mis-sourced feature and an exhausted one look identical from
- * outside and only one of them is the table's fault.
+ * ⚠ The consumption target is a compendium UUID on disk, re-linked to the actor's copy only via
+ * `actor.sourcedItems`. A Second Wind from a DDB import or a hand copy fails the remap and would
+ * offer nothing, silently — so a pool miss is REPORTED, not read as "no uses left".
  */
 const TACTICAL = {
   tests: ["check"],
@@ -150,19 +73,14 @@ const TACTICAL = {
   die: marker => marker.activity.roll?.formula || null,
   spend: async (_actor, marker, message) => {
     await marker.activity.use({ subsequentActions: false }, { configure: false }, {
-      // `foldSpend`: this use is the RESCUE's spend, never the sheet's — the arming hook stands
-      // aside (2026-09-05: accepting Ambush on Initiative armed a second die for Stealth).
+      // `foldSpend` marks this use as the rescue's spend, so the sheet-arming hook stands aside.
       data: { ...originData(message.id), flags: { [MODULE_ID]: { foldSpend: message.id } } }
     });
     return true;
   }
 };
 
-/**
- * A Bardic Inspiration die somebody gave you.
- *
- * ⚠ THE DIE IS THE BARD'S, NOT YOURS, and getting that wrong is silent. See `die` below.
- */
+/** A Bardic Inspiration die somebody gave you. ⚠ The die is the BARD's (see `die`). */
 const BARDIC = {
   tests: ["attack", "save", "check"],
   find: (actor, entry) => {
@@ -179,20 +97,10 @@ const BARDIC = {
       return null;
     }
     /**
-     * ⚠ RESOLVED HERE, AGAINST THE BARD, AND IT MUST BE — measured in the sandbox 2026-08-23,
-     * and this is the most dangerous line in the file:
-     *
-     *     new Roll("@scale.bard.inspiration", bard.getRollData())      → "1d8", total 7   ✅
-     *     new Roll("@scale.bard.inspiration", recipient.getRollData()) → "0",    total 0   ⚠
-     *
-     * The second does NOT throw and does NOT warn. An unresolved `@scale` token collapses to
-     * literal zero, so handing the raw token to the recipient's roll data would spend a real
-     * Bardic die, post a public roll, and add EXACTLY NOTHING — a wrong number that reads as an
-     * unlucky one. Resolving to a literal here makes the recipient's roll data irrelevant.
-     *
-     * ⚠ `ScaleValueTypeDice` carries `formula`/`die` ("d8") as GETTERS — `JSON.stringify` shows
-     * only `{number, faces, modifiers}`, so a serialized snapshot looks like it has no formula.
-     * Never stringify the object into a formula; refuse anything that is not a plain string.
+     * ⚠ Resolved against the BARD, and it must be: `@scale.bard.inspiration` against the
+     * recipient's roll data collapses to a literal 0 with no error — a spent die that adds nothing.
+     * ⚠ `ScaleValueTypeDice` exposes `formula`/`die` as getters (absent from JSON); accept only a
+     * plain string, never stringify the object.
      */
     const scale = foundry.utils.getProperty(bard.getRollData(), "scale.bard.inspiration");
     const formula = scale?.formula ?? scale?.die ?? null;
@@ -208,11 +116,9 @@ const BARDIC = {
 };
 
 /**
- * Seeking Spell (the metamagic pass, Stage 4, 2026-09-09) — a SPELL attack's miss, by the option's
- * own text; a REROLL like heroic, paid from Font of Magic BY HAND (the uniform spend — the record
- * lands on the attack message, where the flash and the card line read it). The option must stand
- * on the sheet AND be admitted by the Metamagic list, the option's own switch; its cost is its
- * activity's consumption value, read live (N1).
+ * Seeking Spell — a SPELL attack's miss, rerolled, paid from Font of Magic by hand (the record
+ * lands on the attack message). The option must be on the sheet AND admitted by the Metamagic
+ * list; its cost is its activity's consumption value, read live (N1).
  */
 const SEEKING = {
   tests: ["attack"],
@@ -237,13 +143,11 @@ const SEEKING = {
 };
 
 /**
- * Lucky's Advantage on an INITIATIVE rolled with no dialog (2026-09-25, the Halfling walk; ruled
- * "After the roll"): the carousel and Roll All reach `Combat#rollInitiative`, which has no pause
- * before its dice, so the gate's box (advantage-buys.js) never shows there. The buy is offered on
- * the roll instead — a second d20 with the roll's own modifiers (the reroll's rebuild), the HIGHER
- * standing, one of the item's uses spent by hand (the uniform spend). ⚠ A bend in RULINGS'
- * register: the player sees the first die before choosing. Offered only on a plain roll the box
- * never met (`stampInitiative`): a roll already at Advantage gains nothing (Remarkable Athlete).
+ * Lucky's Advantage on an initiative rolled with no dialog (the carousel, Roll All):
+ * `Combat#rollInitiative` has no pause before its dice, so the gate's box never shows. Offered
+ * after the roll instead — a second d20 with the roll's own modifiers, the HIGHER standing, one
+ * use spent by hand; a bend in RULINGS *Where the table bends the rule*. Only on a plain roll the
+ * box never met (`stampInitiative`).
  */
 const ADVANTAGE = {
   tests: ["initiative"],
@@ -266,11 +170,9 @@ const ADVANTAGE = {
 };
 
 /**
- * Guarded Mind (the PHB feats, group 4, 2026-09-27 — Mage Slayer): a FAILED Intelligence, Wisdom or
- * Charisma save made a success, once per Short or Long Rest (SAVE_SUCCEEDS). Nothing is rolled: the
- * spend is the feature's own activity (its consumption takes the item's use — dnd5e's, P2), and the
- * contribution is the verdict (decide/verdict.js). Offered on the saves the row names only — the
- * save's ability rides the roll (`ctx.ability`).
+ * Guarded Mind (Mage Slayer): a FAILED Int/Wis/Cha save made a success, once per rest
+ * (SAVE_SUCCEEDS). Nothing is rolled — the spend is the feature's own activity and the
+ * contribution is the verdict. The save's ability rides the roll (`ctx.ability`).
  */
 const SUCCEED = {
   tests: ["save"],
@@ -297,15 +199,10 @@ const SUCCEED = {
 };
 
 const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE, succeed: SUCCEED };
-/** The kinds that REPLACE the d20 rather than add to it — heroic, Seeking Spell since 2026-09-09, and
- * Lucky's Advantage since 2026-09-25 (its replacement is the HIGHER of the two — `resolveFold`). */
+/** The kinds that REPLACE the d20 rather than add to it (Lucky's Advantage keeps the HIGHER — `resolveFold`). */
 const REROLL_KINDS = new Set(["heroic", "seeking", "advantage"]);
-/** The kinds whose contribution is the VERDICT — nothing rolled, nothing added (Guarded Mind, 2026-09-27). */
+/** The kinds whose contribution is the VERDICT — nothing rolled, nothing added. */
 const VERDICT_KINDS = new Set(["succeed"]);
-
-// The bard behind an Inspired effect — `origin` is their ITEM, and the actor is its parent — is
-// `grantingActor` in shared.js since 2026-09-01: the reminder gate's Sapped-by line is the same
-// question, and a second copy is the drift ARCHITECTURE §5 warns about.
 
 /** Warn once per distinct cause — the list parsers' discipline, applied to content problems. */
 const warned = new Set();
@@ -320,33 +217,27 @@ const scopeOf = entry => (entry.kind === "tactical")
   ? (Object.entries(SUPERIORITY_FOLDS).find(([k]) => k.toLowerCase() === String(entry.name ?? "").toLowerCase())?.[1] ?? null) : null;
 
 /**
- * EVERY listed fold this actor can spend on THIS KIND of test, in list order.
- *
- * ⚠ v1 returned the first match and stopped, which meant `heroic` — first in the shipped list —
- * masked Tactical Mind and Bardic completely. Three separate table reports, one cause. The
- * table curates the list; it does not thereby choose which resource a player burns.
- *
- * `spent` excludes kinds already used on this roll, so the re-offer after a fold resolves does
- * not offer the same die twice.
+ * EVERY listed fold this actor can spend on THIS KIND of test, in list order — never just the
+ * first (the list's order must not choose which resource a player burns). `spent` excludes what
+ * this roll already used, so a re-offer never offers the same die twice.
  *
  * @param {Actor} actor
  * @param {"attack"|"save"|"check"|"initiative"} testKind
  * @param {string[]} [spent]
- * @param {{skill?: string|null, spell?: boolean, ability?: string|null}} [ctx]   the check's skill, for a
- *        scoped entry (Ambush: Stealth only); the save's ability, for a `succeed` row (Guarded Mind: Int/Wis/Cha)
+ * @param {{skill?: string|null, spell?: boolean, ability?: string|null}} [ctx]   the check's skill (a scoped
+ *        entry: Ambush is Stealth only); the save's ability (a `succeed` row: Int/Wis/Cha)
  */
 function availableFolds(actor, testKind, spent = [], ctx = {}) {
   const out = [];
   for ( const entry of d20FoldEntries() ) {
     const spec = KINDS[entry.kind];
     if ( !spec ) continue;
-    // A SCOPED entry (2026-09-05): the feature's own text says which checks — and whether
-    // Initiative — it adds the die to; Tactical Mind's "any check" is the unscoped default.
+    // A SCOPED entry: the feature's text says which checks (and whether Initiative) it reaches.
     const scope = scopeOf(entry);
     const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : spec.tests;
     if ( !tests.includes(testKind) ) continue;
     if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
-    if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows (2026-09-05)
+    if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows can stand
     const marker = spec.find(actor, entry, ctx);
     if ( !marker ) continue;
     let dieFormula = spec.die(marker);
@@ -355,13 +246,11 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
       dieFormula = resolveDie(actor, dieFormula);
     }
     if ( !REROLL_KINDS.has(entry.kind) && !VERDICT_KINDS.has(entry.kind) && !dieFormula ) continue;   // a die-kind with no die is off
-    // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
-    // For `bardic` those genuinely differ — "Inspired" vs "Bardic Inspiration". See KIND_LABEL.
-    // A scoped entry is called by its own name (Ambush is not Tactical Mind on a card).
-    // An `advantage` offer (Lucky, 2026-09-25) says its own cost and quotes its own row.
+    // ⚠ `name` is the LOOKUP KEY (the item or effect); `label` is what the table reads — they
+    // differ for `bardic` ("Inspired" vs "Bardic Inspiration"). A scoped entry is called by its
+    // own name; an `advantage` offer states its own cost and rule.
     const buy = (entry.kind === "advantage") ? { cost: `1 ${marker.row.point} · ${Number(marker.item.system.uses.value ?? 0)} left`,
       rule: marker.row.rule } : {};
-    // A `succeed` offer (Guarded Mind, 2026-09-27) is called by its BENEFIT's name and quotes its row.
     const succeed = (entry.kind === "succeed") ? { label: marker.row.label, rule: marker.row.rule,
       cost: `${RESCUE_KINDS.succeed.cost} · ${marker.left} left` } : {};
     out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
@@ -406,12 +295,11 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
     if ( message.getFlag(MODULE_ID, "d20fold") ) return;            // never re-stamp
     const roll = rolls[0];
 
-    // A SPELL attack (2026-09-09): Seeking Spell's fit — carried on the flag for the re-offer.
+    // A SPELL attack is Seeking Spell's fit — carried on the flag for the re-offer.
     const spell = subject.item?.type === "spell";
     let offers = availableFolds(attacker, "attack", [], { spell });
-    // ⚠ A natural 1 stands for the ADD kinds — precision's fence, same reason: no die added to a
-    // fumble un-fumbles it. It does NOT stand for `heroic`, because a reroll replaces the die
-    // outright and rerolling a 1 is the entire point of the feature.
+    // ⚠ A natural 1 stands for the ADD kinds (no added die un-fumbles it), but not for a reroll,
+    // which replaces the die outright.
     if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
     if ( !offers.length ) return;
 
@@ -434,21 +322,12 @@ Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
 });
 
 /**
- * CHECKS AND NATIVE SAVES — no DC exists, so these stamp an OFFER and never a gate.
+ * CHECKS AND NATIVE SAVES — no DC exists, so these stamp an OFFER, never a gate. The offer still
+ * runs the house clock (law 11), resolving to `pass` at no cost; `holdTimer: 0` stamps no deadline.
  *
- * ⚠ THEY CARRY THE SAME CLOCK AS EVERY OTHER MOMENT. v1 stamped these with no window, on the
- * reasoning that an offer nobody is waiting on should not run a timer. That was wrong twice
- * over once the offer started popping (user ruling): law 11 says **every moment has a clock
- * that RESOLVES it**, and a modal with no clock is a modal that sits on screen until somebody
- * clicks it — which is precisely the stale-popup state law 4 calls a lie on screen. The clock
- * here resolves to `pass` and spends nothing, so the cost of letting it run out is zero.
- * ⚠ `holdTimer: 0` is still the documented "wait forever" escape hatch — a zero window stamps
- * no deadline at all, and `armAskTimer` has nothing to arm.
- *
- * ⚠ THE HOOK NAMES ARE THE ONES THE SYSTEM ACTUALLY DISPATCHES, not the V2 names the rest of
- * the module uses. `#rollD20Test` (ability checks AND saving throws) fires only the non-V2
- * name; `#rollSkillTool` fires both, and calls the tool one `rollToolCheck`. Getting this wrong
- * is invisible — see the header. smoke-d20-folds §4 asserts each one fires.
+ * ⚠ These are the names the system DISPATCHES: `#rollD20Test` (checks and saves) fires only the
+ * non-V2 hook; `#rollSkillTool` fires both, the tool one as `rollToolCheck`. A name never
+ * dispatched fails silently — smoke-d20-folds §4 asserts each one fires.
  */
 const PLAIN_HOOKS = [
   ["dnd5e.rollAbilityCheck", "check"],
@@ -464,18 +343,15 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       const message = rolls?.[0]?.parent;
       if ( !(message instanceof ChatMessage) ) return;
       if ( message.getFlag(MODULE_ID, "d20fold") ) return;
-      // ⚠ A DEMANDED save is handled by saves.js through `offerFoldOnSave`, which knows the DC
-      // and can therefore gate on the failure. Stamping here as well would put an ungated
-      // button on the same message and race the withheld verdict.
+      // ⚠ A DEMANDED save is offered through `offerFoldOnSave`, which knows the DC and gates on the
+      // failure; stamping here too would put an ungated offer on it and race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
-      // …and so is a CONCENTRATION save answering the module's check (2026-09-27): the check owns the DC
-      // and withholds its verdict (concentration.js), so the offer comes only on a failure.
+      // …and so is a CONCENTRATION save answering the module's check (concentration.js owns its DC).
       if ( (testKind === "save") && rolls?.[0]?.options?.isConcentration && pendingDemandsFor(subject.uuid, { flagKey: "concentration" }).length ) return;
-      const skill = data?.skill ?? null;   // the skill hook's own data (dnd5e 5.3.3: `{ ability, skill|tool, subject }`)
-      // The save's ability (dnd5e 6.0.5: `{ ability, subject }`) — a `succeed` row reaches some saves only.
+      const skill = data?.skill ?? null;   // the skill hook's own data: `{ ability, skill|tool, subject }`
+      // The save's ability (the hook's `{ ability, subject }`) — a `succeed` row reaches some saves only.
       const ability = (testKind === "save") ? (data?.ability ?? null) : null;
-      // A maneuver ARMED from the sheet (Tactical Assessment, Ambush) folds in by itself; the
-      // other folds the check admits are offered after, inside that stamp.
+      // A maneuver ARMED from the sheet folds in by itself; the check's other folds are offered after.
       if ( (testKind === "check") && await applyArmedFold(message, subject, testKind, { skill }) ) return;
       const offers = availableFolds(subject, testKind, [], { skill, ability });
       if ( !offers.length ) return;
@@ -490,11 +366,9 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
 }
 
 /**
- * INITIATIVE (2026-09-05, Ambush): the one d20 the module otherwise never meets. dnd5e fires
- * `dnd5e.rollInitiative(actor, combatants)` after the combatant's number is set; the roll's own
- * message is the last initiative message this actor authored. A scoped fold (Ambush) is offered
- * there; accepting it re-sets the combatant's initiative to the composed total — a fold, the
- * original roll standing as history (DESIGN §4).
+ * INITIATIVE — the one d20 the module otherwise never meets. A scoped fold (Ambush) or Lucky's
+ * Advantage is offered on the roll's message; accepting re-sets the combatant's initiative to the
+ * composed total, the original roll standing (DESIGN §4).
  */
 const initiativeStamps = new Set();   // same-client latch: the two roads below can meet on one message
 async function stampInitiative(actor, combatants, message) {
@@ -504,10 +378,9 @@ async function stampInitiative(actor, combatants, message) {
   initiativeStamps.add(message.id);
   try {
     const total = Number(message.rolls?.[0]?.total ?? combatants?.[0]?.initiative ?? 0);
-    // Ambush ARMED from the sheet folds in by itself (the armed block below).
     if ( await applyArmedFold(message, actor, "initiative", { combatants: combatants ?? [], total }) ) return;
-    // Lucky's Advantage (2026-09-25) only on a PLAIN roll the gate's box never met: a roll already
-    // at Advantage gains nothing from it, and a dialog that showed the box was the choice.
+    // Lucky's Advantage only on a PLAIN roll the gate's box never met: a roll already at
+    // Advantage gains nothing from it, and a dialog that showed the box was the choice.
     const roll = message.rolls?.[0] ?? null;
     const plain = !roll?.options?.bfBuyShown && !(Number(roll?.options?.advantageMode) > 0)
       && !(Number(roll?.options?.advantageMode) < 0);
@@ -534,13 +407,10 @@ Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
   }
 });
 
-// ⚠ THE COMBAT TRACKER'S ROLL BUTTON NEVER FIRES `dnd5e.rollInitiative` (measured 2026-09-05,
-// the walk: "ambush works for stealth, but does not work for initiative"). `Combat#rollInitiative`
-// rolls through the combatant, updates the initiative, then creates the roll message — it does
-// not pass through `Actor5e#rollInitiative`, where dnd5e's hook lives. The message itself is
-// the platform's own witness (`flags.core.initiativeRoll`), authored by the rolling client,
-// and by the time it exists the combatant's number is already set. Both roads meet on the
-// same stamp; the latch above and the `d20fold` check keep it to one.
+// ⚠ The combat tracker's roll button never fires `dnd5e.rollInitiative`: `Combat#rollInitiative`
+// bypasses `Actor5e#rollInitiative`. Its message (`flags.core.initiativeRoll`, authored by the
+// rolling client, the number already set) is the witness; the latch and the `d20fold` check keep
+// the two roads to one stamp.
 Hooks.on("createChatMessage", async message => {
   try {
     if ( !message.getFlag("core", "initiativeRoll") || !message.isAuthor ) return;
@@ -563,22 +433,13 @@ const armFoldTimer = message =>
   armAskTimer(foldTimers, message, "d20fold", live => answerFold(live, "pass", { timedOut: true }));
 
 /* =============================================================================================
- * THE DEMANDED-SAVE EDGE — the one export, and the only one
- *
- * ⚠ WHY THIS EXISTS AT ALL. Fireball, Shatter and Hold Person all demand saves through saves.js,
- * which folds and APPLIES the verdict the instant the roll lands. An offer arriving afterwards
- * is already too late — the damage is on the sheet. Three table reports in one session; the v1
- * decision to defer this path was simply wrong.
- *
- * ⚠ WITHHOLD, DO NOT UNDO. saves.js pauses its verdict while this offer is live, exactly as a
- * reaction hold pauses an attack chain. That keeps this clear of §11 rule 4's auto-revert debt:
- * nothing has been applied yet, so nothing has to be taken back.
- *
- * Returns true when an offer was stamped and the caller must NOT fold yet.
+ * THE DEMANDED-SAVE EDGE. The save machine folds and APPLIES a demanded save's verdict as the roll
+ * lands, so an offer afterwards would be too late. ⚠ WITHHOLD, DO NOT UNDO: the verdict pauses
+ * while this offer is live, so nothing applied ever has to be reverted. `offer` returns true when
+ * it stamped and the caller must NOT fold yet.
  * ========================================================================================== */
-// Declared to the spine's withhold registry (Stage 3b, 2026-09-05): saves.js asks the spine at
-// its fold where it used to import this function. `by` names the machine to hand the verdict
-// back to; it rides the resume stamp (additive) so a reload knows who is owed.
+// Declared to the spine's withhold registry; `by` names the machine to hand the verdict back to,
+// riding the resume stamp so a reload knows who is owed.
 registerWithhold("d20fold", {
   offer: (rollMessage, { by, card, uuid, total, dc }) => offerFoldOnSave(rollMessage, card, uuid, total, dc, by)
 });
@@ -591,7 +452,7 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     if ( !Number.isFinite(dc) || !Number.isFinite(total) || (total >= dc) ) return false;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) || !modeAllows(actor) ) return false;
-    // The save's ability, off the roll's own message (dnd5e 6.0: `system.ability`) — Guarded Mind's reach.
+    // The save's ability, off the roll's own message (`system.ability`) — Guarded Mind's reach.
     const ability = rollMessage.system?.ability ?? null;
     const offers = availableFolds(actor, "save", [], { ability });
     if ( !offers.length ) return false;
@@ -612,8 +473,7 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
 }
 
 /** Finish a verdict another machine withheld for us — win, lose or pass, the save must resolve.
- * Handed back through the spine (Stage 3b): this used to be a lazy import of saves.js, the
- * cycle's return edge. A resume stamped before `by` existed falls to the one machine registered. */
+ * A resume stamped without `by` falls to the one machine registered. */
 async function resumeWithheldSave(flag, rollMessage) {
   if ( !flag?.resume ) return;
   try {
@@ -634,17 +494,9 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
   await queueFlagWrite(message, "d20fold", current => {
     if ( (current.status !== "pending") || current.answer ) return;
     if ( (answer !== "pass") && !(current.offers ?? []).some(o => offerAnswers(o, answer)) ) return;
-    /**
-     * ⚠ THE SPEND-GUARD, AND IT LIVES INSIDE THE LOCK ON PURPOSE (§11 / D3: the state a guard
-     * tests must be the state it writes). Between the window rendering and this click, a
-     * SIBLING machine can have fixed the roll — and this resolver used to spend first and
-     * compose afterwards, so the die was already gone by the time anything noticed. That is
-     * the wasted-spend trap: a real Bardic die deleted for a roll that no longer needed one.
-     *
-     * ⚠ CHECKING IT OUTSIDE THE LOCK WOULD NOT BE ENOUGH. Two answers can land in the same
-     * tick; the serializer is what makes "still failing" and "answer claimed" one decision
-     * instead of two that can disagree.
-     */
+    // ⚠ THE SPEND-GUARD, inside the lock on purpose: a sibling machine can have fixed the roll
+    // since the window rendered, and only the serializer makes "still failing" and "answer
+    // claimed" one decision — otherwise a real die is spent for a roll that no longer needs it.
     if ( (answer !== "pass") && !foldPremiseAlive(message, current) ) {
       current.status = "resolved";
       current.outcome = "no longer needed";
@@ -662,7 +514,6 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
     claimed = true;
   });
   if ( withdrawn ) {
-    // Nothing was burned, and the window is stale — the spine closes it on the update.
     disarmAskTimer(foldTimers, message.id);
     return;
   }
@@ -677,9 +528,8 @@ async function answerFold(message, answer, { timedOut = false } = {}) {
 }
 
 /**
- * Does this offer answer to this token? A kind alone for the one-row kinds (`heroic`, `bardic`,
- * and a lone `tactical`), or `tactical:<name>` where two tactical rows stand (Tactical Mind AND
- * Ambush on one Stealth check — 2026-09-05, the walk: the window keyed both by kind).
+ * Does this offer answer to this token? A kind alone, or `tactical:<name>` where two tactical rows
+ * stand (Tactical Mind AND Ambush on one Stealth check).
  */
 const offerAnswers = (o, answer) => (o.kind === answer) || (`${o.kind}:${o.name}` === answer);
 
@@ -697,20 +547,17 @@ async function resolveFold(message, answer) {
     const spec = kind ? KINDS[kind] : null;
     if ( !spec || !offer ) return;
 
-    // ⚠ THE RESUME GATE (the 2026-09-10 review). A spend recorded on the flag with its verdict still
-    // pending means a resolver got as far as the dice and died before composing - the crash-resume
-    // (twenty seconds on, below) lands here. It must not spend or roll again: it composes.
+    // ⚠ THE RESUME GATE: a spend recorded with its verdict still pending means a resolver died
+    // after the dice and before composing; the crash-resume lands here and must compose, never
+    // spend or roll again.
     const already = (flag.spends ?? []).some(sp => sp.pendingVerdict && (sp.kind === kind) && ((sp.name ?? sp.kind) === (offer.name ?? kind)));
     let spends;
     let marker = null;   // the sheet's own marker; a resume has none to find, the spend already took it
     if ( already ) {
       spends = flag.spends ?? [];
     } else {
-      // ⚠ RE-FIND AT RESOLVE TIME, never trust the stamp. Minutes can pass inside the window and
-      // the marker can be gone — the boolean toggled off on the sheet, the effect expired, the
-      // last Second Wind spent elsewhere. Recording a spend that did not happen shipped a lie
-      // once (ui.js:407); spending something no longer there is the same lie in reverse.
-      // The find takes the roll's context too (Seeking Spell fits a SPELL attack alone — carried on the flag).
+      // ⚠ RE-FIND AT RESOLVE TIME, never trust the stamp: the marker can be gone after minutes in
+      // the window (toggled off, expired, spent elsewhere). The find takes the roll's context too.
       marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell, ability: flag.ability ?? null });
       if ( !marker ) {
         await queueFlagWrite(message, "d20fold", current => {
@@ -721,10 +568,8 @@ async function resolveFold(message, answer) {
         return;
       }
 
-      // ⚠ AND AGAIN HERE, because `resolveFold` has a second caller: the elect's crash-resume
-      // picks up an accepted answer whose client died, up to twenty seconds later, and the roll
-      // can have been fixed in between. Re-finding the marker was already the rule at this line
-      // ("never trust the stamp"); re-checking the PREMISE is the same rule about the roll.
+      // ⚠ And re-check the PREMISE: the crash-resume can reach here up to twenty seconds late, and
+      // the roll can have been fixed in between.
       if ( !foldPremiseAlive(message, flag) ) {
         await queueFlagWrite(message, "d20fold", current => {
           if ( current.status !== "pending" ) return false;
@@ -740,7 +585,7 @@ async function resolveFold(message, answer) {
       if ( !(await spec.spend(actor, marker, message)) ) return;
 
       // 2. The new number, public, stamped so no other recognizer can claim it. A VERDICT kind
-      //    (Guarded Mind, 2026-09-27) rolls nothing: the spend above was the whole of it.
+      //    (Guarded Mind) rolls nothing: the spend was the whole of it.
       let rolled = null;
       let rolledMessage = null;
       if ( !VERDICT_KINDS.has(kind) ) {
@@ -748,16 +593,13 @@ async function resolveFold(message, answer) {
           ? await rerollOf(message, actor)
           : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
         if ( !rolled ) return;
-        // Lucky's Advantage (2026-09-25): the second d20 is rolled as a reroll is, and the HIGHER of
-        // the two stands — the replacement recorded is whichever roll that is, its crit with it.
+        // Lucky's Advantage: the HIGHER of the two d20s stands, its crit with it.
         if ( kind === "advantage" ) {
           const first = message.rolls?.[0];
           if ( first && (Number(first.total) > Number(rolled.summary.total)) ) {
             rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
           }
         }
-        // the fold over the roller, on every client — each modifies a roll already made (RULINGS, the
-        // dice that rise): a die added as "+N", a reroll turning over, Lucky's two d20s
         const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
         const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
           oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
@@ -769,19 +611,10 @@ async function resolveFold(message, answer) {
         });
       }
 
-      // 3. Record the spend, then compose the verdict across EVERY fold on this message.
-      //
-      // ⚠ THE 2026-08-23 RULING, OBEYED RATHER THAN QUOTED, and not hypothetical: maneuvers.js
-      // registers `dnd5e.rollAttackV2` BEFORE this file, so a Battle Master holding Heroic
-      // Inspiration is offered a Precision die AND a fold on the same missed attack. Announcing
-      // `baseTotal + die` here would ignore a superiority die already spent on the same roll and
-      // disagree with `hitTargets`, which walks the whole registry. Compose ONCE, through the
-      // path every other reader uses.
-      // 2b. RECORD THE SPEND NOW, BEFORE THE DICE ARE WAITED OUT (the 2026-09-10 review). The pause
-      // below is seconds; a resolver that dies inside it used to leave a flag that said "answered,
-      // nothing spent" - and the crash-resume, twenty seconds on, would spend AGAIN. The entry is
-      // written with `pendingVerdict` so the resume gate at the top can tell an in-flight spend from a
-      // finished one, and the verdict write strips the marker.
+      // 3. Record the spend, then compose the verdict across EVERY fold on this message — a Battle
+      //    Master can have spent a Precision die on the same roll, and `hitTargets` walks them all.
+      //    ⚠ Recorded BEFORE the dice pause, with `pendingVerdict`, so a resolver that dies inside
+      //    the pause is composed for by the crash-resume, never spent for twice.
       const entry = {
         kind, name: offer.name, label: offer.label, pendingVerdict: true,
         ...(VERDICT_KINDS.has(kind) ? { verdict: "saved" }
@@ -793,54 +626,27 @@ async function resolveFold(message, answer) {
       });
       spends = [...(flag.spends ?? []), entry];
 
-      // THE DICE LAND BEFORE THE VERDICT (user, 2026-09-10, of Seeking: "the dice so nice should roll
-      // again"). The die already rode its own message and Dice So Nice already animated it - but the
-      // verdict below was composed onto the attack card in the same tick, so the answer was on screen
-      // before the dice had finished and the reroll never read as one. The pause is the spine's
-      // (capped, cosmetic, never blocking); every verdict in the module keeps this order.
+      // The dice land BEFORE the verdict: the spine's pause (capped, cosmetic) lets the die's
+      // animation finish before the answer is on the card.
       if ( rolledMessage ) await dramaticVerdictPause(rolledMessage);
     }
     const pending = { ...flag, status: "resolved", outcome: "used", spends };
-    /**
-     * ⚠ PICK THE SPEC SET BY TEST KIND. This defaulted to `ATTACK_FOLDS` and that was a real
-     * bug the table caught: the attack spec walks `flag.targets` (an attack is one roll judged
-     * against many targets), so on a CHECK or a SAVE — which have no `targets` at all — it
-     * returned an EMPTY fold list and the die contributed nothing. Tactical Mind spent a use of
-     * Second Wind, rolled its 1d10 in public, and then announced the unchanged total.
-     *
-     * ⚠ The save VERDICT was never wrong, because saves.js composes it itself through
-     * `SAVE_FOLDS` — which is exactly what made this hard to see: the number on the save card
-     * was right while the number on the fold's own card was not. That divergence is the
-     * "card disagrees with its own arithmetic" class receipt arithmetic was unified to kill,
-     * and it reappeared here because this resolver reached for the default instead of choosing.
-     */
+    // ⚠ The spec set is picked BY TEST KIND (`foldFolds`): the attack spec walks `flag.targets`,
+    // which a check or save does not have, and would compose nothing.
     const folds = foldFolds(message, pending);
     const baseRoll = foldBase(message, flag);
-    /**
-     * ⚠ ONE TARGET'S SLICE, NOT THE WHOLE LIST — the multi-target trap, and the twin of the
-     * bug this resolver's precision counterpart shipped. An attack is ONE roll judged against
-     * MANY targets, so `ATTACK_FOLDS` holds a contribution per (target × spend): two missed
-     * targets and one bardic die is TWO `add`s of that die, and summing them announces a
-     * number nobody rolled and stores it as `foldedTotal`. `foldedVerdict` has always filtered
-     * by uuid, so the VERDICTS were right the whole time and only the sentence lied — the
-     * "card disagrees with its own arithmetic" class again, one level up from the verdict.
-     *
-     * ⚠ Why one target's slice is the whole roll's number: every ATTACKER-side contribution is
-     * the same for every target (the spend list does not vary by who was swung at), and the
-     * only per-target contribution is the defence-side `ac`, which `foldedRoll` does not read.
-     * A save or a check has no target dimension at all — `SAVE_FOLDS` yields one contribution
-     * per spend — so that side composes flat, exactly as it always has.
-     */
+    // ⚠ ONE TARGET'S SLICE on an attack: `ATTACK_FOLDS` holds a contribution per target × spend,
+    // so summing them all double-counts a die. Every attacker-side contribution is the same for
+    // every target, and the per-target `ac` is not read by `foldedRoll`.
     const composed = (flag.testKind === "attack")
       ? foldedRoll(baseRoll, folds.filter(f => f.uuid === flag.targets?.[0]?.uuid))
       : foldedRoll(baseRoll, folds);
 
-    // What is still available AFTER this spend — the re-offer (finding 6).
-    // By NAME (2026-09-05): spending Ambush must not hide Tactical Mind, its kind-mate, from the re-offer.
+    // What is still available AFTER this spend — the re-offer. By NAME: spending Ambush must not
+    // hide Tactical Mind, its kind-mate.
     const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell, ability: flag.ability ?? null });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
-    // A save made a success outright (Guarded Mind) — there is no arithmetic to state, only the verdict.
     const succeeded = folds.some(f => f.verdict === "saved");
 
     const lines = [];
@@ -852,23 +658,9 @@ async function resolveFold(message, answer) {
       current.offers = reoffer ? remaining : [];
       current.status = reoffer ? "pending" : "resolved";
       if ( !reoffer ) current.outcome = "used";
-      /**
-       * ⚠ THE RE-OFFER DOES NOT GET A FRESH DEADLINE, and this line used to do exactly that
-       * (user ruling, 2026-08-24: "no — the clock is for resolution of everything, so no
-       * resetting"). ONE clock covers resolving the whole moment.
-       *
-       * ⚠ THE ARGUMENT THAT PUT THE REFRESH HERE DID NOT SURVIVE THE MERGED WINDOW, which is
-       * why this is a deletion rather than a disagreement. It reasoned that "an offer that
-       * expires before it is shown is worse than not offering at all" — true of a popup that
-       * had not been SHOWN yet, back when each spend re-popped its own window. In the rescue
-       * view every surviving row has been on screen since the first stamp; a spend re-renders
-       * rows in place and introduces no stranger. The premise is gone, so the refresh goes.
-       *
-       * ⚠ AND THE CONSEQUENCE IS DELIBERATE: spend at the fourteenth second of a fifteen-second
-       * window and the survivor has one second, then passes. That is what "one clock for the
-       * whole decision" MEANS, and it is the reading that cannot drift — a clock that any spend
-       * could extend has no answer to how many times.
-       */
+      // ⚠ The re-offer keeps the ORIGINAL deadline: one clock resolves the whole moment, so a
+      // spend late in the window leaves the survivor little time. A clock any spend could extend
+      // has no bound.
       if ( !reoffer ) delete current.deadline;
       if ( current.testKind === "attack" ) {
         for ( const t of current.targets ?? [] ) {
@@ -885,29 +677,23 @@ async function resolveFold(message, answer) {
           : "<strong>The save succeeds instead.</strong>");
       } else if ( Number.isFinite(current.dc) ) {
         const made = composed.total >= current.dc;
-        // A check that carried a DC (a requested one) passes; only a save "saves" (the walk, 2026-09-24).
+        // A check that carried a DC (a requested one) passes; only a save "saves".
         lines.push(`${sumText(flag, composed)} vs DC ${current.dc} — `
           + (made ? `<strong>${(current.testKind === "save") ? "now saves" : "now passes"}</strong>` : "still fails"));
       } else {
-        // ⚠ NO VERDICT WITHOUT A DC — the finding, showing up in the prose. The module does not
-        // know a raw check's DC, so it states the ARITHMETIC and stops (presentation law 5).
+        // ⚠ No verdict without a DC: a raw check's DC is unknown, so state the arithmetic and stop
+        // (presentation law 5).
         lines.push(`${sumText(flag, composed)} — the roll now totals <strong>${composed.total}</strong>.`);
       }
     });
 
-    // THE REFUND IS ASKED, NOT LEFT TO THE TABLE (user, 2026-09-11: "its time to add the refund
-    // button"). Tactical Mind is the one fold whose rule hands the use back, and the module still
-    // cannot decide it (no DC for a raw check — NOTES). So the settle card points at the ask the
-    // refund block below raises once this card is posted; see `askRefund` for the shape.
-    // ⚠ ASKED WITH A DC TOO (user, the walk of 2026-09-24: "say the old, the new adjusted, and ask
-    // your DM if it passes"): a check that carried a DC used to raise no ask at all, so a check
-    // that still failed kept its use spent. The DC now rides the question; the GM still answers.
+    // Tactical Mind's refund clause is ASKED (DESIGN §8): the module cannot judge the check, so
+    // the card points at the ask raised below, with the DC when the roll carried one.
     const refundable = (kind === "tactical") && !scopeOf({ kind, name: offer.name });
     if ( refundable ) {
       lines.push("If the check still fails, this use of Second Wind isn't expended — "
         + "the next window asks which it was.");
     }
-    // Initiative (Ambush): the fold's whole point is the order — the combatant's number moves.
     if ( flag.testKind === "initiative" ) {
       const combat = flag.combatId ? game.combats.get(flag.combatId) : game.combat;
       for ( const id of (flag.combatantIds ?? []) ) {
@@ -925,12 +711,8 @@ async function resolveFold(message, answer) {
     });
 
     if ( reoffer ) {
-      // Still failing and something left to spend: ask again rather than deciding for them.
-      // ⚠ The window is REDRAWN rather than re-popped. A second offer that rendered only as a
-      // card row would be invisible to whoever is looking at the window — the reason the latch
-      // used to be cleared here — but the surviving rows have been on screen since the first
-      // stamp, so what is needed is a redraw, not a new popup. The spine's content signature
-      // decides: changed, so it reopens.
+      // Still failing and something left to spend: ask again. The window is REDRAWN, not re-popped
+      // — its rows have been on screen since the first stamp.
       syncRescuePopup(message);
       if ( message.getFlag(MODULE_ID, "d20fold")?.deadline ) armFoldTimer(message);
       return;
@@ -955,16 +737,13 @@ async function resolveFold(message, answer) {
 }
 
 /**
- * Is the roll still a failure after everything spent so far? ⚠ A CHECK ALWAYS ANSWERS YES, and
- * that is the DC finding again: with no number to test against the module cannot know the roll
- * succeeded, so it keeps offering and lets the human stop by pressing Pass. Deciding "you made
- * it, no more offers" would be inventing the DC.
+ * Is the roll still a failure after everything spent so far? ⚠ A check with no DC always answers
+ * yes: nothing can know it succeeded, so offers continue until the human passes.
  */
 function isStillFailing(flag, composed, baseRoll, folds) {
   if ( flag.testKind === "attack" ) {
     return !(flag.targets ?? []).some(t => foldedVerdict(t, baseRoll, folds) === "hit");
   }
-  // A save made a success outright (Guarded Mind) — with or without a DC, it is no longer failing.
   if ( (folds ?? []).some(f => f.verdict === "saved") ) return false;
   if ( Number.isFinite(flag.dc) ) return composed.total < flag.dc;
   return true;
@@ -980,8 +759,7 @@ async function announce(_message, actor, name, testKind, anyHit, lines, marker) 
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({
       img: marker?.item?.img ?? marker?.effect?.img ?? null,
-      // A tactical fold is a Battle Master maneuver (Ambush, Tactical Assessment) and wears the
-      // maneuver family's eyebrow (user, 2026-09-05: one UI language across the maneuvers).
+      // A tactical fold is a Battle Master maneuver and wears the maneuver family's eyebrow.
       eyebrow: (marker?.kind === "tactical") ? `Maneuver — ${name}` : `D20 Fold — ${name}`,
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
       title: (testKind === "attack")
@@ -1018,24 +796,15 @@ async function rollDie(formula, actor) {
 }
 
 /**
- * THE REROLL. ⚠ Rebuilt from the ORIGINAL roll's own class, data and options — not a fresh
- * `new Roll("1d20+…")`. A D20Roll decides `isCritical`/`isFumble` from
- * `options.criticalSuccess`/`criticalFailure`, which an actor can move (a Champion crits on 19);
- * a plain Roll would silently reinstate a 20-only threshold and lose a crit the table is owed.
- * This is also why a reroll is a `replace` and not an `add` (decide/verdict.js).
+ * THE REROLL, rebuilt from the ORIGINAL roll's class, data and options — a plain `Roll` would lose
+ * a moved crit threshold (a Champion crits on 19). Why a reroll is a `replace`, not an `add`.
  */
 async function rerollOf(message, actor) {
   const original = message.rolls?.[0];
   if ( !original ) return null;
   const RollCls = original.constructor;
-  // ⚠ NOT `configured` (user, 2026-09-10: "when I had adv/dis, it seemed like it rolled 4 dice not
-  // 2"). dnd5e 5.3 writes advantage as `1d20adv` and EXPANDS the die's number at evaluation
-  // (BasicDie.expandAdvantage: `_number = (count + 1) * size`), so an evaluated roll's formula reads
-  // `2d20adv + …`. Rebuilt from that formula with the original's options — which carry
-  // `configured: true` — the constructor SKIPS configureModifiers, the parsed `2d20adv` stands, and
-  // evaluation expands it again: four dice. Dropping `configured` makes the constructor run the
-  // system's own normalisation (D20Die.applyAdvantage: number = 1, one `adv`), so the reroll is
-  // built exactly as the original was and rolls two.
+  // ⚠ Drop `configured`: an evaluated advantage roll's formula reads `2d20adv`, and with
+  // `configured: true` the constructor skips the system's normalisation and rolls four dice.
   const options = foundry.utils.deepClone(original.options ?? {});
   delete options.configured;
   const roll = new RollCls(original.formula, original.data ?? actor.getRollData(), options);
@@ -1052,8 +821,8 @@ async function rerollOf(message, actor) {
  * ========================================================================================== */
 
 // A fold offered on a save answering a demand lands on a roll the platform draws as a SUMMARY
-// inside the usage card at 6.0 (the roll's own card hidden) — so the block rides ui.js's cardRow
-// seam: the same drawer, on the shown card or inside the summary, wherever the table looks.
+// inside the usage card (the roll's own card hidden) — so the block rides ui.js's cardRow seam:
+// the same drawer, on the shown card or inside the summary.
 Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   try {
     const flag = message.getFlag(MODULE_ID, "d20fold");
@@ -1065,8 +834,7 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
     block.style.margin = "0.4rem 0 0";
 
     if ( (flag.status === "pending") && flag.answer ) {
-      // ANSWERED, NOT YET RESOLVED — the die's message is on the log and its dice are landing
-      // (the same window the popup withdraws in, above). The card says so instead of offering.
+      // ANSWERED, NOT YET RESOLVED — the dice are landing; the card says so instead of offering.
       const chosen = (flag.offers ?? []).find(o => offerAnswers(o, flag.answer)) ?? null;
       block.innerHTML = bfCard({
         img: foldImg(actor, chosen ? [chosen] : (flag.offers ?? [])),
@@ -1076,27 +844,15 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
         tone: "neutral"
       });
       host.append(block);
-      // THE SYNC IS WHAT CLOSES THE WINDOW (user, 2026-09-10: "the form stays for a few seconds").
-      // The draw runs off this call, sees nothing pending, and closes; without it the answered
-      // render left the window standing until the RESOLVED render - the whole length of the dice.
+      // The sync closes the window at the answer, not at the resolved render after the dice.
       syncRescuePopup(message);
       return;
     }
 
     if ( flag.status === "pending" ) {
       const offers = flag.offers ?? [];
-      /**
-       * ⚠ THE CARD IS A CARD, NOT A ROW OF NAKED BUTTONS (user 2026-08-23). v1 appended bare
-       * `momentButton`s to a bare div, which read as a debug affordance next to the reaction
-       * hold's card sitting inches away on the same log. The hold is the house shape: a
-       * `bfCard` with art, an eyebrow, a subtitle naming who is being waited on, the reveal
-       * lines and the shared bar.
-       *
-       * ⚠ AND ONE INPUT SURFACE, which is the half that is architecture rather than taste
-       * (hold/views.js's own note): the POPUP decides and the card only offers a way to call it
-       * BACK. v1 put a full set of answer buttons on the card AND in the popup — two surfaces
-       * for one decision, which is exactly what the hold family stopped doing in 2026-08-16.
-       */
+      // The card offers only a way to call the popup BACK — the popup decides (one input surface,
+      // as the hold family does).
       block.innerHTML = bfCard({
         img: foldImg(actor, offers),
         eyebrow: "D20 Fold — offered",
@@ -1108,16 +864,9 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
       scheduleBarSync(block);
       host.append(block);
 
-      /**
-       * ⚠ THE ELECT ARMS HERE, NOT ONLY AT THE STAMP. A player's check stamps this flag on the
-       * player's own client, where `armFoldTimer` is a no-op — `armAskTimer` is elect-gated —
-       * so this render is the first time the clock's OWNER sees the moment. Every stamp-site
-       * arm survives only because the solo suites run as the elect; at a real table the bar
-       * drained cosmetically and the flag never resolved (table report 2026-08-26, Tactical
-       * Mind on a player's check). Same shape as the precision and mastery asks, and it is
-       * also what re-arms after an elect reload: `armDeadline` fires an expired-but-live
-       * deadline immediately and refuses one past the roof.
-       */
+      // ⚠ The elect arms HERE, not only at the stamp: a player's stamp runs on the player's client,
+      // where `armAskTimer` is a no-op, so this render is the clock owner's first sight of the
+      // moment — and what re-arms after an elect reload.
       armFoldTimer(message);
 
       if ( !canAnswerFor(actor) ) return;      // spectators get the card, not the controls
@@ -1130,27 +879,13 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
       }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
       block.append(controls);
 
-      /**
-       * ⚠ EVERY OFFER POPS, TIMED OR NOT (user ruling 2026-08-23).
-       *
-       * v1 popped only when there was a deadline, reasoning that law 11's clock governs moments
-       * that BLOCK and that a modal for an unblocked roll is the interruption N4 forbids. That
-       * read the wrong law. **Presentation law 1 is "easy-to-forget moments get a popup, not
-       * just a card"** — and a spendable Heroic Inspiration or Tactical Mind on a check you have
-       * already rolled is the definition of easy to forget. A card row scrolls away; the whole
-       * reason the popup family exists is that the table missed things exactly like this.
-       *
-       * The pairing rule (law 2) still holds and is unchanged: where there IS a deadline, the
-       * popup and the card bar run off the same absolute one. An untimed offer simply renders
-       * no bar — `holdBarHTML` already returns "" without a window, so nothing special is done
-       * for it here.
-       */
+      // EVERY offer pops, timed or not — the popup law (a spendable fold is easy to forget). An
+      // untimed offer simply has no bar.
       syncRescuePopup(message);
       return;
     }
 
-    // RESOLVED — the durable public record, in the same shape as the hold's settled card, so
-    // scrollback reads consistently instead of switching typography halfway down a moment.
+    // RESOLVED — the durable public record, in the hold's settled-card shape.
     if ( flag.outcome ) {
       const spends = flag.spends ?? [];
       const spent = spends.map(labelOf).join(" + ");
@@ -1173,11 +908,8 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   }
 }));
 
-/**
- * The art for the card — the marker's own, the way the hold shows the reaction's.
- * ⚠ `heroic` has NO DOCUMENT, so it contributes no art and the next named fold supplies it;
- * an actor with only Heroic Inspiration falls through to their portrait rather than a blank.
- */
+/** The art for the card — the marker's own. ⚠ `heroic` has no document, so the next named fold
+ * supplies it, else the actor's portrait. */
 function foldImg(actor, named = []) {
   for ( const n of named ) {
     const item = itemNamed(actor, n.name);
@@ -1204,8 +936,7 @@ const costOnCard = o => (VERDICT_KINDS.has(o.kind) ? (o.cost ?? SPEND_COST[o.kin
 
 /** The offer card's body: what can be spent, and — under holdReveal — what it has to beat. */
 function offerLines(flag, offers) {
-  // ⚠ The cost rides on the offer's OWN line, so it reaches the card and the popup alike and
-  // can never be read as applying to a different fold in the list.
+  // ⚠ The cost rides on the offer's OWN line, so it can never read as another fold's.
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
     + (REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? " — succeed instead" : ` — add ${o.dieFormula}`)
     + (costOnCard(o) ? ` <em>(${costOnCard(o)})</em>` : ""));
@@ -1235,7 +966,6 @@ function resolvedLines(flag, message) {
       : "Passed — the roll stands."];
   }
   const lines = [];
-  // A save made a success outright (Guarded Mind) moved no number — the verdict is the whole line.
   if ( (flag.spends ?? []).some(s => VERDICT_KINDS.has(s.kind)) ) {
     lines.push(Number.isFinite(flag.dc)
       ? `<strong>The save succeeds instead</strong> — ${flag.baseTotal} vs DC ${flag.dc}.`
@@ -1256,13 +986,7 @@ function resolvedLines(flag, message) {
       ? `<strong>The save succeeds</strong> against DC ${flag.dc}.`
       : `Still fails DC ${flag.dc}.`);
   }
-  /**
-   * THE REFUND, ASKED (user, 2026-09-11 — it was left unmodelled on 2026-08-23 and a manual
-   * button declined then; the ruling moved). Tactical Mind is the only fold with a refund
-   * clause, and the module still cannot decide it: the refund turns on the check FAILING and
-   * no DC exists for a raw check. So the human is ASKED — R1: the decision stays theirs, the
-   * outcome (the use restored) is automated. The state line reads off the refund flag.
-   */
+  // Tactical Mind's refund, asked (the module cannot judge a raw check); the line reads the flag.
   const refund = message.getFlag(MODULE_ID, "tacticalRefund");
   if ( refund ) lines.push(refundLine(refund));
   else if ( (flag.spends ?? []).some(s => (s.kind === "tactical") && !scopeOf({ kind: s.kind, name: s.name })) ) {   // Tactical Mind, never a scoped die
@@ -1272,13 +996,9 @@ function resolvedLines(flag, message) {
 }
 
 /**
- * THE FOLD CONTRIBUTIONS THIS ROLL CARRIES — one home, so the resolver and the window can never
- * announce different numbers. `pending` substitutes the spend being resolved, which is not on
- * the message yet.
- *
- * ⚠ PICK THE SPEC SET BY TEST KIND, and ⚠ ONE TARGET'S SLICE on the attack side. Both arguments
- * are written out at `resolveFold`, which is this helper's other caller; the point of the
- * helper is that there is no second place for either of them to be got wrong.
+ * The fold contributions this roll carries — one home, so the resolver and the window agree.
+ * `flag` may be a pending copy carrying the spend being resolved. Picks the spec set by test kind,
+ * and one target's slice on the attack side (both argued at `resolveFold`).
  */
 function foldFolds(message, flag) {
   const specs = (flag?.testKind === "attack") ? ATTACK_FOLDS : SAVE_FOLDS;
@@ -1291,29 +1011,11 @@ function foldFolds(message, flag) {
 /** The roll the folds compose over — the real d20 where there is one, the stamp's copy otherwise. */
 const foldBase = (message, flag) => message.rolls?.[0] ?? { total: flag?.baseTotal };
 
-/**
- * THE D20 FOLDS AS RESCUE ROWS (the merged window, ARCHITECTURE §5).
- *
- * ⚠ THIS MACHINE NO LONGER OPENS A POPUP OF ITS OWN, and neither does maneuvers.js. A Battle
- * Master holding a Bardic die is stamped by BOTH on one missed attack, and two windows, two
- * clocks and no cross-talk for ONE question is the discombobulation this pass exists to end.
- * The spine draws one window from every registered source; this file hands it a key and four
- * callbacks and never learns that maneuvers.js exists.
- *
- * ⚠ THE CARD IS UNCHANGED — pairing law 2. The durable block, its bar, its offer lines and its
- * Answer button all stay; what moved is only which window the Answer button opens.
- *
- * ⚠ AND THE ANSWER PATH IS UNCHANGED. `answerFold` still serialises through the flag lock,
- * first writer wins, the withheld-save protocol resumes exactly as it did. The rows carry the
- * KIND as their action token because that is this machine's own vocabulary — the spine hands
- * back whatever it was given.
- */
+/** The d20 folds as RESCUE ROWS: the spine draws one window from every source on a roll
+ * (ARCHITECTURE §5); the rows carry the KIND as their action token. */
 registerRescue("d20fold", {
-  // ⚠ ANSWERED IS NOT PENDING (user, 2026-09-10: "if I click use it, the menu doesn't go away").
-  // `answerFold` claims the answer inside the lock and the status stays "pending" until the elect
-  // resolves — a window that was milliseconds until the die's message began waiting out its dice
-  // (dramaticVerdictPause), and is now seconds. A popup asking a question the player has answered
-  // is a lie on screen (law 4), however short; it withdraws at the answer, not at the verdict.
+  // ⚠ Answered is not pending: the status stays "pending" until the dice land, but a popup still
+  // asking an answered question is a lie on screen (law 4) — it withdraws at the answer.
   isPending: message => { const f = message.getFlag(MODULE_ID, "d20fold"); return (f?.status === "pending") && !f.answer; },
   subject: message => {
     const uuid = message.getFlag(MODULE_ID, "d20fold")?.actorUuid;
@@ -1332,17 +1034,8 @@ registerRescue("d20fold", {
 });
 
 /**
- * THE MOOT (user ruling, 2026-08-24): a sibling spend fixed the roll, so this offer withdraws.
- *
- * ⚠ It spends nothing, so nobody loses a decision — and law 4 makes the withdrawal compulsory:
- * an offer still claiming the roll failed, after it has stopped failing, is a lie on screen,
- * and answering it deletes a real Inspired effect for a roll that no longer needs one.
- *
- * ⚠ A CHECK NEVER MOOTS, and that is `isStillFailing`'s own rule rather than a special case
- * here: with no DC anywhere in dnd5e for a raw ability check, nothing can decide the check
- * succeeded, so the premise cannot die and a human ends it with Pass.
- *
- * ⚠ ELECT-OWNED, single writer (§3): every client sees the same update.
+ * THE MOOT: a sibling spend fixed the roll, so this offer withdraws, spending nothing (law 4). A
+ * check without a DC never moots (`isStillFailing`). ⚠ Elect-owned, single writer.
  */
 async function mootFold(message) {
   await queueFlagWrite(message, "d20fold", current => {
@@ -1368,8 +1061,7 @@ function foldPremiseAlive(message, flag) {
 Hooks.on("updateChatMessage", (message) => {
   const flag = message.getFlag(MODULE_ID, "d20fold");
   if ( !flag ) return;
-  // ⚠ RE-DERIVED EVERY UPDATE, from the COMPOSED roll — a sibling machine's spend is what
-  // usually kills this premise, and it lands as an update to a flag this file does not own.
+  // ⚠ RE-DERIVED EVERY UPDATE from the COMPOSED roll: a sibling's spend usually kills the premise.
   if ( (flag.status === "pending") && !flag.answer && isActiveGM()
     && !foldPremiseAlive(message, flag) ) {
     void mootFold(message);
@@ -1377,18 +1069,13 @@ Hooks.on("updateChatMessage", (message) => {
   }
   if ( flag.status !== "pending" ) {
     disarmAskTimer(foldTimers, message.id);
-    // ⚠ SYNC, DO NOT CLOSE. This machine no longer owns a window — it owns ROWS in one. If the
-    // sibling rescue is still pending the window must STAY, with this fold's rows greyed in
-    // place; closing it here would take a live offer off the screen because a different one
-    // finished. The spine closes it when nothing is left asking, and only then.
+    // ⚠ SYNC, DO NOT CLOSE: this machine owns rows in a shared window; a sibling may still be asking.
     syncRescuePopup(message);
     return;
   }
-  // Crash-resume, the precision block's 20s horizon: an accepted offer whose resolver never ran
-  // (the answerer's client died between the write and the spend) is picked up by whoever is
-  // still here. `resolveFold` re-checks status, and - since the die's message began waiting out
-  // its dice (2026-09-10) - reads the spend RECORDED before that wait, so a resolver that died
-  // inside the pause is composed for, never spent for twice.
+  // Crash-resume past the 20s horizon: an accepted answer whose resolver never ran is picked up by
+  // whoever is still here; `resolveFold` reads the spend recorded before the dice pause, so it
+  // never spends twice.
   if ( flag.answer && (flag.answer !== "pass") && flag.answeredAt
     && (Date.now() - flag.answeredAt > 20_000) ) {
     void resolveFold(message, flag.answer);
@@ -1397,23 +1084,15 @@ Hooks.on("updateChatMessage", (message) => {
 
 Hooks.on("deleteChatMessage", message => {
   disarmAskTimer(foldTimers, message.id);
-  // ⚠ No latch to clear here any more. The spine's ONE delete-sweep already drops every
-  // `${messageId}|` key, and the merged window's is `|rescue` — a key this file does not own
-  // and must not name. Re-adding a feature's name to that sweep is exactly what it forbids.
+  // No latch to clear: the spine's one delete-sweep drops every `${messageId}|` key.
 });
 
 /* =============================================================================================
- * ARMED FROM THE SHEET (user, 2026-09-05: "for tactical assessment, have the popup tell them to
- * make the wisdom or int check and then add it. tactical mind should also then be an option
- * after the roll") — a SCOPED tactical fold (Ambush, Tactical Assessment) USED from the sheet,
- * before the check. The pack's utility use spends the die (dnd5e's consumption — the resource
- * flash) and then did nothing: its roll button is hidden and no check has been rolled, so the
- * die was gone and nothing came of it. Now the use ROLLS the die in the open, puts a chip
- * carrying the number on the sheet, and a notice tells the player which check to make; the next
- * check the scope names folds the number in with no rescue ask for THIS maneuver — and every
- * other fold the check admits (Tactical Mind) is offered after, as it always was. The chip has
- * no clock: the rule ties the use to the check, whenever the check comes; a chip nobody spends is
- * the sheet's to remove. The rescue path (use nothing, roll, be offered) stands beside this.
+ * ARMED FROM THE SHEET — a SCOPED tactical fold (Ambush, Tactical Assessment) used before the
+ * check. The use ROLLS the die in the open, a chip on the sheet carries the number, and a notice
+ * names the checks; the next check the scope names folds it in with no ask for this maneuver, and
+ * every other fold the check admits is offered after. The chip has no clock — the rule ties the
+ * use to the check, whenever it comes (RULINGS *The rest of the maneuvers*).
  * ========================================================================================== */
 
 const ARMED_KEY = "tactical";
@@ -1452,8 +1131,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
     const scope = scopeOf(entry);
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( message?.getFlag(MODULE_ID, "tacticalArmed") ) return;
-    // The RESCUE's own spend (accepting the offer after a roll) uses this same activity and
-    // carries `foldSpend`: that die is already folded into the roll — arm nothing.
+    // The rescue's own spend (`foldSpend`) is already folded into the roll — arm nothing.
     if ( message?.getFlag(MODULE_ID, "foldSpend") || usageConfig?.data?.flags?.[MODULE_ID]?.foldSpend ) return;
     const formula = resolveDie(actor, activity.roll?.formula || null);
     const rolled = formula ? await rollDie(formula, actor) : null;
@@ -1480,11 +1158,8 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
   }
 });
 
-/**
- * The armed die folds into the check (or the Initiative roll) the moment it lands — stamped as
- * a SPENT fold on the roll's message and composed through the same path as an accepted rescue,
- * with every OTHER fold the check admits still offered after. Returns true when it did.
- */
+/** The armed die folds into the check (or Initiative) as it lands — a SPENT fold on the roll's
+ * message, every other admitted fold still offered after. Returns true when it did. */
 async function applyArmedFold(message, actor, testKind, { skill = null, combatants = [], total = null } = {}) {
   const chip = armedChipFor(actor, testKind, skill);
   if ( !chip ) return false;
@@ -1527,11 +1202,8 @@ async function showArmedNotice(message) {
   const t = message.getFlag(MODULE_ID, "tacticalArmed");
   if ( !t || t.spent ) return;
   const actor = resolveUuid(t.sourceUuid);
-  // THE CHECKS ARE THE BUTTONS (user, 2026-09-05: "should be a button for either History,
-  // Investigation or Insight. player presses one of three buttons. then the check is made"):
-  // one per skill the scope names, Initiative too where Ambush's text says so and a combat
-  // runs; the press rolls that check through the system's own dialog, and the armed die folds
-  // in when it lands. No OK: the choice IS the acknowledgement.
+  // The checks ARE the buttons: one per skill the scope names (Initiative too where the text says
+  // so and a combat runs); a press rolls it and the armed die folds in. The choice acknowledges.
   const buttons = (t.skills ?? []).map((k, i) => ({
     action: `skill-${k}`, label: CONFIG.DND5E.skills?.[k]?.label ?? k, default: i === 0,
     callback: async () => { await acknowledgeMoment(message, "tacticalArmed"); void actor?.rollSkill?.({ skill: k }); }
@@ -1570,22 +1242,12 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
 }));
 
 /* =============================================================================================
- * THE REFUND ASK — Tactical Mind's own clause (user, 2026-09-11: "its time to add the refund
- * button … a window that pops up after the tactical mind")
- *
- * "If the check still fails, this use of Second Wind isn't expended." The module cannot judge a
- * raw check — no DC exists for one anywhere in dnd5e (NOTES) — so once the die is added it ASKS
- * the one who can: did the check succeed, or did it still fail. R1 kept both ways: the decision
- * is the human's, the outcome (the use written back, a receipt) is the module's. The answer is
- * durable on the fold message (`tacticalRefund`), so every client and a reload read one state.
- *
- * ⚠ Only Tactical Mind itself, and only on a check the module holds no DC for. A SCOPED
- * tactical fold (Ambush, Tactical Assessment) is a superiority die, spent either way it lands
- * (DESIGN §6), and a demanded save decides itself.
- *
- * ⚠ The popup runs the house clock and closes at expiry (law 11); the card's control STAYS until
- * answered. The GM's ruling can come after the clock, and a use the rules hand back must remain
- * claimable — an open question on a card is not a stale claim, it is the truth of the moment.
+ * THE REFUND ASK — Tactical Mind's own clause: "If the check still fails, this use of Second Wind
+ * isn't expended." No DC exists for a raw check (NOTES), so once the die is added the module ASKS
+ * (R1: the decision is human, writing the use back is the module's). Durable on the fold message
+ * (`tacticalRefund`). Only Tactical Mind itself — a scoped fold is a superiority die, spent either way.
+ * ⚠ The popup closes at its clock (law 11) but the card's control STAYS until answered: the GM's
+ * ruling may come late, and a use the rules hand back must stay claimable.
  * ========================================================================================== */
 
 /** The pool the feature consumes — the activity's `itemUses` target, the actor's own Second Wind. */
@@ -1600,8 +1262,8 @@ function refundPoolFor(actor, name, marker = null) {
 
 /**
  * @param {{baseTotal?: number|null, total?: number|null, dc?: number|null, die?: number|null}} [numbers]
- *        the check before the die, after it, the DC when the roll carried one, and the die's face —
- *        the question states them (the walk, 2026-09-24): the GM rules on a number they can see
+ *        the check before and after the die, the DC when the roll carried one, and the die's face —
+ *        the GM rules on a number they can see
  */
 async function stampRefundAsk(message, actor, offer, marker, numbers = {}) {
   try {
@@ -1626,10 +1288,7 @@ async function stampRefundAsk(message, actor, offer, marker, numbers = {}) {
   }
 }
 
-/**
- * The check's arithmetic in words — "the check was 12; Tactical Mind's d10 rolled 5, so it is now
- * 17" — or null on an ask stamped before the numbers rode it (a card from an older build).
- */
+/** The check's arithmetic in words, or null on an ask that carries no numbers. */
 function refundArithmetic(r) {
   if ( !Number.isFinite(r?.baseTotal) || !Number.isFinite(r?.total) ) return null;
   const die = Number.isFinite(r.die) ? `${r.label}'s d10 rolled ${r.die}, so ` : "";
