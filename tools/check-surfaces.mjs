@@ -56,6 +56,7 @@ const FRAGMENTS = {
   dialogRoll: ['data-action="roll"'],
   dialogFooter: [".form-footer"],
   cardHeaderTitle: [".name-stacked .title"],
+  cardHeader: [".card-header"],
   cardActivityRow: ["li.activity[data-activity-uuid]"]
 };
 

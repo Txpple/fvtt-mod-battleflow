@@ -180,7 +180,7 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
       // THE CARD SAYS THE COVER ON EVERY ATTACK (the user, 2026-09-27: "a card should have the cover
       // status on its attack roll") — No Cover included; a hand-set status that wins is the one named.
       if ( (t?.ac === null) || (t?.ac === undefined) ) {
-        if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, label: degreeOf(null).label, bonus: null });
+        if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, key: "total", label: degreeOf(null).label, bonus: null });
         continue;
       }
       let carried = coverOf(actor);
@@ -188,10 +188,10 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
       const m = token ? measuredCoverBetween(from, token) : null;
       if ( m ) {
         const { raise, total } = coverAtTheAttack(carried, m.degree);
-        if ( total ) { t.ac = null; measured.push({ name, label: m.degree.label, bonus: null }); continue; }
+        if ( total ) { t.ac = null; measured.push({ name, key: m.degree.key, label: m.degree.label, bonus: null }); continue; }
         if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; }
         const stands = raise ? m.degree : degreeOf(carried);
-        measured.push({ name, label: stands.label, bonus: stands.bonus });
+        measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus });
       }
       if ( !feat || !carried ) continue;
       t.ac = acWithoutCover(t.ac, carried);
@@ -209,20 +209,41 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
 /** The degree a cover bonus stands for (0, 2, 5), or Total for null — the card's words for a hand-set status. */
 const degreeOf = bonus => COVER_DEGREES.find(d => d.bonus === bonus) ?? COVER_DEGREES[0];
 
-// the line: "Cover — the Goblin: Half Cover (+2 AC)", on every attack while the cover is measured
+/** The cover row's colour, read for the ATTACKER (the hover card's): none green, Half and Three-Quarters orange, Total red. */
+const COVER_TONE = { none: TONE.good, half: TONE.pending, threeQuarters: TONE.pending, total: TONE.bad };
+
+// THE COVER ROW, on every attack while the cover is measured, directly under the card's header
+// (the user, 2026-09-27: "its not very prominent", "cover is like an important thing, it should be
+// up above"): the degree's picture, "Half Cover (+2 AC)", then who it is against — and, when a feat
+// took it off, "Sharpshooter ignores it" on the same row. One row per target.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverMeasured");
     if ( !flag?.targets?.length ) return;
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-cover-measured") ) return;
-    const div = document.createElement("div");
-    div.className = "bf-cover-measured";
-    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    const ignored = message.getFlag?.(MODULE_ID, "coverIgnored");
+    const box = document.createElement("div");
+    box.className = "bf-cover-measured";
+    box.style.cssText = "display:flex;flex-direction:column;gap:3px;margin:0.35rem 0;";
+    for ( const t of flag.targets ) {
+      const d = COVER_DEGREES.find(x => x.key === t.key) ?? COVER_DEGREES.find(x => x.label === t.label) ?? COVER_DEGREES[0];
+      const amount = t.bonus ? `${d.label} (+${t.bonus} AC)` : d.label;
+      const off = ignored?.targets?.some(i => i.name === t.name) ? ` · ${ignored.feature} ignores it` : "";
+      const tone = COVER_TONE[d.key] ?? TONE.neutral;
+      const row = document.createElement("div");
+      row.style.cssText = `display:flex;align-items:center;gap:8px;padding:4px 8px 4px 5px;border-radius:4px;border:1px solid ${tone};`
+        + `border-left-width:4px;background:color-mix(in srgb, ${tone} 16%, transparent);`;
+      row.innerHTML = `<img src="${d.img}" alt="" style="width:28px;height:28px;flex:none;border:0;border-radius:3px;">`
+        + `<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;">`
+        + `<strong style="font-size:var(--font-size-14,14px);">${foundry.utils.escapeHTML(amount)}</strong>`
+        + `<span style="font-size:var(--font-size-11,11px);opacity:0.85;">${foundry.utils.escapeHTML(`vs ${t.name}${off}`)}</span></div>`;
+      box.appendChild(row);
+    }
     const words = flag.targets.map(t => `the ${t.name}: ${t.label}${t.bonus ? ` (+${t.bonus} AC)` : ""}`).join(", ");
-    div.textContent = `Cover — ${words}`;
-    div.dataset.bfCoverMeasured = div.textContent;
-    content.appendChild(div);
+    box.dataset.bfCoverMeasured = `Cover — ${words}`;
+    const header = content.querySelector(SURFACES.cardHeader);
+    if ( header ) header.after(box); else content.prepend(box);
   } catch(err) { console.warn(`${TITLE} | The measured cover's line could not draw.`, err); }
 });
 
@@ -230,7 +251,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverIgnored");
-    if ( !flag?.targets?.length ) return;
+    if ( !flag?.targets?.length || message.getFlag?.(MODULE_ID, "coverMeasured") ) return;   // the cover row says it
     const content = html.querySelector?.(SURFACES.messageContent) ?? html;
     if ( !content || content.querySelector(".bf-cover-line") ) return;
     const div = document.createElement("div");
