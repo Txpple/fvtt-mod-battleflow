@@ -14,7 +14,7 @@ import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/s
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
 import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { coverAtTheAttack } from "./decide/cover.js";
+import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
@@ -175,16 +175,23 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
     if ( !from && !feat ) return;
     const measured = [], ignored = [];
     for ( const t of targets ) {
-      if ( (t?.ac === null) || (t?.ac === undefined) ) continue;
-      const actor = t.actor ? resolveUuid(t.actor) : null;
+      const actor = t?.actor ? resolveUuid(t.actor) : null;
+      const name = t?.name ?? actor?.name ?? "";
+      // THE CARD SAYS THE COVER ON EVERY ATTACK (the user, 2026-09-27: "a card should have the cover
+      // status on its attack roll") — No Cover included; a hand-set status that wins is the one named.
+      if ( (t?.ac === null) || (t?.ac === undefined) ) {
+        if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, label: degreeOf(null).label, bonus: null });
+        continue;
+      }
       let carried = coverOf(actor);
       const token = from ? (resolveUuid(t.token)?.object ?? tokenForUuid(actor?.uuid)) : null;
       const m = token ? measuredCoverBetween(from, token) : null;
-      if ( m && (m.degree.key !== "none") ) {
+      if ( m ) {
         const { raise, total } = coverAtTheAttack(carried, m.degree);
-        const name = t.name ?? actor?.name ?? "";
         if ( total ) { t.ac = null; measured.push({ name, label: m.degree.label, bonus: null }); continue; }
-        if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; measured.push({ name, label: m.degree.label, bonus: m.degree.bonus }); }
+        if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; }
+        const stands = raise ? m.degree : degreeOf(carried);
+        measured.push({ name, label: stands.label, bonus: stands.bonus });
       }
       if ( !feat || !carried ) continue;
       t.ac = acWithoutCover(t.ac, carried);
@@ -199,7 +206,10 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
   }
 });
 
-// the line: "Cover — the Goblin: Half Cover (+2 AC)", measured on the map
+/** The degree a cover bonus stands for (0, 2, 5), or Total for null — the card's words for a hand-set status. */
+const degreeOf = bonus => COVER_DEGREES.find(d => d.bonus === bonus) ?? COVER_DEGREES[0];
+
+// the line: "Cover — the Goblin: Half Cover (+2 AC)", on every attack while the cover is measured
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverMeasured");

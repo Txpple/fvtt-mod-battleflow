@@ -185,7 +185,7 @@ function ensureStyle() {
     .bf-ev-chip .txt{display:flex;flex-direction:column} .bf-ev-chip .nm{font-weight:600;font-size:11.5px} .bf-ev-chip .clk{font-size:10px;color:#b5b0a4}
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
     .bf-ev-chip .dtl{font-size:11px;color:#e8e3d6;font-weight:700;font-variant-numeric:tabular-nums}
-    .bf-ev-chip.bf-ev-cover{--bf-tone:rgb(120,120,120)} .bf-ev-chip.bf-ev-cover.half,.bf-ev-chip.bf-ev-cover.threeQuarters{--bf-tone:rgb(222,120,40)} .bf-ev-chip.bf-ev-cover.total{--bf-tone:rgb(180,70,60)}
+    .bf-ev-chip.bf-ev-cover{--bf-tone:rgb(70,150,95)} .bf-ev-chip.bf-ev-cover.half,.bf-ev-chip.bf-ev-cover.threeQuarters{--bf-tone:rgb(222,120,40)} .bf-ev-chip.bf-ev-cover.total{--bf-tone:rgb(180,70,60)}
     .bf-ev-chip.bf-ev-cover{white-space:normal} .bf-ev-chip .src{font-size:10.5px;color:#b5b0a4}
     .bf-ev-chip em{font-style:normal;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#7d7a72;margin-left:2px}
     #${ROOT_ID}-bar{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(20,22,26,.92);border:1px solid #3a3f48;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.45);max-width:min(900px,calc(100vw - 340px));font-size:12px;color:#b5b0a4}

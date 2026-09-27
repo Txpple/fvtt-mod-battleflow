@@ -1174,12 +1174,16 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   ignores it (ranged weapon attacks)" (or Spell Sniper, spell attacks) when the controlled creature
   holds one. No Cover is its one line. Each degree carries a painted icon from Foundry's own library
   (the user: "nice icons ... color", "pulled from foundry library") — an open road, a low picket
-  fence, a portcullis gate (the PHB's Three-Quarters example), a castle wall. The effects follow under their own label. Still a pure view
+  fence, a portcullis gate (the PHB's Three-Quarters example), a castle wall.
+  The chip's colour reads for the ATTACKER: No Cover green (the user, 2026-09-27: "lets make no cover
+  green"), Half and Three-Quarters orange, Total red. The effects follow under their own label. Still a pure view
   (*The effect view*).
 - **At the attack** the same measure goes on each target's RECORDED AC (`system.targets[].ac`, the
   seam Bypass Cover already uses): the most protective degree applies and degrees never add — a
   cover status set by hand stands when it is higher; Total records no AC (a miss, as dnd5e records a
-  `coverTotal` target). The card says "Cover — the Goblin: Half Cover (+2 AC)" (Total: "…: Total Cover"). Then Sharpshooter and
+  `coverTotal` target). The card says the cover on EVERY attack while it is measured (the user, 2026-09-27: "a card
+  should have the cover status on its attack roll"): "Cover — the Goblin: Half Cover (+2 AC)", "…: No
+  Cover", "…: Total Cover"; a hand-set status that wins is the one named. Then Sharpshooter and
   Spell Sniper take the whole carried cover off, measured and hand-set alike (*The PHB feats —
   groups 1–3*, group 2); Total stays.
 - ⓐ **Attacks only.** A Dex save against an area measured from its point of origin is the DMG's too;

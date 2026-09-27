@@ -1291,8 +1291,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const text = await hoverText();
           const shot = await shoot();
-          ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC, no line',
-            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured'),
+          ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC and its card says "…: No Cover"',
+            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && /the .*: No Cover$/.test(lineOf(shot)),
             `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         // 14d — a wall across the whole row between them: Total, the attack records no AC, Sharpshooter or not
@@ -1324,8 +1324,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const acWith = Number(victim.system.attributes.ac.value);
           const shot = await shoot();
-          ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add`,
-            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && !shot?.getFlag(MOD, 'coverMeasured'),
+          ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add — and the card names the one that stands`,
+            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\)$/.test(lineOf(shot)),
             `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac}`);
         }
         await victim.toggleStatusEffect('coverThreeQuarters', { active: false });
