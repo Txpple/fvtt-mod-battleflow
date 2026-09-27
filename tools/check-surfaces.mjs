@@ -54,7 +54,8 @@ const FRAGMENTS = {
   dialogButtons: ['data-application-part="buttons"'],
   dialogDefault: ["button[autofocus]"],
   dialogRoll: ['data-action="roll"'],
-  dialogFooter: [".form-footer"]
+  dialogFooter: [".form-footer"],
+  cardHeaderTitle: [".name-stacked .title"]
 };
 
 const collapse = s => s.replace(/\s+/g, " ");

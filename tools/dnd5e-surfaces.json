@@ -60,6 +60,12 @@
       "file": "dnd5e.mjs",
       "proof": "class ActivityUsageDialog extends Dialog5e",
       "found": true
+    },
+    "cardHeaderTitle": {
+      "where": "dnd5e",
+      "file": "templates/chat/parts/card-header.hbs",
+      "proof": "<span class=\"title\">{{ item.name }}</span>",
+      "found": true
     }
   }
 }

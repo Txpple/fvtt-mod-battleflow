@@ -378,13 +378,13 @@ Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
   }
 });
 
-// …and the swing's ATTACK and DAMAGE cards (the walk: "needs suffix for attack and dmg cards too") — each
-// roll card keeps its own item snapshot (`system.item`), renamed as the card is created.
-Hooks.on("preCreateChatMessage", doc => {
+// …and the swing's ATTACK and DAMAGE cards (the walk: "needs suffix for attack and dmg cards too"): their
+// header reads the LIVE item (`getAssociatedItem()`), so the label is drawn at render, on those cards alone.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
-    if ( !doc.getFlag(MODULE_ID, "poleStrike") && !doc.getFlag(MODULE_ID, "poleStrikeDie") ) return;
-    const name = doc.system?.item?.name;
-    if ( name && !/— Pole Strike$/.test(name) ) doc.updateSource({ "system.item.name": `${name} — Pole Strike` });
+    if ( !message.getFlag(MODULE_ID, "poleStrike") && !message.getFlag(MODULE_ID, "poleStrikeDie") ) return;
+    const title = html.querySelector?.(SURFACES.cardHeaderTitle);
+    if ( title && !/— Pole Strike$/.test(title.textContent ?? "") ) title.textContent = `${title.textContent} — Pole Strike`;
   } catch(err) {
     console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
   }

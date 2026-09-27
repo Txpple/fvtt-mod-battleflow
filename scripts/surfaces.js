@@ -56,7 +56,11 @@ export const SURFACES = Object.freeze({
   dialogRoll: 'button[data-action="roll"]',
   /** The activity usage dialog's footer — the metamagic and emanation rows are inserted before
    * it. dnd5e's Dialog5e renders core's generic form footer as its `footer` part. */
-  dialogFooter: "footer, .form-footer"
+  dialogFooter: "footer, .form-footer",
+  /** A roll card's header title (chat/parts/card-header.hbs) — the LIVE item's name (the attack and
+   * damage cards read `getAssociatedItem()`, not their snapshot), so a swing's own label is drawn here
+   * (hew.js — "Quarterstaff — Pole Strike", the walk 2026-09-27). */
+  cardHeaderTitle: ".card-header .name-stacked .title"
 });
 
 /**
@@ -75,5 +79,6 @@ export const SURFACE_SOURCES = Object.freeze({
   dialogButtons: { where: "dnd5e", file: "dnd5e.mjs", proof: 'buttons: { template: "systems/dnd5e/templates/dice/roll-buttons.hbs"' },
   dialogDefault: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: "autofocus" },
   dialogRoll: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: 'data-action="{{ @key }}"' },
-  dialogFooter: { where: "dnd5e", file: "dnd5e.mjs", proof: 'class ActivityUsageDialog extends Dialog5e' }
+  dialogFooter: { where: "dnd5e", file: "dnd5e.mjs", proof: 'class ActivityUsageDialog extends Dialog5e' },
+  cardHeaderTitle: { where: "dnd5e", file: "templates/chat/parts/card-header.hbs", proof: '<span class="title">{{ item.name }}</span>' }
 });
