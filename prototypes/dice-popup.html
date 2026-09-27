@@ -1,0 +1,321 @@
+<title>One Dice Popup</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  /* Single dark look on purpose: every Battle Flow prototype mocks the Foundry canvas. */
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --pending:rgb(222,120,40); --lift:rgb(90,150,220); --crit:rgb(232,190,50);
+    --good-soft:rgba(70,150,95,.18); --pending-soft:rgba(222,120,40,.2); --lift-soft:rgba(90,150,220,.2); --neutral-soft:rgba(120,120,120,.16);
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1240px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top h1{margin:0 0 4px;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0 0 14px;color:var(--ink-2);max-width:78ch}
+  .scenes{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 14px}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  @media (max-width:1050px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 280px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;padding:24px 14px;min-width:0;background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);background-size:50px 50px}
+  .chatlog{border-left:1px solid var(--line);background:#1a1c20;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .ey{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2)}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:3px}
+  .msg .tot{font-size:20px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
+  .msg .ln{margin-top:4px;padding:4px 6px;border-left:3px solid var(--good);background:rgba(0,0,0,.15);border-radius:3px}
+  .msg .ln.lift{border-left-color:var(--lift)}
+
+  .pop{width:min(470px,100%);margin:0 auto;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.55)}
+  .pop .title{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-weight:600;font-size:13px}
+  .pop .title i{width:14px;height:14px;border-radius:3px;background:var(--pending)}
+  .pop .title .x{margin-left:auto;color:var(--ink-3);font-weight:400}
+  .pop .body{padding:12px 14px 14px}
+  .head{display:flex;gap:10px;align-items:center;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .head .img{width:46px;height:46px;border-radius:4px;background:linear-gradient(135deg,#6a3a2a,#3a2a4a);border:1px solid var(--line);flex:0 0 auto}
+  .head h2{margin:0;font-size:18px;font-weight:700;line-height:1.2;text-wrap:balance}
+  .head .sub{color:var(--ink-2);font-size:12px}
+  .bar{display:flex;align-items:center;gap:6px;margin-top:7px}
+  .bar .trk{flex:1;height:6px;border-radius:3px;background:rgba(0,0,0,.3);overflow:hidden}
+  .bar .fill{height:100%;width:70%;background:var(--good)}
+  .bar span{font-size:10px;color:var(--ink-3)}
+
+  .dice{display:grid;grid-template-columns:repeat(8,2.5rem);gap:6px;margin:12px 0 4px}
+  @media (max-width:420px){.dice{grid-template-columns:repeat(6,2.5rem)}}
+  .die{position:relative;width:2.5rem;height:2.5rem;border-radius:5px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);font:inherit;font-weight:700;font-size:15px;font-variant-numeric:tabular-nums;cursor:pointer;padding:0}
+  .die[disabled]{cursor:default;opacity:.45}
+  .die .f{position:absolute;bottom:-1px;right:2px;font-size:8.5px;font-weight:400;color:var(--ink-3)}
+  .die.pick{background:rgba(222,120,40,.85);border-color:var(--pending);box-shadow:0 0 0 2px var(--pending);color:#fff}
+  .die.lift{box-shadow:0 0 0 2px var(--lift);border-color:var(--lift)}
+  .die .tag{position:absolute;top:-8px;right:-6px;font-size:9.5px;font-weight:700;padding:0 4px;border-radius:3px;background:var(--lift);color:#fff}
+  .die.new{animation:pop .45s ease-out}
+  @keyframes pop{from{transform:translateY(6px) scale(.8);opacity:.3}to{transform:none;opacity:1}}
+  @media (prefers-reduced-motion:reduce){.die.new{animation:none}}
+  .legend{font-size:11px;color:var(--ink-3);margin-bottom:8px}
+
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 8px;align-items:center;margin:6px 0;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18);border:1px solid var(--line);border-left:3px solid var(--pending);cursor:pointer}
+  .row.lift{border-left-color:var(--lift)}
+  .row.on{background:var(--pending-soft)} .row.lift.on{background:var(--lift-soft)}
+  .row input{margin:0;accent-color:var(--pending)}
+  .row.lift input{accent-color:var(--lift)}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .what{font-weight:400;color:var(--ink-2);font-size:12.5px;margin-left:6px}
+  .row .cost{font-size:10px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;color:var(--ink-2)}
+  .row details{grid-column:2 / -1;font-size:11.5px;color:var(--ink-3)}
+  .row details summary{cursor:pointer;list-style:none}
+  .row details summary::-webkit-details-marker{display:none}
+  .preview{margin-top:8px;font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+  .preview b{color:var(--ink)}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .btns button{font:inherit;font-weight:600;padding:8px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btns button.main{background:var(--pending-soft);border-color:var(--pending)}
+  .btns button[disabled]{opacity:.4;cursor:default}
+  .done{margin:60px auto 0;max-width:40ch;text-align:center;color:var(--ink-3)}
+  .done button{margin-top:10px;font:inherit;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+
+  aside{display:flex;flex-direction:column;gap:12px}
+  .note{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .note h3{margin:0 0 6px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+  .note p,.note li{font-size:12.5px;color:var(--ink-2);margin:0 0 6px}
+  .note ol,.note ul{margin:0;padding-left:18px}
+  .note b{color:var(--ink)}
+  .tbl{overflow-x:auto}
+  .tbl table{border-collapse:collapse;font-size:11.5px;width:100%}
+  .tbl th,.tbl td{text-align:left;padding:4px 6px;border-bottom:1px solid var(--line);vertical-align:top;color:var(--ink-2)}
+  .tbl th{color:var(--ink-3);font-weight:400;letter-spacing:.05em;text-transform:uppercase;font-size:10px}
+  .tbl td:first-child{color:var(--ink);white-space:nowrap}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>One dice popup, a row per feature</h1>
+    <p>Empowered Spell, Healer, Elemental Adept, Piercer and Savage Attacker all do the same thing: they change dice on a roll that has already landed. Here they share one popup. The dice are chips. Each feature that fits the roll is a row, and ticking a row marks the dice it will change. Rerolls happen first; "treat as" changes apply to whatever the dice show afterward. Pick a scenario, tick and pick, then press the button.</p>
+  </header>
+
+  <div class="scenes" role="group" aria-label="Scenario">
+    <button type="button" data-scene="fireball" aria-pressed="true">Gren · Fireball (Empowered + Elemental Adept)</button>
+    <button type="button" data-scene="bolt">Gren · Fire Bolt (Adept alone)</button>
+    <button type="button" data-scene="cure">Healer · Cure Wounds</button>
+    <button type="button" data-scene="rapier">Piercer + Savage Attacker · Rapier</button>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage" id="stage"></div>
+      <div class="chatlog" id="log"><div class="ey">Chat</div></div>
+    </div>
+    <aside>
+      <div class="note">
+        <h3>The shared shape</h3>
+        <p>One table, one row per feature. Each row says four things:</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Row</th><th>Which dice</th><th>Does</th><th>Limit</th></tr></thead>
+          <tbody>
+            <tr><td>Empowered Spell</td><td>any die of the spell</td><td>reroll</td><td>up to Cha mod · 1 SP at the cast</td></tr>
+            <tr><td>Healer</td><td>1s on healing</td><td>reroll</td><td>every 1</td></tr>
+            <tr><td>Elemental Adept</td><td>1s of its type, spells</td><td>treat as 2</td><td>every 1</td></tr>
+            <tr><td>Piercer</td><td>one Piercing die</td><td>reroll</td><td>one die, once per turn</td></tr>
+            <tr><td>Savage Attacker</td><td>the weapon's set</td><td>roll again, keep higher</td><td>once per turn</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="note">
+        <h3>For you to rule</h3>
+        <ol>
+          <li><b>One popup per roll</b> with a row per feature, instead of one popup each.</li>
+          <li><b>Order:</b> rerolls first, then "treat 1s as 2" on the final faces. A reroll that comes up 1 still gets lifted.</li>
+          <li><b>Elemental Adept starts ticked</b> when a 1 of its type shows. It's a "can", so you can untick it.</li>
+          <li><b>Picking dice:</b> Empowered and Healer let you click chips; Piercer picks the best die for you (as ruled) but you can click another.</li>
+          <li><b>Savage + Piercer together</b> (parked in BACKLOG) become two rows here: the set rolled again, then one die.</li>
+          <li>Great Weapon Fighting stays automatic, as walked.</li>
+        </ol>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const SCENES = {
+    fireball: {
+      who: "Gren Greenmantle", title: "Fireball", kind: "fire damage", sub: "8d6 fire · 3rd level · Empowered at the cast (1 SP)",
+      dice: [1,4,2,6,1,3,5,2].map(v => ({ v, f: 6, type: "fire" })),
+      rows: [
+        { key: "emp", name: "Empowered Spell", what: "reroll up to 3 dice", cost: "1 SP · paid", mode: "pick", cap: 3, on: true, auto: d => d.v <= 2,
+          rule: "When you roll damage for a spell, you can spend 1 Sorcery Point to reroll a number of the damage dice up to your Charisma modifier. You must use the new rolls." },
+        { key: "adept", name: "Elemental Adept", what: "treat fire 1s as 2", cost: "free", mode: "lift", type: "fire", on: true,
+          rule: "When you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2." }
+      ]
+    },
+    bolt: {
+      who: "Gren Greenmantle", title: "Fire Bolt", kind: "fire damage", sub: "2d10 fire · cantrip",
+      dice: [1,7].map(v => ({ v, f: 10, type: "fire" })),
+      rows: [
+        { key: "adept", name: "Elemental Adept", what: "treat fire 1s as 2", cost: "free", mode: "lift", type: "fire", on: true,
+          rule: "When you roll damage for a spell you cast that deals damage of that type, you can treat any 1 on a damage die as a 2." }
+      ]
+    },
+    cure: {
+      who: "Gren Greenmantle", title: "Cure Wounds", kind: "healing", sub: "2d8 + 3 · 1st level",
+      bonus: 3, dice: [1,6].map(v => ({ v, f: 8, type: "healing" })),
+      rows: [
+        { key: "healer", name: "Healer", what: "reroll the 1s", cost: "free", mode: "pick", onlyOnes: true, on: true, auto: d => d.v === 1,
+          rule: "When you roll dice to heal with a Healer's Kit or a spell, you can reroll any die that rolls a 1, and you must use the new roll." }
+      ]
+    },
+    rapier: {
+      who: "BF Feat Piercer", title: "Rapier", kind: "piercing damage", sub: "1d8 + 3 piercing · a hit",
+      bonus: 3, dice: [{ v: 2, f: 8, type: "piercing" }],
+      rows: [
+        { key: "savage", name: "Savage Attacker", what: "roll the weapon's dice again, keep the higher", cost: "once per turn", mode: "set", on: true,
+          rule: "Once per turn when you hit a target with a weapon, you can roll the weapon's damage dice twice and use either roll against the target." },
+        { key: "piercer", name: "Piercer", what: "reroll one die", cost: "once per turn", mode: "pick", cap: 1, on: false, auto: d => d.v <= 4,
+          rule: "Once per turn, when you hit a creature with an attack that deals Piercing damage, you can reroll one of the attack's damage dice, and you must use the new roll." }
+      ]
+    }
+  };
+
+  const stage = document.getElementById("stage");
+  const log = document.getElementById("log");
+  let scene, state;
+
+  const roll = f => 1 + Math.floor(Math.random() * f);
+  const total = dice => dice.reduce((n, d) => n + d.v, 0) + (scene.bonus || 0);
+
+  function start(key) {
+    scene = SCENES[key];
+    const dice = scene.dice.map((d, i) => ({ ...d, i }));
+    state = { dice, rows: scene.rows.map(r => ({ ...r })), picks: new Set() };
+    autoPick();
+    render();
+  }
+
+  function pickRow() { return state.rows.find(r => r.mode === "pick" && r.on) || null; }
+  function autoPick() {
+    state.picks.clear();
+    const r = pickRow();
+    if (!r) return;
+    const want = state.dice.filter(d => r.auto(d) && (!r.onlyOnes || d.v === 1)).sort((a, b) => a.v - b.v);
+    want.slice(0, r.cap ?? want.length).forEach(d => state.picks.add(d.i));
+  }
+  function lifted(d) { const a = state.rows.find(r => r.mode === "lift" && r.on); return !!a && d.type === a.type && d.v === 1; }
+
+  function render() {
+    const r = pickRow();
+    const sav = state.rows.find(x => x.mode === "set" && x.on);
+    const canPick = d => r && (!r.onlyOnes || d.v === 1);
+    const chips = state.dice.map(d => {
+      const picked = state.picks.has(d.i);
+      const lift = !picked && lifted(d);
+      return `<button type="button" class="die${picked ? " pick" : ""}${lift ? " lift" : ""}${d.fresh ? " new" : ""}" data-die="${d.i}" ${canPick(d) ? "" : "disabled"} aria-pressed="${picked}" aria-label="d${d.f} showing ${d.v}">${d.v}<span class="f">d${d.f}</span>${lift ? '<span class="tag">→2</span>' : ""}</button>`;
+    }).join("");
+    const rows = state.rows.map(x => `
+      <label class="row${x.mode === "lift" ? " lift" : ""}${x.on ? " on" : ""}">
+        <input type="checkbox" data-row="${x.key}" ${x.on ? "checked" : ""}>
+        <span class="nm">${x.name}<span class="what">${x.what}</span></span>
+        <span class="cost">${x.cost}</span>
+        <details><summary>the rule ▸</summary>“${x.rule}”</details>
+      </label>`).join("");
+    const lifts = state.dice.filter(d => !state.picks.has(d.i) && lifted(d)).length;
+    const parts = [];
+    if (state.picks.size) parts.push(`reroll <b>${state.picks.size}</b> ${state.picks.size === 1 ? "die" : "dice"}`);
+    if (sav) parts.push("roll the set again, keep the higher");
+    if (lifts) parts.push(`lift <b>${lifts}</b> 1 → 2`);
+    const pickHint = r ? (r.cap ? `click chips to choose · up to ${r.cap}` : "click chips to choose") : "";
+    stage.innerHTML = `
+      <div class="pop" role="dialog" aria-label="${scene.title} dice">
+        <div class="title"><i></i>${scene.title} — ${scene.who}<span class="x">✕</span></div>
+        <div class="body">
+          <div class="head"><div class="img"></div><div>
+            <div class="ey">Dice — change before it lands</div>
+            <h2>${total(state.dice)} ${scene.kind}</h2>
+            <div class="sub">${scene.sub}</div>
+          </div></div>
+          <div class="bar"><div class="trk"><div class="fill"></div></div><span>17s to answer</span></div>
+          <div class="dice">${chips}</div>
+          <div class="legend">${pickHint}${pickHint && lifts ? " · " : ""}${lifts ? "blue ring: a 1 that counts as 2" : ""}</div>
+          ${rows}
+          <div class="preview">${parts.length ? "Will " + parts.join(", then ") + "." : "Nothing ticked — the roll stands."}</div>
+          <div class="btns">
+            <button type="button" class="main" data-act="apply" ${parts.length ? "" : "disabled"}>Apply</button>
+            <button type="button" data-act="keep">Keep the roll</button>
+          </div>
+        </div>
+      </div>`;
+    state.dice.forEach(d => { d.fresh = false; });
+  }
+
+  function apply() {
+    const before = total(state.dice);
+    const lines = [];
+    const r = pickRow();
+    if (r && state.picks.size) {
+      const moved = [];
+      state.dice.forEach(d => { if (state.picks.has(d.i)) { const n = roll(d.f); moved.push(`${d.v}→${n}`); d.v = n; d.fresh = true; } });
+      lines.push({ t: `${r.name} — rerolled ${moved.join(", ")}`, lift: false });
+    }
+    const sav = state.rows.find(x => x.mode === "set" && x.on);
+    if (sav) {
+      const again = state.dice.map(d => roll(d.f));
+      const a = state.dice.reduce((n, d) => n + d.v, 0), b = again.reduce((n, v) => n + v, 0);
+      if (b > a) state.dice.forEach((d, k) => { d.v = again[k]; d.fresh = true; });
+      lines.push({ t: `${sav.name} — ${a} or ${b}, ${Math.max(a, b)} stands`, lift: false });
+    }
+    const a = state.rows.find(x => x.mode === "lift" && x.on);
+    if (a) {
+      const ones = state.dice.filter(d => d.type === a.type && d.v === 1);
+      ones.forEach(d => { d.v = 2; d.fresh = true; });
+      if (ones.length) lines.push({ t: `${a.name} — ${ones.length === 1 ? "a 1" : ones.length + " 1s"} → 2`, lift: true });
+    }
+    finish(before, lines);
+  }
+
+  function finish(before, lines) {
+    const after = total(state.dice);
+    const card = document.createElement("div");
+    card.className = "msg";
+    card.innerHTML = `<div class="spk">${scene.who} — ${scene.title}</div><div class="tot">${after}</div>
+      <div>${scene.kind}${after !== before ? ` · was ${before}` : ""}</div>
+      ${lines.map(l => `<div class="ln${l.lift ? " lift" : ""}">${l.t}</div>`).join("")}`;
+    log.insertBefore(card, log.children[1] || null);
+    stage.innerHTML = `<div class="done">The popup closed; the card shows what stood.<br><button type="button" data-again>Roll it again</button></div>`;
+  }
+
+  stage.addEventListener("click", ev => {
+    const die = ev.target.closest("[data-die]");
+    if (die && !die.disabled) {
+      const r = pickRow(), i = Number(die.dataset.die);
+      if (state.picks.has(i)) state.picks.delete(i);
+      else { if (r.cap && state.picks.size >= r.cap) state.picks.delete([...state.picks][0]); state.picks.add(i); }
+      render(); return;
+    }
+    const act = ev.target.closest("[data-act]")?.dataset.act;
+    if (act === "apply") apply();
+    else if (act === "keep") finish(total(state.dice), []);
+    else if (ev.target.closest("[data-again]")) start(Object.keys(SCENES).find(k => SCENES[k] === scene));
+  });
+  stage.addEventListener("change", ev => {
+    const key = ev.target.dataset.row;
+    if (!key) return;
+    const row = state.rows.find(r => r.key === key);
+    row.on = ev.target.checked;
+    // one picking row at a time: ticking Piercer hands the chips to it
+    if (row.on && row.mode === "pick") state.rows.forEach(r => { if (r !== row && r.mode === "pick") r.on = false; });
+    autoPick();
+    render();
+  });
+  document.querySelectorAll("[data-scene]").forEach(b => b.addEventListener("click", () => {
+    document.querySelectorAll("[data-scene]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    start(b.dataset.scene);
+  }));
+  start("fireball");
+})();
+</script>
