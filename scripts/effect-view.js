@@ -186,7 +186,7 @@ function ensureStyle() {
     .bf-ev-chip .clk::before{content:"◔ ";opacity:.7}
     .bf-ev-chip .dtl{font-size:11px;color:#e8e3d6;font-weight:700;font-variant-numeric:tabular-nums}
     .bf-ev-chip.bf-ev-cover{--bf-tone:rgb(120,120,120)} .bf-ev-chip.bf-ev-cover.half,.bf-ev-chip.bf-ev-cover.threeQuarters{--bf-tone:rgb(222,120,40)} .bf-ev-chip.bf-ev-cover.total{--bf-tone:rgb(180,70,60)}
-    .bf-ev-chip.bf-ev-cover{padding-left:7px;white-space:normal} .bf-ev-chip .src{font-size:10.5px;color:#b5b0a4}
+    .bf-ev-chip.bf-ev-cover{white-space:normal} .bf-ev-chip.bf-ev-cover img{width:28px;height:28px} .bf-ev-chip .src{font-size:10.5px;color:#b5b0a4}
     .bf-ev-chip em{font-style:normal;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#7d7a72;margin-left:2px}
     #${ROOT_ID}-bar{position:fixed;left:50%;transform:translateX(-50%);z-index:60;display:flex;align-items:center;gap:6px;padding:5px 7px;background:rgba(20,22,26,.92);border:1px solid #3a3f48;border-radius:6px;box-shadow:0 4px 18px rgba(0,0,0,.45);max-width:min(900px,calc(100vw - 340px));font-size:12px;color:#b5b0a4}
     #${ROOT_ID}-bar .who{display:flex;flex-direction:column;padding:0 8px 0 4px;border-right:1px solid #3a3f48;margin-right:2px;line-height:1.15}
@@ -270,7 +270,7 @@ function coverHTML(token) {
     : [];
   const why = [m.by.length ? `${m.by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "", ...ignores].filter(Boolean).join(" · ");
   return `<div class="bf-ev-lbl">Cover</div><div class="bf-ev-list"><span class="bf-ev-chip bf-ev-cover ${d.key}" title="${esc(d.label)}">`
-    + `<span class="txt"><span class="nm">${esc(amount)}</span>${why ? `<span class="src">${esc(why)}</span>` : ""}</span></span></div>`;
+    + `<img src="${esc(d.img)}" alt=""><span class="txt"><span class="nm">${esc(amount)}</span>${why ? `<span class="src">${esc(why)}</span>` : ""}</span></span></div>`;
 }
 
 /** Seat a card at the token's top-right corner, in screen space, kept on screen. */

@@ -1172,7 +1172,9 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   Cover (+5 AC), Total Cover — nothing more: "for total cover you dont need to say cant be
   targeted"), then "Hobgoblin in the way" — and "· Sharpshooter
   ignores it (ranged weapon attacks)" (or Spell Sniper, spell attacks) when the controlled creature
-  holds one. No Cover is its one line. The effects follow under their own label. Still a pure view
+  holds one. No Cover is its one line. Each degree carries a painted icon from Foundry's own library
+  (the user: "nice icons ... color", "pulled from foundry library") — an open road, a low picket
+  fence, a portcullis gate (the PHB's Three-Quarters example), a castle wall. The effects follow under their own label. Still a pure view
   (*The effect view*).
 - **At the attack** the same measure goes on each target's RECORDED AC (`system.targets[].ac`, the
   seam Bypass Cover already uses): the most protective degree applies and degrees never add — a

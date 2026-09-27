@@ -123,6 +123,12 @@ describe("measured cover — the 2024 DMG's corner lines (RULINGS *Measured cove
   });
 });
 
+describe("the degrees' pictures — Foundry's painted library, one per degree", () => {
+  it("names a core icon for every degree", () => {
+    for (const d of COVER_DEGREES) expect(d.img).toMatch(/^icons\/environment\/.+\.webp$/);
+  });
+});
+
 describe("cover at the attack — the most protective applies, never added", () => {
   it("raises the recorded AC by what the measure adds over the cover already carried", () => {
     const [, half, threeQuarters, total] = COVER_DEGREES;

@@ -31,18 +31,21 @@
 /**
  * The degrees, in the order "more protective" runs. The bonus is dnd5e's own (`coverHalf` and
  * `coverThreeQuarters` carry `coverBonus` 2 and 5); Total carries no number — the attack cannot
- * target the creature, and the recorded AC is null (a miss), exactly as dnd5e records it.
- * @typedef {{key: string, label: string, bonus: number|null, status: string|null}} CoverDegree
+ * target the creature, and the recorded AC is null (a miss), exactly as dnd5e records it. The
+ * picture is Foundry's own painted library (the user, 2026-09-27: "nice icons ... color and not the
+ * plain effect icons", "pulled from foundry library"): an open road, a low fence, a portcullis (the
+ * PHB's own Three-Quarters example), a castle wall.
+ * @typedef {{key: string, label: string, bonus: number|null, status: string|null, img: string}} CoverDegree
  * @typedef {{x:number, y:number}} Point
  * @typedef {{x:number, y:number, w:number, h:number}} Rect
  * @typedef {{rect: Rect, name?: string}} Blocker
  * @type {readonly CoverDegree[]}
  */
 export const COVER_DEGREES = Object.freeze([
-  Object.freeze({ key: "none", label: "No Cover", bonus: 0, status: null }),
-  Object.freeze({ key: "half", label: "Half Cover", bonus: 2, status: "coverHalf" }),
-  Object.freeze({ key: "threeQuarters", label: "Three-Quarters Cover", bonus: 5, status: "coverThreeQuarters" }),
-  Object.freeze({ key: "total", label: "Total Cover", bonus: null, status: "coverTotal" })
+  Object.freeze({ key: "none", label: "No Cover", bonus: 0, status: null, img: "icons/environment/wilderness/terrain-river-road-gray.webp" }),
+  Object.freeze({ key: "half", label: "Half Cover", bonus: 2, status: "coverHalf", img: "icons/environment/settlement/fence-wooden-picket.webp" }),
+  Object.freeze({ key: "threeQuarters", label: "Three-Quarters Cover", bonus: 5, status: "coverThreeQuarters", img: "icons/environment/settlement/city-gate.webp" }),
+  Object.freeze({ key: "total", label: "Total Cover", bonus: null, status: "coverTotal", img: "icons/environment/settlement/city-wall.webp" })
 ]);
 
 /** The DMG's count, for a square: 0 lines none, 1–2 Half, 3–4 Three-Quarters. */
