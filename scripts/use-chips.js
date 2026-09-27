@@ -419,7 +419,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const f = message.getFlag(MODULE_ID, COAT_HIT);
   const found = (f?.status === "spent") ? coatRowKeyed(f.key) : null;
   if ( !found ) return;
-  const who = (f.targets ?? []).map(t => esc(t.name ?? "")).join(", ");
+  const who = (f.targets ?? []).map(t => t.name ?? "").join(", ");   // bfCard escapes its subtitle (4a3cbd5)
   const line = document.createElement("div");
   line.innerHTML = bfCard({
     eyebrow: found.name, tone: "good",
