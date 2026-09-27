@@ -1,11 +1,7 @@
-// Probe (2026-09-11): HEROIC INSPIRATION ON AN ABILITY CHECK, THE WAY A PLAYER ROLLS ONE.
-//
-// The user: "heroic inspiration fires on saves now, so we need to add it to ability checks".
-// The machine has offered `heroic` on checks since v1 (`HEROIC.tests` carries "check";
-// smoke-d20-folds §5 asserts a check stamps the offer) — but §5 rolls with the dialog SKIPPED
-// (`configure: false`). A player rolls through the system's roll dialog, so this probe rolls an
-// ability check AND a skill check with the dialog UP, presses its button, and reports whether
-// the offer stamps and the rescue window carries the heroic row. Prints, asserts nothing.
+// Probe: Heroic Inspiration on an ability check the way a player rolls one. smoke-d20-folds §5
+// rolls with the dialog skipped; this rolls an ability check and a skill check with the dialog UP,
+// presses its button, and reports whether the offer stamps and the rescue window carries the
+// heroic row. Prints, asserts nothing.
 //
 //   node tools/probe-heroic-check.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
@@ -34,7 +30,7 @@ const out = await f.evaluate(async () => {
     const roll = async (label, start) => {
       const priorDialogs = new Set([...document.querySelectorAll(".application")].map(el => el.id));
       const before = game.messages.size;
-      // The DIALOG path — the promise resolves only after the dialog is answered.
+      // The dialog path: the promise resolves only after the dialog is answered.
       const pending = start();
       const dialog = await until(() => [...document.querySelectorAll(".application")]
         .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)

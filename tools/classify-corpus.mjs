@@ -1,8 +1,6 @@
-// Classify the corpus scan-corpus.mjs wrote: which FAMILY of table mechanism each race trait,
-// class feature, subclass feature, feat and spell would want, judged from the pack's own
-// structure (activities, effects, activation) and its text, and whether the registry already
-// names it. This is the survey behind the abilities sweep — offline, no Foundry, no writes to
-// the world. It prints a report and writes a JSON of the classified rows beside the input.
+// Classify the corpus scan-corpus.mjs wrote: which family of table mechanism each race trait, class
+// and subclass feature, feat and spell would want (from the pack's structure and text), and whether
+// the registry already names it. Offline; prints a report and writes the classified rows as JSON.
 //
 // Usage: node tools/classify-corpus.mjs <corpus.json> [--list <family>] [--kind race|class|subclass|feat|spell]
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -18,7 +16,7 @@ const raw = JSON.parse(readFileSync(file, 'utf8'));
 const PACK_RANK = {
   'dnd-players-handbook.classes': 1, 'dnd-players-handbook.feats': 1, 'dnd-players-handbook.origins': 1,
   'dnd-players-handbook.spells': 1, 'dnd-heroes-faerun.options': 1, 'dnd-dungeon-masters-guide.equipment': 1,
-  // Arcana Unleashed (2026-09-24, the fifth book — SWEEP §2, NOTES §2): premium, 2024 rules, unscanned yet
+  // Arcana Unleashed (SWEEP §2, NOTES §2): premium, 2024 rules
   'dnd-arcana-unleashed.subclasses': 1, 'dnd-arcana-unleashed.feats': 1, 'dnd-arcana-unleashed.spells': 1,
   'dnd-arcana-unleashed.items': 1,
   'dnd5e.classes24': 2, 'dnd5e.feats24': 2, 'dnd5e.origins24': 2, 'dnd5e.spells24': 2,
@@ -40,8 +38,7 @@ for (const o of raw.owners) {
   for (const g of o.grants) grantOwner.set(g.uuid, { owner: o, level: g.level, choice: g.choice });
 }
 function ownerOf(r) {
-  // the premium and SRD copies of a feature are different uuids; try the row's own uuid, then
-  // any same-named row's uuid in the 2024 packs
+  // premium and SRD copies differ in uuid: try the row's own, then any same-named 2024 row's
   const direct = grantOwner.get(r.uuid);
   if (direct) return direct;
   for (const other of rows2024) {
@@ -62,8 +59,7 @@ function kindOf(r) {
   return 'class?';   // a class-typed feature nothing grants (an option a feature offers, e.g. an Invocation, a Metamagic, a Maneuver)
 }
 
-// ---- the families, each a mechanism the table already has or would need. Order matters: a
-// row lands in EVERY family that matches — a feature is often two things at once.
+// ---- the families (mechanisms the table has or would need). A row lands in EVERY family that matches.
 const T = (r) => r.text;
 const FAMILIES = [
   // what the module ALREADY does, family by family

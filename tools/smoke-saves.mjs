@@ -1,32 +1,13 @@
-// Battle Flow Phase 2 smoke test — saving throws, driven end to end in the live world: the
-// demand stamp on the save card, per-target verdicts (forced through ±30 save bonuses — a
-// suite that can lose a coin flip lies once a week), failed-save effects and the onSave
-// "applies even on save" flag, half-on-save damage through the applier's multiplier in both
-// arrival orders (damage after verdicts AND damage waiting on a pending target), the popup's
-// native-dialog controls reaching the real dice, a bare sheet roll answering, the buzzer
-// rolling, and legendary resistance overturning a folded failure receipts-and-all.
-// v1.12.0 adds §10 (the WAITING demand: a bare template cast stamps zero targets and no
-// deadline, the placed area delivers targets and arms the clock — findings ②+③) and §11
-// (the GM's unsolicited popups are non-player-owned targets only; the quiet PC rides the
-// buzzer — finding ④). v1.14.0 adds §12 (spell-truth geometry on a suite-built 140px
-// scene — the v14 region shim scales stored distance by gridSize/100, invisible on this
-// 100px range, and containment must follow the honest dnd5e dimensions flag instead) and
-// §13 (the spent sweep as a convergent floor + its newest-cast fossil wall).
-//
-// Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
-// every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
-// new-message searches go by ID-SET DIFFERENCE, never timestamps or tail windows; HP is a
-// fixture resource reset before every damage assertion (a number that cannot move proves
-// nothing).
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 8`, `--section 12,13`, `--list`. Fixtures and teardown
-// ALWAYS run; only the numbered assertion blocks are skippable.
+// Battle Flow smoke test: saving throws end to end in the live world (demand stamp, forced
+// verdicts via ±30 bonuses, effects, half-on-save in both arrival orders, the dialog, the buzzer,
+// legendary resistance, areas and their sweeps, the save gate, the save facets).
+// Harness discipline: settings restored, this run's messages deleted, fixtures long-rested,
+// new messages found by ID-SET difference, HP reset before every damage assertion.
+// Sections: `--section 8`, `--section 12,13`, `--list` (ARCHITECTURE §11 *Adding a TEST* rule 2).
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'saves/index.js',         // the save machine end to end — every part
   'saves/demand.js',
@@ -70,15 +51,11 @@ const SECTIONS = {
   28: 'Trance (the Elf, 2026-09-27): against a SPELL whose failed-save effect puts the target to sleep ("Asleep"), a text-only Trance on the sheet says the save cannot fail — Net Succeeds, a Succeeds button the default; pressed, the verdict is SAVED with no die ("cannot fail (Trance)"), the sleep never lands; against a demand that does not sleep, Trance is nowhere in the section',
   27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never'
 };
-// §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
-// its card, its template id and its 140px scene. Both couplings are declared in the code
-// already (the hoisted `let card1` / `let card12`), so they are declared here too.
+// §2 rolls §1's demand damage (`card1`); §13 rides §12's lifecycle (`card12`, its area, its scene).
 const DEPENDS = { 2: ['1'], 13: ['12'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
-// 560s for §§1-17 plus the 420s the save-damage offer used to carry as its own script:
-// §18 waits out two real buzzer windows, and a suite that dies at the watchdog reports
-// nothing at all.
+// §18 waits out two real buzzer windows on top of §§1-17.
 const f = await connectSuite({ tag: 'saves', watchdogMs: 900_000 });
 announcePlan('saves', plan, pulled);
 
@@ -88,16 +65,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The section gate (tools/harness.mjs): the plan arrives as DATA in this serialized closure.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
-  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  // Every moment payload published during the run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -124,8 +99,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const CHIP_NAMES = ['BF Poisoned', 'BF Splashed', 'BF Vial Poisoned'];
   const created = { items: [], tokens: [], templates: [] };   // templates: the REGION ids this suite placed (dnd5e 6.0 areas are Regions)
-  // An area the way dnd5e 6.0.1's TemplatePlacement writes it: a Region whose shape is the
-  // platform's own (radius in PIXELS), the ACTIVITY on `flags.dnd5e.activity` when a cast owns it.
+  // An area as dnd5e's TemplatePlacement writes it: a Region (radius in PIXELS), the activity on `flags.dnd5e.activity`.
   const px = scene.grid.size / scene.grid.distance;
   const circleArea = (x, y, ft, flags = {}) => scene.createEmbeddedDocuments('Region', [{
     name: 'BF test area', shapes: [{ type: 'circle', x, y, radius: ft * px }], flags
@@ -143,16 +117,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
-    // never leave the table wearing suite settings (bit live 2026-08-17: a failed run's
-    // teardown skipped the restore and autoDamage/dramaticBeat residue got mistaken for
-    // the user's own tuning). The user's config is sacred; the rest is best-effort.
+    // ⚠ Settings restore first, in its own guard: a later cleanup error must never leave suite settings on the table.
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       await clearChips();
-      // §19 presses statuses on the victim; a run that died mid-section must not leave it
-      // Paralyzed for the next suite (the poisoned-prone-chip class, NOTES §5).
+      // §19 presses statuses on the victim; a dead run must not leave it Paralyzed (NOTES §5).
       const pressed = victim.effects.filter(e => ['restrained', 'paralyzed'].some(s => e.statuses?.has?.(s)));
       if (pressed.length) await victim.deleteEmbeddedDocuments('ActiveEffect', pressed.map(e => e.id));
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, i) => {
@@ -193,15 +163,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('masteryRiders', false);
     await set('concMode', 'off');        // its bare-save recognizer must never be in play
     await set('castApply', false);       // the save machine stands alone
-    // (The suppression machinery is gone at v1.10.0 — cards always post; each section's
-    // card-exists assertion now rides on nothing but the module leaving cards alone.)
-
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
-    // ⚠ Sweep pre-existing victim/shielder tokens first (the smoke-effects §14 lesson):
-    // getSpeaker resolves through the actor's OLDEST token on the viewed scene, and a stale
-    // unlinked one would make section 4's bare sheet roll arrive with a synthetic uuid the
-    // fold can never match. smoke-battleflow re-places its own victim token next run.
+    // ⚠ Sweep stale victim/shielder tokens first: getSpeaker resolves through the actor's OLDEST
+    // token on the scene, and a stale unlinked one gives §4's sheet roll a uuid the fold cannot match.
     const pcActor = game.actors.getName('BF Test PC Attacker'); // §11's player-owned fixture
     const stale = scene.tokens.filter(t =>
       [victim.id, shielder.id, ...(pcActor ? [pcActor.id] : [])].includes(t.actorId)).map(t => t.id);
@@ -231,15 +196,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       victim.system._source.resources?.legres?.spent ?? 0;
 
     const saveBonus = (a, v) => a.update({ 'system.abilities.con.save.roll.bonus': v });
-    // ⚠ Healing must also RAISE THE DEAD. `isDeadForSaves` filters on the dead STATUS as well
-    // as NPC hp, and a status is an ActiveEffect — it survives an hp restore and it survives
-    // across runs (the poisoned-prone-chip class, NOTES §5). A prior run that killed the PC
-    // left "dead" standing; §11 then healed hp to full and STILL cast at a corpse, so the
-    // demand filtered the PC out and three assertions failed on residue (found 2026-08-27).
+    // ⚠ Healing also clears the dead STATUS: `isDeadForSaves` reads it, and an ActiveEffect
+    // survives an hp restore and survives across runs (NOTES §5).
     const healFull = async a => {
       await a.update({ 'system.attributes.hp.value': a.system.attributes.hp.max });
-      // Delete-by-id, never toggleStatusEffect: the toggle threw "does not exist" on a
-      // status the set reported (a fixed-id effect raced its own removal, 2026-08-27).
+      // Delete by id, never toggleStatusEffect (the toggle can throw on a fixed-id effect racing its removal).
       const down = a.effects.filter(e =>
         ['dead', 'unconscious'].some(s => e.statuses?.has?.(s)));
       if ( down.length ) {
@@ -248,10 +209,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return a.system.attributes.hp.max;
     };
 
-    // The fixture: an innate save spell (consumption.spellSlot: false — the §6 shape), flat
-    // 10 damage so half is exactly 5, DC from a custom formula so it can never drift with
-    // the caster's sheet, and TWO effects — one fail-only, one marked onSave (the flag the
-    // system stores and nothing native reads; honoring it is the feature).
+    // The fixture: an innate save spell, flat 10 damage (half is exactly 5), a formula DC, and two
+    // effects: one fail-only, one marked onSave (the system stores that flag; nothing native reads it).
     const EFF_FAIL = 'bfsavefail000000';
     const EFF_ALWAYS = 'bfsavealways0000';
     const [poisonItem] = await npc.createEmbeddedDocuments('Item', [{
@@ -272,8 +231,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
-          // §19's shape — the same demand on a DEXTERITY save, the ability the save table
-          // bends (Restrained) and fails outright (Paralyzed); the con fixture above meets no row.
+          // §19: a Dexterity save, the ability Restrained bends and Paralyzed fails outright.
           bfsavedex0000000: {
             _id: 'bfsavedex0000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -283,8 +241,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['dex'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
-          // §27's shape — the same demand on a WISDOM save (the PHB feats, group 4: Guarded Mind
-          // reaches Intelligence, Wisdom and Charisma saves only).
+          // §27: a Wisdom save (Guarded Mind reaches Int, Wis and Cha saves only).
           bfsavewis0000000: {
             _id: 'bfsavewis0000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -303,9 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: true, affects: { type: 'self' }, prompt: false }
           },
-          // §9's shape — Web's burn clause: damage stored ON the save activity with
-          // onSave "full", i.e. damage the save does not modulate. Rider damage, not the
-          // save's consequence (finding ③, 2026-08-17).
+          // §9: Web's burn clause, damage on the save activity with onSave "full" (rider damage, not the save's consequence).
           bfsavefull000000: {
             _id: 'bfsavefull000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -315,13 +270,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['con'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
-          // §10's shape — Web's TEMPLATE flow (v1.12.0 finding ③; re-cut at v1.13.0 for
-          // the walk's finding ①): a CUBE save activity cast bare, area placed after as an
-          // origin-LESS rect — the toolbar draw. Cube ⇒ rect is the type the old
-          // circle-only geometry fallback could not shape, which is exactly how the suite
-          // stayed green while the live cube adopted nothing. prompt: true matches the
-          // live spell's data; the harness passes create.measuredTemplate false at use
-          // (the canceled-preview path — a real drawPreview never resolves headless).
+          // §10: Web's template flow, a CUBE save activity cast bare, the area placed after as an
+          // origin-less rect (the toolbar draw). The harness passes create.measuredTemplate false:
+          // a real drawPreview never resolves headless.
           bfsavetmpl000000: {
             _id: 'bfsavetmpl000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -366,13 +317,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const usageCards = msgs => msgs.filter(m =>
       (m.type === 'usage'));
     const chipOn = (a, name) => a.effects.find(e => e.name === name);
-    // Since option E the ask IS the system's Saving Throw dialog — found by the application
-    // registry and our demand fieldset, never by a class the dialog may not wear.
+    // The ask is the system's Saving Throw dialog, found by the application registry and our fieldset.
     const savePopups = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]'))
       .map(app => app.element);
-    // WHO a dialog asks, read off OUR fieldset alone — the dialog's own target block names the
-    // user's current targets, which is not the same creature (8a2's false positive, 2026-09-02).
+    // Who a dialog asks, read off OUR fieldset: the dialog's own target block names the client's current targets.
     const demandText = el => el?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '';
     const entryOf = (card, a) => card.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === a.uuid);
     const rollDamageChained = card => saveActivity().rollDamage({}, { configure: false },
@@ -394,10 +343,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card1) return { fatal: 'the save cast produced no usage card' };
       await until(() => card1.getFlag(MOD, 'saves'));
 
-      // ⑯'s companion, asserted at the source: the machine rolled the card's damage AT THE
-      // STAMP — nobody pressed anything (the table hides every card button). §2 owns the
-      // late-arrival ordering, so the auto roll is asserted and then deleted to keep that
-      // ordering constructible.
+      // The machine rolled the card's damage at the stamp. §2 owns late-arrival ordering, so the
+      // auto roll is asserted and then deleted to keep that ordering constructible.
       const autoDmg = await until(() => fresh(before).find(m =>
         (m.type === 'damage')
         && (m._source.system?.origin === card1.id)));
@@ -405,9 +352,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!autoDmg && (autoDmg.system?.onSave === 'half'),
         `auto=${!!autoDmg} onSave=${autoDmg?.system?.onSave}`);
 
-      // ⑯ as DATA (dnd5e 6.0, the pass's phase 4): the platform's own list for this activity
-      // carries real Save/Damage buttons — that list guards the vacuous pass — and the card's
-      // `system.buttons` keeps none of them (Refund Resource at most); the rendered icon-row agrees.
+      // The platform's own button list is non-empty (guards a vacuous pass); the card keeps none of it.
       const platformBtns = saveActivity()._usageChatButtons({ hasConsumption: false }).map(b => b.action);
       const dataBtns = (card1.system?.buttons ?? []).map(b => b.action);
       const cardEl = ui.chat.element.querySelector(`.message[data-message-id="${card1.id}"]`);
@@ -418,9 +363,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `platform=[${platformBtns.join()}] data=[${dataBtns.join()}] drawn=[${drawnBtns.join()}]`);
       if (autoDmg) await ChatMessage.deleteDocuments([autoDmg.id]);
 
-      // Both targets answer through the popup — the ONE input surface now that the silent
-      // opt-out is gone (the settings collapse, user call 2026-08-16). Different actors, so
-      // both popups offer at once; each Normal click is the machine's own roll channel.
+      // Both targets answer through the popup; different actors, so both offer at once.
       for (let i = 0; i < 2; i++) {
         const popup = await until(() => savePopups()[0], 8000);
         if (!popup) break;
@@ -448,8 +391,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. forced verdicts fold per target: the -30 fails, the +30 saves',
         (ev?.outcome === 'failed') && (es?.outcome === 'saved') && ev?.done && es?.done,
         `victim=${ev?.outcome} shielder=${es?.outcome}`);
-      // THE MOMENT EVENTS (events.js version 2): each target's verdict landing on the saves record publishes
-      // `save` through the GATE, marker = the target's uuid, the caster and the DC in the details.
+      // Each verdict landing publishes `save` through the gate: marker = the target's uuid.
       const sv = momentsOf('save').filter(p => p.messageId === card1.id);
       const svV = sv.find(p => p.actorUuid === victim.uuid), svS = sv.find(p => p.actorUuid === shielder.uuid);
       ok('1z. the verdicts were PUBLISHED through the gate: battleflow.moment "save" (kind saves) once per target — the victim failed, the shielder saved, the DC and the caster on each; plain and frozen',
@@ -513,7 +455,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const card = use?.message instanceof ChatMessage ? use.message : null;
       if (!card) return { fatal: 'section 3 cast produced no card' };
       await until(() => card.getFlag(MOD, 'saves'));
-      // The stamp's own auto-roll IS the early damage now — nothing to press.
+      // The stamp's own auto-roll is the early damage.
       const dmg = await until(() => fresh(before).find(m => m.type === 'damage'));
       await sleep(1800);
       ok('3a. a pending target\'s damage WAITS — per-target independence, nothing applied',
@@ -524,23 +466,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const popup = await until(() => savePopups()[0], 6000);
       const buttons = popup ? [...popup.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button')] : [];
       const labels = buttons.map(b => b.textContent.trim());
-      // Since option E (2026-09-02) the "popup" IS the system's own Saving Throw dialog: its
-      // three buttons, its situational bonus, its roll mode — and Battle Flow's demand fieldset.
+      // The ask is the system's Saving Throw dialog plus Battle Flow's demand fieldset.
       ok('3b. the demand opens the SYSTEM dialog: its own Adv/Normal/Dis, its situational bonus, its roll mode — and our demand fieldset',
         (labels.join('/') === 'Advantage/Normal/Disadvantage')
           && !!popup?.querySelector('input[name="roll.0.situational"]')
           && !!popup?.querySelector('select[name="rollMode"]')
           && !!popup?.querySelector('[data-bf-save-demand]'),
         `buttons=[${labels.join('|')}] input=${!!popup?.querySelector('input[name="roll.0.situational"]')} demand=${!!popup?.querySelector('[data-bf-save-demand]')}`);
-      // The demand stores the TOKEN's name (the snapshot's field) — compare against that,
-      // not the actor name (the fixture's prototype token is "Hobgoblin").
+      // The demand stores the TOKEN's name (the fixture's prototype token is "Hobgoblin").
       const rollerName = card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
       ok('3b2. the demand fieldset leads with WHO is rolling — the creature owns the title',
         ((popup?.querySelector('[data-bf-save-demand]')?.textContent ?? '').includes(rollerName)),
         `demand="${popup?.querySelector('[data-bf-save-demand]')?.textContent?.replace(/\s+/g, ' ').trim().slice(0, 120)}" expected="${rollerName}"`);
 
-      // The dialog reads its form on CHANGE (it rebuilds the rolls there, not on submit), so a
-      // programmatic value must announce itself the way a keystroke does.
+      // The dialog rebuilds its rolls on CHANGE, so a programmatic value must dispatch one.
       const input = popup?.querySelector('input[name="roll.0.situational"]');
       if (input) { input.value = '+30'; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(150); }
       buttons.find(b => b.textContent.trim() === 'Advantage')?.click();
@@ -586,8 +525,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !roll?._source.system?.origin
           && (roll?.rolls?.[0]?.options?.target == null),
         `outcome=${entry?.outcome} target=${roll?.rolls?.[0]?.options?.target}`);
-      // Wait for the whole consequence pass, not the first chip — the two creates are
-      // sequential and an assert can land in the gap between them (bit this suite's first run).
+      // Wait for the whole consequence pass: its two creates are sequential.
       await until(() => entryOf(card, victim)?.applied);
       ok('4b. the failure\'s consequences ran off the sheet roll (both chips landed)',
         !!chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed'),
@@ -618,9 +556,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (roll?.getFlag(MOD, 'timedOut') === true)
           && (roll?.rolls?.[0]?.options?.advantageMode === 0),
         `timedOut=${entry?.timedOut} outcome=${entry?.outcome} advMode=${roll?.rolls?.[0]?.options?.advantageMode}`);
-      // Quiesce before leaving: the stamp auto-rolls damage now, and this verdict's late
-      // application would otherwise land INSIDE §6's freshly healed pool (bit 2026-08-16:
-      // hp read 0/11 where 1/11 was earned).
+      // Quiesce: this verdict's late application would otherwise land inside §6's healed pool.
       await until(() => entryOf(card, victim)?.applied);
       await set('saveTimer', 0);
     }
@@ -731,21 +667,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card) return { fatal: 'section 8 cast produced no card' };
       await until(() => card.getFlag(MOD, 'saves'));
 
-      // The template lands over the VICTIM only. Adoption must swing the demand both ways:
-      // the untargeted victim standing inside joins; the targeted shielder outside drops
-      // (the live Shatter and Moonbeam reports, one mechanism).
+      // The template lands over the victim only: the untargeted victim inside joins, the targeted shielder outside drops.
       let hookFired = 0;
       const hid = Hooks.on('createRegion', () => { hookFired++; });
-      // Radius 2.5 ft ON PURPOSE (retuned v1.13.0 for CORE's grid-aware shapes): the
-      // fixture tokens stand 200px apart — one grid square over — and a GRIDDED 5 ft
-      // circle covers the whole adjacent square, so "outside" stopped being testable
-      // exactly the way the old 10 ft Euclidean rim did (bit 2026-08-16). 2.5 ft covers
-      // only the origin square gridded AND only a 70px disc Euclidean: the neighbor is
-      // out under either branch, whatever core's gridTemplates setting says.
+      // ⚠ Radius 2.5 ft on purpose: the fixtures stand one square apart and a GRIDDED 5 ft circle
+      // covers the adjacent square. 2.5 ft keeps the neighbor out gridded or Euclidean.
       const [tpl] = await circleArea(victimToken.center.x, victimToken.center.y, 2.5, areaFor(card.getFlag(MOD, 'saves').activityUuid));
       created.templates.push(tpl.id);
-      // The adoption floor rides the card's RENDER (the CRUD hooks measurably never fire on
-      // this page) — nudge one, exactly as any table chatter would.
+      // The adoption floor rides the card's RENDER (the CRUD hooks never fire on this page): nudge one.
       await sleep(300);
       try { ui.chat?.updateMessage?.(card); } catch { /* re-renders next message anyway */ }
       const adopted = await until(() => {
@@ -772,22 +701,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!adopted && (adopted.targets.length === 1),
         `templated=${!!adopted?.templated} targets=[${(card.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}]`);
 
-      // 8a2 (v1.10.0 — the strand fix): the dropped snapshot target's popup CLOSES. The
-      // shielder's popup auto-showed on this client at the stamp; the drop's flag write
-      // must sweep it wherever it lives — a popup asking a withdrawn question with a dead
-      // bar was the live Shatter/Gren report (2026-08-17).
+      // 8a2: the dropped target's popup CLOSES wherever it lives (no popup asking a withdrawn question).
       const strandGone = await until(() => !savePopups().some(p =>
         demandText(p).includes(shielder.name)), 6000);
       ok('8a2. the dropped entry\'s popup closes — no stranded question on screen',
         !!strandGone,
         `open save popups: ${savePopups().length}`);
 
-      // Moonbeam walks: the circle lands on the shielder — the pending set follows the
-      // area. `templated` must already be true here or this assertion could pass on the
-      // original manual snapshot (the vacuous-pass trap, caught 2026-08-16). Expressed as
-      // delete + re-place because tpl.update() measurably no-ops on this headless page
-      // (same half-dead template plumbing as the create hook); live moves and re-places
-      // funnel into the identical recompute.
+      // The circle moves onto the shielder and the pending set follows. `templated` must already be
+      // true or this could pass on the manual snapshot. Delete + re-place because tpl.update()
+      // no-ops on this headless page; live moves funnel into the same recompute.
       await scene.deleteEmbeddedDocuments('Region', [tpl.id]);
       const [tpl2] = await circleArea(shielderToken.center.x, shielderToken.center.y, 2.5, areaFor(card.getFlag(MOD, 'saves').activityUuid));
       created.templates.push(tpl2.id);
@@ -812,8 +735,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!walked, `templated=${!!card.getFlag(MOD, 'saves')?.templated} `
           + `targets=[${(card.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name).join()}]`);
 
-      // Resolve the walked demand; the fixture is INSTANTANEOUS, so the spent template
-      // leaves the canvas with the last consequence.
+      // Resolve the moved demand; the fixture is instantaneous, so the area leaves with the last consequence.
       const autoDmg8 = fresh(before).find(m =>
         (m.type === 'damage')
         && (m._source.system?.origin === card.id));
@@ -825,12 +747,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !scene.regions.get(tpl2.id),
         `area=${!!scene.regions.get(tpl2.id)} autoDmg=${!!autoDmg8}`);
 
-      // 8d (v1.10.0 — the stamp's 5.3.3 nesting): results.templates entries are ARRAYS
-      // (#placeTemplate pushes drawPreview()'s resolution — the raw createEmbeddedDocuments
-      // result), and unflattened they made every live placement-during-usage fall back to
-      // the manual snapshot (how Gren got Shatter's popup, 2026-08-17). The harness cannot
-      // drive drawPreview, so the hook is fired by hand with the exact nested shape the
-      // live flow produces: the stamp must contain, not snapshot.
+      // 8d: results.templates entries are ARRAYS (drawPreview()'s resolution); unflattened, a
+      // placement during usage falls back to the manual snapshot. The harness cannot drive
+      // drawPreview, so the hook fires by hand with the live nested shape.
       await clearChips();
       const [tpl8d] = await circleArea(victimToken.center.x, victimToken.center.y, 2.5);
       created.templates.push(tpl8d.id);
@@ -853,18 +772,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && stamped8d.targets.some(t => t.uuid === victim.uuid)
           && !stamped8d.targets.some(t => t.uuid === shielder.uuid),
         `templated=${stamped8d?.templated} targets=[${(stamped8d?.targets ?? []).map(t => t.name).join()}]`);
-      // Sweep the fixture message and anything chained to it before teardown counts cards.
+      // Sweep the fixture message and its chain before teardown counts cards.
       const chained8d = game.messages.contents.filter(m =>
         m._source.system?.origin === msg8d.id);
       await ChatMessage.deleteDocuments([msg8d.id, ...chained8d.map(m => m.id)]);
 
-      // 8e (user ruling 2026-08-28 — the swamp Fireballs): an INSTANTANEOUS area placed on
-      // NOBODY is spent at the stamp. Before this, the empty cast stamped a clockless
-      // WAITING demand (pending forever) and every sweep floor is status-gated — the
-      // template stood until doomsday. The demand now stamps DONE, rolls no damage at
-      // nobody, and the elect's convergent floor sweeps the area like any resolved one.
-      // The TEMPLATE-SHAPED activity on purpose: a targetless cast of a non-template
-      // activity stays native by the gate above §8a, and never reaches the stamp.
+      // 8e: an instantaneous area placed on nobody stamps DONE, rolls no damage, and is swept by the
+      // elect's floor. The template-shaped activity on purpose: a targetless non-template cast stays native.
       const before8e = snap();
       const [tpl8e] = await circleArea(200, 200, 2.5, areaFor(tmplActivity().uuid));   // far from every fixture token
       created.templates.push(tpl8e.id);
@@ -895,13 +809,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         m._source.system?.origin === msg8e.id);
       await ChatMessage.deleteDocuments([msg8e.id, ...chained8e.map(m => m.id)]);
 
-      // 8f (2026-09-10, the user's report: the Adult Green Dragon's Poison Breath "doesn't clean
-      // up after itself"): a monster's FEATURE is a `feat` item with NO system.duration, and the
-      // demand read the ITEM's duration — so a breath weapon stamped `durationUnits: null`, the
-      // sweep read null as a duration area waiting on a concentration that never existed, and
-      // the cone stood forever (a breath at nobody left a pending card with zero targets). The
-      // stamp now falls back to the ACTIVITY's duration: the same empty-instant shape as 8e, on
-      // a feat whose save activity says `inst` the way the Monster Manual ships it.
+      // 8f: a monster's breath is a `feat` with no system.duration; the stamp falls back to the
+      // ACTIVITY's duration (`inst`), so an empty breath is swept like 8e.
       const [breath] = await npc.createEmbeddedDocuments('Item', [{
         name: 'BF Test Breath', type: 'feat',
         system: {
@@ -921,12 +830,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         const breathAct = () => npc.items.get(breath.id)?.system.activities.get('bfbreathact00000');
         const before8f = snap();
-        // ⚠ The cone must stand on EMPTY ground: the section proves an instant area at NOBODY.
-        // 2026-09-24 the battery went red here (114/116) because the new BF Test Halfling's
-        // home tile (500,200, fixture-suite) fell inside the old cone at (200,400) — 19° off its
-        // axis, 14 ft out — and the breath found a target and waited on its save. The cone now
-        // points down the empty left edge, and 8f-pre says so before anything is fired, so the
-        // next fixture home cannot fail this section silently again.
+        // ⚠ The cone must stand on EMPTY ground, clear of every fixture's home tile; 8f-pre checks it
+        // before anything fires so a new fixture home fails loudly here.
         const [tpl8f] = await scene.createEmbeddedDocuments('Region', [{
           name: 'BF test cone', shapes: [{ type: 'cone', x: 200, y: 600, radius: 20 * px, angle: 53.13, rotation: 0 }],
           flags: areaFor(breathAct().uuid)
@@ -961,11 +866,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (npc.items.get(breath.id)) await npc.deleteEmbeddedDocuments('Item', [breath.id]).catch(() => {});
       }
 
-      // 8g (user ruling 2026-09-10 — the FOURTH bucket): a LISTED spent area is swept at the last
-      // verdict whatever its data says. The fixture wears Noxious Miasma's name and its data lie
-      // (a 1-turn activity duration, no concentration): listed, an empty placement stamps DONE and
-      // the area is swept like an instant; with the name struck from the Spent Areas list the same
-      // cast stamps a WAITING demand and the area stands — the GM's bucket, as before the ruling.
+      // 8g: a Spent Areas-listed area is swept at the last verdict whatever its data says (this one
+      // lies: 1-turn, no concentration); unlisted, the same cast stamps WAITING and the area stands.
       const priorSpent = game.settings.get(MOD, 'spentAreaList');
       const [miasma] = await npc.createEmbeddedDocuments('Item', [{
         name: 'Noxious Miasma', type: 'feat',
@@ -1019,11 +921,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ============================================== 9. rider damage (onSave "full") + per-row bars
-    // Web's shape (finding ③, 2026-08-17): the burn 2d4 lives ON the save activity with
-    // onSave "full" — damage the save does not modulate is not the save's consequence.
-    // The demand stamps with no damage dimension: no auto-roll, no per-verdict
-    // application, even on a failure. And ④'s card half: every pending row drains its
-    // own bar ("two timers tick side by side" — the walk's stated expectation).
+    // Damage the save does not modulate stamps no damage dimension: no auto-roll, no per-verdict
+    // application. Every pending row drains its own bar.
     if (want(9)) {
       await clearChips();
       await saveBonus(victim, '-30');            // forced failure — ③'s dangerous case
@@ -1043,7 +942,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         (flag9?.damageOnSave === 'full') && (flag9?.hasDamage === false),
         `onSave=${flag9?.damageOnSave} hasDamage=${flag9?.hasDamage}`);
 
-      // ④ at the DOM — re-query per poll: a re-render REPLACES the card element.
+      // Re-query per poll: a re-render replaces the card element.
       const barCount = () => document.querySelector(`[data-message-id="${card.id}"]`)
         ?.querySelectorAll('[data-bf-deadline]')?.length ?? 0;
       await until(() => barCount() === 2, 2500);
@@ -1056,8 +955,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         && (m._source.system?.origin === card.id));
       ok('9b. rider damage never auto-rolls at the stamp', !autoDmg9, `autoRolled=${!!autoDmg9}`);
 
-      // Resolve through the popups (the §1 idiom); if the 4s buzzer wins a race instead,
-      // the assertions below hold under either path (timer rolls are straight, -30 fails).
+      // Resolve through the popups; if the buzzer wins instead, the assertions hold either way.
       for (let i = 0; i < 2; i++) {
         const popup = await until(() => savePopups()[0], 6000);
         if (!popup) break;
@@ -1073,25 +971,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('saveTimer', 0);
     }
 
-    // ============================================== 10. the waiting demand (v1.12.0, findings ②+③)
-    // Web's natural flow: a template-shaped save activity cast BARE — no targets, no
-    // placement (create.measuredTemplate false = the canceled-preview path, the only
-    // headless-safe one). The old code stamped nothing and adoption had no customer, so
-    // the area produced no saves at all (the live Web report). The demand must stamp
-    // WAITING (zero targets, no deadline), the card must say so, Place Measured Template
-    // must hide with every other button (finding ② — the keep-list is exactly
-    // refundResource again), and the placed area must deliver targets, arm the clock from
-    // that moment, ask, and run the whole machine to a receipt.
+    // ============================================== 10. the waiting demand
+    // A template-shaped save activity cast bare stamps WAITING (zero targets, no deadline), hides
+    // every card button but refundResource, and the placed area delivers targets and arms the clock.
     if (want(10)) {
       await clearChips();
-      // ⚠ SWEEP ORIGIN-LESS TEMPLATES FIRST. A waiting demand legitimately CLAIMS any
-      // unowned template of its shape on the current scene — so a leftover rect from an
-      // earlier section (or from a crashed run, which is how this was found on
-      // 2026-08-19) is claimed by the OLDER cast the instant it stamps, before the newer
-      // cast even exists. 10d2 then fails reporting a fossil-wall breach that never
-      // happened: the module was right and the range was dirty. Three strays were
-      // standing when this was diagnosed.
-      // A toolbar draw at Foundry 14 is a Region wearing the core MeasuredTemplate flag and no activity.
+      // ⚠ Sweep origin-less templates first: a waiting demand CLAIMS any unowned template of its
+      // shape, so a leftover rect is claimed by the older cast and 10d2 fails on residue.
+      // A toolbar draw is a Region with the core MeasuredTemplate flag and no activity.
       const strayAreas10 = scene.regions.filter(r => r.getFlag('core', 'MeasuredTemplate') && !r.getFlag('dnd5e', 'activity'));
       if (strayAreas10.length) {
         log.push(`section 10 swept ${strayAreas10.length} unowned leftover drawn template(s)`);
@@ -1102,8 +989,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('saveTimer', 15);
       target();                            // BARE on purpose — the whole finding
       await sleep(120);
-      // TWO bare casts: the older is the newest-customer gate's pin (finding ①'s probe
-      // found FOUR same-activity waiting cards — one placement must fill exactly one).
+      // TWO bare casts: one placement must fill exactly one (the newest-customer gate).
       const useOld10 = await tmplActivity().use(
         { create: { measuredTemplate: false } }, { configure: false }, {});
       const cardOld10 = useOld10?.message instanceof ChatMessage ? useOld10.message : null;
@@ -1124,9 +1010,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `flag=${!!flag10} targets=${flag10?.targets?.length} awaiting=${flag10?.awaitingTemplate} `
           + `deadline=${flag10?.deadline} window=${flag10?.window} tmplType=${flag10?.templateType}`);
 
-      // ②'s pin as DATA (6.0): the platform's own list for this activity carries a REAL Place
-      // Template button (the vacuous-pass guard); the card's data keeps none of it — the
-      // keep-list is refundResource only — and the rendered icon-row agrees.
+      // The platform's list carries a real Place Template button; the card keeps only refundResource.
       const platform10 = tmplActivity()._usageChatButtons({ hasConsumption: false }).map(b => b.action);
       const data10 = (card10.system?.buttons ?? []).map(b => b.action);
       const cardEl10 = await until(() => ui.chat.element.querySelector(`.message[data-message-id="${card10.id}"]`), 4000);
@@ -1141,21 +1025,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }, 4000);
       ok('10c. the waiting card says so', !!waitLine10, `line="${(waitLine10 ?? '').trim()}"`);
 
-      // The area lands as the TOOLBAR draws it: an origin-LESS rect (finding ①'s exact
-      // shape — a cube spell, no dnd5e origin flag, no drawn canvas shape on this headless
-      // page, so only the rect geometry fallback can contain anything). The waiting demand
-      // must CLAIM it — stamp the origin on — fill, and arm the clock from that moment.
-      // ⚠ Snapshot the OLDER demand BEFORE the rect exists: if it is already templated
-      // here, it claimed some EARLIER section's leftover area and 10d2's failure has
-      // nothing to do with this rect (the 2026-08-19 hunt).
+      // The toolbar's origin-less rect: the waiting demand must CLAIM it, fill, and arm the clock.
+      // ⚠ Snapshot the older demand BEFORE the rect exists: templated already means it claimed residue.
       const oldBefore10 = {
         targets: (cardOld10.getFlag(MOD, 'saves')?.targets ?? []).length,
         templated: cardOld10.getFlag(MOD, 'saves')?.templated ?? false,
         scenePool: scene.regions.filter(r => r.getFlag('core', 'MeasuredTemplate') || r.getFlag('dnd5e', 'activity')).map(r => ({ id: r.id, t: r.shapes?.[0]?.type,
           origin: r.getFlag('dnd5e', 'activity') ?? null })),
       };
-      // Foundry 14's template toolbar creates a REGION marked `flags.core.MeasuredTemplate` — the
-      // rectangle shape a cube is placed as (TemplatePlacement: rect → rectangle), 200px around the victim.
+      // The toolbar creates a Region flagged `flags.core.MeasuredTemplate`, a cube as a rectangle, 200px around the victim.
       const [tpl10] = await scene.createEmbeddedDocuments('Region', [{
         name: 'BF toolbar rect', shapes: [{ type: 'rectangle', x: victimToken.center.x - 100, y: victimToken.center.y - 100, width: 200, height: 200, rotation: 0 }],
         flags: { core: { MeasuredTemplate: true } }
@@ -1168,13 +1046,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return (f?.templated && !f.awaitingTemplate && f.deadline
           && f.targets.some(t => t.uuid === victim.uuid)) ? f : null;
       });
-      // ⚠ The claim's origin WRITE cannot be asserted on this page: template updates
-      // silently no-op here (§8's tpl.update() ground truth — setFlag resolves, nothing
-      // persists, the collection reads null). The fill itself IS the claim's pin: a
-      // WAITING demand can only be fed by templatesForOrigin (empty — the rect is
-      // origin-less) or claimBareTemplate, so rows appearing at all proves the claim
-      // selected and used the toolbar rect. Origin persistence is LIVE-proven: the
-      // 2026-08-17 re-test's claimed template read back origin-tied on the probe.
+      // ⚠ The claim's origin write cannot be asserted: template updates no-op on this page. Rows
+      // appearing at all prove claimBareTemplate chose this rect (templatesForOrigin is empty here).
       ok('10d. the toolbar rect is claimed and fills the waiting demand, clock armed from that moment',
         !!adopted10 && (adopted10.targets.length === 1) && (adopted10.deadline > Date.now())
           && (adopted10.deadline <= Date.now() + 15_500),
@@ -1187,7 +1060,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (oldFlag10?.awaitingTemplate === true) && !oldFlag10?.deadline,
         `older: targets=${oldFlag10?.targets?.length} awaiting=${oldFlag10?.awaitingTemplate} `
           + `deadline=${oldFlag10?.deadline}`
-          // the fossil wall's own inputs — when this fails, say WHY it failed
+          // the fossil wall's inputs, so a failure says why
           + ` | oldTs=${cardOld10.timestamp} newTs=${card10.timestamp}`
           + ` sameActivity=${oldFlag10?.activityUuid === card10.getFlag(MOD, 'saves')?.activityUuid}`
           + ` oldStatus=${oldFlag10?.status} oldTemplated=${oldFlag10?.templated}`
@@ -1197,13 +1070,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               && (m.timestamp > cardOld10.timestamp)
               && (m.getFlag(MOD, 'saves')?.activityUuid === oldFlag10?.activityUuid))}`);
 
-      // The arrival is ASKED (an NPC — the GM's popup rightly shows), and the machine runs
-      // to the receipt: -30 fails, the half-rule damage applies at ×1.
-      // ⚠ Match the popup by the ENTRY's stored name, never the actor's — adoption names
-      // entries after their TOKEN, and this victim's token is literally "Hobgoblin" (the
-      // prototype it was cloned from; smoke-battleflow's receipts print the same). The
-      // first run of this section looked for "BF Test Victim" and missed a popup that was
-      // correctly open.
+      // The NPC arrival is asked; -30 fails and the half-rule damage applies at ×1.
+      // ⚠ Match the popup by the entry's stored (TOKEN) name, never the actor's.
       const entryName10 = adopted10.targets[0]?.name ?? victim.name;
       const popup10 = await until(() => savePopups().find(p => demandText(p).includes(entryName10)), 6000);
       ok('10e. the arrival gets its ask', !!popup10,
@@ -1221,14 +1089,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('saveTimer', 0);
     }
 
-    // ============================================== 11. the GM popup routing (v1.12.0 finding ④ + v1.19.x finding (h))
-    // canAnswerFor ALONE routes the saves popups since (h): an ONLINE owner still keeps
-    // the GM quiet (the v1.12.0 taste, untouched where it was made), but a player-owned
-    // target whose owner is OFFLINE now pops for the GM instead of silently riding the
-    // buzzer — the walk's log showed "failed (timer)" eating every player save in a
-    // solo-GM room. The buzzer stays the resolver of last resort (11c). The section sets
-    // the ownership itself (object form — the dotted key raises validation noise), so the
-    // old ownership-precondition SKIP is gone.
+    // ============================================== 11. the GM popup routing
+    // canAnswerFor alone routes the popups: an online owner keeps the GM quiet; a player-owned
+    // target whose owner is offline pops for the GM. The buzzer is the last resort (11c).
+    // Ownership is set in object form (the dotted key raises validation noise).
     if (want(11)) {
       await clearChips();
       const playerUser11 = game.users.find(u => !u.isGM && !u.active);
@@ -1253,10 +1117,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull(pcActor);
         const pcToken = await mkToken(pcActor, 1400);
         if (!pcToken) return { fatal: 'section 11 PC token never reached the canvas' };
-        // 8s window: the pending-state assertions below need a few seconds to LOOK before
-        // the buzzer resolves everything out from under them (the first run set 4s and its
-        // own 6s popup poll outlived the entire demand — open=0 proved only that the
-        // machine had already finished). The buzzer is still the quiet PC's resolver.
+        // 8s: the pending-state assertions need time to look before the buzzer resolves everything.
         await set('saveTimer', 8);
         target(victimToken, pcToken);
         await sleep(120);
@@ -1264,8 +1125,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const card11 = use11?.message instanceof ChatMessage ? use11.message : null;
         if (!card11) return { fatal: 'section 11 cast produced no card' };
         const flag11 = await until(() => card11.getFlag(MOD, 'saves'));
-        // Entry names are TOKEN names (this victim's token is "Hobgoblin") — match popups
-        // by what the demand actually stored, never by actor name.
+        // Entry names are TOKEN names: match popups by what the demand stored.
         const nameOf11 = a => flag11?.targets?.find(t => t.uuid === a.uuid)?.name ?? a.name;
         const npcName11 = nameOf11(victim);
         const pcName11 = nameOf11(pcActor);
@@ -1286,8 +1146,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!rowText11 && !rowText11.includes('owner offline'),
           `row="${(rowText11 ?? '').trim()}"`);
 
-        // Resolve the NPC through its popup; the PC's popup stays open on purpose — the
-        // buzzer must STILL be the resolver of last resort past an unanswered popup.
+        // Resolve the NPC's popup; the PC's stays open so the buzzer must still resolve it.
         [...(npcPopup?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
           .find(b => b.textContent.trim() === 'Normal')?.click();
         await until(() => card11.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 20000);
@@ -1303,20 +1162,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ============================================== 12. spell-truth geometry (v1.13.0 walk finding ①)
-    // Foundry 14's region shim scales a template's stored `distance` by gridSize/100 in
-    // the CREATE round-trip (probes 7–9, 2026-08-17: ×1.4 on 140px, ×0.7 on 70px, and
-    // `width` comes back as raw pixels) — invisible on this 100px range, which is exactly
-    // how every battery stayed green while the live 140px table demanded Salyth from
-    // outside every drawn cube. This section builds its own 140px scene and pins the
-    // rescue: containment reads the honest dnd5e `dimensions` flag, so the demand matches
-    // the SPELL whatever the server did to the stored field. The assertions are
-    // FACTOR-PROOF — they hold whether the shim lies or is one day fixed upstream
-    // (shimFactor is logged so the fix announces itself in the transcript).
+    // ============================================== 12. spell-truth geometry
+    // A suite-built 140px scene: containment must match the SPELL's area at any grid size. The
+    // assertions are factor-proof (shimFactor is logged).
     let card12 = null;               // §13 rides this demand's completed lifecycle
     let tpl12Id = null;
     const actUuid12 = tmplActivity().uuid;
-    // The cube on the shim scene, the region's own shape (§12 places it, §13 re-places it, §14 borrows it).
+    // The shim scene's cube (§12 places it, §13 re-places it, §14 borrows it).
     const cube12 = () => ({ name: 'BF shim cube', shapes: [{ type: 'rectangle', x: 1400, y: 1400, width: 280, height: 280, rotation: 0 }], flags: { dnd5e: { activity: actUuid12 } } });
     if (want(12)) {
       await clearChips();
@@ -1328,11 +1180,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       });
       const proto = a => foundry.utils.mergeObject(a.prototypeToken.toObject(),
         { actorId: a.id, actorLink: true }, { inplace: false });
-      // A 10 ft cube at (1400,1400): honest side 280px. IN stands in the cube's first
-      // square (center 1470,1470); OUT stands with its center 350px from the origin —
-      // outside the honest 280, inside a ×1.4 phantom's 392 (the Salyth position).
-      // DISTINCT actors on purpose: entries dedupe by actor uuid, so one actor's two
-      // tokens could never discriminate the phantom from the truth.
+      // A 10 ft cube at (1400,1400), honest side 280px. IN stands in its first square; OUT stands
+      // 350px from the origin (outside 280, inside a ×1.4 phantom's 392). Distinct actors: entries
+      // dedupe by actor uuid.
       await shimScene.createEmbeddedDocuments('Token',
         [foundry.utils.mergeObject(proto(victim), { x: 1400, y: 1400 }, { inplace: false })]);
       await shimScene.createEmbeddedDocuments('Token',
@@ -1345,10 +1195,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (!card12) return { fatal: 'section 12 cast produced no card' };
       await until(() => card12.getFlag(MOD, 'saves'), 6000);
 
-      // The dialog placement's exact shape on the shim scene at dnd5e 6.0: a REGION, the cube a
-      // rectangle in PIXELS (TemplatePlacement: 10 ft × 140px/5ft = 280), the ACTIVITY on its flag.
-      // The v14 shim's corrupted distance and the honest-dimensions rescue it forced are gone with
-      // the template document; the region's shape is the truth the module reads.
+      // The dialog placement's shape at 140px: a Region rectangle in PIXELS, the activity on its flag.
       const [tpl12] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       tpl12Id = tpl12.id;
       log.push(`section 12 region ${tpl12.id} shape=${JSON.stringify(tpl12.shapes[0])} grid=${shimScene.grid.size}px`);
@@ -1364,7 +1211,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (uuids12.length === 1),
         `targets=[${(adopted12?.targets ?? []).map(t => t.name).join()}]`);
 
-      // Run it to done for §13: the popup asks for the NPC arrival, -30 fails, applied lands.
+      // Run it to done for §13.
       const name12 = adopted12?.targets?.[0]?.name ?? victim.name;
       const popup12 = await until(() => savePopups().find(p => demandText(p).includes(name12)), 6000);
       [...(popup12?.querySelectorAll('footer button, .form-footer button, nav.dialog-buttons button') ?? [])]
@@ -1378,30 +1225,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           .map(t => ({ done: t.done, applied: t.applied })))}`);
     }
 
-    // ============================================== 13. the spent sweep converges (finding ②)
-    // The completion one-shot demonstrably got lost live (stale Fireball circles with
-    // every target applied — the prime suspect is an elect flip mid-chain: probe GM
-    // sessions were connecting and disconnecting through the walk). The sweep is a
-    // convergent floor now: done + instantaneous + origin-still-standing ⇒ swept on the
-    // next render, whoever the elect is by then — and a NEWER same-activity card disarms
-    // an old card's sweep forever (the fossil wall: a recast reuses the activity uuid,
-    // and an old card must never delete the current cast's area).
+    // ============================================== 13. the spent sweep converges
+    // done + instantaneous + area standing ⇒ swept on the next render, whoever the elect is; a NEWER
+    // same-activity card disarms an older card's sweep (the fossil wall: a recast reuses the uuid).
     if (want(13)) {
-      // 13a: the completion one-shot swept §12's template (durationUnits "inst" rides
-      // the fixture item).
+      // 13a: the completion one-shot swept §12's area.
       const gone13 = await until(() => !shimScene.regions.get(tpl12Id), 8000);
       ok('13a. an instantaneous demand sweeps its area at completion', !!gone13,
         `still=${!!shimScene.regions.get(tpl12Id)}`);
 
-      // 13b: a stale leftover — the lost-one-shot shape — converges on the next render.
+      // 13b: a stale leftover converges on the next render.
       const [stale13] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       try { ui.chat?.updateMessage?.(card12); } catch { /* render floor */ }
       const swept13 = await until(() => !shimScene.regions.get(stale13.id), 8000);
       ok('13b. a done demand re-sweeps a stale area on render — the convergent floor', !!swept13,
         `still=${!!shimScene.regions.get(stale13.id)}`);
 
-      // 13c: the fossil wall. The stub is status DONE and carries no `templated`, so no
-      // floor in the machine can act on it — it exists only to be newer.
+      // 13c: the fossil wall. The stub is DONE with no `templated`: it exists only to be newer.
       const stub13 = await ChatMessage.create({
         content: 'BF test — newer same-activity stub (section 13c)',
         flags: { [MOD]: { saves: { status: 'done', activityUuid: actUuid12, targets: [] } } }
@@ -1417,11 +1257,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await ChatMessage.deleteDocuments([stub13.id]);
 
-      // 13d: THE ORPHAN (2026-09-23, the user's Careful Fireball left its circle standing): an area
-      // refresh read "pending" before its awaits, the buzzer closed the demand inside them, and the
-      // refresh's write appended a creature to the DONE demand — nobody left to ask it. The guard
-      // stops new orphans; the floor here must still clear a circle a card already stuck that way
-      // left: a closed demand's never-asked entry does not hold the area up.
+      // 13d: a closed demand's never-asked entry (appended by a refresh racing the buzzer) does not
+      // hold the area up.
       const prior13d = foundry.utils.deepClone(card12.getFlag(MOD, 'saves'));
       const [stale13d] = await shimScene.createEmbeddedDocuments('Region', [cube12()]);
       await card12.setFlag(MOD, 'saves', { ...prior13d, status: 'done',
@@ -1434,12 +1271,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await card12.setFlag(MOD, 'saves', prior13d);
     }
 
-    // ============================================== 14. the duration sweep (2026-08-18 finding ①)
-    // Faerie Fire's region outlived the spell: the native end-of-concentration cascade owns
-    // that deletion but demonstrably lost it (the same lost-one-shot class as §13's), so the
-    // sweep floor extends to DURATION areas — spent when the caster no longer wears the
-    // concentration effect the usage card names (system.concentration). While concentration
-    // holds, the area is alive and must never sweep.
+    // ============================================== 14. the duration sweep
+    // A duration area is spent when the caster stops wearing the concentration effect the card
+    // names; while concentration holds it must never sweep.
     if (want(14)) {
       const [concItem] = await npc.createEmbeddedDocuments('Item', [{
         name: 'BF Test Clinging Web', type: 'spell',
@@ -1515,11 +1349,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `concEffect=${!!concEff14} still=${!!shimScene.regions.get(tpl14.id)}`);
     }
 
-    // ============================================== 15. the verdict LINES (v1.19.0, FLOW item 7)
-    // A table moment opened in public closes in public: each verdict posts ONE bfCard —
-    // "holds" good / "fails" bad, wording promoted from verdictText — idempotent under the
-    // announced guard, and a legendary-resistance flip posts the CORRECTED line (forced-
-    // marked so the twin-supersede never eats it) while the honest fail line stands.
+    // ============================================== 15. the verdict lines
+    // No public line posts; the usage card says each verdict once, and a legendary-resistance flip
+    // reads corrected.
     if (want(15)) {
       const linesFor = cardId => game.messages.contents.filter(m => m.getFlag(MOD, 'verdictLine')?.sourceMessageId === cardId);
       await clearChips();
@@ -1539,9 +1371,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         return f?.targets?.every(t => t.done && t.applied) ? f : null;
       }, 25000);
       if (!done15) {
-        // Name the cause (2026-09-24: a red here read "lines=0" and nothing else — the victim's
-        // roll had lost its token speaker and its verdict landed after the wait; the line below
-        // is what the next red says instead).
+        // Name the cause on a red (a lost token speaker lands the verdict after the wait).
         const f = card15.getFlag(MOD, 'saves');
         const rollOf = t => (t?.rollMessageId ? game.messages.get(t.rollMessageId) : null);
         log.push(`15 TIMEOUT: canvas.ready=${canvas.ready} scene=${canvas.scene?.id === scene.id} `
@@ -1551,8 +1381,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       await sleep(1500); // where a line would have posted — let any create land
 
-      // NO public line posts (2026-09-18): the usage card says each verdict once, in the
-      // platform's summary row or its own line.
+      // No public line: the usage card says each verdict once.
       const cardText15 = () => (ui.chat.element?.querySelector(`.message[data-message-id="${card15.id}"]`)?.textContent ?? '').replace(/\s+/g, ' ');
       ok('15a. no public verdict card posts — the usage card carries both verdicts (v1.19.0\'s lines retired 2026-09-18)',
         !!done15 && (linesFor(card15.id).length === 0) && /vs DC 15/.test(cardText15()) && /half damage/.test(cardText15()),
@@ -1583,10 +1412,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         'system.resources.legres.spent': priorActor[victim.id]['system.resources.legres.spent'] });
     }
 
-    // ============================================== 16. the DEAD-TARGET gate (v1.19.0, user call)
-    // The user's reversal of the old "dead targets still roll" corner: DEAD (dead status, or
-    // an NPC at 0 HP) is skipped at the stamp and at adoption; an all-dead cast stamps
-    // NOTHING — no demand, no auto-roll; a DYING PC (character at 0 HP) still rolls.
+    // ============================================== 16. the dead-target gate
+    // Dead (status, or an NPC at 0 HP) is skipped at stamp and adoption; all-dead stamps nothing;
+    // a dying PC (character at 0 HP) still rolls.
     if (want(16)) {
       // 16a — mixed: the dead NPC is dropped from the rows, the living one is demanded.
       await saveBonus(victim, '');
@@ -1607,8 +1435,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // 16b — all dead: NO saves flag, NO auto damage roll, fully native.
       await shielder.update({ 'system.attributes.hp.value': 0 });
-      // The Shielder is a CHARACTER: dead only by the status, which the platform lands after the
-      // HP write — wait for it, or a fast cast meets a dying PC and stamps (the v2.5.0 floor's red).
+      // The Shielder is a CHARACTER, dead only by the status the platform lands after the HP write: wait for it.
       await until(() => shielder.statuses?.has?.('dead') && victim.statuses?.has?.('dead'), 4000);
       target(victimToken, shielderToken);
       await sleep(120);
@@ -1624,8 +1451,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `flag=${!!card16b?.getFlag(MOD, 'saves')} autoDmg=${!!autoDmg16b} targets=${JSON.stringify(card16b?.getFlag(MOD, 'saves')?.targets?.map(t => t.name))} hp=${victim.system.attributes.hp.value}/${shielder.system.attributes.hp.value} types=${victim.type}/${shielder.type} dead=${victim.statuses?.has?.('dead')}/${shielder.statuses?.has?.('dead')}`);
       await ChatMessage.deleteDocuments(fresh(before16b).map(m => m.id)).catch(() => {});
 
-      // 16c — the boundary the predicate is NARROWER for: a dying PC (character, 0 HP) is
-      // still demanded — the area's damage and the death-save failures are real.
+      // 16c: a dying PC (character, 0 HP) is still demanded.
       if (pcActor) {
         priorActor[pcActor.id] = {
           ...(priorActor[pcActor.id] ?? {}),
@@ -1633,12 +1459,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         };
         const pcToken16 = await mkToken(pcActor, 1600);
         await pcActor.update({ 'system.attributes.hp.value': 0 });
-        // ⚠ CONSTRUCT "dying", do not assume it. dnd5e core (5.3.3) applies no status at 0 HP,
-        // but this world's stack marks the drop DEAD (found 2026-08-27) — and the gate under
-        // test honors the dead status wherever it comes from, so leaving the marker would test
-        // the neighbor module, not the boundary. Strip it and the section means what it says:
-        // a 0-HP character WITHOUT the dead status is still demanded. (The old fixture dodged
-        // this by accident: a 0/0-max sheet never DROPS, so nothing ever marked it.)
+        // ⚠ Construct "dying": this world's stack may mark the drop DEAD, and the gate honors that
+        // status, so strip it. The section means a 0-HP character WITHOUT the dead status.
         await sleep(400);
         const marked16 = pcActor.effects.filter(e => e.statuses?.has?.('dead'));
         if (marked16.length) {
@@ -1665,12 +1487,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull(shielder);
     }
 
-    // ============================================== 17. the BASH shape (v1.19.0, FLOW item 5)
-    // Shield Master's fix is CONTENT (user ruling): a feat's save activity with a BOUND
-    // status effect is already a full customer of this machine — receipts, revert, verdict
-    // lines and the press all come free. This section pins the shape end to end so the
-    // world's real feat (Thomas's, verified by tools/content/fix-shield-master.mjs) can never
-    // silently regress in the machine.
+    // ============================================== 17. the bash shape
+    // A feat's save activity with a bound status effect is a full customer of this machine; this
+    // pins it for the world's Shield Master (tools/content/fix-shield-master.mjs).
     if (want(17)) {
       const EFF_BASH = 'bfbashprone00000';
       const [bashItem] = await npc.createEmbeddedDocuments('Item', [{
@@ -1700,7 +1519,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const bashActivity = () => npc.items.get(bashItem.id).system.activities.get('bfbashact0000000');
 
       await set('saveTimer', 2);
-      // 17a — the failure presses Prone through the ordinary machine, receipted.
+      // 17a: the failure presses Prone, receipted.
       await saveBonus(victim, '-30');
       await healFull(victim);
       if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
@@ -1720,7 +1539,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && t.effects.some(e => e.name === 'BF Bashed Prone')),
         `prone=${victim.statuses?.has?.('prone')} receipt=${!!receipt17a}`);
 
-      // 17b — the pass leaves the target standing, and item 7's line says "holds".
+      // 17b: the pass leaves the target standing.
       await saveBonus(shielder, '+30');
       await healFull(shielder);
       if (shielder.statuses?.has?.('prone')) await shielder.toggleStatusEffect('prone', { active: false });
@@ -1744,10 +1563,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await saveBonus(shielder, '');
     }
 
-    // ============================================== 19. the save gate — option E (2026-09-02)
-    // The demand opens dnd5e's own Saving Throw dialog; the gate meets the roller there — the
-    // save table's bends as the section, the net as the default, and a save the rules fail
-    // before the dice as a fourth button. A sheet save meets the same gate (D folded into E).
+    // ============================================== 19. the save gate
+    // The demand opens dnd5e's own dialog; the save table's bends are the section, the net the
+    // default, a save the rules fail a fourth button. A sheet save meets the same gate.
     if (want(19)) {
       const ledger = globalThis.__bfHookLedger ?? null;
       const count = name => ledger?.[name] ?? 0;
@@ -1855,8 +1673,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await until(() => entryOf(cardI, victim)?.applied, 12000);
       await set('saveTimer', 0);
 
-      // 19j: a SHEET save meets the same gate (option D folded into E) — Fails with no demand
-      // posts the record as a card, and rolls nothing.
+      // 19j: a sheet save meets the same gate; Fails posts the record as a card and rolls nothing.
       const beforeJ = snap();
       void victim.rollSavingThrow({ ability: 'dex' }, {}, {});
       const dlgJ = await until(() => [...foundry.applications.instances.values()].map(app => app.element)
@@ -1868,7 +1685,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && /Paralyzed/.test(cardJ.content ?? '') && (saveRollsIn(beforeJ).length === 0),
         `dialog=${!!dlgJ} card=${!!cardJ} flag=${JSON.stringify(cardJ?.getFlag(MOD, 'saveAutoFail'))}`);
 
-      // 19k: a Constitution save under Paralyzed meets no row — no section, the dialog as it always was.
+      // 19k: a Constitution save under Paralyzed meets no row — no section, the plain dialog.
       await clearChips();
       await saveBonus(victim, '');
       await healFull(victim);
@@ -1889,13 +1706,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ============================================== 20. a save press — Web
-    // The 2024 PHB's Web carries NO effect (measured 2026-09-02, tools/probe-web.mjs), so the
-    // saves machine applied nothing on a failure. SAVE_PRESSES names the status the text presses.
-    // ⚠ Driven by the TABLE, not by Web alone (2026-09-03): every SAVE_PRESSES row is cast bare
-    // — the pack's shape, a Dex save activity with no effects and no damage, under the row's own
-    // item name — and its status must land. A row added without this section going green is a
-    // row the machine never read.
+    // ============================================== 20. a save press
+    // The PHB's Web carries no effect; SAVE_PRESSES names the status. ⚠ Every row is cast bare under
+    // its own name and its status must land: a row this section does not turn green is never read.
     if (want(20)) {
       const PRESSES = [['Web', 'restrained', 'a'], ['Grease', 'prone', 'c'], ['Sleet Storm', 'prone', 'd']];
       await clearChips();
@@ -1989,12 +1802,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ============================================== 22. the platform's own mode, explained (2026-09-04)
-    // Harrow Vane's Wisdom save opened at `1d20adv` with no section: The Duskheart's item effect
-    // sets `system.abilities.wis.save.roll.mode` +1, the system sums it into the mode, and the
-    // gate read only statuses. Now the sheet's applied effects are read for the key that names
-    // this roll, and each is a box naming the ITEM. A sheet save on the victim wearing a test
-    // trinket is the measurement; the dialog's own default (the platform's) is left alone.
+    // ============================================== 22. the platform's own mode, explained
+    // An item effect on `system.abilities.<ab>.save.roll.mode` sets the dialog's mode; the gate
+    // names each such effect's ITEM in a box. The dialog's own default is left alone.
     if (want(22)) {
       const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
@@ -2002,8 +1812,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         .find(el => el?.querySelector?.('[data-application-part="buttons"]') && !el.querySelector('[data-bf-save-demand]')
           && /Saving Throw/i.test(el.querySelector('h1, .window-title')?.textContent ?? ''));
       const formulaOf = dlg => (dlg?.querySelector('.formula, [data-application-part="formulas"]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-      // Wait for the dialog to actually LEAVE: a cold client on Foundry 14.368 closes its first roll dialog
-      // slower than a fixed pause, and the next probe read the still-open one (6.0.3 check, 2026-09-19).
+      // Wait for the dialog to actually leave: a cold client closes it slower than a fixed pause.
       const closeVia = async (dlg, action) => { dlg?.querySelector(`button[data-action="${action}"]`)?.click(); await until(() => !dlg?.isConnected, 8000); await sleep(200); };
       // Diagnostic only: the Reminder Sources list as the world holds it (its `effect` kind is the switch).
       const kindsOn = (() => { try { return String(game.settings.get(MOD, 'reminderList') ?? ''); } catch { return '(unreadable)'; } })();
@@ -2025,7 +1834,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `dialog=${!!dlgA} reminderList="${kindsOn}" default=${defaultOf(dlgA)} formula="${formulaOf(dlgA)}" text="${textA.slice(0, 220)}"`);
         await closeVia(dlgA, 'normal');
 
-        // 22b: a Wisdom save — the key names the ability; no section, the dialog as it always was.
+        // 22b: a Wisdom save — the key names the ability; no section, the plain dialog.
         void victim.rollSavingThrow({ ability: 'wis' }, {}, {});
         const dlgB = await until(() => { const dd = sheetDialog(); return /Wisdom/i.test(dd?.querySelector('h1, .window-title')?.textContent ?? '') ? dd : null; }, 6000);
         await sleep(300);
@@ -2129,10 +1938,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ============================================================ §26 a FEATURE row's saves facet (Slice A)
-    // Brave, Fey Ancestry and Dwarven Resilience ship as TEXT alone — no effect on the sheet — so
-    // the save gate reads them by the feature's name (decide/reminders.js rowCarriers, 2026-09-24).
-    // The pack item is text, so a bare feat named Brave IS the pack's shape; §23's demand, re-aimed.
+    // ============================================== 28. Trance
+    // A text-only trait on the sheet, read by name (decide/reminders.js rowCarriers); a bare feat is the pack's shape.
     if (want(28)) {
       const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
       const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
@@ -2201,6 +2008,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
+    // ============================================== 26. a feature row's saves facet (Brave, text only)
     if (want(26)) {
       const priorLists = { reminderList: game.settings.get(MOD, 'reminderList'), effectList: game.settings.get(MOD, 'effectList') };
       const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
@@ -2262,12 +2070,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ============================================================ §24 the chained roll's SUMMARY (the 6.0 pass, phase 4)
-    // dnd5e 6.0 draws a save rolled against a usage card as a SUMMARY inside that card and hides
-    // the roll's own card (client setting chatCardSummary, default on). Every row Battle Flow
-    // draws on such a roll — here the save gate's record, §19's shape — must draw where the table
-    // looks: inside the summary (ui.js cardRow). And a flag write on the summarized roll must
-    // re-render the summary — the platform re-renders the origin on a system change only.
+    // ============================================== 24. the chained roll's summary
+    // dnd5e draws a save rolled against a usage card as a SUMMARY inside it (chatCardSummary) and
+    // hides the roll's card: Battle Flow's rows must draw in the summary (ui.js cardRow), and a
+    // flag write on the roll must re-render it (the platform re-renders on a system change only).
     if (want(24)) {
       const priorSummary = game.settings.get('dnd5e', 'chatCardSummary');
       const setStatus24 = async (actor, id, on) => {
@@ -2319,8 +2125,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!rowIn && /against the net/.test(text(rowIn)) && !/Reminded — net/.test(text(ownLi())),
           `inSummary=${!!rowIn} onHidden=${/Reminded — net/.test(text(ownLi()))} text="${text(summaryEl()).slice(0, 200)}"`);
 
-        // The nudge: a FLAG write on the summarized roll (nothing in `system` moves) re-renders
-        // the origin — the record flipped to honoured drops "(against the net)" from the row.
+        // A FLAG write on the summarized roll re-renders the origin.
         const rem24 = roll24?.getFlag(MOD, 'reminder');
         await roll24?.setFlag(MOD, 'reminder', { ...rem24, honoured: true });
         const refreshed = await until(() => {
@@ -2330,8 +2135,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('24c. a flag write on the summarized roll re-renders its summary — Battle Flow nudges the origin (the platform re-renders it on a system change only)',
           !!refreshed, `text="${(refreshed ?? text(summaryEl())).slice(0, 200)}"`);
 
-        // THE VERDICT IN THE PLATFORM'S ROW (user ruling 2026-09-18): the summary row carries
-        // "vs DC … — saved/failed" beside its total, and Battle Flow draws no second line for it.
+        // The summary row carries "vs DC … — saved/failed"; no second line.
         const tail24 = await until(() => summaryEl()?.querySelector('.bf-verdict') ?? null, 6000);
         const bfLines24 = () => [...(log24?.querySelectorAll(`.message[data-message-id="${card24.id}"] .battleflow-saves div`) ?? [])].map(d => text(d));
         ok('24e. the verdict is written into the platform\'s summary row — "vs DC … — saved/failed" beside the total — and Battle Flow draws no second line for that target (user ruling 2026-09-18)',
@@ -2340,11 +2144,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         await until(() => entryOf(card24, victim)?.applied, 12000);
 
-        // Summaries OFF: a FRESH roll's own card is shown and draws the row itself, and its usage
-        // card renders no summary. ⚠ Proven on a new roll, not by re-rendering the old one: core's
-        // ChatLog#rerenderMessage carries `hidden` over from the existing element (Foundry 14.367,
-        // measured here), so a card once summarized stays hidden until the log renders afresh —
-        // the platform's own toggle behaviour, not this module's.
+        // Summaries OFF: a FRESH roll's card shows and draws the row. ⚠ Proven on a new roll: core's
+        // ChatLog#rerenderMessage carries `hidden` over, so a once-summarized card stays hidden.
         await game.settings.set('dnd5e', 'chatCardSummary', false);
         await clearChips();
         await healFull(victim);
@@ -2376,10 +2177,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ============================================== 25. a used-up item's failed save
-    // (2026-09-22 — the Potion of Poison Resistance on Gren, the class not the example): dnd5e
-    // 6.0 SPENDS before it posts, so a vial whose last use this is is deleted before its card
-    // exists and the activity the demand stamped names nothing. The consequence reads it off the
-    // card's snapshot (lookup.js cardActivity) — the old "accepted corner (a consumed scroll)".
+    // dnd5e spends before it posts, so the last use's item is gone before its card exists; the
+    // consequence reads the activity off the card's snapshot (lookup.js cardActivity).
     if (want(25)) {
       const VIAL_EFF = 'bfvialeffect0000';
       const [vial] = await npc.createEmbeddedDocuments('Item', [{
@@ -2430,12 +2229,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ============================================== 27. Guarded Mind on a demanded save
-    // (the PHB feats, group 4, 2026-09-27 — Mage Slayer): "If you fail an Intelligence, a Wisdom,
-    // or a Charisma saving throw, you can cause yourself to succeed instead." The `succeed` D20
-    // fold, offered on the withheld verdict of a DEMANDED Wisdom save the victim fails by force:
-    // the offer carries the benefit's name; pressing it spends the feat's one use through its own
-    // activity and the verdict lands SAVED — half damage, the fail-only effect never lands, the row
-    // names it. With the use gone, the next failure is not offered it; a Constitution save never is.
+    // The `succeed` fold on the withheld failure of a demanded Wisdom save: pressed, the use is
+    // spent and the verdict lands SAVED. Spent, not offered; a Constitution save never.
     if (want(27)) {
       const pack = game.packs.get('dnd-players-handbook.feats');
       const idx = pack ? await pack.getIndex() : [];
@@ -2445,8 +2240,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const [feat] = await victim.createEmbeddedDocuments('Item', [doc.toObject()]);
       created.items.push({ actorId: victim.id, id: feat.id });
       const wisBonus = v => victim.update({ 'system.abilities.wis.save.roll.bonus': v });
-      // The offer rides the fold's own gates: the ask on (d20FoldAsk), the side admitted (autoDamage
-      // "all" — modeAllows), no fold clock (saveTimer 0 stamps no deadline).
+      // The fold's gates: d20FoldAsk on, autoDamage "all", saveTimer 0 (no fold clock).
       const priorAsk = game.settings.get(MOD, 'd20FoldAsk');
       await game.settings.set(MOD, 'd20FoldAsk', true);
       await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`)?.default ?? '');   // the shipped list carries Mage Slayer:succeed
@@ -2537,46 +2331,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 }, sectionArg(plan, SECTIONS));
 
 /* ============================================== 18. the player-rolled damage offer, SAVE path
- *
- * VERIFY the player-rolled damage popup on the SAVE path — the v1.18.0 walk's one finding:
- * the offer answered attacks and nothing else, so Vicious Mockery, Fireball and every area
- * still rolled their dice behind the caster's back.
- *
- * The claim under test is narrow and load-bearing: offering the roll here costs no new
- * machinery, because (a) `dnd5e.postUseActivity` already runs on the CASTING client, the same
- * locality that let the attack popup skip the elect, and (b) the save slice was built
- * order-independent, so a roll that lands fifteen seconds late still folds by verdict.
- * Assertion 11 is the one that proves (b) with real HP, and it is the reason this section is
- * live rather than a unit test.
- *
- * ⚠ Self-contained: it builds its own caster, targets and spell, and deletes all three. It does
- * NOT ride this suite's fixtures either, nor smoke-battleflow's (that suite's attacker has no
- * save activity) — which is exactly why it can keep its own page context below.
- *
- * Thirteen assertions:
- *   1  setting OFF        -> the stamp auto-rolls as before, NO popup        (no regression)
- *   2  setting ON         -> popup opens and the damage does NOT roll yet
- *   3  onSave "half"      -> the stakes line says a save HALVES it
- *   4  onSave "none"      -> the stakes line says a save AVOIDS it entirely  (Vicious Mockery)
- *   5  no crit anywhere   -> no badge, plain "Roll Damage"    (a spell has no attack to crit)
- *   6  button pressed     -> rolls, chained to the card, carrying roll.damageOnSave
- *   7  dismissed (X/Esc)  -> rolls IMMEDIATELY, not at the buzzer
- *   8  left alone         -> the buzzer rolls it (the 15s window, waited out for real)
- *   9  rider damage       -> onSave "full" offers NOTHING and rolls nothing   (finding ③ fence)
- *  10  two targets        -> exactly ONE popup (per CAST, never per target)
- *  11  verdicts FIRST     -> a roll pressed after the saves still applies 10 / 5 by multiplier
- *  12  bare-cast area     -> a WAITING demand still offers, targetless, and says why
- *  13  CONTROL            -> the same ordering with the popup OFF (is the popup implicated?)
- *
- * ⚠ WHY 9 IS NOT PARANOIA. Rider damage (Web's burn clause, finding ③ 2026-08-17) must never
- * auto-roll, and the popup rides the caller's existing `saveModulated` gate rather than
- * re-testing. That is a correctness property of the WIRING, not of the popup — so it can only
- * be caught here, where a mis-wired offer would visibly resurrect a closed bug.
- *
- * ⚠ FOLDED IN 2026-08-23 (git history). It ran as its own script, so it was a separate line in
- * the battery that two sessions forgot. It keeps its OWN page context rather than joining the
- * closure above: it builds its own caster, targets and spell, so there is nothing to share and
- * nothing to collide with — the move costs one connection, not one rewrite.
+ * The offer on the save path costs no new machinery: `dnd5e.postUseActivity` runs on the casting
+ * client, and the saves machine is order-independent, so a late roll still folds by verdict (11).
+ * Self-contained: its own page context, caster, targets and spell. Assertions:
+ *   1 OFF: auto-rolls, no popup   2 ON: popup, no roll yet   3 half stakes   4 avoid stakes
+ *   5 no crit badge   6 press rolls, chained   7 dismiss rolls now   8 buzzer rolls
+ *   9 rider damage offers nothing   10 two targets, one popup   11 verdicts first, then 10/5
+ *   12 bare-cast area offers targetless   13 control: 11's ordering with the popup OFF
+ * ⚠ 9 guards the wiring: rider damage must never auto-roll.
  */
 if (!out.fatal && (!plan || plan.includes('18'))) {
   const sd = await f.evaluate(async () => {
@@ -2597,10 +2359,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     const set = (k, v) => game.settings.set(MOD, k, v);
     await set('saves', true);
     await set('saveTimer', 4);          // verdicts land fast so 11 is constructible
-    // ⚠ The offer window is PINNED, not inherited: §8 literally waits the buzzer out with a
-    // 22s ceiling, so the world's damageTimer must be smaller — the 2026-08-27 move to 24s
-    // world-wide turned §8 into "waited 22s for a 24s buzzer" and it failed on time alone.
-    // Every timing a section depends on, the section pins.
+    // ⚠ The offer window is pinned below §8's 22s wait-out ceiling.
     await set('damageTimer', 15);
     await set('autoApply', false);      // the ROLL is under test until 11 turns this on
     await set('reactionHold', false);
@@ -2613,17 +2372,9 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       name, type: 'npc',
       system: { attributes: { hp: { value: hp, max: hp }, ac: { flat: 10, calc: 'flat' } } }
     });
-    // ⚠ C AND D EXIST ONLY FOR ASSERTION 11. Every earlier section leaves a chained damage roll on
-    // its card with `autoApply` OFF — rolled, never landed. Assertion 11 turns autoApply ON, and a
-    // subsequent chat re-render lets reconcileSaveDamage sweep those older cards onto whichever
-    // target they named. Targets nothing has ever cast at make the pool reading mean what it says.
-    //
-    // ⚠⚠ BOUND BY NAME, NEVER BY POSITION, and this cost two runs: `Actor.createDocuments` does
-    // NOT return documents in the order they were passed (measured on 5.3.3 / Foundry 14.365 —
-    // a five-document create came back shuffled, so `tgtC` was silently the actor named "Target
-    // B" and every identity in the section was off by one). Positional destructuring of a bulk
-    // create is a latent bug anywhere it appears; the lookup below makes the binding say what it
-    // means.
+    // ⚠ C and D exist only for assertion 11: earlier sections leave unapplied damage rolls that a
+    // re-render with autoApply on would sweep onto whichever target they named.
+    // ⚠⚠ Bind by NAME: `Actor.createDocuments` does not return documents in the passed order.
     const made = await Actor.createDocuments([
       mkNpc('BF Probe Caster', 40), mkNpc('BF Probe Target A', 60), mkNpc('BF Probe Target B', 60),
       mkNpc('BF Probe Target C', 60), mkNpc('BF Probe Target D', 60),
@@ -2659,8 +2410,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       return { fatal: 'probe target tokens never reached the canvas' };
     }
 
-    // Flat damage so halves are exact; DC from a custom formula so it cannot drift with the
-    // caster's sheet. The four activities are the four shapes the wiring has to tell apart.
+    // Flat damage so halves are exact; a formula DC. The four activities are the four shapes the wiring tells apart.
     const saveBlock = { ability: ['con'], dc: { calculation: '', formula: '15' } };
     const base = { activation: { type: 'action', override: false },
       consumption: { targets: [], spellSlot: false }, effects: [] };
@@ -2783,7 +2533,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       const title = popups[0]?.querySelector('.window-title')?.textContent ?? '';
       ok(3, 'onSave "half" — the stakes line says a save HALVES it',
         /halves/i.test(html), `stakes present=${/halves/i.test(html)}`);
-      // A save spell has no attack roll, so there is no crit to report and nothing to guess at.
+      // A save spell has no attack roll, so no crit.
       ok(5, 'no crit anywhere — no badge, plain label, plain title',
         !html.includes('Critical Hit') && !/Critical/i.test(label) && !/Critical/i.test(title),
         `badge=${html.includes('Critical Hit')} label="${label}" title="${title}"`);
@@ -2858,10 +2608,8 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await closeEverything();
     }
 
-    /* 11 — THE ORDER CLAIM, with real HP: verdicts land first, the button is pressed after,
-     * and the damage still folds per target at its own multiplier. This is the assertion the
-     * whole design rests on — `reconcileSaveDamage` applies chained damage ON ARRIVAL, so a
-     * fifteen-second-late roll is the case it was already built for, not a new one. --------- */
+    /* 11 — the order claim with real HP: verdicts land first, the button is pressed after, and
+     * reconcileSaveDamage still applies each target's multiplier on arrival. --------------- */
     {
       await set('autoApply', true);
       await saveBonus(tgtC, '-30');        // forced FAILURE vs DC 15 → full 10
@@ -2876,8 +2624,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await sleep(1200);
       const popups = popupEls();
 
-      // Let the saveTimer buzzer resolve BOTH verdicts while the damage popup still sits open —
-      // the ordering that could not happen before the popup existed.
+      // The buzzer resolves both verdicts while the damage popup still sits open.
       const bothDone = await until(() =>
         (card.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.done) ? true : null, 20000);
       const stillOpen = popupEls().length === 1;
@@ -2900,10 +2647,8 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
         await sleep(500);
       }
       log.push(`11 diag: pool trace — ${trace.join(' | ')}`);
-      // ⚠ DIAGNOSTIC, kept: "the receipt says 10, the pool moved 20" has to be answerable without
-      // a second run. Every damage roll chained to this card, with what each one claims to have
-      // applied — if two rolls exist, the popup forked; if one roll shows two receipt entries for
-      // one target, the applier did.
+      // ⚠ Diagnostic, kept: two chained rolls = the popup forked; one roll with two receipt entries
+      // for a target = the applier did.
       const chained = game.messages.contents
         .filter(m => (m.type === 'damage')
                   && (m._source.system?.origin === card.id))
@@ -2932,18 +2677,9 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await closeEverything();
     }
 
-    /* 13 — THE CONTROL, and the only assertion here that is not about the popup at all.
-     *
-     * 11 constructs "verdicts first, damage after" and reads the pool. If that ordering
-     * double-applies, the question that decides everything is whether the POPUP caused it — so
-     * this runs the identical ordering with the popup OFF, reaching it the way the save slice
-     * always could: let the stamp auto-roll, DELETE that roll (smoke-saves §1's trick, which is
-     * what makes the ordering constructible at all), wait out both verdicts, then chain a roll by
-     * hand. Same shape, same multipliers, no popup anywhere near it.
-     *
-     * PASS here means the popup is innocent and 11 has found something older. FAIL here means the
-     * ordering itself is broken independently of this build — which is a finding either way, but
-     * not this feature's finding. -------------------------------------------------------------- */
+    /* 13 — the control: 11's ordering with the popup OFF (auto-roll, delete it, wait out the
+     * verdicts, chain a roll by hand). PASS: the popup is innocent. FAIL: the ordering itself is
+     * broken, independent of the popup. -------------------------------------------------------- */
     {
       await set('playerRollDamage', false);
       await set('autoApply', true);
@@ -2957,8 +2693,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       const card = await cast('bfprobehalf00000', [tokE.object, tokF.object]);
       await until(() => card.getFlag(MOD, 'saves'));
 
-      // The stamp's own auto-roll is the EARLY damage. Delete it so the late-arrival ordering can
-      // be built, exactly as the save suite does.
+      // Delete the stamp's auto-roll so the late-arrival ordering can be built.
       const auto = await until(() => damageFor(card), 8000);
       if (auto) await auto.delete().catch(() => {});
       await sleep(400);
@@ -2989,22 +2724,16 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await closeEverything();
     }
 
-    /* 12 — THE AREA, cast bare: the `awaitingTemplate` corner. The offer still comes, targetless,
-     * and says why there is nobody named on it. Deferring until the template lands would mean a
-     * spell nobody ever places never rolls at all. ------------------------------------------- */
+    /* 12 — the area cast bare: the offer still comes, targetless, and says why. -------------- */
     {
-      // ⚠ States its own preconditions rather than inheriting them: the CONTROL above turns the
-      // popup OFF, and this section is entirely about the popup appearing.
+      // States its own precondition: the control above turned the popup OFF.
       await set('playerRollDamage', true);
       await set('autoApply', false);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       await sleep(200);
       const before = snap();
-      // ⚠ A TEMPLATE-BEARING `use()` NEVER RESOLVES headless — it parks waiting for a human to
-      // place the preview (HANDOFF, 2026-08-19; it cost a probe its watchdog). Two defences, both
-      // documented there: pass `create.measuredTemplate false` (the canceled-preview path the save
-      // suite uses) AND race the call anyway, so a future 5.3.x that ignores the flag stalls this
-      // assertion rather than the whole probe.
+      // ⚠ A template-bearing `use()` never resolves headless: pass `create.measuredTemplate false`
+      // AND race the call, so a stall fails this assertion rather than the watchdog.
       const used = await Promise.race([
         act('bfprobetmpl00000').use({ create: { measuredTemplate: false } }, { configure: false }, {})
           .catch(() => null),
@@ -3028,7 +2757,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     /* teardown ----------------------------------------------------------------------------- */
     await closeEverything();
     game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
-    // Any drawn template the bare cast managed to leave behind goes with it (a Region at Foundry 14).
+    // Any Region the bare cast left behind goes too.
     const strayTemplates = canvas.scene.regions
       .filter(r => r.getFlag('core', 'MeasuredTemplate') && !r.getFlag('dnd5e', 'activity')).map(r => r.id);
     if (strayTemplates.length) {

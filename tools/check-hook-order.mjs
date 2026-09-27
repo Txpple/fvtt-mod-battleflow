@@ -1,25 +1,14 @@
-// Static hook-order check for the split module (v1.6.1). Loads scripts/battleflow.js in
-// Node with stubbed globals — no Foundry needed — and prints every Hooks registration in
-// true evaluation order, grouped per hook. Run it after adding a file, an import, or a
-// same-hook registration (Phase 2's saves.js is the expected customer): evaluation order
-// is import-graph order, not the entry list, and relative order between same-hook
-// registrations can be behavioral. The assertions at the bottom are the orderings known
-// to be load-bearing; see the HANDOFF ground truth and the lazy import() in hold/spell-damage.js.
+// Static hook-order check: loads scripts/battleflow.js in Node with stubbed globals and prints every
+// Hooks registration in true evaluation order (import-graph order, not the entry list), per hook.
+// Run it after adding a file, an import, or a same-hook registration: relative order between
+// same-hook registrations can be behavioral. CHECKS are the known load-bearing orderings.
 //
 //   node tools/check-hook-order.mjs              the named CHECKS, and the snapshot diff
 //   node tools/check-hook-order.mjs --snapshot   refresh tools/hook-order.snapshot on purpose
 //
-// ⚠ THE SNAPSHOT (Stage 0 of the machine-tier pass, 2026-09-05). The named CHECKS are the
-// load-bearing SUBSET; they cannot see a move that reorders two registrations nobody has yet
-// named. §7's rule — "when an import is removed, DIFF the printed evaluation order" — was a
-// by-hand measurement (print before, print after, eyeball); it is mechanical now. The full
-// order, every registration on every hook, lives in `tools/hook-order.snapshot`, tracked, and
-// the default run FAILS on any drift from it. A move that is meant to change the order refreshes
-// the snapshot with `--snapshot` in the same commit and says why in the message; a move that is
-// meant to be order-neutral is proven so by this run printing nothing but PASS.
-//
-// ⚠ The LOADING of the registrations lives in `hook-registrations.mjs`, shared with
-// `check-hook-dispatch.mjs` — same list, two different questions asked of it.
+// ⚠ The full order lives in `tools/hook-order.snapshot` and any drift FAILS. A move meant to change
+// the order refreshes it with `--snapshot` in the same commit and says why; an order-neutral move
+// prints nothing but PASS. Loading lives in `hook-registrations.mjs`, shared with check-hook-dispatch.
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -56,10 +45,8 @@ const CHECKS = [
     "maneuver rows render above the saves rows (the entry imports the five fold files before saves/; command.js is the last of them)"],
   ["dnd5e.renderChatMessage", "precision.js", "d20-folds.js",
     "the d20 fold row sits directly below the maneuver rows — the same missed attack can carry a Precision offer AND a reroll/bardic offer, and a table reading the card top-to-bottom should meet them in that order (v1.23.0 entry order)"],
-  // ⚠ LOAD-BEARING, not cosmetic. Precision stamps its flag on rollAttackV2 first; d20-folds.js
-  // then reads the SAME message and composes its verdict across every fold already on it
-  // (foldsFrom/foldedVerdict). Reverse the two and the fold would compose against a precision
-  // flag that does not exist yet, and its announced arithmetic would disagree with hitTargets.
+  // ⚠ Load-bearing: precision stamps its flag on rollAttackV2 first, and d20-folds.js composes its
+  // verdict across every fold already on the message (foldsFrom/foldedVerdict).
   ["dnd5e.rollAttackV2", "precision.js", "d20-folds.js",
     "precision stamps before the d20 fold composes over it — the fold reads every flag already on the attack"],
   ["dnd5e.renderChatMessage", "volleys.js", "saves/views.js",
@@ -89,8 +76,7 @@ if (!ok) console.log("\nOrder regressed — re-read the HANDOFF ESM ground truth
 
 /* --- the snapshot ------------------------------------------------------------------------- */
 
-// One line per registration, in evaluation order: `<hook>\t<file>`. The raw list, not the
-// grouped print, so a registration moving between two hooks' groups is a visible line move.
+// One line per registration, in evaluation order: `<hook>\t<file>` (a move between hooks shows as a line move).
 const lines = reg.map(r => `${r.hook}\t${r.file}`);
 const header = "# tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.";
 
@@ -117,8 +103,7 @@ if (refresh) {
 process.exit(ok ? 0 : 1);
 
 /**
- * A line diff (LCS), printed unified-style: `-N old` for a line the snapshot has and the tree
- * lost, `+N new` for one the tree gained, N the 1-based position in that side's list.
+ * A line diff (LCS), unified-style: `-N old` lost from the snapshot, `+N new` gained, N 1-based.
  * @param {string[]} a the snapshot
  * @param {string[]} b the tree
  * @returns {string[]} the changed lines, in order; empty when identical

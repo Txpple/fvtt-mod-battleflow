@@ -1,19 +1,9 @@
-// Probe (2026-09-10): THE STALE SHIELD — the 2026-09-09 table report (closed 2026-09-10; RULINGS *Chips and clocks*):
-// "a stale Shield effect survived a revert, so the next hit offered no reaction", the leftover
-// found on Gren's sheet under the SYSTEM's *Unavailable Effects* panel.
-//
-// The reading that brought this here: core Foundry v14's `ActiveEffect#isSuppressed` is
-// `!!(system.isSuppressed ?? duration.expired)` — an effect whose clock ran out is SUPPRESSED,
-// not deleted (NOTES §"v14 owns effect expiry": expiry is MARK, not delete). dnd5e files a
-// suppressed effect under *Unavailable Effects* and applies none of its changes. The hold's
-// `hasReactionEffect` (hold/lookup.js) tests `!e.disabled` only — so an expired, undeleted
-// Imperceptible Barrier reads as STANDING to the offer gate while granting no AC. Predicted:
-// no revert is needed at all; one Shield cast plus one turn boundary reproduces the report.
-//
-// Prints, asserts nothing. Runs the whole thing on the GM-owned BF Test Shielder (a copy of
-// Gren, the smoke-hold stand-in) in a throwaway combat on the range; everything it creates —
-// combat, the attacker's token, the barrier, the run's messages — is undone in `finally`, and
-// the settings it pins are handed back.
+// Probe: the stale Shield (RULINGS *Chips and clocks*). Core's `ActiveEffect#isSuppressed` is
+// `!!(system.isSuppressed ?? duration.expired)`: an expired effect is SUPPRESSED, not deleted
+// (NOTES: expiry is mark, not delete), and dnd5e applies none of its changes. A gate testing only
+// `!e.disabled` reads an expired barrier as standing. One Shield cast plus a turn boundary reproduces it.
+// Prints, asserts nothing, on the GM-owned BF Test Shielder in a throwaway combat; everything it
+// creates is undone in `finally`, and pinned settings are handed back.
 //
 //   node tools/probe-shield-leftover.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
@@ -77,7 +67,7 @@ const out = await f.evaluate(async () => {
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
     await waitFor(() => canvas.ready);
 
-    // The stand-in (smoke-hold's ensureShielder, trimmed): a GM-owned copy of Gren, linked.
+    // The stand-in: a GM-owned, linked copy of Gren.
     shielder = game.actors.getName("BF Test Shielder");
     if ( !shielder ) {
       const data = gren.toObject(); delete data._id;
@@ -101,8 +91,7 @@ const out = await f.evaluate(async () => {
     if ( !attackerTok ) [attackerTok] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(attacker.prototypeToken.toObject(), { x: 1100, y: 1200, actorId: attacker.id }, { inplace: false })]);
     report.attackerTokWasMine = attackerTokWasMine;
 
-    // A combat: the attacker first, the shielder second — the table's shape (the enemy swings,
-    // Gren shields on the enemy's turn).
+    // A combat: the attacker first, the shielder second (the enemy swings, the shielder shields on its turn).
     for ( const id of priorActiveCombats ) await game.combats.get(id)?.update({ active: false }).catch(() => {});
     combat = await Combat.create({ scene: scene.id, active: true });
     await combat.createEmbeddedDocuments("Combatant", [

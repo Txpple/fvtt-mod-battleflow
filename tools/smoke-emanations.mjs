@@ -1,26 +1,15 @@
-// Battle Flow emanations smoke test — AN AURA APPLIES ITSELF TO THE CREATURES INSIDE IT (user
-// ruling 2026-09-03: emanations are a core part of combat; DESIGN §4 amended). The platform keeps
-// the geometry and the clock (a Region attached to the token, measured in tools/probe-emanations.mjs);
-// the module puts the pack's effect on it with the SOURCE's numbers read in, and raises the saves a
-// spell demands of creatures entering or ending a turn inside.
-//
-// Fixtures: BF Test Paladin (Paladin 10 / Ancients — the three auras, Cha 16: +3), BF Test Cleric
-// (Cleric 5 — Spirit Guardians prepared), BF Test Ranger (friendly), BF Test Victim (hostile,
-// unlinked). Built by tools/fixture-suite.mjs; the Paladin and Cleric live on the range's bottom
-// row so the always-on aura reaches nobody between suites.
-//
-// Harness discipline: every setting touched is restored; every region, template, combat and
-// message this run creates is deleted; member effects and chits are cleared; tokens go home.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow emanations smoke test: an aura applies itself to the creatures inside it. The
+// platform keeps the geometry and clock (a Region attached to the token); the module puts the
+// pack's effect on it with the source's numbers, and raises the saves a spell demands on entry
+// or turn end. Fixtures (tools/fixture-suite.mjs): BF Test Paladin, Cleric, Ranger, Victim.
+// Harness discipline: settings restored; regions, templates, combats and messages deleted;
+// member effects and chits cleared; tokens go home. Sections: `--section 3`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
-  'emanations.js',          // the auras, Spirit Guardians, the live scenes, the second slice
+  'emanations.js',          // the auras, Spirit Guardians, the live scenes, the §12-15 spells
   'saves/demand.js',        // §7 — the demand on enter and on turn end
   'saves/areas.js'          // §6 / §7 — the placed area the demand is judged against
 ];
@@ -86,10 +75,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const tok = actor => scene.tokens.find(t => t.actorId === actor.id) ?? null;
   const palTok = tok(paladin), clrTok = tok(cleric), rgrTok = tok(ranger), vicTok = tok(victim);
   if (!palTok || !clrTok || !rgrTok || !vicTok) return { fatal: 'a fixture token is missing from the range — run tools/fixture-suite.mjs' };
-  // The range is made ACTIVE as well as viewed: a ring stands on a live scene (active, or one a
-  // connected user views), and §11 moves the active scene away and back. Done after every fatal
-  // check (a fatal return runs no teardown — the battery's copy once left the range active), and
-  // the user's active scene is handed back in teardown.
+  // The range is made ACTIVE as well as viewed (a ring stands on a live scene; §11 moves the active
+  // scene away and back). Done after every fatal check; the prior active scene returns in teardown.
   const priorActiveScene = game.scenes.active?.id ?? null;
   if (game.scenes.active?.id !== scene.id) { await scene.activate(); await sleep(1500); }
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(1500); }
@@ -104,7 +91,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   let combat = null;
   let template = null;
-  const addedItems = [];   // the second slice's spells, given to the Cleric for the run
+  const addedItems = [];   // the §12-15 spells, given to the Cleric for the run
   let elsewhere = null;   // §11's other scene
   let restored = false;
   const priorActiveCombats = [];
@@ -132,7 +119,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (const id of priorActiveCombats) { try { await game.combats.get(id)?.update({ active: true }); } catch { /* gone */ } }
       try { if (template && scene.regions.get(template.id)) await template.delete(); } catch { /* gone */ }
       try { const live = addedItems.filter(id => cleric.items.get(id)); if (live.length) await cleric.deleteEmbeddedDocuments('Item', live); } catch { /* gone */ }
-      // The cast began concentration; end it so the next cast is not asked about the last one.
+      // End the cast's concentration so the next cast is not asked about it.
       try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
       for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'spell')) await r.delete().catch(() => {});
       for (const [id, pos] of Object.entries(home)) { const t = scene.tokens.get(id); if (t && ((t.x !== pos.x) || (t.y !== pos.y))) await t.update(pos, mv()); }
@@ -141,8 +128,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow' || Object.keys(m.flags?.[MOD] ?? {}).length));
       if (mine.length) await ChatMessage.deleteDocuments(mine.map(m => m.id));
-      // The range's rings come down with the scene going inactive (that is §11's rule); the
-      // user's active scene is handed back, and §11's scene is gone.
+      // The range's rings come down with the scene going inactive (§11); the prior active scene returns.
       if (elsewhere && game.scenes.get(elsewhere.id)) await elsewhere.delete().catch(() => {});
       const back = priorActiveScene ? game.scenes.get(priorActiveScene) : null;
       if (back && (game.scenes.active?.id !== back.id)) { await back.activate().catch(() => {}); await sleep(1500); }
@@ -157,12 +143,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
     await set('saves', true); await set('saveTimer', 24); await set('playerRollDamage', false); await set('autoApply', true); await set('requireTarget', false);
     await clearMembers();
-    // The Victim's TOKEN actor (unlinked) takes §7's real damage every run — at 0 HP it is a corpse
-    // the cast's demand rightly skips (the dead-target gate), so it starts every run at full.
+    // The Victim's token actor takes §7's damage; at 0 HP the dead-target gate skips it, so heal it.
     if (vicTok.actor && (vicTok.actor.system.attributes.hp.value < vicTok.actor.system.attributes.hp.max)) await vicTok.actor.update({ 'system.attributes.hp.value': vicTok.actor.system.attributes.hp.max });
     try { if (cleric.concentration?.effects?.size) await cleric.endConcentration(); } catch { /* none */ }
     for (const r of scene.regions.filter(r => r.getFlag('dnd5e', 'item') === sgItemUuid())) await r.delete().catch(() => {});
-    // Everyone home and apart: the Paladin and Cleric on the bottom row, the line at y=1000.
+    // Everyone home: the Paladin and Cleric on the bottom row, the line at y=1000.
     for (const [id, pos] of Object.entries(home)) { const t = scene.tokens.get(id); if ((t.x !== pos.x) || (t.y !== pos.y)) await t.update(pos, mv()); }
     await sleep(800);
     const chaMod = paladin.system.abilities.cha.mod;
@@ -171,11 +156,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 1. the type, the sweep, the region
     if (want(1)) {
       ok('1a. the Battle Flow behaviour type is registered on CONFIG (init)', !!CONFIG.RegionBehavior.dataModels[TYPE], Object.keys(CONFIG.RegionBehavior.dataModels).filter(k => k.startsWith(MOD)).join(','));
-      // Start from nothing: an aura standing from an earlier run is deleted, and the sweep the
-      // deletion schedules raises it again (a feature's aura is always on — the region is not
-      // its switch), which is what posts the card §1g reads.
+      // Start from nothing: delete any standing aura; the sweep the deletion schedules raises it
+      // again (a feature's aura is always on) and posts the card §1g reads.
       for (const r of scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature')) { if (scene.regions.get(r.id)) await r.delete().catch(() => {}); }
-      // All three, not the first: the sweep raises them one create at a time.
+      // All three: the sweep raises them one create at a time.
       const region = await waitFor(() => ['Aura of Protection', 'Aura of Courage', 'Aura of Warding'].every(k => featureRegion(palTok, k)) ? featureRegion(palTok, 'Aura of Protection') : null, 12000);
       ok('1b. a Region for Aura of Protection stands, attached to the Paladin\'s token', !!region && (region.attachment?.token?.id === palTok.id), `region=${region?.id} attached=${region?.attachment?.token?.id}`);
       const palShape = region?.shapes?.[0] ?? null;
@@ -202,10 +186,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2a. the Ranger receives "Protected — BF Test Paladin"', fx?.name === 'Protected — BF Test Paladin', `effects=${memberFx(ranger).map(e => e.name).join(',')}`);
       ok('2b. …with the PALADIN\'s Charisma (+3), not the Ranger\'s', String(fx?.changes?.[0]?.value) === String(chaMod), `value=${fx?.changes?.[0]?.value} paladinCha=${chaMod} rangerCha=${ranger.system.abilities.cha.mod}`);
       ok('2c. the Ranger\'s save bonus now carries it', String(saveBonus()).includes(String(chaMod)), `before="${saveBefore}" after="${saveBonus()}"`);
-      // ⚠ THE THREE FLOORS ARE SERIALIZED (one region at a time, one create each): 2a waited for
-      // Protection's copy alone, and on a slower box (the 2026-09-21 prod mirror: 49 scenes) the
-      // assert ran between Protection's create and Courage's. Wait for all three — the claim is
-      // that they land, not that they land within one tick of the first.
+      // ⚠ The three floors are serialized (one create each): wait for all three, not the first.
       await waitFor(() => (memberFx(ranger).length === 3) ? true : null, 6000);
       ok('2d. Courage and Warding land too — three member effects, one per aura', memberFx(ranger).length === 3, memberFx(ranger).map(e => e.name).join(' | '));
       await rgrTok.update(home[rgrTok.id], mv());
@@ -237,9 +218,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4c. the Paladin walking away lifts it', !!gone, `left=${memberFx(ranger).map(e => e.name).join(',')}`);
       await rgrTok.update(home[rgrTok.id], mv());
       await sleep(400);
-      // 4d. THE DRIFTED RING (Session 8, 2026-09-22: Invictus's ring stood "one square up and left"
-      // of him). A ring whose base has come off its token — raised mid-walk — is only SHIFTED by
-      // the platform on the next move, the offset carried along; the sweep puts it back under him.
+      // 4d. a ring whose base came off its token is only SHIFTED by the platform on a move; the sweep
+      // puts it back under the bearer.
       const live4 = scene.regions.get(region.id);
       const s4 = live4?.shapes?.[0]?.toObject?.() ?? foundry.utils.deepClone(live4?.shapes?.[0]);
       if (s4) {
@@ -284,8 +264,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await rgrTok.update({ x: 1300, y: 300 }, mv());   // 15 ft above: inside too, but an ALLY
       await sleep(500);
       const b6 = game.messages.size;
-      // A REAL cast, no placement config: the module switches the prompt off and places the area
-      // itself (user, 2026-09-03: "it should just put it where the caster's token is").
+      // A real cast, no placement config: the module switches the prompt off and places the area on the caster.
       try {
         await Promise.race([sgAct.use({ consume: { spellSlot: false, resources: false } }, { configure: false }, { create: true }),
           new Promise((_, rej) => setTimeout(() => rej(new Error('use() did not settle — the placement prompt was not switched off')), 8000))]);
@@ -296,17 +275,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6-2. no platform behaviour rides the adopted ring (the §3.6 ruling) — only Battle Flow\'s', !!template && !template.behaviors.some(b => String(b.type).startsWith('dnd5e.')), `behaviours=${template?.behaviors.map(b => b.type).join(',')}`);
       const conc = [...(cleric.concentration?.effects ?? [])].at(-1);
       ok('6+. …and the Cleric is concentrating on it (the effect the area will end with)', !!conc && (conc.flags?.dnd5e?.activity?.uuid === sgAct.uuid), `conc=${conc?.name} activity=${conc?.flags?.dnd5e?.activity?.uuid}`);
-      // Adoption writes the flag first, the behaviour, then the attachment — wait for the last.
+      // Adoption writes the flag, the behaviour, then the attachment: wait for the last.
       sgRegion = await waitFor(() => { const r = spellRegion('Spirit Guardians'); return r?.attachment?.token ? r : null; }, 8000) ?? spellRegion('Spirit Guardians');
       ok('6a. the placed Region is adopted: flagged, attached to the Cleric\'s token', !!sgRegion && (sgRegion.attachment?.token?.id === clrTok.id), `region=${sgRegion?.id} attached=${sgRegion?.attachment?.token?.id} cardsSinceUse=${game.messages.size - b6}`);
       const beh = await waitFor(() => scene.regions.get(sgRegion?.id)?.behaviors?.find(b => b.type === TYPE) ?? null, 4000);
       ok('6b. its behaviour carries Half Speed and the harmful reach', (beh?.system?.reach === 'harmful') && (beh?.system?.effect?.name === 'Half Speed'), `system=${JSON.stringify(beh?.system)}`);
       const vicActor = vicTok.actor;
       const fx = await waitFor(() => memberFx(vicActor, sgRegion?.id)[0] ?? null, 6000);
-      // What Battle Flow owns is the EFFECT: one per region per creature, the pack's own change on it, a status so
-      // the token shows it. Whether the platform then halves the sheet's speed is the pack's change key against
-      // the platform's prepare order (dnd5e 6.0.1 + PHB: `movement.speed` ×0.5 leaves an NPC's speed at 30 —
-      // measured 2026-09-16; the speed is logged, never asserted).
+      // Battle Flow owns the EFFECT: one per region per creature, the pack's change, a status. Whether
+      // the platform then halves the sheet's speed depends on its prepare order, so speed is logged, not asserted.
       ok('6c. the hostile Victim inside is Half Speed — ONE effect carrying the pack\'s change, and it wears a status so the token shows it', !!fx && (memberFx(vicActor, sgRegion?.id).length === 1) && fx.changes.some(c => /movement/.test(c.key) && (String(c.value) === '0.5')) && vicActor.effects.get(fx.id)?.statuses?.has?.('bfEmanation'), `speed=${vicActor.system.attributes.movement.speed} walk=${vicActor.system.attributes.movement.walk} source=${vicActor.system._source.attributes.movement.speeds?.walk} fx=${memberFx(vicActor, sgRegion?.id).map(e => e.name).join(',')} statuses=${[...(vicActor.effects.get(fx?.id)?.statuses ?? [])].join(',')}`);
       await sleep(1500);
       ok('6c2. standing inside at the cast, the Victim was asked ONCE — by the cast\'s demand, not by an "enter" trigger', triggerCards().length === 0, `triggerCards=${triggerCards().length} initial=${JSON.stringify(sgRegion?.getFlag(MOD, 'emanation')?.initial)}`);
@@ -315,8 +292,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6d. the allied Ranger inside is untouched (designated unaffected by default)', memberFx(ranger, sgRegion?.id).length === 0, memberFx(ranger).map(e => e.name).join(','));
       const sgCard = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.key === 'Spirit Guardians') ?? null, 6000);
       ok('6e. a card announced the emanation as cast', !!sgCard, '');
-      // The CAST's own save demand (the saves machine's area adoption) reaches enemies only: the
-      // Victim owes a save; the Ranger and the Cleric inside the area do not (user, 2026-09-03).
+      // The cast's own save demand reaches enemies only: allies and the caster inside owe none.
       const castCard = await waitFor(() => { const m = game.messages.contents.filter(x => (x.timestamp >= suiteStart) && x.getFlag(MOD, 'saves') && !x.getFlag(MOD, 'saves').pinnedTargets && x.getFlag(MOD, 'saves').activityUuid === sgAct.uuid).at(-1); return m?.getFlag(MOD, 'saves')?.targets?.length ? m : null; }, 8000);
       const castTargets = castCard?.getFlag(MOD, 'saves')?.targets?.map(t => t.name) ?? [];
       ok('6f. the cast\'s demand asks the hostile Victim and NOT the allied Ranger or the Cleric standing inside', castTargets.includes(vicTok.name) && !castTargets.includes('BF Test Ranger') && !castTargets.includes('BF Test Cleric'), `targets=[${castTargets.join(', ')}]`);
@@ -335,15 +311,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7b. entering raises a save demand card for the Victim alone — Wisdom, the spell\'s DC, half on a success', !!card && (flag?.abilities?.[0] === 'wis') && (flag?.dc === sgAct.save.dc.value) && (flag?.targets?.length === 1) && (flag.targets[0].uuid === vicActor.uuid) && (flag?.damageOnSave === 'half'), `flag=${JSON.stringify(flag && { abilities: flag.abilities, dc: flag.dc, targets: flag.targets.map(t => t.name), effectsHandled: flag.effectsHandled, scaling: flag.scaling })}`);
       const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= suiteStart) && (m._source.system?.origin === card?.id) && (m.type === 'damage')) ?? null, 8000);
       ok('7c. the spell\'s damage rolled against the demand (3d8 at 3rd level — the card\'s own chain)', !!dmg && /3d8/.test(dmg.rolls?.[0]?.formula ?? ''), `formula=${dmg?.rolls?.[0]?.formula}`);
-      // The TYPE: the pack's part offers necrotic OR radiant; the alignment decides the default
-      // (the built Cleric has none → radiant), and the card carries the choice.
+      // The pack's part offers necrotic OR radiant; alignment decides the default (none → radiant).
       const emCard = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'emanationCard')?.activityUuid === sgAct.uuid).at(-1);
       const emFlag = emCard?.getFlag(MOD, 'emanationCard');
       ok('7c2. the emanation card offers the two types with radiant as the alignment\'s default', !!emFlag && (emFlag.types?.join(',') === 'necrotic,radiant') && (emFlag.damageType === 'radiant') && !emFlag.chosen, `types=${emFlag?.types} default=${emFlag?.damageType} why="${emFlag?.damageWhy}" alignment="${cleric.system.details?.alignment}"`);
       const cardEl = await waitFor(() => document.querySelector(`[data-message-id="${emCard?.id}"]`) ?? null, 4000);
       ok('7c2b. …and the card RENDERS the two buttons in the log', (cardEl?.querySelectorAll('[data-bf-emanation-type]').length ?? 0) === 2, `buttons=${cardEl?.querySelectorAll('[data-bf-emanation-type]').length ?? 'no element'}`);
-      // The CASTING WINDOW carries the choice: open the usage dialog (not awaited — nothing answers
-      // it), read the fieldset, close it (the probe-surfaces idiom).
+      // The casting window carries the choice: open the usage dialog unawaited, read, close.
       const pendingUse = sgAct.use({}, { configure: true }, { create: false });
       pendingUse?.catch?.(() => { /* closed below */ });
       const usageApp = await waitFor(() => [...foundry.applications.instances.values()].find(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? '') && a.element?.querySelector?.('[data-bf-emanation-type-field]')) ?? null, 6000);
@@ -351,36 +325,29 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7c2c. the CASTING WINDOW carries the choice — a Battle Flow fieldset with a radio per type, radiant checked', (radios.length === 2) && [...radios].some(r => r.value === 'radiant' && r.checked), `dialog=${usageApp?.constructor?.name} radios=${[...radios].map(r => `${r.value}${r.checked ? '✓' : ''}`).join(',')}`);
       try { await usageApp?.close(); } catch { /* gone */ }
       ok('7c3. the trigger\'s roll wears radiant', (dmg?.rolls?.[0]?.options?.type === 'radiant') && (dmg?.getFlag(MOD, 'emanationType')?.type === 'radiant'), `type=${dmg?.rolls?.[0]?.options?.type} flag=${JSON.stringify(dmg?.getFlag(MOD, 'emanationType'))}`);
-      // The caster picks necrotic — as a player would, over the relay envelope — and the next roll wears it.
+      // The caster picks necrotic over the relay envelope; the next roll wears it.
       if (emCard) {
         await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: 'Battle Flow' }, content: '<p>necrotic</p>', flags: { [MOD]: { emanationTypeAnswer: { cardId: emCard.id, type: 'necrotic' } } } });
         const picked = await waitFor(() => emCard.getFlag(MOD, 'emanationCard')?.chosen ? emCard.getFlag(MOD, 'emanationCard') : null, 6000);
         ok('7c4. the pick folds onto the card over the relay: necrotic, chosen', picked?.damageType === 'necrotic', `flag=${JSON.stringify(picked && { damageType: picked.damageType, chosen: picked.chosen })}`);
       }
       ok('7d. out of combat, the demand is not once-per-turn — no chit is written', !vicActor.effects.some(e => e.getFlag(MOD, 'riderKey') === `emanation:${sgRegion.id}`), '');
-      // Now in combat: a turn ended inside, and the once-per-turn.
+      // In combat: a turn ended inside, and once per turn.
       await closeDialogs();
-      // ⚠ OURS must be `game.combat`: a standing GLOBAL combat (the user's walk, round 4) kept
-      // reading as the running one — Foundry prefers it, `activate()` did not displace it — so the
-      // Victim was "out of combat" and no chit was written (NOTES: look at game.combats before
-      // diagnosing; ask before deleting). Set every other active combat INACTIVE for the run and
-      // reactivate it in teardown — reversible, nothing deleted.
+      // ⚠ Ours must be `game.combat`: Foundry prefers a standing active combat and `activate()` does
+      // not displace it. Other active combats go INACTIVE for the run and return in teardown.
       for (const c of game.combats.filter(c => c.active)) { priorActiveCombats.push(c.id); await c.update({ active: false }); }
-      // SCENE-BOUND: the Combat dispatches its turn events to the regions of ITS scene — a global
-      // (scene-less) combat raised no tokenTurnEnd for the range's emanation (measured).
+      // Scene-bound: a Combat dispatches turn events to its own scene's regions (a scene-less one raises none).
       combat = await Combat.create({ scene: scene.id, active: true });
       await combat.createEmbeddedDocuments('Combatant', [{ tokenId: clrTok.id, actorId: cleric.id, initiative: 20 }, { tokenId: vicTok.id, actorId: victim.id, initiative: 10 }]);
       await combat.startCombat();
-      // `game.combat` IS `ui.combat.viewed` while the tracker is rendered (measured, Foundry
-      // 14.365) — the encounter the GM is LOOKING AT, which stayed on the stale one. Point the
-      // tracker at ours, as a GM's click would.
+      // `game.combat` is `ui.combat.viewed` while the tracker renders: point the tracker at ours.
       if (game.combat?.id !== combat.id) { try { ui.combat.viewed = combat; } catch (err) { log.push(`tracker: ${err.message}`); } }
       const viewedOk = await waitFor(() => game.combat?.id === combat.id ? true : null, 4000);
       if (!viewedOk) log.push(`⚠ game.combat is still ${game.combat?.id}, not ours (${combat.id})`);
       await sleep(400);
       log.push(`combat ${combat.id} active=${game.combat?.id === combat.id}; others on the range: ${game.combats.filter(c => c.id !== combat.id && c.scene?.id === scene.id).map(c => `${c.id} r${c.round}`).join(', ') || 'none'}`);
-      // ONCE PER TURN, within one turn (the Cleric's, initiative 20, round 1): the Victim walks
-      // in (a save, a chit stamped with this turn), then out and in again (no second save).
+      // Once per turn (the Cleric's): the Victim walks in (a save, a chit), then out and in again (no second save).
       const n1 = triggerCards().length;
       await vicTok.update(vicOut, mv()); await sleep(600);
       await vicTok.update(vicIn, mv());
@@ -393,8 +360,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await vicTok.update(vicIn, mv()); await sleep(1500);
       ok('7g. a second entry in the SAME turn asks for no second save', triggerCards().length === n2, `cards=${triggerCards().length} (was ${n2}, before combat ${n0})`);
       await closeDialogs();
-      // Then the turns move: the Victim's turn begins and ENDS inside → tokenTurnEnd → a demand
-      // (a new turn, so the chit from the Cleric's turn does not block it).
+      // The Victim's turn begins and ENDS inside → tokenTurnEnd → a demand (a new turn, so no chit blocks it).
       await combat.nextTurn();     // → the Victim's turn
       await sleep(800);
       await combat.nextTurn();     // the Victim's turn ENDS inside
@@ -410,8 +376,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const vicActor = vicTok.actor;
       const rid = sgRegion.id;
       const tid = template?.id ?? null;
-      // The REAL end: concentration drops; dnd5e 6.0 makes no placed region a dependent, so the
-      // module ends the area itself (endCastEmanations), and the region's going lifts the effect.
+      // Concentration drops; no placed region is a dependent, so the module ends the area
+      // (endCastEmanations), and the region's going lifts the effect.
       await cleric.endConcentration();
       const gone = await waitFor(() => (!(tid && scene.regions.get(tid)) && !scene.regions.get(rid) && memberFx(vicActor, rid).length === 0) ? true : null, 10000);
       if (!(tid && scene.regions.get(tid))) template = null;
@@ -420,16 +386,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 16. a no-save concentration area ends with the concentration
     if (want(16)) {
-      // Fog Cloud's shape (user, 2026-09-19: "the region/vfx stays even after he loses concentration.
-      // didnt have the problem with gren's web"): a concentration cast with no save has no card of
-      // this module's, and 6.0 makes no placed region a dependent — endConcentrationAreas ends it.
-      // Faked at the documents: a concentrating effect carrying the activity uuid the platform
-      // stamps, a region stamped the same; the re-cast is a NEWER effect and a NEWER region.
+      // Fog Cloud's shape: a no-save concentration area has no card of this module's, so
+      // endConcentrationAreas ends it. Faked at the documents: a concentration effect carrying the
+      // activity uuid and a region stamped the same; a re-cast is a NEWER effect and region.
       const fogAct = `Actor.${cleric.id}.Item.bfFogCloud000000.Activity.bfFogCloudAct000`;
       const mkRegion = async name => (await scene.createEmbeddedDocuments('Region', [{ name, shapes: [{ type: 'circle', x: 300, y: 300, radius: 100 }], flags: { dnd5e: { activity: fogAct } } }]))[0];
       const mkConc = async () => (await cleric.createEmbeddedDocuments('ActiveEffect', [{ name: 'Concentrating: BF Fog', statuses: ['concentrating'], flags: { dnd5e: { activity: { uuid: fogAct } } } }]))[0];
-      // THE TIE: the casting client writes `areas` on its concentration effect (the postUseActivity
-      // hook); here the documents are faked, so the tie is written by hand.
+      // The casting client writes `areas` on its concentration effect; the fake writes it by hand.
       const e1 = await mkConc(); const r1 = await mkRegion('BF Fog area 1'); await e1.setFlag(MOD, 'areas', [r1.uuid]);
       const e2 = await mkConc(); const r2 = await mkRegion('BF Fog area 2'); await e2.setFlag(MOD, 'areas', [r2.uuid]);
       let e3 = null, e4 = null, r3 = null;
@@ -441,8 +404,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await e2.delete();
         const allGone = await waitFor(() => !scene.regions.get(r2.id) ? true : null, 8000);
         ok('16b. the LAST concentration ending takes the last area down — no demand card, no dependent, the module\'s sweep alone', !!allGone, `r2=${!!scene.regions.get(r2.id)}`);
-        // 16c. an UNTIED area (a cast from before the tie): spared while another concentration of the
-        // spell stands — it could be that one's — and swept on the activity when the last one goes.
+        // 16c. an UNTIED area is spared while another concentration of the spell stands, and swept
+        // when the last one goes.
         e3 = await mkConc(); r3 = await mkRegion('BF Fog area 3 (untied)'); e4 = await mkConc();
         await e3.delete(); await sleep(800);
         const sparedC = !!scene.regions.get(r3.id);
@@ -457,7 +420,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 9. the switch
     if (want(9)) {
-      // The setting's own onChange sweeps (no token nudge needed — that is what §9 proves).
+      // The setting's own onChange sweeps (no token nudge).
       await set('emanations', false);
       const gone = await waitFor(() => !featureRegion(palTok, 'Aura of Protection') ? true : null, 8000);
       ok('9a. Emanations off: the standing aura\'s region is removed from the scene', !!gone, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
@@ -474,9 +437,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const three = await waitFor(() => memberFx(ranger).length === 3 ? true : null, 8000);
       ok('11a. the Ranger inside the ring wears the three auras on the ACTIVE range', !!three, memberFx(ranger).map(e => e.name).join(' | '));
       elsewhere = await Scene.create({ name: 'BF Test Elsewhere', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });
-      // The Ranger stands on that scene too — a linked actor, as every PC is — right where a
-      // ring would reach nobody. The point: no ring is raised THERE for the Paladin (no Paladin
-      // token), and the range's ring must not reach the Ranger through the actor.
+      // The linked Ranger stands on that scene too: no ring is raised there (no Paladin token), and
+      // the range's ring must not reach the Ranger through the actor.
       await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(ranger.prototypeToken.toObject(), { x: 500, y: 500, actorId: ranger.id }, { inplace: false })]);
       await elsewhere.activate();
       const lifted = await waitFor(() => (memberFx(ranger).length === 0) ? true : null, 10000);
@@ -484,13 +446,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const down = await waitFor(() => ringsDown() ? true : null, 10000);
       ok('11c. the range\'s rings come down: nobody is on the range — neither active nor viewed', !!down, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
       ok('11d. no ring was raised on the other scene (no Paladin there)', !elsewhere.regions.some(r => r.getFlag(MOD, 'emanation')), '');
-      // A ring left standing on an INACTIVE scene (the old code's, or a GM's reload mid-sweep):
-      // the ready sweep brings it down. Raised by hand here as the old code would have, with the
-      // Ranger's range token inside; the sweep of that scene must lift and delete it.
-      // ⚠ The EFFECT goes down first, wearing the region id the create will carry: §11c's own
-      // deleteRegion hooks re-schedule a sweep of the range, and a sweep that lands between a
-      // hand-made region and its effect removes the region with nothing yet to lift — the effect
-      // then stands orphaned and the sweep this section fires finds no ring (2026-09-16, one run).
+      // A ring left on an INACTIVE scene: the ready sweep brings it down (raised here by hand, the
+      // Ranger's token inside). ⚠ The effect goes down first, wearing the region id the create will
+      // carry: a sweep landing between region and effect would remove the region and orphan the effect.
       const staleId = foundry.utils.randomID();
       await ranger.createEmbeddedDocuments('ActiveEffect', [{ name: 'Protected — BF Test Paladin (stale)', flags: { [MOD]: { emanation: { regionId: staleId } } } }]);
       const stale = await scene.createEmbeddedDocuments('Region', [{ _id: staleId, name: 'stale ring', shapes: [{ type: 'circle', x: palTok.x + grid / 2, y: palTok.y + grid / 2, radius: 12.5 * px }], flags: { [MOD]: { emanation: { kind: 'feature', key: 'Aura of Protection', tokenId: palTok.id, itemUuid: paladin.items.find(i => i.name === 'Aura of Protection')?.uuid } } } }], { keepId: true });
@@ -498,19 +456,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       Hooks.call(`${MOD}.emanationsChanged`);   // the same everywhere-sweep ready runs
       const swept = await waitFor(() => (!scene.regions.get(stale[0].id) && memberFx(ranger, stale[0].id).length === 0) ? true : null, 10000);
       ok('11e. a stale ring on a scene nobody is on is brought down by the everywhere-sweep, and the effect it wrote is lifted from the actor', !!swept, `region=${!!scene.regions.get(stale[0].id)} fx=${memberFx(ranger, stale[0].id).length}`);
-      // THE RANGE VIEWED, NOT ACTIVE (user, 2026-09-23: Session 8 played on scenes the players were
-      // pulled to and nobody activated). This client is the ONLY connected user, and a GM's view
-      // counts while no player is connected (the canvas draw sets `viewedScene` and re-renders the
-      // navigation) — ⚠ a player client left connected to the sandbox fails this step, rightly. A
-      // PLAYER on a scene, and the GM's preview not counting beside one, is smoke-twoclient `pull`.
+      // The range VIEWED, not active: with no player connected, a GM's view counts. ⚠ A player client
+      // left connected to the sandbox fails this step, rightly (the player case is smoke-twoclient `pull`).
       const navBefore = count('renderSceneNavigation');
       await scene.view();
       const viewed = await waitFor(() => (ringsUp() && memberFx(ranger).length === 3) ? true : null, 15000);
       ok('11g. the range VIEWED while another scene is active: the rings stand and the Ranger wears the three auras', !!viewed && (game.scenes.active?.id === elsewhere.id), `fx=${memberFx(ranger).length} rings=${scene.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature').length} active=${game.scenes.active?.name} viewing=${game.user.viewedScene === scene.id}`);
       ok('11h. renderSceneNavigation FIRED on the view (the live-set watch\'s signal — ARCHITECTURE §11: a registered hook is asserted fired)', count('renderSceneNavigation') > navBefore, `before=${navBefore} after=${count('renderSceneNavigation')}`);
-      // TWO LIVE SCENES, ONE COPY: the Paladin stands on the active scene too, the Ranger beside
-      // him there as well as inside his ring on the range. A linked bearer's aura is one aura on
-      // every scene (decide/emanations.js emanationGroup): three copies, never six.
+      // Two live scenes, one copy: a linked bearer's aura is one aura on every scene
+      // (decide/emanations.js emanationGroup): three copies, never six.
       const elsePal = (await elsewhere.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(paladin.prototypeToken.toObject(), { x: 700, y: 500, actorId: paladin.id }, { inplace: false })]))[0];
       const elseRgr = elsewhere.tokens.find(t => t.actorId === ranger.id);
       const elseRings = () => elsewhere.regions.filter(r => r.getFlag(MOD, 'emanation')?.kind === 'feature');
@@ -543,9 +497,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('10c. deleteRegion fired (the lift)', count('deleteRegion') > 0, `count=${count('deleteRegion')}`);
     }
 
-    // ================================================== 12. Aura of Life (the second slice)
-    // The Cleric is GIVEN the four spells for the run (no slot spent on any cast); every cast is
-    // ended (concentration) before the next, which the module answers by taking the area down.
+    // ================================================== 12. Aura of Life
+    // The Cleric is given the four spells for the run; each cast's concentration ends before the next.
     const SECOND = ['Aura of Life', "Crusader's Mantle", 'Aura of Vitality', 'Antilife Shell'];
     const giveSpell = async name => {
       if (cleric.items.some(i => (i.type === 'spell') && (i.name === name))) return cleric.items.find(i => (i.type === 'spell') && (i.name === name));
@@ -580,8 +533,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const secondList = `${prior.emanationList || 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians'}, ${SECOND.join(', ')}`;
     const ownCombat = async entries => {
-      // The suite's earlier combat (7's) goes first: overwriting the binding leaked it past the
-      // teardown and it stood through the next suites (the battery of 2026-09-05).
+      // §7's combat goes first, or overwriting the binding leaks it past teardown.
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       combat = null;
       for (const c of game.combats.filter(c => c.active)) { if (!priorActiveCombats.includes(c.id)) priorActiveCombats.push(c.id); await c.update({ active: false }); }
@@ -604,8 +556,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('12b. the allied Ranger inside wears "Aura of Life — BF Test Cleric": the pack\'s own effect — Resistance to necrotic', !!fx && /^Aura of Life — BF Test Cleric/.test(fx.name) && fx.changes.some(c => (c.key === 'system.traits.dr.value') && (c.value === 'necrotic')), `fx=${fx?.name} changes=${JSON.stringify(fx?.changes)}`);
       await sleep(800);
       ok('12c. the hostile Victim inside receives nothing (a helpful aura)', memberFx(vicTok.actor, region?.id).length === 0, memberFx(vicTok.actor).map(e => e.name).join(','));
-      // (user, 2026-09-05: "he himself doesn't get adv … he doesn't have the effect") — a SPELL's
-      // emanation is "you and your allies": the CASTER wears it from the ring too, exactly once.
+      // A spell's emanation is "you and your allies": the caster wears it too, exactly once.
       const own = await waitFor(() => memberFx(cleric, region?.id)[0] ?? null, 6000);
       const lifeOnCleric = cleric.effects.filter(e => /^Aura of Life/.test(e.name));
       ok('12c2. the CASTER wears its own spell aura from the ring — "Aura of Life — BF Test Cleric", exactly one Aura of Life effect on the sheet (the cast slice does not double it)',
@@ -680,11 +631,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
 
     // ================================================== 17. Polearm Master's Reactive Strike
-    // (2026-09-27, the user: "an invisible emanation … if a hostile person gets the emanation … a popup
-    // reminding the player they can attack (same shape as hew too)"). The Ranger is lent the feat and a
-    // Glaive (Heavy, Reach): an invisible 10-foot ring stands around it with no card; the hostile Victim
-    // MOVING into it raises Hew's reminder on the Ranger ("Reactive Strike"); the ring sliding over the
-    // standing Victim does not; the Glaive unequipped, the ring goes.
+    // The Ranger is lent the feat and a Glaive: an invisible 10-foot ring with no card; a hostile
+    // MOVING in raises Hew's reminder ("Reactive Strike"); the ring sliding over a standing Victim
+    // does not; the Glaive unequipped, the ring goes.
     if (want(17)) {
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -702,9 +651,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const glaiveItem = lent.find(i => i.type === 'weapon');
       try {
         await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians, Polearm Master');
-        // An empty patch of the range, fixed squares (a move onto another token's square or off the map is
-        // refused without a word — the first cut aimed the Victim at the attacker's own square): the Ranger
-        // at (10, 5), the Victim six squares east of it, then two.
+        // Fixed empty squares (a move onto another token's square or off the map is refused silently).
         const spot = { x: 10 * grid, y: 5 * grid };
         const far = { x: spot.x + 6 * grid, y: spot.y };
         const near = { x: spot.x + 2 * grid, y: spot.y };     // one square between: inside 10 ft
@@ -725,7 +672,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let card = await waitFor(() => notices(t1)[0] ?? null, 4000);
         let how = 'update (teleport)';
         if (!card) {
-          // A teleport may carry no passed waypoints (Foundry's tokenMoveIn wants a movement): walk it instead.
+          // A teleport may carry no waypoints (tokenMoveIn wants a movement): walk it.
           await vicTok.update(far, mv());
           await sleep(600);
           await vicTok.move([{ x: near.x, y: near.y, action: 'displace' }]);
@@ -737,7 +684,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('17b. the hostile moving into the reach raises Hew\'s reminder on the Ranger — "Reactive Strike", the one who entered named',
           !!card && (n?.attackerUuid === ranger.uuid) && (n?.targetName === vicTok.name) && /Reactive Strike/.test(card.content ?? ''),
           `card=${!!card} via=${how} notice=${JSON.stringify(n ?? null)}`);
-        // The RING slides over a standing Victim: the Victim steps out, the Ranger steps up to it.
+        // The ring slides over a standing Victim.
         await vicTok.update(far, mv());
         await sleep(800);
         const t2 = Date.now();
@@ -746,10 +693,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('17c. the Ranger stepping up to a standing Victim is no entry — no reminder', !notices(t2).length, `notices=${notices(t2).length}`);
         await rgrTok.update(spot, mv());
         await sleep(600);
-        // PASSING THROUGH (the user, 2026-09-27: "on the gap…"): one WALKED move from six squares west
-        // to six squares east, a row above the Ranger — it ends outside the reach. Foundry splits a move
-        // at the edge of a region listening for move-in (TokenDocument#splitMovementPath), so the entry
-        // is a checkpoint of its own. Walls and tokens ignored so nothing stops the walk short.
+        // Passing through: one walked move that ends outside the reach. Foundry splits a move at the
+        // edge of a move-in region (TokenDocument#splitMovementPath). Walls and tokens ignored.
         await vicTok.update({ x: spot.x - 6 * grid, y: spot.y - grid }, mv());
         await sleep(800);
         const t3 = Date.now();

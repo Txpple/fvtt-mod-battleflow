@@ -1,21 +1,14 @@
-// Battle Flow v1.20.0 smoke test — resource use notices: a player-owned actor spending a
-// recovery-rhythm pool flashes the banner on this client and grows the durable card line;
-// pools without recovery, NPC spends and the OFF switch all stay silent. All three measured
-// pool shapes are pinned: self item-uses, cross-item pool, activity-level uses. (cc): an
-// ability with dice of its own flashes AFTER those dice (release by card link, 12s
-// fallback); the card line never waits.
-//
-// Harness discipline (HANDOFF): settings restored first in their own guard; fixture
-// ownership snapshotted and restored EXACTLY; messages deleted by id-set difference.
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 5,6`, `--list`. Fixtures, the settings pins
-// and teardown ALWAYS run; only the numbered assertion blocks are skippable.
+// Battle Flow smoke test: resource use notices. A player-owned actor spending a recovery-rhythm
+// pool flashes the banner and grows the durable card line; pools without recovery, NPC spends and
+// the OFF switch stay silent. The three pool shapes: self item-uses, cross-item pool,
+// activity-level uses. An ability with its own dice flashes AFTER them (released by card link,
+// 12s fallback); the card line never waits.
+// Harness discipline: settings restored first in their own guard; ownership restored exactly;
+// messages deleted by id-set difference. Sections: `--section 3`, `--section 5,6`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'resources.js',           // the notices — the flash, the card line, the silences
   'stats.js'                // §7 — the data-plane spend stamp
@@ -30,8 +23,7 @@ const SECTIONS = {
   6: '(cc) the fallback timer',
   7: 'the data-plane spend stamp (the party-stats commission)'
 };
-// The one real coupling here: §6 asserts "1 of 3 remaining" on the heal feat §5 creates and
-// spends once, so asking for §6 alone runs §5 first and says so.
+// §6 asserts "1 of 3 remaining" on the heal feat §5 creates and spends once.
 const DEPENDS = { 6: ['5'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -45,17 +37,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // WAIT FOR THE THING, NOT FOR THE CLOCK (ARCHITECTURE §11 *Adding a TEST* rule 3). Returns the moment the predicate holds
-  // and only spends the full budget when it never does. Measured 2026-08-23: 33.3s of this
-  // suite's wall clock was unconditional sleeping, almost all of it waiting for a banner that
-  // fades on its own schedule. Same helper smoke-volleys and smoke-maneuvers already had.
+  // Wait for the thing, not the clock (ARCHITECTURE §11 *Adding a TEST* rule 3).
   const until = async (fn, ms = 8000) => {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(150); }
     return fn();
   };
-  // The section gate. It cannot be imported — this closure is serialized into the page — so
-  // the plan and the titles travel as DATA and the predicate is spelled out, once per suite.
+  // The section gate (tools/harness.mjs): the plan arrives as DATA in this serialized closure.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
@@ -76,11 +64,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const victim = game.actors.getName('BF Test Victim');
   if (!victim) return { fatal: 'missing fixture: BF Test Victim' };
-  // 6.0: a card's associated actor is its TOKEN's actor first (ChatMessage5e#getAssociatedActor) — an
-  // unlinked victim token on the range speaks as its synthetic actor, under the token's name.
+  // A card's associated actor is its TOKEN's actor first: an unlinked victim speaks as its synthetic actor.
   const speaker = () => game.scenes.active?.tokens.find(t => t.actorId === victim.id)?.actor ?? victim;
-  // A qualifying spender must be PLAYER-OWNED: grant a non-GM user ownership for the run
-  // and restore the exact prior ownership map after.
+  // A qualifying spender is PLAYER-OWNED: grant a non-GM user ownership, restore the exact map after.
   const player = game.users.find(u => !u.isGM);
   if (!player) return { fatal: 'no non-GM user exists to lend ownership to' };
   const priorOwnership = foundry.utils.deepClone(victim._source.ownership ?? {});
@@ -108,13 +94,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const bannerNow = () => document.querySelector('.bf-resource-banner');
   const lineFor = id => document.querySelector(`[data-message-id="${id}"] .bf-resource-line`);
-  // ⚠ WAIT FOR EVERY THING THE NEXT ASSERTION READS — this suite has THREE surfaces and they
-  // arrive at three different moments: the usage card (a document), the transient BANNER (a
-  // hook, immediate) and the durable card LINE (a renderChatMessage decoration, later). The
-  // first conversion of this helper waited on the banner alone and three "the card keeps its
-  // line" assertions started failing on a module that was working perfectly — the tier
-  // rule's stated trap (ARCHITECTURE §11 *Adding a TEST* rule 3), walked into on the first attempt. A caller asserting SILENCE cannot wait for
-  // either surface, so it keeps a short settle: long enough for a wrong one to show itself.
+  // ⚠ Wait for every surface the next assertion reads: the usage card, the transient banner
+  // (immediate) and the durable card line (a later render decoration). A caller asserting
+  // SILENCE cannot wait, so it keeps a short settle.
   const useAndCard = async (act, { banner = true, line = banner } = {}) => {
     const before = new Set(game.messages.contents.map(m => m.id));
     const isUsage = m => (m.type === 'usage');
@@ -180,9 +162,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }]);
     created.items.push(mundane.id);
     const acts = id => feat.system.activities.get(id);
-    // Declared out here, not in §5: §6 spends the same feat a second time and asserts the
-    // count fell again, so the two sections share it (DEPENDS says so) and a block-scoped
-    // `const` inside §5 would put it out of §6's reach.
+    // Shared by §5 and §6 (§6 spends it a second time), so declared out here.
     let healFeat;
 
     // ============================================================ §1 self-uses spend
@@ -226,7 +206,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!b3 && b3.textContent.includes('Free Cast: 1 of 2 remaining'),
         b3 ? b3.textContent.trim().slice(0, 120) : 'NO banner');
       ok('3b and the card line agrees',
-        !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast: 1 of 2'));   // spendLine's one wording (2026-09-05)
+        !!card3 && !!lineFor(card3.id)?.textContent.includes('Free Cast: 1 of 2'));   // spendLine's one wording
       await until(() => !bannerNow(), 6000);   // let it fade before the next section
     }
 
@@ -254,8 +234,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ============================================================ §5 (cc) the flash waits for the dice
     if (want(5)) {
       log.push('§5 deferred flash');
-      // Since dnd5e 6.0 the hide filters the card's DATA at birth (polish.js), so the button this
-      // section presses only exists with the hide OFF — restored with the rest in teardown.
+      // The hide filters the card's data at birth (polish.js), so the button this section presses
+      // exists only with the hide OFF (restored in teardown).
       await set('hideCardButtons', false);
       [healFeat] = await victim.createEmbeddedDocuments('Item', [{
         name: 'BF Notice Heal', type: 'feat',
@@ -273,9 +253,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
       ok('5b the durable card line does NOT wait (the ledger is immediate)',
         !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
-      // The card button is the player's real path (present with hideCardButtons off — at 6.0
-      // the hide drops it from the card's data) — click it, submit the native config dialog,
-      // and the flash releases.
+      // The card button is the player's real path: click it, submit the native dialog, the flash releases.
       const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
       ok('5c the heal button exists on the card', !!healBtn);
       const beforeRoll = new Set(game.messages.contents.map(m => m.id));
@@ -283,8 +261,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const cfgDlg = await until(() => [...foundry.applications.instances.values()]
         .find(a => a.constructor?.name?.includes('RollConfiguration') && a.rendered), 5000);
       cfgDlg?.element.querySelector('button[type="submit"]')?.click();
-      // Both halves, because 5d reads the ROLL and 5e reads the BANNER it releases — waiting
-      // for the roll alone would race the flash and fail 5e for a reason that is not the code.
+      // Both halves: 5d reads the roll, 5e the banner it releases.
       const rollNow = () => game.messages.contents.find(m => !beforeRoll.has(m.id) && m.rolls?.length);
       await until(() => rollNow() && bannerNow(), 8000);
       const healRoll = rollNow();
@@ -304,8 +281,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push('§6 fallback');
       const card6 = await useAndCard(healFeat.system.activities.contents[0], { banner: false, line: true });
       ok('6a still quiet right after the use', !!card6 && !bannerNow());
-      // FLASH_FALLBACK_MS is 12s — a player who never rolls still flashes. Waited for, not
-      // slept through: the fallback is the only sleep here whose length is a real deadline.
+      // FLASH_FALLBACK_MS is 12s: a player who never rolls still flashes. Waited for, a real deadline.
       await until(() => bannerNow(), 15_000);
       const b6 = bannerNow();
       ok('6b the fallback flashed it: never rolled, still announced',
@@ -314,17 +290,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ============================================================ §7 the data-plane spend stamp
-    // The party-stats commission: the ELECT stamps `spend` = {combat, sourceUuid, rows/slots}
-    // beside dnd5e's own deltas at creation — one derivation (trap 3), combat context resolved
-    // at spend time, UNGATED by the notices setting (a toggle that punched holes in the ledger
-    // would be a footgun). The rhythm gate and the player-owned line hold for the ledger
-    // exactly as they do for the flash.
+    // The elect stamps `spend` = {combat, sourceUuid, rows/slots} beside dnd5e's deltas at creation,
+    // UNGATED by the notices setting; the rhythm gate and the player-owned rule hold as for the flash.
     if (want(7)) {
       log.push('§7 spend stamp');
-      // ⚠ §7 OWNS ITS POOLS. The shared 'BF Notice Feat' has max 3 and §§1/4b/4c spend all
-      // three, so in a FULL battery a §7 reuse arrives at an EXHAUSTED pool — dnd5e refuses
-      // the consumption, no card posts at all, and four assertions fail for a reason that is
-      // not the code (bit the first battery, 2026-08-27). Solo runs skip §§1–6 and masked it.
+      // ⚠ §7 owns its pools: §§1/4b/4c exhaust the shared feat, and in a full battery dnd5e would
+      // refuse the consumption and post no card.
       const [feat7] = await victim.createEmbeddedDocuments('Item', [{
         name: 'BF Stamp Feat', type: 'feat',
         system: {
@@ -363,8 +334,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!card7b && !card7b.getFlag(MOD, 'spend'),
         card7b ? 'card exists, unstamped' : 'no card');
 
-      // NPC spends stay off the ledger (the party's meters are the commission; monster
-      // pools are the GM's secret) — same ownership flip as §4b.
+      // NPC spends stay off the ledger (monster pools are the GM's secret).
       await victim.update({ ownership: priorOwnership }, { diff: false, recursive: false });
       const card7c = await useAndCard(spendAct(), { banner: false });
       ok('7c the same spend from a non-player-owned actor is not stamped',
@@ -378,9 +348,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!stamp7d && stamp7d.rows?.length === 1, JSON.stringify(stamp7d ?? null));
       await set('resourceNotices', true);
 
-      // Slot spends: no recovery-pool row, but the ledger wants them (three of the party's
-      // four burn slots). A negative delta on the slot's .value stamps a slots row with the
-      // post-spend pool truth.
+      // Slot spends stamp a slots row with the post-spend pool (no recovery-pool row).
       const [slotcaster] = await victim.createEmbeddedDocuments('Item', [{
         name: 'BF Notice Slotcast', type: 'feat',
         system: { activities: { bfnoticeslot0000: { _id: 'bfnoticeslot0000', type: 'utility',
@@ -388,8 +356,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           consumption: { targets: [{ type: 'spellSlots', target: '1', value: '1' }] } } } }
       }]);
       created.items.push(slotcaster.id);
-      // `max` is DERIVED on an NPC — `override` is the writable knob (probed 2026-08-27:
-      // writing max leaves it 0 and the use aborts with no card at all).
+      // `max` is derived on an NPC: `override` is the writable knob (writing max leaves it 0).
       await victim.update({ 'system.spells.spell1.override': 2, 'system.spells.spell1.value': 2 });
       const card7e = await useAndCard(slotcaster.system.activities.contents[0], { banner: false });
       const stamp7e = await until(() => card7e?.getFlag(MOD, 'spend'), 6000);

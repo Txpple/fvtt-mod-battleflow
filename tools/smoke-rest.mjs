@@ -1,25 +1,14 @@
-// Battle Flow rest smoke test — THE REST GRANTS (2026-09-25, the Human walk: "human i think just
-// needs initiatve to be ticked on long rest"): Resourceful's Heroic Inspiration on a Long Rest.
-//
-// THE SONG (2026-09-25, the origin feats: "for musician, give a courtesy popup after long and short
-// rest, listing the allies within 30 ft, player picks which oens to give inspiration. grey out the
-// ones that already have and so note it"): §4–§7.
-//
-// Fixtures: BF Test Halfling (a character; tools/fixture-suite.mjs) is lent the PHB's Resourceful
-// and Musician for the run. Its hit points, hit dice, uses and inspiration are put back afterwards.
-// §8–§11 (the PHB feats, group 5, 2026-09-27) lend Inspiring Leader and Chef and reuse the song's
-// tokens; every creature they touch keeps its hit points, Hit Dice and temp HP (restored whole).
-// The song's sections place TEMPORARY linked tokens on the test range — the Halfling, BF Test
-// Cleric 10 ft away, BF Test Bard 15 ft away (already inspired), BF Test Fighter 40 ft away — in a
-// strip the suite finds empty at run time, and delete them in teardown.
-//
-// Harness discipline: every setting touched is restored; the lent items, the placed tokens and every
-// message this run creates are deleted; each actor's own state is restored from its source.
-//
-// Sections: `--section 2`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow rest smoke test: the rest grants. Resourceful's Heroic Inspiration on a Long Rest
+// (§1–3); Musician's popup after a rest listing allies within 30 ft, those already inspired greyed
+// (§4–7); Inspiring Leader, Chef's Bolstering Treats and Replenishing Meal (§8–11).
+// Fixture: BF Test Halfling is lent the PHB feats for the run. The song's sections place TEMPORARY
+// linked tokens (the Halfling; BF Test Cleric 10 ft, Bard 15 ft and already inspired, Fighter 40 ft)
+// in a strip found empty at run time.
+// Harness discipline: settings restored; lent items, placed tokens and messages deleted; every
+// touched actor's HP, Hit Dice, temp HP, uses and inspiration restored. Sections: `--section 2`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
+// The coverage map (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'rest-grants.js'          // §1–§3 — the grant on the rest's own update, the card's line, the switches; §4–§7 the song to allies
 ];
@@ -107,7 +96,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   try {
     await set('restGrantList', 'Resourceful');   // the song (Musician) has its own sections below
-    // Lend Resourceful from the PHB — found by name in the pack's item indexes.
+    // Lend Resourceful from the PHB, found by name in the pack's indexes.
     let source = null;
     for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
       const hit = (await pack.getIndex()).find(e => e.name === 'Resourceful');
@@ -265,10 +254,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('7a. Musician off the list: no card', !songCard(t0), `card=${!!songCard(t0)}`);
       }
 
-      // ================================================== 8–11. the PHB feats, group 5 (2026-09-27)
-      // The same popup, a grant of Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats)
-      // and Chef's Replenishing Meal. Each lends the PHB's own feat and reads the amount the way the
-      // machine must: off the feat's heal activity, on the Halfling's sheet.
+      // ================================================== 8–11. temp HP grants and the meal
+      // The same popup: Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats) and Chef's
+      // Replenishing Meal. The amount is read off the lent feat's heal activity on the Halfling's sheet.
       const lendFeat = async name => {
         if (actor.items.some(i => i.name === name)) return actor.items.find(i => i.name === name);
         let doc = null;
@@ -284,8 +272,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const popupFor = text => [...foundry.applications.instances.values()]
         .find(app => app.rendered && (app.element?.textContent ?? '').includes(text)) ?? null;
       const tempOf = a => Number(a.system.attributes.hp.temp) || 0;
-      // ⚠ A row with no reach lists EVERY ally on the scene — the test range carries party tokens (Gren)
-      // and other fixtures. The popup's ticks are set to the suite's own creatures only before OK.
+      // ⚠ A row with no reach lists EVERY ally on the scene: tick only the suite's own creatures before OK.
       const tickOnly = (app, keep) => {
         for (const box of app?.element?.querySelectorAll('input[name="bf-rest-song"]') ?? []) {
           // the cap greys unticked rows (disabled); only a "has it" row stays out of reach
@@ -307,8 +294,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await set('restGrantList', 'Inspiring Leader');
         const feat = await lendFeat('Inspiring Leader');
         if (!feat) return { fatal: 'the PHB ships no "Inspiring Leader" feat this box can find', results, log, skips };
-        // The lent copy carries no Ability Score Improvement record, so the higher of Wisdom and
-        // Charisma stands (the Poisoner's pick); the amount is the activity's own: level + that modifier.
+        // The lent copy has no ASI record, so the higher of Wisdom and Charisma stands; the amount is level + that modifier.
         const mod = Math.max(actor.system.abilities.wis.mod, actor.system.abilities.cha.mod);
         const amount = Number(actor.system.details.level) + mod;
         await cleric.update({ 'system.attributes.hp.temp': 0 });
@@ -336,11 +322,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!landed && (tempOf(cleric) === amount) && (tempOf(actor) === amount) && (tempOf(bard) === amount + 5) && (tempOf(fighter) === 0),
           `cleric=${tempOf(cleric)} self=${tempOf(actor)} bard=${tempOf(bard)} fighter=${tempOf(fighter)} amount=${amount}`);
 
-        // 8d. A feat taken through its Ability Score Improvement names the ability — the LOWER one here
-        // (Wisdom 16, Charisma 10, the record says Charisma), so the amount is level + 0, not level + 3;
-        // the rest card keeps that one activity row, called "Inspire with Performance" (the walk).
-        // The live item's advancement is a collection (`feat.advancement.byId`, lookup.js asiAssigned's
-        // read); the write goes to the SOURCE, which may be keyed by id or a list — both are written back whole.
+        // 8d. A feat taken through its ASI names the ability (here the LOWER one, Charisma), so the
+        // amount is level + 0; the rest card's row is "Inspire with Performance". The live item's
+        // advancement is a collection (`feat.advancement.byId`, lookup.js asiAssigned); the write
+        // goes to the SOURCE (keyed by id or a list), written back whole.
         const asi = Object.values(feat.advancement?.byId ?? {}).find(v => v?.type === 'AbilityScoreImprovement');
         if (!asi) skips.push('8d. the lent feat carries no Ability Score Improvement advancement');
         else {
@@ -397,8 +382,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           'a meal card appeared on a Long Rest');
       }
 
-      // The meal in both orders: the Cleric has rested (Hit Dice spent), the Fighter has rested (none
-      // spent), the Bard has not rested yet — then the Chef's own Short Rest asks.
+      // The meal in both orders: the Cleric rested (Hit Dice spent), the Fighter rested (none), the
+      // Bard has not yet; then the Chef's own Short Rest asks.
       let mealCard = null;
       if (want(10)) {
         await set('restGrantList', 'Replenishing Meal');   // the Long Rest below must not hand out treats

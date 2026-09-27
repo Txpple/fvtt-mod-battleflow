@@ -1,35 +1,17 @@
-// STANDING CONTRACT CHECK — popup routing across two clients (ARCHITECTURE.md §5: the
-// popup goes to whoever owns the decision, and canAnswerFor is what decides).
-//
-// This is the ONLY two-client harness left in tools/, and the only thing that can prove
-// the N3 property that popups route player-first: a save demand cast from a PLAYER client
-// must show its popup on the client that owns the decision, not only on the caster's own
-// window. Single-client suites structurally cannot see this.
-//
-// It runs a ledger on every link of the chain: update/render hook fires, flag visibility,
-// canAnswerFor, queue head, DialogV2.render calls/rejections, DOM dialogs. Originally the
-// repro for the 2026-08-17 walk's popup-strand finding; kept and renamed because the
-// topology it exercises is a contract, not a closed bug.
-//
-// ⚠ IT ASSERTS NOW (2026-08-23 — git history). It was a ledger dump for a human to read, which
-// meant it could only find a regression if somebody ran it AND read it carefully — and it was
-// unrunnable at all until the 2026-08-23 ownership grant, so nobody had. The ledger is still
-// printed in full, because it is what makes a failure legible; the assertions are what make an
-// unread run still worth something.
-//
-// Fixture: a temporary innate save spell (no damage, no effects — zero side effects) on
-// BF Test PC Attacker (PC Assistant's actor), cast at BF Test Victim (GM-decided). The
-// demand card is deleted before the buzzer, so nothing ever rolls. **Read-only enough to run
-// beside a live session** — that property is why the mutating cross-client scenarios live in
-// `smoke-twoclient.mjs` instead of here.
+// Standing contract check: popup routing across two clients (ARCHITECTURE.md §5: the popup goes to
+// whoever owns the decision; canAnswerFor decides). A save demand cast from a PLAYER client must
+// pop on the client that owns the decision, which no single-client suite can see.
+// A ledger covers every link (hooks, flag visibility, canAnswerFor, queue head, DialogV2 renders
+// and rejections, DOM dialogs) and prints in full; the assertions make an unread run count.
+// Fixture: a temporary no-damage, no-effect save spell on BF Test PC Attacker, cast at BF Test
+// Victim; the card is deleted before the buzzer, so nothing rolls. Read-only enough to run beside
+// a live session (the mutating cross-client scenarios live in `smoke-twoclient.mjs`).
 import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'saves/index.js',         // a player-cast demand's popup routes to whoever decides
   'saves/demand.js',
@@ -92,8 +74,7 @@ await gm.evaluate(async () => {
     id: m.id, htmlConnected: html?.isConnected ?? null, ...describe(m) }));
   on('renderChatMessageHTML', m => note('coreRender', { id: m.id }));
 
-  // Reach inside the popup machinery without touching module code: every DialogV2 render
-  // and rejection, and every console.error, lands in the ledger.
+  // Ledger every DialogV2 render and rejection and every console.error, without touching module code.
   const D2 = foundry.applications.api.DialogV2;
   if (!D2.prototype.__bfWrapped) {
     const orig = D2.prototype.render;
@@ -118,8 +99,7 @@ await gm.evaluate(async () => {
 }, null);
 console.log('[topo] GM instrumented');
 
-// Fixture floor: the victim token must stand on the range (the suites' sweeps legitimately
-// remove it — smoke-battleflow normally re-places it; the probe does the same minimal move).
+// Fixture floor: the victim token must stand on the range (other suites' sweeps remove it).
 const fixture = await gm.evaluate(async () => {
   const scene = game.scenes.getName('Battle Flow Test Range');
   const victim = game.actors.getName('BF Test Victim');
@@ -140,8 +120,7 @@ console.log('[topo] player connecting…');
 const player = new Foundry(playerConfig(env));
 await player.connect();
 
-// The player builds a zero-consequence save spell on its own actor and casts it at the
-// victim. The stamp runs HERE — the walk's exact topology.
+// The player builds a zero-consequence save spell and casts it at the victim: the stamp runs on the player client.
 const cast = await player.evaluate(async () => {
   const scene = game.scenes.getName('Battle Flow Test Range');
   const attacker = game.actors.getName('BF Test PC Attacker');
@@ -188,9 +167,7 @@ console.log(`[topo] player "${cast.user}" cast: message ${cast.messageId}, stamp
 // Let the GM client digest for 8 seconds (well inside the 15s window), then read the ledger.
 await new Promise(r => setTimeout(r, 8000));
 
-// ⚠ The PLAYER's DOM is read too, and that is the half that makes the routing claim mean
-// anything. "The GM got the popup" is only interesting beside "and the player did not" — the
-// walk's finding was a popup landing on the WRONG client, which a one-sided read cannot see.
+// ⚠ The player's DOM is read too: "the GM got the popup" means something only beside "and the player did not".
 const playerSide = await player.evaluate(async ({ messageId }) => {
   const dialogs = Array.from(document.querySelectorAll('.application.dialog, dialog.application'))
     .map(d => d.querySelector('.window-title')?.textContent?.trim() ?? d.id);
@@ -232,17 +209,12 @@ await player.evaluate(async ({ spellId }) => {
   return true;
 }, { spellId: cast.spellId });
 
-/* --- the assertions ------------------------------------------------------------------------
- *
- * Every one of these is a property no single-client suite can reach. They read the ledger the
- * GM client kept and the DOM both clients ended in — nothing is re-derived.
- */
+/* --- the assertions: properties no single-client suite can reach, read off the ledger and both DOMs. */
 const ledger = result.ledger ?? [];
 const seenOnGM = ledger.filter(e => (e.id === cast.messageId) && e.flag);
 const decisionRow = seenOnGM.flatMap(e => e.targets ?? []).filter(t => t.name);
 const gmCanAnswer = decisionRow.some(t => t.canAnswer === true);
-// Since option E (2026-09-02) the ask IS the system's own dialog, titled 'Constitution Saving
-// Throw' — no 'save' in it — so the match is the stem.
+// The ask is the system's own dialog ('Constitution Saving Throw'), so the match is the stem.
 const saveDialogOn = list => list.some(t => /sav|BF Topology/i.test(t ?? ''));
 
 console.log('\n[topo] assertions');

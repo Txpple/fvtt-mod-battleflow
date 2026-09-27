@@ -1,23 +1,12 @@
-// STATIC CARD-READ CHECK — no Foundry, no world, milliseconds.
-//
-// A card's ITEM or ACTIVITY is read through lookup.js `cardItem` / `cardActivity`, never by a
-// bare uuid lookup. This fails the build on `fromUuid(…)`, `fromUuidSync(…)` or `resolveUuid(…)`
-// whose argument names an `activityUuid`, an `itemUuid` or `itemUuidOf(…)` anywhere in
-// scripts/ outside lookup.js — unless the line above says `// live only: <reason>`.
-//
-// WHY (2026-09-22, the user: "in sandbox i have a potion of resistence on gren, but it doesnt
-// auto apply … when drnk/used"): dnd5e 6.0 `Activity#use` SPENDS before it posts — the item whose
-// last use it was (a potion, a scroll: `uses.autoDestroy`) is deleted, and only then is the card
-// created. Every uuid the module stamped for the used thing names a document already gone, so a
-// bare lookup answered "nothing" in silence: the potion's effect never landed, a used-up vial's
-// failed-save effect never landed (a code note called it an "accepted corner"), a scroll's volley
-// never drove. The card keeps a snapshot of the deleted item and the platform's own read
-// (`ChatMessage5e#getAssociatedItem`) rebuilds it; the two helpers are that read behind the live
-// one. Fourteen sites had the bare shape the day this was written.
-//
-// A deliberate live read — a FEATURE that is never used up, a button that USES the ability (which
-// a used-up item cannot be), a region with no card behind it — says why on the line above, so the
-// next reader knows it was a decision and not the old habit.
+// Static card-read check (no Foundry, milliseconds). A card's ITEM or ACTIVITY is read through
+// lookup.js `cardItem` / `cardActivity`, never a bare uuid lookup: fails on `fromUuid(…)`,
+// `fromUuidSync(…)` or `resolveUuid(…)` naming an `activityUuid`, `itemUuid` or `itemUuidOf(…)`
+// anywhere in scripts/ outside lookup.js, unless the line above says `// live only: <reason>`.
+// ⚠ dnd5e's `Activity#use` SPENDS before it posts: a used-up item (potion, scroll) is deleted before
+// its card exists, so a bare lookup silently finds nothing. The card keeps a snapshot, which the
+// platform's own read (`ChatMessage5e#getAssociatedItem`) rebuilds; the helpers fall back to it.
+// A deliberate live read (a feature never used up, a button that USES the ability, a region with no
+// card) says why on the line above.
 //
 //   node tools/check-card-reads.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";

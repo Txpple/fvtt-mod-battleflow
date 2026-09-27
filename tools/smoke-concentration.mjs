@@ -1,31 +1,15 @@
-// Battle Flow Phase 2.5 smoke test — the concentration assist, driven end to end in the live
-// world: damage → ask → roll → verdict → break, in both modes, on the elect's own client.
-//
-// Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
-// every message this run creates is deleted on the way out; BF Test fixtures are long-rested
-// (they spend real slots and real HP); ask/answer searches go by module flag over the WHOLE
-// log, never a tail window; and outcomes are forced deterministically — success by a +30
-// save bonus, failure by a DC 30 ask against a mortal modifier — because a suite that can
-// lose a coin flip is a suite that lies once a week.
-//
-// ⚠ "New messages" are found by ID-SET DIFFERENCE, never by timestamp. Message timestamps
-// come from the server's clock and this suite's Date.now() from the client's; the first run
-// of this suite lost every ask to a ~2-3s skew between them — the machinery all worked, and
-// every `timestamp >= t0` search read straight past it. A snapshot of ids taken before the
-// action and diffed after cannot be lied to by any clock. (The tail-window lesson, clock
-// edition.)
-//
-// ⚠ Disconnect the MCP bridge first (two pages on one GM user make both clients the elect —
-// the double-apply lesson of 2026-08-16, and here it would stamp every ask twice).
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 5`, `--section 12,13`, `--list`. Fixtures and teardown
-// ALWAYS run; only the numbered assertion blocks are skippable.
+// Battle Flow smoke test: the concentration assist end to end (damage → ask → roll → verdict →
+// break) in both modes, on the elect's own client.
+// Harness discipline: settings restored, this run's messages deleted, fixtures long-rested;
+// outcomes forced (+30 save bonus, or a DC 30 ask).
+// ⚠ New messages are found by ID-SET difference, never timestamp: message timestamps are the
+// server's clock and Date.now() the client's.
+// ⚠ Disconnect the MCP bridge first: two pages on one GM user both act as the elect.
+// Sections: `--section 5`, `--section 12,13`, `--list` (ARCHITECTURE §11 *Adding a TEST* rule 2).
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'concentration.js'        // the assist — ask, roll, verdict, break, both modes
 ];
@@ -49,10 +33,8 @@ const SECTIONS = {
   16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); off the list, nothing; the dialog\'s gate lists it',
   17: "the check OWNS its DC (the user, 2026-09-27): a passed check offers no rescue; a failed one is WITHHELD — Heroic Inspiration offered, the spell still standing — and Pass lets it break"
 };
-// Concentration is a STATE, so a section that never calls `ensureConc` inherits one. §§1, 5,
-// 11, 13 and 14 stand up their own; every other section names the nearest one that does.
-// ⚠ Derived by reading, not by running each alone — a wrong row shows up as a section that
-// fails only under `--section`, which is exactly the signal to add the missing edge here.
+// Concentration is a STATE: §§1, 5, 11, 13, 14 stand up their own; every other section names the
+// nearest one that does. A section failing only under `--section` means a missing edge here.
 const DEPENDS = {
   2: ['1'], 3: ['1'], 4: ['1'],
   6: ['5'], 7: ['5'], 8: ['5'], 9: ['5'], 10: ['5'],
@@ -71,16 +53,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The section gate (tools/harness.mjs): the plan arrives as DATA in this serialized closure.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
-  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  // Every moment payload published during the run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -97,8 +77,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return { fatal: 'this client is not the single active-GM elect — disconnect the bridge and any other GM page' };
   }
 
-  // ⚠ Id-set markers, not timestamps (see the file banner). marker() snapshots the log;
-  // newSince(mark) is everything that did not exist at the snapshot, whatever any clock says.
+  // Id-set markers: marker() snapshots the log; newSince(mark) is everything new since.
   const marker = () => new Set(game.messages.contents.map(m => m.id));
   const newSince = mark => game.messages.contents.filter(m => !mark.has(m.id));
   const suiteMark = marker();
@@ -123,14 +102,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
-    // never leave the table wearing suite settings (bit live 2026-08-17). The user's
-    // config is sacred; the rest is best-effort.
+    // ⚠ Settings restore first, in its own guard: a later cleanup error must never leave suite settings on the table.
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
-      // End any concentration the run left standing (endConcentration cascades dependents,
-      // which also sweeps the victim's rider effect if a break section died mid-way).
+      // End any concentration the run left (endConcentration cascades dependents, incl. the victim's rider).
       for (const e of [...(shielder.concentration?.effects ?? [])]) {
         try { await shielder.endConcentration(e.id); } catch { /* fine */ }
       }
@@ -154,9 +130,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await game.actors.get(actorId)?.update(data);
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-      // Sweep this run's chat: everything created since the suite's opening snapshot that is
-      // ours — fixture speakers, the module's announcement alias, any module-flagged message
-      // (asks and stamped rolls), and the native request card the off-half lets through.
+      // Sweep this run's chat: fixture speakers, the announcement alias, module-flagged messages,
+      // and the native request card the off-half lets through.
       const mine = newSince(suiteMark).filter(m =>
         m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length
@@ -179,7 +154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    // Baseline: only the concentration machinery lives; the ghost-chaser stays pinned off.
+    // Baseline: only the concentration machinery on.
     await set('autoDamage', 'off');
     await set('autoApply', false);
     await set('dramaticBeat', 0);
@@ -202,8 +177,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.ac.override': shielder.system._source.attributes.ac.override ?? null,
     };
 
-    // The concentration ability as the module will resolve it — every DC/bonus lever below
-    // assumes con, so bail loudly if this world's fixture says otherwise.
+    // Every DC/bonus lever below assumes con: bail loudly if the fixture says otherwise.
     const concAbility = (shielder.system.attributes?.concentration?.ability in CONFIG.DND5E.abilities)
       ? shielder.system.attributes.concentration.ability
       : CONFIG.DND5E.defaultAbilities.concentration;
@@ -220,9 +194,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.value': shielder.system.attributes.hp.max,
       'system.attributes.hp.temp': 0 });
 
-    // A concentration spell the fixture can really cast: its own first, Bless from a pack
-    // otherwise. The cast is the REAL beginConcentrating path — hand-building the effect
-    // would test an imitation.
+    // A concentration spell the fixture can really cast (its own, else Bless from a pack): the REAL
+    // beginConcentrating path, never a hand-built effect.
     const findConcSpell = async () => {
       const owned = shielder.items.find(i => (i.type === 'spell')
         && i.system.properties?.has?.('concentration') && (i.system.level <= 1));
@@ -258,7 +231,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return waitFor(() => concEffects()[0], 6000);
     };
 
-    // Direct damage, traits ignored — the DC must be a function of the number we chose.
+    // Direct damage, traits ignored: the DC is a function of the number chosen.
     const smack = n => shielder.applyDamage(
       [{ value: n, type: 'bludgeoning', properties: new Set() }],
       { isDelta: true, ignore: true });
@@ -270,18 +243,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(m => m.getFlag(MOD, 'concentration')?.status === 'done');
     const contentNew = (mark, needle) => newSince(mark)
       .find(m => m.content?.includes?.(needle));
-    // 6.0: the native concentration request is a 'prompt' card with its button as DATA and no content.
+    // The native concentration request is a 'prompt' card, its button as DATA, no content.
     const nativeNew = mark => newSince(mark)
       .find(m => (m.type === 'prompt') && (m.system?.buttons ?? []).some(b => b.type === 'concentration'));
-    // Since 2026-09-03 the ask IS the system's Saving Throw dialog (option E, the save demand's
-    // shape) — found by the application registry and our demand fieldset, never by a class the
-    // dialog may not wear; told from a save demand by the fieldset's own eyebrow.
+    // The ask is the system's Saving Throw dialog, found by the registry and our fieldset (told
+    // from a save demand by the fieldset's eyebrow).
     const concPopups = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && (app.element?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '').includes('Concentration check'))
       .map(app => app.element);
     const dialogButtons = popup => popup ? [...popup.querySelectorAll('[data-application-part="buttons"] button[data-action], footer button, .form-footer button, nav.dialog-buttons button')] : [];
-    // The dialog reads its form on CHANGE (it rebuilds the rolls there, not on submit), so a
-    // programmatic value must announce itself the way a keystroke does.
+    // The dialog rebuilds its rolls on CHANGE, so a programmatic value must dispatch one.
     const setSituational = async (popup, value) => {
       const input = popup?.querySelector('input[name="roll.0.situational"]');
       if (input) { input.value = value; input.dispatchEvent(new Event('change', { bubbles: true })); await sleep(150); }
@@ -307,8 +278,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1d. the save succeeded and concentration held (+30 forced)',
         (ask?.outcome?.success === true) && (concEffects().length === 1),
         `success=${ask?.outcome?.success} effects=${concEffects().length}`);
-      // The announcement posts AFTER the flag flips done — always waited for, never read
-      // in the same breath (4d and 6c lost that race before this suite learned it).
+      // The announcement posts AFTER the flag flips done: wait for it.
       const holdsCard = await waitFor(() => contentNew(t0, 'holds'));
       ok('1e. the table is told, quietly: a public "holds" card',
         !!holdsCard && (holdsCard.whisper?.length === 0),
@@ -343,8 +313,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 4. failure breaks, and the cascade is native
     if (want(4)) {
       await saveBonus('');
-      // 6.0: `addDependent` is gone — a dependent is a row in the concentration effect's own
-      // `flags.dnd5e.dependents` list, honoured when the dependent names it as origin.
+      // A dependent is a row in the concentration effect's `flags.dnd5e.dependents`, honoured when
+      // the dependent names it as origin.
       const conc = concEffects()[0];
       const [dep] = await victim.createEmbeddedDocuments('ActiveEffect', [{
         name: 'BF Conc Dependent', img: 'icons/svg/aura.svg', origin: conc.uuid }]);
@@ -359,8 +329,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gone = await waitFor(() => concEffects().length === 0);
       ok('4b. the break is real: the concentration effect is gone', !!gone,
         `effects=${concEffects().length}`);
-      // THE MOMENT EVENTS (events.js version 2): the verdict landing on the concentration record publishes
-      // `save` through the GATE, and the failure `break` beside it — one resolve, two words, one momentId.
+      // The verdict publishes `save` through the gate and the failure `break` beside it (one momentId).
       const cv = momentsOf('save').filter(p => p.messageId === askMsg?.id);
       const bv = momentsOf('break').filter(p => p.messageId === askMsg?.id);
       ok('4z. the verdict was PUBLISHED through the gate: battleflow.moment "save" (kind concentration) and "break" — the concentrator (the ask record\'s own actor), success false, the DC; once each, the same momentId, plain and frozen',
@@ -370,7 +339,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const depGone = await waitFor(() => !victim.effects.get(dep.id));
       ok('4c. the dependent effect cascades away with it (native dependentOn)', !!depGone,
         depGone ? '' : 'dependent survived the break');
-      // The break card posts after the whole endConcentration cascade — wait for it.
+      // The break card posts after the whole endConcentration cascade.
       const broke = await waitFor(() => contentNew(t0, 'loses concentration'));
       ok('4d. the table is told, loudly and in public',
         !!broke && (broke.whisper?.length === 0),
@@ -421,8 +390,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5f. the answered popup closed itself', concPopups().length === 0,
         `popups=${concPopups().length}`);
 
-      // The situational bonus and the Advantage button must reach the actual dice. The save
-      // bonus comes off so the +30 in the formula can only have come through the input.
+      // The situational bonus and Advantage must reach the dice: the sheet bonus comes off, so
+      // +30 can only come through the input.
       await saveBonus('');
       const t1 = marker();
       await smack(12);
@@ -459,9 +428,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         holdsCard ? '' : 'no timer wording found');
       const roll6 = (ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null)
         ?.rolls?.[0];
-      // 6.0: a concentration save is a CON save and inherits the sheet's own con-save mode (the
-      // fixture's Tideheart grants advantage there) — "straight" means the sheet's mode and no
-      // ad-hoc input, not advantageMode 0.
+      // A concentration save inherits the sheet's con-save mode, so "straight" = the sheet's mode
+      // and no ad-hoc input.
       const sheetMode6 = shielder.system.abilities?.con?.save?.roll?.mode ?? 0;
       ok('6d. the buzzer roll is straight — data-driven only (the sheet\x27s own con-save mode), no ad-hoc inputs',
         (roll6?.options?.advantageMode === sheetMode6),   // the +30 in the formula is the SHEET's (saveBonus), not an input
@@ -504,8 +472,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const t0 = marker();
       await smack(12);
       const askMsg = await waitFor(() => asksNew(t0)[0]);
-      // The player ignores the popup and rolls from their sheet: no respondsTo, no target —
-      // the fold must still catch it (actor + ability match, no originatingMessage).
+      // A sheet roll has no respondsTo and no target: the fold matches actor + ability.
       await shielder.rollConcentration({}, { configure: false }, {});
       const done = await waitFor(() => doneAskNew(t0));
       const ask = done?.getFlag(MOD, 'concentration');
@@ -524,9 +491,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await smack(9);
       await waitFor(() => doneAskNew(t0));
       await sleep(800);
-      // Drain this section's own announcement before moving on: since the verdict pause
-      // (v1.6.0) the holds card lands seconds after the fold, and an undrained PUBLIC one
-      // leaks into section 10's window wearing the wrong whisper (bit 10c, 2026-08-16).
+      // Drain this section's announcement: it lands seconds after the fold, and a public one would
+      // leak into §10's window.
       await waitFor(() => contentNew(t0, 'holds'));
       ok('9. the native request card is suppressed while the mode is on',
         !nativeNew(t0),
@@ -546,17 +512,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(10)) {
       await set('concVisibility', false);
       await set('concMode', 'auto');
-      // Let every EARLIER section's paused announcement land before this window opens —
-      // since the verdict pause, a public holds card can trail its fold by seconds and
-      // leak into the next section's observation wearing the wrong whisper.
+      // Let earlier sections' paused announcements land before this window opens.
       await sleep(3500);
       const t0 = marker();
       await smack(12);
       const done = await waitFor(() => doneAskNew(t0));
       const ask = done?.getFlag(MOD, 'concentration');
       const rollMsg = ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null;
-      // The announcement posts after the verdict pause — wait for it, and attribute it by
-      // THIS ask's own total-vs-DC signature, never by 'holds' alone.
+      // Attribute the announcement by this ask's total-vs-DC signature, never by 'holds' alone.
       const sig = `${ask?.outcome?.total} vs DC ${ask?.dc}`;
       const holdsCard = await waitFor(() => newSince(t0).find(m =>
         (m.speaker?.alias === 'Battle Flow') && m.content.includes('holds')
@@ -567,7 +530,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `whisper=${rollMsg?.whisper?.length}`);
       ok('10c. private mode whispers the good news', (holdsCard?.whisper?.length ?? 0) > 0,
         `whisper=${holdsCard?.whisper?.length}`);
-      // The break is never private: the cascade strips icons the whole table can see.
+      // The break is never private: the cascade strips icons the whole table sees.
       await saveBonus('');
       const t1 = marker();
       await smack(70);
@@ -602,8 +565,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('autoDamage', 'all');
       await set('autoApply', true);
       if (canvas.scene?.id !== scene.id) await scene.view();
-      // The range keeps standing fixture tokens — use the shielder's if it is linked (a
-      // duplicate would be litter), create one only when it is missing.
+      // Use the shielder's linked token when it stands; create one only when missing.
       let tokenDoc = scene.tokens.find(t => (t.actorId === shielder.id) && t.actorLink);
       if (!tokenDoc) {
         [tokenDoc] = await scene.createEmbeddedDocuments('Token', [
@@ -614,15 +576,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(tokenDoc.id)); i++) await sleep(250);
       const token = canvas.tokens.get(tokenDoc.id);
       if (!token) return { fatal: 'shielder token never reached the canvas' };
-      // Flat AC 1 + advantage = a deterministic hit shy of a double fumble.
+      // AC 1 + advantage: a deterministic hit short of a double fumble.
       await shielder.update({ 'system.attributes.ac.override': 1 });
       const npcItem = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
       const activity = npcItem?.system.activities.find(a => a.type === 'attack');
       if (!activity) return { fatal: 'BF Test Attacker has no attack activity' };
-      // The attacker's name AS THE TABLE SEES IT: the speaker resolves through the actor's
-      // scene token when one stands on the range (the fixture's prototype token is named
-      // "Hobgoblin"), and an unlinked token's synthetic actor carries the token's name.
-      // The first run of this suite expected npc.name and learned better.
+      // The attacker's name as the table sees it: the speaker resolves through the scene token
+      // ("Hobgoblin"), and an unlinked token's synthetic actor carries the token's name.
       const npcTokenDoc = scene.tokens.find(t => t.actorId === npc.id);
       const expectedAttacker = npcTokenDoc
         ? (npcTokenDoc.actorLink ? npc.name : npcTokenDoc.name) : npc.name;
@@ -657,9 +617,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('concMode', 'auto');
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed (slots?)' };
-      // Lowering HP by hand IS damage to the system (onUpdateHP has no idea about sheets),
-      // so the module checks concentration for it — a feature, and this section's setup:
-      // the edit's own ask must resolve (+30 holds it) before the zero-HP half measures.
+      // Lowering HP by hand is damage to the system, so the edit's own ask must resolve (+30)
+      // before the zero-HP half measures.
       const tSetup = marker();
       await shielder.update({
         'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0,
@@ -687,10 +646,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed for section 14 (slots?)' };
       const t0 = marker();
-      // Forge the crash's exact residue (the live 2026-08-16 shape): an ask folded to done
-      // (failed), never applied — the folding client died inside the verdict pause, the row
-      // said "broken" and Bless survived. answeredAt sits past the resume horizon; any GM
-      // render must run the cascade, post the break card, and write the applied receipt.
+      // Forge a crash's residue: an ask folded to done (failed), never applied, answeredAt past the
+      // resume horizon. Any GM render must run the cascade, post the break card, write the receipt.
       await ChatMessage.create({
         speaker: { alias: 'Battle Flow' },
         content: 'probe: crash-resume ask',
@@ -703,7 +660,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const gone = await waitFor(() => concEffects().length === 0, 10_000);
       const card14 = await waitFor(() => contentNew(t0, 'ends'));
       const askAfter = newSince(t0).find(m => m.getFlag(MOD, 'concentration')?.outcome);
-      // The applied receipt lands AFTER the break card — wait for it, never race it.
+      // The applied receipt lands AFTER the break card.
       await waitFor(() => askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true, 8000);
       ok('14. a done-but-unapplied fold re-drives: cascade, break card, applied receipt',
         !!gone && !!card14 && (askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied === true),
@@ -711,8 +668,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + `applied=${askAfter?.getFlag(MOD, 'concentration')?.outcome?.applied}`);
     }
     // ================================================== 15. Incapacitated breaks concentration
-    // The glossary's "No Concentration. Your Concentration is broken." — dnd5e 5.3 does not end
-    // it when the status lands (Hypnotized on a ranger left Hunter's Mark up at the table).
+    // dnd5e does not end concentration when the status lands; the module does.
     if (want(15)) {
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed for section 15 (slots?)' };
@@ -729,11 +685,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 16. Mage Slayer's Concentration Breaker
-    // (the PHB feats, group 4, 2026-09-27): "When you damage a creature that is concentrating, it has
-    // Disadvantage on the saving throw it makes to maintain Concentration." The damage rides a card
-    // spoken by the attacker (the dealer the ask reads, as a hit's damage card is); the save bonus
-    // keeps every verdict a success, so the MODE is what is measured — against a control roll the
-    // same fixture makes without the feat (the sheet's own con-save mode is whatever it is).
+    // The damage card speaks for the attacker (the dealer the ask reads); +30 keeps every verdict a
+    // success, so the MODE is measured, against a control roll without the feat.
     if (want(16)) {
       await set('concMode', 'auto');
       await set('concTimer', 0);
@@ -768,8 +721,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await dealt();
       const askMsg = await waitFor(() => doneAskNew(t1));
       const ask = askMsg?.getFlag(MOD, 'concentration');
-      // The dealer is whoever the card speaks for — on this range the goblin's UNLINKED token, so its
-      // synthetic actor (the base actor's id, the token's uuid), holding the lent feat through the base.
+      // The dealer is whoever the card speaks for: the goblin's unlinked token's synthetic actor,
+      // holding the lent feat through the base.
       const dealer = ask?.breaker?.uuid ? fromUuidSync(ask.breaker.uuid) : null;
       ok('16b. damage from the holder: the ask records the breaker — the feat and who dealt it',
         (ask?.breaker?.feat === 'Mage Slayer') && (dealer?.id === npc.id) && /Concentration Breaker/.test(ask?.breaker?.rule ?? ''),
@@ -777,7 +730,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('16c. the ask card says it',
         /Mage Slayer/.test(askMsg?.content ?? '') && /Disadvantage/.test(askMsg?.content ?? ''),
         'the card does not name Mage Slayer and Disadvantage');
-      // dnd5e nets: the sheet's own Advantage (m0 = 1) beside the breaker is a plain roll; otherwise Disadvantage.
+      // dnd5e nets: the sheet's own Advantage beside the breaker is a plain roll; otherwise Disadvantage.
       const expected = (m0 > 0) ? 0 : -1;
       ok('16d. the auto roll carries the Disadvantage, netted by dnd5e with the sheet\'s own mode',
         modeOf(ask) === expected, `mode=${modeOf(ask)} expected=${expected} (control ${m0})`);

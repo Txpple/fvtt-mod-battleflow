@@ -1,52 +1,14 @@
-// STATIC HOOK-DISPATCH CHECK — no Foundry, no world, milliseconds.
+// Static hook-dispatch check (no Foundry, milliseconds): every `dnd5e.*` hook this module registers
+// must be one dnd5e actually dispatches. ⚠ A never-dispatched name registers cleanly, throws
+// nothing and does nothing forever (ARCHITECTURE.md §10 D10).
 //
-// Every `dnd5e.*` hook this module registers must be a hook dnd5e ACTUALLY DISPATCHES.
-//
-// WHY (ARCHITECTURE.md §10 D10, and it cost a table session): a hook name the system never
-// dispatches registers cleanly, throws nothing, logs nothing, and does nothing FOREVER.
-// `Hooks.on("dnd5e.rollAbilityCheckV2", …)` is not an error in any layer of the stack — it is a
-// listener on a channel with no speaker. v1.23.0 shipped exactly that: `rollAbilityCheckV2` and
-// `rollToolV2` do not exist, so FOUR OF SIX d20-fold offer paths were dead while
-// `smoke-d20-folds` reported 12/12 green over them. Nothing in the gate could see it —
-// `check-imports` proves bindings resolve, `check-layers` proves direction, and neither reads a
-// string literal into the system's source. **This is the check for the failure class that had
-// no rule against it.**
-//
-// ⚠ THE LIST IS GENERATED, NOT CURATED, AND THAT IS THE WHOLE DESIGN. D10 sat open because
-// "a curated list of dnd5e's hooks" needs an owner who keeps it true across every system
-// release, and nobody had volunteered. Measured 2026-08-23, that owner turns out to be
-// unnecessary: **dnd5e declares its own hooks in its own shipped bundle**, two ways, and the
-// union of them covers this module's surface.
-//
-//   dnd5e 5.3.3, from `systems/dnd5e/dnd5e.mjs` — and these are the tool's own numbers, printed
-//   by `--regen`, not hand-carried (the count this repo has got wrong three times):
-//     111 `Hooks.call`/`callAll` sites, 14 of them TEMPLATED → 88 `dnd5e.*` LITERAL names
-//     92 JSDoc blocks tagged `@memberof hookEvents` → 92 declared names
-//     union, restricted to `dnd5e.*`: 105
-//
-// ⚠ NEITHER SOURCE IS SUFFICIENT ALONE, and the reason is the exact family that bit. The roll
-// hooks are dispatched from a template — ``Hooks.callAll(`dnd5e.roll${name}V2`, …)`` — so no
-// literal exists for `rollAbilityCheck`; the JSDoc above that same call site is what names it.
-// Conversely `rollAttackV2` is a literal with no `@memberof hookEvents` block. Take both.
-//
-// ⚠ AND THE UNION STILL HAS A HOLE, which is what the ALLOW list below is for: a templated
-// dispatch whose JSDoc names only the non-V2 variant is invisible to both sources even though it
-// fires. There is exactly one today. **A hole that is pinned with a reason is a known hole; the
-// same hole unpinned is D10 all over again.**
-//
-// ⚠ SCOPE: `dnd5e.*` ONLY, and this is a MEASUREMENT, not an oversight. The same extraction was
-// run against Foundry's own client bundle (`resources/app/public/scripts/foundry.mjs`,
-// 7.9 MB, v14.365) and recovered **0 of the 15 core hook names this module registers** — core
-// dispatches are built from computed names in minified code, with no JSDoc to fall back on. A
-// core-hook check built on that would pass everything and prove nothing, which is the failure
-// this file exists to prevent. Core hooks stay uncovered, deliberately and in writing.
-//
-// ⚠ WHY A COMMITTED ARTIFACT RATHER THAN READING THE INSTALL: the gate is offline and runs in
-// seconds on any clone, and a check that silently SKIPS when no system is installed is the D10
-// shape again. So the extraction is a deliberate act — `--regen` — and its output is committed
-// and pinned to a version. Bump the dnd5e pin in `module.json` without regenerating and this
-// check FAILS until somebody looks at the diff. That is the same discipline as the R4 kind pin
-// and the source-file count pin: the pin is not an obstacle, it is the alarm.
+// The list is GENERATED from dnd5e's shipped bundle: the literal `Hooks.call`/`callAll` names UNION
+// the names in `@memberof hookEvents` JSDoc blocks. ⚠ Neither alone suffices: the roll hooks are
+// dispatched from a template (only the JSDoc names them), and some literals have no JSDoc. A
+// templated dispatch whose JSDoc names only the non-V2 variant is a hole both miss: ALLOW pins those.
+// ⚠ Scope is `dnd5e.*` only: Foundry's minified client bundle yields none of the core names.
+// ⚠ The artifact is committed and pinned to the dnd5e version in `module.json`: bump the pin
+// without `--regen` and the check fails until somebody looks at the diff.
 //
 //   node tools/check-hook-dispatch.mjs               # the check (gate: npm run dispatch)
 //   node tools/check-hook-dispatch.mjs --regen       # re-extract from the installed dnd5e
@@ -61,13 +23,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ARTIFACT = join(ROOT, "tools", "dnd5e-hooks.json");
 
 /* ---------------------------------------------------------------------------------------------
- * THE PINNED HOLES — a name this module registers that the generated set does not contain, and
- * that is nonetheless dispatched. Each row carries the evidence, because a row without one is
- * indistinguishable from the typo this file exists to catch.
- *
- * ⚠ STALE ROWS FAIL THE BUILD, both directions: a name that has since appeared in the generated
- * set, and a name nothing registers any more. `check-layers.mjs` learned this the expensive way
- * (ARCHITECTURE §10 D2) — a pin that only ever permits sits there forever, lying.
+ * The pinned holes: registered names the generated set lacks that are nonetheless dispatched,
+ * each with its evidence. ⚠ Stale rows fail both ways: a name now in the set, or one nothing registers.
  * ------------------------------------------------------------------------------------------- */
 
 const ALLOW = [
@@ -82,9 +39,8 @@ const ALLOW = [
   },
   {
     hook: "dnd5e.preRollDamageV2",
-    // ⚠ the exact template is `dnd5e.preRoll` + hookName.capitalize() + `V2`; it is written out
-    // in this file's header, and NOT quoted here, because a literal dollar-brace inside a string
-    // is a biome warning and this repo carries a warning baseline rather than suppressions.
+    // The template is `dnd5e.preRoll` + hookName.capitalize() + `V2` (not quoted in the string:
+    // a literal dollar-brace inside a string is a biome warning).
     why: "TEMPLATED-WITH-NARROW-JSDOC, the hole this list exists for. Dispatched from the "
       + "templated preRoll<HookName>V2 form in the roll pipeline, and the JSDoc block at "
       + "that site declares only the non-V2 `dnd5e.preRollDamage`. So neither source names it, "
@@ -123,9 +79,7 @@ const ALLOW = [
 /* --- the generated set -------------------------------------------------------------------- */
 
 /**
- * dnd5e's own declaration of the hooks it dispatches, out of its shipped bundle: the literal
- * `Hooks.call`/`callAll` names UNION the `@function` names inside every `@memberof hookEvents`
- * JSDoc block. Restricted to `dnd5e.*` — see the SCOPE note above.
+ * dnd5e's own declaration of its dispatched hooks, out of its shipped bundle (`dnd5e.*` only).
  * @param {string} dir a `systems/dnd5e` directory
  */
 function extract(dir) {
@@ -224,17 +178,13 @@ try {
 }
 const dispatched = new Set(artifact.hooks ?? []);
 
-// (0) THE ARTIFACT ITSELF IS SANE. A truncated or empty list would bless every name in the tree
-// and report a pass — the "checking apparatus that agrees with itself" failure this repo has
-// already met once (the registry unification's lookalike VOLLEY_KINDS, 2026-08-23 — git history).
+// (0) The artifact is sane: a truncated list would bless every name and pass.
 if (dispatched.size < 50) {
   fail("artifact", `only ${dispatched.size} hook names — dnd5e 5.3.3 yields 105. The artifact is `
     + "truncated or corrupt; regenerate it rather than trusting this run");
 }
 
-// (1) THE VERSION PIN. The artifact was extracted from ONE dnd5e version; module.json names the
-// version this module is verified against. They must agree, or the check is answering about a
-// system nobody is running.
+// (1) The version pin: the artifact and module.json name the same dnd5e version.
 const manifest = JSON.parse(readFileSync(join(ROOT, "module.json"), "utf8"));
 const pinned = manifest.relationships?.systems
   ?.find(s => s.id === "dnd5e")?.compatibility?.verified;
@@ -245,7 +195,7 @@ if (pinned !== artifact.version) {
     + "is a registration that has gone silent");
 }
 
-// (2) EVERY REGISTERED `dnd5e.*` NAME IS DISPATCHED, or pinned with a reason. The rule.
+// (2) every registered `dnd5e.*` name is dispatched, or pinned with a reason.
 const reg = await loadRegistrations();
 const byHook = groupByHook(reg);
 const registered = [...byHook.keys()].filter(h => h.startsWith("dnd5e."));
@@ -262,7 +212,7 @@ for (const hook of registered) {
     + "cannot see it, pin it in ALLOW in this file with the evidence");
 }
 
-// (3) NO STALE PINS, both directions.
+// (3) no stale pins, both directions.
 for (const a of ALLOW) {
   if (dispatched.has(a.hook)) {
     fail("stale pin", `ALLOW pins ${a.hook} as invisible to the extraction, but the generated `

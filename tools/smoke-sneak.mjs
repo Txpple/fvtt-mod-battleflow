@@ -1,20 +1,13 @@
-// Battle Flow Sneak Attack smoke test — THE PROTOTYPE, BUILT AS DRAWN (user ruling 2026-09-02,
-// "Sneak Attack, Cunningly"): the tick at the gate, the Cunning Strike menu on the damage offer,
-// the costs off the dice before the roll, the crit doubling what is left, the effects through
-// the saves machine on the pack's own activities, once per turn as a turn chit. Driven end to
-// end in the live world on the BUILT rogue fixture (Rogue 14 / Thief — tools/fixture-suite.mjs).
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the items it adds (Envenom Weapons, Death Strike) are removed; the chits and
-// conditions it presses are cleared; the tokens it places are removed; its combat is deleted.
-//
-// Sections: `--section 3`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow Sneak Attack smoke test: the tick at the gate, the Cunning Strike menu on the damage
+// offer, costs off the dice before the roll, the crit doubling what is left, effects through the
+// saves machine on the pack's own activities, once per turn as a turn chit. Fixture: the built
+// rogue (tools/fixture-suite.mjs).
+// Harness discipline: settings restored; messages, added items, placed tokens and the combat
+// removed; chits and conditions cleared. Sections: `--section 3`, `--section 1,7`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'sneak.js',               // the box, the menu, the dice, the crit, the chit
   'reminders.js',           // §1 / §11 — the Sneak Attack box under the gate's sources
@@ -24,7 +17,7 @@ export const COVERS = [
   'saves/ask.js',
   'saves/verdict.js',
   'saves/consequences.js',
-  'chip-spend.js',           // Steady Aim and the Cunning Strike chips are spent on the hit — chipSpend ×10 (the claim proof, 2026-09-23)
+  'chip-spend.js',           // Steady Aim and the Cunning Strike chips are spent on the hit — chipSpend ×10
   'clock-riders.js'          // the Rogue fixture's clock riders fire beside the sneak dice — clockRiders ×2 (the same reading)
 ];
 
@@ -61,8 +54,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
-  // THE MOMENT EVENTS (events.js, 2026-09-11): every payload the module publishes during this run,
-  // so a section can assert the resolve it drove was PUBLISHED with plain facts (uuids, never documents).
+  // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -100,8 +92,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     for (const a of [victim, rogue]) {
       const chips = a.effects.filter(e => e.getFlag(MOD, 'mastery') || /^(Cunning Strike|Devious Strikes|Sneak Attack|Vexed|Sapped|Steady Aim)/.test(e.name)
         || STATUSES.some(s => e.statuses?.has?.(s)));
-      // Re-filtered and tolerant: a deleted combat tidies the chits it clocked at the same moment
-      // (mastery.js's sweep), and a delete naming a gone id throws.
+      // Tolerant: a deleted combat tidies its chits at the same moment, and deleting a gone id throws.
       const live = chips.map(e => e.id).filter(id => a.effects.get(id));
       if (live.length) await a.deleteEmbeddedDocuments('ActiveEffect', live).catch(() => {});
     }
@@ -189,9 +180,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.value': victim.system._source.attributes.hp.value,
       'system.attributes.hp.max': victim.system._source.attributes.hp.max
     };
-    // ⚠ A DEEP POOL, on purpose: 7d6 kills an 11-HP goblin outright, and the saves machine
-    // rightly refuses a demand on a dead target (the v1.19.0 gate) — so every Cunning Strike
-    // effect would vanish for the truest of reasons. The victim must survive a rogue.
+    // ⚠ A deep pool: 7d6 kills an 11-HP goblin, and the saves machine refuses a demand on the dead.
     await victim.update({ 'system.attributes.ac.override': 1,
       'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400,
       'system.abilities.dex.save.roll.bonus': '-30', 'system.abilities.con.save.roll.bonus': '-30' });
@@ -236,8 +225,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       face(d20);
       void act.rollAttack({}, {}, usageId ? { data: { 'system.origin': usageId } } : {});
       const dialog = await waitFor(rollDialog, 6000);
-      // The section rides the render hook — wait for it rather than for the dialog (a bare dialog
-      // is the §2 shape, so this wait may legitimately time out there).
+      // The section rides the render hook: wait for it (a bare dialog, §2's shape, may time out here).
       await waitFor(() => dialog?.element?.querySelector('[data-bf-reminder]'), 2500);
       await sleep(100);
       return { dialog, usageId, before };
@@ -251,7 +239,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const { dialog, usageId, before } = await openGate(item, { d20 });
       const box = tickOf(dialog);
       if (box && (tick !== null) && (box.checked !== tick)) box.click();
-      // Everything the assertions read off the dialog is read HERE — its element is gone once it closes.
+      // Read everything off the dialog here: its element is gone once it closes.
       const seen = { boxText: textOf(boxOf(dialog)), boxInDetails: !!boxOf(dialog)?.closest('details'), hasTick: !!box,
         ticked: !!box?.checked, sectionText: textOf(dialog?.element?.querySelector('[data-bf-reminder]')) };
       press(dialog, mode);
@@ -259,7 +247,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { dialog, usageId, msg, seen, originId: msg?._source.system?.origin ?? msg?.id };
     };
     const ensureVexed = async () => {
-      // Vex the victim with the rapier (Vex is its 2024 mastery) — a programmatic hit, no dialog.
+      // Vex the victim with the rapier (its mastery): a programmatic hit, no dialog.
       const act = attackOf(rapier);
       await rapier.update({ 'system.mastery': 'vex' });
       await healFull();
@@ -270,12 +258,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       await waitFor(() => damageFor(originId)?.getFlag(MOD, 'receipt'), 10000);
-      // ⚠ masteryRiders is OFF (no chips from the mastery machine); press Vexed by hand instead —
-      // the gate reads the chip, not who wrote it.
+      // ⚠ masteryRiders is OFF: press Vexed by hand (the gate reads the chip, not who wrote it).
       const [vexed] = await victim.createEmbeddedDocuments('ActiveEffect', [{
         name: 'Vexed', img: 'icons/svg/eye.svg', origin: rapier.uuid, transfer: false,
-        // ⚠ NO clock: out of combat a one-round window never resolves and the gate reads the chip as
-        // DEAD (decide/chips.js chipIsDead) — a clockless chip is left alone, which is what this needs.
+        // ⚠ No clock: out of combat a one-round window reads DEAD (decide/chips.js chipIsDead).
         flags: { [MOD]: { mastery: 'vex' } }
       }]);
       return vexed;
@@ -307,7 +293,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify(s));
       const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${msg?.id}"]`)); return /Sneak Attack armed/.test(t) ? t : null; }, 4000);
       ok('1d. the attack card says it: Sneak Attack armed — 7d6 on the hit', /Sneak Attack armed — 7d6 on the hit, once per turn/.test(cardText ?? ''), (cardText ?? '').slice(0, 200));
-      // the offer opened (auto damage) — dismiss it to roll and let the chain land before §2
+      // the offer opened (auto damage): dismiss it to roll and let the chain land before §2
       const offer = await waitFor(offerEl, 6000);
       offer?.querySelector('button[data-action="roll"]')?.click();
       await waitFor(() => damageFor(msg?._source.system?.origin ?? msg?.id)?.getFlag(MOD, 'receipt'), 10000);
@@ -317,8 +303,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 2. the switches
     if (want(2)) {
       await clearChips();
-      // 2a: a longsword — neither Finesse nor ranged — offers no box; with no other source the dialog
-      // is not even forced (the roll goes out natively under a fast-forward, as before).
+      // 2a: a longsword (neither Finesse nor ranged) offers no box; with no other source the dialog is not forced.
       const { dialog: d2a, before: b2a } = await openGate(longsword);
       const noBox = !boxOf(d2a);
       ok('2a. a longsword offers no Sneak Attack — no box', !!d2a && noBox, `dialog=${!!d2a} box=${!noBox}`);
@@ -352,7 +337,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('3a. an armed Sneak Attack opens the damage offer under AUTO damage, and the offer carries the Cunning Strike menu',
         !!offer && !!menu, `offer=${!!offer} menu=${!!menu}`);
       ok('3b. the menu is READ OFF THE SHEET: Cunning Strike, Devious Strikes, and the Thief\'s Stealth Attack; up to two; DC 17',
-        (rows.join() === 'poison,trip,withdraw,daze,knockOut,obscure,stealthAttack') && /up to 2/.test(textOf(menu)) && /DC 17/.test(textOf(menu)),   // "dice · DC · up to N" since b497346 (user, 2026-09-03)
+        (rows.join() === 'poison,trip,withdraw,daze,knockOut,obscure,stealthAttack') && /up to 2/.test(textOf(menu)) && /DC 17/.test(textOf(menu)),   // "dice · DC · up to N"
         `rows=[${rows.join()}] text="${textOf(menu).slice(0, 160)}"`);
       const box = key => offer?.querySelector(`input[name="bf-cunning"][value="${key}"]`);
       const button = () => offer?.querySelector('button[data-action="roll"]');
@@ -395,7 +380,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!receipt && (receipt.taken === total) && (total > 6), `taken=${receipt?.taken} total=${total}`);
       const cardText = await waitFor(() => { const t = textOf(document.querySelector(`.message[data-message-id="${dmg?.id}"]`)); return /rode this roll/.test(t) ? t : null; }, 4000);
       ok('4d. the damage card says what rode and what was forgone', /6d6 rode this roll/.test(cardText ?? '') && /1d forgone for Trip/.test(cardText ?? ''), (cardText ?? '').slice(0, 200));
-      // the Trip: a save demand on the Cunning Strike item's own activity, at the victim
+      // the Trip: a save demand on the Cunning Strike item's own activity
       const tripCard = await waitFor(() => cardsWith('cunning').find(m => m.getFlag(MOD, 'cunning')?.key === 'trip' && m.getFlag(MOD, 'saves')), 10000);
       const saves = tripCard?.getFlag(MOD, 'saves');
       ok('4e. the Trip effect goes through the saves machine: the demand on Cunning Strike\'s own Trip activity, Dex save DC 17, at the victim',
@@ -409,7 +394,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('4f. the victim fails (-30) and lands Prone through the pack\'s own effect, receipted on the demand card',
         answered && (entry?.outcome === 'failed') && victim.statuses?.has?.('prone') && !!er?.effects?.some(e => /Tripped/.test(e.name)),
         `answered=${answered} outcome=${entry?.outcome} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
-      // THE MOMENT, PUBLISHED (events.js): one `sneak` event on the damage message, plain, with the picks.
+      // One `sneak` event on the damage message, plain, with the picks.
       const ev = momentsOf('sneak').filter(p => p.messageId === dmg?.id);
       const p = ev[0];
       ok('4g. the resolve was PUBLISHED once: battleflow.moment "sneak" — the rogue, Sneak Attack, the damage message, the attack, the victim as a hit target, the formula and the Trip pick; plain and frozen',
@@ -588,8 +573,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const walkBefore = rogue.system.attributes.movement.walk;
         const useResults = await steadyAct.use({}, { configure: false }, {});
         const chip = await waitFor(() => rogue.effects.find(e => (e.name === 'Steady Aim') && (e.getFlag(MOD, 'mastery') === 'use')), 6000);
-        // The card's flag is a SECOND write after the chip (NOTES §5: wait for the thing the next
-        // assertion reads — the battery of 2026-09-09 read it a beat early, card=false, chip=true).
+        // The card's flag is a SECOND write after the chip (NOTES §5): wait for it.
         await waitFor(() => useResults?.message?.getFlag(MOD, 'useChip') ? true : null, 4000);
         ok('10a. using Steady Aim (text-only in the pack) writes the chip on the rogue: named as the feature, Speed 0, the card says so',
           !!chip && (rogue.system.attributes.movement.walk === 0) && !!useResults?.message?.getFlag(MOD, 'useChip'),
@@ -698,10 +682,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 11. the ally clause, off the map
-    // (user, 2026-09-22 — the DESIGN §8 row reopened: "if theres a ally defined as being in same
-    // faction....that istn really out of scope"): at a Normal roll the box ticks itself when an
-    // ally of the rogue stands within 5 feet of the target, and not when none does or when the
-    // roll has Disadvantage. The ally is an UNLINKED token, another creature than the target.
+    // At a Normal roll the box ticks itself when an ally of the rogue (an unlinked token, not the
+    // target) stands within 5 feet of the target; not when none does, nor under Disadvantage.
     if (want(11)) {
       await clearChips();
       const priorSides = { victim: victimDoc.disposition, rogue: rogueDoc.disposition };

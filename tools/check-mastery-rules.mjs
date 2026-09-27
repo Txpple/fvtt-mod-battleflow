@@ -1,13 +1,8 @@
-// STANDING DRIFT CHECK — the verbatim rule line (ARCHITECTURE.md §5 law 8: a popup
-// describing a feature quotes that feature's own 2024 text, read from the world's own
-// compendium).
-//
-// Reads the weapon mastery RULE TEXT off the SYSTEM's own references
-// (CONFIG.DND5E.weaponMasteries[*].reference → rules journal page), plus the canonical
-// Prone status (name/img/_id) the bash/topple press lands. Read-only, no preflight — safe
-// beside a live session. The RULE_TEXT / MASTERY_RULES constants in decide/registry.js
-// must match this output VERBATIM (punctuation included — the source mixes
-// curly and straight apostrophes). Run it after any dnd5e system upgrade.
+// Standing drift check: the verbatim rule line (ARCHITECTURE.md §5 law 8: a popup quotes the
+// feature's own 2024 text from the world's compendium). Reads the weapon mastery rule text off the
+// system's references (CONFIG.DND5E.weaponMasteries[*].reference) and the canonical Prone status the
+// presses land. RULE_TEXT / MASTERY_RULES in decide/registry.js must match VERBATIM (the source mixes
+// curly and straight apostrophes). Read-only, no preflight. Run after any dnd5e upgrade.
 //
 //   node tools/check-mastery-rules.mjs
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
@@ -41,8 +36,7 @@ const out = await f.evaluate(async () => {
   };
 });
 
-// Tags out, entities decoded, enricher syntax down to its label — apostrophes UNTOUCHED
-// (the constants must copy what the source actually uses, curly or straight).
+// Tags out, entities decoded, enricher syntax down to its label; apostrophes UNTOUCHED.
 const strip = html => String(html ?? '')
   .replace(/<[^>]+>/g, ' ')
   .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')

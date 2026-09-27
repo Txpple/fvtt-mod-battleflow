@@ -1,34 +1,10 @@
 /**
- * THE SUITE HARNESS — the boilerplate every tools/ script copy-pasted, in one place
- * (ARCHITECTURE §11 *Adding a TEST*, 2026-08-23).
- *
- * Twenty-six files in `tools/` opened with the same twenty lines: read the MCP's `.env` by
- * hand, arm a watchdog, build a `Foundry` (reached by ABSOLUTE PATH into a sibling checkout —
- * which the MCP's rename to `fvtt-mcp-dnd5e` then broke in twenty-one files at once; since 3.0
- * it is the declared `fvtt-mcp-dnd5e/client` contract, a `file:` dependency), connect, preflight. That is not merely repetitive —
- * it DRIFTED. The watchdog tag was spelled four ways, half the files logged the target and
- * half did not, and a suite that forgot `preflightSoleGM` would assert on work happening in
- * another client (target.mjs documents what that costs). One home, one shape.
- *
- * ⚠ WHAT THIS FILE MAY NOT DO: nothing here runs inside the page. `f.evaluate()` serializes
- * its function to the browser, where no import exists — so a helper the CLOSURE needs cannot
- * live here as a function. It travels as DATA on the evaluate argument (see `sectionArg`).
- *
- * ── Section filtering ────────────────────────────────────────────────────────────────────
- *
- *   node tools/smoke-volleys.mjs                 the whole suite (the default; unchanged)
- *   node tools/smoke-volleys.mjs --section 3     just §3, plus anything §3 depends on
- *   node tools/smoke-volleys.mjs --section 3,5   two sections
- *   node tools/smoke-volleys.mjs --list          the section table, without connecting
- *
- * **Setup and teardown ALWAYS run. Only assertion blocks are skippable.** A suite's fixtures,
- * its settings pins and its restore are the part that must not be optional: a filtered run
- * that skipped teardown would leave the world dirty for the next one, which is the failure
- * mode the whole harness discipline exists to prevent.
- *
- * ⚠ A FILTERED RUN NEVER PRINTS THE UNFILTERED SUMMARY. `report()` stamps it `PARTIAL` and
- * names the sections. A partial green mistaken for a battery green is the one way this
- * feature could make the tree worse, so the output makes the difference impossible to miss.
+ * The suite harness: env, watchdog, connect + preflight, section filtering, the hook and moment
+ * ledgers, teardown and the one reporter (ARCHITECTURE §11 *Adding a TEST*).
+ * ⚠ Nothing here runs in the page: `f.evaluate()` serializes its function, so a helper the closure
+ * needs travels as DATA on the evaluate argument (`sectionArg`).
+ * `--section 3[,5]` runs those sections plus their dependencies; `--list` prints the table.
+ * Setup and teardown always run. ⚠ A filtered run's summary is stamped PARTIAL.
  */
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -43,33 +19,16 @@ const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Where a suite leaves its hook ledger for `hook-coverage.mjs` to union. */
 export const LEDGER_DIR = join(REPO, "dist", "hook-ledger");
 
-/**
- * The MCP repo's `.env` — the family's one secrets file — through its own reader
- * (`fvtt-mcp-dnd5e/env`, re-exported by the client), which is what the twenty-six copies of the
- * six-line loop that used to live here (and in every tool) had re-implemented.
- */
+/** The MCP repo's `.env` through its own reader. */
 export { loadEnv };
 
-/**
- * Section ids sort NUMERIC-AWARE: `10` follows `9` rather than `1`, and `4a2` sits between `4`
- * and `4b`. Half the suites number their sections `4b`/`4d3`, so a plain string sort scatters
- * them and a numeric one loses them entirely.
- *
- * ⚠ One function, two callers, because it had two copies for about an hour and the second
- * carried the comment "same comparator as expandSections" — which is the shape every duplicate
- * in this repo's census announced itself with before it drifted.
- */
+/** Section ids sort numeric-aware: `10` after `9`, `4a2` between `4` and `4b`. */
 const bySectionId = (a, b) =>
   (Number.parseFloat(a) - Number.parseFloat(b)) || String(a).localeCompare(String(b));
 
 /**
- * Expand a requested section set through a suite's dependency map.
- *
- * ⚠ THE POINT OF THE MAP. Sections are not independent — smoke-saves §2 asserts on the card
- * §1 cast, and running §2 alone would fail for a reason that is not the code. Rather than
- * forbid that, the suite DECLARES `{ 2: [1] }` and asking for §2 quietly runs §1 too, saying
- * so. A section with no entry is independent, and 1.2's per-suite verification is exactly the
- * exercise that proves it: run it alone, and if it fails, it had a dependency nobody wrote down.
+ * Expand a requested section set through a suite's dependency map (`{ 2: [1] }`: §2 asserts on
+ * what §1 did, so asking for §2 runs §1 too).
  */
 export function expandSections(requested, depends = {}) {
   if (!requested) return null;
@@ -84,12 +43,8 @@ export function expandSections(requested, depends = {}) {
 }
 
 /**
- * Read `--section` / `--list` off the command line against a suite's section table.
- *
- * `table` is `{ id: "title" }` with STRING ids, because half the suites number their sections
- * `4b`/`4d3` and a number type would quietly lose them. Returns `{ plan, pulled }` where
- * `plan` is null for "run everything" and `pulled` names the sections dragged in by a
- * dependency, so the run can say why it is doing more than it was asked.
+ * Read `--section` / `--list` against a suite's `{ id: "title" }` table (STRING ids).
+ * Returns `{ plan, pulled }`: plan null = run everything; pulled = sections a dependency dragged in.
  */
 export function sectionPlan(table, depends = {}, argv = process.argv.slice(2)) {
   const { values } = parseArgs({
@@ -100,9 +55,7 @@ export function sectionPlan(table, depends = {}, argv = process.argv.slice(2)) {
   });
   if (values.list) {
     console.log("Sections:");
-    // ⚠ Sorted, not declaration order: JS hoists integer-like keys to the front of an object,
-    // so a table mixing `1` with `'4a2'` prints 1,3,4,5,6 and only then the lettered ones —
-    // which reads as a suite that lost half its sections.
+    // ⚠ Sorted: JS hoists integer-like keys ahead of `'4a2'`-style ones.
     for (const [id, title] of Object.entries(table).sort(([a], [b]) => bySectionId(a, b))) {
       const needs = depends[id]?.length ? `  (needs ${depends[id].join(", ")})` : "";
       console.log(`  ${String(id).padEnd(5)} ${title}${needs}`);
@@ -121,32 +74,17 @@ export function sectionPlan(table, depends = {}, argv = process.argv.slice(2)) {
 }
 
 /**
- * The argument every filtered `f.evaluate()` takes. The closure cannot import `want()`, so the
- * plan and the titles travel as DATA and the page spells the three-line predicate itself.
- *
- * The titles ride along so a skipped section can name itself in the output — the alternative
- * was a second copy of every title inside the closure, and a suite whose SKIP lines disagree
- * with its `--list` output is worse than no titles at all.
- *
- * `extra` is whatever else that suite already passed as its evaluate argument.
+ * The argument every filtered `f.evaluate()` takes: the plan and titles as DATA (the closure
+ * cannot import `want()`), so a skipped section names itself. `extra` is the suite's own argument.
  */
 export function sectionArg(plan, titles = {}, extra = null) {
   return { sections: plan, titles, ...(extra ? { extra } : {}) };
 }
 
 /**
- * ONE SUITE AT A TIME — the guard `preflightSoleGM` structurally cannot be.
- *
- * ⚠ Two suites launched against the same box both join as `Tester Assistant`, and the
- * preflight counts **users, not sockets** (target.mjs documents that measurement). One user,
- * one GM, preflight green — and then the two runs fight over settings, fixtures and the elect,
- * producing failures that belong to neither. Seen for real 2026-08-23: a second suite started
- * while `smoke-maneuvers` was mid-run, re-pinned six settings underneath it, and nothing in
- * the harness said a word.
- *
- * A pid file closes it where the preflight cannot: the second process finds a lock held by a
- * LIVE pid and refuses. A stale lock (the holder crashed, or was killed) is taken over and
- * reported, because a suite that cannot start is worse than one that says what it stepped over.
+ * One suite at a time. ⚠ Two suites on one box both join as `Tester Assistant`, and the preflight
+ * counts users, not sockets, so it passes and the runs fight over settings and fixtures.
+ * A pid file held by a LIVE pid refuses the second run; a stale lock is taken over and reported.
  */
 function takeSuiteLock(tag) {
   const lock = join(tmpdir(), `bf-suite-${(process.env.BF_TARGET ?? "local").toLowerCase()}.lock`);
@@ -173,43 +111,19 @@ function takeSuiteLock(tag) {
   }
 }
 
-/* ─── THE HOOK LEDGER (ARCHITECTURE §10 D11) ──────────────────────────────────────────────────
- *
- * WHICH OF THIS MODULE'S 83 HOOK REGISTRATIONS ACTUALLY FIRE WHEN THE BATTERY RUNS.
- *
- * ⚠ WHY THIS EXISTS, and it is the only measurement in the tree that answers the question:
- * every other check is a statement about the SHAPE of the code. v1.23.0 shipped four of six
- * d20-fold offer paths DEAD behind a green gate and a 12/12 green suite, and what found it was a
- * person at a table. `npm run dispatch` closed the sub-case where the hook NAME was wrong. This
- * closes nothing — **it MEASURES**, and the thing it measures is the silence: a handler that is
- * correctly named, correctly layered, correctly documented and never once invoked.
- *
- * ⚠ IT WRAPS DISPATCH, NOT REGISTRATION, AND THAT IS A DELIBERATE LIMIT. Wrapping the module's
- * own callbacks in place would give per-registration truth, and would also mean replacing live
- * function identities inside `Hooks.events` while the suite drives the very code being measured.
- * **An instrument that can break the thing it measures is worth less than a coarser one that
- * cannot.** So the ledger counts hook NAMES dispatched in the page, and coverage is reported at
- * name granularity, with the per-file rollup derived from the static registration list.
- *
- * ⚠ ONE HONEST CAVEAT, and `hook-coverage.mjs` prints it: `Hooks.call` (as opposed to `callAll`)
- * STOPS AT THE FIRST HANDLER THAT RETURNS FALSE. `dnd5e.preApplyDamage` is one — the hold's veto (hold/spell-damage.js)
- * can legitimately stop it before concentration.js's handler. So "the name fired" implies every
- * listener ran for `callAll`, and only "at least the first" for `call`.
- * ─────────────────────────────────────────────────────────────────────────────────────────── */
+/* ─── The hook ledger (ARCHITECTURE §10 D11): which hook NAMES actually dispatch during a run.
+ * It wraps dispatch, not the module's callbacks, so it never replaces live function identities
+ * in `Hooks.events`. ⚠ `Hooks.call` stops at the first handler returning false (e.g.
+ * `dnd5e.preApplyDamage`), so "fired" means every listener ran only for `callAll`. */
 
-/**
- * Page side. Serialised into the browser by `evaluate`, so it closes over NOTHING — no imports,
- * no module-scope references (the rule at the head of this file).
- */
+/** Page side: closes over nothing (serialized by `evaluate`). */
 const installLedger = () => {
   if (globalThis.__bfHookLedger) return "already";
   const ledger = Object.create(null);
   for (const name of ["call", "callAll"]) {
     const orig = Hooks[name];
     if (typeof orig !== "function") return `no Hooks.${name}`;
-    // Transparent by construction: same `this`, same arguments, same return value. The counter
-    // is the only thing added, and it runs before the dispatch so a handler that throws still
-    // leaves the fact that the hook FIRED on the record.
+    // Transparent: same `this`, args and return; counts before dispatch so a throwing handler still counts.
     Hooks[name] = function (hook, ...args) {
       ledger[hook] = (ledger[hook] ?? 0) + 1;
       return orig.call(this, hook, ...args);
@@ -220,19 +134,9 @@ const installLedger = () => {
 };
 
 /**
- * THE MOMENT LEDGER — the hook ledger's twin, one level down (the claim proof, 2026-09-23).
- *
- * The hook ledger already counts `battleflow.moment` as a NAME; what it cannot say is WHICH record
- * resolved, and the record is what ties a publication to the file that wrote it
- * (tools/claim-proof.mjs). So this listens on the gate's one hook and counts by `kind` (the record
- * key), with `event` beside it because it is free.
- *
- * ⚠ A LISTENER, NOT A WRAPPER — the hook ledger's own rule. `Hooks.on` adds one more subscriber the
- * way FX Studio's reader is one, touches no function identity, and a subscriber that threw would be
- * isolated by `callAll` anyway; the try is so it never has to be.
- *
- * ⚠ IT HEARS THIS CLIENT ONLY. A moment publishes on the client that wrote the record (events.js),
- * so a second client's resolves are not counted here. The report says so; it under-reports, never over.
+ * The moment ledger: counts `battleflow.moment` by `kind` (and `event`) for tools/claim-proof.mjs.
+ * A listener, not a wrapper. ⚠ It hears this client only (a moment publishes on the writing
+ * client), so it under-reports, never over.
  */
 const installMomentLedger = () => {
   if (globalThis.__bfMomentLedger) return "already";
@@ -251,16 +155,9 @@ const installMomentLedger = () => {
 };
 
 /**
- * Read the page's ledger and leave it beside the others for `hook-coverage.mjs`.
- *
- * ⚠ A FAILURE HERE IS LOUD AND WRITES NOTHING. A ledger file that exists but under-reports would
- * name live handlers as dead — the exact false alarm that trains a reader to ignore the report,
- * which is how this instrument would die. Absent is honest; wrong is not.
- *
- * The moment ledger rides the same file under `moments`, and the same rule one level down: the
- * key is written only when the page ARMED it. An unarmed page writes no `moments` at all, which
- * the claim report reads as NOT MEASURED — never as an empty `{}`, which would read as "measured,
- * nothing published" and turn every claim UNPROVEN.
+ * Read the page's ledgers into LEDGER_DIR for `hook-coverage.mjs`.
+ * ⚠ A failure writes nothing: an under-reporting file would name live handlers dead. `moments`
+ * is written only when armed; an absent key reads as NOT MEASURED, an empty `{}` as "none published".
  */
 export async function dumpHookLedger(tag, f) {
   try {
@@ -288,22 +185,9 @@ export async function dumpHookLedger(tag, f) {
 const DISPOSE_CEILING_MS = 10_000;
 
 /**
- * HANG UP FOR REAL — `Foundry#dispose()`, raced against a ceiling.
- *
- * ⚠ THIS EXISTS BECAUSE THE OLD CEREMONY WAS A LIE. Every suite in this tree ended with
- * `await f.disconnect?.()` and **`disconnect` was not a method on `Foundry` — `dispose` is**, so
- * the optional chain swallowed it silently from the day the harness was written (the MCP's 3.0
- * client added `disconnect()` as a documented alias; this wrapper stays for the ledger dump). Nothing closed,
- * nothing complained, and the session was really torn down by process exit. **That is D11's own
- * failure class living inside the test tooling**: a call that reads correctly, does nothing, and
- * reports nothing. Found 2026-08-23 by the hook ledger, which needed a teardown seam and
- * discovered there wasn't one.
- *
- * ⚠ RACED, NEVER AWAITED BARE, and this is the whole reason the fix waited for its own pass. The
- * suites arm a watchdog that hard-aborts the process (exit 3). A `dispose()` that hangs — on an
- * in-flight connect that never settles, or a browser that will not close — would turn a GREEN
- * run into a watchdog abort, which is strictly worse than the no-op it replaces. So it gets ten
- * seconds and is then abandoned to process exit, exactly where it has been living all along.
+ * `Foundry#dispose()` raced against a ceiling. ⚠ Never awaited bare: the watchdog hard-aborts
+ * (exit 3), so a hanging dispose would turn a green run into an abort; after the ceiling it is
+ * left to process exit.
  */
 export async function disposeSafely(f, tag) {
   const dispose = f?.dispose?.bind(f);
@@ -321,14 +205,9 @@ export async function disposeSafely(f, tag) {
 }
 
 /**
- * Connect, preflight, arm the watchdog. Returns the live `Foundry`.
- *
- * `watchdogMs` stays per-suite: the numbers are measured wall clocks (smoke-effects genuinely
- * needs 600s, smoke-resources 300s) and a single shared ceiling would either abort the slow
- * suites or let a hung fast one sit for ten minutes.
- *
- * ⚠ The watchdog is armed BEFORE `connect()` on purpose — a Foundry that never finishes
- * launching is exactly the hang it exists to break, and arming after would never fire.
+ * Connect, preflight, arm the watchdog; returns the live `Foundry`. `watchdogMs` is per-suite
+ * (measured wall clocks differ widely). ⚠ Armed BEFORE `connect()`: a launch that never
+ * finishes is the hang it exists to break.
  */
 export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv() }) {
   takeSuiteLock(tag);
@@ -342,28 +221,18 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   await preflightSoleGM(f, { requireElect, allowBridge, env });
 
   /**
-   * ⚠ THE CLIENT-SCOPED BASELINE. The reference table (verify-settings.mjs) pins WORLD keys
-   * only; a client-scoped setting rides each login's own storage, and the tester context is a
-   * fresh profile every run — so a client-scoped DEFAULT change lands on every suite at once,
-   * invisibly. When `playerRollDamage` flipped to ON (2026-08-27, the table's call) six suites
-   * failed in one battery: every attack chain written against silent auto-roll met a 24-second
-   * offer window instead. The suites' ambient is silent auto-roll; the sections that TEST the
-   * offer (smoke-battleflow §5d, smoke-saves §18, smoke-d20-folds' receipts) set it true
-   * themselves and restore it, so this baseline never argues with them. ⚠ A suite that builds
-   * a SECOND client by hand (check-popup-routing's player) does not pass through here — today
-   * that client only casts a no-damage spell, so nothing waits on it; a future second client
-   * that ROLLS DAMAGE must pin its own baseline.
+   * ⚠ Client-scoped baseline: verify-settings pins WORLD keys only and the tester is a fresh
+   * profile, so a client default change hits every suite. Suites run with silent auto-roll; the
+   * sections that test the offer set it true and restore it. A hand-built second client (e.g.
+   * check-popup-routing's player) skips this and must pin its own if it rolls damage.
    */
   await f.evaluate(async () =>
     game.settings.set("fvtt-mod-battleflow", "playerRollDamage", false), null);
 
   /**
-   * ⚠ THE WORLD BASELINE FOR MEASURED COVER (2026-09-27, RULINGS *Measured cover*): OFF for the
-   * run, restored at the teardown. The suites' fixtures stand creatures in a row on purpose — the
-   * adjacent victim sits between the attacker and every "far" copy of it — and measured cover
-   * would put +2 AC on those attacks and move hit and miss under sections that test something
-   * else. The section that TESTS it (smoke-reminders §14) turns it on and restores it. A killed
-   * run leaves it off; the battery's sweep (verify-settings --fix) puts the reference back.
+   * ⚠ Measured cover OFF for the run, restored at teardown: fixtures stand creatures in a row, so
+   * cover would move hit/miss in unrelated sections. The section that tests it turns it on itself;
+   * a killed run leaves it off until verify-settings --fix.
    */
   const priorCover = await f.evaluate(async () => {
     if ( !game.settings.settings.has("fvtt-mod-battleflow.measuredCover") ) return null;
@@ -372,19 +241,13 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     return v;
   }, null).catch(() => null);
 
-  // ⚠ THE LEDGER IS ARMED HERE AND DUMPED ON THE WAY OUT, and the dump rides the teardown call
-  // rather than `finish()` because SIX of the sixteen callers never call `finish` —
-  // smoke-battleflow, smoke-hold, smoke-twoclient and check-popup-routing among them. Every one
-  // of them ends with `await f.disconnect?.()`, so hanging the dump on the instance is the one
-  // seam that catches all of them without editing a single suite.
+  // ⚠ The ledger dump rides the teardown, not `finish()`: several suites never call `finish`.
   const install = await f.evaluate(installLedger, null).catch(e => `failed: ${e.message}`);
   if (install !== "installed") console.warn(`[${tag}] hook ledger not armed (${install})`);
   const moments = await f.evaluate(installMomentLedger, null).catch(e => `failed: ${e.message}`);
   if (moments !== "installed") console.warn(`[${tag}] moment ledger not armed (${moments})`);
 
-  // ⚠ ONE TEARDOWN, UNDER BOTH NAMES. `disconnect` is what all sixteen suites call and did not
-  // exist (see `disposeSafely` above); `dispose` is the real one. Both now dump the ledger and
-  // hang up, once, whichever a suite reaches for.
+  // One teardown under both names: suites call `disconnect`, `dispose` is the real one.
   let hungUp = false;
   const teardown = async () => {
     if (hungUp) return;
@@ -411,13 +274,8 @@ export function announcePlan(tag, plan, pulled = []) {
 }
 
 /**
- * The one reporter. Every suite returned the same `{ fatal, results, log, skips }` shape and
- * then printed it five different ways, two of which dropped `skips` and three of which dropped
- * `consoleErrors` — output drift in the one place where output IS the product.
- *
- * ⚠ Failures print in the BODY, with their detail. HANDOFF's operational rule ("always redirect
- * a suite to a file") exists because a `| tail` throws that body away; this keeps the summary
- * last so the tail is still useful, but never makes the summary sufficient.
+ * The one reporter for `{ fatal, results, log, skips }`. ⚠ Failures print in the body with detail;
+ * the summary stays last so a `| tail` is useful but never sufficient.
  */
 export function report({ tag, out, plan = null }) {
   if (out?.fatal) {

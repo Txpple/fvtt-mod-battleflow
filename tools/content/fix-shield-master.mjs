@@ -1,26 +1,14 @@
-// Shield Master (FLOW item 5, v1.19.0) — verify the CONTENT, graft only if it is missing,
-// and sweep for siblings.
-//
-// ⚠ Since walk-5 (x) (2026-08-21) the module NEVER applies the item's own "Shield Bashed"
-// effect: the bash Prone press is forceStatus → the canonical Prone chip. This tool's
-// verify/graft is belt-and-braces content hygiene now, not load-bearing.
-//
-// The 2026-08-20 probes found the save machine already accepts a feat's save activity
-// end-to-end (saves.js gates only on activity.type === "save"), and Thomas A. Invictus's
-// Shield Master already carries the correct content: a "Shield Bashed" effect with
-// statuses:["prone"], transfer:false, BOUND to the Shield Bash save activity (1/1
-// applicable). The session-4 "nothing pressed Prone" sighting therefore reads as the
-// contaminated-elect night, not a content gap — but this tool exists so the claim is
-// VERIFIED per world rather than assumed, and repaired in place if a world diverges:
+// Shield Master: verify the CONTENT, graft only if it is missing, and sweep for siblings.
+// The module never applies the item's own "Shield Bashed" effect (the bash presses the canonical
+// Prone chip via forceStatus), so this is content hygiene, not load-bearing. The expected content:
+// a "Shield Bashed" effect with statuses:["prone"], transfer:false, bound to the Shield Bash save activity.
 //
 //   node tools/content/fix-shield-master.mjs                 → report the sandbox (read-only)
 //   node tools/content/fix-shield-master.mjs --graft         → graft the Prone effect if missing
 //   BF_TARGET=prod node tools/content/fix-shield-master.mjs  → report prod (read-only)
 //
-// The SWEEP: every actor-held feature carrying a save activity whose bound-effect list is
-// EMPTY — the exact silent shape Shield Master was assumed to have. Report-only, for the
-// user to rule on; most such feats are correct as data (the save's consequence is damage or
-// narration, not an effect).
+// The sweep: every actor-held feature with a save activity whose bound-effect list is EMPTY.
+// Report-only; most are correct as data (the consequence is damage or narration).
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 
@@ -50,8 +38,8 @@ const out = await f.evaluate(async ({ graft }) => {
           const hasProne = bound.some(e => e.effect.statuses?.has?.('prone'));
           report.shieldMaster.push({ ...row, hasProne });
           if (!hasProne && graft) {
-            // The graft: author the effect on the ITEM, then bind it into the activity's
-            // effects list — update IN PLACE (the macro applier's rule: never delete+create).
+            // The graft: author the effect on the ITEM, then bind it into the activity's effects,
+            // updated IN PLACE (never delete+create).
             const [eff] = await item.createEmbeddedDocuments('ActiveEffect', [{
               name: 'Shield Bashed', img: 'icons/svg/falling.svg',
               transfer: false, disabled: false, statuses: ['prone'],

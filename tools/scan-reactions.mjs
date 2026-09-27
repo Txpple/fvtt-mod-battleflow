@@ -33,15 +33,10 @@ const result = await f.evaluate(async () => {
       for (const entry of index) {
         const activities = entry.system?.activities ?? {};
         const list = Array.isArray(activities) ? activities : Object.values(activities);
-        // ⚠ An activity only carries its OWN activation when activation.override is true;
-        // otherwise it INHERITS the item's (data/activity/_types.mjs:15 "Override activation
-        // values inferred from item"). Spells keep casting time at item level, so an
-        // activities-only scan silently misses every reaction spell — Shield included.
-        // UNION of both signals. Raw compendium source has no data preparation applied, so
-        // neither signal alone is complete: spells carry casting time at ITEM level (an
-        // activities-only scan misses Shield), while many class features set it on the
-        // activity itself (an item-only scan misses Uncanny Dodge). Over-select here and
-        // let the classification pass below cut it down.
+        // ⚠ An activity carries its OWN activation only when activation.override is true, else it
+        // inherits the item's; raw compendium source is unprepared. Spells keep casting time on the
+        // item (Shield), many features on the activity (Uncanny Dodge): take the UNION, over-select,
+        // and let classification cut it down.
         const ownReaction = list.find(a => a?.activation?.type === 'reaction');
         const itemIsReaction = entry.system?.activation?.type === 'reaction';
         const reaction = ownReaction ?? (itemIsReaction ? list[0] : null);

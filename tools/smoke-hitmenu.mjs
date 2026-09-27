@@ -1,23 +1,13 @@
-// Battle Flow hit-menu smoke test — THE PROTOTYPE, BUILT AS DRAWN (user ruling 2026-09-04, "Battle
-// Flow Hit Menu": "looks good … just give the cost for the sup die, just like Cunning Strike"):
-// on a hit the damage offer carries a Combat Superiority group with the Battle Master's on-hit
-// maneuvers read off the sheet, one pick per group, the die riding the damage roll, the pool
-// spent, the maneuver's own save through the saves machine, the sweep at a second creature.
-// Driven end to end in the live world on the CLONED fighter fixture (BF Test Fighter — Morgash,
-// Fighter 5 Battle Master: Combat Superiority, four d8s — tools/fixture-suite.mjs), with the
-// eight maneuvers added from the 2024 PHB pack for the run.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the items it adds are removed; the pool it spends is refilled; the conditions it
-// presses are cleared; the tokens it places are removed.
-//
-// Sections: `--section 3`, `--section 1,6`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow hit-menu smoke test: on a hit the damage offer carries a Combat Superiority group of
+// the Battle Master's on-hit maneuvers read off the sheet; one pick per group, the die on the
+// damage roll, the pool spent, the maneuver's save through the saves machine, the sweep.
+// Fixture: BF Test Fighter (tools/fixture-suite.mjs) with eight PHB maneuvers added for the run.
+// Harness discipline: settings restored; messages, added items and placed tokens removed; the
+// pool refilled; pressed conditions cleared. Sections: `--section 3`, `--section 1,6`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'hit-menu.js',            // the Combat Superiority group on the damage offer, the pick, the sweep; §12-15 Giant Ancestry
   'saves/index.js',         // §3 / §4 — the maneuver's save through the saves machine
@@ -61,8 +51,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
-  // THE MOMENT EVENTS (events.js, 2026-09-11): every payload the module publishes during this run,
-  // so a section can assert the resolve it drove was PUBLISHED with plain facts (uuids, never documents).
+  // Every moment payload published during the run (plain facts: uuids, never documents).
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -91,8 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const fighter = game.actors.getName('BF Test Fighter');
   if (!scene || !victim || !second || !fighter) return { fatal: 'missing fixture: scene, BF Test Victim, BF Test Attacker or BF Test Fighter — run tools/fixture-suite.mjs' };
   const pool = fighter.items.find(i => i.name === 'Combat Superiority');
-  // The clone's own Greataxe (Morgash carries it — plain 1d12 slashing, melee, no rider of its
-  // own); the d20-folds Longsword when it stands, else any equipped plain melee weapon.
+  // The clone's own Greataxe (plain 1d12 slashing, no rider), else the d20-folds Longsword, else any plain melee weapon.
   const sword = fighter.items.find(i => (i.type === 'weapon') && (i.name === 'Greataxe'))
     ?? fighter.items.find(i => (i.type === 'weapon') && (i.name === 'Longsword'))
     ?? fighter.items.find(i => (i.type === 'weapon') && i.system.equipped && (i.system.attack?.type?.value !== 'ranged'));
@@ -170,8 +158,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('holdTimer', 0);              // the sweep popup waits for a press (the hold family's clock)
     await set('reminderList', '');          // no gate: the swing rolls straight
     await set('maneuverFolds', '');         // no Precision offer on a miss that should not happen
-    // the fighter's own Great Weapon Fighting floors every die at 3 (fighting-styles.js, 2026-09-26) —
-    // not this suite's subject, and its formulas are pinned
+    // The fighter's own Great Weapon Fighting floors every die at 3; this suite's formulas are pinned.
     await set('fightingStyleList', '');
     await set('clockRiderList', '');
     await set('hitMenuList', 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack');
@@ -181,10 +168,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const pack = game.packs.get('dnd-players-handbook.classes');
     if (!pack) return { fatal: 'the 2024 PHB classes pack is not in this world' };
     const index = await pack.getIndex();
-    // ⚠ Fresh copies EVERY run (2026-09-24): a killed run skips the teardown that removes the
-    // maneuvers this suite added, and "add if missing" then reused a leftover — §11 strips Goaded from the copy on purpose,
-    // and 9c read a stripped copy the next battery (44/45). The reference Fighter carries none
-    // of these names natively, so the sweep touches only what a run of this suite left.
+    // ⚠ Fresh copies every run: a killed run leaves added maneuvers behind (§11 strips Goaded on
+    // purpose). The reference Fighter carries none of these names natively.
     {
       const stale = fighter.items.filter(i => (i.type === 'feat') && MANEUVERS.includes(i.name)).map(i => i.id);
       if (stale.length) { await fighter.deleteEmbeddedDocuments('Item', stale); log.push(`swept ${stale.length} stale maneuver item(s) a previous run left`); }
@@ -207,9 +192,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    // LINKED strays only (2026-09-24): the shared fixture's UNLINKED tokens belong to every other
-    // suite — deleting them here, then dying mid-run, left this suite's linked leftovers as the
-    // tokens the other suites measured from. The teardown removes our own; this is the backstop.
+    // LINKED strays only: the shared fixture's unlinked tokens belong to every other suite.
     const strays = scene.tokens.filter(t => t.actorLink && [victim.id, second.id, fighter.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
@@ -234,8 +217,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
         'system.attributes.hp.max': a.system._source.attributes.hp.max
       };
-      // AC 1 so every forced 19 hits (and the sweep's verdict is a hit); a deep pool so nobody
-      // dies under a longsword; the saves forced to fail.
+      // AC 1 so every forced 19 hits; a deep pool so nobody dies; saves forced to fail.
       await a.update({ 'system.attributes.ac.override': 1,
         'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400,
         'system.abilities.str.save.roll.bonus': '-30', 'system.abilities.wis.save.roll.bonus': '-30' });
@@ -262,12 +244,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
-    /** The hit menu's first pick on a damage roll — the list since 2026-09-27 (`picks`), read as the old one-record shape. */
+    /** The hit menu's first pick on a damage roll (`picks`), as a one-record shape. */
     const firstPick = dmg => { const r = dmg?.getFlag(MOD, 'hitManeuver'); return r ? (Array.isArray(r.picks) ? (r.picks[0] ?? null) : r) : null; };
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
       && (m._source.system?.origin === originId));
     const cardsWith = flagKey => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, flagKey));
-    /** A programmatic hit with the longsword at the victim — no dialog; the offer is the machine's to open. */
+    /** A programmatic hit at the victim, no dialog; the offer is the machine's to open. */
     const swing = async ({ d20 = 19 } = {}) => {
       await healFull();
       target(victimToken);
@@ -382,7 +364,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push(`Trip Attack save DC on the demand: ${saves?.dc} (fighter prof ${fighter.system.attributes.prof}, str ${fighter.system.abilities.str.mod}, dex ${fighter.system.abilities.dex.mod})`);
       const answered = await answerSave();
       await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.every(t => t.done), 15000);
-      // The receipt is a QUEUED write that lands after the press — wait on it, not on the status.
+      // The receipt is a QUEUED write that lands after the press: wait on it.
       const er = await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
       const applied = card?.getFlag(MOD, 'hitManeuverCard')?.applied?.includes?.(victim.uuid) && victim.statuses?.has?.('prone');
       const entry = card?.getFlag(MOD, 'saves')?.targets?.[0];
@@ -391,7 +373,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `answered=${answered} outcome=${entry?.outcome} prone=${victim.statuses?.has?.('prone')} receipt=${JSON.stringify(er?.effects?.map(e => e.name))}`);
       const demandText = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
       ok('3h. the demand card says whose maneuver it is', /Trip Attack — from BF Test Fighter/.test(demandText), demandText.slice(0, 160));
-      // THE MOMENT, PUBLISHED (events.js): one `maneuver` event on the damage message, plain, with the spend.
+      // One `maneuver` event on the damage message, plain, with the spend.
       const ev = momentsOf('maneuver').filter(p => p.messageId === dmg?.id);
       const p = ev[0];
       ok('3i. the resolve was PUBLISHED once: battleflow.moment "maneuver" — the fighter, Trip Attack, the damage message, the attack, the victim as a hit target, the die and the Superiority Die spend (3 of 4 left); plain and frozen',
@@ -423,7 +405,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
       const { dmg, hm } = await swingWith('distracting-strike');
       ok('5a. Distracting Strike rides, no save, effects on the hit', !!hm && (hm.key === 'distracting-strike') && hm.rides && !hm.save && hm.effects, JSON.stringify(hm));
-      // The receipt is a QUEUED write that lands after the effect — wait on it, not on the effect.
+      // The receipt is a QUEUED write that lands after the effect: wait on it.
       const er = await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => (t.uuid === victim.uuid) && t.effects?.length), 12000);
       const applied = game.messages.get(dmg?.id)?.getFlag(MOD, 'hitManeuver')?.effectsApplied && victim.effects.some(e => e.name === 'Distracted');
       ok('5b. Distracted lands on the victim on the elect, receipted on the damage card', !!applied && !!er?.effects?.some(e => /Distracted/.test(e.name)),
@@ -445,15 +427,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6b. the sweep card lists the creature within 5 feet of the target — the second goblin, not the fighter, not the victim',
         !!sc && (sc.candidates?.length === 1) && (sc.candidates[0].uuid === second.uuid) && !sc.chosen,
         `candidates=${JSON.stringify(sc?.candidates?.map(c => c.name))}`);
-      // The pick is a POPUP (user, 2026-09-04: "sweeping attack should be a popup choice, its just on
-      // the card"): a button per creature and Nobody, the bar, the card's own reopen button.
-      // The DIALOG, not the chat log (whose element also carries the card's words).
+      // The pick is a popup: a button per creature and Nobody, the bar, the card's reopen button.
+      // Read the DIALOG, not the chat log (which also carries the card's words).
       const popup = await waitFor(() => [...foundry.applications.instances.values()]
         .find(app => (app instanceof foundry.applications.api.DialogV2) && app.rendered && /pick the second creature/.test(app.element?.innerHTML ?? '')), 6000);
       const pickButton = popup?.element?.querySelector('button[data-action="pick-0"]');
       const nobody = popup?.element?.querySelector('button[data-action="none"]');
       const cardText6 = textOf(document.querySelector(`.message[data-message-id="${card?.id}"]`));
-      // holdTimer is 0 here, so no bar drains — the popup waits for a human (a 0 window arms nothing).
+      // holdTimer is 0 here, so no bar: the popup waits for a human.
       ok('6c. the pick is a popup: one button per creature within 5 feet, and Nobody; the card carries a reopen button; no bar at a 0 window',
         !!popup && !!pickButton && (textOf(pickButton) === 'Hobgoblin') && !!nobody && /Pick — Sweeping Attack/.test(cardText6)
           && !popup.element.querySelector('[data-bf-deadline]'),
@@ -512,22 +493,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(9)) {
       await refill();
       const { dmg, hm } = await swingWith('goading-attack', { d20: 20 });
-      // The crit stamp REWRITES the part's formula (1d8 → 2d8) rather than adding a die to it.
+      // The crit rewrites the part's formula (1d8 → 2d8) rather than adding a die.
       const part = (dmg?.rolls ?? []).find(r => /^[12]d8$/.test(r.formula));
       const eights = part?.dice?.filter(d => d.faces === 8).reduce((n, d) => n + d.number, 0) ?? 0;
       ok('9. a forced 20: the die is crit-doubled by the same stamp — the maneuver part rolls 2d8',
         !!hm && dmg?.rolls?.[0]?.isCritical && (eights === 2), `crit=${dmg?.rolls?.[0]?.isCritical} eights=${eights} formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
       const card = await waitFor(() => cardsWith('hitManeuverCard').find(m => m.getFlag(MOD, 'hitManeuverCard')?.key === 'goading-attack' && m.getFlag(MOD, 'saves')), 10000);
       if (card) { await answerSave(); await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.every(t => t.done && t.applied), 15000); }
-      // Goaded is the one maneuver effect the pack ships with transfer:true (the table, 2026-09-04:
-      // "applying goading attack didnt do anything") — it must still land on the failure.
+      // Goaded ships with transfer:true; it must still land on the failure.
       const goaded = await waitFor(() => victim.effects.find(e => e.name === 'Goaded'), 8000);
       const gr = game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid);
       ok('9b. the failure lands Goaded on the TARGET, receipted on the demand card',
         !!goaded && !!gr?.effects?.some(e => /Goaded/.test(e.name)),
         `goaded=${!!goaded} outcome=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome} applied=${card?.getFlag(MOD, 'saves')?.targets?.[0]?.applied} receipt=${JSON.stringify(gr?.effects?.map(e => e.name))} effects=${JSON.stringify(victim.effects.map(e => e.name))}`);
-      // The pack flags Goaded transfer:true — a passive on the WIELDER (user, 2026-09-04: "the fighter
-      // should never have the effect on as a precondition"). The machine corrects the wielder's copy.
+      // The machine corrects the transfer:true copy: the wielder never wears Goaded as a passive.
       const goadingItem = fighter.items.find(i => i.name === 'Goading Attack');
       const itemEffect = goadingItem?.effects.find(e => e.name === 'Goaded');
       const onFighter = [...fighter.allApplicableEffects()].some(e => e.name === 'Goaded');
@@ -559,10 +538,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await settle();
     }
 
-    // ================================================== 12-13. Giant Ancestry (Slice A, 2026-09-24)
-    // Hill's Tumble joins the Goliath from the origins pack for these sections and leaves after
-    // (Fire's Burn and Frost's Chill are clock riders since 2026-09-24 — smoke-clock drives them;
-    // this suite's Clock Riders list is empty, so the fixture's Fire's Burn never rides here).
+    // ================================================== 12-13. Giant Ancestry
+    // Hill's Tumble joins the Goliath for these sections. Fire's Burn and Frost's Chill are clock
+    // riders (smoke-clock); this suite's Clock Riders list is empty.
     if (want(12) || want(13)) {
       const EIGHT = 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack';
       const goliath = game.actors.getName('BF Test Goliath');
@@ -633,8 +611,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await waitFor(() => /has the Prone condition/.test(cardOf(dmg)), 4000);
             ok('12b. the card says what it pressed, in the Giant Ancestry voice', /Giant Ancestry — Hill's Tumble/.test(cardOf(dmg)) && /has the Prone condition/.test(cardOf(dmg)), cardOf(dmg).slice(0, 240));
             await settle();
-            // A Huge target: nothing is affordable, so under AUTO damage no offer opens for it (§7's
-            // rule); ASKED for (the player rolls), the size judge greys the row with the fact as its tag.
+            // A Huge target: nothing affordable, so AUTO damage opens no offer; ASKED, the size judge greys the row.
             await victim.update({ 'system.traits.size': 'huge' });
             const auto = await swingGoliath();
             const autoOffer = await waitFor(offerEl, 1500);

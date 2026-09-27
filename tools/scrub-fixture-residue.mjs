@@ -1,16 +1,10 @@
-// SCRUB THE FIXTURES' 6.0 RESIDUE — the AC override and the per-ability save bonus.
+// Scrub the fixtures' residue: the AC override and the per-ability save bonus, on every BF Test
+// actor. Suites force outcomes at `ac.override` and `abilities.<x>.save.roll.bonus`; an older
+// restore that cleared the pre-6.0 keys left these standing. Idempotent: run it whenever a suite
+// reports an AC or a save that cannot be.
 //
 //   node tools/scrub-fixture-residue.mjs            report and clear
 //   node tools/scrub-fixture-residue.mjs --check    report only
-//
-// WHY (the dnd5e 6.0 pass, phase 2, 2026-09-16): the suites force outcomes by writing the
-// fixtures' AC and save bonuses, and restore them after. At 5.3.3 the restore was
-// `ac.calc: "default"` and `abilities.<x>.bonuses.save: ""`; at 6.0 the forced value lives at
-// `ac.override` and `abilities.<x>.save.roll.bonus`, and the OLD restore clears neither — so a
-// battery run under the 5.x suites left the Ranger at AC 1 (smoke-superiority §5b) and the
-// victim with a -30 that made a DC 30 save pass (smoke-maneuvers §I3). The suites write the
-// 6.0 keys now; this clears what the old ones left behind, on every BF Test actor, and it is
-// idempotent — run it whenever a suite reports an AC or a save that cannot be.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const check = process.argv.includes("--check");
@@ -34,8 +28,7 @@ try {
         rows.push(`${actor.name}: ${found.join(", ")}${check ? "" : " — cleared"}`);
       }
     }
-    // An UNLINKED fixture token's synthetic actor at 0 HP (the emanation triggers' real damage,
-    // smoke-emanations §7): a corpse every save demand rightly skips — 6f read empty for a day.
+    // An unlinked fixture token's synthetic actor at 0 HP is a corpse every save demand skips: heal it.
     for ( const scene of game.scenes ) {
       for ( const tok of scene.tokens.filter(t => t.actor && !t.actorLink && /^BF Test/i.test(game.actors.get(t.actorId)?.name ?? "")) ) {
         const hp = tok.actor.system.attributes?.hp;

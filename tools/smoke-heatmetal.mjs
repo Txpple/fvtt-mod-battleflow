@@ -1,25 +1,14 @@
-// Battle Flow damage-cast smoke test — MAKE HEAT METAL WORK (user, 2026-09-04). Measured: the
-// 2024 PHB's Heat Metal is a bare damage activity ("Cast and Heat"; "Reheat" as a Bonus Action)
-// plus a save activity ("On Damage Save") that nothing chains — and a bare damage activity's dice
-// were rolled by NOBODY (dnd5e's DamageActivity does nothing after the card; the module hides
-// the card's Damage button). Now the dice roll at the use and land on the target, the save is
-// put to the same target right after through the saves machine, Heated Metal lands on a failure,
-// and both gates (attack, check) read it.
-//
-// Fixtures: BF Test Cleric (given Heat Metal for the run), BF Test Attacker (the holder). Built by
-// tools/fixture-suite.mjs.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the item it adds is removed; the effects it presses are cleared; the tokens it
-// places are removed; concentration is ended.
-//
-// Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow damage-cast smoke test (Heat Metal): the PHB's Heat Metal is a bare damage activity
+// plus an unchained save activity, and dnd5e's DamageActivity rolls nothing after the card. The
+// dice roll at the use and land on the target, the save follows through the saves machine, Heated
+// Metal lands on a failure, and both gates (attack, check) read it.
+// Fixtures (tools/fixture-suite.mjs): BF Test Cleric (given Heat Metal), BF Test Attacker (the holder).
+// Harness discipline: settings restored; messages, the added item and placed tokens removed;
+// effects cleared; concentration ended. Sections: `--section 3`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'damage-casts.js',        // Heat Metal's dice at the use, the reheat, the list
   'saves/index.js',         // §2 / §4 — the save demanded after the damage lands
@@ -221,10 +210,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
       .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
     const demandsSince = t => game.messages.contents.filter(m => (m.timestamp >= t) && m.getFlag(MOD, 'damageSaveCard'));
-    /** The Cleric uses one of Heat Metal's damage activities at the goblin — no slot spent, no dialog.
-     * ⚠ `subsequentActions` is left to the SYSTEM on purpose: dnd5e's own follow-up would open the
-     * damage dialog and roll a second time; the module switches it off at the use, and §1 asserts
-     * exactly ONE damage roll chains to the card. */
+    /** The Cleric uses a Heat Metal damage activity at the goblin, no slot, no dialog.
+     * ⚠ `subsequentActions` is left to the system: the module switches it off at the use (or it
+     * would roll twice), and §1 asserts exactly ONE damage roll. */
     const heatUse = async activity => {
       const since = Date.now();
       clericToken.control({ releaseOthers: true });

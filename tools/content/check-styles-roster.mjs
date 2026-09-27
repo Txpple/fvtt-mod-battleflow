@@ -1,4 +1,4 @@
-// Read back the BF Styles roster's fighting-style faces (HANDOFF.md §1) — a content check, asserts nothing.
+// Read back the BF Styles roster's fighting-style faces: a content check, asserts nothing.
 import { connectSuite } from '../harness.mjs';
 
 const f = await connectSuite({ tag: 'check-styles', watchdogMs: 120_000 });

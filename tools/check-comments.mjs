@@ -1,36 +1,10 @@
-// STATIC DOC-COMMENT ATTACHMENT CHECK — no Foundry, no world, milliseconds.
-//
-// A `/** … */` block must sit directly on top of the thing it documents. This asserts that,
-// and it exists because the failure mode is invisible and expensive.
-//
-// WHY (measured 2026-08-22, the decision-layer extraction; ARCHITECTURE §11 *Moving code between files*): the extraction stages turned up EIGHT doc
-// comments sitting above a function they did not describe. Three predated the refactor —
-// functions had been reordered and their docs did not follow. FIVE were created by the
-// extraction itself: moving a function out left its doc behind, stranded above whatever
-// happened to come next.
-//
-// Both directions are costly:
-//   - The stranded doc lies. A reader takes the prose above a function as describing it, and
-//     one of the three pre-existing orphans was a stale near-duplicate of a RICHER comment
-//     elsewhere in the same file — so the file appeared to document the behaviour twice, in
-//     two slightly different ways, with no way to tell which was current.
-//   - The moved function arrives naked. Two of the five carried knowledge the new home did
-//     not: the hobgoblin-shield story behind `isReactionItem` (a name match is not a
-//     reaction), and the warning that the save-side dead gate is deliberately NOT the same
-//     predicate as mastery's. Both would have been re-derived the hard way, at the table.
-//
-// The rule the codebase now follows: **cut on function boundaries, never comment boundaries,
-// and check the comment either side of every block you move.**
-//
-// What counts as a violation: a `/**` block that is followed by a blank line, by another
-// `/**` block, or by end-of-file. The MODULE HEADER is exempt — it documents the file, not a
-// declaration. Banner comments use `/*` rather than `/**` and are not examined.
-//
-// ⚠ "The module header" is the first `/**` block with nothing but LINE COMMENTS above it, not
-// literally the block on line 1. That distinction arrived with `// @ts-check` (2026-08-23):
-// opting a file into the type checker puts a pragma on line 1 and pushed six module headers
-// out of the exemption at once, failing the gate on files nobody had touched. A pragma is not
-// a declaration, and a header above one is still a header.
+// Static doc-comment check (no Foundry, milliseconds; ARCHITECTURE §11 *Moving code between files*).
+// A `/** … */` block must sit directly on the thing it documents: a stranded doc lies about its
+// neighbour, and a moved function arrives without its knowledge. Cut on function boundaries and
+// check the comment either side of every block you move.
+// A violation: a `/**` followed by a blank line, another `/**`, or end-of-file. The module header
+// (the first `/**` with only line comments or blanks above it, e.g. `// @ts-check`) is exempt;
+// banners use `/*` and are not examined. It also fails on history in a scripts/ comment.
 //
 //   node tools/check-comments.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -72,9 +46,8 @@ for (const file of jsFiles(SCRIPTS)) {
     const end = i;
     blocks += 1;
 
-    // The module header documents the file itself. ⚠ Everything above it must be a LINE comment
-    // or blank — a `// @ts-check` pragma, a lint directive, a shebang — because those are not
-    // declarations either and a header sitting above one is still a header.
+    // The module header documents the file. Everything above it must be a line comment or blank
+    // (a pragma, a lint directive, a shebang).
     const onlyPragmasAbove = lines.slice(0, start)
       .every(l => (l.trim() === "") || l.trim().startsWith("//"));
     if (onlyPragmasAbove) {

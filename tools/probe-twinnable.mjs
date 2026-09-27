@@ -1,14 +1,13 @@
-// Read-only probe (2026-09-09, the metamagic pass, Stage 3): which spells in the 2024 packs
-// Twinned Spell fits, by the read the module uses — the SOURCE target count is a formula over
-// the cast's level (`@item.level - 1` on Hold Person) and the spell has no area. Printed against
-// the user's own list (2026-09-09) so the read is checked, not trusted. Nothing is written.
+// Read-only probe: which spells in the 2024 packs Twinned Spell fits by the module's read (the
+// SOURCE target count is a formula over the cast's level, e.g. `@item.level - 1`, and no area),
+// printed against the ruled list so the read is checked, not trusted.
 //
 //   node tools/probe-twinnable.mjs
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
-// The user's list as ruled 2026-09-09: Chain Lightning in; Magic Missile and Scorching Ray out ("the extra is a dart/ray");
-// Animate Dead, Create Undead, Cordon of Arrows and Tasha's Mind Whip out ("remove all as options") - so Mind Whip leaves the list.
+// The ruled list (RULINGS *Metamagic*): Magic Missile, Scorching Ray, Animate Dead, Create Undead,
+// Cordon of Arrows and Tasha's Mind Whip are out.
 const USER_LIST = ["Chain Lightning", "Charm Person", "Jump", "Longstrider", "Blindness/Deafness", "Enhance Ability", "Hold Person", "Invisibility",
   "Spider Climb", "Fly", "Gaseous Form", "Banishment", "Charm Monster", "Freedom of Movement", "Hold Monster",
   "Animal Friendship", "Bane", "Bless", "Command", "Heroism"];

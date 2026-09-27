@@ -1,14 +1,8 @@
-// Audit the curated Reaction List world setting against the world's ACTUAL items.
-//
-// WHY: `reactionACBonus` (ui.js) reads a numeric `system.attributes.ac.bonus` change off the
-// reaction's own effect. When it finds none it returns null, and `holdWouldMatter` (hold.js)
-// then returns TRUE — "unmeasurable bonus, ask the human". That default is right for a
-// proficiency-scaled AC boost like Defensive Duelist, but for an entry that is not an AC
-// boost AT ALL (Riposte makes an attack; Parry reduces damage) it means the module offers a
-// hold that cannot possibly help, every single time its owner is hit.
-//
-// Prints, per entry: who has it, whether an AC-bonus change resolves, and enough of the
-// description to classify it. Read-only — changes nothing.
+// Audit the Reaction List setting against the world's actual items (read-only).
+// `reactionACBonus` (ui.js) reads a numeric `system.attributes.ac.bonus` change off the reaction's
+// effect; with none, `holdWouldMatter` returns TRUE ("ask the human"). Right for a scaled AC boost,
+// wrong for an entry that is no AC boost at all (Riposte, Parry): the hold is offered uselessly.
+// Prints per entry: holders, whether an AC-bonus change resolves, and a description excerpt.
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 
@@ -51,11 +45,8 @@ const out = await f.evaluate(async () => {
         activation: item.system?.activation?.type ?? null
       });
     }
-    // ⚠ Judge on the BEST holder, never holders[0]. "Shield" matches both the spell and the
-    // shield ARMOUR item, and the armour sorts first on some actors — sampling it reported the
-    // spell as an unmeasurable bonus and slandered a correctly-configured entry. The real path
-    // does not have this problem: findInterrupt passes itemId/activityId into reactionItem, so
-    // it resolves the item it actually matched. This is an audit-only hazard.
+    // ⚠ Judge on the BEST holder, never holders[0]: "Shield" also matches the shield armour item
+    // (an audit-only hazard: findInterrupt resolves the exact item it matched).
     const sample = holders.find(h => h.acBonus != null)
       ?? holders.find(h => h.activation === 'reaction')
       ?? holders[0];
@@ -68,10 +59,8 @@ const out = await f.evaluate(async () => {
       anyReactionHolder: holders.some(h => h.activation === 'reaction') });
   }
 
-  // v1.19.0 — the Maneuver Folds list gets the same walk: for each entry, who holds the item,
-  // does its first activity resolve a die formula, and can the pool pay for it. A listed name
-  // nobody holds is inert (costs nothing); a holder with no formula is a misconfiguration the
-  // fold would silently skip.
+  // The Maneuver Folds list: holders, whether the first activity resolves a die formula, and
+  // whether the pool can pay. A holder with no formula is a misconfiguration the fold skips silently.
   const rawFolds = game.settings.get(MOD, 'maneuverFolds') ?? '';
   const foldRows = [];
   for (const chunk of rawFolds.split(',').map(c => c.trim()).filter(Boolean)) {

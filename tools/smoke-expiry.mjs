@@ -1,25 +1,14 @@
-// Battle Flow expiry smoke test — THE PLATFORM'S CLOCK ON THE CHIPS (HANDOFF Stage 1,
-// 2026-09-01): a real Combat stepped through rounds while Foundry v14's own registry expires
-// the mastery chips on the boundaries the rules name; the spend that closes Vex and Sap on the
-// swing; the once-per-turn Cleave chit; the sweep when a combat is deleted; and the out-of-
-// combat truth (no clock at all — only the spend). Driven end to end in the live world.
-//
-// ⚠ Every boundary asserted here was MEASURED first (tools/probe-expiry.mjs) — this suite
-// pins the measurement, it does not reason about what v14 "should" do.
-//
-// Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
-// every message this run creates is deleted on the way out; the combat it creates is deleted
-// whatever happens (a leftover combat poisons every later suite — smoke-hold's lesson); HP is
-// topped up before any attack; chips are cleared between scenarios so "the chip landed" means
-// THIS attack landed it.
-//
-// Sections: `--section 4`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
+// Battle Flow expiry smoke test: the platform's clock on the chips. A real Combat stepped through
+// rounds while Foundry's own registry expires the mastery chips on the rules' boundaries; the Vex
+// and Sap spends; the once-per-turn Cleave chit; the sweep on combat delete; out of combat (no clock).
+// ⚠ Every boundary asserted here was measured first (tools/probe-expiry.mjs).
+// Harness discipline: settings restored, messages deleted, the combat always deleted (a leftover
+// poisons later suites), HP topped up, chips cleared between scenarios.
+// Sections: `--section 4`, `--section 1,7`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The coverage map (tools/coverage-map.mjs parses this; `npm run coverage` checks it both ways).
+// ⚠ NEVER import a suite: it connects on evaluation.
 export const COVERS = [
   'mastery.js',             // the chips the payouts write, on the platform's clock
   'chip-spend.js'           // §2 / §3 / §7 / §8 — the spend and the two tidies
@@ -98,7 +87,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
-      // ⚠ THE COMBAT GOES FIRST — a leftover would poison every later suite.
+      // ⚠ The combat goes first: a leftover poisons every later suite.
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       try { if (game.combat) await game.combat.delete(); } catch { /* gone */ }
       if (priorBlade && pc) {
@@ -144,7 +133,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('noticeTimer', 2); // the reminder popups this suite provokes drain fast
     await set('reminderList', 'vex, sap, prone, condition, range'); // §10 gates a swing; every other swing is configure:false
 
-    // -------------------------------------------------- fixtures (the smoke-effects idiom)
+    // -------------------------------------------------- fixtures
     const findWeapon = async () => {
       const owned = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
         && i.system.type?.baseItem && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -237,8 +226,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         && (x._source.system?.origin === originId)
         && (!flag || x.getFlag(MOD, flag))), timeout);
     const chipOn = (actor, key) => actor.effects.find(e => e.getFlag(MOD, 'mastery') === key);
-    // ⚠ `duration` is the PREPARED clock — out of combat the platform reframes rounds as
-    // seconds in it — so the window as WRITTEN rides along under `source`.
+    // ⚠ `duration` is the PREPARED clock (out of combat, rounds become seconds); the window as
+    // written rides along under `source`.
     const clockOf = e => e ? ({
       value: e.duration.value, units: e.duration.units, expiry: e.duration.expiry,
       expired: e.duration.expired, remaining: e.duration.remaining,
@@ -248,19 +237,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }) : null;
     /**
      * One mastery attack by the PC on the victim, waited to quiescence; the chip it left.
-     * ⚠ The chip is WAITED FOR, not read after a fixed pause: the payout runs after the receipt
-     * and the first swing of a run is the slowest (the weapon's first use). A fumble (nat 1)
-     * leaves no chip by the rules; the roll rides back so an assertion can say which it was.
+     * ⚠ The chip is waited for (the payout runs after the receipt). The roll rides back so an
+     * assertion can tell a fumble (no chip by the rules).
      */
     const swing = async (key, { advantage = false } = {}) => {
-      // ⚠ RETRY A FUMBLE OR A KILL, bounded. The swing rolls one d20 (no advantage), so a nat 1 is
-      // a 5% event per swing and a run has a dozen of them; and the victim's 11 max HP is
-      // within one crit of the dagger, and the dead are skipped everywhere (no chip, no ask).
-      // Neither is the module: the battery of 2026-09-02 lost §4 and §5's setup chips to
-      // exactly this after a clean standalone run, and the sections did not say why.
-      // ⚠ A RETRIED swing may already have SPENT a chip on an earlier attempt's message (the
-      // battery of 2026-09-26: §2's Sap swing killed the victim, the Vexed spend rode attempt 1,
-      // attempt 2 had nothing left to spend) — every attempt's message rides back in `messages`.
+      // ⚠ Retry a fumble or a kill, bounded: a nat 1 is 5% per swing, and the 11-HP victim is one
+      // crit from dead (the dead are skipped everywhere). ⚠ A retried swing may already have SPENT
+      // a chip on an earlier attempt: every attempt's message rides back in `messages`.
       let last = null;
       const messages = [];
       for (let attempt = 0; attempt < 3; attempt++) {
@@ -277,8 +260,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const chip = fumble ? null : await waitFor(fresh, 12_000);
         await sleep(300);
         last = { attackMsg, roll, chip: chip ?? null, fumble, messages };
-        // A second Cleave hit in one turn writes no NEW chit by design, so for cleave only a
-        // fumble (no hit, no notice) is worth another swing.
+        // A second Cleave hit in one turn writes no new chit, so only a fumble earns a retry.
         if (key === 'cleave') { if (!fumble) return last; }
         else if (chip) return last;
         const killed = (victim.system.attributes?.hp?.value ?? 1) <= 0;
@@ -313,23 +295,22 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'masteryNotice')?.key === key)).length;
     const cardText = id => document.querySelector(`.message[data-message-id="${id}"]`)?.textContent ?? '';
 
-    // -------------------------------------------------- the gate (§10) — the smoke-reminders idiom
-    /** The click the card's Attack BUTTON makes: an event whose target sits inside the usage
-     * card's element and nothing else — the shape the table uses (smoke-reminders says why). */
+    // -------------------------------------------------- the gate (§10)
+    /** The click the card's Attack button makes: an event whose target sits inside the usage card. */
     const buttonEvent = async usageId => {
       const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
       if (!li) throw new Error(`usage card ${usageId} never reached the chat DOM`);
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
     };
-    /** The SYSTEM's own roll dialog carrying Battle Flow's section — the gate lives inside it (2026-09-02). */
+    /** The system's own roll dialog carrying Battle Flow's section (the gate lives inside it). */
     const findGate = async () => {
       const app = await waitFor(() => [...foundry.applications.instances.values()]
         .find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '') && a.rendered && a.element) ?? null, 6000);
       await sleep(150);
       return app?.element?.querySelector('[data-bf-reminder]') ? app : null;
     };
-    /** A HUMAN-style swing — the dialog allowed, so the gate stands in when it has something to say. */
+    /** A human-style swing: the dialog allowed, so the gate stands in when it has something to say. */
     const gatedSwing = async (activity, token) => {
       await healFull();
       token.setTarget(true, { releaseOthers: true });
@@ -351,7 +332,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
-    /** Let a re-issued roll's whole chain land — damage, receipt and the payout after it. */
+    /** Let a re-issued roll's whole chain land: damage, receipt and the payout after it. */
     const settle = async msg => {
       const originId = msg?._source.system?.origin ?? msg?.id;
       const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
@@ -389,8 +370,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const first = await swing('vex');
       const vexId = first.chip?.id ?? null;
       ok('2. (setup) the victim is Vexed', !!vexId, `vexed=${!!vexId}`);
-      // The NEXT attack — rolled FLAT, with the blade on Sap so the payout leaves a Sapped
-      // chip rather than a fresh Vexed one, and the spend is unambiguous.
+      // The next attack rolls flat with the blade on Sap, so the spend is unambiguous.
       const before = snap();
       const second = await swing('sap');
       const spentOn = () => (second.messages ?? []).map(m => game.messages.get(m.id))
@@ -543,8 +523,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await ensureCombat();
       await stepTo(pc.id);
       await clearChips();
-      // The chit first: a Vex swing does not spend a chit, but a Cleave swing after a Vex
-      // swing is the attacker's next attack on the bearer — and SPENDS the Vex (§2).
+      // A Cleave swing after a Vex swing is the next attack on the bearer, and SPENDS the Vex (§2).
       await swing('cleave');
       await swing('vex');
       const vexed = !!chipOn(victim, 'vex');
@@ -567,8 +546,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
       const { chip } = await swing('vex');
       const c = clockOf(chip);
-      // The window as WRITTEN is the same; the platform PRESENTS it reframed as six seconds,
-      // because with no combatant a round has no meaning (measured — tools/probe-expiry.mjs).
+      // The window as written is the same; the platform presents it as six seconds (no combatant, no round).
       ok('8. out of combat a Vexed chip is WRITTEN with the same window (1 round, turnEnd), no combat in its start, and read back as six seconds',
         !!c && (c.source.value === 1) && (c.source.units === 'rounds') && (c.source.expiry === 'turnEnd')
           && (c.combat === null) && (c.expired === false) && (c.units === 'seconds') && (c.value === 6),
@@ -577,11 +555,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8a. nothing ticks out of combat: seconds later it still stands, unexpired',
         !!victim.effects.get(chip?.id) && !victim.effects.get(chip?.id)?.duration.expired,
         JSON.stringify(clockOf(victim.effects.get(chip?.id))));
-      // ⚠ THE SPEND IS FOUND BY CONTENT, NOT ON `second.attackMsg`. swing() RETRIES a fumble or a
-      // kill, and Vex is spent by the FIRST attack of the retry chain (hit or miss) — so the record
-      // lives on attempt 1's message while `attackMsg` is the last attempt's. Every red 8b in the
-      // battery logs (09-02, 09-04, 09-05, 09-23) sat beside a "swing(sap) attempt 1: … swinging
-      // again" line with recorded=false gone=true: dice, not load.
+      // ⚠ The spend is found by CONTENT, not on `second.attackMsg`: swing() retries, and Vex is
+      // spent by the FIRST attempt, whose message is not the last one.
       const spendSince = Date.now();
       await swing('sap');
       const spend = await waitFor(() => game.messages.contents.findLast(m => (m.timestamp >= spendSince)
@@ -605,12 +580,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 10. the gate after a boundary
-    // ⚠ THE REVIEW'S FIRST FINDING (2026-09-01): a one-round chip reads `remaining: 0` from the
-    // START of the round its boundary falls in, and `expired` only at the event — so on the
-    // attacker's next turn, the one attack Vex exists for, the gate dropped it and the dice
-    // went out flat. Neither suite stepped a turn between the chip and a gated swing; this one
-    // does. And the once-per-turn chit belongs to the turn IN PROGRESS: written on somebody
-    // else's turn (an opportunity attack), it dies with THAT turn.
+    // A one-round chip reads `remaining: 0` from the START of its boundary's round but `expired`
+    // only at the event, so the gate must keep it on the attacker's next turn. The once-per-turn
+    // chit belongs to the turn in progress: written on someone else's turn, it dies with that turn.
     if (want(10)) {
       await ensureCombat();
       await stepTo(pc.id);

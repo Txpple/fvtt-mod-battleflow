@@ -1,8 +1,7 @@
-// THE HIT'S SEQUENCE, on the user's own case (2026-09-13): Invictus swings Midnight (a Sap
-// longsword) at the Practice Dummy with Shield Master on the sheet. The ruling: "damage, nothing
-// until damage. then mastery rider. then other stuff." This probe measures the order the module
-// actually produces on the sandbox — the offer QUEUED at the hit with no popup, the damage landing,
-// the Sap notice posting, and only then the offer promoted to pending with its clock started.
+// Probe: the hit's sequence: damage first, then the mastery rider, then any other offer.
+// Invictus swings Midnight (a Sap longsword) at the Practice Dummy with Shield Master on the sheet,
+// and this measures the order: the offer QUEUED at the hit with no popup, the damage landing, the
+// Sap notice, and only then the offer promoted to pending with its clock started.
 //
 //   node tools/probe-hit-sequence.mjs
 //

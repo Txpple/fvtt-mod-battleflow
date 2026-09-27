@@ -1,30 +1,9 @@
-// Build (or rebuild) the SHARED suite fixtures — idempotent, safe to re-run, and the first
-// thing to run after a prod refresh.
+// Build (or rebuild) the shared suite fixtures: idempotent, and the first thing to run after a
+// prod refresh (a mirror of prod deletes them). Everything a suite needs lives in a fixture step.
+// ⚠ Everything lands in the "Test Suite" folder (Actors and Scenes); strays are adopted into it.
 //
-// ⚠ WHY THIS FILE EXISTS. The fixtures are sandbox-only by the user's choice: they clutter the
-// campaign's actor list, so they are deleted from prod. `pull-prod-to-local.mjs` MIRRORS prod,
-// and a mirror faithfully reproduces a deletion — so every refresh wipes them and every suite
-// then dies at its preflight with "missing fixture". Before this file, each suite built its own
-// share inline (smoke-battleflow the scene/attacker/victim, smoke-hold the shielder), so a
-// rebuild meant running a whole suite for its side effects, and nothing rebuilt them at all
-// unless that suite happened to run first. The same trap already cost a session once, recorded
-// at smoke-battleflow.mjs:842 — a prod mirror deleted BF Test PC Attacker's player OWNERSHIP
-// along with the actor, and two suites failed for a reason that looked nothing like the cause.
-// The rule that came out of it is the rule here: **the world is disposable, so everything a
-// suite needs must live in a fixture step.**
-//
-// ⚠ EVERYTHING LANDS IN A FOLDER CALLED "Test Suite" (user call 2026-09-01) — Actors and
-// Scenes both. Loose BF Test actors are what made them annoying enough to delete from prod in
-// the first place, so the folder is not tidiness, it is what lets the fixtures survive: filed
-// away, they are cheap to keep. Strays created by an older suite are ADOPTED into it on every
-// run rather than left behind.
-//
-// Run:  node tools/fixture-suite.mjs
-// ⚠ Disconnect the MCP bridge first (HANDOFF.md operational rules).
-//
-// PAIRS WITH `fixture-d20-folds.mjs`: this file makes the ACTORS exist; that one stamps the
-// compendium sources and seeds the markers (Inspired, Heroic Inspiration, a refilled Second
-// Wind) that smoke-d20-folds reads. Run this one first.
+// Run:  node tools/fixture-suite.mjs   (⚠ disconnect the MCP bridge first)
+// Pairs with `fixture-d20-folds.mjs` (compendium stamps and markers): run this one first.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const TAG = "fixture-suite";
@@ -38,7 +17,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const FOLDER = "Test Suite";
     const SCENE = "Battle Flow Test Range";
 
-    // --- the folders (one per document type — Foundry scopes folders by type) --------------
+    // --- the folders (Foundry scopes folders by document type)
     const ensureFolder = async type => {
       let folder = game.folders.find(x => (x.name === FOLDER) && (x.type === type));
       if (!folder) {
@@ -50,8 +29,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const actorFolder = await ensureFolder("Actor");
     const sceneFolder = await ensureFolder("Scene");
 
-    // --- the scene ------------------------------------------------------------------------
-    // Local view only, never activated: activating it would drag the players off their scene.
+    // --- the scene: viewed locally, never activated (that would drag the players off their scene)
     let scene = game.scenes.getName(SCENE);
     if (!scene) {
       scene = await Scene.create({
@@ -65,20 +43,14 @@ const out = await f.evaluate(async ({ playerName }) => {
       await scene.update({ folder: sceneFolder.id });
       log.push("adopted the test scene into the folder");
     }
-    // ⚠ OBSERVER FOR PLAYERS, on every run. `smoke-nogm` drives from a PLAYER client with no GM
-    // connected, and a scene at the default permission is not even in that client's
-    // `game.scenes` — the suite died on `scene.id` of undefined before this line existed.
-    // OBSERVER (2) is deliberately not OWNER (3): `canApplyTo` tests `isOwner`, so the player
-    // can now SEE the range and still cannot write to anything on it, which is exactly the
-    // condition the no-GM suite exists to prove.
+    // ⚠ OBSERVER for players: `smoke-nogm` drives from a player client, and a scene at default
+    // permission is not in its `game.scenes`. Not OWNER: `canApplyTo` tests `isOwner`.
     if ((scene.ownership?.default ?? 0) < 2) {
       await scene.update({ "ownership.default": 2 });
       log.push("granted players OBSERVER on the test scene (read-only — smoke-nogm needs to see it)");
     }
 
-    // --- the two goblins: attacker and victim ----------------------------------------------
-    // Imported by SHAPE from whichever monster pack carries a goblin — pack ids shift, the
-    // creature does not. Unlinked tokens (the monster norm) are what the suites assert against.
+    // --- the two goblins: imported by SHAPE (pack ids shift); unlinked tokens, the monster norm
     const goblinSource = async () => {
       for (const pack of game.packs.filter(p => p.documentName === "Actor")) {
         let index;
@@ -100,11 +72,8 @@ const out = await f.evaluate(async ({ playerName }) => {
         made.push(name);
         log.push(`created ${name} from ${source.name}`);
       }
-      // ⚠ The BASE goblin is the reference shape every fresh unlinked token inherits, so it goes
-      // back to the statblock EVERY run: a killed suite leaves what it raised on the base (2026-09-24
-      // — smoke-maneuvers' 1000-HP unkillable victim, smoke-clock's 400, smoke-saves' −30 save
-      // bonuses, an AC override), and a token placed from that base carries the residue into
-      // every later suite. scrub-fixture-residue's rules, applied here where the token is born.
+      // ⚠ The BASE goblin goes back to the statblock every run: a killed suite leaves HP, save
+      // bonuses or AC overrides on it, and every new unlinked token inherits the residue.
       const src = source.system;
       const cur = actor.system._source;
       const reset = {};
@@ -130,24 +99,20 @@ const out = await f.evaluate(async ({ playerName }) => {
     };
     const attacker = await ensureGoblin("BF Test Attacker");
     const victim = await ensureGoblin("BF Test Victim");
-    // Same reasoning as the scene: OBSERVER lets `smoke-nogm` READ the victim's effects to
-    // prove no chip landed, while leaving it unwritable — a chip assertion the player cannot
-    // even see would pass vacuously, which is worse than no assertion.
+    // OBSERVER lets `smoke-nogm` READ the victim's effects (an unseeable chip assertion passes vacuously).
     if ((victim.ownership?.default ?? 0) < 2) {
       await victim.update({ "ownership.default": 2 });
       log.push("granted players OBSERVER on BF Test Victim (read-only)");
     }
 
-    // The attacker must carry something with an attack activity — every suite presses it.
+    // The attacker must carry something with an attack activity.
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === "attack"));
     if (!weapon) throw new Error("BF Test Attacker has no item with an attack activity");
 
-    // --- the shielder: a GM-owned clone of Gren ---------------------------------------------
-    // A full clone, so the Shield being cast is a real spell on a real caster with real slots.
-    // ⚠ Not Gren himself: the module correctly refuses to let a GM answer a hold for a
-    // character a logged-in player owns, and the harness is a GM. Not a Shield bolted onto the
-    // goblin either: an item added to a base actor reaches an UNLINKED token's delta stripped
-    // of its activities, and an NPC's spell slots are DERIVED, so they recompute to 0.
+    // --- the shielder: a GM-owned clone of Gren (a real spell, caster and slots)
+    // ⚠ Not Gren: the module refuses a GM answering for a player-owned character. Not a Shield on
+    // the goblin: an item added to a base actor reaches an unlinked token stripped of activities,
+    // and an NPC's slots are derived (0).
     let shielder = game.actors.getName("BF Test Shielder");
     if (!shielder) {
       const gren = game.actors.getName("Gren Greenmantle");
@@ -159,28 +124,20 @@ const out = await f.evaluate(async ({ playerName }) => {
       data.ownership = { default: 0 };        // GM-only: no player may answer for it
       data.prototypeToken.actorLink = true;   // linked: no delta to lose items through
       data.prototypeToken.name = "BF Test Shielder";
-      // ⚠ GREN'S SHEET, NOT GREN'S EVENING (2026-09-23): the clone is taken from whatever the
-      // live Gren is wearing — after Session 8 that was a drunk Potion of Poison Resistance, and
-      // smoke-saves §2's poison burst came out halved TWICE (2 of a saved 10). The actor's own
-      // applied effects are play state, not the character; the items' own effects stay.
+      // ⚠ Clone the sheet, not the evening: actor-level applied effects are play state (items keep theirs).
       data.effects = [];
       shielder = await Actor.create(data);
       made.push("BF Test Shielder");
       log.push("created BF Test Shielder from Gren Greenmantle");
     } else if (shielder.effects.size) {
-      // ⚠ THE SAME RULE FOR A SHIELDER THAT ALREADY EXISTS (2026-09-24): the create path above
-      // strips play state, but a Shielder cloned BEFORE that fix, or one a suite left dressed,
-      // kept it — and smoke-saves §2 read 2 of a saved 10 again (the Potion of Poison Resistance
-      // halving the poison burst a second time). Actor-level effects on this fixture are never
-      // the character: the items' own effects live on the items and are untouched here.
+      // ⚠ The same strip for an existing Shielder a suite left dressed.
       const stale = shielder.effects.map(e => e.name);
       await shielder.deleteEmbeddedDocuments("ActiveEffect", shielder.effects.map(e => e.id));
       log.push(`cleared BF Test Shielder's play-state effects (${stale.join(", ")})`);
     }
 
-    // --- the player-owned PC attacker --------------------------------------------------------
-    // Cloned from the NPC's own attack item so the two sides differ ONLY in actor.type —
-    // masteries are PC-only in data, which is the whole reason this fixture exists.
+    // --- the player-owned PC attacker: the NPC's own attack item, so the sides differ ONLY in
+    // actor.type (masteries are PC-only in data)
     let pc = game.actors.getName("BF Test PC Attacker");
     if (!pc) {
       pc = await Actor.create({
@@ -192,11 +149,8 @@ const out = await f.evaluate(async ({ playerName }) => {
     }
     if (pc.type !== "character") throw new Error(`BF Test PC Attacker is type ${pc.type}, not character`);
 
-    // ⚠ OWNERSHIP AND HP ARE RE-SEEDED ON EVERY RUN, not only at creation. Both were lost with
-    // the actor to a prod mirror on 2026-08-27 and the suites failed far from the cause: an
-    // ownerless PC stopped smoke-saves' player-owned sections and check-popup-routing's cast,
-    // and a bare `character` create has hp.max 0 — a degenerate sheet that was then asked for
-    // saving throws no assertion was written for.
+    // ⚠ Ownership and HP re-seeded every run: a prod mirror drops them, and a bare `character`
+    // create has hp.max 0.
     const playerUser = playerName ? game.users.getName(playerName) : null;
     if (playerUser) {
       await pc.update({ ownership: { default: 0, [playerUser.id]: 3 } },
@@ -209,12 +163,9 @@ const out = await f.evaluate(async ({ playerName }) => {
       await pc.update({ "system.attributes.hp.max": 20, "system.attributes.hp.value": 20 });
       log.push("seeded BF Test PC Attacker's HP pool (20/20)");
     }
-    // ⚠ THE CLONED BLADE, KEPT BARE. The PC's attack item is the NPC's own (smoke-battleflow
-    // presses the same item name on both sides) and it ships NO mastery — every mastery suite
-    // finds its blade by shape, FIRST match, and a mastery on this d8 blade puts it ahead of
-    // the Dagger of Venom: a d8 drops the 11-HP Victim to 0 mid-section and every payout on a
-    // downed target is skipped (three reds in one day, 2026-09-04, a walk having set one).
-    // Re-cloned when missing (a session deleted it as a stray), stripped when it wears one.
+    // ⚠ The cloned blade stays BARE: mastery suites find their blade by shape, first match, and a
+    // mastery on this d8 puts it ahead of the Dagger of Venom (a d8 drops the 11-HP Victim mid-section).
+    // Re-cloned when missing, stripped when it wears one.
     {
       const npc = game.actors.getName("BF Test Attacker");
       const npcWeapon = npc?.items.find(i => (i.type === "weapon") && i.system.activities?.some?.(a => a.type === "attack"));
@@ -231,37 +182,17 @@ const out = await f.evaluate(async ({ playerName }) => {
       }
     }
 
-    // --- the d20-fold PCs: clones of two real party members ----------------------------------
-    // ⚠ CLONES, NOT BUILDS (user call 2026-09-01). A hand-built PC has to reproduce class
-    // advancement — and `level-up-pc` does NOT persist it (measured twice, 2026-08-24: the
-    // subclass, its granted features and the HP bump live only in the calling client's memory,
-    // and only the class `system.levels` write reaches the database). The party sheets already
-    // ARE the advancement, correctly, so copying one is both cheaper and more authentic than
-    // any reconstruction. Chosen for what the suite actually reads:
-    //   Morgash the Gravemaker — Fighter 5 Battle Master, and every link smoke-d20-folds walks
-    //     is already on him: Second Wind, Tactical Mind (whose consumption target must remap to
-    //     that Second Wind), Combat Superiority and Precision Attack.
-    //   Salyth — Bard 8, which is what puts `@scale.bard.inspiration` at the 1d8 the suite pins
-    //     (the 2024 scale steps d6→d8 at level 5 and d8→d10 at 10, so the level is load-bearing:
-    //     a Bard 4 or a Bard 10 clone fails the assertion while the code is perfectly fine).
-    // ⚠ GM-OWNED, like the shielder and for the same reason: the module correctly refuses to let
-    // a GM answer for a character a logged-in player owns, and the harness is a GM.
+    // --- the d20-fold PCs: clones of two party members
+    // ⚠ Clones, not builds: `level-up-pc` does not persist advancement (subclass, granted features,
+    // HP), and the party sheets already are it. Morgash (Fighter 5 Battle Master): Second Wind,
+    // Tactical Mind, Combat Superiority, Precision Attack. Salyth (Bard 8): `@scale.bard.inspiration`
+    // at 1d8, so the level is load-bearing. GM-owned, as the shielder.
     const CLONES = [
       ["BF Test Fighter", "Morgash the Gravemaker"],
       ["BF Test Bard", "Salyth"]
     ];
-    // ⚠ THE FIGHTER SWINGS AT +5, AND THE SUITE SAYS SO OUT LOUD. smoke-d20-folds states its
-    // band in its own comment — "a forced 5 (+5 to hit) totals 10 and misses; a forced 19
-    // totals 24 and hits" — and then asserts LITERAL composed totals (13, "10 + n") against it.
-    // Morgash is a level-5 Fighter with Strength 18, so an uncalibrated clone swings at +7 and
-    // every literal total lands 2 high: nine assertions go red on a module that is working
-    // perfectly, in the shape of a real bug. Proficiency is +3 at level 5, so Strength 14 (+2)
-    // is exactly the +5 the suite means. Re-seeded on EVERY run, not only at creation — the
-    // ownership lesson at smoke-battleflow.mjs:842, applied here.
-    //
-    // The alternative is to teach those ~9 assertions to read the live bonus, which is the
-    // better engineering and the bigger change. This keeps the calibration in the fixture step,
-    // where this repo already puts everything a suite needs.
+    // ⚠ The Fighter swings at +5: smoke-d20-folds asserts literal composed totals against that band.
+    // Proficiency +3 at level 5, so Strength 14 (+2). Re-seeded every run.
     const calibrate = async (actor, name) => {
       if (name !== "BF Test Fighter") return;
       if (actor.system.abilities?.str?.value === 14) return;
@@ -286,19 +217,10 @@ const out = await f.evaluate(async ({ playerName }) => {
       await calibrate(clone, name);
     }
 
-    // --- the BUILT PCs: a rogue and a ranger from the 2024 PHB pack ----------------------------
-    // ⚠ BUILT, NOT CLONED, and that is measured to be safe (tools/probe-rogue-fixture.mjs,
-    // 2026-09-02): a class item created with `system.levels` set resolves its scale values
-    // without the advancement manager — `@scale.rogue.sneak-attack` reads 7d6 at Rogue 14, the
-    // Gloom Stalker's `@scale.gloom.dreadful-strike` resolves beside it — and Cunning Strike's
-    // save DC computes off the sheet. There is no rogue on this table to clone, and the sneak
-    // suite needs one with every option on the sheet: Sneak Attack, Cunning Strike, Devious
-    // Strikes (14), Improved Cunning Strike (11), the Thief's Supreme Sneak, Assassinate for the
-    // clock rider (a feature by NAME is what the module reads — the subclass is not consulted).
-    // Death Strike and Envenom Weapons are NOT here: they fire on every round-1 / Poison and
-    // would colour every other section; the suite adds them for their own sections and removes
-    // them. GM-owned like the clones, for the same reason. Re-seeded for HP and abilities on
-    // every run (the ownership lesson at smoke-battleflow.mjs:842).
+    // --- the BUILT PCs from the PHB pack. A class item created with `system.levels` resolves its
+    // scale values without the advancement manager (tools/probe-rogue-fixture.mjs). The rogue carries
+    // every sneak option on the sheet; Death Strike and Envenom Weapons are added per section (they
+    // would colour every other one). GM-owned; HP and abilities re-seeded every run.
     const findPackItem = async (packIds, name) => {
       for (const id of packIds) {
         const pack = game.packs.get(id);
@@ -308,11 +230,8 @@ const out = await f.evaluate(async ({ playerName }) => {
         const hit = index.find(e => e.name === name);
         if (hit) {
           const doc = await pack.getDocument(hit._id); const data = doc.toObject(); delete data._id;
-          // ⚠ `toObject()` DROPS `_stats.compendiumSource`, and the 2024 pack's consumption targets
-          // are compendium UUIDs the system remaps to the owned copy BY THAT STAMP (measured on the
-          // fighter, fixture-d20-folds.mjs; measured again 2026-09-09 on the Sorcerer: every
-          // metamagic option names Font of Magic by UUID, and without the stamp `poolOf` read
-          // nothing). Every built item carries its source, so a target can always find its pool.
+          // ⚠ `toObject()` drops `_stats.compendiumSource`, and the pack's consumption targets are
+          // compendium UUIDs remapped to the owned copy BY that stamp: every built item carries it.
           foundry.utils.setProperty(data, "_stats.compendiumSource", doc.uuid);
           return data;
         }
@@ -320,56 +239,39 @@ const out = await f.evaluate(async ({ playerName }) => {
       return null;
     };
     const PHB_CLASSES = ["dnd-players-handbook.classes"];
-    // Slice A (2026-09-24): species traits live in `origins` and origin feats in `feats`, so a
-    // FEATURE is looked up in all three — the class pack first, the house order; a class or a
-    // subclass stays on PHB_CLASSES.
+    // Species traits live in `origins`, origin feats in `feats`: a FEATURE is looked up in all
+    // three, the class pack first; a class or subclass stays on PHB_CLASSES.
     const PHB_FEATS = [...PHB_CLASSES, "dnd-players-handbook.origins", "dnd-players-handbook.feats"];
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
     const PHB_SPELLS = ["dnd-players-handbook.spells", "dnd5e.spells24"];
     const BUILT = [
-      // The emanations suite (2026-09-03): a Paladin whose three auras stand (Protection at 6,
-      // Courage at 10, the Ancients' Warding at 7 — the class's `@scale.paladin.aura` reads 10 at
-      // this level), and a Cleric who can cast Spirit Guardians (a 3rd-level slot at Cleric 5).
-      // ⚠ Both stand on the range's BOTTOM ROW, far from the fixture line at y=1000: the Paladin's
-      // aura is ALWAYS ON and would otherwise put "Protected" on every fixture a suite walks past.
+      // The emanations suite: a Paladin with three auras and a Cleric who can cast Spirit Guardians.
+      // ⚠ Both home on the BOTTOM ROW: the Paladin's aura is always on.
       { name: "BF Test Paladin", classes: [["Paladin", 10], ["Oath of the Ancients", null]],
         feats: ["Aura of Protection", "Aura of Courage", "Aura of Warding"], gear: ["Longsword"],
         abilities: { cha: 16, str: 16, con: 14, wis: 12 }, hp: 84, x: 300, y: 1800 },
       { name: "BF Test Cleric", classes: [["Cleric", 5], ["Life Domain", null]],
         feats: [], spells: ["Spirit Guardians"], gear: ["Mace"],
-        // ⚠ FAR from the Paladin (300, 1800): a home inside the Paladin's aura put "Protected" on
-        // the Cleric every time the fixtures re-placed the tokens under a live walk (2026-09-03).
+        // ⚠ Far from the Paladin, outside its aura.
         abilities: { wis: 16, con: 14, str: 12 }, hp: 38, x: 1700, y: 1800 },
       { name: "BF Test Rogue", classes: [["Rogue", 14], ["Thief", null]],
         feats: ["Sneak Attack", "Cunning Strike", "Devious Strikes", "Improved Cunning Strike", "Supreme Sneak", "Assassinate", "Steady Aim", "Evasion"],
         gear: ["Rapier", "Longsword", "Shortbow"], abilities: { dex: 18, str: 12, con: 14 }, hp: 90, x: 700 },
       { name: "BF Test Ranger", classes: [["Ranger", 5], ["Gloom Stalker", null]],
         feats: ["Dread Ambusher"], gear: ["Longsword", "Longbow"], abilities: { dex: 16, str: 14, wis: 16, con: 14 }, hp: 44, x: 500 },
-      // The metamagic pass (2026-09-09, RULINGS.md *Metamagic*): a Sorcerer with EVERY
-      // 2024 option on the sheet. The options are class feats nothing grants (SWEEP: "options
-      // nothing grants"), so they go on as items beside Font of Magic, whose uses.max is
-      // `@scale.sorcerer.points` — resolved by the level-set class item exactly as the Rogue's
-      // sneak-attack scale is. Charisma 16 (+3) is load-bearing: Careful's cap and Empowered's
-      // reroll count both read the modifier, and the suite asserts against 3. Built, not cloned:
-      // Gren (the world's Sorcerer) knows only Careful and Subtle and carries DDB import residue
-      // (Innate Sorcery's effect had been stripped). Fireball (a save spell over an area), Hold
-      // Person (a save spell that scales targets), Chromatic Orb (a spell attack) are the three
-      // spell shapes the ten options need. ⚠ BOTTOM ROW like the Paladin and the Cleric, and
-      // well away from both: a Fireball needs clear ground, and the Paladin's aura must not stand
-      // over the fixture.
+      // The metamagic suite: a Sorcerer with every option on the sheet (class feats nothing grants,
+      // added beside Font of Magic). Charisma 16 is load-bearing (Careful's cap, Empowered's reroll
+      // count). Fireball, Hold Person and Chromatic Orb are the spell shapes the options need.
+      // ⚠ Bottom row, clear of the Paladin's aura, with clear ground for a Fireball.
       { name: "BF Test Sorcerer", classes: [["Sorcerer", 5], ["Draconic Sorcery", null]],
         feats: ["Font of Magic", "Metamagic", "Careful Spell", "Distant Spell", "Empowered Spell", "Extended Spell", "Heightened Spell",
           "Quickened Spell", "Seeking Spell", "Subtle Spell", "Transmuted Spell", "Twinned Spell"],
-        spells: ["Fireball", "Hold Person", "Chromatic Orb", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",   // Fire Bolt: the CANTRIP shape (2026-09-10) - no slot, no template, no scaling, so the system alone opens no window
+        spells: ["Fireball", "Hold Person", "Chromatic Orb", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",   // Fire Bolt: the CANTRIP shape (no slot, template or scaling)
         abilities: { cha: 16, con: 14, dex: 14, str: 8 }, hp: 32, x: 1000, y: 1800 },
-      // Slice A (2026-09-24): the species traits and origin feats. The Goliath carries Stone's
-      // Endurance (the reduction hold) and Fire's Burn (the hit menu's Giant Ancestry group); the
-      // suites add and remove Frost's Chill and Hill's Tumble per section — one boon at a time, as
-      // smoke-hitmenu adds maneuvers. The Halfling carries Brave (the save gate's feature row)
-      // beside Lucky and Savage Attacker (the tier-3 suites'). Both HOME in the range's empty top-left
-      // corner (y=200): every suite places its tokens between x 800-1700 and y 900-1700, and a
-      // home at y=1400 stood beside smoke-reminders' target as an ALLY — Pack Tactics counted it
-      // (measured 2026-09-24, §11e). Friendly fixtures must never stand where a suite plays.
+      // Species traits and origin feats: the Goliath (Stone's Endurance, Fire's Burn; suites add
+      // other boons one at a time) and the Halfling (Brave, Lucky, Savage Attacker).
+      // ⚠ Both home in the empty top-left corner: suites play between x 800-1700, y 900-1700, and a
+      // friendly fixture there counts as an ally (Pack Tactics).
       { name: "BF Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
         abilities: { str: 16, con: 16 }, hp: 52, x: 300, y: 200 },
       { name: "BF Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
@@ -408,7 +310,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         made.push(spec.name);
         log.push(`created ${spec.name} from the PHB pack (${spec.classes.map(([c, l]) => l ? `${c} ${l}` : c).join(" / ")})`);
       }
-      // A feature added to the spec after the actor was built joins it on the next run.
+      // A feature added to the spec later joins on the next run.
       const lacking = spec.feats.filter(n => !actor.items.some(i => (i.type === "feat") && (i.name === n)));
       const lackingSpells = (spec.spells ?? []).filter(n => !actor.items.some(i => (i.type === "spell") && (i.name === n)));
       if (lacking.length || lackingSpells.length) {
@@ -417,8 +319,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { data.system.preparation = { mode: "prepared", prepared: true }; add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
       }
-      // An item built before the source stamp was understood (2026-09-09) is healed in place —
-      // idempotent, the d20-folds fixture's idiom — so a rebuilt world and a healed one agree.
+      // An unstamped item is healed in place, so a rebuilt world and a healed one agree.
       const unstamped = actor.items.filter(i => !i._stats?.compendiumSource);
       if (unstamped.length) {
         const updates = [];
@@ -433,17 +334,14 @@ const out = await f.evaluate(async ({ playerName }) => {
         if (updates.length) { await actor.updateEmbeddedDocuments("Item", updates); log.push(`stamped ${updates.length} of ${spec.name}'s items with their compendium source`); }
       }
       // A built caster's spells read the ACTOR's spellcasting ability (the pack's spells carry no
-      // class link); unset, the DC computed at 8 + proficiency (measured 2026-09-09: 11 on a
-      // Sorcerer 5 with Charisma 16, where 14 is right).
+      // class link); unset, the DC computes at 8 + proficiency.
       if (spec.spellcasting && (actor.system._source.attributes?.spellcasting !== spec.spellcasting)) {
         await actor.update({ "system.attributes.spellcasting": spec.spellcasting });
         log.push(`set ${spec.name}'s spellcasting ability to ${spec.spellcasting}`);
       }
-      // A bare character walks at 0 — give it a speed, so a feature that zeroes it can be seen to.
+      // A bare character walks at 0; give it a speed so a feature that zeroes it can be seen to.
       if (!(actor.system._source.attributes?.movement?.walk > 0)) { await actor.update({ 'system.attributes.movement.walk': 30 }); log.push(`gave ${spec.name} a walking speed of 30`); }
-      // Full HP every run, not only when the pool is re-seeded: a built caster who took their own
-      // Fireball stays at 0 across runs otherwise, and a dead fixture is silently filtered from every
-      // demand and list (measured 2026-09-09, the Sorcerer).
+      // Full HP every run: a dead fixture is silently filtered from every demand and list.
       if ((actor.system.attributes?.hp?.value ?? 0) < (actor.system.attributes?.hp?.max ?? 0)) {
         await actor.update({ 'system.attributes.hp.value': actor.system.attributes.hp.max });
         log.push(`healed ${spec.name} to full`);
@@ -455,18 +353,14 @@ const out = await f.evaluate(async ({ playerName }) => {
       built.push({ actor, x: spec.x, y: spec.y ?? 1000 });
     }
 
-    // --- adopt strays ------------------------------------------------------------------------
-    // An older suite that built its own fixture put it at the root. Sweep every BF Test actor
-    // into the folder so nothing is left loose to annoy anyone back into deleting it.
+    // --- adopt strays: every BF Test actor into the folder
     const strays = game.actors.filter(a => a.name?.startsWith("BF Test") && (a.folder?.id !== actorFolder.id));
     for (const a of strays) await a.update({ folder: actorFolder.id });
     if (strays.length) log.push(`adopted ${strays.length} stray BF Test actor(s) into the folder`);
 
-    // --- tokens on the scene -----------------------------------------------------------------
-    // ⚠ Every token this tool places carries `flags.fvtt-mod-battleflow.fixtureHome` — the stamp
-    // reset-fixture-state keeps when it sweeps a killed suite's LINKED leftovers (2026-09-24: a
-    // battery killed inside smoke-hitmenu left its linked tokens beside the shared attacker and
-    // two batteries measured distance from them). A suite's own token never carries the stamp.
+    // --- tokens on the scene
+    // ⚠ Every token placed here carries `flags.fvtt-mod-battleflow.fixtureHome`, the stamp
+    // reset-fixture-state keeps when it sweeps a killed suite's linked leftovers.
     const ensureToken = async (actor, x, linked, y = 1000) => {
       let doc = scene.tokens.find(t => t.actorId === actor.id);
       if (!doc) {
@@ -480,8 +374,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         log.push(`stamped ${actor.name}'s token as the fixture home`);
       }
       if (doc && (y !== 1000) && ((doc.x !== x) || (doc.y !== y))) {
-        // A built fixture with a HOME off the fixture line goes back to it every run (the Paladin's
-        // always-on aura must not stand over the line between suites).
+        // A fixture with a home off the fixture line returns to it every run.
         await doc.update({ x, y }, { teleport: true, animate: false });
         log.push(`sent ${actor.name} home to (${x}, ${y})`);
       }
@@ -492,8 +385,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     await ensureToken(shielder, 1500, true);
     for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
-    // Full HP on the token actors: a run that died mid-flight leaves the victim at 0, where
-    // "applied 0 damage" and "the pool was already empty" are the same observation.
+    // Full HP on the token actors: at 0, "applied 0" and "already empty" look the same.
     for (const id of [attackerToken, victimToken]) {
       const ta = scene.tokens.get(id)?.actor;
       if (ta?.system.attributes?.hp?.max) {
@@ -504,7 +396,7 @@ const out = await f.evaluate(async ({ playerName }) => {
       }
     }
 
-    // View locally and wait for the canvas — suites that click real DOM need token objects.
+    // Suites that click real DOM need token objects.
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(victimToken)); i++) {
       await new Promise(r => setTimeout(r, 250));

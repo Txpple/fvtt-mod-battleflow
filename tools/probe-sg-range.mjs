@@ -1,17 +1,10 @@
-// Probe (2026-09-10): SPIRIT GUARDIANS' REACH — the 2026-09-09 table report (BACKLOG *From
-// play*): "Spirit Guardians rolled a save for Gren out of range". Three guesses were written
-// down: the Region's radius, walls (a Region knows nothing of cover), a stale spent-area. This
-// measures the first two on the range with the BF Test Cleric's own Spirit Guardians and the
-// hostile BF Test Victim as the walker, and prints — asserts nothing:
-//
-//   • the template's distance and the Region's shape as the platform placed them;
-//   • for a grid of offsets from the caster (squares, then feet by the scene's own ruler), whether
-//     the Victim is a MEMBER (`region.tokens`), whether its centre is inside the Region's polygon
-//     (`region.testPoint`), and whether the module DEMANDED a save on the entry (the trigger card);
-//   • the same at one spot two squares away with a wall between (the cover guess).
-//
-// Everything it creates — the cast's template/region/concentration, the wall, the run's chat —
-// is undone in `finally`; tokens go home; the settings it pins are handed back.
+// Probe: Spirit Guardians' reach. With the BF Test Cleric's own Spirit Guardians and the hostile BF
+// Test Victim as the walker, prints (asserts nothing):
+//   • the template's distance and the Region's shape as placed;
+//   • for a grid of offsets from the caster: Region membership (`region.tokens`), centre inside the
+//     polygon (`region.testPoint`), and whether the module demanded a save on entry;
+//   • one spot two squares away behind a wall (a Region knows nothing of cover).
+// Everything it creates is undone in `finally`; tokens go home; pinned settings are handed back.
 //
 //   node tools/probe-sg-range.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
@@ -79,9 +72,8 @@ const out = await f.evaluate(async () => {
     };
     if ( !region ) throw new Error("no region adopted");
 
-    // The two answers that can disagree: the Region's membership (the platform's, async) and the
-    // module's own containment (`tokensInRegions` — the platform's test run directly; the 6.0 pass
-    // retired the drawn-template reader, so `template` is null on a 6.0 box and its columns read null).
+    // The two answers that can disagree: Region membership (the platform's, async) and the module's
+    // containment (`tokensInRegions`). `template` is null on a Region-only box.
     const { tokensInRegions } = await import("/modules/fvtt-mod-battleflow/scripts/geometry.js");
     report.gridTemplates = game.settings.get("core", "gridTemplates");
     report.drawnShape = template?.object?.shape?.constructor?.name ?? null;
@@ -109,9 +101,8 @@ const out = await f.evaluate(async () => {
       await vicTok.update(far, mv()); await sleep(1200);
     }
 
-    // B. the RENDER floor: the victim just outside the Region at (3,3) — no member, no trigger —
-    // then the cast's own demand card re-rendered. Does the cast's demand adopt the victim off
-    // the drawn template?
+    // B. the render floor: the victim just outside the Region, then the cast's demand card
+    // re-rendered. Does the demand adopt it?
     {
       const pos = { x: clrPost.x + 3 * grid, y: clrPost.y + 3 * grid };
       await vicTok.update(pos, mv()); await sleep(1500);
@@ -131,9 +122,7 @@ const out = await f.evaluate(async () => {
       await vicTok.update({ ...far, elevation: 0 }, mv()); await sleep(1200);
     }
 
-    // D. THE SWEEP: the victim parked 4 squares right (outside); the caster WALKS 8 squares right
-    // past it in one move, ending 4 squares beyond — the ring crosses the victim mid-path and
-    // ends with the victim outside. Is an entry asked?
+    // D. the sweep: the caster walks past a parked victim in one move, ending beyond it. Is an entry asked?
     {
       const pos = { x: clrPost.x + 4 * grid, y: clrPost.y };
       await vicTok.update(pos, mv()); await sleep(1500);
@@ -147,8 +136,7 @@ const out = await f.evaluate(async () => {
 
     // The wall: two squares to the right, a wall between.
     const wallPos = { x: clrPost.x + 2 * grid, y: clrPost.y };
-    // A vertical wall one square right of the caster, three squares tall — total cover between
-    // the caster's square and the spot two squares right.
+    // A vertical wall one square right of the caster, three squares tall: total cover to the spot.
     [wall] = await scene.createEmbeddedDocuments("Wall", [{ c: [clrPost.x + grid, clrPost.y - grid, clrPost.x + grid, clrPost.y + 2 * grid] }]);
     await sleep(300);
     {

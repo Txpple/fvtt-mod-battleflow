@@ -1,6 +1,5 @@
-// One-off probe (2026-09-02): why did Web's failed save not press Restrained? Read Web's save
-// activity as the sheet holds it — its effects, which are applicable, the effect's statuses —
-// and the last Web demand card's flags.
+// Probe: why a Web failed save pressed no Restrained. Reads Web's save activity as the sheet holds
+// it (its effects, which are applicable, their statuses) and the last Web demand card's flags.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const env = loadEnv();

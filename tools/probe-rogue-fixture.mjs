@@ -1,9 +1,7 @@
-// One-off probe for the Sneak Attack fixture (2026-09-02): can a hand-built character carry a
-// class item at a level and resolve its scale values — `@scale.rogue.sneak-attack`, and a
-// subclass's `@scale.gloom.dreadful-strike` — without the advancement manager? The clones the
-// fixture suite uses are built from real party sheets; there is no rogue on this table, so the
-// rogue fixture has to be BUILT, and NOTES §2 warns an unresolved @scale token rolls ZERO in
-// silence. Creates a probe actor, reads the roll data, deletes it. Read-only otherwise.
+// Probe: can a hand-built character carry a class item at a level and resolve its scale values
+// (`@scale.rogue.sneak-attack`, a subclass's `@scale.gloom.dreadful-strike`) without the advancement
+// manager? NOTES §2: an unresolved @scale token rolls ZERO in silence. Creates a probe actor, reads
+// the roll data, deletes it.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const env = loadEnv();

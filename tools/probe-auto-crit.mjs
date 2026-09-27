@@ -1,8 +1,7 @@
-// THE AUTOMATIC CRIT'S FACTS, live (the dnd5e 6.0 pass, 2026-09-15): smoke-battleflow §5e read
-// inverted at 6.0.1 — the swing within 5 feet of a Paralyzed victim rolled plain dice and the swing
-// from 10 feet rolled double. This replays §5e's two swings with the crit judge's INPUTS logged at
-// `dnd5e.preRollDamageV2` (auto-damage.js `critFor`): the attack the damage answers, the hits, the
-// attacker's token, the target's token, the distance in feet, the target's statuses, the verdict.
+// Probe: the automatic crit's facts, live. Replays smoke-battleflow §5e's two swings at a Paralyzed
+// victim (within 5 feet, and from 10 feet) with the crit judge's INPUTS logged at
+// `dnd5e.preRollDamageV2` (auto-damage.js `critFor`): the attack, the hits, both tokens, the
+// distance in feet, the target's statuses, the verdict.
 //
 //   node tools/probe-auto-crit.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";

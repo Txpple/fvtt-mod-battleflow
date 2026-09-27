@@ -1,20 +1,11 @@
-// Build the PHB feats walk for groups 4–6 (RULINGS *The PHB feats — groups 4–6*) on Party Camp — the
-// groups 1–3 walk's shape (place-feats-walk.mjs), rebuilt for the next set. CLEARS every token on
-// Party Camp, then builds one walker per feat and the creature each rule needs, and places them:
-//   the fight (north): BF Walk Caster (hostile; Bless to concentrate on, Command for a Wisdom save, a
-//                      Scimitar) with BF Feat Mage Slayer 5 ft west and BF Feat Sentinel 5 ft east —
-//                      the Caster swinging at the Mage Slayer asks the Sentinel (Guardian → Halt); the
-//                      Mage Slayer hitting the concentrating Caster asks its save at Disadvantage; the
-//                      Caster's Command at the Mage Slayer is a Wisdom save Guarded Mind can turn
-//                      BF Feat Polearm Master (a Glaive held, a Quarterstaff stowed) three squares north
-//                      of the Caster: the Caster stepping into its 10-ft reach raises Reactive Strike's
-//                      reminder; its own swing with the Glaive raises Pole Strike's
-//   the camp (south):  BF Feat Inspiring Leader and BF Feat Chef side by side, 5 ft apart — the north
-//                      walkers are out of Inspiring Leader's 30 ft and on the scene for the Chef's food
-// Every walker starts at HALF its hit points (a Short Rest then has Hit Dice worth spending). The
-// walkers are CLEAN copies of BF Test Fighter / BF Test Sorcerer (the class item, a few core
-// features, the feat under test) so every line on a card is the feat's. Linked tokens; idempotent.
-// A content tool, not a suite — it asserts nothing. ⚠ Disconnect the MCP bridge first.
+// Build the PHB feats walk scene for groups 4–6 (RULINGS *The PHB feats — groups 4–6*) on Party Camp.
+// CLEARS every token on Party Camp, then builds one walker per feat plus the creature each rule needs:
+//   north: BF Walk Caster (hostile; Bless, Command, a Scimitar) with BF Feat Mage Slayer 5 ft west and
+//          BF Feat Sentinel 5 ft east; BF Feat Polearm Master (Glaive held) three squares north of it.
+//   south: BF Feat Inspiring Leader and BF Feat Chef, 5 ft apart, out of the north's 30 ft.
+// Walkers start at HALF HP (a Short Rest has Hit Dice worth spending) and are CLEAN copies of BF Test
+// Fighter / Sorcerer, so every card line is the feat's. Linked tokens; idempotent; asserts nothing.
+// ⚠ Disconnect the MCP bridge first.
 import { connectSuite } from '../harness.mjs';
 
 const f = await connectSuite({ tag: 'place-feats-walk-456', watchdogMs: 240_000 });
@@ -101,8 +92,7 @@ const out = await f.evaluate(async () => {
     made[name] = a;
   }
 
-  // The Caster: an NPC that concentrates (Bless), demands a Wisdom save (Command) and swings (a Scimitar),
-  // its spells at will so no slot is needed.
+  // The Caster: concentrates (Bless), demands a Wisdom save (Command), swings (a Scimitar); spells at will.
   {
     const img = dummyArt?.img ?? 'icons/svg/mystery-man.svg';
     const tex = dummyArt?.prototypeToken?.texture?.src ?? img;

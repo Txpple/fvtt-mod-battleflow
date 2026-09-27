@@ -1,28 +1,8 @@
-// STATIC LAYER-INTEGRITY CHECK — no Foundry, no world, milliseconds.
-//
-// ARCHITECTURE.md §7's dependency rule, made mechanical: **depend downward only**, and every
-// edge that does not is PINNED HERE with a reason.
-//
-// WHY (the 2026-08-23 architecture review): the dependency rule was the module's central
-// structural discipline and the ONLY major rule enforced by prose alone. `check-imports.mjs`
-// proves every named binding resolves; nothing proved DIRECTION. The review counted the rule as
-// written ("a machine may not import another machine") violated on the order of seventeen edges,
-// every one of them individually reasonable and none of them counted anywhere.
-//
-// This is the R4 tripwire's shape applied to the import graph, and for the same reason: the rule
-// is not "no cross-layer edges" — it is **"no UNNOTICED cross-layer edges"**. A new one fails the
-// gate until somebody writes down why it exists. Adding a line here is cheap; adding it without
-// noticing is what this file makes impossible.
-//
-// ⚠ IT ALSO FAILS ON A STALE PIN. An allowlist row whose edge no longer exists is a lie about
-// the shape of the tree, and this repo has been bitten by exactly that: debt row D2's evidence
-// went stale in place and nobody re-measured it for weeks (ARCHITECTURE §10 D2). A pin that
-// cannot go stale silently is worth more than a pin that merely permits.
-//
-// ⚠ SAME-LAYER EDGES ARE NOT FREE. `machines` is the layer with twelve files in it, and the
-// original rule was specifically about them: a machine importing another machine is how a feature
-// becomes a service without anybody deciding it should be one. Same-layer is treated exactly like
-// upward — legal only when pinned.
+// Static layer-integrity check (no Foundry, milliseconds): ARCHITECTURE.md §7's dependency rule,
+// "depend downward only", with every edge that does not PINNED here with a reason. The rule is
+// "no UNNOTICED cross-layer edges": a new one fails until somebody writes down why.
+// ⚠ A stale pin (a row whose edge is gone) fails too. ⚠ Same-layer edges are treated as
+// upward: legal only when pinned.
 //
 //   node tools/check-layers.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -33,18 +13,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const SCRIPTS = join(ROOT, "scripts");
 
 /* ---------------------------------------------------------------------------------------------
- * THE LAYER MAP — ARCHITECTURE.md §2 and §7, declared once, in code.
- *
- * The DEPTH is what the rule tests: an edge is legal when it points at a STRICTLY SMALLER number.
- *
- * ⚠ `services` IS THE TIER THE REVIEW FOUND MISSING FROM THE DOCS. The four-layer model
- * (EDGE/MOMENT/DECISION/REGISTRY) describes what KIND of code a file holds and stands unchanged —
- * services are EDGE by §2's own test, since they touch Foundry. But `auto-apply`, `effect-riders`
- * and `auto-damage` are not machines: they own no moment and no feature. They are the CHOKEPOINTS
- * every machine routes its consequences through — apply damage with a receipt, apply effects with
- * a receipt, offer and roll damage. Calling them machines is what made the dependency rule read as
- * violated far more often than it morally was: nine of the edges the review counted are a machine
- * calling a service, which is downward and always was.
+ * The layer map (ARCHITECTURE.md §2, §7): an edge is legal when it points at a STRICTLY smaller depth.
+ * `services` are the consequence chokepoints every machine routes through (apply damage / effects
+ * with a receipt, offer and roll damage): they own no moment and no feature, so machine → service
+ * is downward.
  * ------------------------------------------------------------------------------------------- */
 
 export const DEPTH = { core: 0, decision: 1, registry: 2, spine: 3, services: 4, machines: 5, entry: 6 };
@@ -54,22 +26,18 @@ export const LAYER_OF = {
   "battleflow.js": "entry",
 
   // MACHINES — one feature each: a trigger, its views, its resolver
-  // hold/ — the reaction hold, ONE machine as a DIRECTORY (2026-09-05, the second customer of
-  // the rule saves/ built the same day): nine parts by moment, a DAG (no cycle), index.js the
-  // only face and the one re-export (stampHoldIfInterrupted, auto-damage's).
+  // hold/: one machine as a directory, a DAG, index.js the only face (GROUPS below).
   "hold/index.js": "machines",
   "hold/lookup.js": "machines",
   "hold/clock.js": "machines",
   "hold/trigger.js": "machines",
   "hold/spell-hold.js": "machines",
-  "hold/dice.js": "machines",   // a bent roll's d20s rise over the creature hit (2026-09-26)
+  "hold/dice.js": "machines",   // a bent roll's d20s rise over the creature hit
   "hold/answer.js": "machines",
   "hold/continue.js": "machines",
   "hold/spell-damage.js": "machines",
   "hold/views.js": "machines",
-  // saves/ — ONE machine as a DIRECTORY (the machine-tier pass, Stage 4c, 2026-09-05 — ruling
-  // 3): its parts import each other freely, index.js is its only public face, and GROUPS below
-  // is what says so. hold/ took the same rule later the same day.
+  // saves/: one machine as a directory, index.js its only face (GROUPS below).
   "saves/index.js": "machines",
   "saves/demand.js": "machines",
   "saves/areas.js": "machines",
@@ -79,16 +47,16 @@ export const LAYER_OF = {
   "saves/choices.js": "machines",
   "saves/views.js": "machines",
   "mastery.js": "machines",
-  "topple.js": "machines",        // the Topple demand off mastery's card (Stage 4b, 2026-09-05)
-  "chip-spend.js": "machines",    // the chip spend and the two tidies (Stage 4b, 2026-09-05)
-  // the maneuver folds — one file per moment since the machine-tier pass, Stage 4a (2026-09-05)
+  "topple.js": "machines",        // the Topple demand off mastery's card
+  "chip-spend.js": "machines",    // the chip spend and the two tidies
+  // the maneuver folds, one file per moment
   "precision.js": "machines",
   "riposte.js": "machines",
-  "damage-holds.js": "machines",  // a reduction "when you take damage" held at the applier's claim — Stone's Endurance on any damage (the Goliath walk, 2026-09-25)
-  "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage (the Goliath walk, 2026-09-25)
+  "damage-holds.js": "machines",  // a reduction "when you take damage" held at the applier's claim — Stone's Endurance on any damage
+  "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage
   "hew.js": "machines",
   "bash-offer.js": "machines",
-  "effect-view.js": "machines",   // the effect view — a creature's buffs and debuffs on hover, on a held key, on a bar (2026-09-15 draft)
+  "effect-view.js": "machines",   // the effect view — a creature's buffs and debuffs on hover, on a held key, on a bar
   "command.js": "machines",
   "concentration.js": "machines",
   "volleys.js": "machines",
@@ -99,19 +67,19 @@ export const LAYER_OF = {
   "reminders.js": "machines",
   "advantage-buys.js": "machines",
   "rest-grants.js": "machines",
-  "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled (2026-09-25)
-  "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll (2026-09-25)
-  "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use (2026-09-25)
-  "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike (2026-09-25)
-  "fighting-styles.js": "machines", // the fighting styles' faces, gates and damage numbers (2026-09-26)
-  "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0 (2026-09-25)      // Resourceful's Heroic Inspiration on a Long Rest (2026-09-25)   // Lucky's Advantage box on the gate (2026-09-25)
+  "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled
+  "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll
+  "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use
+  "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike
+  "fighting-styles.js": "machines", // the fighting styles' faces, gates and damage numbers
+  "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0
   "sneak.js": "machines",
   "clock-riders.js": "machines",
   "use-chips.js": "machines",
-  "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card (2026-09-09)
-  "dice-changers.js": "machines",   // the dice changers' one popup per damage roll — Empowered Spell, Savage Attacker, Piercer (2026-09-27; was damage-either.js, Slice A, 2026-09-24)
+  "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card
+  "dice-changers.js": "machines",   // the dice changers' one popup per damage roll — Empowered Spell, Savage Attacker, Piercer
   "emanations.js": "machines",
-  "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light (the Aasimar walk, 2026-09-25)
+  "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",
   "damage-casts.js": "machines",
@@ -121,7 +89,7 @@ export const LAYER_OF = {
   "stats.js": "machines",
 
   // SERVICES — the consequence chokepoints every machine routes through
-  "area-ask.js": "services",   // the ask at the area — one question two machines route through (metamagic, saves), 2026-09-24
+  "area-ask.js": "services",   // the ask at the area — one question two machines route through (metamagic, saves)
   "auto-apply.js": "services",
   "effect-riders.js": "services",
   "auto-damage.js": "services",
@@ -131,24 +99,24 @@ export const LAYER_OF = {
   "shared.js": "spine",
   "geometry.js": "spine",
   "settings.js": "spine",
-  "holds.js": "spine",     // the hold registry — what other modules ask before they play (2026-09-09)
-  "dice-rise.js": "spine", // the dice that rise over a token — one renderer, every rule that changes dice (2026-09-26)
-  "events.js": "spine",    // the moment events — what the module publishes at a resolve (2026-09-11)
-  "lookup.js": "spine",      // the sheet and document readers (the machine-tier pass, Stage 1)
+  "holds.js": "spine",     // the hold registry — what other modules ask before they play
+  "dice-rise.js": "spine", // the dice that rise over a token — one renderer, every rule that changes dice
+  "events.js": "spine",    // the moment events — what the module publishes at a resolve
+  "lookup.js": "spine",      // the sheet and document readers
 
   // REGISTRY — which content participates, in what way
   "volley-registry.js": "registry",
 
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
   "decide/geometry.js": "decision",
-  "decide/cover.js": "decision",        // measured cover: the 2024 DMG's corner lines, counted (2026-09-27)
+  "decide/cover.js": "decision",        // measured cover: the 2024 DMG's corner lines, counted
   "decide/metamagic.js": "decision",
   "decide/dice-changers.js": "decision",
   "decide/area-ask.js": "decision",
-  "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows (Slice A, 2026-09-24)
-  "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set (2026-09-24)
-  "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries (2026-09-26)
-  "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count (2026-09-26)
+  "decide/rescue-hit.js": "decision",    // the `roll` interrupt's arithmetic and rows
+  "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set
+  "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries
+  "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",
@@ -159,29 +127,26 @@ export const LAYER_OF = {
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
-  "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line (2026-09-25)
-  "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it (2026-09-25)
-  "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands (2026-09-27)
+  "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line
+  "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it
+  "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",
   "decide/demand.js": "decision",
-  "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data (2026-09-11)
-  "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision (2026-09-13)
-  "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned (2026-09-15 draft)
-  "decide/card.js": "decision",        // THE CARD SEAM — what kind of card, whose, from which, off the typed message (the dnd5e 6.0 pass, 2026-09-15)
+  "decide/moments.js": "decision",   // the moment records — what a resolve IS, as data
+  "decide/sequence.js": "decision",  // the hit's sequence — a queued offer waits for the damage and the mastery's decision
+  "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned
+  "decide/card.js": "decision",        // THE CARD SEAM — what kind of card, whose, from which, off the typed message
 
   // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
   "core.js": "core",
-  "surfaces.js": "core"   // THE SURFACES MAP — every platform HTML anchor, a second leaf; imports nothing (the dnd5e 6.0 pass, 2026-09-15)
+  "surfaces.js": "core"   // THE SURFACES MAP — every platform HTML anchor, a second leaf; imports nothing
 };
 
 /* ---------------------------------------------------------------------------------------------
- * THE GROUPS — a machine that is a DIRECTORY (§7, 2026-09-05). The directory is the unit the
- * dependency rule tests: an edge INSIDE a group is legal (the parts are one machine, and their
- * cycles are hoisted-function-at-hook-time safe like every other cycle in the tree); an edge from
- * OUTSIDE the group to any part but its face fails with "import the index". The face itself is
- * then judged by the ordinary depth rule. Declared by directory name; a part's group is its folder.
+ * The groups: a machine that is a DIRECTORY. Inside a group every edge is legal; from outside,
+ * only the face (index.js), which is then judged by depth. A part's group is its folder.
  * ------------------------------------------------------------------------------------------- */
 
 export const GROUPS = {
@@ -192,14 +157,10 @@ export const GROUPS = {
 export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ? rel.split("/")[0] : null;
 
 /* ---------------------------------------------------------------------------------------------
- * THE ALLOWLIST — every edge that is not strictly downward, and why it is allowed to exist.
- *
- * ⚠ A row here is a DECISION, not an exemption. Three dispositions appear, and they are
- * deliberately different words:
- *
+ * The allowlist: every edge that is not strictly downward, and why. ⚠ A row is a decision:
  *   PERMANENT — ruled permanent (ARCHITECTURE *Decided against, and why*). Do not "fix" these.
- *   OPEN      — real debt, recorded as ARCHITECTURE §10 D9, waiting on a decision or a feature.
- *   BY DESIGN — the edge is correct at this layering and needs no repayment.
+ *   OPEN      — real debt (ARCHITECTURE §10 D9).
+ *   BY DESIGN — correct at this layering, nothing to repay.
  * ------------------------------------------------------------------------------------------- */
 
 const ALLOW = [
@@ -239,17 +200,8 @@ const ALLOW = [
     why: "service → service: applying damage and applying effects are one consequence pass, and "
       + "the receipt merge disciplines are shared. The services tier is where this belongs"
   },
-  // ⚠ THREE MORE ROWS WENT ON 2026-09-04: `auto-damage -> mastery / sneak / clock-riders`, the
-  // damage OFFER's lazy edges to the machines whose content it painted (the Cleave line, the
-  // Cunning Strike menu, the clock riders). The third instance proved the seam BACKLOG named:
-  // `registerOfferPart` in auto-damage.js — each machine declares its contribution INTO the
-  // service at module evaluation (the relay's idiom), so the edge points downward and the
-  // hit menu joined without a fourth pin.
-  // ⚠ THREE ROWS WERE DELETED FROM HERE ON 2026-08-23, and the deletion is the point: this list
-  // shrinks when debt is repaid, and the GATE is what forced the shrink. `mastery -> concentration`
-  // and `saves -> concentration` (dramaticVerdictPause → ui.js, the spine) and `maneuvers ->
-  // mastery` (combatStamp → core.js) all stopped existing, and the stale-pin rule failed the build
-  // until these rows came out. A pin that only ever permits would have sat here forever.
+  // Offer contributions from machines register INTO auto-damage (`registerOfferPart`), so those
+  // edges point downward and need no pin.
   {
     from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",
     why: "judgeRoll (2026-09-02): the volley's aim popup is the gate's SECOND SURFACE — the rays "
@@ -257,11 +209,6 @@ const ALLOW = [
       + "the gate's own judge. The judge reads the world (chips, tokens, the lists), so it "
       + "cannot live in decide/; a third surface reading it is the argument for a spine home"
   },
-  // ⚠ ONE ROW WENT ON 2026-09-05 (the machine-tier pass, Stage 4a): `saves -> maneuvers`
-  // (foldEntryFor/equippedShield at the interpose choice spec, RULE_TEXT at its popup). The
-  // readers live in lookup.js and the rules text in decide/registry.js now — both DOWNWARD from
-  // saves.js — and maneuvers.js itself is five files. D9(c)'s import half is repaid; the
-  // save-choice registry it also named stays feature-shaped work for the third choice kind.
   {
     from: "saves/verdict.js", to: "receipts.js", disposition: "OPEN (D9)",
     why: "revertTarget, lazy on purpose — a static import would evaluate receipts.js first and "
@@ -269,11 +216,6 @@ const ALLOW = [
       + "resistance unwind). receipts.js is classed a machine because revertTarget has exactly "
       + "one importer; a second one makes it a service"
   },
-  // ⚠ TWO ROWS WENT ON 2026-09-05 (the machine-tier pass, Stage 3b — ruling 2): `saves ->
-  // d20-folds` (offerFoldOnSave) and `d20-folds -> saves` (foldSaveAnswer), the two-way
-  // withhold-and-resume cycle this check found on its first run. The spine owns the protocol now
-  // (ui.js registerWithhold / registerWithheld / withholds / resumeWithheld); neither machine
-  // imports the other, and the stale-pin rule forced the rows out. D9(d) is repaid.
 ];
 
 /* --- the graph ---------------------------------------------------------------------------- */
@@ -292,11 +234,7 @@ export function jsFiles(dir) {
   return out;
 }
 
-/**
- * Every scripts-internal edge, all four forms. The lazy form is not an afterthought — it is where
- * the interesting edges live, because `await import()` is this module's cycle-breaking and
- * order-pinning idiom (six of the eleven allowlisted edges below are lazy).
- */
+/** Every scripts-internal edge, all four forms (lazy `await import()` is the cycle-breaking idiom). */
 export function edgesOf(file) {
   const src = readFileSync(file, "utf8");
   const from = toPosix(relative(SCRIPTS, file));
@@ -314,11 +252,8 @@ export function edgesOf(file) {
 
 /* --- the check ---------------------------------------------------------------------------- */
 
-// ⚠ THE MAPS ABOVE ARE IMPORTED, SO THE CHECK RUNS ONLY WHEN THIS FILE IS THE ENTRY. The tier map
-// is the coverage map's second input (tools/coverage-map.mjs: a machine is claimed by a suite, a
-// spine change is the full battery), and it stays declared HERE, once — a copy in the coverage
-// map would be the same drift this file exists to stop. `npm run layers` behaves exactly as it
-// did before the maps were exported (2026-09-23, change-scoped live testing).
+// ⚠ The maps are imported (tools/coverage-map.mjs reads the tier map), so the check runs only when
+// this file is the entry.
 const isEntry = process.argv[1] && (pathToFileURL(resolve(process.argv[1])).href === import.meta.url);
 if (isEntry) main();
 
@@ -339,14 +274,14 @@ function main() {
         + "(ARCHITECTURE §11, \"Adding a file\": declare its layer in its header comment too)");
     }
   }
-  // ...and every declared layer names a file that exists, so the map cannot rot either.
+  // ...and every declared layer names a file that exists.
   for (const rel of Object.keys(LAYER_OF)) {
     if (!files.some(f => f.rel === rel)) {
       fail("layer map", `LAYER_OF names scripts/${rel}, which does not exist — remove the row`);
     }
   }
 
-  // (2) the pure layer imports NOTHING. §7's "⚠ keep it that way", made mechanical.
+  // (2) the pure layer imports NOTHING.
   for (const e of edges) {
     if (LAYER_OF[e.from] === "decision") {
       fail("decide/ is pure", `scripts/${e.from} imports "${e.to}" — the DECISION layer has zero `
@@ -385,7 +320,7 @@ function main() {
       + "or add a row to ALLOW in this file saying why it must exist");
   }
 
-  // (5) no stale pins. A row for an edge that no longer exists misreports the shape of the tree.
+  // (5) no stale pins.
   for (const a of ALLOW) {
     if (!used.has(`${a.from} -> ${a.to}`)) {
       fail("stale pin", `ALLOW lists ${a.from} -> ${a.to}, and that edge no longer exists — `
@@ -416,9 +351,7 @@ function main() {
   const tally = kinds.map(k => `${k} ${edges.filter(e => e.kind === k).length}`).join(" · ");
   console.log(`\n  ${edges.length} internal edges: ${tally}`);
 
-  // ⚠ SITES vs PAIRS, said precisely: `saves.js -> maneuvers.js` is one pinned pair holding two
-  // call sites. A count that quietly means one when it reads like the other is how this repo's
-  // hand-carried numbers went stale twice (the commit count — git history).
+  // Pairs vs sites: one pinned pair can hold several call sites.
   console.log(`\n  ${ALLOW.length} pinned pair(s), ${violations.length} call site(s) — `
     + "not downward, each with a reason:");
   const w = Math.max(...ALLOW.map(a => `${a.from} -> ${a.to}`.length));
