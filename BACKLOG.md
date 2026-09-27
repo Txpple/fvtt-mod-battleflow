@@ -41,7 +41,7 @@ the sweep moves as fast as a table proves it.
 | 1 | **Play the last session on v2.0.8, fix-only until the break.** | ✅ done - prod moved to v2.1.0 on 2026-09-26 |
 | 2 | **Break, day one: a doc recut, not a refactor** — PLAN.md retired, SWEEP turned into Slice A's drawing, NOTES §2 triaged for 6.x. | ✅ done 2026-09-24 (PLAN.md into ARCHITECTURE's appendix, SWEEP §6) |
 | 3 | **Slice A: species and origin feats** — sweep items 1, 2, 3 and 5 with real content behind them (SWEEP §6, RULINGS *Slice A*). | ✅ delivered on main 2026-09-24; **walked by hand** species by species and feat by feat 2026-09-25 (RULINGS *The species walk, continued*, *The origin feats*); **the full battery green** 2026-09-26 (four suite bugs fixed, re-run alone). RELEASED as v2.1.0 and on prod 2026-09-26 (with Vendor Fixes v1.1.0); the user's event audit is still theirs. **The table proves it:** nothing in it is done until a character built from it has played — the next campaign's session 1 is the walk |
-| 4 | **The feats slice — PHB only** (the user, 2026-09-26: player-facing first, DESIGN N3; "keep the splat books out for now" — Arcana Unleashed and Heroes of Faerûn wait). The 2024 PHB general feats that touch a fight and are not yet in (SWEEP §3 (d): a third known) — Sentinel and Polearm Master (a reaction attack, Riposte's shape), Great Weapon Master's rider, the reroll kinds (items 5 and 6) — measured first, the precedent row named per feat (SWEEP §1), a prototype for anything UI-shaped. | **begun 2026-09-26 with the party's own** (RULINGS *The PHB feats — the party's own*): Great Weapon Master's damage and Heavy Armor Master's block built, WALKED by the user and released as **v2.2.0** (on prod the same day); Shield Master, Hew and Fey-Touched were native already. **The rest SCOPED 2026-09-26** (RULINGS *The PHB feats — the scope*): epic boons out, 19 feats out, 13 to build, 5 kept open. **Groups 1–3 BUILT 2026-09-26** (RULINGS *The PHB feats — groups 1–3*: the damage rules, the range cancellers, the on-hit riders), suites green, **WALKED the same day** (with Poisoner's Poison Coating, a rule of cool; Healer automatic, Elemental Adept's type pick and floor through a reroll — RULINGS *The dice changers*), the full battery green, **RELEASED as v2.3.0** (2026-09-27) and on prod. **Groups 4–6 BUILT 2026-09-27** in one autonomous pass (RULINGS *The PHB feats — groups 4–6*: Mage Slayer; Inspiring Leader and Chef; Sentinel), their suites green, NOT walked, NOT released; **Polearm Master's options wait on the user** (*The PHB feats — Polearm Master, the options*, below). |
+| 4 | **The feats slice — PHB only** (the user, 2026-09-26: player-facing first, DESIGN N3; "keep the splat books out for now" — Arcana Unleashed and Heroes of Faerûn wait). The 2024 PHB general feats that touch a fight and are not yet in (SWEEP §3 (d): a third known) — Sentinel and Polearm Master (a reaction attack, Riposte's shape), Great Weapon Master's rider, the reroll kinds (items 5 and 6) — measured first, the precedent row named per feat (SWEEP §1), a prototype for anything UI-shaped. | **begun 2026-09-26 with the party's own** (RULINGS *The PHB feats — the party's own*): Great Weapon Master's damage and Heavy Armor Master's block built, WALKED by the user and released as **v2.2.0** (on prod the same day); Shield Master, Hew and Fey-Touched were native already. **The rest SCOPED 2026-09-26** (RULINGS *The PHB feats — the scope*): epic boons out, 19 feats out, 13 to build, 5 kept open. **Groups 1–3 BUILT 2026-09-26** (RULINGS *The PHB feats — groups 1–3*: the damage rules, the range cancellers, the on-hit riders), suites green, **WALKED the same day** (with Poisoner's Poison Coating, a rule of cool; Healer automatic, Elemental Adept's type pick and floor through a reroll — RULINGS *The dice changers*), the full battery green, **RELEASED as v2.3.0** (2026-09-27) and on prod. **Groups 4–6 BUILT 2026-09-27** in one autonomous pass (RULINGS *The PHB feats — groups 4–6*: Mage Slayer; Inspiring Leader and Chef; Sentinel), their suites green, NOT walked, NOT released; **Polearm Master** built the same day off the user's pick (Pole Strike's reminder, Reactive Strike's invisible reach ring). |
 | 4b | **Slice B: the GM's side** — the Monster Manual traits the sweep never surveyed (Magic Resistance, Legendary Resistance's neighbours, Regeneration, Undead Fortitude, Relentless) and Arcana Unleashed's 38-monster bestiary. Independent of who the next party is, so it comes before the class walk. **Owns the rest of the kill moment**: the machine is BUILT (2026-09-25, the Orc walk — `drop-to-one.js`, the DROP_TO_ONE table: Relentless Endurance asked, Death Ward automatic); Undead Fortitude (a Con save) and the monster Relentless trait join it as rows. | after the feats slice — the players' side first (DESIGN N3) |
 | 5 | **Session 0 of the next campaign sets Slice C onward** — the party's actual kit one level band ahead of play, never the whole subclass corpus blind. The hit menu's next groups (Brutal Strike, Stunning Strike, Open Hand, Psionic Strike, Arcane Shot) arrive when a Barbarian, Monk or Arcane Archer sits down. Arcana Unleashed's origin feats wait with the other splat books (the user, 2026-09-26: PHB only for now). | after B |
 | 6 | **Platform passes stay their own step, never inside a slice** — one per dnd5e minor, one for Foundry 15; the 6.0 pass cost a major version. | standing rule |
@@ -101,39 +101,17 @@ was still choosing", the Hold Timer is the first thing to read.** The default (2
 reaches it. Neither module may import the other; Battle Flow publishes events and an api
 (ARCHITECTURE §7) and never calls FX Studio.
 
-## The PHB feats — Polearm Master, the options (2026-09-27, the user's call)
+## Polearm Master — the movement machine, not built (2026-09-27)
 
-**Groups 4–6 are built but for this one** (RULINGS *The PHB feats — groups 4–6*). The user, handing
-over the pass: *"for polearm master that fires off movement, im not so sure we want to go there, so
-propose some options before putting in significant effort"*. Measured on the pack (NOTES §2): Pole
-Strike is a real Bonus Action attack on the FEAT item (1d4 + the modifier, Bludgeoning — native, it
-works from the sheet); Reactive Strike is an empty Reaction utility. Two halves, ruled apart:
-
-**Pole Strike** — "Immediately after you take the Attack action and attack with a Quarterstaff, a
-Spear, or a weapon that has the Heavy and Reach properties, you can use a Bonus Action to make a melee
-attack with the opposite end of the weapon."
-
-| # | Option | What the player sees | Cost |
-| --- | --- | --- | --- |
-| P0 | Nothing — the feat's own Pole Strike button on the sheet | nothing new | none |
-| **P1** | **Hew's reminder** (`hew.js` — Great Weapon Master's Bonus Action swing): after the owner's attack with a qualifying weapon on its own turn, once per turn, the OK-only popup "Pole Strike — a Bonus Action attack with the other end (1d4 Bludgeoning)" | a reminder the moment it is legal; the swing from the sheet | small — a trigger beside Hew's, one row |
-| P2 | P1 with a **Use** button that rolls the feat's Pole Strike at the same target (Riposte's drive) | one click to swing | P1 + an afternoon |
-
-**Reactive Strike** — "you can take a Reaction to make one melee attack against a creature that enters
-the reach you have with that weapon." The first rule whose trigger is MOVEMENT; nothing the module
-does today watches a token move.
-
-| # | Option | What it catches | What it costs / misses |
-| --- | --- | --- | --- |
-| R0 | Nothing — the table calls it; the attack from the sheet | — | the forgotten reaction stays forgotten |
-| R1 | **The reach you can see**: while the owner holds a qualifying weapon, its reach drawn as a faint ring on the owner's screen (the aura view's shape) — no popup | the player sees a foe step into the ring | small; a UI shape — a prototype first; nothing is asked |
-| R2 | **An ask at the END of a move**: a hostile token that ENDS a move inside the reach, having begun outside it, asks the owner (Riposte's popup, the Reaction free, the weapon held); Use drives the attack | the common case — a foe closing to melee | ~a day + a prototype + suites; misses a creature passing through the reach in one move; the attack lands where it stopped, not at the edge (with Sentinel's Halt that is too late to stop it) |
-| R3 | **An ask at the ENTRY point**: Foundry 14's own movement record (the waypoints a move passed) finds where the reach was entered; the move is SPLIT there and paused while the owner answers — RAW, and Halt stops the creature at the edge | every entry, as written | days; the first movement interrupt — player-moved tokens, hidden tokens, animation and undo each need measuring first |
-
-**Recommended**: **P1** now (the forgotten Bonus Action is the common miss, and Hew is the shape),
-and **R0** or **R1** for Reactive Strike until a Polearm Master sits at the table — R2/R3 are the
-movement machine's first customer, and it should be built from a real table's moves. **Un-parked by**
-the user's pick.
+**Pole Strike and Reactive Strike are BUILT as reminders** (the user picked P1 and an invisible reach
+ring off the options drawn this day — RULINGS *The PHB feats — groups 4–6*). What stays here is the
+option not taken: **pausing a mover at the edge of a reach**. Foundry 14 records the waypoints a move
+passed and lets the MOVING user pause it (`TokenDocument#pauseMovement`, measured in the 14.368
+source) — so a creature could be stopped where it entered, answered, and resumed, which is RAW for
+Reactive Strike and lets Sentinel's Halt stop it at the edge. Costs: the pause belongs to the mover's
+client (a player-moved token must pause on the player's client), hidden tokens, the animation, and
+undo. **Un-parked by** a table that wants the Opportunity Attack to land before the move ends — the
+same machine would serve the plain Opportunity Attack on leaving a reach.
 
 Parked from the scope (no precedent row; un-parked by a player taking one): Charger, Grappler's
 Punch and Grab, Mounted Combatant's rest, War Caster's Reactive Spell.

@@ -49,6 +49,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Mage Slayer**'s Concentration Breaker: "When you damage a creature that is concentrating" | the concentration save is at Disadvantage when the damage came from a CARD whose speaker holds the feat — the module's applier or the card's own buttons; damage typed on a sheet names no dealer and breaks nothing | `dnd5e.preApplyDamage` knows the dealer only through `originatingMessage` (`concentration.js` `breakerFor`, the rebukes' floor) | 2026-09-27 |
 | **Sentinel**'s Guardian: "Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack" | asked when the hit's DAMAGE lands, with the card it came from, of a bystander on another side of the map (token disposition); a hit that deals no damage, damage typed on a sheet, and a Disengage ask nothing; a friend's hit is not asked (ⓐ — noise) | the landing is where a hit is final (after any reaction that could still turn it) and where its card names the hitter (`rebukes.js` `stampWards`); nothing records a Disengage (NOTES §2) | 2026-09-27 |
 | **Sentinel**'s Halt: "When you hit a creature with an Opportunity Attack" | due on the Opportunity Attack the module drove (its cards say so) AND on any melee hit the Sentinel makes off its own turn in a running combat — ticked on the damage offer, with the caveat "only on an Opportunity Attack" | an Opportunity Attack made from the sheet is an ordinary attack roll: nothing marks it; off-turn melee is the fact the module can read (`clock-riders.js`, `judge: "opportunity"`) | 2026-09-27 |
+| **Polearm Master**'s Reactive Strike: "a creature that enters the reach you have with that weapon" | a REMINDER when a hostile creature's move ENDS a step inside the reach ring (Foundry's `tokenMoveIn`); the attack from the sheet, the mover not paused | the region compares where a move began and ended, so a creature passing through the reach and out in one move raises nothing; pausing the mover at the entry (Foundry's `pauseMovement`) is the movement machine BACKLOG keeps for later (`emanations.js` `maybeAlert`) | 2026-09-27 |
 | **Chef**'s Replenishing Meal: food cooked "as part of a Short Rest"; "At the end of the Short Rest, any creature who eats the food and spends one or more Hit Dice" regains 1d8 | the Chef picks the eaters AFTER its own Short Rest; an eater whose Short Rest already ended in the same sitting (the same Rest request, else within two hours) is healed then if it spent a Hit Die; one still resting is healed as its own rest ends | every creature rests on its own client, in any order, and dnd5e's rest card states the Hit Dice spent only in words — the module stamps its own record on each Short Rest card (`rest-grants.js` `restSpent`, `decide/rest-grants.js` `mealStanding`) | 2026-09-27 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
@@ -917,8 +918,8 @@ as well, same shape again"*, *"skulker, some shapes like fs: blind"*, *"keep sla
   Charger, Grappler's Punch and Grab, Mounted Combatant's rest and War Caster's Reactive Spell are
   PARKED. ⚠ Correction: Crusher's and Slasher's crit halves were NOT in — `EFFECT_BENDS` rows
   nothing applied, and the pack's "Slashed" is Hamstring's speed −10. The build is six groups;
-  1–3 are built (below), 4–6 since 2026-09-27 (*The PHB feats — groups 4–6*, Polearm Master's
-  options in BACKLOG *The PHB feats — Polearm Master, the options*).
+  1–3 are built (below), 4–6 since 2026-09-27 (*The PHB feats — groups 4–6*, what stays
+  unbuilt in BACKLOG *Polearm Master — the movement machine, not built*).
 - ⚠ **Measured, and a comment corrected with the build:** `decide/dice-chips.js` says dnd5e floors
   Elemental Adept's 1s to 2 on its own; the pack ships the feat as text only, so nothing does.
 
@@ -1092,5 +1093,25 @@ swung (`rebukes.js`).
   the sheet carries no mark of its own — ticked with the caveat "only on an Opportunity Attack".
 - ⚠ **Stored lists**: a world keeps its own Rebukes and Clock Riders lists — "Sentinel" joins both.
 - `smoke-goliath` §5, `tests/decide-rebukes.test.js`, `tests/decide-clock.test.js`.
-- **Polearm Master — not built; the options are BACKLOG's** (*The PHB feats — Polearm Master, the
-  options*), for the user to rule: its Reactive Strike is the first rule whose trigger is MOVEMENT.
+- **Polearm Master — ruled off BACKLOG's options the same day** (the user: *"p1 gowith that"*; and
+  for Reactive Strike: *"if wielding right weapon with polearm master, an invisible emanation. if a
+  hostile person gets the emanation buff, then trigger a popup reminding the player they can attack
+  (same shape as hew too)"*). Both halves are REMINDERS — the swing is from the sheet.
+  - **Pole Strike** — a `BONUS_SWINGS` row (`when: "attack"`): after an attack with a Quarterstaff, a
+    Spear or a Heavy + Reach weapon, on the owner's own turn and once per turn (out of combat, every
+    such attack), Hew's OK-only popup and card say the Bonus Action swing with the other end is there
+    (`hew.js`, the `hew` kind — Great Weapon Master's row keeps the crit-or-kill trigger, and a `hew`
+    entry not in the table keeps it too). After the attack RESOLVES: on the hit's damage card, or on
+    the attack card when it missed. The Maneuver Folds list's `Polearm Master:hew` is the switch.
+  - **Reactive Strike** — an `EMANATIONS` feature row: while the owner HOLDS a qualifying weapon, an
+    invisible, quiet ring of that weapon's reach (10 ft with Reach) stands around it (`holding`,
+    `range: "weaponReach"`, `effect: null`, `quiet`); a hostile creature MOVING into it — Foundry's own
+    `tokenMoveIn`, raised only when the creature itself moved (measured: the ring sliding over a
+    standing creature raises none, and a teleport-style drag raises it) — posts Hew's reminder on the
+    owner, "Reactive Strike — Hobgoblin entered Morgash's reach" (`alert`), unless its Reaction is
+    spent or it is Incapacitated. Nothing is applied to the hostile: the "buff" is the ring's own entry
+    event (ⓐ — a mark on every foe that stepped close would be noise on its token). A creature that
+    passes through the reach and out in one move is not seen (*Where the table bends the rule*). The
+    Emanations list's "Polearm Master" is the switch.
+  - `smoke-maneuvers` PS, `smoke-emanations` §17, `tests/decide-registry.test.js`.
+  - ⚠ **Stored lists**: Maneuver Folds and Emanations — "Polearm Master" joins both.
