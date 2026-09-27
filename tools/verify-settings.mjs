@@ -21,6 +21,7 @@ const REFERENCE = {
   diceWait: 0,       // user call 2026-09-26: "set the default to 0 from 6 and apply" — the hardcoded six-second wait for Dice So Nice, made a setting
   dramaticBeat: 0,   // user call 2026-08-20 (third walk): "set all the beats to 0" — 0 is the DELIBERATE table value now, not suite residue; the module default already agrees
   requireTarget: true,
+  measuredCover: true,    // new 2026-09-27 — the 2024 DMG's corner lines: the hover card's Cover section and the attack's AC
   reactionHold: true,
   blockList: 'Magic Missile:Shield',
   interruptList: 'Shield:ac, Absorb Elements:damage, Uncanny Dodge:damage, Defensive Duelist:ac, Illusory Self:ac, Glorious Defense:ac, Parry:ac, Counterattack:ac, Defensive Stance:ac, Whirlwind of Sand:ac, Deflect Attacks:damage, Stone\'s Endurance:damage, Lucky:roll, Warding Flare:roll, Shadowy Dodge:roll, Interception:damage, Protection:roll',   // the roll kind joined 2026-09-24 (Slice A); the two guards 2026-09-26 (the fighting styles)

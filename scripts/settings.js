@@ -61,6 +61,12 @@ Hooks.once("init", () => {
     scope: "client", config: true, type: Boolean, default: true,
     onChange: () => Hooks.callAll(`${MODULE_ID}.effectViewChanged`)
   });
+  // MEASURED COVER (the user, 2026-09-27; RULINGS *Measured cover*): one world switch for both halves.
+  game.settings.register(MODULE_ID, S.measuredCover, {
+    name: "Measured Cover",
+    hint: "With your token selected, point at another token: its card opens with a Cover section — No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total (can't be targeted) — measured the 2024 Dungeon Master's Guide way: lines from a corner of your space to the corners of the target's square, blocked by walls (closed doors and windows included) and other creatures (a creature gives Half at most). Attack it and that cover goes on the attack's AC by itself; a cover status set by hand still counts when it is higher, and Sharpshooter and Spell Sniper still ignore Half and Three-Quarters. Off: cover is only what someone sets by hand. Not measured on hex grids.",
+    scope: "world", config: true, type: Boolean, default: true
+  });
   game.settings.register(MODULE_ID, S.effectHover, {
     name: "Effect Cards on Hover and Alt",
     hint: "Point at any token to see its buffs and debuffs beside it; hold Alt (Foundry's highlight key) to see every creature's list at once. Nothing is on screen until you ask. Your client only.",

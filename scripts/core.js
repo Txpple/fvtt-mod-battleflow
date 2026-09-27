@@ -14,6 +14,7 @@ export const S = {
   playerRollDamage: "playerRollDamage",
   effectBar: "effectBar",       // the effect view's bar above the hotbar (client, 2026-09-15 draft)
   effectHover: "effectHover",   // the effect view's hover card and held key (client, 2026-09-15 draft)
+  measuredCover: "measuredCover", // the 2024 DMG's corner lines: the hover card's Cover section and the attack's AC (world, 2026-09-27)
   damageTimer: "damageTimer",
   autoApply: "autoApply",
   requireTarget: "requireTarget",

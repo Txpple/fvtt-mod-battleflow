@@ -1140,3 +1140,50 @@ swung (`rebukes.js`).
     (`smoke-emanations` §17e). The Emanations list's "Polearm Master" is the switch.
   - `smoke-maneuvers` PS, `smoke-emanations` §17, `tests/decide-registry.test.js`.
   - ⚠ **Stored lists**: Maneuver Folds and Emanations — "Polearm Master" joins both.
+
+## Measured cover (2026-09-27)
+
+The user, 2026-09-27: "a person selects an actor token. when they hover over other tokens ... on top
+of the list, in its own section called Cover, ... say if it has no cover, half, 3/4 or full. then the
+player knows what they are dealing with. if they want, then can target/attack, and then the penalty
+applies accordingly (taking into account sniper/sharpshooter)"; "we need to follow the 2024 dmg".
+Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amended the same day.
+
+- **The rule is the 2024 DMG's grid method** (Running Combat → Miniatures → Cover, read off the book
+  on the box): lines from ONE corner of the attacker's space to the four corners of ANY ONE square
+  the target occupies; 1–2 blocked is Half (+2 AC), 3–4 blocked but a line still reaches is
+  Three-Quarters (+5 AC). The attacker picks the corner and the square: the answer is the LEAST
+  cover over every corner × square (a Large target's clearest square).
+- **A creature gives Half at most** — the PHB 2024 Cover table (Three-Quarters and Total are an
+  object's). The DMG counts a creature as an obstacle for the lines; lines only a creature blocks
+  never lift the degree past Half. Ally or foe alike. A hidden token and a dead one are not counted.
+- **Total** is "no line reaches": every line from every corner to every square meets a wall.
+- **Walls are the platform's MOVE collision test** (`CONFIG.Canvas.polygonBackends.move`): a closed
+  door blocks, an open one does not, a one-way wall from its side only; a window (sight passes,
+  bodies and arrows do not) is cover. Foundry walls have no height: a drawn wall is a whole wall,
+  so a low wall a table wants as Half is set by hand (the status still counts — below).
+- ⓐ **A line that only grazes an obstacle does not count** — the books are silent (the DMG's line of
+  sight counts a touch; its cover rule says "blocked"). Two tokens side by side would otherwise
+  cover each other along the shared edge. The corners sit a hair inside their squares and the
+  creatures' boxes a hair inside their edges (`decide/cover.js`).
+- **The hover card**: with ONE token controlled, pointing at another opens its card with a **Cover**
+  section on top — No Cover, Half Cover +2 AC, Three-Quarters Cover +5 AC, Total Cover "can't be
+  targeted" — who or what is in the way under it, and "Sharpshooter ignores it — ranged weapon
+  attacks" (or Spell Sniper, spell attacks) when the controlled creature holds one. The effects
+  follow under their own label. Still a pure view (*The effect view*).
+- **At the attack** the same measure goes on each target's RECORDED AC (`system.targets[].ac`, the
+  seam Bypass Cover already uses): the most protective degree applies and degrees never add — a
+  cover status set by hand stands when it is higher; Total records no AC (a miss, as dnd5e records a
+  `coverTotal` target). The card says "Cover — the Goblin: Half Cover (+2 AC)". Then Sharpshooter and
+  Spell Sniper take the whole carried cover off, measured and hand-set alike (*The PHB feats —
+  groups 1–3*, group 2); Total stays.
+- ⓐ **Attacks only.** A Dex save against an area measured from its point of origin is the DMG's too;
+  not built (BACKLOG).
+- ⓐ **Hex grids are not measured** (the DMG counts six corners there; no table plays on hexes) — no
+  section, no change to the attack. A gridless scene measures each space as one square.
+- The switch is one world setting, **Measured Cover** (on).
+- The suites' world baseline is Measured Cover OFF (`tools/harness.mjs`, restored at the teardown):
+  their fixtures stand creatures in a row on purpose, and a measured +2 would move hit and miss
+  under sections about something else. `smoke-reminders` §14 turns it on.
+- `tests/decide-cover.test.js`, `smoke-reminders` §14 (written 2026-09-27 while the sandbox ran the
+  release battery; its first live run is owed).

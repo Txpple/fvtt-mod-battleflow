@@ -357,6 +357,21 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   await f.evaluate(async () =>
     game.settings.set("fvtt-mod-battleflow", "playerRollDamage", false), null);
 
+  /**
+   * ⚠ THE WORLD BASELINE FOR MEASURED COVER (2026-09-27, RULINGS *Measured cover*): OFF for the
+   * run, restored at the teardown. The suites' fixtures stand creatures in a row on purpose — the
+   * adjacent victim sits between the attacker and every "far" copy of it — and measured cover
+   * would put +2 AC on those attacks and move hit and miss under sections that test something
+   * else. The section that TESTS it (smoke-reminders §14) turns it on and restores it. A killed
+   * run leaves it off; the battery's sweep (verify-settings --fix) puts the reference back.
+   */
+  const priorCover = await f.evaluate(async () => {
+    if ( !game.settings.settings.has("fvtt-mod-battleflow.measuredCover") ) return null;
+    const v = game.settings.get("fvtt-mod-battleflow", "measuredCover");
+    if ( v ) await game.settings.set("fvtt-mod-battleflow", "measuredCover", false);
+    return v;
+  }, null).catch(() => null);
+
   // ⚠ THE LEDGER IS ARMED HERE AND DUMPED ON THE WAY OUT, and the dump rides the teardown call
   // rather than `finish()` because SIX of the sixteen callers never call `finish` —
   // smoke-battleflow, smoke-hold, smoke-twoclient and check-popup-routing among them. Every one
@@ -374,6 +389,10 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   const teardown = async () => {
     if (hungUp) return;
     hungUp = true;
+    if ( priorCover === true ) {
+      await f.evaluate(async () => game.settings.set("fvtt-mod-battleflow", "measuredCover", true), null)
+        .catch(e => console.warn(`[${tag}] Measured Cover not restored (${e.message}) — run verify-settings --fix`));
+    }
     await dumpHookLedger(tag, f);
     await disposeSafely(f, tag);
   };

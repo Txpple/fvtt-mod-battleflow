@@ -2,7 +2,7 @@
  * Battle Flow — The gate machine: what bends this attack, save or check, and what it nets to — BEFORE the dice.
  * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
+import { MODULE_ID, S, TITLE, activeCombatFor, setting, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { featureNamed, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./settings.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
@@ -13,7 +13,8 @@ import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, MASTERY_RULES, R
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
-import { feetOf, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
@@ -145,36 +146,74 @@ const coverOf = actor => {
 };
 
 /**
- * BYPASS COVER (Sharpshooter, Spell Sniper — group 2, 2026-09-26): the attack RECORDS each target's
- * AC as dnd5e built it at the roll (`system.targets[].ac`, cover folded in); for an attacker whose
- * feat ignores Half and Three-Quarters Cover the recorded AC is the target's without it, so the
- * card's hit and miss — and every reader of the record — agree on every client. Dialog or no dialog
- * (a shift-click still ignores the cover). Total Cover records no AC and stays so. What was ignored
- * rides the card (`coverIgnored`) and draws one line. The Reminder Sources' `range` kind is the switch.
+ * COVER AT THE ATTACK — one handler, two steps, in this order on every target the attack records
+ * (`system.targets[].ac`, the AC as dnd5e built it at the roll, cover statuses folded in):
+ *
+ *   1. MEASURED COVER (the user, 2026-09-27; RULINGS *Measured cover*): the 2024 DMG's corner
+ *      lines from the attacker's token to the target's (geometry.js `measuredCoverBetween`). The
+ *      most protective degree applies and degrees never add: the recorded AC rises by what the
+ *      measure gives over the cover already carried (a GM's hand-set status stands when higher);
+ *      Total Cover records no AC — a miss, as dnd5e records a `coverTotal` target. What was
+ *      measured rides the card (`coverMeasured`) and draws one line. The Measured Cover setting is
+ *      the switch.
+ *   2. BYPASS COVER (Sharpshooter, Spell Sniper — group 2, 2026-09-26): for an attacker whose feat
+ *      ignores Half and Three-Quarters Cover the recorded AC is the target's without it — the
+ *      carried cover and the measured rise both — so the card's hit and miss, and every reader of
+ *      the record, agree on every client. Dialog or no dialog (a shift-click still ignores the
+ *      cover). Total Cover records no AC and stays so. What was ignored rides the card
+ *      (`coverIgnored`) and draws one line. The Reminder Sources' `range` kind is the switch.
  */
 Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
     const attacker = activity.item?.actor;
-    if ( !(attacker instanceof Actor) || !reminderEntries().some(e => e.kind === "range") ) return;
-    const feat = rangeFeatsOf(attacker, activity).cover;
     const targets = message?.data?.system?.targets;
-    if ( !feat || !Array.isArray(targets) ) return;
-    const ignored = [];
+    if ( !(attacker instanceof Actor) || !Array.isArray(targets) || !targets.length ) return;
+    const from = setting(S.measuredCover) ? tokenOfActor(attacker) : null;
+    const feat = reminderEntries().some(e => e.kind === "range") ? rangeFeatsOf(attacker, activity).cover : null;
+    if ( !from && !feat ) return;
+    const measured = [], ignored = [];
     for ( const t of targets ) {
-      const actor = t?.actor ? resolveUuid(t.actor) : null;
-      const cover = coverOf(actor);
-      if ( !cover || (t.ac === null) || (t.ac === undefined) ) continue;
-      t.ac = acWithoutCover(t.ac, cover);
-      ignored.push({ name: t.name ?? actor?.name ?? "", cover });
+      if ( (t?.ac === null) || (t?.ac === undefined) ) continue;
+      const actor = t.actor ? resolveUuid(t.actor) : null;
+      let carried = coverOf(actor);
+      const token = from ? (resolveUuid(t.token)?.object ?? tokenForUuid(actor?.uuid)) : null;
+      const m = token ? measuredCoverBetween(from, token) : null;
+      if ( m && (m.degree.key !== "none") ) {
+        const { raise, total } = coverAtTheAttack(carried, m.degree);
+        const name = t.name ?? actor?.name ?? "";
+        if ( total ) { t.ac = null; measured.push({ name, label: m.degree.label, bonus: null }); continue; }
+        if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; measured.push({ name, label: m.degree.label, bonus: m.degree.bonus }); }
+      }
+      if ( !feat || !carried ) continue;
+      t.ac = acWithoutCover(t.ac, carried);
+      ignored.push({ name: t.name ?? actor?.name ?? "", cover: carried });
     }
-    if ( !ignored.length ) return;
-    if ( targets.length === 1 ) config.target = targets[0].ac;
-    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverIgnored`, { feature: feat.feature, targets: ignored });
+    if ( !measured.length && !ignored.length ) return;
+    if ( targets.length === 1 ) config.target = targets[0].ac ?? undefined;
+    if ( measured.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverMeasured`, { targets: measured });
+    if ( ignored.length ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.coverIgnored`, { feature: feat.feature, targets: ignored });
   } catch(err) {
-    console.error(`${TITLE} | The cover a feat ignores could not be taken off the AC — judge the hit by hand.`, err);
+    console.error(`${TITLE} | The attack's cover could not be put on (or taken off) the AC — judge the hit by hand.`, err);
   }
+});
+
+// the line: "Cover — the Goblin: Half Cover (+2 AC)", measured on the map
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  try {
+    const flag = message.getFlag?.(MODULE_ID, "coverMeasured");
+    if ( !flag?.targets?.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-cover-measured") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-cover-measured";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    const words = flag.targets.map(t => `the ${t.name}: ${t.label}${(t.bonus === null) ? " (can't be targeted)" : ` (+${t.bonus} AC)`}`).join(", ");
+    div.textContent = `Cover — ${words}`;
+    div.dataset.bfCoverMeasured = div.textContent;
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The measured cover's line could not draw.`, err); }
 });
 
 // the line: "Sharpshooter — ignores the Goblin's cover (+2 AC)"

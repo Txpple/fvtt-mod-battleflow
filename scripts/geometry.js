@@ -15,6 +15,7 @@
  * ⚠ No hooks, no flags, no writes. Nothing here may be given any.
  */
 import { TITLE } from "./core.js";
+import { measureCover } from "./decide/cover.js";
 import { lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -158,4 +159,54 @@ export function tokensInRegions(regions) {
     }
   }
   return entries;
+}
+
+/* ---------------------------------------------------------------------------------------------
+ * MEASURED COVER (the user, 2026-09-27 — RULINGS *Measured cover*): the 2024 DMG's corner lines
+ * between two tokens, counted in decide/cover.js; the map's half read here. Walls are the
+ * platform's own MOVE collision test (`CONFIG.Canvas.polygonBackends.move.testCollision`, the call
+ * dnd5e's blindsight makes for sight) — a closed door blocks, an open one does not, a one-way wall
+ * blocks from its side only, and a window (sight passes, bodies and arrows do not) is cover. The
+ * creatures are every other token with an actor on the scene, bar a hidden one (a GM's secret
+ * never shows on a player's card) and a dead one.
+ * ------------------------------------------------------------------------------------------- */
+
+/** A token's space from its document's committed SOURCE (the mid-walk finding above), in pixels. */
+function spaceOf(doc, grid) {
+  const x = doc._source?.x ?? doc.x, y = doc._source?.y ?? doc.y;
+  return { x, y, w: (doc.width ?? 1) * grid, h: (doc.height ?? 1) * grid };
+}
+
+/**
+ * The cover `target` has against `attacker`, by the DMG's corner lines — `{degree, by, lines}` from
+ * decide/cover.js — or null when it cannot be measured: either token missing, the two on different
+ * scenes, or a hex grid (the DMG counts hexes on six corners; not built — RULINGS).
+ * @param {Token} attacker
+ * @param {Token} target
+ */
+export function measuredCoverBetween(attacker, target) {
+  try {
+    const a = attacker?.document, t = target?.document;
+    if ( !a || !t || (a === t) || (a.parent !== t.parent) || !canvas?.grid ) return null;
+    if ( canvas.grid.isHexagonal ) return null;
+    const size = canvas.grid.size;
+    const grid = canvas.grid.isGridless ? 0 : size;
+    const creatures = [];
+    for ( const other of (canvas.tokens?.placeables ?? []) ) {
+      const d = other.document;
+      if ( !other.actor || (d === a) || (d === t) || d.hidden ) continue;
+      if ( other.actor.statuses?.has?.("dead") ) continue;
+      creatures.push({ name: other.name, rect: spaceOf(d, size) });
+    }
+    const backend = CONFIG.Canvas.polygonBackends.move;
+    const wallBlocks = (p, q) => !!backend.testCollision(p, q, { type: "move", mode: "any" });
+    return measureCover({
+      attacker: spaceOf(a, size), target: spaceOf(t, size), grid, creatures, wallBlocks,
+      // the platform's test ROUNDS its points to whole pixels — a pull under 2 px can land back on the edge
+      inset: Math.max(2, size * 0.03)
+    });
+  } catch(err) {
+    console.warn(`${TITLE} | Cover could not be measured between ${attacker?.name} and ${target?.name}.`, err);
+    return null;
+  }
 }
