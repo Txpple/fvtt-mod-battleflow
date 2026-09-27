@@ -101,17 +101,7 @@ was still choosing", the Hold Timer is the first thing to read.** The default (2
 reaches it. Neither module may import the other; Battle Flow publishes events and an api
 (ARCHITECTURE §7) and never calls FX Studio.
 
-## Polearm Master — the movement machine, not built (2026-09-27)
-
-**Pole Strike and Reactive Strike are BUILT as reminders** (the user picked P1 and an invisible reach
-ring off the options drawn this day — RULINGS *The PHB feats — groups 4–6*). What stays here is the
-option not taken: **pausing a mover at the edge of a reach**. Foundry 14 records the waypoints a move
-passed and lets the MOVING user pause it (`TokenDocument#pauseMovement`, measured in the 14.368
-source) — so a creature could be stopped where it entered, answered, and resumed, which is RAW for
-Reactive Strike and lets Sentinel's Halt stop it at the edge. Costs: the pause belongs to the mover's
-client (a player-moved token must pause on the player's client), hidden tokens, the animation, and
-undo. **Un-parked by** a table that wants the Opportunity Attack to land before the move ends — the
-same machine would serve the plain Opportunity Attack on leaving a reach.
+## The PHB feats — parked from the scope (2026-09-26)
 
 Parked from the scope (no precedent row; un-parked by a player taking one): Charger, Grappler's
 Punch and Grab, Mounted Combatant's rest, War Caster's Reactive Spell.
