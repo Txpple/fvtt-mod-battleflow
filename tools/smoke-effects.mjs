@@ -1,29 +1,22 @@
-// Battle Flow Phase 1.9 smoke test — effect riders, mastery riders, the Use/Pass ask, the
-// topple fold + its timer, and the reminders, driven end to end in the live world.
-// (The per-source suppression sections died with the machinery at v1.10.0 — the preflight
-// now FAILS if any suppress* setting is still registered, the reverse of the old ghost.)
+// Live suite: effect riders, mastery riders, the Use/Pass ask, the Topple fold and its timer,
+// and the reminders, driven end to end.
 //
-// Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
-// every message this run creates is deleted on the way out; BF Test fixtures are long-rested
-// (they spend real HP and real slots); HP is topped up before any "did not move" assertion
-// (a number that could not have moved proves nothing); damage searches go by originating id
-// over the WHOLE log, never a tail window.
+// Every setting touched is restored; every message this run creates is deleted; BF Test fixtures
+// are long-rested (they spend real HP and slots); HP is topped up before any "did not move"
+// assertion; damage searches go by originating id over the WHOLE log.
 //
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 14`, `--section 1,10`, `--list`. Fixtures and teardown
-// ALWAYS run; only the numbered assertion blocks are skippable.
+// `--section 14`, `--section 1,10`, `--list`. Fixtures and teardown always run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'mastery.js',             // §1-§6, §9, §10, §15-§17 — the payouts, the ask, the notices, the Cleave arm
   'topple.js',              // §7 / §8 / §14 — the Topple demand and its fold
   'receipts.js',            // §12 — the effect revert
   'polish.js',              // §13 — every use shows its first card
-  'chip-spend.js',           // the mastery chips are SPENT here — chipSpend ×3 in the battery of 2026-09-23 (the claim proof's reading)
-  'concentration.js'         // §12's revert breaks a concentration — one concentration record published here (the same reading)
+  'chip-spend.js',           // the mastery chips are SPENT here
+  'concentration.js'         // §12's revert breaks a concentration
 ];
 
 const SECTIONS = {
@@ -45,13 +38,11 @@ const SECTIONS = {
   16: "the 2026-08-18 session's fixes (v1.15.0)",
   17: 'the Cleave arm (v1.19.0, FLOW item 8)'
 };
-// §§12 and 13 are written INSIDE §11's block — they reuse the spell it found by shape, which
-// is the expensive part — so they name it. Everything else stands its own fixtures up.
+// §§12 and 13 run inside §11's block and reuse the spell it found by shape.
 const DEPENDS = { 12: ['11'], 13: ['11'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
-// Roughly a dozen full attack chains with polls between them; a suite that dies at the
-// watchdog reports nothing, so the ceiling is generous.
+// A dozen full attack chains: a generous watchdog.
 const f = await connectSuite({ tag: 'effects', watchdogMs: 600_000 });
 announcePlan('effects', plan, pulled);
 
@@ -62,16 +53,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const skip = why => skips.push(why);
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
-  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -109,14 +98,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
-    // never leave the table wearing suite settings (bit live 2026-08-17). The user's
-    // config is sacred; the rest is best-effort.
+    // ⚠ SETTINGS FIRST, in their own guard: a later cleanup error must never leave suite settings on.
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
-      // ⚠ Batched deletes per collection — a synthetic actor rebuilds its collections from
-      // the delta on every write, so a one-at-a-time loop deletes already-dropped documents.
+      // ⚠ Batched deletes per collection: a synthetic actor rebuilds its collections from the delta
+      // on every write, so a one-at-a-time loop deletes already-dropped documents.
       for (const [actorId, ids] of Object.entries(created.effects.reduce((m, e) => {
         (m[e.actorId] ??= []).push(e.id); return m;
       }, {}))) {
@@ -124,13 +111,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const live = ids.filter(id => a?.effects.get(id));
         if (live.length) await a.deleteEmbeddedDocuments('ActiveEffect', live);
       }
-      // Mastery/rider effects the MODULE created land outside `created` — sweep every BF
-      // fixture for module-flagged and known-name chips, plus prone.
-      // ⚠ Restore the blade's mastery FIRST: setMastery mutates the persistent PC's
-      // weapon per section and an aborted run leaves the LAST section's key in place —
-      // two 2026-08-19 aborts at section 11 left it on 'graze', and smoke-hold's windowed
-      // misses then paid a deterministic -3 to its stand-in. The mutation must never
-      // outlive the run.
+      // Module-created mastery/rider effects land outside `created`: sweep module-flagged and
+      // known-name chips, plus prone.
+      // ⚠ Restore the blade's mastery FIRST: setMastery mutates the persistent PC's weapon, and an
+      // aborted run would leave the last section's key for other suites.
       if (priorBlade && pc) {
         await pc.items.get(priorBlade.id)?.update({ 'system.mastery': priorBlade.mastery });
       }
@@ -155,8 +139,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await game.actors.get(actorId)?.update(data);
       }
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-      // Sweep this run's own chat: everything since suiteStart that is ours — fixture
-      // speakers, the module's announcement alias, or a module flag.
+      // Sweep this run's chat: fixture speakers, the module's alias, or a module flag.
       const mine = game.messages.filter(m => (m.timestamp >= suiteStart)
         && (m.speaker?.alias?.startsWith?.('BF Test') || m.speaker?.alias === 'Battle Flow'
           || Object.keys(m.flags?.[MOD] ?? {}).length));
@@ -177,14 +160,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('masteryRiders', true);
     await set('masteryAsk', 'auto');
     await set('holdTimer', 0);
-    // ⚠ 0 for the classic topple sections (§14 forces outcomes through chained rolls and
-    // must never race a buzzer); §14g pins its own short window and restores this.
+    // ⚠ 0 for the classic Topple sections (forced outcomes must never race a buzzer); §14g pins its own.
     await set('saveTimer', 0);
-    await set('castApply', false); // the cast slice has its own suite; isolation here
+    await set('castApply', false); // casting has its own suite
 
     // -------------------------------------------------- fixtures
-    // A character-type attacker (masteries are PC-only). Created once by smoke-battleflow;
-    // make it here if absent so this suite stands alone.
+    // A character-type attacker (masteries are PC-only), made here if absent.
     if (!pc) {
       const weapon = npc.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
       pc = await Actor.create({ name: 'BF Test PC Attacker', type: 'character',
@@ -192,8 +173,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       log.push('created BF Test PC Attacker');
     }
 
-    // A 2024 weapon with a mastery, found by SHAPE (type weapon + mastery + attack activity)
-    // — names and packs shift; the shape is the requirement (the smoke-riders lesson).
+    // A 2024 weapon with a mastery, found by SHAPE (weapon + mastery + attack activity): names and packs shift.
     const findWeapon = async () => {
       const owned = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
         && i.system.type?.baseItem && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -220,8 +200,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     priorBlade = { id: blade.id, mastery: blade.system._source.mastery };
     log.push(`weapon: ${blade.name} (base ${blade.system.type.baseItem}, ships ${blade.system.mastery})`);
 
-    // Mastery eligibility is trait + weapon (weapon.mjs:327): the actor must have mastery
-    // with this base weapon. Grant it, restore whatever was there.
+    // Mastery eligibility is trait + weapon: grant mastery with this base weapon, restore after.
     priorActor[pc.id] = {
       'system.traits.weaponProf.mastery.value':
         Array.from(pc.system._source.traits?.weaponProf?.mastery?.value ?? []),
@@ -239,8 +218,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await pc.items.get(blade.id).update({ 'system.mastery': key });
     };
 
-    // Linked victim token (linked for ownership-sensitive assertions; the base actor
-    // IS the token actor, so uuids and HP reads are unambiguous).
+    // Linked victim token: the base actor IS the token actor, so uuids and HP reads are unambiguous.
     if (canvas.scene?.id !== scene.id) await scene.view();
     const [victimTokenDoc] = await scene.createEmbeddedDocuments('Token', [
       foundry.utils.mergeObject(victim.prototypeToken.toObject(),
@@ -261,18 +239,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.temp': 0 });
 
     // -------------------------------------------------- the one attack helper
-    // use() with subsequentActions:false, then an explicit rollAttack with the originating
-    // id stamped — the exact deterministic idiom the Phase 1 suite uses. `origin:false`
-    // leaves the id off, which is the SUPPRESSED-card reality (no card, no DOM click, no
-    // flag) — the chain then rides the attack-message fallback.
+    // use() with subsequentActions:false, then rollAttack with the originating id stamped.
+    // `origin:false` leaves the id off (no card, no flag): the chain rides the attack-message fallback.
     const attack = async (activity, { advantage = true, disadvantage = false, origin = true } = {}) => {
       victimToken.setTarget(true, { releaseOthers: true });
       await sleep(80);
       const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
-      // ⚠ `undefined` means the USE ITSELF was refused (no slot, no uses) — a totally
-      // different fact from "the card was suppressed" (results exist, message vetoed).
-      // Conflating them once sent a suite chasing suppression bugs that were empty slot
-      // pools (the smoke-battleflow 5b lesson, learned again by this suite's first run).
+      // ⚠ `undefined` means the USE was refused (no slot, no uses) — not a suppressed card.
       if (results === undefined) return { failed: true, usageId: null, attackMsg: null, roll: null };
       const usageId = results?.message?.id ?? null;
       const rolls = await activity.rollAttack(
@@ -304,16 +277,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       return null;
     };
-    // Clear chips between scenarios so "the effect landed" always means THIS attack landed it.
-    // Up here rather than inside §2 where it was written: every section from §3 on calls it.
+    // Clear chips between scenarios so "the effect landed" means THIS attack landed it.
     const clearChips = async () => {
       const chips = victim.effects.filter(e => e.getFlag(MOD, 'mastery')
         || ['Vexed', 'Sapped', 'Slowed', 'Reduced Movement'].includes(e.name));
       if (chips.length) await victim.deleteEmbeddedDocuments('ActiveEffect', chips.map(e => e.id));
     };
-    // The id-set watermark idiom, up here with the other helpers rather than inside §14 where
-    // it was written: §§15 and 16 read it too, so a block-scoped `const` under the section
-    // gate would put it out of their reach. The `14` suffix records where it was born.
+    // The id-set watermark; shared by §§14–16, so it lives outside the section gates.
     const snap14 = () => new Set(game.messages.contents.map(m => m.id));
     const fresh14 = before => game.messages.contents.filter(m => !before.has(m.id));
     const until14 = async (fn, ms = 8000) => {
@@ -322,7 +292,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return fn();
     };
 
-    // ================================================== 1. the mastery flag stamp (PLAN E1)
+    // ================================================== 1. the mastery flag stamp
     if (want(1)) {
       await acFlat(1);
       await healFull();
@@ -332,10 +302,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('1. a mastery PC attack stamps system.mastery',
           attackMsg?.system?.mastery === 'vex',
           `flag=${attackMsg?.system?.mastery} fumble=${roll?.isFumble}`);
-        // Wait for the RECEIPT, not merely the damage message: the receipt is stamped after
-        // application finishes, so this is the pipeline-quiescence marker. Section 2 heals and
-        // asserts HP-dependent payouts — an application still in flight from here would drain
-        // the healed pool underneath it and the dead-skip would eat the payout.
+        // Wait for the RECEIPT (stamped after application finishes): §2 heals and asserts HP-dependent
+        // payouts, and an application still in flight would drain the healed pool.
         await waitDamage(attackMsg?._source.system?.origin ?? attackMsg?.id, { flag: 'receipt' });
         await sleep(600); // payout tail (the mastery stage runs after the receipt)
       }
@@ -355,8 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(2)) {
       await healFull();
       await clearChips();
-      // Its own mastery, not §1's leftover: run alone, or after smoke-nogm left the blade on
-      // Sap, §2 swung Sap and asked for Vex (2026-09-04).
+      // Its own mastery, not a leftover from an earlier section or suite.
       await setMastery('vex');
       {
         const { attackMsg, roll } = await attack(pcAttack());
@@ -364,17 +331,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('2. Vex (auto): damage dealt ⇒ Vexed chip with the weapon as origin',
           !!vexed && (vexed.origin === pc.items.get(blade.id).uuid),
           `vexed=${!!vexed} origin=${vexed?.origin} fumble=${roll?.isFumble}`);
-        // The chip proves the payout ran, so the receipt hunt starts AFTER it — waiting for
-        // the damage message first flaked once when the chain ran slow and the 10s window
-        // expired an instant before everything landed at once.
+        // The chip proves the payout ran, so the receipt hunt starts after it.
         const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'effectReceipt' });
         const receipt = dmg?.getFlag(MOD, 'effectReceipt');
         ok('2b. the Vexed chip joins the effect receipt',
           !!receipt?.targets?.some(t => (t.uuid === victim.uuid)
             && t.effects.some(e => e.id === vexed?.id)),
           JSON.stringify(receipt?.targets?.map(t => ({ uuid: t.uuid, effects: t.effects }))));
-        // THE MOMENT EVENTS (events.js version 2): the Vexed chip joining the effect receipt publishes `effect`
-        // through the GATE — marker `<target>|<effect id>`, the target as the payload's target.
+        // The Vexed chip joining the effect receipt publishes `effect` (marker `<target>|<effect id>`).
         const efv = momentsOf('effect').filter(p => (p.messageId === dmg?.id) && (p.details?.effectId === vexed?.id));
         ok('2c. the chip\'s landing was PUBLISHED through the gate: battleflow.moment "effect" (kind effectReceipt, marker victim|effect) — the victim as the target, the Vexed effect by id and name; once, plain and frozen',
           (efv.length === 1) && (efv[0].kind === 'effectReceipt') && (efv[0].marker === `${victim.uuid}|${vexed?.id}`) && (efv[0].targets?.[0]?.actorUuid === victim.uuid)
@@ -422,16 +386,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       await setMastery('sap');
       {
-        // ⚠ RETRY UNTIL IT LANDS, because this section needs TWO hits and `attack()` rolls
-        // ONCE. Sap has no damage gate — a hit is enough (§3b) — so a MISS leaves no chip at
-        // all, and `count=0` then fails an assertion whose whole subject is "one chip, not
-        // two". That is not the module stacking a twin; it is a d20. It happened on the
-        // battery of 2026-08-24 and cost a full re-run to disprove. Every other fold suite in
-        // this tree retries for exactly this reason; this one was the last that did not.
-        //
-        // ⚠ NO DAMAGE MESSAGE IS THE MISS TEST, and it is free: the resolver drives damage
-        // only on a hit, so `waitDamage` coming back empty IS the miss. Four tries with
-        // advantage is past the point where another one means anything but a broken fixture.
+        // ⚠ RETRY UNTIL IT LANDS: two hits are needed and a miss leaves no Sap chip, so count=0 would
+        // be a d20, not a stacking bug. No damage message IS the miss (damage drives only on a hit).
         const hit = async () => {
           for ( let i = 0; i < 4; i++ ) {
             const r = await attack(pcAttack());
@@ -445,9 +401,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const landed = (await hit()) && (await waitFor(() =>
           victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap'))) && (await hit());
         if (!landed) {
-          // ⚠ SKIP OUT LOUD RATHER THAN ASSERT ON A SWING THAT NEVER CONNECTED. Four misses in
-          // a row with advantage is a fixture problem — the wrong AC, the wrong weapon — and
-          // saying THAT is useful, where "count=0" sends the next reader into mastery.js.
+          // ⚠ Skip out loud: four misses with advantage is a fixture problem, not mastery.js.
           skip('4: four swings with advantage never landed — that is the fixture, not the code');
         } else {
           await sleep(1000);
@@ -465,7 +419,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('masteryAsk', 'ask');
       await setMastery('slow');
       {
-        // Bounded retry — a nat-1 miss stamps no ask and flaked this section (2026-08-20).
+        // Bounded retry: a nat-1 miss stamps no ask.
         let attackMsg = null, m = null;
         for (let try5 = 0; (try5 < 4) && !m; try5++) {
           ({ attackMsg } = await attack(pcAttack()));
@@ -479,10 +433,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           (m?.key === 'slow') && (m?.status === 'pending'),
           JSON.stringify({ key: m?.key, status: m?.status }));
 
-        // The popup is on THIS client (the bridge answers for an unowned PC). Exactly two
-        // controls, Use and Pass — the two-control rule is binding (HANDOFF standing item 3).
-        // ⚠ Count the FOOTER's action buttons only: DialogV2's window frame carries its own
-        // [data-action] controls (toggleControls, close), which are chrome, not answers.
+        // The popup is on THIS client (the bridge answers for an unowned PC): exactly Use and Pass.
+        // ⚠ Count the FOOTER's buttons only: DialogV2's frame carries its own [data-action] chrome.
         const dialog = await waitFor(() => {
           for (const el of document.querySelectorAll('.application.dialog')) {
             const actions = [...el.querySelectorAll('.form-footer button[data-action]')].map(b => b.dataset.action);
@@ -509,7 +461,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('5d. the popup closed once the answer landed',
           await waitFor(() => !document.querySelector('.application.dialog button[data-action="use"]')) !== null,
           'a Use/Pass dialog is still open');
-        // THE MOMENT EVENTS (events.js version 2): the mastery ask resolving to `done` publishes `mastery` through the GATE.
+        // The mastery ask resolving to `done` publishes `mastery`.
         const mv = momentsOf('mastery').filter(p => p.messageId === attackMsg.id);
         ok('5e. the ask\'s resolve was PUBLISHED through the gate: battleflow.moment "mastery" (kind mastery) — the attacker, slow, used, the victim as the target; once, plain and frozen',
           (mv.length === 1) && (mv[0].kind === 'mastery') && (mv[0].actorUuid === pc.uuid) && (mv[0].details?.key === 'slow') && (mv[0].details?.outcome === 'used')
@@ -540,7 +492,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (done?.outcome === 'timed out') && !slowed,
           JSON.stringify({ deadline: !!pending?.deadline, answer: done?.answer,
             timedOut: done?.timedOut, outcome: done?.outcome, slowed: !!slowed }));
-        // Close the popup the timeout orphaned, if the close hook missed it.
         document.querySelectorAll('.application.dialog button[data-action="pass"]').forEach(b => { b.click(); });
       }
       await set('holdTimer', 0);
@@ -556,8 +507,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
         const before = game.messages.size;
         const { attackMsg, roll } = await attack(pcAttack());
-        // vs AC 1 with advantage only a nat-1 fumble misses (1/400) — and a miss legitimately
-        // pays no Topple, so report the flake as a flake (the house pattern), not a failure.
+        // vs AC 1 with advantage only a double nat-1 misses, and a miss pays no Topple: report a skip.
         if (roll?.isFumble) {
           skip('topple: nat-1 fumble missed outright (flake, 1/400) — hit path not exercised');
         } else {
@@ -569,8 +519,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!card && card.content.includes(`dc=${dc}`) && card.content.includes('ability=con'),
           `dc expected ${dc}; content has: ${card?.content?.match(/\[\[\/save[^\]]*\]\]/)?.[0] ?? 'no enricher'}`);
 
-        // The GM prone affordance: a real DOM click on the card's button — selected by its
-        // label, because the [[/save]] enricher renders its own clickable element in the card.
+        // The GM prone button, found by label: the [[/save]] enricher renders its own clickable element.
         const button = await waitFor(() =>
           [...document.querySelectorAll(`[data-message-id="${card?.id}"] button`)]
             .find(b => /prone/i.test(b.textContent)));
@@ -580,8 +529,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('7b. the card\'s prone button really knocks the target prone',
           !!prone && !!(await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'topple')?.targets?.every(t => t.done))),
           `prone=${!!prone} done=${flagDone}`);
-        // v1.11.0 (finding ⑤): the pressed chip names WHO pressed it — the attacker rides
-        // the topple stamp and lands as the effect's origin, on the GM-button path here.
+        // The pressed chip names WHO pressed it: the attacker lands as the effect's origin.
         const proneEffect7 = victim.effects.find(e => e.statuses?.has?.('prone'));
         ok('7c. the pressed Prone names its source — the attacker',
           proneEffect7?.origin === pc.uuid,
@@ -605,7 +553,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 9. Push in AUTO mode (the un-spot-checked path)
+    // ================================================== 9. Push in AUTO mode
     if (want(9)) {
       await clearChips();
       await healFull(); // a dead target is skipped by design — the pool must be able to pay
@@ -614,16 +562,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const before = game.messages.size;
         const { attackMsg } = await attack(pcAttack());
         await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-        // ⚠ Match the ANNOUNCEMENT's eyebrow, not /push/i — the native usage card prints the
-        // mastery name in its subtitle ("Simple Melee • Push") and matched first.
+        // ⚠ Match the announcement's eyebrow, not /push/i: the usage card's subtitle names the mastery.
         const cards = await waitFor(() => {
           const found = game.messages.contents.slice(before)
             .filter(m => (m.content ?? '').includes('Weapon Mastery — Push'));
           return found.length ? found : null;
         });
-        // Exactly ONE card — a doubled announcement means two clients both believed they were
-        // the single-writer elect (two pages logged in as one GM user — a harness topology
-        // this world can produce; the module's elect is per-user, not per-page).
+        // Exactly ONE card: the single-writer elect is per-user, not per-page.
         ok('9. Push (auto) announces the option exactly once and moves nothing',
           (cards?.length === 1) && /10 feet/.test(cards[0].content),
           `cards=${cards?.length ?? 0}`);
@@ -656,15 +601,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 11. spell effect riders (1.9A)
+    // ================================================== 11. spell effect riders
     if (want(11)) {
       await clearChips();
       await healFull();
       // An attack-roll spell whose ATTACK ACTIVITY carries effects, found by shape.
-      // ⚠ Item-level effects are not enough: the usage card's system.effects comes from the
-      // USED activity's applicableEffects, so a spell whose effect rides a utility activity
-      // (Alter Self) produces an attack card with no effects at all — correctly suppressed,
-      // wrongly failing a carve-out assertion built on it.
+      // ⚠ The usage card's effects come from the USED activity's applicableEffects, not the item's.
       const attackWithEffects = i => i.system.activities?.some?.(a =>
         (a.type === 'attack') && a.effects?.length);
       const findSpell = async ({ concentration }) => {
@@ -682,10 +624,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             if (!attackWithEffects(doc)) continue;
             if ((doc.system.properties?.has?.('concentration') ?? false) !== concentration) continue;
             if (concentration && doc.system.level > 3) continue; // castable by the fixture
-            // ⚠ The non-conc pick must be a CANTRIP: the fixture PC has no slot pool, and a
-            // leveled pick's use comes back UNDEFINED (refused) — which is how the battery
-            // aborted on 2026-08-19 when the pack walk started surfacing Guiding Bolt ahead
-            // of Ray of Frost. The pick was only ever stable by accident; pin the shape.
+            // ⚠ The non-conc pick must be a CANTRIP: the fixture PC has no slots, so a levelled use is refused.
             if (!concentration && doc.system.level > 0) continue;
             const [made] = await pc.createEmbeddedDocuments('Item', [doc.toObject()]);
             created.items.push({ actorId: pc.id, id: made.id });
@@ -702,21 +641,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const spellAttack = () => rof.actor.items.get(rof.item.id).system.activities.find(a => a.type === 'attack');
         const effectNames = new Set(rof.item.effects.map(e => e.name));
         const chip = () => victim.effects.find(e => effectNames.has(e.name) && !e.disabled);
-        // ⚠ clearChips knows the mastery names; the SPELL's effect names it cannot know.
-        // Leaving them behind made "a miss applies nothing" find the previous hit's chip.
+        // ⚠ clearChips knows only mastery names; the spell's own chips need their own sweep.
         const clearSpellChips = async () => {
           const mine = victim.effects.filter(e => effectNames.has(e.name));
           if (mine.length) await victim.deleteEmbeddedDocuments('ActiveEffect', mine.map(e => e.id));
         };
-        // A levelled spell spends real slots and this block casts repeatedly — rest the
-        // caster before each cluster so a dry pool can never impersonate a module bug.
+        // Rest the caster before each cluster so a dry slot pool never looks like a module bug.
         const restCaster = async () => { try { await rof.actor.longRest({ dialog: false, chat: false }); } catch { /* fine */ } };
         await restCaster();
 
         const { attackMsg, usageId, failed } = await attack(spellAttack());
         if (failed || !(usageId ?? attackMsg?.id)) {
-          // A refused use is a FIXTURE fact, not a module bug — name it instead of dying on
-          // a null id (the 2026-08-19 abort read as a mystery crash until probed).
+          // A refused use is a FIXTURE fact: name it instead of dying on a null id.
           ok('11. a spell hit applies the card\'s effects to the target (1.9A)', false,
             `FIXTURE: the cast itself was refused (${rof.item.name} on ${rof.actor.name})`);
           throw new Error(`FIXTURE: cast refused — ${rof.item.name} on ${rof.actor.name} (slotless?)`);
@@ -727,14 +663,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('11. a spell hit applies the card\'s effects to the target (1.9A)',
           !!applied && !!receipt?.targets?.some(t => (t.uuid === victim.uuid) && t.effects.length),
           `chip=${applied?.name ?? 'none'} receipt=${!!receipt}`);
-        // 6.0: the platform's applied-effect changes stamp `origin` as the ACTIVITY (and `system.origin.activity`
-        // beside it); at 5.3.3 it was the spell's own effect. The shape is the platform's — assert theirs.
+        // dnd5e 6.x stamps an applied effect's `origin` as the ACTIVITY (and `system.origin.activity`).
         ok('11b. the applied effect\'s origin is the spell\'s own activity (the tray\'s 6.0 shape), and system.origin names it too',
           !!applied?.origin && (fromUuidSync(applied.origin)?.item?.uuid === rof.item.uuid)
             && (applied?.system?.origin?.activity === applied.origin),
           `origin=${applied?.origin} system.origin=${JSON.stringify(applied?.system?.origin ?? null)}`);
 
-        // Re-cast: refresh, never stack (native parity).
+        // Re-cast: refresh, never stack.
         const again = await attack(spellAttack());
         await waitDamage(again.usageId ?? again.attackMsg.id, { flag: 'effectReceipt' });
         await sleep(800);
@@ -742,7 +677,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('11c. a second cast re-clocks the effect instead of stacking a twin',
           copies.length === 1, `count=${copies.length}`);
 
-        // Never on a miss.
         await clearChips();
         await clearSpellChips();
         await acFlat(40);
@@ -793,10 +727,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!marked2, `marked=${!!marked2}`);
         }
 
-        // ============================================ 13. every use shows its first card (v1.10.0)
-        // The suppression machinery is deleted; what stays asserted is the COUNT (one cast,
-        // exactly one card) and COEXISTENCE — the card posts AND the riders land the effect,
-        // where 1.9D used to trade one for the other.
+        // ============================================ 13. every use shows its first card
+        // One cast, exactly one card, AND the riders land the effect.
         if (want(13)) {
           const usageCards = () => game.messages.contents.filter(m =>
             ((m.type === 'usage'))
@@ -820,20 +752,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ---------------------------------------------------- 14. the Topple card folds its own save
-    // (v1.5.0): a save chained to the card — the enricher click — or bare from a pending
-    // target is judged against the card's stored DC on the elect; failure applies Prone and
-    // announces, success closes quietly, and a save chained to any OTHER message is ignored.
-    // Outcomes are FORCED through the actor's own save bonus (±30) — the concentration
-    // suite's lesson: a suite that can lose a coin flip lies once a week.
+    // A save chained to the card, or bare from a pending target, is judged against the card's DC on the
+    // elect: failure applies Prone and announces; a save chained to another message is ignored.
+    // Outcomes are FORCED through the save bonus (±30).
     if (want(14)) {
       await set('autoApply', true);
       await set('masteryAsk', 'auto');
       await setMastery('topple');
       await healFull();
-      await acFlat(1); // fumble-only misses — the victim's natural AC gave a real ~12% flake
-      // getSpeaker picks the actor's FIRST active token on the viewed scene, and an older
-      // UNLINKED victim token (another suite's reused fixture) makes every save resolve to a
-      // synthetic uuid that can never match the linked snapshot entry — sweep the strays.
+      await acFlat(1); // fumble-only misses
+      // getSpeaker picks the actor's FIRST active token: sweep stray unlinked victim tokens, whose
+      // synthetic uuids never match the linked snapshot.
       const strayVictimTokens = scene.tokens.filter(t =>
         (t.actorId === victim.id) && (t.id !== victimTokenDoc.id));
       if (strayVictimTokens.length) {
@@ -841,22 +770,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         log.push(`14: swept ${strayVictimTokens.length} stray victim token(s) off the range`);
       }
       if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
-      // ④'s regression net (2026-08-16): a DISABLED Prone leftover makes
-      // toggleStatusEffect({active: true}) a silent no-op — the live "topple failed but
-      // nothing fell prone". The press must land THROUGH it (forceStatus enables the
-      // carrier), so plant exactly that leftover before the failing save.
-      // ⚠ CANONICAL id on purpose: toggleStatusEffect(false) — every cleanup in this suite —
-      // only ever removes the canonical-id effect. A random-id carrier, once enabled, outlives
-      // every cleanup and hopeless-gates the rest of the run (how 2026-08-16's battery
-      // poisoned itself: §7/14d/14e all starved behind an immortal Prone).
+      // A DISABLED Prone leftover makes toggleStatusEffect({active: true}) a silent no-op: the press
+      // must land THROUGH it (forceStatus enables the carrier), so plant one.
+      // ⚠ CANONICAL id: toggleStatusEffect(false) removes only the canonical-id effect, so a random-id
+      // carrier would outlive every cleanup and hopeless-gate the rest of the run.
       await victim.createEmbeddedDocuments('ActiveEffect', [{
         _id: 'dnd5eprone000000', name: 'Prone', statuses: ['prone'], disabled: true,
         img: 'icons/svg/falling.svg'
       }], { keepId: true });
-      // ⚠ Force outcomes through the PER-ABILITY save bonus (abilities.con.save.roll.bonus) —
-      // the smoke-saves channel. The global system.rolls.ability.save.bonus is NOT folded into
-      // rollSavingThrow at 5.3.3 (measured 2026-08-17: bonus "+30", saveTotal 10), so the old
-      // ±30 here never forced anything and §14d was a coin flip the whole time.
+      // ⚠ Force through the PER-ABILITY save bonus: dnd5e does not fold the global
+      // system.rolls.ability.save.bonus into rollSavingThrow.
       priorActor[victim.id]['system.abilities.con.save.roll.bonus'] =
         victim.system._source.abilities?.con?.save?.roll?.bonus ?? '';
 
@@ -891,11 +814,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const saveRolls14 = await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { 'system.origin': toppleMsg.id } });
         await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].done);
-        // The announcement posts AFTER the flag flips done (the handoff's same-breath race) —
-        // and since v1.5.1 also after the dice-animation pause — give it a generous wait.
+        // The announcement posts after the flag flips done and the dice pause: a generous wait.
         await until14(() => fresh14(before14).some(m => m.content?.includes('falls Prone')), 10_000);
-        // The applied receipt is written AFTER the announcement posts — wait for it or the
-        // assert races the last flag write (the same-breath lesson, applied-side).
+        // The applied receipt is written after the announcement.
         await until14(() => toppleMsg.getFlag(MOD, 'topple').targets[0].applied, 8000);
         const e14 = toppleMsg.getFlag(MOD, 'topple').targets[0];
         const announced = fresh14(before14).filter(m => m.content?.includes('falls Prone')).length;
@@ -907,9 +828,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + ` | save: type=${sm14?.type} origin=${sm14?._source.system?.origin}`
             + ` total=${sm14?.rolls?.[0]?.total} assoc=${sm14?.getAssociatedActor?.()?.uuid} expected=${victim.uuid}`);
 
-        // v1.11.0 (finding ⑤), the ENABLE branch: pressing THROUGH the disabled leftover
-        // stamps the source onto the carrier it enables — origin comes from the topple
-        // stamp's attackerUuid, whoever swung.
+        // Pressing THROUGH the disabled leftover stamps the attacker as the enabled carrier's origin.
         const prone14 = victim.effects.find(e => e.statuses?.has?.('prone'));
         ok('14c2. the pressed-through chip names its source from the topple stamp',
           !!toppleMsg.getFlag(MOD, 'topple').attackerUuid
@@ -918,15 +837,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
         await victim.toggleStatusEffect('prone', { active: false });
         await victim.update({ 'system.abilities.con.save.roll.bonus': '+30' });
-        // ⚠ Retry the attack until a topple card appears (bounded): vs AC 1 only a fumble
-        // misses, but a double-nat-1 under advantage IS a real 0.25% — and it hit this
-        // section twice on 2026-08-17. Heal + un-prone between tries (the dead-skip and
-        // already-prone gates both eat the card silently).
+        // ⚠ Retry until a Topple card appears (a double nat-1 is 0.25%); heal and un-prone between
+        // tries (the dead-skip and already-prone gates eat the card silently).
         let topple2 = null;
         let atk14d = null;
         for (let try14d = 0; (try14d < 4) && !topple2; try14d++) {
           await victim.toggleStatusEffect('prone', { active: false });
-          await healFull(); // 11 max HP — the section's own attacks kill it (the fixture-HP trap)
+          await healFull(); // 11 max HP
           before14 = snap14();
           atk14d = await attack(pcAttack());
           await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
@@ -938,13 +855,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             { data: { 'system.origin': topple2.id } });
           await until14(() => topple2.getFlag(MOD, 'topple').targets[0].done);
           const e14b = topple2.getFlag(MOD, 'topple').targets[0];
-          // RECUT at v1.15.0 (the 2026-08-18 session's finding ⑤, overturning v1.6.0's
-          // "closes quietly"): a public ask that resolves in silence reads as a dropped
-          // machine — the success must announce, exactly one card, and still no Prone.
+          // A success announces too (one card, no Prone): a public ask resolving in silence reads as dropped.
           await until14(() => fresh14(preAnnounce).some(m => m.content?.includes('stays standing')), 10_000);
           const announced2 = fresh14(preAnnounce).filter(m => m.content?.includes('falls Prone')).length;
           const stood2 = fresh14(preAnnounce).filter(m => m.content?.includes('stays standing')).length;
-          // The card prints the ROLL's total, never "?" (the 6.0 walk, 2026-09-18: the success branch read the pre-write clone).
+          // The card prints the ROLL's total, never "?".
           const stoodText = (fresh14(preAnnounce).find(m => m.content?.includes('stays standing'))?.content ?? '').replace(/<[^>]+>/g, ' ');
           ok('14d. a successful save announces — stays standing, once, with the roll\'s total against the DC, and no Prone',
             e14b.done && (e14b.outcome === 'saved') && !victim.statuses.has('prone')
@@ -966,8 +881,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
 
         await victim.update({ 'system.abilities.con.save.roll.bonus': '-30' });
-        // Bounded retry — a miss (or a leftover Prone, which the stamp skips) flaked this
-        // section (2026-08-20); 14g below already carries the same loop for the same reason.
+        // Bounded retry: a miss (or a leftover Prone, which the stamp skips) leaves no card.
         let topple3 = null;
         for (let try14e = 0; (try14e < 4) && !topple3; try14e++) {
           await victim.toggleStatusEffect('prone', { active: false });
@@ -978,9 +892,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           topple3 = fresh14(before14).find(m => m.getFlag(MOD, 'topple'));
         }
         if (topple3) {
-          // 14f first, while the card is still pending: the card must offer its own
-          // correctly-aimed Roll control — the native enricher rolls for the SELECTION,
-          // which right after an attack is the ATTACKER (bit live 2026-08-16).
+          // 14f while pending: the card offers its own correctly-aimed Roll — the native enricher rolls
+          // for the SELECTION, which right after an attack is the attacker.
           let cardEl = null;
           await until14(() => {
             cardEl = document.querySelector(`.message[data-message-id="${topple3.id}"]`);
@@ -994,8 +907,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
           await until14(() => topple3.getFlag(MOD, 'topple').targets[0].done);
           const e14c = topple3.getFlag(MOD, 'topple').targets[0];
-          // Prone lands after the verdict pause since v1.5.1 — wait for the status itself,
-          // not just the flag.
+          // Prone lands after the verdict pause: wait for the status itself.
           await until14(() => victim.statuses.has('prone'), 10_000);
           ok('14e. a bare sheet save from a pending target answers the card',
             e14c.done && (e14c.outcome === 'prone') && victim.statuses.has('prone'),
@@ -1005,11 +917,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             'no third topple card (did the attack hit?)');
         }
 
-        // 14g–i. the buzzer (v1.10.0): the demand stamps saveTimer's deadline, the card runs
-        // the bar (the pairing rule, asserted at the DOM by the [data-bf-deadline] node the
-        // drain animates on), and expiry ROLLS the still-pending target straight — marked as
-        // the timer's press — with the failure pressing Prone. The -30 save bonus from 14e is
-        // still on, so the outcome is forced, not flipped.
+        // 14g–i. the buzzer: the demand stamps saveTimer's deadline, the card runs the bar
+        // ([data-bf-deadline]), and expiry ROLLS the pending target as the timer's press. The -30 bonus
+        // from 14e forces the failure.
         await set('saveTimer', 3);
         let topple4 = null;
         for (let try14g = 0; (try14g < 4) && !topple4; try14g++) {
@@ -1049,10 +959,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         await set('saveTimer', 0);
 
-        // 14j–14l. THE DIALOG IS THE SYSTEM'S (2026-09-03): the Topple ask opens dnd5e's own
-        // Saving Throw dialog with Battle Flow's demand fieldset above its configuration — the
-        // save demand's option E, applied to the last house popup on a save. Found by the
-        // application registry and our fieldset, never by a class the dialog may not wear.
+        // 14j–14l. The Topple ask opens dnd5e's own Saving Throw dialog with the demand fieldset above;
+        // found by the application registry and our fieldset, never by a class.
         const toppleDialogs = () => [...foundry.applications.instances.values()]
           .filter(app => app.rendered && (app.element?.querySelector?.('[data-bf-save-demand]')?.textContent ?? '').includes('Weapon Mastery — Topple'))
           .map(app => app.element);
@@ -1066,8 +974,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let dlg5 = null;
         await until14(() => { dlg5 = toppleDialogs()[0] ?? null; return !!dlg5; }, 8000);
         const labels5 = dialogButtons(dlg5).map(b => b.textContent.trim());
-        // The default MARK, read at three moments (2026-09-03: "intermittently doesn't show" on
-        // this dialog): which button carries autofocus, which the module's mark, and where focus is.
+        // The default MARK: autofocus, the module's mark, and where focus is.
         const marks = () => dialogButtons(dlg5).map(b => `${b.dataset.action}:${b.hasAttribute('autofocus') ? 'A' : '-'}${b.hasAttribute('data-bf-default') ? 'M' : '-'}${document.activeElement === b ? 'F' : '-'}`).join(' ');
         const markLog = [`t0 ${marks()}`];
         await sleep(300); markLog.push(`t300 ${marks()}`);
@@ -1087,11 +994,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('14k. the dialog\'s own button rolls the save chained to the card, the fold judges it, the dialog closes',
           !!e14j?.done && (typeof e14j.total === 'number') && (toppleDialogs().length === 0),
           `done=${e14j?.done} total=${e14j?.total} outcome=${e14j?.outcome} dialogs=${toppleDialogs().length}`);
-        // 14m. THE PRESS LANDS THE CANONICAL PRONE, never a dormant look-alike (user report
-        // 2026-09-03: "when Morgash applied Topple, it applied Cunning Strike: Tripped instead"):
-        // a DISABLED effect that merely carries the prone status — a pack's own from an earlier
-        // Trip — sits on the victim; the Topple failure must create the plain Prone beside it and
-        // leave the leftover disabled.
+        // 14m. The press lands the CANONICAL Prone, never a dormant look-alike: a disabled effect
+        // carrying the prone status (a pack's Trip) stays disabled beside the new Prone.
         await victim.toggleStatusEffect('prone', { active: false });
         await healFull();
         const [leftover] = await victim.createEmbeddedDocuments('ActiveEffect', [{
@@ -1111,12 +1015,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!landed && (landed.name === 'Prone') && (landed.id !== leftover.id) && !!stillDormant && (stillDormant.disabled === true),
           `landed=${landed?.name ?? 'none'} sameAsLeftover=${landed?.id === leftover.id} leftover=${stillDormant ? (stillDormant.disabled ? 'disabled' : 'ENABLED') : 'gone'}`);
         if (victim.effects.get(leftover.id)) await victim.deleteEmbeddedDocuments('ActiveEffect', [leftover.id]).catch(() => {});
-        // ⚠ NOT ASSERTED, AND WHY: the gate's Fails button (a save the rules fail before the
-        // dice) never stands on a Topple dialog today — Topple is a CONSTITUTION save and every
-        // automatic-failure row in SAVE_BENDS (Paralyzed, Stunned, Unconscious, Petrified) names
-        // Strength and Dexterity only. mastery.js's markToppleAutoFailed is the demand contract's
-        // no-roll half, reachable the day a Con-save auto-fail row exists; measured 2026-09-03
-        // (a Paralyzed target's dialog correctly grew no Fails button).
+        // Not asserted: no auto-fail row in SAVE_BENDS names Constitution, so the Fails button never
+        // stands on a Topple dialog; markToppleAutoFailed is reachable only once such a row exists.
         await victim.toggleStatusEffect('prone', { active: false });
         await victim.update({ 'system.abilities.con.save.roll.bonus':
           priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
@@ -1124,10 +1024,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)
-    // v1.5.0 user call: "the design is for people to know weapon masteries". The card is the
-    // durable record (flag masteryNotice, windowed by S.noticeTimer); the popup is a per-client view of it
-    // and is not asserted here — popup discipline is the managed-popup machinery's, already
-    // proven by the ask and the concentration suite.
+    // The card is the durable record (flag masteryNotice, windowed by S.noticeTimer); the popup
+    // is a per-client view and is not asserted here.
     if (want(15)) {
       await setMastery('vex');
       let before15 = snap14();
@@ -1141,28 +1039,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       let msgs15 = fresh14(before15);
       const vexNotice = msgs15.find(m => m.getFlag(MOD, 'masteryNotice')?.key === 'vex');
       const vexChip = victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'vex');
-      // ⚠ THIS ASSERTION PINNED THE BUG IT WAS MEANT TO GUARD (fixed 2026-09-01). It hard-coded
-      // 15, so the reminder's stale constant was not merely unnoticed — the suite went green
-      // BECAUSE of it, every run, while live play lost the window to it. Read the SETTING: the
-      // contract is "the card's window is the configured one", not "the window is 15".
+      // ⚠ Read the SETTING: the contract is "the card's window is the configured one".
       const noticeWindow = game.settings.get(MOD, 'noticeTimer');
-      // 0 is the STICKY setting — no window is stamped at all, so the reminder never expires
-      // and the card draws no bar. Asserting `window === 0` there would demand a field the
-      // contract deliberately omits, so the two cases are checked as the two shapes they are.
+      // 0 is STICKY: no window is stamped and no bar drawn, so the two shapes are checked apart.
       const gotWindow = vexNotice?.getFlag(MOD, 'masteryNotice')?.window;
       const windowOk = noticeWindow ? (gotWindow === noticeWindow) : (gotWindow === undefined);
       ok(`15a. vex pays AND reminds: the chip and a notice card on the configured ${noticeWindow || 'sticky'} window`,
         !!vexChip && !!vexNotice && windowOk && vexNotice.content.includes('Weapon Mastery'),
         `chip=${!!vexChip} notice=${!!vexNotice} window=${gotWindow} want=${noticeWindow || 'none (sticky)'}`);
-      // The pairing rule (v1.10.0): the popup's drain runs on the CARD too — asserted at
-      // the DOM by the bar node the drain animates on, while the window is still open.
+      // The pairing rule: the popup's drain runs on the card too, asserted at the bar node.
       let noticeBar = null;
       await until14(() => {
         noticeBar = document.querySelector(`.message[data-message-id="${vexNotice?.id}"] [data-bf-deadline]`);
         return !!noticeBar;
       }, 4000);
-      // A sticky reminder has no clock, so there is correctly no bar to find — the pairing
-      // rule binds the bar to the WINDOW, not to the card.
       ok(`15a2. the reminder card ${noticeWindow ? 'runs the drain bar' : 'draws no bar when sticky'} (the pairing rule at the DOM)`,
         noticeWindow ? !!noticeBar : !noticeBar,
         noticeWindow ? 'no [data-bf-deadline] node in the rendered notice card'
@@ -1173,9 +1063,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `desc=${JSON.stringify(dmg15?.getFlag(MOD, 'effectReceipt')?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
 
       await setMastery('sap');
-      // The same retry vex has (8c5abec): the swing rolls with Advantage against AC 1, and a
-      // killing crit (~1 in 50 on an 11-HP victim) leaves nobody to sap — a dead target is
-      // skipped by design. 2026-09-24 the battery went red here on exactly that roll (58/59).
+      // Retry: a killing crit leaves nobody to sap (dead targets are skipped).
       for (let try15c = 0; try15c < 4; try15c++) {
         await healFull(); // dead targets are skipped — every §15 attack starts from full
         before15 = snap14();
@@ -1201,9 +1089,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && !msgs15.some(m => m.getFlag(MOD, 'mastery')),
         `notice=${!!cleaveNotice}`);
 
-      // (u) walk-4: the dead-skip must NOT eat cleave — a kill is its signature moment (Morgash
-      // killed Jetten and the reminder died with him). Victim at 1 HP so the applied damage
-      // kills; the reminder must post anyway, the corpse still anchoring "within 5 feet of".
+      // (u) the dead-skip must NOT eat Cleave (a kill is its moment): victim at 1 HP, the reminder
+      // posts anyway, the corpse still anchoring "within 5 feet of".
       let killNotice15 = null;
       for (let tryU = 0; (tryU < 4) && !killNotice15; tryU++) {
         await victim.update({ 'system.attributes.hp.value': 1 });
@@ -1216,8 +1103,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!killNotice15 && (victim.system.attributes.hp.value <= 0),
         `notice=${!!killNotice15} hp=${victim.system.attributes.hp.value}`);
       await healFull();
-      // No litter: 15d2's reminder popups must not be the [0] a later section's picker clicks
-      // (17a Arm-clicked a stale one here and the ack landed on the wrong notice).
+      // No litter: stale reminder popups must not be the [0] a later picker clicks.
       for (const el of [...document.querySelectorAll('.application')]
         .filter(el => (el.innerHTML ?? '').includes('Weapon Mastery'))) {
         try { (el.querySelector('[data-action="close"]') ?? el.querySelector('.header-control'))?.click(); } catch {}
@@ -1225,8 +1111,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(300);
     }
 
-    // ---------------------------------- 16. the 2026-08-18 session's fixes (v1.15.0)
-    // ④ the fold refuses other machines' rolls; ⓪/② twin asks and twin chips converge.
+    // ---------------------------------- 16. the Topple fold's edges
+    // The fold refuses other machines' rolls; twin asks and twin chips converge.
     if (want(16)) {
       await setMastery('topple');
       await victim.update({ 'system.abilities.con.save.roll.bonus': '+30' }); // every save succeeds — no Prone side-effects
@@ -1240,13 +1126,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         card16 = fresh14(b16).find(m => m.getFlag(MOD, 'topple'));
       }
       if (card16) {
-        // 16a. provenance: the ask names the damage message that earned it (the supersede's key).
+        // 16a. the ask names the damage message that earned it (the supersede's key).
         ok('16a. the topple ask carries its provenance (sourceMessageId)',
           !!card16.getFlag(MOD, 'topple').sourceMessageId,
           `sourceMessageId=${card16.getFlag(MOD, 'topple').sourceMessageId ?? 'MISSING'}`);
 
-        // 16b. finding ④, the theft: a roll stamped as ANOTHER machine's answer (respondsTo)
-        // must never fold the topple — Edda's concentration answer was claimed live.
+        // 16b. a roll stamped as ANOTHER machine's answer (respondsTo) never folds the Topple.
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false },
           { data: { flags: { [MOD]: { respondsTo: 'bfstubforeign000' } } } });
         await sleep(1500);
@@ -1254,9 +1139,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           card16.getFlag(MOD, 'topple').targets[0].done === false,
           `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
 
-        // 16c. finding ④, the bare-roll half: while a concentration ask PENDS for the same
-        // actor and ability, a bare sheet roll is the conc machine's (ship-order priority);
-        // the topple stands for its own popup and buzzer.
+        // 16c. while a concentration ask pends for the same actor and ability, a bare sheet roll is
+        // the concentration machine's (ship-order priority).
         const stub16 = await ChatMessage.create({ content: 'BF test — pending conc ask stub',
           flags: { [MOD]: { concentration: {
             status: 'pending', actorUuid: victim.uuid, ability: 'con', dc: 10 } } } });
@@ -1266,8 +1150,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           card16.getFlag(MOD, 'topple').targets[0].done === false,
           `done=${card16.getFlag(MOD, 'topple').targets[0].done}`);
 
-        // 16d. the ask resolved and gone, the next bare roll is the topple's again — and the
-        // success ANNOUNCES (finding ⑤ at the fold's bare path).
+        // 16d. with that ask gone, the next bare roll is the Topple's, and the success announces.
         await ChatMessage.deleteDocuments([stub16.id]);
         const pre16d = snap14();
         await victim.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
@@ -1279,9 +1162,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && fresh14(pre16d).some(m => m.content?.includes('stays standing')),
           `done=${e16.done} outcome=${e16.outcome}`);
 
-        // 16e. finding ⓪/②, the twin ask: isActiveGM() is per-USER — two sessions on one
-        // account both stamp. A twin arriving over the same sourceMessageId deletes itself;
-        // the elder keeps the question. (Targets arrive done so no popup flashes.)
+        // 16e. the twin ask: isActiveGM() is per-USER, so two sessions on one account both stamp; a twin
+        // over the same sourceMessageId deletes itself. (Targets arrive done so no popup flashes.)
         const twin16 = await ChatMessage.create({ content: 'BF test — twin topple ask',
           flags: { [MOD]: { topple: {
             dc: 14, ability: 'con',
@@ -1302,18 +1184,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       }
 
-      // 16f. finding ⓪/②, the twin chip: two module-fingerprinted effects with the same name
-      // and origin converge to one — the newcomer deletes itself, the elder stands.
-      // Clean slate: a crashed prior run's twin chips are ELDERS to this section's pair
-      // and would eat both newcomers (bit 2026-08-19, take 3).
+      // 16f. twin chips (same name and origin, module-fingerprinted) converge to one: the newcomer
+      // deletes itself. Clear a crashed run's twins first — they would be ELDERS.
       for (const stale of victim.effects.filter(e => e.name === 'BF Twin Chip')) await stale.delete();
-      // ⚠ The origin must RESOLVE — this box nulls an ActiveEffect create whose origin
-      // uuid points at nothing (probed 2026-08-19: every synthetic-origin attempt of this
-      // section silently created NOTHING and the assert was reading phantoms). The victim's
-      // own uuid is the cheapest real origin. The elder's create is race-free (no twin
-      // exists yet) so ITS return is safe to hold; the newcomer's return is NOT held — the
-      // watcher can delete it before the creation workflow resolves, which is the fix
-      // winning its race. Converge on the COUNT.
+      // ⚠ The origin must RESOLVE: an ActiveEffect create whose origin points at nothing silently
+      // creates nothing. The newcomer's return is not held (the watcher may delete it first): converge
+      // on the COUNT.
       const eA16 = await ActiveEffect.implementation.create({
         name: 'BF Twin Chip', origin: victim.uuid,
         flags: { [MOD]: { applied: true } } }, { parent: victim });
@@ -1333,11 +1209,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
     }
 
-    // ================================================== 17. the Cleave arm (v1.19.0, FLOW item 8)
-    // The reminder popup is now a DECISION (Arm the Cleave / Dismiss); the arm is a one-shot
-    // actor flag; the strip drops the literal "@mod" part from the BASE entry of the next
-    // damage roll with that weapon, skipping when the mod is negative (the RAW corner), and
-    // expiring by STAMP MISMATCH (in combat) or 60s TTL (out of combat).
+    // ================================================== 17. the Cleave arm
+    // The reminder offers Arm / Dismiss; the arm is a one-shot actor flag that strips "@mod" from the
+    // BASE entry of the next damage roll with that weapon — never a negative mod — expiring by stamp
+    // mismatch (in combat) or a 60s TTL.
     if (want(17)) {
       await setMastery('cleave');
       await acFlat(1);
@@ -1369,9 +1244,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('17b. Arm writes the one-shot actor flag keyed to THIS weapon',
             (arm?.itemId === blade.id) && (arm?.stamp === null),
             `arm=${JSON.stringify(arm)}`);
-          // (j) the ACK, round 3: ANY notice button resolves the card's pending presentation —
-          // Arm acknowledges durably (this client authored the notice as the elect) and the
-          // card's bar leaves; the "Cleave — armed" block is the ARM's and stays.
+          // ANY notice button resolves the card's pending presentation; Arm acknowledges durably and the
+          // "Cleave — armed" block stays.
           const notice17 = game.messages.contents.filter(m =>
             m.getFlag(MOD, 'masteryNotice')?.key === 'cleave').pop();
           const acked17 = await waitFor(() =>
@@ -1398,10 +1272,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeCleaveDialogs();
         }
 
-        // 17d — the RAW corner: a NEGATIVE mod is never stripped (removing a minus would RAISE
-        // the damage), but the arm is still consumed. ⚠ BOTH abilities go to 6 — the fixture
-        // blade can be FINESSE (a dagger was picked on this suite's first run), and lowering
-        // STR alone leaves a +3 DEX mod that the strip then rightly removes.
+        // 17d — a NEGATIVE mod is never stripped, but the arm is consumed. ⚠ BOTH abilities go to 6:
+        // the blade may be finesse.
         {
           await pc.update({ 'system.abilities.str.value': 6, 'system.abilities.dex.value': 6 }); // mod −2
           await pc.setFlag(MOD, 'cleaveArm',

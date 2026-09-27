@@ -1,13 +1,9 @@
-// Battle Flow drop-to-1 smoke test — DROP TO 1 HP (2026-09-25, the Orc walk: "if sometihng takes them
-// to zero, then a popup should ask to use the feat. same shape as death ward which you should do now
-// too"): Relentless Endurance asked with the Hit Points held at 1; Death Ward automatic.
+// Live suite: DROP TO 1 HP — Relentless Endurance asked with the Hit Points held at 1; Death Ward
+// automatic (RULINGS, the drop-to-1 row).
 //
-// Fixtures: BF Test Halfling (a character; tools/fixture-suite.mjs) is lent the PHB's Relentless
-// Endurance, and wears a "Protection from Death" effect for §1. Damage is applied with the system's
-// own Actor#applyDamage — the road the card's buttons and the module's applier both take.
-//
-// Harness discipline: every setting touched is restored; the lent item, the effect, the Hit Points
-// and every message this run creates are put back or deleted.
+// Fixtures: BF Test Halfling (tools/fixture-suite.mjs) is lent the PHB's Relentless Endurance and
+// wears a "Protection from Death" effect for §1. Damage goes through the system's Actor#applyDamage —
+// the road the card's buttons and the module's applier both take. Everything is put back.
 //
 // Sections: `--section 2`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';

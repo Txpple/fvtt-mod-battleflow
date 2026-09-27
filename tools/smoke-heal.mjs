@@ -1,16 +1,9 @@
-// Battle Flow healing-rerolls smoke test — HEALER (the origin feats, 2026-09-25: "use the empower
-// spell form as a baseline listing all roll numbers, the ones, and select the ones to replace";
-// "make sure the healer feat itself gets the 1 popup too not just spells"; "1s ticked"). AUTOMATIC
-// since 2026-09-26 ("fix healer that way too ... consistent with that great weapon one"): a healing
-// roll by a Healer that shows a 1 rerolls every 1 as the dice land — no popup — and the new faces
-// stand; the healing WAITS for the new dice (cast.js's claim) and lands once. Battle Medic's own `r1`
-// is taken off so it goes the same road.
+// Live suite: HEALER's rerolls. A healing roll by a Healer that shows a 1 rerolls every 1 as the
+// dice land — no popup — and the new faces stand; the healing WAITS for the new dice (cast.js's
+// claim) and lands once. Battle Medic's own `r1` is taken off so it goes the same road.
 //
-// Fixtures: BF Test Cleric (a character; tools/fixture-suite.mjs) is lent the PHB's Healer and Cure
-// Wounds for the run; BF Test Victim (the goblin) is the one healed, its hit points put back after.
-//
-// Harness discipline: every setting touched is restored; the lent items and every message this run
-// creates are deleted; the PRNG is put back; the victim's hit points are restored.
+// Fixtures: BF Test Cleric (tools/fixture-suite.mjs) is lent the PHB's Healer and Cure Wounds; BF Test
+// Victim is the one healed. Settings, lent items, messages, the PRNG and hit points are put back.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -19,7 +12,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 export const COVERS = [
   'heal-rerolls.js',        // the whole fold — the birth flag, the automatic reroll, the patch, the card
   'cast.js',                // the heal applier's claim — the healing waits for the new dice
-  'kit-tend.js'             // §6 — Battle Medic on the Healer's Kit's use (2026-09-25)
+  'kit-tend.js'             // §6 — Battle Medic on the Healer's Kit's use
 ];
 
 const SECTIONS = {
@@ -130,8 +123,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    // The victim's own token for the run (smoke-savage's shape: linked, placed, deleted in teardown),
-    // on a square nothing stands on.
+    // The victim's own linked token for the run, on a free square, deleted in teardown.
     const g = scene.grid.size;
     const occupied = (x, y) => scene.tokens.some(t => (t.x < (x + 1) * g) && ((t.x + t.width * g) > x * g) && (t.y < (y + 1) * g) && ((t.y + t.height * g) > y * g));
     let spot = null;

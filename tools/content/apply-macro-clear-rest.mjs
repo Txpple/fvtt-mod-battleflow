@@ -1,26 +1,15 @@
-// Apply `macro-clear-and-rest.js` to the world's "Clear Temp Effects" macro, IN PLACE.
-//
-// In place, deliberately: keeping the document id keeps every hotbar pin (Matt the DM slot 2).
-// A delete + create would silently unpin the button and hand back a macro that looks identical
-// and is not on the bar any more.
+// Apply `macro-clear-and-rest.js` to the world's "Clear Temp Effects" macro, IN PLACE: keeping the
+// document id keeps every hotbar pin (a delete + create would silently unpin it).
 //
 //   node tools/content/apply-macro-clear-rest.mjs               -> the local sandbox (default)
 //   BF_TARGET=prod node tools/content/apply-macro-clear-rest.mjs -> Molten prod, deliberately
 //
-// ⚠ IT DOES NOT EXECUTE THE MACRO. Running a full-board reset is not a thing to do to a live
-// scene to see whether it works; this writes the document and reads it back. The behaviour was
-// proven on the sandbox (see the HANDOFF section "The Clear + Full Rest macro").
+// ⚠ IT NEVER EXECUTES THE MACRO, on either world: it writes the document and reads it back.
 //
-// ⚠ SOLE-OCCUPANCY GUARD ON PROD, and it is NOT the retired "bridge never connects during live
-// play" rule — that was a misreading of the elect and live MCP assistance is ALLOWED (HANDOFF,
-// corrected 2026-08-19). The guard is narrower and about THIS macro specifically: it is a
-// full-board reset button, and quietly swapping what it does under someone who is mid-session
-// means the next press does something they did not agree to. So it stops by default and lets
-// you say yes on purpose:
+// ⚠ ON PROD it stops if anyone else is connected: it is a full-board reset button, and swapping what
+// it does under a live table changes what the next press does. Say yes on purpose:
 //
 //   BF_TARGET=prod BF_MACRO_FORCE=1 node tools/content/apply-macro-clear-rest.mjs
-//
-// It never EXECUTES the macro on either world — that part is not negotiable.
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,8 +30,7 @@ await f.connect();
 
 const out = await f.evaluate(async ({ command, newName, oldName, macroId, prod, force }) => {
   const others = game.users.filter(u => u.active && !u.isSelf).map(u => u.name);
-  // Anyone else on prod: stop unless this run said yes on purpose. See the header — this is
-  // about not changing a reset button under a live table, not about the bridge being present.
+  // Anyone else on prod: stop unless this run said yes on purpose.
   if (prod && others.length && !force) return { refused: true, others };
 
   const macro = game.macros.get(macroId)

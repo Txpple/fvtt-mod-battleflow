@@ -1,25 +1,14 @@
 // STATIC COVERAGE-MAP CHECK — no Foundry, no world, milliseconds.
 //
 // The live suites' `COVERS` claims (tools/coverage-map.mjs), checked BOTH WAYS:
-//
-//   - every MACHINE-tier file under scripts/ is claimed by at least one battery suite — a machine
-//     no suite claims is a machine `battery.mjs --changed` would never re-test;
-//   - every claim names a machine that EXISTS — a rename fails here, so the map cannot rot in
-//     place (the layer pins' self-expiry, tools/check-layers.mjs, applied to the claims);
-//   - every ORDER suite declares COVERS, and every file that declares COVERS is in ORDER — an
-//     unrun suite rots (battery.mjs's smoke-nogm lesson: the 15-second reminder survived six
-//     weeks behind an assertion nobody re-ran);
-//   - no claim names a SPINE file — core, spine, services and entry are covered by the full
-//     battery, which is what a change to one of them selects;
+//   - every MACHINE-tier file under scripts/ is claimed by at least one battery suite;
+//   - every claim names a machine that EXISTS (a rename fails here);
+//   - every ORDER suite declares COVERS, and every file that declares COVERS is in ORDER;
+//   - no claim names a SPINE file (a spine change selects the full battery);
 //   - ORDER's own `needs` each resolve to a row above the suite that needs it.
 //
-// WHY (user ruling 2026-09-23, change-scoped live testing): a declared map is only worth the
-// minutes it saves if nobody can let it drift. Both directions fail the build, the same shape as
-// the layer pins and the moment gate: a claim is cheap to write and impossible to leave stale.
-//
-// ⚠ There is NO allowlist, on purpose. A machine that no suite genuinely drives is claimed by the
-// suite that comes closest, with a comment on the claim saying so — the gap is then written where
-// the next person adding a section will read it, instead of in an exemption nobody revisits.
+// ⚠ NO allowlist: a machine no suite genuinely drives is claimed by the closest suite, with a
+// comment on the claim saying so.
 //
 //   node tools/check-coverage-map.mjs        exit 0 clean, 1 findings, 2 instrument failure
 import { existsSync, readFileSync } from "node:fs";
@@ -103,8 +92,7 @@ for (const [name, list] of covers) {
   }
 }
 
-// (5) every machine is claimed. The hint names the suites claiming its import neighbours — the
-// machines it imports and the ones that import it — which is usually where it belongs.
+// (5) every machine is claimed. The hint names the suites claiming its import neighbours.
 const claimed = new Set([...covers.values()].flat());
 const neighbours = rel => {
   const out = new Set(importers.get(rel) ?? []);

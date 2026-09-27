@@ -1,10 +1,8 @@
-// Probe (2026-09-03): what does the PLATFORM already apply for each 2024 condition? BACKLOG's
-// "measure before building" row: for every status the glossary hangs an outcome off, press it
-// on a fixture and READ — the effect's changes as dnd5e ships them, the derived traits (damage
-// resistance/immunity, condition immunity), the movement block, any sibling statuses it drags
-// in (Unconscious → Prone?), the d20 arithmetic (Exhaustion's −2 × level), and what the system's
-// own damage calculation makes of a 10-point hit (the receipt reads that calculation, so this
-// IS the receipt's answer). Read-only in effect: every status pressed is removed in `finally`.
+// Probe: what the PLATFORM already applies for each 2024 condition. For every status the glossary
+// hangs an outcome off, press it on a fixture and READ: the effect's changes, the derived traits,
+// the movement block, sibling statuses it drags in, the d20 arithmetic (Exhaustion), and what the
+// system's damage calculation makes of a 10-point hit (the receipt reads that calculation).
+// Every status pressed is removed in `finally`.
 //
 //   node tools/probe-conditions.mjs [--actor "BF Test Victim"]
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";

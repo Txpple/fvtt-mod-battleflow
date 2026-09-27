@@ -1,25 +1,9 @@
-// Live forensic for THE `smoke-battleflow` FLAKE — third sighting, first with evidence
-// (battery 2026-08-24T13-05-19). Prints, asserts nothing.
+// Live forensic: a revert click on a receipt whose target the damage KILLED. Prints, asserts nothing.
 //
-// ⚠ WHAT THE CAPTURED RUN SHOWED. Three green batteries rolled 5, 6 and 7 damage into an 11 HP
-// hobgoblin. The failing one rolled **11 — exactly lethal** — and both reported failures were
-// one line: `reverted marker never set` (the second is collateral; the section bails early and
-// both `report()` calls carry the same `why`). The Longsword is 1d8+3, so 11 is the max face,
-// ~1 run in 8: **the frequency matches "seen twice, never on demand" exactly.**
-//
-// ⚠ THE FIRST HYPOTHESIS WAS WRONG, AND IT IS RECORDED HERE SO IT IS NOT RE-DERIVED.
-// `revertTarget` calls `clearDefeated`, whose last line only runs when the target is dead:
-// `await actor.toggleStatusEffect("dead", { active: false, overlay: true })`. Since the button
-// is wired `click -> revertTarget(...)` with **no catch**, a rejection there would be invisible
-// AND would skip the two writes that set the marker — a perfect fit. **Measured: it does not
-// throw.** On a synthetic token actor at 0 HP the dead status is carried by the CANONICAL id
-// (`dnd5edead0000000`), the toggle removes it cleanly in ~155ms, and the HP restore that runs
-// before it does not throw either. So the guarded branch is innocent and the cause is elsewhere.
-//
-// So this reproduces the real thing instead: it makes the victim's death CERTAIN (pool set to 1
-// so any damage is lethal), drives the same attack the suite drives, and clicks the same button
-// — with an `unhandledrejection` listener armed, because that is the one channel a no-catch
-// listener can fail down.
+// It makes the victim's death CERTAIN (pool 1, so any damage is lethal), drives the suite's attack,
+// and clicks the same button with an `unhandledrejection` listener armed — the one channel a
+// no-catch listener can fail down. (`clearDefeated`'s dead-status toggle on a synthetic token actor
+// does not throw: the canonical id `dnd5edead0000000` is removed cleanly.)
 //
 // Run:  node tools/probe-revert-dead.mjs
 // ⚠ Disconnect the bridge. One suite at a time. Restores the pool and the AC it borrows.
@@ -36,8 +20,7 @@ const out = await f.evaluate(async () => {
     stack: (e?.stack ?? "").split("\n").slice(0, 6).join(" | ") });
   const MOD = "fvtt-mod-battleflow";
 
-  // ⚠ THE ONE CHANNEL A NO-CATCH LISTENER CAN FAIL DOWN. `button.addEventListener("click",
-  // () => revertTarget(...))` returns a promise nobody holds, so a rejection surfaces only here.
+  // ⚠ `click -> revertTarget(...)` returns a promise nobody holds: a rejection surfaces only here.
   const rejections = [];
   const onRejection = ev => rejections.push(err(ev.reason ?? ev));
   window.addEventListener("unhandledrejection", onRejection);
@@ -71,8 +54,7 @@ const out = await f.evaluate(async () => {
   try {
     // Force the hit exactly as the suite does…
     await victimBase.update({ "system.attributes.ac.override": 1 });
-    // …and force the DEATH, which the suite leaves to the dice. A pool of 1 makes any damage
-    // lethal, so the branch that only runs on a kill runs every time.
+    // …and force the DEATH: a pool of 1 makes the kill-only branch run every time.
     await victim.update({ "system.attributes.hp.value": 1 });
     await sleep(400);
     report.setup.hpBeforeAttack = victim.system.attributes.hp.value;
@@ -109,9 +91,8 @@ const out = await f.evaluate(async () => {
     };
 
     /* --- the click, and everything that could be wrong about it -------------------------- */
-    // ⚠ Report EVERY button under the receipt, not just the one querySelector would take. If a
-    // second control appears on the row when the target dies, the suite has been clicking the
-    // wrong thing and the module is innocent.
+    // ⚠ Report EVERY button under the receipt: a second control on a dead target's row would mean the
+    // suite clicks the wrong thing.
     const roots = [...document.querySelectorAll(`[data-message-id="${damageMsg.id}"]`)];
     report.dom = {
       instances: roots.length,
@@ -163,7 +144,6 @@ const out = await f.evaluate(async () => {
       });
       for (const e of victim.effects.filter(x => x.statuses?.has?.("dead"))) await e.delete();
       await victimBase.update({ "system.attributes.ac": priorAc });
-      // The two messages this probe made, and nothing else.
       for (const id of [report.cleanupMsgId, report.usageMsgId].filter(Boolean)) {
         await game.messages.get(id)?.delete();
       }

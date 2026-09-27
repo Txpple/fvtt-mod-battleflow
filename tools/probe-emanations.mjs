@@ -1,22 +1,12 @@
-// Probe (2026-09-03): EMANATIONS — what does the platform already do for an aura, before the
-// module designs anything? The user's ruling opens DESIGN §4 to emanations (Paladin's aura is the
-// example; the class is "a persistent area attached to a token whose effect applies to the tokens
-// inside it"). The D10/D12 lesson says MEASURE first: the last time this repo reasoned about
-// templates, Foundry 14 had silently moved the hooks.
+// Probe: EMANATIONS — what the platform already does for an aura (a persistent area attached to a
+// token whose effect applies to the tokens inside). Findings: NOTES *v14 models an emanation end to end*.
+//   1. DATA — how the 2024 packs ship Aura of Protection / Aura of Courage / Spirit Guardians
+//   2. PLACEMENT — does using the activity land a Region-backed template, and does it FOLLOW the token?
+//   3. EVENTS — which hooks fire as a token enters / leaves, does the Region's `tokens` set track
+//      membership, and can a module register a RegionBehavior type (CONFIG.RegionBehavior.dataModels)?
+//   4. APPLICATION — does dnd5e apply anything to a token inside, or is that the gap?
 //
-// Four questions, each answered by reading rather than by inference:
-//   1. DATA — how do the 2024 packs ship Aura of Protection / Aura of Courage / Spirit Guardians?
-//      (activity type, target.template shape/size, effects carried, anything "emanation"-shaped)
-//   2. PLACEMENT — using the activity, does a template land? Is it Region-backed? Does it FOLLOW
-//      the caster's token when the token moves?
-//   3. EVENTS — which hook names fire when another token enters / leaves the area, and does the
-//      Region's own `tokens` set track membership? Can a module register a RegionBehavior type
-//      through public API (CONFIG.RegionBehavior.dataModels)?
-//   4. APPLICATION — does dnd5e 5.3 already apply anything to a token inside (an effect, a
-//      bonus), or is that the gap?
-//
-// Read-only in effect: items added to the fixture, templates, regions and token moves are all
-// undone in `finally`. Runs on the Battle Flow Test Range scene against the BF Test fixtures.
+// Everything it adds or moves is undone in `finally`. Runs on the Battle Flow Test Range.
 //
 //   node tools/probe-emanations.mjs
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
@@ -105,7 +95,6 @@ const out = await f.evaluate(async () => {
   // The walker: the victim's token, or any other token on the scene that is not the caster's.
   const walkerTok = scene.tokens.find(t => t.actorId === walker.id) ?? scene.tokens.find(t => t.actor && (t.actorId !== caster.id));
   if ( walkerTok && (walkerTok.actorId !== walker.id) ) report.live.walker = `${walkerTok.name} (fallback token)`;
-  // The native behaviour's schema — printed, so the attempt below is against the real shape.
   const aae = CONFIG.RegionBehavior?.dataModels?.applyActiveEffect;
   report.config.applyActiveEffectSchema = aae ? Object.fromEntries(Object.entries(aae.schema?.fields ?? {}).map(([k, v]) => [k, v.constructor?.name ?? String(v)])) : null;
   report.config.applyActiveEffectEvents = aae?.events ? Object.keys(aae.events) : (aae?.schema?.fields?.events ? "events field" : null);
@@ -113,10 +102,8 @@ const out = await f.evaluate(async () => {
   if ( !casterTok || !walkerTok ) { report.live.skipped = "tokens missing"; return report; }
   const origin = { caster: { x: casterTok.x, y: casterTok.y }, walker: { x: walkerTok.x, y: walkerTok.y } };
   const grid = scene.grid.size, feet = scene.grid.distance;
-  // ⚠ A headless page has no token animation context: a plain positional update threw inside
-  // Foundry's movement-path builder. Teleport, no animation.
-  // ⚠ A FRESH options object per update: Foundry defines a per-token property on it
-  // (#preUpdateMovement), and a reused object throws "Cannot redefine property".
+  // ⚠ Headless: a plain positional update throws in the movement-path builder — teleport, no animation.
+  // ⚠ A FRESH options object per update: #preUpdateMovement defines a property on it.
   const mv = () => ({ teleport: true, animate: false });
   // A data model or placeable read back raw carries cycles (PIXI events) — flatten to JSON-safe.
   const safe = x => { const seen = new WeakSet(); try { return JSON.parse(JSON.stringify(x?.toObject?.() ?? x, (_k, v) => {
@@ -125,8 +112,7 @@ const out = await f.evaluate(async () => {
   report.config.regionAttachmentSchema = (() => { const f = CONFIG.Region?.documentClass?.schema?.fields?.attachment; return f ? { type: f.constructor?.name, fields: Object.fromEntries(Object.entries(f.fields ?? {}).map(([k, v]) => [k, v.constructor?.name])) } : null; })();
   report.live.grid = { size: grid, distance: feet, units: scene.grid.units };
 
-  // Sweep what an ABORTED earlier run may have left: the probe's items on the caster, templates
-  // those items placed, and any region behaviour the probe named.
+  // Sweep what an aborted run may have left: the probe's items, their templates, named behaviours.
   {
     const names = new Set(want.map(([n]) => n));
     const stale = caster.items.filter(i => names.has(i.name));
@@ -171,8 +157,8 @@ const out = await f.evaluate(async () => {
       // Use it — no dialog. A spell needs a slot; the Rogue has none, so allow a slot-less cast.
       const b1 = snap();
       if ( act ) try {
-        // ⚠ NEVER let the platform place the template here: a `prompt: true` emanation waits on
-        // a canvas click that no headless run will make (the first live run hung 300 s on it).
+        // ⚠ NEVER let the platform place the template: a `prompt: true` emanation waits on a canvas click
+        // that a headless run never makes.
         const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error("use() did not settle in 8 s")), 8000));
         const res = await Promise.race([act.use({ consume: { spellSlot: false, resources: false }, create: { measuredTemplate: false } }, { configure: false }, { create: true }), timeout]);
         r.useReturnedKeys = res ? Object.keys(res) : null;
@@ -183,8 +169,7 @@ const out = await f.evaluate(async () => {
       r.regionsAfterUse = newRegions().map(regView);
       for ( const t of newTemplates() ) madeTemplates.add(t.id);
       for ( const g of newRegions() ) madeRegions.add(g.id);
-      // If the activity made no template, place one BY HAND the way the system would (a
-      // circle/emanation at the caster), so the region questions still get an answer.
+      // No template from the activity: place one BY HAND as the system would, so the region questions run.
       if ( !r.templatesAfterUse.length ) {
         const size = act?.target?.template?.size ? Number(act.target.template.size) : 10;
         const b = snap();
@@ -204,7 +189,7 @@ const out = await f.evaluate(async () => {
       const moveCaster = async () => {
         const before = { x: scene.templates.get(tpl.id)?.x, y: scene.templates.get(tpl.id)?.y };
         const b2 = snap();
-        // ⚠ Move UP two squares (x=900 is the Attacker's square; the first run's move never landed)
+        // ⚠ Move UP two squares (x=900 is the Attacker's square).
         let moveError = null;
         try { await casterTok.update({ y: origin.caster.y - 2 * grid }, mv()); } catch (e) { moveError = String(e?.message ?? e); }
         await sleep(900);
@@ -228,8 +213,7 @@ const out = await f.evaluate(async () => {
       // 3: walk another token IN, then OUT. Membership and hook names.
       const t2 = scene.templates.get(tpl.id);
       const inside = { x: t2.x - (walkerTok.width * grid) / 2, y: t2.y - (walkerTok.height * grid) / 2 + grid };
-      // ⚠ IN BOUNDS: the scene is 2000 px square; the first "far" (t2 + 12 squares) was off it and
-      // the move was refused, which made the exit reading a lie.
+      // ⚠ IN BOUNDS (the scene is 2000 px square): an off-scene move is refused.
       const far = { x: 1300, y: 1400 };
       const reg2 = reg ? scene.regions.get(reg.id) : null;
       const walkerEffectsBefore = effectsOf(walkerActor());
@@ -250,9 +234,8 @@ const out = await f.evaluate(async () => {
       await walkerTok.update(origin.walker, mv()); await sleep(300);
       // the region's behaviour list and whether a token INSIDE at creation is a member
       r.regionFinal = reg2 ? regView(reg2) : null;
-      // 4: the PLATFORM's own answer — an applyActiveEffect behaviour on the template's region,
-      // pointing at the item's effect. If this lands the effect on a token walking in and lifts
-      // it on the way out, the module's whole job is to put this row there.
+      // 4: the PLATFORM's own answer — an applyActiveEffect behaviour on the region pointing at the item's
+      // effect: does it land on the way in and lift on the way out?
       if ( reg2 && item.effects.size ) {
         const eff = item.effects.contents[0];
         r.nativeBehavior = { effect: eff.name, effectUuid: eff.uuid };
@@ -302,7 +285,7 @@ const out = await f.evaluate(async () => {
         }
       }
     } catch (e) { r.error = `${e?.message ?? e}\n${e?.stack ?? ""}`; }
-    // ⚠ Per-run teardown, so the next run gets its OWN area (run 2 reused run 1's template before this).
+    // ⚠ Per-run teardown, so the next run gets its OWN area.
     try { for ( const t of newTemplates() ) await t.delete(); } catch {}
     try { for ( const g of newRegions() ) await g.delete(); } catch {}
     try { const stray = walkerActor().effects.filter(e => e.origin && added.some(i => e.origin.startsWith(i.uuid))); if ( stray.length ) await walkerActor().deleteEmbeddedDocuments("ActiveEffect", stray.map(e => e.id)); } catch {}
@@ -325,8 +308,7 @@ const out = await f.evaluate(async () => {
         await casterTok.update({ y: origin.caster.y - 2 * grid }, mv()); await sleep(900);
         report.tokenEmanation.afterCasterMove = { tokenY: scene.tokens.get(casterTok.id)?.y, shapeBefore, shapeAfter: safe(g.shapes.map(s => s.toObject?.() ?? s)), members: [...(g.tokens ?? [])].map(t => t.name) };
         await casterTok.update(origin.caster, mv()); await sleep(600);
-        // The whole design in one test: the platform's emanation + the platform's behaviour, and the
-        // AREA moves onto a standing token (the token did not move — did tokenEnter fire for it?).
+        // The platform's emanation + its behaviour, with the AREA moving onto a standing token.
         const aop = found["Aura of Protection"];
         if ( aop ) {
           const data = aop.toObject(); delete data._id;

@@ -1,26 +1,17 @@
-// NO-GM SMOKE — the flow keeps running when nobody is behind the screen (v1.27.0, user call).
+// NO-GM SMOKE — the flow keeps running when nobody is behind the screen.
 //
-// ⚠ THE ONLY SUITE IN THE TREE THAT CONNECTS **NO GM AT ALL**. Every other harness opens a
-// GM session and asserts through it, which structurally cannot see the behaviour under test
-// here: before v1.27.0 `isActiveGM()` was the sole gate on the payout chain, so a GM
-// disconnect stopped Battle Flow dead — no chip, no card, no popup, and no error. The table
-// read that as the module being flaky, because nothing ever said otherwise. That failure was
-// invisible to the whole suite tree by construction: the tree always had a GM.
-//
-// The contract this asserts, in the user's words: "the popups all can run without a GM, and
-// should, so the battleflow is always running. If there is no GM, then they simply do not
-// apply effects like prone on the monster" — and whoever is driving is TOLD.
+// ⚠ The only suite that connects NO GM AT ALL: a GM-connected harness structurally cannot see
+// this. The contract (ARCHITECTURE §3, the driver table): the popups and cards run without a GM,
+// monster writes like Prone are skipped, and whoever is driving is TOLD.
 //
 //   §runs    the reminder card and its flag still post with nobody behind the screen
 //   §chip    …and the monster is NOT written to — no Sapped chip appears
 //   §told    …and the driver gets a whisper naming what did not land
 //   §rejoin  a GM reconnecting does not re-pay a payout the player already drove
-//   §cast    the CAST SLICE drives on the caster's flow elect (ruling 4 of the machine-tier pass,
-//            2026-09-05): a self-buff lands on the caster's own sheet with nobody behind the screen
+//   §cast    a self-buff lands on the caster's own sheet on the caster's flow elect
 //
-// ⚠ RUN IT WITH THE BRIDGE DISCONNECTED AND NO GM WINDOW OPEN. The suite refuses to run if it
-// finds an active GM — the whole point is their absence, and a stray GM silently converts this
-// into a re-run of smoke-effects that passes for the wrong reason.
+// ⚠ RUN WITH THE BRIDGE DISCONNECTED AND NO GM WINDOW OPEN: it refuses to run beside an active
+// GM, which would make it a re-run of smoke-effects passing for the wrong reason.
 //
 // Run:  node tools/smoke-nogm.mjs [--section runs,chip,told,rejoin] [--list]
 import { announcePlan, disposeSafely, loadEnv, report, sectionPlan } from './harness.mjs';
@@ -28,15 +19,13 @@ import { playerConfig, foundryConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
 const MOD = 'fvtt-mod-battleflow';
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'mastery.js',             // runs / chip / told / rejoin — the payout with no GM behind the screen
   'chip-spend.js',          // spent — a chip the player cannot delete is spent once
   'concentration.js',       // conc — the assist end to end with no GM
-  'cast.js'                 // cast — the cast slice on the caster's flow elect
+  'cast.js'                 // cast — casting on the caster's flow elect
 ];
 
 const SECTIONS = {
@@ -60,11 +49,9 @@ const player = new Foundry(playerConfig(env));
 await player.connect();
 announcePlan('nogm', plan, pulled);
 
-// The player page's own errors, for the WHOLE run (BACKLOG 2026-09-05: one null-id error on the
-// player page was seen "during the player's own swing" and only §spent was listening) — with the
-// STACK, not the message: pageerror carries it; a console.error(err) call's Error arrives as a
-// JSHandle whose stack is read back off the page. Each entry says when (ms into the run) and after
-// how many assertions, which places it between sections.
+// The player page's own errors for the WHOLE run, with the STACK (pageerror carries it; a
+// console.error(err) arrives as a JSHandle read back off the page), timed and counted so each
+// lands between sections.
 const pageErrors = [];
 const runStart = Date.now();
 const stampError = text => pageErrors.push(`[+${Date.now() - runStart}ms, after ${out.results.length} assertions] ${text}`);
@@ -117,9 +104,8 @@ try {
   if (!pre.masteryRiders) { console.error('[nogm] FATAL: masteryRiders is off.'); process.exit(1); }
 
   // ------------------------------------------------------------------------ drive one hit
-  // ⚠ EVERYTHING HERE RUNS ON THE PLAYER'S CLIENT, including the fixture prep — which is the
-  // point. A player may grant an item to the actor they OWN and may roll their own attack;
-  // they may not touch the monster. If any of this needed the GM the suite would be lying.
+  // ⚠ EVERYTHING HERE RUNS ON THE PLAYER'S CLIENT, fixture prep included: a player may grant an
+  // item to their own actor and roll their own attack, never touch the monster.
   const hit = await player.evaluate(async modId => {
     const log = [];
     const pc = game.actors.getName('BF Test PC Attacker');
@@ -131,8 +117,7 @@ try {
       return fn();
     };
 
-    // A weapon with a mastery, on the actor the player owns. Found by SHAPE from the packs —
-    // the smoke-effects idiom, because names and pack ids shift and the shape is the need.
+    // A weapon with a mastery, found by SHAPE from the packs (names and pack ids shift).
     let weapon = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
       && i.system.type?.baseItem && i.system.activities?.some?.(a => a.type === 'attack'));
     let madeWeapon = null;
@@ -156,8 +141,7 @@ try {
       }
     }
     if (!weapon) return { error: 'no mastery weapon available in any pack' };
-    // Sap: the purest case — it pays on the HIT alone with no damage gate, and its whole
-    // enforcement is the reminder, so the no-GM degradation should cost almost nothing.
+    // Sap pays on the HIT alone with no damage gate: the purest case.
     if (weapon.system.mastery !== 'sap') await weapon.update({ 'system.mastery': 'sap' });
     if (!pc.system.traits?.weaponProf?.mastery?.value?.has?.(weapon.system.type.baseItem)) {
       await pc.update({ "system.traits.weaponProf.mastery.value":
@@ -165,16 +149,10 @@ try {
       log.push(`granted the ${weapon.system.type.baseItem} mastery trait`);
     }
 
-    // The victim's token, targeted, with its AC pinned low so the swing lands. ⚠ The AC write
-    // is on the MONSTER and the player cannot make it — so instead of pinning AC the attack
-    // rolls with advantage and retries, exactly as a real player would have to.
+    // ⚠ The player cannot pin the monster's AC, so the attack rolls with advantage and retries.
     const scene = game.scenes.getName('Battle Flow Test Range');
-    // ⚠ NAME THE MISSING FIXTURE, never crash on it. Both of these came back as
-    // "Cannot read properties of undefined (reading 'id')" from inside a page.evaluate — a
-    // stack trace with no fixture in it, which is the least readable failure this tree
-    // produces. The scene is invisible to a player without OBSERVER, and the victim TOKEN is
-    // swept off the range by other suites (smoke-effects says so in its own log), so both
-    // are ordinary battery conditions rather than exotic ones.
+    // ⚠ NAME THE MISSING FIXTURE instead of crashing inside page.evaluate: the scene is invisible
+    // without OBSERVER, and other suites sweep the victim token off the range.
     if (!scene) return { error: 'the test scene is not visible to this player — run tools/fixture-suite.mjs (it grants OBSERVER)' };
     if (canvas.scene?.id !== scene.id) await scene.view();
     await until(() => canvas.ready, 20_000);
@@ -197,7 +175,6 @@ try {
       const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
         { data: { 'system.origin': usageId } });
       attackMsg = rolls?.[0]?.parent ?? null;
-      // hitTargets is the module's own reading; from here just ask the card.
       const targets = (attackMsg?.system?.targets ?? []).map(t => ({ ...t, uuid: t.actor }));
       const total = rolls?.[0]?.total ?? 0;
       hitLanded = targets.some(t => total >= (t.ac ?? 99));
@@ -205,18 +182,14 @@ try {
     }
     if (!hitLanded) return { error: 'could not land a hit in 8 attempts', madeWeapon };
 
-    // Damage, so the payout chain runs its full length.
     const dmg = activity.damage ? await activity.rollDamage({}, { configure: false },
       { data: { 'system.origin': attackMsg.id } }).catch(() => null) : null;
 
-    // Wait for what the assertions read: the notice card.
     const notice = await until(() => game.messages.contents
       .filter(m => !before.has(m.id))
       .find(m => m.getFlag(modId, 'masteryNotice')?.key === 'sap') ?? null, 15_000);
 
-    // ⚠ EVERY no-GM whisper, not the first one. This swing produces more than one — the damage
-    // stage speaks for the target it could not touch, and the mastery stage speaks for the chip
-    // — and an assertion that grabbed whichever landed first tested nothing about Sap.
+    // ⚠ EVERY no-GM whisper, not the first: damage speaks for the target, mastery for the chip.
     await until(() => game.messages.contents.filter(m => !before.has(m.id))
       .some(m => (m.whisper ?? []).includes(game.user.id)
         && /no gm is connected/i.test(m.content ?? '')), 8_000);
@@ -229,10 +202,8 @@ try {
     const chipsAfter = (liveVictim.effects ?? [])
       .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
 
-    // ⚠ Scoped to THIS RUN. Counting sap notices across the whole log folds in every earlier
-    // suite's leftovers, and the retry loop above can land more than one hit before it stops —
-    // so the rejoin assertion compares this number against itself after the GM arrives rather
-    // than against 1. The property is "the rejoin ADDS none", not "there is exactly one".
+    // ⚠ Scoped to THIS RUN, and the retry can land more than one hit: the property is "the rejoin
+    // ADDS none", not "there is exactly one".
     const sapNotices = game.messages.contents
       .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
 
@@ -261,8 +232,7 @@ try {
   }
 
   if (want('chip')) {
-    // ⚠ THE HALF THAT MUST **NOT** HAPPEN. A player client has no permission to write the
-    // monster, and the fix must skip that write rather than attempt it and throw.
+    // ⚠ The player has no permission to write the monster: the write must be skipped, not attempted.
     ok('§chip the monster is never written to — no Sapped chip appears',
       hit.chipsAfter === hit.chipsBefore,
       `chips before=${hit.chipsBefore} after=${hit.chipsAfter}`);
@@ -281,12 +251,8 @@ try {
   }
 
   /* --- §conc: concentration, end to end, with nobody behind the screen -------------------
-   * ⚠ THE MACHINE THAT LOSES LEAST, and the reason the no-GM work was worth extending past
-   * mastery. A concentrator is almost always a PC, so the subject of every step is a sheet
-   * the player already owns: they take the damage, their client stamps the ask, they roll the
-   * save, and ENDING concentration is a write to their own actor. Nothing here needs a GM at
-   * all — before v1.27.2 the whole thing simply did not happen, silently.
-   * ------------------------------------------------------------------------------------- */
+   * Every step touches a sheet the player owns: they take the damage, their client stamps the ask,
+   * they roll the save, and ending concentration is a write to their own actor. */
   if (want('conc')) {
     const conc = await player.evaluate(async modId => {
       const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -300,13 +266,11 @@ try {
       const priorMode = game.settings.get(modId, 'concMode');
       const priorBreak = game.settings.get(modId, 'concBreak');
       try {
-        // ⚠ Settings are WORLD-scoped: a player cannot write them. If the world is not already
-        // in a state this section can use, say so rather than reporting a false red.
+        // ⚠ Settings are WORLD-scoped and a player cannot write them: skip rather than report a false red.
         if (priorMode === 'off') {
           return { skipped: 'concMode is off and a player cannot change a world setting' };
         }
-        // A real concentration effect on the PC's own sheet — the player owns this write,
-        // which is itself half the point of the section.
+        // A real concentration effect on the PC's own sheet — a write the player owns.
         const spell = pc.items.find(i => i.type === 'spell') ?? null;
         await pc.createEmbeddedDocuments('ActiveEffect', [{
           name: 'BF NoGM Concentration', img: 'icons/svg/daze.svg',
@@ -320,8 +284,7 @@ try {
         if (!eff) return { error: 'could not seed a concentration effect' };
         const concentrating = (pc.concentration?.effects?.size ?? 0) > 0;
 
-        // Damage the PC — their OWN sheet, so the player may apply it, and dnd5e.damageActor
-        // fires on this client. That hook is where the ask is stamped.
+        // Damage the PC's OWN sheet, so dnd5e.damageActor (where the ask is stamped) fires on this client.
         const before = new Set(game.messages.contents.map(m => m.id));
         const hp = pc.system.attributes.hp;
         await pc.update({ 'system.attributes.hp.value': Math.max(1, hp.value - 5) });
@@ -336,7 +299,6 @@ try {
           priorMode, priorBreak
         };
       } finally {
-        // Player-side cleanup only, and never leave a concentration marker behind.
         const strays = pc.effects.filter(e => e.name === 'BF NoGM Concentration');
         if (strays.length) await pc.deleteEmbeddedDocuments('ActiveEffect', strays.map(e => e.id));
         await pc.update({ 'system.attributes.hp.value': pc.system.attributes.hp.max });
@@ -360,13 +322,8 @@ try {
   }
 
   /* --- §spent: a chip nobody here can delete is still spent — once ---------------------------
-   * ⚠ THE REVIEW'S FINDING 13 (2026-09-01). The spend writes its receipt on the attack card
-   * FIRST and deletes the chip SECOND, and with no GM the delete cannot happen (the player
-   * cannot write the monster) — so the Vexed chip lingered on the sheet, and the gate, reading
-   * documents alone, listed it as live Advantage on EVERY swing and spent it again each time
-   * until a GM connected. A recorded spend now counts as spent whatever the sheet says. A GM
-   * plants the chip (as the earlier hit would have), leaves, and the player swings twice.
-   * ------------------------------------------------------------------------------------- */
+   * With no GM the chip's delete cannot happen, so a RECORDED spend counts as spent whatever the
+   * sheet says. A GM plants the chip, leaves, and the player swings twice. */
   if (want('spent')) {
     console.log('[nogm] §spent: a GM plants a Vexed chip, then leaves…');
     const planter = new Foundry(foundryConfig(env));
@@ -392,7 +349,7 @@ try {
     if (planted.error) {
       ok('§spent the section could set itself up', false, planted.error);
     } else {
-      // The player page's own errors (listened for since the connect, above), so a swing that finds no dialog says WHY (2026-09-03).
+      // The player page's errors, so a swing that finds no dialog says WHY.
       const errorsBefore = pageErrors.length;
       const spent = await player.evaluate(async ({ modId, chipId, tokenId, weaponUuid }) => {
         const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -402,7 +359,7 @@ try {
           return fn();
         };
         const log = [];
-        // The planter must be GONE — the whole point — and the chip must have replicated here.
+        // The planter must be GONE and the chip replicated here.
         const noGM = await until(() => !game.users.activeGM, 20_000);
         const token = canvas.tokens.get(tokenId);
         const chip = await until(() => token?.actor?.effects?.get(chipId), 10_000);
@@ -413,13 +370,9 @@ try {
         const weapon = await fromUuid(weaponUuid);
         const activity = weapon?.system?.activities?.find(a => a.type === 'attack');
         if (!activity) return { error: 'the weapon has no attack activity' };
-        // The gate lives INSIDE the system's own roll dialog (2026-09-02): a rendered roll dialog
-        // carrying Battle Flow's section is the gate; one without it is the bare system dialog.
-        // ⚠ ALL of them, not the first (2026-09-03): since the concentration ask became the
-        // system's own Saving Throw dialog, §conc leaves one standing on this client, and a
-        // first-match read found IT and never looked at the attack dialog beside it — swing 1
-        // read "no gate" against a gate that was open (15/19, twice). The attack's dialog is
-        // told by its class; the gate by our section.
+        // The gate lives INSIDE the system's roll dialog: one carrying Battle Flow's section is the gate.
+        // ⚠ Read ALL roll dialogs: §conc can leave a Saving Throw dialog standing on this client. The
+        // attack's is told by its class, the gate by our section.
         const rollDialogs = () => [...foundry.applications.instances.values()]
           .filter(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element);
         const gateOpen = () => rollDialogs().find(app => app.element.querySelector('[data-bf-reminder]')) ?? null;
@@ -463,10 +416,8 @@ try {
         const gate2 = gateOpen();
         const text2 = (gate2?.element?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ');
         await closeAll();
-        // ⚠ Let the swing's consequences LAND before the section returns (2026-09-16, phase 4 of
-        // the 6.0 pass): the second swing's attack rolls as its dialog closes, the damage follows,
-        // and with no GM the two whispers follow that — a damage that landed 8 ms into §cast made
-        // its whispers §cast's (3 runs in 6). Wait for the log to go quiet, not for a fixed beat.
+        // ⚠ Let the swing's consequences LAND (damage, then no-GM whispers) before returning, or they
+        // become §cast's: wait for the log to go quiet, not a fixed beat.
         { const t0 = Date.now(); let last = game.messages.size, quietSince = Date.now();
           while ((Date.now() - t0 < 10_000) && (Date.now() - quietSince < 1500)) {
             await sleep(200);
@@ -505,16 +456,10 @@ try {
     }
   }
 
-  /* --- §cast: the cast slice on the caster's flow elect (ruling 4, 2026-09-05) --------------
-   * ⚠ THE LAST MACHINE WITH A SUBJECT THAT STILL WAITED FOR A GM. Until Stage 5 of the
-   * machine-tier pass the cast slice's driver was `isActiveGM()` alone, so a no-GM table's
-   * Bless or Second Wind sat on its card until a GM arrived — and then landed LATE, on rejoin.
-   * Ruling 4 moved it onto the caster's flow elect, auto-apply's shape: this client applies
-   * what it MAY (the caster's own sheet, always), whispers the rest, and marks the card
-   * asked-and-answered. A self-aimed utility spell on the PC the player owns is the whole
-   * write set, so nothing here is degraded and nothing is whispered; the card and the chip
-   * are authored by the player. The driver table in ARCHITECTURE §3 is the contract.
-   * ------------------------------------------------------------------------------------- */
+  /* --- §cast: casting on the caster's flow elect ----------------------------------------------
+   * This client applies what it MAY (the caster's own sheet), whispers the rest, and marks the card
+   * answered. A self-aimed spell on the player's PC is the whole write set, so nothing is degraded
+   * or whispered. The driver table in ARCHITECTURE §3 is the contract. */
   if (want('cast')) {
     const cast = await player.evaluate(async modId => {
       const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -525,14 +470,12 @@ try {
       };
       const pc = game.actors.getName('BF Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
-      // A world setting a player cannot change — say so rather than reporting a false red.
       if (!game.settings.get(modId, 'castApply')) return { skipped: 'castApply is off and a player cannot change a world setting' };
       const EFF = 'bfnogmfavor00000';
       const before = new Set(game.messages.contents.map(m => m.id));
       let item = null;
       try {
-        // The smoke-cast §6c fixture, on the PC the player owns — a self-aimed utility spell with
-        // one effect. Creating the item and using it are both the player's own writes.
+        // A self-aimed utility spell with one effect, on the player's PC: both writes are the player's.
         [item] = await pc.createEmbeddedDocuments('Item', [{
           name: 'BF NoGM Favor', type: 'spell',
           system: {
@@ -616,11 +559,8 @@ try {
   // ------------------------------------------------------- §rejoin: the GM comes back
   if (want('rejoin')) {
     console.log('[nogm] GM joining to test the rejoin case…');
-    // ⚠ The count to hold the rejoin against is the count the moment BEFORE the GM connects —
-    // not §hit's. §spent swings the same Sap weapon twice after §hit, and each hit posts its
-    // own notice (the second's damage lands late, even into §cast); measured against §hit's
-    // number the rejoin read 'before=1 after=2' on every 6.0 run, and the extra notice was
-    // §spent's, not the rejoin's (2026-09-16, phase 5 of the 6.0 pass).
+    // ⚠ Hold the rejoin against the count just BEFORE the GM connects: §spent's swings post their
+    // own notices, some late.
     const preRejoin = await player.evaluate(({ modId, beforeIds }) => {
       const before = new Set(beforeIds);
       return game.messages.contents.filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
@@ -634,8 +574,7 @@ try {
       const notice = game.messages.get(noticeId);
       const notices = game.messages.contents
         .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
-      // The chip is the other half of the double-payout question: a GM whose resume paths
-      // re-ran the payout would land the Sapped chip late, after the moment had passed.
+      // A GM re-running the payout would also land the Sapped chip late.
       const victim = game.actors.getName('BF Test Victim');
       const scene = game.scenes.getName('Battle Flow Test Range');
       const tok = scene?.tokens.find(t => t.actorId === victim?.id);
@@ -648,9 +587,7 @@ try {
     }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds });
 
     ok('§rejoin a GM really did reconnect', !!after.activeGM, `activeGM=${after.activeGM}`);
-    // ⚠ THE DOUBLE-PAYOUT GUARD. The player already drove this swing; the GM's render-resume
-    // paths must recognise finished work rather than re-running it. A second Sap notice for
-    // one swing is the failure this section exists to catch.
+    // ⚠ THE DOUBLE-PAYOUT GUARD: the GM's render-resume paths must recognise finished work.
     ok('§rejoin the rejoining GM adds no new reminder — the run\'s count is unchanged',
       after.sapNotices === preRejoin,
       `sap notices during the run: at §hit=${hit.sapNotices} before rejoin=${preRejoin} after=${after.sapNotices}`);
@@ -661,8 +598,7 @@ try {
   }
 
   // ----------------------------------------------------------------------------- teardown
-  // ⚠ Player-side only — the suite created nothing on the monster side BY DESIGN, which is
-  // the whole result. The granted weapon is the one thing to take back.
+  // ⚠ Player-side only: nothing was created on the monster side. Take back the granted weapon.
   await player.evaluate(async ({ modId, madeWeapon, ids }) => {
     const pc = game.actors.getName('BF Test PC Attacker');
     if (madeWeapon && pc?.items.get(madeWeapon)) {
@@ -680,7 +616,6 @@ try {
   if (gm) await disposeSafely(gm, 'nogm-gm');
 }
 
-// Every error the player page raised during the run, with its stack, wherever it happened.
 if (pageErrors.length) out.log.push(...pageErrors.slice(0, 30).map(e => `player page: ${e}`));
 const failures = report({ tag: 'nogm', out, plan });
 process.exit(failures ? 1 : 0);

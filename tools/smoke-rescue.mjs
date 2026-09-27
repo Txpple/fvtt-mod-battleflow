@@ -1,34 +1,23 @@
-// Battle Flow rescue-the-hit smoke test — THE `roll` INTERRUPT (Slice A, ruled 2026-09-24 off
-// prototypes/slice-a.html; RULINGS.md owes the section). A defender's post-hit answer that imposes
-// Disadvantage on the attack roll already made: Lucky (a Luck Point, no Reaction), Warding Flare
-// (the Reaction and a use), Shadowy Dodge (the Reaction alone) as rows in the hold's popup beside
-// Shield and the rest; a second d20 with the attack's own modifiers, the lower standing, the verdict
-// taken again against the live AC through the composed roll; a natural 20 can be undone, so a crit
-// with a live row is asked and its dice wait for the answer; every row spent skips the popup.
+// Live suite: THE `roll` INTERRUPT — a defender's post-hit answer that imposes Disadvantage on the
+// attack roll already made: Lucky (a Luck Point, no Reaction), Warding Flare (the Reaction and a use),
+// Shadowy Dodge (the Reaction alone), rows in the hold's popup beside Shield. A second d20 with the
+// attack's modifiers, the lower standing, the verdict retaken against the live AC; a natural 20 can
+// be undone, so a crit with a live row is asked and its dice wait; every row spent skips the popup.
 //
-// Fixtures: BF Test Halfling (Lucky at its proficiency's Luck Points — added to tools/fixture-suite.mjs
-// by the Slice A tier 1+2 build), BF Test Attacker (the goblin that swings). Warding Flare and Shadowy
-// Dodge are ADDED to the Halfling from the PHB classes pack for §3/§4 and removed in the teardown —
-// no fixture of their own (a Light Domain cleric and a level-15 Gloom Stalker would each be one).
-//
-// Written blind 2026-09-24 (the sandbox was in use by the parallel build) and first run the same night:
-// 18/18 after two CODE fixes it caught (7eca747 nested flag stamps, 32894d7 dnd5e's adv/dis markers).
-//
-// Harness discipline: every setting touched is restored; every message this run creates is deleted;
-// the Luck Points and uses it spends are refilled; the items and tokens it adds are removed.
+// Fixtures: BF Test Halfling (Lucky; tools/fixture-suite.mjs), BF Test Attacker (the goblin). Warding
+// Flare and Shadowy Dodge are lent from the PHB classes pack for §3/§4.
+// Everything spent is refilled; everything added is removed.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'hold/lookup.js',         // the rows — rollRescuesOf, rescueStateOf, rescueRowsNow
   'hold/trigger.js',        // the stamp — a live row holds, all-spent skips, critAtStake
   'hold/answer.js',         // the answer — the spend by hand, the second d20, the sheet's use
-  'hold/dice.js',            // a bent roll's d20s rise over the creature hit (2026-09-26)
+  'hold/dice.js',            // a bent roll's d20s rise over the creature hit
   'hold/continue.js',       // the verdict through the composed roll, the held crit's dice
   'hold/views.js'           // the popup ("Rescue the hit"), the attacker's card line
 ];
@@ -161,11 +150,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // -------------------------------------------------- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
     for (let i = 0; i < 40 && !canvas.ready; i++) await sleep(250);
-    // ⚠ Sweep LINKED strays only (the smoke-reminders pattern): the shared fixture's UNLINKED
-    // BF Test Attacker token belongs to every other suite. Deleting it here (as this suite did
-    // on 2026-09-24) left smoke-battleflow's auto-crit section measuring distance from a linked
-    // leftover of ours — the final battery's one red — because the fixture's topology is what
-    // those suites' distance reads assume.
+    // ⚠ Sweep LINKED strays only: the shared fixture's UNLINKED Attacker token belongs to every other
+    // suite, whose distance reads assume that topology.
     const strays = scene.tokens.filter(t => t.actorLink && [attacker.id, halfling.id].includes(t.actorId)).map(t => t.id);
     if (strays.length) await scene.deleteEmbeddedDocuments('Token', strays);
     const placeToken = async (actor, x, y) => {
@@ -191,8 +177,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const weapon = attacker.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => a.type === 'attack'));
     if (!weapon) return { fatal: 'BF Test Attacker has no weapon attack' };
     const act = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
-    // The attack's own modifier, measured once off a roll that posts nothing — the AC is set so a d20
-    // of 12 hits and a d20 of 8 misses, whatever the goblin's bonus.
+    // The attack's modifier, measured off a roll that posts nothing, so the AC makes 12 hit and 8 miss.
     faces([[10, 20]]);
     const probe = await act().rollAttack({}, { configure: false }, { create: false });
     const atkMod = Number(probe?.[0]?.total) - Number(probe?.[0]?.d20?.total);
@@ -273,7 +258,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2b. the damage lands', !!dmg, '');
     }
 
-    // Warding Flare and Shadowy Dodge off the pack, onto the Halfling, for §3 and §4.
     const addFromPack = async name => {
       const pack = game.packs.get('dnd-players-handbook.classes');
       const entry = pack?.index?.find(e => e.name === name) ?? (await pack?.getIndex())?.find(e => e.name === name);
@@ -311,7 +295,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       if (want(4) && flare && dodge) {
         await clearChips(); await refillLuck();
-        // The Reaction spent by hand, the chip every reaction writes (a clockless mark, the smoke-hold idiom).
+        // The Reaction spent by hand: the reaction chip (clockless).
         await halfling.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reaction — used', img: 'icons/svg/clockwork.svg', transfer: false, flags: { [MOD]: { mastery: 'reaction' } } }]);
         await swing({ d20: [12] });
         const popup = await waitFor(rescuePopup, 6000);

@@ -1,5 +1,5 @@
-// One-off probe (2026-09-02): use Steady Aim on the rogue fixture and see what the use-chip
-// machine did — with the console captured and the hook registration counted.
+// Probe: use Steady Aim on the rogue fixture and see what the use-chip machine did, with the console
+// captured and the hook registration counted.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const env = loadEnv();

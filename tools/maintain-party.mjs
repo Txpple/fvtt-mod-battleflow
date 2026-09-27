@@ -1,7 +1,6 @@
-// Party maintenance, on demand: strip temporary actor-level effects (the "Clear Temp
-// Effects" macro's job, actor-scoped rather than scene-scoped) and long-rest the party.
-// The post-testing reset — run it whenever dogfooding leaves chips and spent slots behind.
-// Item-embedded effects are untouched (they live on items, not in actor.effects).
+// Party maintenance, on demand: strip temporary actor-level effects (the "Clear Temp Effects"
+// macro's job, actor-scoped) and long-rest the party — the reset after testing leaves chips and spent
+// slots behind. Item-embedded effects are untouched.
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 

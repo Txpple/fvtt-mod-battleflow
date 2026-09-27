@@ -1,38 +1,16 @@
 // STATIC IMPORT-INTEGRITY CHECK — no Foundry, no world, milliseconds.
 //
-// Every named import must resolve to something the target file actually exports, and every
-// relative import must point at a file that exists. That is all this asserts, and it exists
-// because NOTHING ELSE IN THE GATE CAN SEE IT.
+// Every named import must resolve to something the target file exports, and every relative import
+// must point at a file that exists. Nothing else in the gate sees this: a named import of a missing
+// export is declared (the linter is satisfied) and resolves to `undefined`, failing only at the
+// table inside a hook handler. `checkJs` is off (tsconfig.json), so this is that slice for free.
 //
-// WHY (measured 2026-08-22, the decision-layer extraction — git history): moving the presentation formatters out
-// of ui.js broke two files, and the whole static gate passed both times.
+// ⚠ DYNAMIC imports are checked too: `const { x } = await import("./ui.js")` is the module's lazy
+// idiom (breaking cycles, pinning evaluation order) and fails even more quietly. `npm run layers`
+// prints the lazy-import tally; never type a count here.
 //
-//   - `ui.js` kept CALLING `bfCard`/`popupKey`/`holdBarHTML` after they moved out. Biome's
-//     `noUndeclaredVariables` catches that one, and is now enabled for exactly this reason.
-//   - `auto-damage.js` kept IMPORTING `popupKey` from ui.js, which no longer exported it.
-//     Nothing caught that. The name is declared — it is right there in the import statement —
-//     so the linter is satisfied; ES modules resolve it to `undefined` at load and the failure
-//     surfaces as `popupKey is not a function`, at the table, inside a hook handler, where
-//     this module's fire-and-forget style can swallow it entirely.
-//
-// A type checker would also catch it, but `checkJs` is deliberately OFF (tsconfig.json): this
-// is a 10,000-line untyped codebase adopting JSDoc types file by file, and turning it on today
-// buries a real signal under thousands of type errors. This check is the narrow slice of that
-// value which can be had for free, today.
-//
-// ⚠ DYNAMIC imports are checked too, and that is not an afterthought — it is where the bug
-// was. `const { popupKey } = await import("./ui.js")` is the module's lazy-import idiom — each
-// site load-bearing: they break import cycles and pin evaluation order — and a destructure of a
-// missing export is even quieter than the static form, because it only runs when that code path
-// runs.
-//
-// ⚠ This comment used to say "six sites". It was NINE when somebody finally re-measured. The
-// count now lives where it cannot go stale: `npm run layers` prints the static/bare/lazy tally
-// on every run. Do not type a number back into this header.
-//
-// Star imports (`import * as x`) and bare side-effect imports are not examined: the first
-// resolves lazily by property, and the second imports no bindings. Both are rare here and
-// deliberate where they appear (`import "./auto-damage.js"` pins evaluation order).
+// Star imports and bare side-effect imports are not examined: the first resolves by property,
+// the second binds nothing.
 //
 //   node tools/check-imports.mjs
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";

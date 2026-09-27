@@ -1,16 +1,10 @@
-// Live suite: the D20 FOLDS (v1.23.0) — Heroic Inspiration, Tactical Mind, a Bardic die.
+// Live suite: the D20 FOLDS — Heroic Inspiration, Tactical Mind, a Bardic die.
 //
-// ⚠ WHAT THIS SUITE IS FOR, AND WHAT IT DELIBERATELY IS NOT. The fold ARITHMETIC is unit-tested
-// (tests/decide-verdict.test.js, no Foundry, 270ms) and the tier rule says an assertion that can
-// be decided from plain objects does not belong in a live suite. What can only be decided here
-// is the half that touches real documents: does the flag STAMP on a real missed attack, does the
-// SPEND actually take the resource away, and does the die that gets rolled come from the right
-// actor's content. Those are the three things that were wrong in the scoping and could only be
-// found by measuring.
+// The fold arithmetic is unit-tested (tests/decide-verdict.test.js); this suite covers only what
+// needs real documents: the flag STAMPS on a real miss, the SPEND takes the resource, and the
+// rolled die comes from the right actor's content.
 //
-//   node tools/smoke-d20-folds.mjs            all sections
-//   node tools/smoke-d20-folds.mjs --list     what the sections are
-//   node tools/smoke-d20-folds.mjs --section 2
+//   node tools/smoke-d20-folds.mjs [--list | --section N]
 //
 // ⚠ Needs the fixtures: node tools/fixture-d20-folds.mjs (idempotent). Disconnect the bridge.
 import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
@@ -18,13 +12,11 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
 
 const TAG = "smoke-d20-folds";
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   "d20-folds.js",           // Heroic Inspiration, Tactical Mind, the Bardic die — stamp, spend, reroll
-  "precision.js"            // §5 rolls the Precision Attack card beside the folds — the claim proof found it acting here first (2026-09-23)
+  "precision.js"            // §5 rolls the Precision Attack card beside the folds
 ];
 
 const SECTIONS = {
@@ -53,8 +45,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const skips = [];
   let fatal = null;
   const ok = (name, pass, detail = "") => results.push({ name, pass, detail });
-  // The three-line predicate the closure has to spell itself — it cannot import `want()`, so
-  // the plan travels as DATA (harness.mjs, sectionArg). A null plan means "run everything".
+  // The closure cannot import `want()`, so the plan travels as DATA (harness.mjs, sectionArg).
   const has = n => {
     if (!sections) return true;
     if (sections.includes(String(n))) return true;
@@ -63,7 +54,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const MODULE_ID = "fvtt-mod-battleflow";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // ⚠ Wait for WHAT THE NEXT ASSERTION READS, never a flat sleep (§11, "Adding a TEST" rule 3).
+  // ⚠ Wait for what the next assertion reads, never a flat sleep.
   const until = async (fn, ms = 10_000) => {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
@@ -81,12 +72,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* --- 1: content ------------------------------------------------------------------- */
     if (has(1)) {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
-      // Since 2026-09-05 the shipped list also carries the two SCOPED tactical rows (Ambush,
-      // Tactical Assessment), and since 2026-09-09 Seeking Spell (the metamagic pass's reroll on a
-      // spell attack's miss), and since 2026-09-25 Lucky's `advantage` (the Halfling walk); what this
-      // asserts is that every entry is one of the five kinds (D20_FOLD_KINDS) and each is represented.
-      // Since 2026-09-27 Mage Slayer's `succeed` (Guarded Mind, the PHB feats group 4) — a world whose
-      // stored list predates it simply lists five.
+      // Every entry is one of the fold kinds and each is represented; an older stored list may lack some.
       const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"];
       const REQUIRED = ["heroic", "tactical", "bardic", "seeking", "advantage"];
       ok("all six kinds are known, and the five surveyed before group 4 are listed and live",
@@ -102,9 +88,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const sw = fighter.items.find(i => i.name === "Second Wind");
       const act = tm?.system.activities?.contents?.[0];
       const target = act?.consumption?.targets?.[0]?.target;
-      // ⚠ The silent-death case: the stored target is a COMPENDIUM UUID and only dnd5e's
-      // prepareData remap makes it findable. If this ever fails, Tactical Mind offers nothing
-      // forever with no error — so it is asserted rather than assumed.
+      // ⚠ The stored target is a COMPENDIUM UUID only dnd5e's prepareData remaps; if it fails,
+      // Tactical Mind offers nothing forever with no error.
       ok("tactical's consumption target is remapped to the actor's own Second Wind",
         !!target && (target === sw?.id) && !!fighter.items.get(target),
         `target=${target} secondWind=${sw?.id}`);
@@ -118,8 +103,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("the effect leads back to the granting bard", originItem?.actor?.name === "BF Test Bard",
         `origin=${eff?.origin} → ${originItem?.actor?.name}`);
 
-      // ⚠ THE CROSS-ACTOR TRAP, asserted in both directions. Against the bard the token is a
-      // real die; against the RECIPIENT it collapses to literal 0 with no error at all.
+      // ⚠ Cross-actor trap: against the bard the token is a real die; against the recipient it is 0.
       const bardRoll = new Roll("@scale.bard.inspiration", bard.getRollData());
       await bardRoll.evaluate();
       const recipientRoll = new Roll("@scale.bard.inspiration", fighter.getRollData());
@@ -133,7 +117,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 2: spend --------------------------------------------------------------------- */
     if (has(2)) {
-      // heroic — the write
       await fighter.update({ "system.attributes.inspiration": true });
       await fighter.update({ "system.attributes.inspiration": false });
       ok("heroic spends by writing the boolean false",
@@ -141,7 +124,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `inspiration=${fighter.system.attributes.inspiration}`);
       await fighter.update({ "system.attributes.inspiration": true });   // restore the fixture
 
-      // tactical — the activity use()
       const sw = fighter.items.find(i => i.name === "Second Wind");
       const before = sw.system.uses.value;
       const tm = fighter.items.find(i => i.name === "Tactical Mind");
@@ -152,7 +134,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("tactical spends a use of Second Wind through the system's own consumption",
         after === before - 1, `uses ${before} → ${after}`);
 
-      // bardic — the delete
       const eff = fighter.effects.find(e => e.name === "Inspired");
       const effId = eff?.id;
       await eff.delete();
@@ -163,14 +144,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 3: the attack path ------------------------------------------------------------ */
     if (has(3)) {
-      // ⚠ THIS SECTION WAS A NAMED GAP FOR A DAY, and the reason is worth keeping: the attack
-      // path was table-verified by a human (user, 2026-08-23 — spend → reroll → re-verdict →
-      // damage re-drive) and UNREACHABLE from here, because the fixture fighter had no weapon.
-      // "Verified but not covered" is exactly the state the offer half was in when it shipped
-      // four dead paths past a green suite, so the fixture grants a PHB Longsword now and this
-      // section drives the whole chain.
+      // Drives the whole chain: spend → reroll → re-verdict → damage (the fixture grants a Longsword).
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -181,20 +157,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const foe = foeToken.actor;
         ok("an NPC target is available to attack", true, foe.name);
 
-        /* ⚠ THE DICE ARE FORCED, AND THAT IS WHAT MAKES THIS AN ASSERTION RATHER THAN A RETRY
-         * LOOP. Every other fold suite in this tree rolls until it happens to miss
-         * (`missUntilStamped`), which works for a STAMP but cannot test an OUTCOME: whether a
-         * reroll turns the miss into a hit is the whole feature, and it is not observable while
-         * the reroll is random. Foundry routes every die through `CONFIG.Dice.randomUniform`
-         * and `Die#mapRandomFace(u) = ceil((1 - u) * faces)`, so a face is chosen by inverting
-         * it — the midpoint of the band that maps to `n`.
-         *
-         * ⚠ 5 then 19, never 1 or 20. A natural 20 is a crit and a natural 1 a fumble; both take
-         * a different path through the verdict and neither is the case under test.
-         *
-         * ⚠ RESTORED IN `finally`. A suite that left the world's PRNG stubbed would make every
-         * later section deterministic without saying so — a silent instrument failure of exactly
-         * the kind §4 exists to catch. */
+        /* ⚠ THE DICE ARE FORCED so a reroll's OUTCOME is observable. Every die goes through
+         * `CONFIG.Dice.randomUniform` and `mapRandomFace(u) = ceil((1 - u) * faces)`, so a face is forced
+         * by inverting it. 5 then 19, never 1 or 20 (crit and fumble take other paths). Restored in
+         * `finally`: a stubbed PRNG would make every later section silently deterministic. */
         const realPRNG = CONFIG.Dice.randomUniform;
         const face = (n, faces = 20) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
@@ -206,8 +172,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const priorInspiration = fighter.system.attributes.inspiration;
         let attackMsg = null;
         try {
-          // AC 18: a forced 5 (+5 to hit) totals 10 and misses; a forced 19 totals 24 and hits.
-          // The band is stated here so the two numbers below are not magic.
+          // AC 18: a forced 5 (+5) totals 10 and misses; a forced 19 totals 24 and hits.
           await foe.update({
             "system.attributes.ac.override": 18,
             "system.attributes.hp.value": foe.system.attributes.hp.max
@@ -216,11 +181,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await fighter.update({ "system.attributes.inspiration": true });
           }
 
-          // ⚠ SWEEP, THEN REMEMBER. A rescue offer is crash-resumable, so an earlier run that
-          // ended unanswered re-offers itself as soon as the log renders — a window identical to
-          // this one's in title, prose and rows. Clicking the wrong one resolves a message from
-          // twenty minutes ago and fails where nothing logs it. Both guards are §6's, learned
-          // the expensive way.
+          // ⚠ SWEEP, THEN REMEMBER: a rescue offer is crash-resumable, so an unanswered one from an
+          // earlier run re-opens identical to this one; clicking it fails silently (see §6).
           const stale = game.messages.contents.filter(m =>
             (m.getFlag(MODULE_ID, "precision")?.status === "pending")
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
@@ -237,8 +199,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               .filter(el => el.tagName === "DIALOG").map(el => el.id));
 
           face(5);
-          // Someone is TYPING when the window opens (Session 8: the Tactical Mind offer answered
-          // Pass by nobody who meant it) — the popup must leave the keyboard where it was.
+          // Someone is TYPING when the window opens: the popup must leave the keyboard where it was.
           const typing = document.createElement("input");
           typing.id = "bf-smoke-typing";
           document.body.append(typing);
@@ -262,13 +223,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             kinds.includes("heroic") && !kinds.includes("tactical"),
             `offers=[${kinds.join(", ")}]`);
 
-          // ⚠ THE FOLD MACHINE NO LONGER OWNS A POPUP. Since the rescue view merged the two
-          // offer surfaces, every rescue is a ROW in one window drawn by the spine — so the
-          // control is `[data-bf-rescue-action]` on a div, and `Pass` is the only real button.
-          // ⚠ AND THE WINDOW MAY CARRY A PRECISION ROW TOO: the fixture fighter is a Battle
-          // Master now, and a d8 CAN reach an AC 18 that a 10 missed, so the hopeless gate lets
-          // it stamp. That is the merge working, not interference — this section presses the
-          // heroic row and leaves the rest alone.
+          // Every rescue is a ROW in one spine-drawn window: `[data-bf-rescue-action]` on a div, Pass the
+          // only button. A Precision row may stand beside it (the fixture is a Battle Master); press heroic only.
           const popup = await until(() => [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
               && !!el.querySelector('[data-bf-rescue-action="heroic"]')), 8000);
@@ -281,7 +237,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `active=${document.activeElement?.id || document.activeElement?.tagName || "none"}`);
           typing.remove();
 
-          // The reroll: forced to 19, so 24 clears AC 18 and the verdict MUST flip.
           face(19);
           popup?.querySelector('[data-bf-rescue-action="heroic"]')?.click();
           const done = await until(() => {
@@ -294,16 +249,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               && Number.isFinite(done.spends?.[0]?.reroll?.total),
             JSON.stringify(done?.spends ?? null));
 
-          // ⚠ The resource is really gone — the "recorded a spend that did not happen" class.
           ok("Heroic Inspiration is really spent, not just announced",
             fighter.system.attributes.inspiration === false,
             `inspiration=${fighter.system.attributes.inspiration}`);
 
-          // ⚠ REPLACE, NOT ADD — and forcing the faces is what lets this be exact rather than
-          // a plausibility check. Both rolls carry the same modifier, so a REPLACE lands on
-          // `base + 14` (19 − 5) and equals the reroll's own total; an ADD would land on
-          // `base + reroll` (~29 here). A reroll modelled as an `add` would read as a lucky
-          // player and hit against a number nobody rolled.
+          // ⚠ REPLACE, NOT ADD: same modifier, so a replace lands on `base + 14` (19 − 5) and equals the
+          // reroll's own total; an add would land near 29.
           ok("the reroll REPLACES the d20 rather than adding to it",
             !!done && (done.foldedTotal === done.spends[0].reroll.total)
               && (done.foldedTotal === done.baseTotal + 14),
@@ -316,9 +267,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `folded=${done?.foldedTotal} vs AC ${done?.targets?.[0]?.ac} `
             + `verdict=${done?.targets?.[0]?.verdict}`);
 
-          // ⚠ The last link, and the one the table cares about: a fold that turns a miss into a
-          // hit must DRIVE THE DAMAGE, not merely say so. Which of the two shapes is correct
-          // depends on a setting, so it is read rather than assumed.
+          // ⚠ The fold must DRIVE the damage; which shape depends on a setting, so it is read.
           const playerRolls = game.settings.get(MODULE_ID, "playerRollDamage");
           if (playerRolls) {
             const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), 12_000);
@@ -335,9 +284,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           log.push(`section 3: ${foe.name} AC 18 · base ${done?.baseTotal} → `
             + `folded ${done?.foldedTotal} · ${done?.targets?.[0]?.verdict}`);
         } finally {
-          // ⚠ Restore in this order and unconditionally: the PRNG first (everything after it
-          // rolls dice), then the world. §5 needs Heroic Inspiration back — it asserts that a
-          // check offers more than one kind, and this section just spent one of them.
+          // ⚠ Restore unconditionally, PRNG first; §5 needs Heroic Inspiration back.
           CONFIG.Dice.randomUniform = realPRNG;
           await foe.update({
             "system.attributes.ac.override": priorAC.override,
@@ -352,12 +299,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 4: THE HOOKS ACTUALLY FIRE ---------------------------------------------------- */
     if (has(4)) {
-      // ⚠ THIS SECTION EXISTS BECAUSE ITS ABSENCE COST A TABLE SESSION. v1 registered
-      // `dnd5e.rollAbilityCheckV2` and `dnd5e.rollToolV2`. NEITHER HOOK EXISTS — dnd5e's
-      // `#rollD20Test` serves ability checks AND saving throws and fires only the non-V2 name,
-      // while `#rollSkillTool` fires a V2 pair and calls the tool one `rollToolCheck`. A hook
-      // name that is never dispatched registers cleanly, costs nothing, and does nothing,
-      // forever. Registration proves NOTHING; only dispatch does.
+      // ⚠ Registration proves nothing; only dispatch does. dnd5e's `#rollD20Test` fires only the
+      // non-V2 check/save names, `#rollSkillTool` a V2 pair and `rollToolCheck` for tools.
       const WANT = [
         ["dnd5e.rollAttackV2", "attack"],
         ["dnd5e.rollAbilityCheck", "check"],
@@ -368,7 +311,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const seen = new Set();
       const ids = WANT.map(([h]) => [h, Hooks.on(h, () => seen.add(h))]);
       try {
-        // `create: false` — no chat spam; the hooks fire regardless of message creation.
         const quiet = [{ configure: false }, { create: false }];
         await fighter.rollAbilityCheck({ ability: "str" }, ...quiet);
         await fighter.rollSkill({ skill: "ath" }, ...quiet);
@@ -390,12 +332,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 5: the offer is stamped, complete, and kind-matched ---------------------------- */
     if (has(5)) {
-      // ⚠ Asserts the OFFER LIST, not just that something was stamped. v1 offered only the
-      // first eligible fold, so `heroic` — first in the shipped list — hid Tactical Mind and
-      // Bardic completely: three separate table reports, one cause.
-      // ⚠ A COUNT IS NOT A CURSOR: slicing the log at a pre-click message count misses the new card
-      // when a deletion elsewhere in the log shifts the index (flaked in the 2026-09-23 battery).
-      // Every find here matches by CONTENT created since a pre-click TIMESTAMP instead.
+      // ⚠ Asserts the whole OFFER LIST: offering only the first eligible fold hides the rest.
+      // ⚠ A COUNT IS NOT A CURSOR: a deletion elsewhere shifts the log index, so every find matches
+      // by content created since a pre-click TIMESTAMP.
       const since = Date.now();
       await fighter.rollAbilityCheck({ ability: "str" }, { configure: false }, { create: true });
       await sleep(600);
@@ -404,14 +343,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok("an ability check stamps a d20 fold offer", !!flag, flag ? "stamped" : "NO FLAG");
       if (flag) {
         const kinds = (flag.offers ?? []).map(o => o.kind).sort();
-        // The fixture carries all three markers. On a CHECK all three are legal.
         ok("every eligible fold is offered, not just the first",
           kinds.length >= 2, `offers=[${kinds.join(", ")}]`);
         ok("the offer carries no spends until one is answered",
           (flag.spends ?? []).length === 0, `spends=${(flag.spends ?? []).length}`);
-        // ⚠ A check offer DOES run a clock (user ruling): it pops like every other moment, and
-        // law 11 says a moment that pops must have something that resolves it. Expiry passes
-        // and spends nothing. `holdTimer: 0` remains the wait-forever escape hatch.
+        // A check offer runs a clock like every moment; expiry passes and spends nothing.
         const window = game.settings.get(MODULE_ID, "holdTimer");
         ok("a check offer runs the house clock, so its popup cannot go stale",
           window ? Number.isFinite(flag.deadline) : !flag.deadline,
@@ -420,8 +356,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
       if (msg) await msg.delete();
 
-      // ⚠ Kind-matching: Tactical Mind is ability-check-only by its own rules text, so it must
-      // NOT appear on an attack or a save. v1 had no such matching at all.
+      // Tactical Mind is ability-check-only: it must NOT appear on an attack or a save.
       const since2 = Date.now();
       await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
       await sleep(600);
@@ -438,30 +373,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 6: TWO RESCUES, ONE ROLL ------------------------------------------------------ */
     if (has(6)) {
-      // ⚠ WHAT THIS SECTION IS FOR. A Battle Master holding a Bardic die who misses is stamped
-      // TWICE on ONE attack message — `precision` by maneuvers.js and `d20fold` by d20-folds.js
-      // — and only one of the two machines composes. `resolveFold` walks the whole registry
-      // (the D8 ruling); `resolvePrecision` still adds its die to `flag.attackTotal`, the number
-      // the d20 rolled before anything was spent. The consequences were named by READING the
-      // code on 2026-08-23 and a later session was right to drop them as unexecuted. This
-      // section is the answer to that objection: it drives the exact ordering and asserts what
-      // the TABLE would see — the sentence on the card, and whether the damage arrives.
-      //
-      // ⚠ THE BAND, so the three forced faces are not magic. Attack +5 against AC 18:
-      //     d20 5        → 10             misses by 8    → BOTH flags stamp
-      //     + bardic 3   → 13             still misses   → precision stays pending and offers
-      //     + precision 6
-      //          composed   10 + 3 + 6 = 19  ≥ 18 → HIT   ← what hitTargets, walking the
-      //                                                      registry, already answers
-      //          un-composed     10 + 6 = 16  < 18 → MISS  ← what precision's own card says
-      //   16 and 19 STRADDLE the AC, and no other pair of numbers can tell the two arithmetics
-      //   apart: any band where both land the same side proves nothing.
-      //
-      // ⚠ ORDER MATTERS AND ONLY ONE ORDER IS BROKEN. Fold-side first (this one) is wrong;
-      // precision-side first is fine, because the fold machine composes over precision's flag.
-      // A suite that spent them the other way round would go green over a live bug.
+      // ⚠ One missed attack stamped TWICE — `precision` and `d20fold` — must compose: precision's
+      // verdict walks the registry, not `flag.attackTotal`. Asserts what the table sees: the card's
+      // sentence and whether damage arrives.
+      // ⚠ THE BAND (attack +5, AC 18): d20 5 → 10 (both stamp); bardic 3 → 13 (still misses);
+      // precision 6 → composed 19 HITS, un-composed 16 misses. The two must straddle the AC.
+      // ⚠ Fold first, then precision: the only order that can break.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -474,12 +393,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else {
         const foe = foeToken.actor;
         const realPRNG = CONFIG.Dice.randomUniform;
-        // The §3 technique, and the same warning: force the face by inverting
-        // `mapRandomFace(u) = ceil((1 - u) * faces)`, never 1 or 20, restore in `finally`.
-        // ⚠ `faces` IS AN ARGUMENT HERE, unlike §3, because this section forces THREE dice of
-        // TWO sizes. A d8 rolled under a d20's stub lands on 2 rather than the number asked
-        // for — the stub is a uniform, not a face, and it only means a face against the die
-        // it was computed for. Re-force immediately before each roll.
+        // Force faces as in §3. ⚠ `faces` is an argument: a uniform computed for a d20 means a
+        // different face on a d8, so re-force immediately before each roll.
         const face = (n, faces) => {
           CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces);
         };
@@ -491,19 +406,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
         let attackMsg = null;
         try {
-          // ⚠ THE CLOCK GOES OFF. Two offers, two answers and two public die rolls do not fit
-          // inside a 15-second house window, and a timer that passes an offer mid-section would
-          // report a bug this suite did not find. `holdTimer 0` is the shipped wait-forever
-          // escape hatch, not a test-only door — smoke-maneuvers pins it the same way.
+          // ⚠ Wait forever (`holdTimer 0`): two offers and two rolls do not fit a 15-second window.
           await game.settings.set(MODULE_ID, "holdTimer", 0);
-          // ⚠ HEROIC IS TURNED OFF ON PURPOSE. It is legal on an attack, so leaving it on makes
-          // the fold machine RE-OFFER after the bardic spend, and this section is about the two
-          // MACHINES composing, not about the fold machine's own re-offer (§3's business). One
-          // fold kind on the fold side keeps the receipt readable.
+          // ⚠ Heroic off: it would re-offer after the bardic spend, which is §3's business.
           await fighter.update({ "system.attributes.inspiration": false });
-          // ⚠ SEED THE BARDIC MARKER — §2 runs first in a full pass and DELETES it (its own log
-          // line says so). Same shape and same origin as the fixture: the die is resolved
-          // bard-side through this uuid, so a marker without it is worth literally zero.
+          // ⚠ Re-seed the bardic marker (§2 deletes it), with the fixture's origin: the die resolves
+          // bard-side through that uuid.
           if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
             const feat = bard.items.find(i => i.name === "Bardic Inspiration");
             if (!feat) { skips.push("section 6: the bard has no Bardic Inspiration item"); }
@@ -516,22 +424,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               log.push("section 6: re-seeded the Inspired effect §2 spends");
             }
           }
-          // ⚠ SWEEP EVERY UNANSWERED RESCUE OFFER FIRST, and this is not tidiness — it is the
-          // difference between measuring this run and measuring a previous one. A pending
-          // rescue flag is CRASH-RESUMABLE on purpose: the module re-offers it as soon as the
-          // chat log renders, so an earlier run of this section that ended without answering
-          // greets the next one with an identical popup — same title, same band, same buttons —
-          // sitting IN FRONT of the popup this run is about to open. Any finder that matches on
-          // prose takes the older one. That is not hypothetical: it happened here, and it looks
-          // exactly like a bug in the code under test — the card announced the right composed
-          // sentence and drove the right damage while this run's flag stayed `pending` forever,
-          // because the click had resolved a message from twenty minutes ago.
+          // ⚠ SWEEP EVERY UNANSWERED RESCUE OFFER FIRST: a pending rescue is crash-resumable and
+          // re-opens an identical popup in front of this run's, so a prose finder would click the stale one.
           const stale = game.messages.contents.filter(m =>
             (m.getFlag(MODULE_ID, "precision")?.status === "pending")
             || (m.getFlag(MODULE_ID, "d20fold")?.status === "pending"));
           if (stale.length) {
             await ChatMessage.deleteDocuments(stale.map(m => m.id));
-            await sleep(500);   // the delete-sweep closes their popups on the way out
+            await sleep(500);
             log.push(`section 6: swept ${stale.length} unanswered offer(s) from an earlier run`);
           }
 
@@ -544,13 +444,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           placed.setTarget(true, { releaseOthers: true });
           await sleep(200);
 
-          // ⚠ AND REMEMBER WHICH DIALOGS ALREADY EXIST, because deleting a message closes its
-          // popups ASYNCHRONOUSLY and a closed DialogV2 can still be in the DOM for a while.
-          // A leftover is indistinguishable from this run's popup by prose, by title and by
-          // buttons — and clicking one is a silent no-op in the worst possible way: the callback
-          // runs, writes to a DELETED message, the write fails where nothing logs it, and the
-          // section sees a popup that "does not respond". Dialog ids only ever climb, so
-          // "not in this set" means "opened for the attack below" and nothing else.
+          // ⚠ Remember existing dialogs: deleting a message closes its popups ASYNCHRONOUSLY, and a
+          // leftover's callback writes to a deleted message silently. Dialog ids only climb.
           const priorDialogs = new Set(
             [...document.querySelectorAll(".application")]
               .filter(el => el.tagName === "DIALOG").map(el => el.id));
@@ -566,8 +461,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const fold = await until(() => attackMsg?.getFlag(MODULE_ID, "d20fold"), 8000);
           const prec = await until(() => attackMsg?.getFlag(MODULE_ID, "precision"), 8000);
 
-          // ⚠ THE PREMISE OF THE WHOLE PASS, asserted rather than assumed. If the two machines
-          // ever stop landing on the same message, everything below is measuring nothing.
           ok("ONE missed attack carries BOTH rescue flags",
             !!fold && !!prec && (fold.status === "pending") && (prec.status === "pending"),
             JSON.stringify({ d20fold: fold?.status, precision: prec?.status,
@@ -576,15 +469,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             (fold?.baseTotal === 10) && (prec?.attackTotal === 10),
             `d20fold.baseTotal=${fold?.baseTotal} precision.attackTotal=${prec?.attackTotal}`);
 
-          // ⚠ FIND THE WINDOW BY WHAT IT CAN DO, NOT BY ITS PROSE. `dialogsWith` walks EVERY
-          // `.application`, and the window's sentences also appear in the durable card rows
-          // inside the chat sidebar — which is an `.application` too, and whichever ancestor
-          // matches first is what `[0]` hands back. A run against a cold world returned the
-          // same element for two different queries and the section reported "two windows" while
-          // looking at one sidebar. And `!priorDialogs.has(id)` is the other half: deleting a
-          // message closes its popups ASYNCHRONOUSLY, so a leftover from an earlier run is
-          // indistinguishable by prose, title and buttons — and clicking one is a silent no-op
-          // that writes to a deleted message where nothing logs the failure.
+          // ⚠ Find the window by its controls, not its prose: the chat sidebar is an `.application`
+          // carrying the same sentences.
           const rescueWindow = () => [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG")
               && !priorDialogs.has(el.id)
@@ -596,10 +482,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             return (w && rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
           }, 8000);
 
-          // ⚠ THE POINT OF THE WHOLE PASS, and the assertion that inverts §6's original one:
-          // there used to be TWO windows here, one per machine, with two clocks and no
-          // cross-talk. There is now ONE, carrying a row from each — and the spawn coalesce is
-          // what makes it render complete rather than popping once per stamp.
+          // ONE window carrying a row from each machine (the spawn coalesce renders it complete).
           const windows = [...document.querySelectorAll(".application")]
             .filter(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
               && !!el.querySelector("[data-bf-rescue-row]"));
@@ -609,11 +492,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok("…and it shows ONE Pass, not one per machine",
             (win?.querySelectorAll('button[data-action="pass"]').length === 1),
             `pass buttons=${win?.querySelectorAll('button[data-action="pass"]').length ?? 0}`);
-          // Law 8: a rule is VISIBLE, not a hover away — and exactly one of them, never a stack.
-          // ⚠ ONE PANE, EVERY QUOTE IN IT, EXACTLY ONE VISIBLE. They are stacked in a single
-          // grid cell so the box is sized once by the longest — hovering flips visibility
-          // rather than rewriting text, which is what stopped the window resizing under the
-          // pointer. So the assertion counts what is SHOWN, not what is present.
+          // ⚠ Every rule quote is in one grid cell, exactly one VISIBLE (hover flips visibility so the
+          // box never resizes) — count what is shown, not what is present.
           const pane = win?.querySelector("[data-bf-rescue-pane]");
           const shownQuotes = [...(pane?.querySelectorAll("[data-bf-rescue-quote]") ?? [])]
             .filter(q => q.style.visibility !== "hidden");
@@ -636,9 +516,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `folded=${foldDone?.foldedTotal} verdict=${foldDone?.targets?.[0]?.verdict}`);
 
           /* --- then precision, whose die closes the gap the fold left ------------------- */
-          // ⚠ THE WINDOW SURVIVES THE SPEND AND REDRAWS. The spent row greys IN PLACE rather
-          // than vanishing (user ruling, 2026-08-24): a withdrawal nobody can see reads as a
-          // window that ate an option, and the same is true of a spend.
+          // The window survives the spend: the spent row greys in place.
           const after = await until(() => {
             const w = rescueWindow();
             return (w && !rowFor(w, "bardic") && rowFor(w, "use")) ? w : null;
@@ -649,9 +527,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             after ? `rows=${after.querySelectorAll("[data-bf-rescue-row]").length} `
               + `bardic pressable=${!!rowFor(after, "bardic")} precision pressable=${!!rowFor(after, "use")}`
               : "the window did not redraw");
-          // ⚠ SAY IT DID NOT GET THERE. A spend that leaves the roll short used to
-          // re-render in silence and leave the player to work out why the window was still
-          // asking (user, on the 2026-08-24 walk).
+          // A spend that leaves the roll short says so.
           ok("…and the window SAYS the spend was not enough",
             /not enough yet/i.test(after?.textContent ?? "")
               && /Bardic Inspiration/.test(after?.textContent ?? ""),
@@ -665,11 +541,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const since = Date.now();
           face(6, 8);
           rowFor(after ?? win, "use")?.click();
-          // ⚠ A LONG BUDGET, AND THE ELAPSED TIME REPORTED. `resolvePrecision` really uses the
-          // activity (a system consumption AND a card), rolls a public die, writes the flag,
-          // posts its own card and then re-drives the damage — a chain of real documents, not
-          // a computation. A budget that fits the fast path and not the slow one turns a
-          // green feature into a red suite, which is the failure this line exists to prevent.
+          // ⚠ A long budget: `resolvePrecision` runs a chain of real documents (activity, card, die,
+          // damage re-drive).
           const t0 = Date.now();
           const precDone = await until(() => {
             const cur = attackMsg?.getFlag(MODULE_ID, "precision");
@@ -680,15 +553,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             JSON.stringify({ outcome: precDone?.outcome, die: precDone?.die,
               ms: Date.now() - t0 }));
 
-          // The composed number, from the MODULE'S OWN records — the fold machine wrote
-          // `foldedTotal`, the precision machine wrote `die`. This suite adds them; it does not
-          // re-implement the composition it is testing.
+          // Composed from the module's own records (`foldedTotal` + precision's `die`).
           const composed = (foldDone?.foldedTotal ?? 0) + (precDone?.die ?? 0);
 
-          /* ⚠ THE RECEIPT — the two assertions that answer the drop's objection. Both are
-           * EXPECTED RED against v1.23.2 and both are one bug: `resolvePrecision` composes
-           * against `flag.attackTotal` instead of walking the registry the way `resolveFold`
-           * and `hitTargets` do. */
+          /* ⚠ THE RECEIPT: precision composes by walking the registry, like `resolveFold` and
+           * `hitTargets`. */
           ok("⚠ RECEIPT 1: precision's verdict is the COMPOSED one, not its own die alone",
             precDone?.targets?.[0]?.verdict === "hit",
             `composed ${composed} vs AC 18 → expected hit; flag says `
@@ -703,10 +572,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!card && text.includes(`= ${composed} vs AC 18`) && /now hits/.test(text),
             text || "no precision card");
 
-          // ⚠ The third consequence, and the one the table actually loses: `!anyHit` gates the
-          // re-drive, so a composed hit that precision scored as a miss pays no damage at all
-          // while `hitTargets` — which every other reader goes through — says the target was
-          // hit. Which shape to look for depends on a setting, so it is read, never assumed.
+          // ⚠ `!anyHit` gates the re-drive: a composed hit scored as a miss pays no damage. The shape
+          // depends on a setting, so it is read.
           const playerRolls = game.settings.get(MODULE_ID, "playerRollDamage");
           if (playerRolls) {
             const bar = await until(() => attackMsg?.getFlag(MODULE_ID, "damageOffer"), 12_000);
@@ -724,11 +591,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             + ` → +${precDone?.die} = ${composed} · precision says `
             + `${precDone?.targets?.[0]?.verdict}`);
         } finally {
-          // ⚠ PRNG first — everything after it rolls dice — then the setting, then the world.
-          // The Inspired effect is re-seeded because this section SPENDS it and the sections
-          // are not allowed to leave the fixture thinner than they found it; the superiority
-          // pool is refilled for the same reason, and it is the one this suite could exhaust
-          // silently (four `--section 6` runs and the fifth stamps nothing at all).
+          // ⚠ PRNG first, then the setting, then the world. Re-seed Inspired and refill superiority:
+          // repeated runs would otherwise exhaust the pool silently.
           CONFIG.Dice.randomUniform = realPRNG;
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await foe.update({
@@ -755,25 +619,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     /* --- 7: TWO TARGETS, ONE DIE ------------------------------------------------------- */
     if (has(7)) {
-      // ⚠ THE TWIN OF §6, ONE LEVEL UP. `ATTACK_FOLDS` holds a contribution per (target ×
-      // spend) — an attack is ONE roll judged against MANY targets — so two missed targets and
-      // ONE bardic die produce TWO `add`s of that die. `foldedVerdict` filters by uuid and was
-      // always right; `resolveFold` handed the WHOLE list to `foldedRoll` to build its sentence
-      // and to store `foldedTotal`, so the card announced a number nobody rolled while its own
-      // verdicts stayed correct. Every suite in this tree swings at ONE target, which is
-      // exactly why it survived a green battery.
-      //
-      // ⚠ THE BAND: attack +5, forced d20 5 → 10, one bardic die forced to 3, AC 30.
-      //     right:  10 + 3 = 13    the die, counted once
-      //     wrong:  10 + 6 = 16    the die, counted once per target
-      //   Both still miss, and that is deliberate — the VERDICT was never the broken half, so a
-      //   band that flipped it would be testing something this bug never touched.
-      //
-      // ⚠ AC 30 ALSO KEEPS PRECISION OUT. Its hopeless gate (holdSkipFutile + holdReveal, both
-      // on in the reference table) refuses to stamp when even a maximised die cannot reach the
-      // nearest AC: margin 20 against a d8. One machine, one card, one arithmetic under test.
+      // ⚠ An attack is ONE roll judged against MANY targets, so two missed targets and one bardic die
+      // give two `add`s of the die; the card's sentence and `foldedTotal` must count it once.
+      // ⚠ THE BAND: attack +5, d20 5 → 10, bardic 3, AC 30: right 13, wrong 16 — both miss on purpose
+      // (the verdict is not under test). AC 30 also keeps precision's hopeless gate shut.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!foeToken || !act) {
@@ -807,10 +658,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await sleep(500);
           }
 
-          // ⚠ A SECOND TARGET IS BUILT, NOT BORROWED. Whether this scene happens to carry two
-          // NPCs is not a property this receipt may depend on, and a second token of the SAME
-          // unlinked actor gives two distinct target uuids off one actor — so there is exactly
-          // one AC to set and one to put back. It is deleted in `finally` either way.
+          // ⚠ The second target is BUILT (a scratch token of the same unlinked actor): one AC to set and
+          // restore. Deleted in `finally`.
           const [scratch] = await scene.createEmbeddedDocuments("Token", [
             foundry.utils.mergeObject(foeToken.toObject(),
               { x: foeToken.x + (scene.grid?.size ?? 100), y: foeToken.y },
@@ -825,15 +674,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (!placedA || !placedB) {
             skips.push("section 7: the second token never reached the canvas");
           } else {
-            // ⚠ AC IS SET ON EACH TOKEN'S OWN ACTOR. These are UNLINKED tokens, so the number
-            // lives in the token's delta — writing it on the base actor would never reach
-            // either of them, and the suite would swing at whatever AC they shipped with.
-            // ⚠ CAPTURE ONCE PER UUID. A LINKED foe collapses both placed tokens onto ONE
-            // actor, and the second pass through this loop then "captured" the flat 30 the
-            // first pass had just written — so the finally faithfully restored the residue.
-            // That is how the campaign's Selma was left flat-30 (found 2026-08-27, wearing a
-            // "Graze didn't fire" hat: her 4-HP statblock also died to §3's real damage, and
-            // Graze rightly declines a corpse).
+            // ⚠ AC is set on each token's own (unlinked) actor, in its delta. ⚠ Capture once per uuid: a
+            // linked foe collapses both tokens onto one actor and the second capture reads the written 30.
             for (const t of [placedA, placedB]) {
               const a = t.actor;
               if ( !priorAC.has(a.uuid) ) priorAC.set(a.uuid, {
@@ -905,8 +747,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               + `folded ${done?.foldedTotal} · rows [${sums.join(", ")}]`);
           }
         } finally {
-          // PRNG first, then the setting, then the world — and the scratch token LAST, because
-          // restoring its AC needs it to still exist.
+          // PRNG, setting, world — the scratch token LAST: restoring its AC needs it to exist.
           CONFIG.Dice.randomUniform = realPRNG;
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           for (const [uuid, prior] of priorAC) {
@@ -935,22 +776,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     /* --- 8: THE WINDOW CLOSES --------------------------------------------------------- */
     if (has(8)) {
-      // ⚠ BOTH HALVES OF THIS WERE REPORTED FROM THE TABLE ON 2026-08-24, an hour apart, and
-      // they are one failure wearing two hats: the merged window does not go away when there is
-      // nothing left to ask.
-      //
-      //   (a) THE CLOCK RAN OUT. Both cards said so — "passed (timer)", "timed out, nothing
-      //       spent" — and the window sat there still offering both features.
-      //   (b) A SPEND FIXED THE ROLL. A bardic die turned 13 into 17 against AC 15, the damage
-      //       offer opened behind it, and the window went on asking what to burn for an attack
-      //       that had started hitting. That is presentation law 4 with a resource attached: a
-      //       click on it spends a real superiority die on a target already hit.
-      //
-      // ⚠ NO SUITE WATCHED THE WINDOW'S DISAPPEARANCE, only its appearance — which is exactly
-      // how both of these reached a human. An assertion that something is GONE costs the same
-      // as one that it is there.
+      // ⚠ The merged window must go away when nothing is left to ask:
+      //   (a) the clock ran out;
+      //   (b) a spend fixed the roll — a click would spend a real die on a target already hit.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -970,8 +800,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const priorInspiration = fighter.system.attributes.inspiration;
         const priorTimer = game.settings.get(MODULE_ID, "holdTimer");
         try {
-          // ⚠ A SHORT CLOCK, PINNED LOCALLY — this is the one section whose subject IS the
-          // buzzer, so it cannot use the wait-forever escape hatch the others pin.
+          // ⚠ A short clock: this section's subject is the buzzer.
           await game.settings.set(MODULE_ID, "holdTimer", 2);
           await fighter.update({ "system.attributes.inspiration": false });
           if (!fighter.effects.find(e => (e.name === "Inspired") && !e.disabled)) {
@@ -1019,9 +848,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
           /* --- (a) the clock runs out ------------------------------------------------- */
           {
-            // AC 25, a forced 5 → 10: short by 15, which a d8 cannot reach — but the hopeless
-            // gate needs holdSkipFutile AND holdReveal, and it only skips when EVERY margin is
-            // out of range, so AC 18 keeps precision in. 8 → 13 misses by 5, a d8's business.
+            // 8 → 13 against AC 18 misses by 5, in a d8's reach, so precision stays in.
             const { msg, prior } = await swing(18, 8);
             ok("§8a the window opens with something to ask", windows(prior).length === 1,
               `windows=${windows(prior).length}`);
@@ -1033,7 +860,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             ok("§8a both offers really expire on the house clock",
               !!timedOut, JSON.stringify({ precision: timedOut?.p?.outcome,
                 d20fold: timedOut?.d?.outcome }));
-            // ⚠ THE ASSERTION THAT WAS MISSING. Everything above was already true at the table.
             const gone = await until(() => (windows(prior).length === 0) ? "gone" : null, 10_000);
             ok("⚠ §8a RECEIPT: …and the window CLOSES when the clock takes the last offer",
               gone === "gone", `windows still open=${windows(prior).length}`);
@@ -1042,8 +868,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           /* --- (b) a spend makes the rest moot ---------------------------------------- */
           {
             await game.settings.set(MODULE_ID, "holdTimer", 0);   // the human's own pace
-            // 8 → 13 against AC 15: short by 2. A bardic 4 makes 17, which hits — so precision,
-            // still pending beside it, has no premise left to stand on.
+            // 8 → 13 against AC 15: short by 2; a bardic 4 makes 17 and precision has no premise left.
             const { msg, prior } = await swing(15, 8);
             const row = () => windows(prior)[0]?.querySelector('[data-bf-rescue-action="bardic"]');
             const pressable = await until(row, 8000);
@@ -1095,19 +920,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     /* --- 9: THE WASTED-SPEND RACE ----------------------------------------------------- */
     if (has(9)) {
-      // ⚠ THE TRAP THIS PASS WAS COMMISSIONED FOR, and the last of it. Both resolvers used to
-      // SPEND FIRST and compose afterwards, so a click that arrived after a sibling had already
-      // fixed the roll deleted a real Bardic die — or burned a superiority die — for an attack
-      // that was already hitting. The window closing is not a defence: a click can be in flight
-      // when it closes, the crash-resume path calls the resolver directly up to twenty seconds
-      // later, and a player can press a control that is still on their screen.
-      //
-      // ⚠ THIS ASSERTS THE OUTCOME, NOT WHICH GUARD CAUGHT IT. Two things now stand between the
-      // click and the resource — the moot resolving the flag, and the spend-guard inside the
-      // answer lock — and which one wins is a race by construction. What the table is owed is
-      // the same either way: the die is still there.
+      // ⚠ THE WASTED-SPEND RACE: a click arriving after a sibling fixed the roll must not spend. A
+      // click can be in flight when the window closes, and crash-resume calls the resolver directly.
+      // Asserts the OUTCOME (the die is still there), not which guard caught it.
       const scene = game.scenes.active;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor (the 2026-09-27 battery: the walk's linked dummies on the active scene)
+      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -1173,8 +990,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok("§9 both rescues are on the window before anything is spent",
             !!win, `rows=${win?.querySelectorAll("[data-bf-rescue-row]").length ?? 0}`);
 
-          // ⚠ THE STALE CONTROL, captured while it is still legitimate. A detached element
-          // keeps its listeners, which is exactly what a click already in flight looks like.
+          // ⚠ A detached element keeps its listeners: this is what an in-flight click looks like.
           const staleBardic = win?.querySelector('[data-bf-rescue-action="bardic"]') ?? null;
           const inspiredBefore = fighter.effects.find(e =>
             (e.name === "Inspired") && !e.disabled)?.id ?? null;
@@ -1192,7 +1008,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             !!hit && (hit.die === 4), JSON.stringify({ die: hit?.die,
               verdict: hit?.targets?.[0]?.verdict }));
 
-          // ⚠ NOW PRESS THE DEAD CONTROL.
           staleBardic?.click();
           await sleep(2500);
           const fold = attackMsg?.getFlag(MODULE_ID, "d20fold");
@@ -1226,12 +1041,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 10: THE REFUND ASK ------------------------------------------------------------ */
     if (has(10)) {
-      // ⚠ THE RULING MOVED (user, 2026-09-11: "its time to add the refund button"). Tactical
-      // Mind's clause — "if the check still fails, this use of Second Wind isn't expended" —
-      // used to be a sentence on the card and nothing else, because no DC exists for a raw
-      // check and the module cannot judge it. Now it ASKS: after the die is added and the fold
-      // is settled, one window — succeeded, or still failed. Refund writes the use back and
-      // posts a receipt; keep leaves it spent. Both are asserted against the POOL, not the flag.
+      // Tactical Mind's refund ASKS (DESIGN *Tactical Mind's refund*): refund writes the use back with a
+      // receipt, keep leaves it spent. Both asserted against the POOL.
       const sw = fighter.items.find(i => i.name === "Second Wind");
       const tm = fighter.items.find(i => i.name === "Tactical Mind");
       if (!sw || !tm) {
@@ -1244,8 +1055,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         try {
           await game.settings.set(MODULE_ID, "holdTimer", 40);
           if (priorSpent > 0) await sw.update({ "system.uses.spent": 0 });
-          // Heroic off, so the tactical row is the only rescue and no re-offer stands between
-          // the spend and the ask (the re-offer path is §3/§6's business).
+          // Heroic off: the tactical row is the only rescue, so no re-offer precedes the ask.
           await fighter.update({ "system.attributes.inspiration": false });
 
           const run = async choice => {
@@ -1261,10 +1071,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
                 && !!el.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')), 8000);
             ok(`§10 (${choice}) the check offers Tactical Mind`, !!popup, popup ? "row present" : "NO WINDOW");
             popup?.querySelector('[data-bf-rescue-action="tactical:Tactical Mind"]')?.click();
-            // A check never moots (no DC), so whatever else the fighter holds — the fixture's
-            // Bardic die — is RE-OFFERED after the spend and the fold stays pending until the
-            // human presses Pass. The refund ask waits for that settle, by design: it must not
-            // compete with the re-offer window for the same roll.
+            // A check never moots, so the bardic die is re-offered and the fold stays pending until Pass;
+            // the refund ask waits for that settle.
             await until(() => {
               const cur = msg?.getFlag(MODULE_ID, "d20fold");
               return ((cur?.status === "resolved") || (cur?.spends?.length && !cur.answer)) ? cur : null;
@@ -1295,9 +1103,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id)
                 && !!el.querySelector('button[data-action="refund"]') && !!el.querySelector('button[data-action="keep"]')), 8000);
             ok(`§10 (${choice}) the ask POPS with both answers`, !!win, win ? "keep + refund" : "NO WINDOW");
-            // THE NUMBERS THE GM RULES ON (the walk, 2026-09-24: "say the old, the new adjusted, and
-            // ask your DM if it passes"): the check before the die and after it ride the ask, and the
-            // window states both — a bare "did it succeed?" left the table reconstructing the sum.
+            // The ask carries the check before and after the die, and the window states both.
             const numbersOk = !!ask && (ask.baseTotal === fold?.baseTotal) && (ask.total === fold?.foldedTotal)
               && Number.isFinite(ask.die) && (ask.total - ask.baseTotal >= ask.die);
             const said = win?.textContent ?? "";
@@ -1315,8 +1121,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             if (choice === "refund") {
               ok("⚠ §10 RECEIPT: refund RESTORES the use of Second Wind on the sheet",
                 (settled?.status === "refunded") && (usesAfter === usesBefore), `uses ${usesSpent} → ${usesAfter} status=${settled?.status}`);
-              // WAITED FOR, not read once: the receipt is created AFTER the pool write the line
-              // above asserts on, so a single read after the fixed sleep races its round trip.
+              // ⚠ Waited for: the receipt is created after the pool write.
               const receipt = await until(() => game.messages.contents
                 .findLast(m => (m.timestamp >= receiptsSince) && /use is refunded/.test(m.content ?? "")), 8000);
               ok("§10 …and a receipt card says so", !!receipt, receipt ? "posted" : "NO RECEIPT");
@@ -1328,7 +1133,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             ok(`§10 (${choice}) the window closes on the answer`,
               await until(() => (!document.getElementById(win?.id ?? "") ? true : null), 5000) === true,
               "closed");
-            // Sweep the fold's own die message.
             for (const m of game.messages.contents.filter(m => m.timestamp >= since)) {
               if (m.getFlag(MODULE_ID, "respondsTo") === msg?.id) made.push(m);
             }
@@ -1345,9 +1149,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     /* --- 11: GUARDED MIND on a save rolled from the sheet -------------------------------- */
-    // (the PHB feats, group 4, 2026-09-27 — Mage Slayer): no DC exists for a save rolled from the
-    // sheet (the DC finding), so the `succeed` fold is an OFFER the roller judges — and pressing it
-    // spends the feat's one use through its own activity and says the save succeeds instead.
+    // No DC exists for a save rolled from the sheet, so the `succeed` fold is an offer the roller
+    // judges; pressing it spends the feat's use and the save succeeds.
     if (has(11)) {
       const pack = game.packs.get("dnd-players-handbook.feats");
       const src = pack ? (await pack.getIndex()).find(e => e.name === "Mage Slayer") : null;
@@ -1377,7 +1180,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const popup = await until(() => [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')), 8000);
           popup?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
-          // The Bardic die the fixture holds is not re-offered: the save succeeded (no longer failing).
+          // The fixture's Bardic die is not re-offered: the save succeeded.
           const done = await until(() => {
             const cur = msg?.getFlag(MODULE_ID, "d20fold");
             return (cur?.status === "resolved") ? cur : null;
@@ -1393,7 +1196,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && /the failed save succeeds instead/.test(m.content ?? "")), 8000);
           ok("§11 the card says it: Guarded Mind — the failed save succeeds instead", !!card, card ? "posted" : "NO CARD");
           for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
-          // A Dexterity save is not Guarded Mind's (the use restored, so only the rule can refuse it).
+          // A Dexterity save is not Guarded Mind's: with the use restored, only the rule can refuse it.
           await fighter.items.get(lent.id)?.update({ "system.uses.spent": 0 });
           const since2 = Date.now();
           await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
@@ -1402,7 +1205,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const dOffers = (dMsg?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).map(o => o.kind);
           ok("§11 a Dexterity save is never offered it", !!dMsg && !dOffers.includes("succeed"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
           for (const m of game.messages.contents.filter(m => m.timestamp >= since2)) made.push(m);
-          // Close whatever rescue window the Dex save's other offer raised — Pass spends nothing.
           [...document.querySelectorAll(".application")]
             .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
             ?.querySelector('button[data-action="pass"]')?.click();
@@ -1421,6 +1223,5 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   return { fatal, results, log, skips };
 }, sectionArg(plan, SECTIONS));
 
-// ⚠ `finish` calls `report` itself — calling both prints the whole body twice, which is
-// exactly the output drift the one-reporter rule exists to prevent.
+// ⚠ `finish` calls `report` itself — never call both.
 await finish({ tag: TAG, out, plan, f });

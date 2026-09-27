@@ -1,22 +1,11 @@
-// Live forensic for the THREE SURFACES the battery has never walked (D11's open triage lines):
-// the settings form, the activity usage dialog, and the measured-template CRUD hooks.
-// Prints, asserts nothing.
+// Live forensic for three surfaces no suite reached by accident: the settings form, the activity
+// usage dialog, and the measured-template CRUD hooks. Prints, asserts nothing.
 //
-// ⚠ WHY A PROBE FIRST, AND NOT JUST A SUITE SECTION. One of the three is not a coverage gap at
-// all until it is measured. `smoke-saves` §8 has counted `createMeasuredTemplate` fires around a
-// real embedded create since 2026-08-16 and has always read ZERO, and saves.js routes around it
-// through the card's render hook. Two things could produce that reading — the hook exists and
-// something suppresses it, or THE NAME IS WRONG and the handler has been dead since the day it
-// was written. Those want opposite fixes, and a suite section written against the wrong one
-// would pass while proving nothing. **This is D10's failure class on the CORE side, where no
-// `check-hook-dispatch` equivalent exists**: the dispatch gate reads dnd5e's bundle for
-// `dnd5e.*` names and says nothing at all about core hooks.
-//
-// So this probe wraps dispatch and prints EVERY hook name that fires around each action. The
-// delta is the answer — it names the real hook rather than confirming a guess.
+// It prints EVERY hook name that fires around each action, so the delta names the real hook rather
+// than confirming a guess — core hooks have no `check-hook-dispatch` equivalent.
 //
 // Run:  node tools/probe-surfaces.mjs
-// ⚠ Read HANDOFF.md's operational rules first: disconnect the bridge, one suite at a time.
+// ⚠ Disconnect the bridge; one suite at a time.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const TAG = "probe-surfaces";
@@ -28,12 +17,11 @@ const out = await f.evaluate(async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
 
   /* --- the recorder --------------------------------------------------------------------- */
-  // The harness's ledger already wraps dispatch; this reads it rather than wrapping again, so
-  // there is only ever one wrapper in the page (a second would double-count).
+  // Reads the harness's ledger rather than wrapping dispatch again (a second wrapper double-counts).
   const ledger = globalThis.__bfHookLedger ?? null;
   if (!ledger) return { fatal: "no __bfHookLedger in the page — the harness did not install it" };
   const snap = () => ({ ...ledger });
-  // Every name whose count moved, with its delta. This is the whole instrument.
+  // Every name whose count moved, with its delta.
   const delta = (before, after) => Object.fromEntries(
     Object.keys(after)
       .filter(k => (after[k] ?? 0) > (before[k] ?? 0))
@@ -49,8 +37,7 @@ const out = await f.evaluate(async () => {
   };
 
   /* --- 1: the measured-template CRUD hooks ---------------------------------------------- */
-  // The question: does `createMeasuredTemplate` dispatch at all on this page, and if not, what
-  // name DOES the create fire under?
+  // Does `createMeasuredTemplate` dispatch at all, and if not, what name DOES the create fire under?
   const scene = game.scenes.active ?? game.scenes.viewed ?? game.scenes.contents[0];
   report.templates = { scene: scene?.name ?? null };
   if (scene) {
@@ -64,17 +51,13 @@ const out = await f.evaluate(async () => {
       tpl = made?.[0] ?? null;
       await sleep(400);
       report.templates.onCreate = delta(b1, snap());
-      // ⚠ THE RED HERRING TEST. Run 1 saw create/drawRegion fire around this create and no
-      // createMeasuredTemplate at all. Either v14 spawns a companion Region per template, or
-      // those Region hooks belong to something else on this scene. The collection counts
-      // answer it without any reasoning about what v14 "should" do.
+      // ⚠ The collection counts answer whether v14 spawns a companion Region per template.
       report.templates.counts = {
         before: countsBefore,
         after: { templates: scene.templates.size, regions: scene.regions.size }
       };
       report.templates.created = !!tpl;
-      // ⚠ The document-class names, printed rather than assumed — the hook name is derived
-      // from `documentName`, so if that has moved the hook has moved with it.
+      // ⚠ The hook name derives from `documentName`, so print it rather than assume it.
       report.templates.documentName = tpl?.documentName ?? null;
       report.templates.className = tpl?.constructor?.name ?? null;
       report.templates.inScene = scene.templates.size;
@@ -94,8 +77,7 @@ const out = await f.evaluate(async () => {
     } catch (err) {
       report.templates.error = err.message;
     } finally {
-      // ⚠ A leftover template on the active scene would poison smoke-saves §8's containment
-      // arithmetic — it re-derives target sets from whatever areas are standing.
+      // ⚠ A leftover template would poison smoke-saves §8's containment arithmetic.
       try { if (tpl) await tpl.delete(); } catch { /* already gone */ }
     }
     // What the module registered, read from the live table rather than from the source.
@@ -116,7 +98,6 @@ const out = await f.evaluate(async () => {
     const el = sheet.element instanceof HTMLElement ? sheet.element : sheet.element?.[0];
     report.settings.rendered = !!el;
     if (el) {
-      // Did the handler's own marks land? Both are its visible output.
       report.settings.dividers = el.querySelectorAll("h4.bf-divider").length;
       const input = key => el.querySelector(`[name="${MOD}.${key}"]`);
       const probe = key => {
@@ -131,8 +112,7 @@ const out = await f.evaluate(async () => {
         holdTimer: probe("holdTimer"),
         volleys: probe("volleys")
       };
-      // ⚠ The tab matters: ApplicationV2 settings render every package's pane, but only the
-      // ACTIVE one is in the DOM in some versions. Report what we can see either way.
+      // ⚠ Some versions put only the ACTIVE settings pane in the DOM: report what is visible.
       report.settings.moduleTabPresent = !!el.querySelector(`[data-tab="${MOD}"], [data-category="${MOD}"]`);
     }
     await sheet.close();
@@ -141,16 +121,14 @@ const out = await f.evaluate(async () => {
   }
 
   /* --- 3: the activity usage dialog ------------------------------------------------------ */
-  // Every suite passes `configure: false` precisely so no dialog renders, which is why this
-  // hook has never fired. The question here is only: what does it take to make one appear?
+  // Every suite passes `configure: false`, so: what does it take to make one appear?
   report.usage = {};
   try {
     const casters = game.actors.filter(a => a.type === "character"
       && a.items.some(i => i.type === "spell" && (i.system.level ?? 0) > 0));
     report.usage.casters = casters.map(a => a.name);
-    // ⚠ Run 1 bet on "BF Test Bard" and it carries SLOTS but no levelled spell item, so the
-    // probe reported nothing at all. Walk every candidate and take the first that can actually
-    // open a dialog — the fixture that can drive this is a finding in itself.
+    // ⚠ "BF Test Bard" carries slots but no levelled spell item: take the first candidate that can
+    // actually open a dialog.
     const pick = casters.map(a => ({
       actor: a,
       spell: a.items.find(i => i.type === "spell" && (i.system.level ?? 0) > 0
@@ -168,8 +146,7 @@ const out = await f.evaluate(async () => {
       report.usage.activityType = activity?.type ?? null;
       if (activity) {
         const b = snap();
-        // ⚠ NOT awaited: `use()` with a dialog does not settle until the dialog is answered,
-        // and nothing here is going to answer it. Fire it, look at the page, close it.
+        // ⚠ NOT awaited: `use()` with a dialog settles only when answered.
         const pending = activity.use({}, { configure: true }, { create: false });
         pending?.catch?.(() => { /* cancelled below — that rejection is the expected end */ });
         await sleep(1500);
@@ -180,7 +157,7 @@ const out = await f.evaluate(async () => {
         report.usage.dialogClass = dialog?.constructor?.name ?? null;
         report.usage.openApps = apps.map(a => a?.constructor?.name).filter(Boolean);
         const del = dialog?.element instanceof HTMLElement ? dialog.element : dialog?.element?.[0];
-        // polish.js's paint is the observable half — does the target block exist in there?
+        // polish.js's paint is the observable half.
         report.usage.targetBlockPainted = del ? !!del.querySelector(".battleflow-target-block") : null;
         report.usage.dialogHtmlHead = del ? (del.innerHTML ?? "").slice(0, 300) : null;
         try { await dialog?.close?.(); } catch { /* it may already be gone */ }

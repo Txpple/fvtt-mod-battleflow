@@ -1,43 +1,19 @@
-// TWO-CLIENT SMOKE — the properties a single-client suite is STRUCTURALLY unable to see
-// (2026-08-23; ARCHITECTURE §4 *The relay*).
+// TWO-CLIENT SMOKE — what a single-client suite structurally cannot see (ARCHITECTURE §4 *The relay*).
 //
-// Everything else in tools/ drives one client that is simultaneously the attacker, the elect
-// and the answerer. Two of this module's load-bearing behaviours only exist when those are
-// DIFFERENT clients, and both have shipped untested since they were written:
+//   §relay — the RELAYED answer: a player cannot write someone else's message, so the answer
+//            travels as their OWN message carrying an envelope that the owning client folds in.
+//   §pull   — a scene a player is on is LIVE (RULINGS, emanations): another user's view reaches
+//            the GM only through the activity broadcast. ⚠ The PLAYER navigates: the server
+//            forwards a pull only from a full Gamemaster (`Scene.#pullToScene`) and this suite
+//            runs as an Assistant GM; a navigated client broadcasts the same as a pulled one.
+//   §close  — `closeAnsweredHoldPopups` runs on EVERY client: the GM's BUZZER resolves a hold and
+//            the PLAYER's popup must close on its own client on seeing the flag.
+//   §ack    — a player's OK on the GM's reminder card reaches the card.
 //
-//   §relay — THE RELAY'S RELAYED HALF (ARCHITECTURE §4.1). A player cannot write someone
-//            else's message, so their answer travels as their OWN message carrying an
-//            envelope, and the owning client folds it in. When the answerer can write the
-//            target message the envelope never travels at all — so a solo suite exercises
-//            the direct path and nothing else, every time, and the registry's `owns` column
-//            (the hold's fold is the CONTINUING CLIENT's, the other two are the elect's) is
-//            never put to the question.
+// ⚠ THIS SUITE MUTATES (check-popup-routing.mjs is the read-only two-client check).
 //
-//   §pull   — A SCENE A PLAYER IS ON IS LIVE (user, 2026-09-23 — Session 8 played on scenes the
-//            players were pulled to and nobody activated, and the Paladin's aura stood on none of
-//            them). Another user's view reaches the GM only through the platform's activity
-//            broadcast — no document hook carries it — so only a second client can prove the GM
-//            hears it. ⚠ The PLAYER navigates; the suite does not pull. The server forwards a pull
-//            only from a full Gamemaster (`Scene.#pullToScene`: `if (!this.user.isGM) return`,
-//            Foundry 14.368) and this suite runs as an Assistant GM — measured 2026-09-23, the
-//            request never reached the player. A pulled client sends the same broadcast as one
-//            that navigated (`Canvas#initializeUserActivity`, run by every canvas draw).
-//
-//   §close  — THE POPUP CLOSING ACROSS CLIENTS (debt D2). `closeAnsweredHoldPopups` runs on
-//            EVERY client, before the continuing-client gate, precisely because the popup to
-//            close is usually on a different client from the one driving the resolution. When
-//            the GM is both answerer and elect there is no second client's popup to close, so
-//            the whole reason that function is not gated has never been demonstrated. Here the
-//            GM's BUZZER resolves a hold and the PLAYER's popup must vanish — the GM never
-//            touches the player's DOM; the player's own client closes it on seeing the flag.
-//
-// ⚠ THIS SUITE MUTATES. `check-popup-routing.mjs` is the read-only two-client check that is
-// safe beside a live session; this one fires real attacks and is not.
-//
-// Fixture: `BF Test Player Shielder`, a clone of Gren (who carries a real Shield) OWNED BY THE
-// PLAYER TEST USER, on the test range. Deleted on the way out. ⚠ It is a separate actor from
-// `BF Test Shielder` on purpose — that one is deliberately GM-only (`ownership: {default: 0}`)
-// so smoke-hold can answer for it, which is the exact opposite of what this suite needs.
+// Fixture: `BF Test Player Shielder`, a clone of Gren (a real Shield) OWNED BY THE PLAYER TEST USER,
+// deleted on the way out. ⚠ Separate from `BF Test Shielder`, which is GM-only for smoke-hold.
 //
 // Sections: `--section relay`, `--section close`, `--section ack`, `--section pull`, `--list`.
 import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan }
@@ -45,10 +21,8 @@ import { announcePlan, connectSuite, disposeSafely, loadEnv, report, sectionPlan
 import { playerConfig } from './target.mjs';
 import { Foundry } from 'fvtt-mcp-dnd5e/client';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'hold/index.js',          // relay / close — the relayed answer, the popup closing across clients
   'hold/lookup.js',
@@ -106,18 +80,12 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(800); }
 
   await set('reactionHold', true);
-  // ⚠ holdSkipFutile OFF for this suite, and it is not a shortcut. With it on, a hold is only
-  // offered when the reaction's +5 could actually flip the outcome — so the attack has to land
-  // inside a 5-wide band, which headless dice reach on roughly one roll in four. This suite is
-  // about WHERE the answer travels and WHOSE popup closes, not about the futility gate
-  // (smoke-hold §4f owns that), so every hit stamping a hold removes a flake that would have
-  // nothing to do with what is under test.
+  // ⚠ holdSkipFutile OFF: with it on a hold stamps only inside a 5-wide band (about one roll in
+  // four); this suite is about where the answer travels, not the futility gate.
   await set('holdSkipFutile', false);
   await set('holdApplyEffect', true);
-  // §relay answers by hand well inside this. ⚠ 45 s, not 20 (2026-09-23): on a loaded workstation
-  // the round trips to two headless clients ate the whole 20 s — the buzzer resolved the hold
-  // (timedOut) before the player's click landed, and relay/2 read "no message" three runs running
-  // while relay/4-5 passed on the TIMEOUT's pass. The click was never the fault.
+  // ⚠ 45 s: on a loaded box the round trips to two headless clients can outlast 20 s, and the
+  // buzzer then resolves the hold before the player's click lands.
   await set('holdTimer', 45);
   await set('autoDamage', 'all');
   await set('autoApply', true);
@@ -142,14 +110,14 @@ const setup = await gm.evaluate(async ({ playerId }) => {
     shielder = await Actor.create(data);
     log.push('created BF Test Player Shielder');
   }
-  // OWNER for the player, and DEFAULT NONE — canAnswerFor must route to exactly one client.
+  // OWNER for the player, DEFAULT NONE: canAnswerFor must route to exactly one client.
   await shielder.update({ ownership: { default: 0, [playerId]: 3 } }, { diff: false, recursive: false });
   await shielder.update({
     'system.spells.spell1.value': shielder.system.spells.spell1.max || 4,
     'system.attributes.hp.value': shielder.system.attributes.hp.max,
     'system.attributes.hp.temp': 0
   });
-  // A fresh Reaction: the chip replaced the `reactionSpent` flag on 2026-09-02 (shared.js spendReaction).
+  // A fresh Reaction: clear the reaction chip (shared.js spendReaction).
   for (const e of shielder.effects.filter(e => e.getFlag(MODULE, 'mastery') === 'reaction')) await e.delete();
   for (const e of shielder.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
 
@@ -201,7 +169,7 @@ const holdOnShielder = () => gm.evaluate(async () => {
     const msg = roll?.parent;
     const ac = shielder.system.attributes.ac.value;
     if (roll && !roll.isCritical && !roll.isFumble && (roll.total >= ac)) {
-      // The stamp is written by the attacker's own client, so it is here or it is nowhere.
+      // The stamp is written by the attacker's own client.
       for (let w = 0; w < 40; w++) {
         const hold = game.messages.get(msg.id)?.getFlag(MODULE, 'hold');
         if (hold?.status === 'pending') {
@@ -242,14 +210,13 @@ if (want('relay')) {
     ok('relay. an attack on the player-owned shielder stamps a hold', false, hold.fatal);
   } else {
     note(`relay: attack ${hold.attackId} total ${hold.total} vs AC ${hold.ac}, holding ${hold.reaction}`);
-    // Give the player's client a moment to receive the flag and open its popup.
     const before = await player.evaluate(async ({ id }) => {
       for (let i = 0; i < 40; i++) {
         const dlg = [...foundry.applications.instances.values()]
           .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
             && /Shield/i.test(a.options?.window?.title ?? ''));
         if (dlg) {
-          // The relay is only exercised when the player CANNOT write the attack message — say so.
+          // The relay is exercised only when the player CANNOT write the attack message.
           const m = game.messages.get(id);
           return { found: true, title: dlg.options?.window?.title ?? null, attackIsOwner: m?.isOwner ?? null,
             attackAuthor: m?.author?.name ?? null, speaker: m?.speaker?.alias ?? null };
@@ -263,30 +230,26 @@ if (want('relay')) {
     ok('relay/1. the popup opened on the PLAYER client — it owns the reacting actor',
       before.found === true, JSON.stringify(before));
 
-    // The player answers. Pass, not Cast: the relay is the same either way, and Pass leaves
-    // no effect to clean up on an actor this suite is about to delete.
+    // Pass, not Cast: the relay is the same, and Pass leaves no effect to clean up.
     const answered = await player.evaluate(async () => {
       const before = new Set(game.messages.contents.map(m => m.id));
       const dlg = [...foundry.applications.instances.values()]
         .find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
           && /Shield/i.test(a.options?.window?.title ?? ''));
       if (!dlg) return { clicked: false };
-      // ⚠ CAUGHT AT CREATION, not only polled from the log (2026-09-23): the envelope DELETES
-      // ITSELF once the continuing client folds it (the relay's cleanup), and on a quick box the
-      // whole create → fold → delete ran inside one 200 ms poll — relay/4-5 green (the fold
-      // happened) while relay/2 read "no message", twice running. The hook sees it either way.
+      // ⚠ CAUGHT AT CREATION by hook: the envelope DELETES ITSELF once folded, which can all happen
+      // inside one poll.
       let caught = null;
       const hook = Hooks.on('createChatMessage', m => {
         if (!caught && !before.has(m.id) && (m.author?.id === game.user.id)) caught = m;
       });
       const buttons = [...dlg.element.querySelectorAll('button')].map(x => `${x.dataset.action ?? '?'}:${x.textContent.trim()}${x.disabled ? '(disabled)' : ''}`);
-      // The hold as THIS client sees it at the click: an answer on a hold already resolved is
-      // dropped by design (answerHold's first-answer-wins), so a slow run names itself here.
+      // The hold at the click: an answer on a resolved hold is dropped (first answer wins).
       const holdSnap = () => { const m = [...game.messages.contents].reverse().find(x => x.getFlag('fvtt-mod-battleflow', 'hold')); const h = m?.getFlag('fvtt-mod-battleflow', 'hold'); return { status: h?.status ?? null, answers: (h?.targets ?? []).map(t => `${t.answer ?? '-'}${t.timedOut ? ' (timed out)' : ''}`) }; };
       const holdBefore = holdSnap();
       const passBtn = dlg.element.querySelector('button[data-action="pass"]');
       passBtn?.click();
-      // Wait for the player's OWN message — that is the relay, and it is written here.
+      // Wait for the player's OWN message: that is the relay.
       for (let i = 0; i < 40; i++) {
         const mine = caught ?? game.messages.contents.find(m => !before.has(m.id)
           && (m.author?.id === game.user.id));
@@ -310,13 +273,13 @@ if (want('relay')) {
     ok('relay/3. and it was authored by the player, not the GM — the whole point of the relay',
       answered.author === who.name, `author=${answered.author} want=${who.name}`);
 
-    // The GM is the CONTINUING CLIENT (its own attack), so the fold happens over there.
+    // The GM is the CONTINUING CLIENT (its own attack), so the fold happens there.
     const folded = await gm.evaluate(async ({ id }) => {
       const MODULE = 'fvtt-mod-battleflow';
       for (let i = 0; i < 60; i++) {
         const h = game.messages.get(id)?.getFlag(MODULE, 'hold');
-        // The answer lands a write BEFORE the verdict (the fold, then the continuation): wait for
-        // the resolution, and fall back to the answered-but-pending shape at the deadline.
+        // The answer lands before the verdict: wait for the resolution, falling back to
+        // answered-but-pending at the deadline.
         if (h?.targets?.[0]?.answer && ((h.status === 'resolved') || (i === 59))) {
           return { answer: h.targets[0].answer, status: h.status,
             verdict: h.targets[0].verdict ?? null, timedOut: !!h.targets[0].timedOut };
@@ -332,8 +295,7 @@ if (want('relay')) {
     ok('relay/5. and the fold ran the hold to a verdict — the chain continued on this side',
       (folded.status === 'resolved') && !!folded.verdict, JSON.stringify(folded));
 
-    // The answered popup must also be gone on the answerer's own client (the same function,
-    // local path) — the cross-client half is §close.
+    // The answered popup is gone on the answerer's own client too (the local path).
     const after = await playerPopup(hold.attackId);
     ok('relay/6. the answerer\'s own popup closed behind the answer',
       !after.titles.some(t => /Shield/i.test(t ?? '')), JSON.stringify(after.titles));
@@ -365,10 +327,8 @@ if (want('close')) {
     ok('close/1. the popup is open on the PLAYER client, unanswered',
       open.found === true, JSON.stringify(open));
 
-    // ⚠ NOBODY TOUCHES THE PLAYER'S DOM. The buzzer fires on the CONTINUING CLIENT (the GM's,
-    // because it rolled the attack), writes `answer: 'pass'` into the flag, and the player's
-    // own client closes its popup on seeing that update. That is the whole of D2's gap, and it
-    // is invisible to any suite where one client is both answerer and elect.
+    // ⚠ NOBODY TOUCHES THE PLAYER'S DOM: the buzzer fires on the continuing client (the GM's) and
+    // the player's own client closes its popup on seeing the update.
     const buzzed = await gm.evaluate(async ({ id }) => {
       const MODULE = 'fvtt-mod-battleflow';
       for (let i = 0; i < 60; i++) {
@@ -401,17 +361,11 @@ if (want('close')) {
   out.skips.push(`§close ${SECTIONS.close}`);
 }
 
-/* --- §ack: the player's OK reaches the GM's card (v1.27.1, reported from the table) ---------
- * ⚠ THE BUG THIS PINS. `acknowledgeMoment` wrote the flag only when `message.isOwner`, and the
- * reminder CARD is posted by the elect — so at a real table the acknowledger is a PLAYER and
- * the card belongs to the GM. Thomas pressed OK, his own popup closed, and the GM's card kept
- * draining for the full window and timed out: the press was invisible to the only client that
- * could record it. No solo suite could see this, because there the presser and the card's owner
- * are the same client and the direct write always ran.
- * ------------------------------------------------------------------------------------------- */
+/* --- §ack: the player's OK reaches the GM's card ------------------------------------------
+ * The reminder card belongs to the elect (the GM) while the acknowledger is a player, so the OK
+ * must relay; a solo suite only ever runs the direct write. */
 if (want('ack')) {
-  // A notice card authored by the GM, exactly as postMasteryNotice writes one, naming the
-  // PLAYER'S actor so the player's client is the one that owns the moment.
+  // A GM-authored notice card, as postMasteryNotice writes it, naming the PLAYER'S actor.
   const card = await gm.evaluate(async () => {
     const MODULE = 'fvtt-mod-battleflow';
     const st = globalThis.__bf2c;
@@ -429,15 +383,10 @@ if (want('ack')) {
   ok('ack/1. the GM-authored notice card starts unacknowledged',
     card.ackedAtBirth === false, JSON.stringify(card));
 
-  // The PLAYER acknowledges it. They are not the author and not a GM, so the direct write is
-  // unavailable — this is precisely the path that used to stop at a local latch.
+  // Not the author and not a GM, so the direct write is unavailable: the relay path.
   const relayed = await player.evaluate(async cardId => {
     const MODULE = 'fvtt-mod-battleflow';
-    // ⚠ WAIT FOR THE CARD TO REPLICATE. It was read straight off `game.messages` and that
-    // passed alone and failed inside the battery — the GM had just created it and this
-    // client had not received the document yet. Standalone latency hid the race; a loaded
-    // box exposed it ("the player cannot see the card"). The suite's own rule, applied to
-    // the suite: wait for the thing the next assertion reads.
+    // ⚠ WAIT FOR THE CARD TO REPLICATE: the GM just created it.
     let msg = null;
     for (let i = 0; i < 50 && !msg; i++) {
       msg = game.messages.get(cardId) ?? null;
@@ -451,16 +400,12 @@ if (want('ack')) {
   ok('ack/2. the player genuinely cannot write the card (the condition under test)',
     relayed.isOwner === false, JSON.stringify(relayed));
 
-  // The GM's copy must now read acknowledged — that is the whole fix.
   const landed = await gm.evaluate(async cardId => {
     const MODULE = 'fvtt-mod-battleflow';
     for (let i = 0; i < 50; i++) {
       const m = game.messages.get(cardId);
       if (m?.getFlag(MODULE, 'masteryNotice')?.acknowledged === true) {
-        // ⚠ …and the wire signal must not survive as a line in the log — but the delete is
-        // chained AFTER the flag write, so it lands a tick or two later. Reading the count in
-        // the same breath as `acknowledged` measures the delete before it has happened; wait
-        // for it as its own event, exactly as the fold was waited for.
+        // ⚠ The envelope's delete is chained AFTER the flag write: wait for it as its own event.
         let envelopes = 1;
         for (let j = 0; j < 25 && envelopes > 0; j++) {
           envelopes = game.messages.contents.filter(x => x.getFlag(MODULE, 'momentAck')).length;
@@ -475,9 +420,7 @@ if (want('ack')) {
   }, card.id);
   ok('ack/3. THE PLAYER\'S OK REACHED THE GM\'S CARD — the bar stops, no timeout',
     landed.acked === true, JSON.stringify(landed));
-  // ⚠ Conjoined with `acked` on purpose: counting zero envelopes is also what a run where
-  // nothing was ever POSTED looks like, so on its own this passes hardest exactly when the
-  // relay is most broken. It did, in the battery run that found the race above.
+  // ⚠ Conjoined with `acked`: zero envelopes is also what "nothing was ever posted" looks like.
   ok('ack/4. the relay envelope deleted itself — a wire signal, not a line in the log',
     (landed.acked === true) && (landed.envelopes === 0), JSON.stringify(landed));
 } else {
@@ -487,10 +430,8 @@ if (want('ack')) {
 /* --- §pull: the scene a player was pulled to ------------------------------------------------ */
 
 if (want('pull')) {
-  // The GM makes ANOTHER scene active (every client follows it) and stands the Ranger inside the
-  // Paladin's ring on the range; then only the PLAYER goes back to the range — the table's own
-  // shape in Session 8. The GM never views the range while it counts: the player's view is the
-  // only thing that makes it live.
+  // The GM activates ANOTHER scene and stands the Ranger in the Paladin's ring on the range; only
+  // the PLAYER goes back to the range, so the player's view is the only thing making it live.
   const setupPull = await gm.evaluate(async () => {
     const MOD = 'fvtt-mod-battleflow';
     const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -518,17 +459,16 @@ if (want('pull')) {
   } else {
     ok('pull/1. another scene active and nobody on the range: no ring stands there and the Ranger inside wears nothing',
       (setupPull.rings === 0) && (setupPull.fx === 0), JSON.stringify(setupPull));
-    // THE GM'S PREVIEW, a player connected: the range is NOT live (user, 2026-09-23 — "keep GM
-    // views counted if it keeps accuracy": a GM's view counts only while no player is connected).
+    // The GM's preview with a player connected: the range is NOT live (a GM's view counts only
+    // while no player is connected).
     const preview = await gm.evaluate(async () => {
       const MOD = 'fvtt-mod-battleflow';
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const scene = game.scenes.getName('Battle Flow Test Range');
       const ranger = game.actors.getName('BF Test Ranger');
       const elsewhere = game.scenes.get(globalThis.__bf2c.pull.elsewhereId);
-      // ⚠ Scene#view REFUSES while the canvas is still loading (a warning, no throw) — on a loaded
-      // box the activation's draw was still running and the GM never left (2026-09-23). Wait the
-      // load out, and confirm the view took, before the absence of rings means anything.
+      // ⚠ Scene#view REFUSES while the canvas is loading (a warning, no throw): wait the load out and
+      // confirm the view took.
       for (let i = 0; (i < 40) && canvas.loading; i++) await sleep(250);
       for (let i = 0; (i < 3) && (game.user.viewedScene !== scene.id); i++) {
         await scene.view();
@@ -564,8 +504,7 @@ if (want('pull')) {
     }, { playerId: who.id, navBefore });
     ok('pull/2. THE PLAYER ON THE RANGE: the Paladin\'s three rings stand there and the Ranger inside wears the three auras — no activation, the GM elsewhere',
       (pulled.rings === 3) && (pulled.fx === 3) && (pulled.playerViews === 'Battle Flow Test Range') && (pulled.gmViews !== 'Battle Flow Test Range'), JSON.stringify(pulled));
-    // Conjoined with the player's view having ARRIVED: a navigation render happens for other
-    // reasons too, so counting one alone passes on a run where the player never moved.
+    // Conjoined with the player's view having ARRIVED: a navigation render happens for other reasons.
     ok('pull/3. the GM heard the player\'s view through renderSceneNavigation (the only public signal a remote view raises)',
       (pulled.playerViews === 'Battle Flow Test Range') && (pulled.navFired > 0), JSON.stringify(pulled));
     await player.evaluate(async () => { await game.scenes.active?.view(); }, null);

@@ -1,5 +1,5 @@
 /**
- * THE VERSION BUMP — one command, both fields (2026-08-23; NOTES §5 *Release*).
+ * THE VERSION BUMP — one command, both fields (NOTES §5 *Release*).
  *
  *   node tools/bump-version.mjs 1.22.0     set it exactly
  *   node tools/bump-version.mjs patch      1.21.0 -> 1.21.1
@@ -7,15 +7,9 @@
  *   node tools/bump-version.mjs major      1.21.0 -> 2.0.0
  *   node tools/bump-version.mjs --check    read-only: are the two fields in step?
  *
- * ⚠ `module.json` CARRIES THE VERSION TWICE, and hand-editing has now missed the second one.
- * `version` is what Foundry shows; the `download` URL embeds the tag Foundry fetches the zip
- * from. The v1.20.0 walk-1 bump moved `version` and left `download` pointing at the previous
- * release — caught at release time, by eye. NOTES §5 records two further ways hand-editing
- * this file has corrupted it (a stray trailing comma, and a smart quote pasted from a diff).
- * A script cannot make either mistake, and `--check` turns "in step" into something the gate
- * can assert rather than something a human has to remember.
- *
- * ⚠ IT DOES NOT COMMIT, TAG OR PUSH. The bump is a decision; this only writes it down.
+ * ⚠ `module.json` CARRIES THE VERSION TWICE: `version` (what Foundry shows) and the `download`
+ * URL's tag (where Foundry fetches the zip). `--check` lets the gate assert they are in step.
+ * ⚠ IT DOES NOT COMMIT, TAG OR PUSH.
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -69,10 +63,8 @@ if (next === current) {
   process.exit(2);
 }
 
-// ⚠ Rewritten by TARGETED REPLACEMENT, not by re-serializing the parsed object. `module.json`
-// is hand-maintained and its key order and formatting are meaningful to whoever reads the diff
-// at release time; `JSON.stringify` would reflow the whole file and bury the two-line change
-// that is the entire point of running this.
+// ⚠ TARGETED REPLACEMENT, not re-serializing: `module.json` is hand-maintained, and
+// `JSON.stringify` would reflow the whole file around a two-line change.
 let out = raw;
 const swap = (label, from, to) => {
   if (!out.includes(from)) {

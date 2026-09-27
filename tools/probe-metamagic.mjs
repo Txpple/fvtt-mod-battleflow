@@ -1,9 +1,7 @@
-// Read-only probe (2026-09-09, the metamagic pass, Stage 0): does the BUILT Sorcerer fixture
-// carry what the pass will read? Every metamagic option's activity names Font of Magic as its
-// `itemUses` target by COMPENDIUM UUID (measured on Gren's sheet 2026-09-09); this asserts that
-// `poolOf` resolves it on the fixture, that the pool's `@scale.sorcerer.points` reads a number,
-// and it dumps the three spells' shapes (save / range / duration / damage types / target
-// scaling) so the eligibility predicates are written from measurement. Nothing is written.
+// Read-only probe: does the Sorcerer fixture carry what metamagic reads? Each option's activity names
+// Font of Magic as its `itemUses` target by COMPENDIUM UUID; this asserts `poolOf` resolves it, that
+// `@scale.sorcerer.points` reads a number, and dumps the three spells' shapes (save / range /
+// duration / damage types / target scaling). Nothing is written.
 //
 //   node tools/probe-metamagic.mjs [out.json]
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).

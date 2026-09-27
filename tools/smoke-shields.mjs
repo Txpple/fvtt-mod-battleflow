@@ -1,29 +1,21 @@
-// Battle Flow damage-shield smoke test — THE HIT RIDER MIRRORED (user, 2026-09-04: "death armor
-// needs its damage shield effect automated"): a standing ward on the DEFENDER pays out against
-// the ATTACKER when a melee attack roll hits it. Fire Shield's warm and chill shields (the type
-// follows the effect that stands), Death Armor cast by one creature on ANOTHER (the walk from the
-// ward to the caster's spell; once per turn as a chit on the defender), Armor of Agathys (no pack
-// effect — the module marks the cast, strikes while the temp HP stand, ends the mark with them),
-// the reach as the activity's own, a ranged hit striking nothing, the list as the switch.
+// Live suite: DAMAGE SHIELDS — the hit rider mirrored: a standing ward on the DEFENDER pays out
+// against the ATTACKER when a melee attack roll hits it. Fire Shield (the type follows the effect
+// that stands), Death Armor on ANOTHER creature (walked to its caster; once per turn), Armor of
+// Agathys (the module marks the cast and ends the mark with the temp HP), the reach, a ranged hit
+// striking nothing, the list as the switch.
 //
-// Fixtures: BF Test Cleric (the warded caster, linked), BF Test Ranger (Death Armor's warded ally,
-// linked), BF Test Attacker (the goblin that hits them). The spells are added to the Cleric from
-// the packs for the run and removed after. Built by tools/fixture-suite.mjs.
-//
-// Harness discipline: every setting touched is restored; every message this run creates is
-// deleted; the items it adds are removed; the effects it writes are cleared; the tokens it
-// places are removed; the pools it changes are put back; its combat is deleted.
+// Fixtures (tools/fixture-suite.mjs): BF Test Cleric (warded caster), BF Test Ranger (Death Armor's
+// ally), BF Test Attacker (the goblin). The spells are lent from the packs for the run.
+// Everything touched is restored or removed, including its combat.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'damage-shields.js',      // Fire Shield, Death Armor, Armor of Agathys — the ward pays out
-  'cast.js',                // §8 — Fire Shield cast through the cast slice, the warm-or-chill ask
+  'cast.js',                // §8 — Fire Shield cast, the warm-or-chill ask
   'polish.js'               // §8 — the cast-time effect choice stamped at birth
 ];
 
@@ -55,8 +47,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return false;
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // THE MOMENT EVENTS (events.js version 2, 2026-09-11): every payload the module publishes during this
-  // run — the GATE publishes it from the record landing, so a section asserts the resolve it drove was heard.
+  // Every moment-event payload published during this run, so a section can assert its resolve was heard.
   const moments = [];
   const momentHookId = Hooks.on('battleflow.moment', p => moments.push(p));
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
@@ -66,18 +57,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const count = name => ledger?.[name] ?? 0;
   const errors = [];
   const origError = console.error;
-  // The STACK, not the message (BACKLOG 2026-09-05: two console leads in a full run said nothing
-  // about where they came from) — and the page's own uncaught errors and rejections with it.
+  // The STACK, not the message, plus the page's own uncaught errors and rejections.
   const describe = a => (a instanceof Error) ? (a.stack || a.message) : String(a);
   console.error = (...args) => { errors.push('E ' + args.map(describe).join(' ').slice(0, 1500)); origError(...args); };
   const onWindowError = ev => errors.push('window ' + describe(ev.error ?? ev.message).slice(0, 1500));
   const onRejection = ev => errors.push('rejection ' + describe(ev.reason).slice(0, 1500));
   window.addEventListener('error', onWindowError);
   window.addEventListener('unhandledrejection', onRejection);
-  // `ActiveEffect "<id>" does not exist!` is the SERVER's reply to a delete of an effect already
-  // gone — the console line names the loser of a race, never the racer. Every ActiveEffect
-  // delete this page issues is recorded with its stack, so the id in the error can be walked back
-  // to the caller that lost.
+  // `ActiveEffect "<id>" does not exist!` is the SERVER's reply to a delete of an effect already gone:
+  // record every delete's stack so the id walks back to the caller that lost the race.
   const deletes = new Map();   // effect id → [{ name, stack, at }]
   const recordDelete = (docs, stack) => { for (const d of docs) { const list = deletes.get(d.id) ?? []; list.push({ name: d.name, parent: d.parent?.name, stack, at: Date.now() - suiteStart }); deletes.set(d.id, list); } };
   const origDeleteDocs = ActiveEffect.deleteDocuments;
@@ -183,7 +171,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('masteryRiders', false);
     await set('masteryAsk', false);
     await set('saves', false);
-    await set('castApply', false);        // the temp HP are set by hand — the cast slice is another suite's
+    await set('castApply', false);        // the temp HP are set by hand
     await set('concMode', 'off');
     await set('reminderList', '');        // no gate: the swing rolls straight
     await set('maneuverFolds', '');
@@ -282,7 +270,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const attackMsg = rolls?.[0]?.parent ?? null;
       const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      // The shield's roll follows the damage landing; give it a beat, then read.
       const shield = await waitFor(() => shieldCards(since)[0] ?? null, 5000);
       await sleep(400);
       return { attackMsg, dmg, shield, cards: shieldCards(since), since };
@@ -321,8 +308,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('1b. …applied to the GOBLIN through the receipt chokepoint: a receipt on the ward\'s roll card naming the ward, the goblin\'s HP down by the roll',
         !!receipt && (receipt.taken === ds?.total) && (goblinHP() === hpBefore - (ds?.total ?? 0)) && /Fire Shield on BF Test Cleric/.test(receipt.note ?? ''),
         `receipt=${JSON.stringify(receipt)} hp ${hpBefore}→${goblinHP()} total=${ds?.total}`);
-      // THE MOMENT EVENTS (events.js version 2): the damageShield record on the ward's roll publishes `shield`
-      // through the GATE, and the receipt on the same card publishes `damage` (kind receipt, the goblin's marker).
+      // The ward's damageShield record publishes `shield`; the receipt on the same card publishes `damage`.
       const shv = momentsOf('shield').filter(p => p.messageId === shield?.id);
       const dmv = momentsOf('damage').filter(p => p.messageId === shield?.id);
       ok('1y. the ward\'s strike was PUBLISHED through the gate: battleflow.moment "shield" (kind damageShield) — the Cleric, Fire Shield, the goblin as the target, the total and the type — and "damage" (kind receipt) for the receipt on the same card, the goblin\'s taken; once each, plain and frozen',
@@ -375,8 +361,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(4)) {
       await clearWards();
       await healFull();
-      // The Cleric's Death Armor wards the RANGER: the effect's origin is the Cleric's item's effect,
-      // which is what the tray writes on a touch cast.
+      // The Cleric's Death Armor wards the RANGER, origin the Cleric's item effect (the tray's touch-cast shape).
       await ward(deathArmor, 'Death Armor', ranger);
       const hpBefore = goblinHP();
       const out4 = await swing(rangerToken);
@@ -421,7 +406,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5b. a melee hit while the temp HP stand strikes Frost Damage — 5 cold at the goblin, the mark found without any pack effect',
         !!ds?.rolled && (ds.key === 'Armor of Agathys') && (ds.type === 'cold') && (ds.total === 5) && (goblinHP() === hpBefore - 5),
         `flag=${JSON.stringify(ds)} hp ${hpBefore}→${goblinHP()} cards: ${claims(a1.cards, a1.dmg)}`);
-      // The goblin's own damage took the temp HP: is the mark gone, and said?
       const ended = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= a1.since) && m.getFlag(MOD, 'shieldEnded')), 5000);
       const markGone = !cleric.effects.some(e => e.getFlag(MOD, 'shield')?.key === 'Armor of Agathys');
       ok('5c. the goblin\'s hit emptied the pool: the mark ends with it and a card says so (the strike that emptied it already paid)',
@@ -452,9 +436,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 8. the cast ASKS — warm or chill
     if (want(8)) {
-      // The cast slice ON for this section only: the choice is stamped at the card's birth
-      // (polish.js), the popup opens on the caster's client — this page, the sole GM answering
-      // for the unowned Cleric — and the elect applies the pick (cast.js).
+      // Casting ON for this section: the choice is stamped at the card's birth (polish.js), the popup opens
+      // on this page (the sole GM answering for the unowned Cleric), and the elect applies the pick.
       await set('castApply', true);
       await set('effectChoiceList', 'Fire Shield');
       const shieldsOn = () => cleric.effects.filter(e => ['Warm Shield', 'Chill Shield'].includes(e.name)).map(e => e.name);
@@ -489,7 +472,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8d. the receipt names the one effect on the Cleric', (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => (t.effects ?? []).length === 1 && t.effects[0].name === 'Chill Shield'),
         `receipt=${JSON.stringify(card?.getFlag(MOD, 'effectReceipt') ?? null)?.slice(0, 200)}`);
 
-      // The list is the switch: unlisted, the cast slice lands both as it always did.
+      // The list is the switch: unlisted, both land.
       await set('effectChoiceList', '');
       const card2 = await castShield();
       const both = await waitFor(() => (shieldsOn().length === 2 ? shieldsOn() : null), 8000);

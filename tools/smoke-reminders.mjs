@@ -1,21 +1,15 @@
-// Battle Flow reminder-gate smoke test — THE GATE BEFORE THE ROLL (HANDOFF Stage 2 + 3,
-// 2026-09-01): when something the module can read bends an attack roll, Battle Flow's popup
-// stands in for the system's roll dialog with every source, the net, and the three modes; a
-// human presses; the roll is re-issued with the press. Driven end to end in the live world,
-// popup buttons included.
+// Live suite: THE GATE BEFORE THE ROLL — when something the module can read bends an attack roll,
+// Battle Flow's section stands in the system's roll dialog with every source, the net and the
+// three modes; a human presses; the roll is re-issued with the press.
 //
-// Harness discipline (HANDOFF): every setting touched is restored; every message this run
-// creates is deleted; statuses this run presses are cleared; chips are cleared between
-// scenarios; the tokens it places are removed. No combat is created here (smoke-expiry owns
-// the clock) — the gate is about the roll, not the round.
+// Every setting touched is restored; every message this run creates is deleted; pressed statuses
+// and chips are cleared; placed tokens are removed. No combat (smoke-expiry owns the clock).
 //
 // Sections: `--section 3`, `--section 1,7`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'reminders.js',           // the gate — every source, the net, the press, the check gate
   'chip-spend.js',          // §2 / §11 — the roll spends the chip
@@ -148,9 +142,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2);
-    // The suite's OWN lists — what §6 turns off and puts back. Not the world's prior: a world
-    // still carrying the pre-range list (verify-settings reads it as drift) would otherwise
-    // hand §10 a gate with no range in it (seen on the first live run, 2026-09-02).
+    // The suite's OWN lists (what §6 turns off and puts back), not the world's: an older stored list
+    // could lack the range rows §10 needs.
     const SUITE_LISTS = {
       reminderList: 'vex, sap, prone, condition, range, effect',
       conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
@@ -159,7 +152,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('conditionList', SUITE_LISTS.conditionList);
     await set('effectList', game.settings.settings.get(`${MOD}.effectList`).default);
 
-    // -------------------------------------------------- fixtures (the smoke-expiry idiom)
+    // -------------------------------------------------- fixtures
     const findWeapon = async () => {
       const owned = pc.items.find(i => (i.type === 'weapon') && i.system.mastery
         && i.system.type?.baseItem && i.system.activities?.some?.(a => a.type === 'attack'));
@@ -199,9 +192,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const setMastery = async key => pc.items.get(blade.id).update({ 'system.mastery': key });
 
     if (canvas.scene?.id !== scene.id) await scene.view();
-    // ⚠ Sweep LINKED strays of the two actors first: a crashed run's token left adjacent to
-    // the victim is what the gate measures the prone distance from, and it read "within 5
-    // feet" while this run's token stood 30 feet away. The fixture's own UNLINKED tokens stay.
+    // ⚠ Sweep LINKED strays of the two actors first: a crashed run's adjacent token is what the gate
+    // would measure prone distance from. The fixture's own UNLINKED tokens stay.
     {
       const strays = scene.tokens.filter(t => t.actorLink && [pc.id, victim.id].includes(t.actorId)).map(t => t.id);
       if (strays.length) { await scene.deleteEmbeddedDocuments('Token', strays); log.push(`swept ${strays.length} linked stray token(s)`); }
@@ -219,7 +211,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Adjacent: one grid square apart (the range's grid is 5 feet a square).
     const { doc: victimTokenDoc, token: victimToken } = await placeToken(victim, 1400, 1400);
     const { doc: pcTokenDoc, token: pcToken } = await placeToken(pc, 1500, 1400);
-    // The roller's own token: controlled, so the gate measures from THIS one whatever else stands.
+    // The roller's token, controlled, so the gate measures from THIS one.
     pcToken.control({ releaseOthers: true });
     const gridFeet = scene.grid.distance;
     const squarePx = scene.grid.size;
@@ -276,12 +268,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return r.chip;
     };
     /**
-     * The click the card's Attack BUTTON makes: an event whose target sits inside the usage
-     * card's element, and NOTHING else — no originatingMessage in any shape, because dnd5e
-     * derives it from that element in buildPost, AFTER the pre-roll hook. ⚠ This is the shape
-     * the table actually uses, and the one the suite never drove before 2026-09-01: with the
-     * flat key passed explicitly, the re-issued attack was linked and the suite was green while
-     * every gated attack at the table was an ORPHAN of its card (the review's finding 12).
+     * The click the card's Attack BUTTON makes: an event inside the usage card's element and nothing
+     * else — dnd5e derives originatingMessage from that element in buildPost, AFTER the pre-roll hook.
+     * ⚠ The table's shape: a gated attack must still link to its card.
      */
     const buttonEvent = async usageId => {
       const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
@@ -289,7 +278,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       return { target: li.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200,
         altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
     };
-    /** The SYSTEM's own roll dialog, rendered — since 2026-09-02 the gate lives inside it. */
+    /** The SYSTEM's own roll dialog, rendered — the gate lives inside it. */
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
     /** …and the gate is that dialog carrying Battle Flow's section. */
@@ -331,9 +320,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const lastAttack = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.type === 'attack')).pop() ?? null;
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
-    /** Let a re-issued roll's whole chain land — damage, receipt AND the mastery payout that
-     * follows the receipt — before the next section clears chips; a payout landing after a
-     * clear is a stale chip in the next section's popup (seen on the first run). */
+    /** Let a re-issued roll's whole chain land (damage, receipt, the mastery payout after it) before
+     * the next section clears chips. */
     const settle = async msg => {
       const originId = msg?._source.system?.origin ?? msg?.id;
       const dmg = await waitDamage(originId, { flag: 'receipt', timeout: 8000 });
@@ -452,8 +440,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         /2 Modifiers — Net Normal/.test(text) && !/Net:/.test(text),
         text.slice(0, 400));
       ok('3a2. the highlighted default is the net — Normal', defaultButton(dialog) === 'normal', `default=${defaultButton(dialog)}`);
-      // One of the dialog's own choices, changed before the press: a GM-only roll (v14 keys the
-      // modes `public`/`gm`/`blind`/`self`, v13 `publicroll`/`gmroll`/…; the option is found by either).
+      // A GM-only roll mode chosen before the press (v14 keys `public`/`gm`/`blind`/`self`, v13
+      // `publicroll`/`gmroll`/…; found by either).
       const rollModeSelect = dialog?.element?.querySelector('select[name="rollMode"]');
       const gmOption = [...(rollModeSelect?.options ?? [])].find(o => /^(gm|gmroll)$/.test(o.value));
       if (rollModeSelect && gmOption) {
@@ -493,10 +481,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           /is Prone — within 5 feet/.test(text) && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
         await closeGates();
       }
-      // ⚠ A second, FAR token of the same (prone) victim, six squares from the attacker — moving
-      // a token is a v13+ movement with its own pipeline (a plain x/y update was refused on the
-      // first run, teleport option and all), and the geometry under test is the gate's, not the
-      // platform's. Targeting the far token is the same question asked honestly.
+      // ⚠ A second, FAR token of the prone victim six squares out: moving a token runs the platform's
+      // movement pipeline, and the geometry under test is the gate's.
       const { doc: farDoc, token: farToken } = await placeToken(victim, 1500 - (squarePx * 6), 1400);
       {
         const { dialog } = await gatedSwing({ token: farToken });
@@ -564,16 +550,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         const { dialog } = await gatedSwing();
         const text = popupText(dialog);
-        // The label is the fact alone (user, 2026-09-02); the quoted rule carries the condition.
+        // The label is the fact alone; the quoted rule carries the condition.
         ok('5c. a frightened attacker: Disadvantage, counted, the rule quoted',
           /— Frightened/.test(text) && /while the source of fear is within line of sight/.test(text) && /1 Modifier — Net Disadvantage/.test(text),
           text.slice(0, 300));
         await closeGates();
       }
       await clearStatuses();
-      // Hiding (user, 2026-09-02): the system's own status, the glossary's Unseen Attackers
-      // clause — Advantage for a hidden attacker, Disadvantage against a hidden target; the
-      // quoted clause says who must be unable to see whom.
+      // Hiding: the glossary's Unseen Attackers clause — Advantage for a hidden attacker, Disadvantage
+      // against a hidden target.
       await setStatus(pc, 'hiding', true);
       {
         const { dialog } = await gatedSwing();
@@ -646,10 +631,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 9. a metric grid
     if (want(9)) {
-      // ⚠ `measurePath` answers in the SCENE's units, and the gate used to compare that number
-      // against a 5-foot literal: on a 1.5 m grid two squares (3 m, 9.8 ft) read "within 5 feet"
-      // (the review's finding 5, 2026-09-01). The grid is the scene document's — `canvas.grid`
-      // is rebuilt from it on update, no redraw needed — and it is restored whatever happens.
+      // ⚠ `measurePath` answers in the SCENE's units: on a 1.5 m grid two squares must not read "within
+      // 5 feet". `canvas.grid` rebuilds from the scene document on update; restored whatever happens.
       await sleep(1000);
       await clearChips();
       await clearStatuses();
@@ -665,8 +648,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         {
           const { dialog } = await gatedSwing({ token: farToken });
           const text = popupText(dialog);
-          // 3 m is 10 feet under the SYSTEM's own table (D&D's simplified 5 ft = 1.5 m,
-          // CONFIG.DND5E.movementUnits.m.conversion = 10/3) — the reading the ruler gives, not 9.84.
+          // 3 m is 10 feet by the system's table (CONFIG.DND5E.movementUnits.m.conversion = 10/3), as the ruler reads.
           ok('9. two squares on a 1.5 m grid is 3 m = 10 feet by the system\'s own conversion — Disadvantage, judged in FEET',
             /is Prone — 10 feet away/.test(text) && /1 Modifier — Net Disadvantage/.test(text), text.slice(0, 300));
           await closeGates();
@@ -689,10 +671,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 10. range, and the dropdown
-    // The class, not the example (user, 2026-09-02): any RANGED attack roll — a dart here, the
-    // cheapest weapon with two ranges (20/60) the range's squares can hold. Both glossary rules:
-    // an enemy within 5 feet, beyond normal range, beyond long range. Then the dagger, which is
-    // melee OR thrown by the dialog's own dropdown: the section must follow the dropdown.
+    // Any RANGED attack roll — a dart (20/60) — against both glossary rules: an enemy within 5 feet,
+    // beyond normal range, beyond long range. Then the dagger: melee or thrown by the dialog's dropdown.
     if (want(10)) {
       await sleep(1000);
       await clearChips();
@@ -781,8 +761,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
               `section=${!!dialog} system=${system}`);
             await closeGates();
           }
-          // THE DROPDOWN (user, 2026-09-02): the dagger is melee at open — no section — and
-          // Thrown by the dialog's own attack-mode select. The section must follow it.
+          // THE DROPDOWN: the dagger is melee at open (no section) and Thrown by the attack-mode select.
           {
             const token = canvas.tokens.get(far[0]); // the one at 30 feet
             const { dialog, system } = await gatedSwing({ token });
@@ -822,10 +801,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 11. effect sources
-    // The sixth kind (user, 2026-09-02): an ability on either sheet by NAME — an active effect
-    // (Innate Sorcery, Reckless, Demon Armor, Guiding Bolt) or a feature (Pack Tactics,
-    // Bloodied Fury) — read against the effect table: in scope or not, counted or listed,
-    // judged on a fact, and spent by the roll where the rules spend it.
+    // An ability on either sheet by NAME — an active effect or a feature — read against the effect
+    // table: in scope or not, counted or listed, judged on a fact, spent where the rules spend it.
     if (want(11)) {
       await sleep(600);
       await clearChips();
@@ -890,7 +867,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeGates();
         }
         await unplant();
-        // 11d: Demon Armor — listed, not counted (user ruling): shown, out of the net.
+        // 11d: Demon Armor — listed, not counted: shown, out of the net.
         await plant(pc, 'Demon Armor');
         {
           const { dialog } = await gatedSwing();
@@ -903,11 +880,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await closeGates();
         }
         await unplant();
-        // 11e: Pack Tactics — a FEATURE by name, JUDGED ON THE MAP (user, 2026-09-22: the
-        // hobgoblin's Advantage against a dummy nobody stood beside): nothing with no ally of the
-        // attacker within 5 feet of the target; counted, the rule quoted, with one; nothing again
-        // once that ally is Incapacitated. The ally is an UNLINKED token — another creature than
-        // the target, on the attacker's side (the label is the fact alone, user 2026-09-02).
+        // 11e: Pack Tactics, JUDGED ON THE MAP: nothing with no ally of the attacker within 5 feet of the
+        // target; counted with one; nothing once that ally is Incapacitated. The ally is an UNLINKED token.
         [packTactics] = await pc.createEmbeddedDocuments('Item', [{ name: 'Pack Tactics', type: 'feat', system: { description: { value: '' } } }]);
         created.items.push({ actorId: pc.id, id: packTactics.id });
         const priorSides = { victim: victimTokenDoc.disposition, pc: pcTokenDoc.disposition };
@@ -1000,12 +974,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // ================================================== 12. the check gate (2026-09-03)
-    // The third table on the one machine: a raw check or a skill rolled WITH the dialog meets the
-    // roller's statuses against CHECK_BENDS inside the system's own check dialog. Poisoned is a
-    // bend the platform already rolls (the box explains the default); Frightened is the gate's
-    // own. A programmatic roll is never gated; a clean roller draws no section. 12a green is
-    // also the proof that dnd5e.preRollAbilityCheckV2 FIRED (the dispatch pin's claim).
+    // ================================================== 12. the check gate
+    // A check or skill rolled WITH the dialog meets the roller's statuses against CHECK_BENDS inside the
+    // system's check dialog. Poisoned is a bend the platform already rolls; Frightened is the gate's own.
+    // 12a green also proves dnd5e.preRollAbilityCheckV2 FIRED.
     if (want(12)) {
       await clearStatuses();
       await closeGates();
@@ -1053,7 +1025,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await closeGates();
     }
 
-    // ================================================== 13. the range cancellers (group 2)
+    // ================================================== 13. the range cancellers
     if (want(13)) {
       await sleep(600);
       await clearChips();      // an earlier section's Vex on the target would count in the net

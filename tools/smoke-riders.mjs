@@ -1,22 +1,15 @@
-// Battle Flow Phase 1.75 smoke test — hit riders, driven in the live world through the bridge.
+// Live suite: hit riders. A mark pays out ONLY for the creature that placed it, only when the
+// table lists it, and for exactly what its own content says.
 //
-// What this has to prove is narrow and load-bearing: a mark pays out ONLY for the creature that
-// placed it, only when the table lists it, and for exactly what its own content says. Every
-// assertion below is a way of getting that wrong.
+// Damage rolls use create:false, so nothing reaches the log and no HP moves. Fixtures are LINKED
+// tokens created here and deleted on the way out: an unlinked token's synthetic actor has a
+// different uuid, which is exactly what the ownership test turns on.
 //
-// Damage rolls use create:false throughout, so nothing reaches the chat log and no HP moves.
-// Fixtures are LINKED tokens created here and deleted on the way out — an unlinked token's
-// synthetic actor has a different uuid from its base actor, which is precisely the distinction
-// the ownership test turns on, so leaving that ambiguous would make a passing suite meaningless.
-//
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 5`, `--section 1,8`, `--list`. Fixtures and teardown ALWAYS
-// run; only the numbered assertion blocks are skippable.
+// Sections: `--section 5`, `--section 1,8`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   'hit-riders.js'           // the mark pays out — ownership, crit, the list, the toggle, Foe Slayer
 ];
@@ -33,8 +26,7 @@ const SECTIONS = {
   9: "the tray's shape: a stale compendium item beside a fresh activity",
   10: 'through the cast: the applier names the caster'
 };
-// §§2-4 re-roll against the mark §1 placed and never place one of their own — the coupling is
-// real, so asking for any of them runs §1 first.
+// §§2-4 re-roll against the mark §1 placed.
 const DEPENDS = { 2: ['1'], 3: ['1'], 4: ['1'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -47,8 +39,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
@@ -68,7 +59,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     riders: game.settings.get(MOD, 'riders'),
     riderList: game.settings.get(MOD, 'riderList'),
     riderUpgrades: game.settings.get(MOD, 'riderUpgrades'),
-    // §10 casts through the cast slice; the settings it pins come back with the rest.
+    // §10 casts; the settings it pins come back with the rest.
     castApply: game.settings.get(MOD, 'castApply'),
     dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
     reactionHold: game.settings.get(MOD, 'reactionHold'),
@@ -96,8 +87,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     const liveMessages = created.messages.filter(id => game.messages.get(id));
     if (liveMessages.length) await ChatMessage.deleteDocuments(liveMessages);
-    // ⚠ A synthetic actor rebuilds its embedded collections from the delta on every write, so
-    // deletions go out as ONE call per collection, never one document at a time.
+    // ⚠ A synthetic actor rebuilds its collections from the delta on every write: ONE delete per collection.
     for (const [actorId, ids] of Object.entries(created.effects.reduce((m, e) => {
       (m[e.actorId] ??= []).push(e.id); return m;
     }, {}))) {
@@ -124,12 +114,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await game.settings.set(MOD, 'riderUpgrades', 'foe-slayer:hunters-mark');
 
     // ---- fixtures: Hunter's Mark on the attacker, and on the bystander for the ownership test
-    // ⚠ An identifier is NOT unique across rule versions. `dnd5e.spells` (2014) ships a
-    // Hunter's Mark with identifier "hunters-mark" and NO bonus-damage activity — the separate
-    // "Bonus Mark Damage" press is a 2024 modelling. Picking the first identifier match found
-    // the 2014 item, riderParts correctly read nothing off it, and every positive assertion
-    // failed while every negative passed vacuously. Select on the rider SHAPE, so the fixture
-    // can only ever be an item that is actually capable of riding.
+    // ⚠ An identifier is NOT unique across rule versions: the 2014 Hunter's Mark shares it and has no
+    // bonus-damage activity. Select on the rider SHAPE.
     const hasRiderActivity = doc => [...(doc.system?.activities ?? [])].some(a =>
       (a.type === 'damage') && a.activation?.override && !a.activation?.type
       && (a.damage?.parts?.length));
@@ -246,8 +232,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---------------------------------------------------------------- 5. SOMEONE ELSE'S mark
     if (want(5)) {
-      // The property the whole feature turns on. Two rangers can mark one creature; each may add
-      // only their own die. A test that only ever checks "is there a mark" passes this by luck.
+      // Two rangers can mark one creature; each adds only their own die.
       await clearMarks();
       await putMark(`${hmBystander.uuid}.ActiveEffect.${markerTemplate.id}`);
       rolls = await rollAt();
@@ -264,8 +249,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---------------------------------------------------------------- 7. concentration origin
     if (want(7)) {
-      // The tray writes `origin = concentration ?? effect`, so the OTHER shape must work too —
-      // this is the branch a live mark did NOT take, which is exactly why it needs a test.
+      // The tray writes `origin = concentration ?? effect`: the other shape must work too.
       const [conc] = await attacker.createEmbeddedDocuments('ActiveEffect', [
         dnd5e.documents.ActiveEffect5e.createConcentrationEffectData(
           hmAttacker.system.activities.contents.find(a => a.type === 'utility') ?? activity())
@@ -293,10 +277,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
-    // The shape the table's marks actually had (Session 8, 2026-09-22 — six hits, no die): the
-    // 6.0 migration left the PACK's uuid in every world template's `system.origin.item`, and an
-    // application copies the template and merges its own provenance over it. §§1-8 never saw it:
-    // they plant the 5.x `origin` string on a template fresh from the pack, which has no `item`.
+    // dnd5e 6.x leaves the PACK's uuid in a world template's `system.origin.item`, and an application
+    // copies the template (NOTES *An applied copy carries its TEMPLATE'S lineage*).
     const packMark = (await findInPacks('hunters-mark'))?.uuid
       ?? 'Compendium.dnd-players-handbook.spells.Item.phbsplHuntersMar';
     // A Foe Slayer the fixture already owned (or §8 granted) replaces the die: expect its d10.
@@ -307,8 +289,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ------------------------------------ 9. the tray's shape: stale item, fresh activity
     if (want(9)) {
-      // Exactly what `_prepareEffectData` leaves on the target: the template's stale `item`
-      // beside the `activity` the tray writes fresh, and no `origin` string of ours.
+      // What `_prepareEffectData` leaves on the target: the template's stale `item` beside the fresh
+      // `activity`, and no `origin` string of ours.
       await clearMarks();
       await putMark(null, { system: { origin: { item: packMark, activity: markActivity?.uuid ?? null } } });
       rolls = await rollAt();
@@ -319,10 +301,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ------------------------------------ 10. through the cast: the applier names the caster
     if (want(10)) {
-      // The table's path end to end: the cast slice lands the mark from a template staled the
-      // way the migration staled Jetten's, and the landed copy must name the CASTER — to this
-      // module's reader (the die) and to the platform's own (`getSourceActor`, which every
-      // "your next turn" clock is judged against).
+      // The cast lands the mark from a staled template, and the copy must name the CASTER — to the die's
+      // reader and to the platform's `getSourceActor`, which "your next turn" clocks are judged against.
       await clearMarks();
       // §7's hand-made concentration would make this cast ask which one to drop.
       const ownConc = created.effects.filter(e => (e.actorId === attacker.id) && attacker.effects.get(e.id));
@@ -339,7 +319,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           data: { 'system.origin.item': markerTemplate.system.origin?.item ?? null } });
         await hmAttacker.updateEmbeddedDocuments('ActiveEffect',
           [{ _id: markerTemplate.id, 'system.origin.item': packMark }]);
-        // The innate shape (smoke-cast's fixtures): the cast spends no slot the fixture lacks.
+        // The innate shape: the cast spends no slot the fixture lacks.
         await hmAttacker.update({ [slotKey]: false });
         victimToken.setTarget(true, { releaseOthers: true });
         await sleep(120);
@@ -371,7 +351,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}` };
   } finally {
     await teardown();
-    // Fixtures spend real resources; the suites put them back (HANDOFF).
+    // Fixtures spend real resources; put them back.
     for (const a of [attacker, victim, bystander]) { try { await a.longRest?.({ dialog: false, chat: false }); } catch { /* fine */ } }
   }
 }, sectionArg(plan, SECTIONS));

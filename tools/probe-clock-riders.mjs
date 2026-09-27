@@ -1,9 +1,8 @@
-// One-off survey for the three 2026-09-02 commissions (read-only; connects as the suite user):
+// Read-only survey (connects as the suite user):
 //   1. the 2024 glossary's SAVING THROW clauses on the conditions and the Dodge action, verbatim
 //   2. the Sneak Attack / Cunning Strike family as the packs ship it — activities, parts, effects
-//   3. every FEATURE whose text conditions extra damage on the combat CLOCK — "first round",
-//      "hasn't taken a turn", "once per turn", "once on each of your turns" — with its damage
-//      activities, so the clock-rider table is built from what ships rather than from memory.
+//   3. every FEATURE whose text conditions extra damage on the combat CLOCK ("first round", "once
+//      per turn", …) with its damage activities, so the clock-rider table is built from what ships.
 // Usage: node tools/probe-clock-riders.mjs [outfile.json]
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

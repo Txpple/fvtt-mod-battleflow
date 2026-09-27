@@ -6,22 +6,10 @@
  *   suitesFor(changed)         the ORDER rows a change selects, needs pulled, canonical order
  *   planFor(changed)           the same, with the reason per row and the files that ran nothing
  *
- * ⚠ WHY THIS EXISTS (user ruling 2026-09-23, change-scoped live testing). A two-file change ran
- * the whole battery — 29 entries, 51 minutes — because nothing in the tree could say which
- * suites a file's behaviour lives in. Now each suite DECLARES it (`const COVERS = [...]` beside
- * its `SECTIONS`/`DEPENDS` head), `tools/check-coverage-map.mjs` checks the declaration BOTH
- * WAYS in the verify gate (every machine claimed by some suite, every claim naming a machine
- * that exists), and `battery.mjs --changed` runs what the claims select.
- *
- * WHAT A CLAIM MEANS: "this suite drives that file's behaviour — a change there should re-run
- * me". It is judgment, written from the suite's own header and sections, and deliberately
- * generous. Only MACHINE-tier files are claimed. ⚠ **A SPINE CHANGE IS THE FULL BATTERY,
- * HONESTLY**: the core, spine, services and entry tiers are imported by nearly every machine,
- * so there is no smaller set that tests them, and pretending otherwise is the cheap cut.
- *
- * ⚠ THE SUITES EXECUTE ON IMPORT (they connect to a live world at module evaluation), so the
- * map is PARSED out of their source text, never imported. The parse is strict and fails loudly:
- * a suite with no COVERS is a suite whose change-scope nobody decided.
+ * Each suite DECLARES the machine-tier files it drives (`const COVERS = [...]`); a claim means "a
+ * change there should re-run me", deliberately generous. ⚠ A SPINE CHANGE IS THE FULL BATTERY:
+ * nearly every machine imports the spine, so no smaller set tests it.
+ * ⚠ Suites connect on import, so COVERS is PARSED from source text, strictly and loudly.
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -31,19 +19,12 @@ import { edgesOf, jsFiles, LAYER_OF, SCRIPTS, toPosix } from "./check-layers.mjs
 const TOOLS = dirname(fileURLToPath(import.meta.url));
 
 /**
- * The canonical order. ⚠ `smoke-battleflow` then `smoke-hold` are ADJACENT ON PURPOSE and
- * nothing may be inserted between them. A `reset` row is not a suite — it is a seed or a sweep
- * some suite needs, and it asserts nothing.
- *
- * `needs` names the rows a suite cannot run without. A need resolves to the NEAREST row of that
- * name ABOVE the suite — which is how the three `fixture-suite` seeds each serve the suites below
- * them — and asking for the suite (a positional, `--from`, `--changed`) pulls it and says why.
- * It replaced the hard-coded "smoke-hold rides smoke-battleflow — ask for both" refusal
- * (2026-09-23): the battery knows the dependency, so it runs it rather than naming it.
+ * The canonical order. ⚠ `smoke-battleflow` then `smoke-hold` are ADJACENT ON PURPOSE. A `reset`
+ * row is a seed or sweep some suite needs; it asserts nothing. `needs` resolves to the NEAREST row
+ * of that name ABOVE the suite, and asking for the suite pulls it.
  */
 export const ORDER = [
-  // ⚠ FIRST, before anything measures a distance: a killed run's linked strays are swept
-  // (2026-09-24 — a battery killed inside smoke-hitmenu poisoned the next two).
+  // ⚠ FIRST, before anything measures a distance: a killed run's linked strays are swept.
   { name: "reset-fixture-state", note: "not a suite — sweeps a killed run's linked strays before anything measures distance", reset: true },
   { name: "smoke-battleflow", note: "the Phase 1 chain + the player-damage offer (§5d)" },
   {
@@ -53,18 +34,8 @@ export const ORDER = [
   { name: "smoke-saves", note: "the save machine + the save-path damage offer (§18)" },
   { name: "smoke-volleys", note: "the volley folds — darts aimed by hand, rays as real attacks, the gate at the aim" },
   { name: "smoke-maneuvers", note: "the slowest — nine fold groups" },
-  // ⚠ Immediately after smoke-maneuvers because it is the same family (post-roll folds), and
-  // its section 2 SPENDS the fixtures it asserts on — it re-seeds nothing, so anything that
-  // wanted a Fighter with two Second Wind uses must run before it or re-run the fixture script.
-  //
-  // ⚠ WHICH IS WHY THE SEED IS A BATTERY STEP NOW (2026-08-23). It was prose in the note below
-  // and the battery did not act on it, so a battery run inherited whatever the LAST run left:
-  // `heroic` alone would be offered, section 5's "every eligible fold is offered" would go red,
-  // and the summary would report a FAILED suite for an empty resource pool. Measured this way
-  // once — 20/21, and 21/21 on the same code the moment the fixture was re-seeded, with the
-  // assertion flipping from `offers=[heroic]` to `offers=[heroic, tactical]` and Second Wind
-  // reading `2 → 1` instead of `1 → 0`. **A front door that reports a red for a missing seed
-  // is a broken gauge**, and the diagnosis cost a full battery to reach.
+  // ⚠ Right after smoke-maneuvers (same family); its §2 SPENDS the fixtures it asserts on, so the
+  // seed is a battery step — a red for an empty resource pool is a broken gauge.
   { name: "fixture-d20-folds", note: "not a suite — the seed smoke-d20-folds spends", reset: true },
   {
     name: "smoke-d20-folds", note: "the three d20 folds — its own seed runs immediately above",
@@ -80,27 +51,21 @@ export const ORDER = [
     name: "smoke-effects", note: "⚠ re-run before diagnosing: the documented dice-variance class",
     needs: ["reset-fixture-state"]
   },
-  // ⚠ Directly after smoke-effects — the same family (the mastery chips), and the one suite that
-  // steps a real Combat through rounds to watch Foundry's own clock expire them (2026-09-01).
+  // ⚠ Right after smoke-effects: the same chips, expired by Foundry's own clock through real rounds.
   { name: "smoke-expiry", note: "the platform's clock on the chips, the spend, the cleave chit" },
   { name: "smoke-reminders", note: "the gate before the roll — every source, the net, the press" },
   { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
-  // Beside smoke-sneak and smoke-clock: the same seam (the offer's contributions, preRollDamageV2) on the CLONED fighter fixture (2026-09-04).
+  // Beside smoke-sneak and smoke-clock: the same seam (preRollDamageV2) on the cloned fighter fixture.
   { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature" },
-  // The overnight commissions (2026-09-04): the same seam again — the attack's damage landing —
-  // read from the DEFENDER's side (the shields), and a bare damage cast's dice (Heat Metal).
+  // The same seam from the DEFENDER's side (the shields), and a bare damage cast's dice (Heat Metal).
   { name: "smoke-shields", note: "the damage shields — Fire Shield's type by its effect, Death Armor walked to its caster and once per turn, Armor of Agathys marked at the cast and ended with its pool, the reach, the list" },
   { name: "smoke-heatmetal", note: "the damage casts — Heat Metal's dice roll at the use and land, the save follows through the machine, Heated Metal read by both gates, the reheat, the list" },
   { name: "smoke-superiority", note: "the rest of the Battle Master's maneuvers — Parry's reduction on the hold, the four Bonus Action uses, Ambush and Tactical Assessment as scoped folds, Commander's Strike as a driven attack, Rally natively" },
-  // ⚠ Before smoke-surfaces for the same reason smoke-surfaces is last: it places a real template
-  // (Spirit Guardians) and creates Regions on the range, all deleted in its `finally` (2026-09-03).
-  // The same lesson as smoke-nogm's seed below: the Victim token smoke-emanations needs is swept
-  // off by smoke-effects, and the suite reports a red for a missing fixture (2026-09-04).
+  // ⚠ Before smoke-surfaces: it places a real template and Regions, deleted in its `finally`. The
+  // seed re-places the Victim token smoke-effects sweeps off.
   { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-metamagic and smoke-emanations need", reset: true },
-  // The metamagic pass (2026-09-09): it needs every fixture token standing (the Sorcerer, the goblins, the
-  // Ranger under a Fireball), so it runs on the fresh placement above — placed before it, it died at its
-  // own fixture check (the battery of 2026-09-09) once the earlier suites had swept a token.
+  // Needs every fixture token standing (Sorcerer, goblins, Ranger), so it runs on the fresh placement.
   {
     name: "smoke-metamagic", note: "metamagic — the group in the casting window, the spend by hand, Careful's protected leaving the demand, Heightened's mark on the save gate, Distant / Extended / Transmuted / Twinned, Empowered on the dice, Seeking on the miss",
     needs: ["fixture-suite"]
@@ -109,8 +74,7 @@ export const ORDER = [
     name: "smoke-emanations", note: "the emanations — the Paladin's aura stands with its token, applies to allies inside, lifts on exit; Spirit Guardians adopted, its saves on enter and turn end",
     needs: ["fixture-suite"]
   },
-  // Slice A, tier 3 (2026-09-24): both ride BF Test Halfling (Lucky, Savage Attacker), a fixture the
-  // tier 1+2 build added to fixture-suite — the nearest seed above is theirs.
+  // Both ride BF Test Halfling (Lucky, Savage Attacker); the nearest seed above is theirs.
   {
     name: "smoke-rescue", note: "the `roll` interrupt — Lucky, Warding Flare, Shadowy Dodge bend the hit: the popup's rows, the second d20, the crit undone, all-spent skips",
     needs: ["fixture-suite"]
@@ -119,88 +83,65 @@ export const ORDER = [
     name: "smoke-savage", note: "Savage Attacker — the popup on a weapon hit, the set rolled again, the higher standing, the damage waiting, once per turn, the hold first",
     needs: ["fixture-suite"]
   },
-  // The Aasimar walk (2026-09-25): BF Test Halfling is lent Celestial Revelation, Light and Sacred
-  // Flame for the run, beside the Victim and the Ranger — the same seed as the two above.
+  // BF Test Halfling is lent Celestial Revelation, Light and Sacred Flame, beside the Victim and Ranger.
   {
     name: "smoke-aasimar", note: "Celestial Revelation and the token lights — a self area placed on the token, an enemy area asking no ally, the `while` ring and its turn-end pulse, the form's rider on a hit and on a spell's one target, Light on a targeted token",
     needs: ["fixture-suite"]
   },
-  // The Goliath walk (2026-09-25): BF Test Goliath is lent Storm's Thunder and Large Form for the
-  // run, beside the Victim — the same seed as the two above.
+  // BF Test Goliath is lent Storm's Thunder and Large Form, beside the Victim.
   {
     name: "smoke-goliath", note: "the Goliath walk's pass 2 — Large Form's token size, the rebuke offered within its reach and driven at the damager (none out of reach), Stone's Endurance holding a non-attack damage at the applier",
     needs: ["fixture-suite"]
   },
-  // The Orc walk (2026-09-25): BF Test Halfling is lent Relentless Endurance (and Death Ward's effect) for the run.
+  // BF Test Halfling is lent Relentless Endurance (and Death Ward's effect).
   {
     name: "smoke-drop", note: "drop to 1 HP — Relentless Endurance held at 1 and asked (Drop to 1 spends the use, Drop to 0 lands the 0), none when killed outright; Death Ward automatic, its effect removed",
     needs: ["fixture-suite"]
   },
-  // The origin feats (2026-09-25): BF Test Halfling is lent the PHB's Alert; its own combats and tokens.
+  // BF Test Halfling is lent the PHB's Alert; its own combats and tokens.
   {
     name: "smoke-alert", note: "the Initiative swap — Alert asked once every combatant has an Initiative, the non-Incapacitated allies listed with theirs, Swap exchanging the two in the tracker; once per combat, No, the clock, the list",
     needs: ["fixture-suite"]
   },
-  // The origin feats (2026-09-25): BF Test Cleric is lent the PHB's Healer and Cure Wounds for the run.
+  // BF Test Cleric is lent the PHB's Healer and Cure Wounds.
   {
     name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): rerolled automatically as the dice land (since 2026-09-26), the healing waiting for the new dice and landing once; none, the list, the kit's tending",
     needs: ["fixture-suite"]
   },
-  // The Human walk (2026-09-25): BF Test Halfling is lent the PHB's Resourceful for the run.
+  // BF Test Halfling is lent the PHB's Resourceful.
   {
     name: "smoke-rest", note: "the rest grants — Resourceful's Heroic Inspiration on a Long Rest (the box ticked, the rest card's line), nothing on a Short Rest, nothing when unlisted; Musician's song — the allies within 30 ft asked after a Short or Long Rest, the inspired greyed, OK gives it",
     needs: ["fixture-suite"]
   },
-  // The Halfling walk (2026-09-25): BF Test Halfling's own Lucky feat — the gate's buy box and the
-  // `advantage` fold on an initiative rolled with no dialog; the same seed as the two above.
+  // BF Test Halfling's own Lucky: the gate's buy box and the `advantage` fold on a dialog-less initiative.
   {
     name: "smoke-lucky", note: "Lucky's Advantage half — the buy box in an attack, save, check and initiative dialog (the tick in the net, the spend, the record, none left greyed) and the no-dialog initiative fold (the higher d20 stands)",
     needs: ["fixture-suite"]
   },
-  // The fighting styles (2026-09-26): BF Test Fighter lent the PHB's six styles and its gear — the
-  // faces off the equipped boxes, the numbers on damage rolled straight off the weapon, the float
-  // over BF Test Victim's token (its own, placed and removed); the same seed as the rows above.
+  // BF Test Fighter is lent the PHB's six styles and its gear; the float over BF Test Victim's own token.
   {
     name: "smoke-styles", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
     needs: ["fixture-suite"]
   },
-  // The guards (2026-09-26): Protection and Interception answering for the creature beside them —
-  // the three tokens placed for the run, removed after; the same seed as the rows above.
+  // Protection and Interception answering for the creature beside them; three tokens placed and removed.
   {
     name: "smoke-guards", note: "the guards — Protection's popup beside the defender's own (P1), the bent roll and the card naming the guard, \"Protected — <guard>\" and the gate's Disadvantage within 5 ft; Interception's claim on the attack's damage, the reduction, the pass",
     needs: ["fixture-suite"]
   },
-  // The effect view's probe joined the battery on 2026-09-23 (change-scoped live testing): it was
-  // the one machine no battery suite drove, and an unrun probe rots exactly like an unrun suite.
-  // ⚠ ITS OWN SEED, the smoke-metamagic lesson again: it reads the fixture tokens on the range,
-  // and smoke-metamagic and smoke-emanations above both move tokens and sweep effects. A seed is
-  // cheaper than a red for a missing fixture — and it runs only when the probe is selected.
+  // ⚠ ITS OWN SEED: the probe reads the fixture tokens, which smoke-metamagic and smoke-emanations
+  // move and sweep; the seed runs only when the probe is selected.
   { name: "fixture-suite", note: "not a suite — re-places the tokens probe-effect-view needs", reset: true },
   {
     name: "probe-effect-view", note: "the effect view — the bar, the hover card, the held key, the fold",
     needs: ["fixture-suite"]
   },
   { name: "smoke-resources", note: "the resource notices — the flash, the card line, the silences, the spend stamp" },
-  // ⚠ LAST, and it is the only entry whose position is about what it CREATES rather than what
-  // it needs. It places a real MeasuredTemplate on the active scene, and a template standing
-  // while smoke-saves is mid-run would join its containment arithmetic (§8 re-derives target
-  // sets from whatever areas exist). It deletes its own in a `finally`; running it last means
-  // a crash between the two cannot reach a suite that would care.
+  // ⚠ LAST because of what it CREATES: a real MeasuredTemplate would join smoke-saves' containment
+  // arithmetic. It deletes its own in a `finally`.
   { name: "smoke-surfaces", note: "the three surfaces nothing else opens — settings, usage dialog, templates" },
-  // ⚠ LAST, AFTER smoke-surfaces, and for a reason no other entry has: it is the one suite that
-  // must find NO ACTIVE GM. It opens no GM session of its own until its rejoin section, and it
-  // REFUSES to run if it sees one — a stray GM silently turns it into a weaker copy of
-  // smoke-effects that passes for the wrong reason. Running it at the end means every other
-  // suite has already hung up. ⚠ If it fails its preflight here, the cause is almost always a
-  // previous suite's session lingering rather than anything about the module; re-run it alone.
-  //
-  // It is in the battery at all because an unrun suite rots — the 15-second reminder survived
-  // six weeks behind an assertion that nobody re-read, and a no-GM suite that only ever ran on
-  // the day it was written would be the same bet.
-  // ⚠ THE SEED IS A BATTERY STEP, the smoke-d20-folds lesson applied again: smoke-nogm needs
-  // the victim TOKEN on the range, earlier suites sweep it off (smoke-effects says so in its
-  // own log), and a player client cannot place one — it only observes the scene. Without this
-  // the battery reported a red for a missing fixture, which is a broken gauge.
+  // ⚠ LAST, AFTER smoke-surfaces: it must find NO ACTIVE GM and refuses to run if it sees one.
+  // A failed preflight here is almost always a lingering session from an earlier suite; re-run it alone.
+  // ⚠ Its seed is a battery step: it needs the victim TOKEN and a player client cannot place one.
   { name: "fixture-suite", note: "not a suite — re-places the tokens smoke-nogm needs", reset: true },
   {
     name: "smoke-nogm", note: "⚠ NO GM — the flow elect; must run with every other client hung up",
@@ -212,15 +153,11 @@ export const ORDER = [
 
 /** The one tier a suite claims. */
 const MACHINE_TIER = "machines";
-/**
- * The tiers a change is WALKED up from — the pure layer and the registry have few importers, so
- * the machines that import them name the suites. Every other tier is spine.
- */
+/** The tiers a change is WALKED up from (few importers: the machines importing them name the suites). */
 const WALKED_TIERS = new Set(["decision", "registry"]);
 /**
- * The tiers whose change is the FULL battery — core, spine, services, entry: derived as "every
- * tier in check-layers.mjs's DEPTH that is neither claimed nor walked", so a tier added there
- * lands here by default, and the default is the honest one (run everything).
+ * The tiers whose change is the FULL battery: every tier in check-layers.mjs's DEPTH neither
+ * claimed nor walked, so a new tier defaults to the full battery.
  */
 export const SPINE_TIERS = new Set(
   [...new Set(Object.values(LAYER_OF))].filter(t => (t !== MACHINE_TIER) && !WALKED_TIERS.has(t))
@@ -239,10 +176,9 @@ export const isSpine = file => SPINE_TIERS.has(tierOf(file));
 /* --- the claims ---------------------------------------------------------------------------- */
 
 /**
- * The `[export] const COVERS = [ ... ]` literal out of a suite's SOURCE TEXT: an array of strings, or null
- * when the file declares none. ⚠ Strict on purpose — string literals, commas and comments only.
- * Anything else (a spread, a variable, a computed path) throws, because a claim this reader
- * cannot see is a claim the gate cannot check, and a loose parse would quietly read it as empty.
+ * The `[export] const COVERS = [ ... ]` literal out of a suite's SOURCE TEXT, or null when absent.
+ * ⚠ Strict: string literals, commas and comments only — anything else throws, since a loose parse
+ * would read an unseen claim as empty.
  */
 export function parseCovers(src) {
   const heads = [...src.matchAll(/^(?:export\s+)?const\s+COVERS\s*=\s*\[/gm)];
@@ -272,9 +208,8 @@ export const suiteRows = (order = ORDER) => order.filter(r => !r.reset);
 export const suiteFile = name => join(TOOLS, `${name}.mjs`);
 
 /**
- * Every ORDER suite's claims, read off its source. ⚠ THROWS on a suite with no COVERS or with one
- * this reader cannot parse — a caller that wants the findings instead (the verify check) reads
- * each file through `parseCovers` itself.
+ * Every ORDER suite's claims, read off its source. ⚠ THROWS on a missing or unparseable COVERS;
+ * the verify check calls `parseCovers` itself to collect findings.
  */
 export function loadCoverageMap(order = ORDER, read = file => readFileSync(file, "utf8")) {
   const map = new Map();
@@ -320,11 +255,8 @@ export function defaultContext() {
 }
 
 /**
- * Walk UP from a walked-tier file to the machines that import it, through any walked-tier file
- * between (decide/registry.js → volley-registry.js → volleys.js). The walk STOPS at a machine —
- * a machine's change is its claimants (rule a), so a dependency's change is the same claim, no
- * wider — and it reports every spine-tier importer it meets, because a dependency the spine
- * imports changes the spine's behaviour, and that is the full battery.
+ * Walk UP from a walked-tier file to the machines that import it. Stops at a machine (its change is
+ * its claimants) and reports every spine importer met — that makes it the full battery.
  */
 function walkUp(start, ctx) {
   const machines = new Map();   // machine → the walked-tier files between it and the start
@@ -398,22 +330,16 @@ export function rowsFrom(at, order = ORDER) {
 }
 
 /**
- * What a set of changed files (repo-relative paths, as git prints them) has to re-run.
- *
- * Returns `{ rows, full, inert }`: `rows` the ORDER rows to run in canonical order, each with
- * `why` (the file that claimed it, or the suite that needed it); `full` the reasons the whole
- * battery was selected (empty when it was not); `inert` the files that select nothing live, each
- * with why. The rules, in the order they are tried per file:
+ * What a set of changed files (repo-relative) has to re-run: `{ rows, full, inert }` — the ORDER rows
+ * with `why`, the reasons for a full battery (empty when not), and the files that select nothing.
  *
  *   (a) a MACHINE under scripts/ selects every suite claiming it;
- *   (b) a decide/ or registry file selects the suites claiming each machine that imports it,
- *       walked upward (walkUp) — and the FULL battery if a spine file imports it on the way;
- *   (c) a core / spine / services / entry file, or one the tier map does not know, is the full
- *       battery;
- *   (d) a battery suite under tools/ selects itself; a seed selects the suites that need it;
- *       the harness, the target, the battery and this map are the full battery; any other tool
- *       is inert;
- *   (e) everything else is inert — docs, tests/, package.json — except module.json (below).
+ *   (b) a decide/ or registry file selects the claimants of each machine importing it, walked
+ *       upward — and the FULL battery if a spine file imports it on the way;
+ *   (c) a core / spine / services / entry file, or one the tier map does not know: full battery;
+ *   (d) a battery suite selects itself; a seed selects the suites needing it; the harness, target,
+ *       battery and this map are the full battery; any other tool is inert;
+ *   (e) everything else is inert, except module.json.
  */
 export function planFor(changed, ctx = defaultContext()) {
   const { order, covers } = ctx;
@@ -474,9 +400,8 @@ export function planFor(changed, ctx = defaultContext()) {
         inert.push({ file, why: /^(smoke|probe)-/.test(name) ? "not in the battery's ORDER — run it by hand" : "a tool, not a battery suite" });
       }
     } else if (file === "module.json") {
-      // ⚠ The one file outside scripts/ that the platform LOADS: the esmodules entry, the
-      // RegionBehavior type the emanations register, the dnd5e compatibility window. A bare
-      // version bump is harmless, but this reader cannot tell a bump from a type change.
+      // ⚠ The platform LOADS the manifest (esmodules, RegionBehavior types, the dnd5e window), and a
+      // version bump cannot be told from a type change.
       full.push("module.json is the manifest the platform loads — the full battery");
     } else {
       inert.push({ file, why: "outside scripts/ and tools/ — nothing live to run" });

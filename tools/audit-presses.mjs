@@ -1,9 +1,8 @@
-// Audit (2026-09-03): which 2024 save activities PRESS a condition in their text but ship no
-// effect carrying it? Those are the `SAVE_PRESSES` candidates — Web's shape (BACKLOG: "a
-// SAVE_PRESSES row is one spell; the pack has more like it"). Offline, over scan-corpus.mjs's
-// JSON. The scan cannot tell a press from a carried effect by text alone (SWEEP §3 item 7), so
-// this reads BOTH: the condition names the text presses on a failed save, and the statuses on
-// the row's effects. A row is BARE when a pressed condition has no effect carrying its status.
+// Audit: which 2024 save activities PRESS a condition in their text but ship no effect carrying it?
+// Those are the `SAVE_PRESSES` candidates (Web's shape). Offline, over scan-corpus.mjs's JSON. Text
+// alone cannot tell a press from a carried effect (SWEEP §3 item 7), so this reads BOTH: the
+// conditions the text presses on a failed save, and the statuses on the row's effects. A row is
+// BARE when a pressed condition has no effect carrying its status.
 //
 //   node tools/audit-presses.mjs <corpus.json> [--all]     --all lists the carried rows too
 import { readFileSync } from "node:fs";

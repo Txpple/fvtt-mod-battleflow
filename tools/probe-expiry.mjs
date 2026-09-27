@@ -1,47 +1,18 @@
-// Live forensic for FOUNDRY v14's OWN effect clock — the measurement HANDOFF Stage 0 rests
-// on before Stage 1 writes a single chip in the new shape. Prints, asserts nothing.
+// Live forensic for Foundry v14's OWN effect clock. Prints, asserts nothing; the findings are in
+// NOTES *v14 owns effect expiry*.
 //
-// The reading of the client bundle (foundry.mjs, v14.365) says: an ActiveEffect carries
-// `start: {combat, combatant, round, turn, time}` and `duration: {value, units, expiry}`;
-// the registry refreshes on every combat boundary and judges `expiry` against the ORIGINATING
-// combatant; `CONFIG.ActiveEffect.expiryAction` ("update") then stamps `duration.expired`.
-// That reading predicts, for a chip applied on the attacker's turn:
-//
-//   Sap / Slow  {value: 1, units: "rounds", expiry: "turnStart"}  → expired at the attacker's
-//                                                                    next turn START
-//   Vex         {value: 1, units: "rounds", expiry: "turnEnd"}    → expired at the attacker's
-//                                                                    next turn END
-//   Cleave chit {value: 0, units: "turns",  expiry: "turnEnd"}    → expired at the end of the
-//                                                                    attacker's OWN turn
-//
-// ⚠ and one non-obvious wrinkle the code shows: the `turnEnd` refresh deliberately does NOT
-// recompute remaining time, so a `{1 turns, turnEnd}` chit would live a whole round longer
-// than it reads. Predictions are cheap; this prints what the platform actually does, step by
-// step, so Stage 1's constructor is built on a measurement rather than a reading.
-//
-// ✅ MEASURED 2026-09-01 (Foundry 14.365, dnd5e 5.3.3), three combatants, chips applied on the
-// attacker's turn (r1t0): sap-shape expired at r2t0 (the attacker's next turn START), vex-shape
-// at r2t1 (its END), the 0-turn chit at r1t1 (the end of the attacker's OWN turn), and the
-// 1-turn chit at r2t1 — the round longer the code promised. Every expiry write arrived as an
-// `updateActiveEffect` carrying `duration.expired: true`, made by the active GM's client. Two
-// traps confirmed on the way: an effect created WITHOUT an explicit `start` is stamped with
-// whoever's turn it is (an off-turn apply got the victim's combatant), and world time advances
-// six seconds at every round boundary (`updateWorldTime` fires at r2t0, r3t0).
-//
-// ⚠ AND ONE TRAP THE FIRST RUN OF THIS PROBE MEASURED BY ACCIDENT: `game.combat` is the combat
-// of the scene THIS CLIENT views. A client looking at another map sees NO combat — the implicit
-// `start` lands with no combat at all (time-based, 6 seconds), `Actor#inCombat` reads false, and
-// the round's world-time tick then expires every chip whose clock has run out, on the tick
-// rather than on its event. The suites view the range first; a GM viewing another scene
-// mid-fight would see the same drift, and nothing in the module can prevent it.
-//
-// Also measured here, for Stage 2's benefit: whether `dnd5e.preRollAttackV2` (templated —
-// invisible to the dispatch gate) and `renderAttackRollConfigurationDialog` fire on this page.
+// For a chip applied on the attacker's turn it reads, step by step:
+//   Sap / Slow  {value: 1, units: "rounds", expiry: "turnStart"}  → the attacker's next turn START
+//   Vex         {value: 1, units: "rounds", expiry: "turnEnd"}    → the attacker's next turn END
+//   Cleave chit {value: 0, units: "turns",  expiry: "turnEnd"}    → the end of the attacker's OWN turn
+// ⚠ A `turnEnd` refresh does NOT recompute remaining time: `{1 turns, turnEnd}` lives a round longer.
+// ⚠ An effect created without an explicit `start` is stamped with whoever's turn it is, and
+// `game.combat` is the combat of the scene THIS CLIENT views.
+// Also reads whether `dnd5e.preRollAttackV2` and `renderAttackRollConfigurationDialog` fire here.
 //
 // Run:  node tools/probe-expiry.mjs
-// ⚠ One suite at a time; disconnect the bridge first. Creates and deletes a Combat on the
-// test range, creates and deletes effects on the BF fixtures, advances world time by six
-// seconds and reverses it. Leaves nothing behind.
+// ⚠ One suite at a time; disconnect the bridge first. Creates and deletes a Combat and effects on
+// the test range, advances world time by six seconds and reverses it. Leaves nothing behind.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 const TAG = "probe-expiry";
 const f = await connectSuite({ tag: TAG, watchdogMs: 300_000, requireElect: true, env: loadEnv() });
@@ -108,8 +79,7 @@ const out = await f.evaluate(async () => {
 
   let combat = null;
   const t0 = game.time.worldTime;
-  // Every `duration.expired` write the platform makes while this runs, with what it wrote —
-  // the shape the module's tidy hook keys on.
+  // Every `duration.expired` write the platform makes, with what it wrote (the tidy hook's key).
   const expiryWrites = [];
   const writeWatcher = Hooks.on("updateActiveEffect", (effect, changes, _options, userId) => {
     if ( changes?.duration?.expired === undefined ) return;
@@ -120,15 +90,13 @@ const out = await f.evaluate(async () => {
     await sweep();
     if ( game.combat ) await game.combat.delete();
     await sleep(300);
-    // ⚠ VIEW THE RANGE FIRST. `game.combat` is the combat of the scene THIS CLIENT views, and
-    // both the platform's implicit `start` stamp and `Actor#inCombat` read it — a client
-    // looking at another map sees no combat at all, and the first run of this probe measured
-    // exactly that (every chip time-based, expiring on the round's world-time tick).
+    // ⚠ VIEW THE RANGE FIRST: the implicit `start` stamp and `Actor#inCombat` read `game.combat`,
+    // the combat of the scene this client views.
     if ( canvas.scene?.id !== scene.id ) await scene.view();
     for ( let i = 0; (i < 40) && !(canvas.ready && (canvas.scene?.id === scene.id)); i++ ) await sleep(250);
     report.view = { viewed: canvas.scene?.id === scene.id, gameCombatBefore: game.combat?.id ?? null };
 
-    /* --- 0: OUT OF COMBAT — the shape Stage 1 wants to write, and the 6-second one ------- */
+    /* --- 0: OUT OF COMBAT — the rounds shape, and the 6-second one ------------------------ */
     const oocRounds = await mk(victim, "probe ooc rounds", { value: 1, units: "rounds", expiry: "turnStart" });
     const oocSeconds = await mk(victim, "probe ooc seconds", { value: 6, units: "seconds" });
     await sleep(200);
@@ -186,8 +154,7 @@ const out = await f.evaluate(async () => {
     });
     report.steps.push({ step: "applied on the attacker's turn", where: where(combat), ...all() });
 
-    // Step through two full rounds, reading after every advance — and the world clock, because
-    // a round boundary may move it, and world time is its own expiry path.
+    // Step through two full rounds, reading after every advance — and the world clock, its own expiry path.
     for ( let i = 0; i < 7; i++ ) {
       const before = snap();
       const t = game.time.worldTime;
@@ -198,8 +165,6 @@ const out = await f.evaluate(async () => {
     }
 
     /* --- 2: an OFF-TURN apply — someone else's turn, no explicit start --------------------- */
-    // The combat sits on whoever it sits on after seven steps; apply without a start and read
-    // whose combatant the platform stamped.
     const offTurn = await mk(victim, "probe off-turn implicit", { value: 1, units: "rounds", expiry: "turnStart" });
     await sleep(200);
     report.offTurnImplicitStart = { where: where(combat), effect: read(victim, offTurn),
@@ -215,8 +180,7 @@ const out = await f.evaluate(async () => {
         }
       });
       try {
-        // Fresh chit on the attacker's turn if we are on it; otherwise on whoever — we only
-        // need to see the write's shape.
+        // A fresh chit on whoever's turn it is: only the write's shape matters.
         const w = await mk(pc, "probe write-shape", { value: 0, units: "turns", expiry: "turnEnd" });
         await sleep(200);
         await combat.nextTurn();
@@ -227,7 +191,7 @@ const out = await f.evaluate(async () => {
       }
     }
 
-    /* --- 4: the two hook surfaces Stage 2 would stand on ------------------------------------ */
+    /* --- 4: the two roll-dialog hook surfaces ---------------------------------------------- */
     {
       const activity = pc.items.find(i => (i.type === "weapon") && i.system.activities?.some?.(a => a.type === "attack"))
         ?.system.activities.find(a => a.type === "attack");
@@ -247,7 +211,6 @@ const out = await f.evaluate(async () => {
             activity.rollAttack({}, { configure: true }, { create: false }).then(r => ({ rolled: !!r?.length })),
             sleep(6000).then(() => ({ timedOut: true }))
           ]);
-          // Whatever is still open under that name goes.
           for ( const app of foundry.applications.instances.values() ) {
             if ( /RollConfigurationDialog/.test(app.constructor.name) ) await app.close();
           }

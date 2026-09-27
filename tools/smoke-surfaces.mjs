@@ -1,23 +1,12 @@
 // Live suite: THE THREE SURFACES NOTHING ELSE OPENS — the settings form, the activity usage
-// dialog, and the measured-template CRUD seam.
+// dialog, and the measured-template CRUD seam. Every other suite passes `configure: false`, so
+// these need a suite that reaches them on purpose.
 //
-// ⚠ WHY THIS SUITE EXISTS. D11's first coverage reading (2026-08-23) left five hook names on the
-// never-fired list. Two closed the same day. These three stayed open for the same structural
-// reason: **every other suite is built to avoid exactly the surfaces they live on.** Suites pass
-// `configure: false` precisely so no dialog renders, and nothing anywhere opens the settings
-// form. A path no suite can reach by accident needs a suite that reaches it on purpose.
+// ⚠ Foundry 14 does NOT dispatch `createMeasuredTemplate`/`updateMeasuredTemplate`: a template
+// create adds a Region and fires the Region hooks (tools/probe-surfaces.mjs). §3 pins that, so a
+// platform that gives the names back FAILS here (ARCHITECTURE §10 D12).
 //
-// ⚠ AND ONE OF THE THREE TURNED OUT NOT TO BE A COVERAGE GAP AT ALL. `createMeasuredTemplate`
-// and `updateMeasuredTemplate` are **not dispatched by Foundry 14 at all** — measured, not
-// reasoned about (`tools/probe-surfaces.mjs`, 2026-08-24): a template create moves
-// `scene.templates` 0→1 **and `scene.regions` 0→1**, and the hooks that fire are
-// `preCreateRegion`/`createRegion`/`drawRegion`. §3 pins that measurement so a platform upgrade
-// that gives the name back FAILS here and says so, instead of quietly restoring a fast-path
-// nobody remembers asking for. See ARCHITECTURE §10 D12.
-//
-//   node tools/smoke-surfaces.mjs            all sections
-//   node tools/smoke-surfaces.mjs --list     what the sections are
-//   node tools/smoke-surfaces.mjs --section 2
+//   node tools/smoke-surfaces.mjs [--list | --section N]
 //
 // ⚠ Disconnect the bridge. One suite at a time.
 import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
@@ -25,10 +14,8 @@ import { announcePlan, connectSuite, loadEnv, sectionPlan, sectionArg, finish }
 
 const TAG = "smoke-surfaces";
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
   "polish.js"               // §2 — the usage dialog's target block (renderActivityUsageDialog)
 ];
@@ -59,7 +46,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const MODULE_ID = "fvtt-mod-battleflow";
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  // ⚠ Wait for WHAT THE NEXT ASSERTION READS, never a flat sleep (§11, "Adding a TEST" rule 3).
+  // ⚠ Wait for what the next assertion reads, never a flat sleep.
   const until = async (fn, ms = 10_000) => {
     const t0 = Date.now();
     while (Date.now() - t0 < ms) { const v = fn(); if (v) return v; await sleep(200); }
@@ -69,14 +56,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   try {
     /* --- 1: the settings form ---------------------------------------------------------- */
     if (has(1)) {
-      // ⚠ THE HOOK ITSELF IS THE FIRST ASSERTION (§11 rule: a live suite asserts a hook FIRED,
-      // never that it was registered). Everything below is only meaningful if it did.
+      // ⚠ The hook FIRED is the first assertion; everything below depends on it.
       let fired = 0;
       const hid = Hooks.on("renderSettingsConfig", () => { fired++; });
       const sheet = game.settings.sheet;
-      // The no-write guard, read BEFORE anything is touched. §1 toggles a checkbox in the DOM
-      // to exercise the interlock, and the one thing that must not happen is that toggle
-      // reaching the world. Asserted at the end of the section rather than hoped for.
+      // The no-write guard, read BEFORE anything is touched: §1's DOM toggle must never reach the world.
       const before = {
         reactionHold: game.settings.get(MODULE_ID, "reactionHold"),
         autoDamage: game.settings.get(MODULE_ID, "autoDamage"),
@@ -94,17 +78,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           el ? "found by one of its controls" : "no control with the module prefix");
         if (!el) throw new Error("settings form never rendered a module control");
 
-        // The handler's visible output. Nine `addDivider` calls, nine headers — and the count
-        // is read from the DOM rather than typed, so adding a tenth divider updates the
-        // expectation by construction (the "never hand-carry a counted number" rule).
+        // Nine `addDivider` headers, counted from the DOM rather than typed.
         const dividers = [...el.querySelectorAll("h4.bf-divider")].map(h => h.textContent.trim());
         ok("the section dividers are inserted into the form", dividers.length > 0,
           `${dividers.length}: ${dividers.join(" · ")}`);
         ok("every divider carries a label, none blank", dividers.every(d => d.length > 0),
           JSON.stringify(dividers));
-        // ⚠ Idempotence is the real risk here: the form re-renders on tab changes and the
-        // handler runs again each time. `addDivider` guards on the previous sibling, and this
-        // is what proves the guard — a second render must not double them.
+        // ⚠ The form re-renders on tab changes: a second render must not double the dividers.
         const firstCount = dividers.length;
         await sheet.render(true);
         await sleep(600);
@@ -116,23 +96,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const node = el2 ?? el;
         const input = key => node.querySelector(`[name="${MODULE_ID}.${key}"]`);
         const hold = input("reactionHold");
-        // The hold's dependents, named by settings.js's own list.
         const DEPENDENTS = ["interruptList", "blockList", "holdReveal", "holdTimer",
           "holdSkipFutile", "holdSettle", "holdApplyEffect"];
         const disabledNow = () => DEPENDENTS.map(k => [k, !!input(k)?.disabled]);
         if (!hold) {
           skips.push("section 1: no reactionHold control in the DOM — interlock unexercised");
         } else if (hold.checked !== true) {
-          // The reference table has the hold ON; if the world has drifted, say so rather than
-          // asserting against a state this section did not set up.
+          // The reference table has the hold ON; a drifted world is reported, not asserted against.
           skips.push(`section 1: reactionHold is ${hold.checked} in this world, not the `
             + "reference true — interlock direction unexercised");
         } else {
           ok("with the hold ON, its dependents are live",
             disabledNow().every(([, d]) => !d), JSON.stringify(disabledNow()));
-          // ⚠ DOM ONLY. `SettingsConfig` saves on its own submit button; a `change` event runs
-          // the module's `syncAll` listener and nothing else. The world read at the end of the
-          // section is what proves that claim rather than assuming it.
+          // ⚠ DOM ONLY: `SettingsConfig` saves on its own submit; a `change` runs only `syncAll`.
           hold.checked = false;
           hold.dispatchEvent(new Event("change", { bubbles: true }));
           await sleep(300);
@@ -145,11 +121,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             JSON.stringify(disabledNow()));
         }
 
-        // ⚠ THE TWO-OWNER CONTROL, which is the one piece of this interlock with a comment
-        // explaining why it is not the obvious rule: `playerRollDamage` fires for attacks under
-        // the resolver AND for save spells under Saving Throws, so it stays live while EITHER
-        // is on. Asserted here because "greyed out and still fires" is the failure it was
-        // written against.
+        // ⚠ THE TWO-OWNER CONTROL: `playerRollDamage` serves attacks under the resolver AND save spells
+        // under Saving Throws, so it stays live while EITHER is on.
         const prd = input("playerRollDamage");
         const auto = input("autoDamage");
         const saves = input("saves");
@@ -160,7 +133,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `autoDamage=${auto.value} saves=${saves.checked} disabled=${prd.disabled}`);
         } else skips.push("section 1: the two-owner controls are not all in the DOM");
 
-        // The guard fires last, and it is an ASSERTION.
         ok("the form was read, not written — no world setting moved",
           game.settings.get(MODULE_ID, "reactionHold") === before.reactionHold
           && game.settings.get(MODULE_ID, "autoDamage") === before.autoDamage
@@ -178,9 +150,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 2: the activity usage dialog --------------------------------------------------- */
     if (has(2)) {
-      // ⚠ The fixture that can drive this is a finding in its own right: "BF Test Bard" carries
-      // SLOTS but no levelled spell ITEM, so the obvious pick renders nothing. Walk the
-      // candidates and take the first that can actually open a dialog.
+      // ⚠ "BF Test Bard" carries slots but no levelled spell item: take the first candidate that can
+      // actually open a dialog.
       const candidates = game.actors.filter(a => a.type === "character").map(a => ({
         actor: a,
         spell: a.items.find(i => i.type === "spell" && (i.system.level ?? 0) > 0
@@ -199,9 +170,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const activity = pick.spell.system.activities.contents[0];
           log.push(`section 2: ${pick.actor.name} → ${pick.spell.name} `
             + `(level ${pick.spell.system.level}, ${activity.type})`);
-          // ⚠ NOT AWAITED, on purpose. `use()` with a dialog does not settle until the dialog is
-          // answered, and nothing here is going to answer it — awaiting would hang the suite
-          // until the watchdog killed it. Fire it, read the page, close the dialog.
+          // ⚠ NOT AWAITED: `use()` with a dialog settles only when answered, which would hang the suite.
           const pending = activity.use({}, { configure: true }, { create: false });
           pending?.catch?.(() => { /* closing the dialog is the expected end of this promise */ });
           dialog = await until(() => [...(foundry.applications?.instances?.values?.() ?? [])]
@@ -211,14 +180,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok("the dialog is the class polish.js names", !!dialog,
             dialog?.constructor?.name ?? "no ActivityUsageDialog instance");
           const del = dialog?.element instanceof HTMLElement ? dialog.element : dialog?.element?.[0];
-          // The handler's whole job: paint the target block into the dialog. polish.js's
-          // comment says this was VERIFIED by hand in 2026-08-19 and never since — this is the
-          // assertion that replaces the hand check.
           ok("the target block is painted into the usage dialog",
             !!del?.querySelector(".battleflow-target-block"),
             del ? `blocks=${del.querySelectorAll(".battleflow-target-block").length}` : "no element");
-          // ⚠ Same idempotence risk as the dividers: this hook repaints on EVERY render by
-          // design, and the paint removes its own stale copies first. One block, not two.
+          // ⚠ This hook repaints on EVERY render and removes its stale copies first: one block, not two.
           ok("exactly one block, however many times it repaints",
             del ? del.querySelectorAll(".battleflow-target-block").length === 1 : false,
             `count=${del ? del.querySelectorAll(".battleflow-target-block").length : "n/a"}`);
@@ -227,8 +192,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           try { await dialog?.close?.(); } catch { /* already gone */ }
           await sleep(400);
         }
-        // Opening a dialog must not spend or announce anything — `create: false` and a closed
-        // dialog together mean the activity was never actually used.
+        // `create: false` and a closed dialog: the activity was never used.
         ok("opening and closing the dialog creates no chat message",
           game.messages.size === msgsBefore,
           `before=${msgsBefore} after=${game.messages.size}`);
@@ -237,15 +201,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* --- 3: the measured-template CRUD seam --------------------------------------------- */
     if (has(3)) {
-      // ⚠ THIS SECTION ASSERTS A NEGATIVE, WHICH IS NORMALLY THE WRONG SHAPE — and here it is
-      // the point. `saves.js` registers two handlers on hooks Foundry 14 never dispatches, and
-      // the module has been fine anyway because the CRUD path is a fast-path over the card's
-      // RENDER hook, which is the reliability floor that actually carries template adoption
-      // (smoke-saves §8, table-proven on Shatter and Moonbeam).
-      //
-      // Pinning the measurement is what makes the fact self-expiring: the day a platform
-      // upgrade dispatches the name again, THIS FAILS and points at the decision, instead of a
-      // dead fast-path quietly coming back to life under a feature nobody re-tested.
+      // ⚠ ASSERTS A NEGATIVE on purpose: `saves.js` registers handlers Foundry 14 never dispatches, and
+      // template adoption rides the card's RENDER hook instead. The day the names dispatch again, this
+      // fails and points at the decision.
       const scene = game.scenes.active ?? game.scenes.viewed ?? game.scenes.contents[0];
       if (!scene) {
         skips.push("section 3: no scene to place a template on");
@@ -257,12 +215,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ["createRegion", Hooks.on("createRegion", () => { seen.createRegion++; })]
         ];
         let tpl = null;
-        // `Scene#templates` is deprecated at Foundry 14 (the document merged into Region) — the
-        // shim's region wears `flags.core.MeasuredTemplate`, and that is what is counted.
+        // `Scene#templates` is deprecated in Foundry 14: the shim's region wears `flags.core.MeasuredTemplate`.
         const drawn = () => scene.regions.filter(r => r.getFlag("core", "MeasuredTemplate")).length;
         try {
           const before = { templates: drawn(), regions: scene.regions.size };
-          // Far from the fixture tokens on purpose — nothing here should touch containment.
+          // Far from the fixture tokens: nothing here should touch containment.
           const made = await scene.createEmbeddedDocuments("MeasuredTemplate", [{
             t: "circle", x: 100, y: 100, distance: 5
           }]);
@@ -270,8 +227,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(600);
           ok("a MeasuredTemplate really was created", !!tpl && drawn() === before.templates + 1,
             `templates ${before.templates}→${drawn()}`);
-          // The positive half — something DID fire, so a zero above is a real absence and not
-          // a broken listener or a create that never happened.
+          // The positive half: something DID fire, so the zero above is a real absence.
           ok("…and Foundry 14 dispatches it as a REGION", seen.createRegion > 0
             && scene.regions.size === before.regions + 1,
             `createRegion=${seen.createRegion}× regions ${before.regions}→${scene.regions.size}`);
@@ -289,9 +245,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           log.push(`section 3: ${JSON.stringify(seen)} on Foundry ${game.version}`);
         } finally {
           for (const [hook, id] of ids) Hooks.off(hook, id);
-          // ⚠ A leftover template on the active scene poisons smoke-saves §8, which re-derives
-          // its target sets from whatever areas are standing. Deleted in a `finally` for the
-          // same reason smoke-hold §7 deletes its combat.
+          // ⚠ A leftover template poisons smoke-saves §8 (it re-derives targets from standing areas).
           try { if (tpl) await (scene.regions.get(tpl.id) ?? tpl).delete(); } catch { /* already gone */ }
           await sleep(300);
           ok("the template is cleaned up — no area left standing for the next suite",

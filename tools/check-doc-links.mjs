@@ -1,22 +1,14 @@
 // STATIC DOC-LINK CHECK — no Foundry, no world, milliseconds. Part of `npm run verify`.
 //
-// Every cross-reference between the docs, and from a code comment to a doc, must resolve to a
-// real file and a real heading. Written for the documentation pass of 2026-09-24, when DESIGN
-// §6 had grown to 891 lines and PLAN.md was retired: nothing had ever said a reference rotted,
-// so they did. This says it, at build time.
+// Every cross-reference between the docs, and from a code comment to a doc, must resolve:
+//   - markdown links to a local file, in every doc (relative to the repo root or the doc's directory);
+//   - bare file paths under scripts/, tools/, tests/ or prototypes/ in docs and code comments;
+//   - section references `DOC §n` and `DOC.md §n`, bare or as a markdown link (DESIGN,
+//     ARCHITECTURE, NOTES, BACKLOG, SWEEP, RULINGS) — the doc must have a `## n.` heading;
+//   - heading references `DOC *heading*` and `DOC §n *heading*` — some heading or bold lead-in
+//     in the doc must contain the italic text.
 //
-// What it resolves:
-//   - markdown links to a local file, in every doc — the file must exist (paths relative to the
-//     repo root, or to the doc's own directory);
-//   - bare file paths under scripts/, tools/, tests/ or prototypes/ in docs and in code comments
-//     — the file must exist;
-//   - section references `DOC §n` and `DOC.md §n`, the doc name bare or as a markdown link
-//     (DESIGN, ARCHITECTURE, NOTES, BACKLOG, SWEEP, RULINGS) — the doc must have a `## n.` heading;
-//   - heading references `DOC *heading*` and `DOC §n *heading*` — some heading, or some bold
-//     lead-in (the house's anchor style), in the doc must contain the italic text.
-//
-// What it deliberately does not check: a bare `§n` with no doc named (inside a doc it may name a
-// suite's section — `smoke-saves §17` — as often as the doc's own), prose that names a file
+// Not checked: a bare `§n` with no doc named (it may name a suite's section), prose naming a file
 // without a path, and URLs. Name the doc if you want a reference checked.
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, relative } from "node:path";

@@ -1,28 +1,18 @@
 // STATIC SURFACES CHECK — no Foundry, no world, milliseconds.
 //
 // Every HTML anchor this module reads off the PLATFORM's markup lives in ONE map
-// (`scripts/surfaces.js`), and every dnd5e-authored anchor in that map still appears in the
-// dnd5e version `module.json` verifies.
-//
-// WHY (the dnd5e 6.0 pass, NOTES §2 *the 6.0 pass* §3b — user-ruled 2026-09-15): at 6.0 the card's DATA
-// became the stable part and its HTML the unstable part. dnd5e says outright not to rely on the
-// card's markup; it renders from templates that will move through 6.x. Two anchors broke on the
-// day (`.card-buttons button[data-action]` — the usage card's buttons moved into an icon row; the
-// concentration prompt matched by its CONTENT, which is gone) and nothing in the gate could see
-// either: a selector that matches nothing throws nothing and draws nothing, forever. This is the
-// hook-dispatch gate's discipline (`check-hook-dispatch.mjs`, ARCHITECTURE §10 D10) applied to
-// selectors, and it holds two rules:
+// (`scripts/surfaces.js`), and every dnd5e-authored anchor in it still appears in the dnd5e
+// version `module.json` verifies. dnd5e's card DATA is stable and its HTML is not (NOTES *The
+// dnd5e 6.0 pass*), and a selector that matches nothing fails silently forever.
 //
 //   (1) THE LITERAL RULE. No file under scripts/ but surfaces.js may contain a platform anchor's
-//       text. One map, so the next template move is one edit — and so the count is honest.
+//       text: one map, so the next template move is one edit.
 //   (2) THE PIN. `tools/dnd5e-surfaces.json` records, for the verified dnd5e version, that each
-//       dnd5e-authored anchor's PROOF text appears in the file the map names. It is GENERATED
-//       (`--regen`) from the installed system and committed, like the hook artifact: bump the pin
-//       without regenerating and this check fails until somebody reads the diff.
+//       dnd5e-authored anchor's PROOF text appears in the file the map names. GENERATED
+//       (`--regen`) and committed: bump the pin without regenerating and this check fails.
 //
-// ⚠ Core's anchors (`.message-content`, `[data-message-id]`, `.form-group`) are listed and
-// literal-checked but NOT pinned: core's templates are not in the dnd5e install, and the hook
-// gate found core's bundle unreadable for this purpose (its header says why). Reported, in writing.
+// ⚠ Core's anchors are literal-checked but NOT pinned: core's templates are not in the dnd5e
+// install, and core's bundle is unreadable for this purpose.
 //
 //   node tools/check-surfaces.mjs               # the check (gate: npm run surfaces)
 //   node tools/check-surfaces.mjs --regen       # re-read the installed dnd5e

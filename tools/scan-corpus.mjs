@@ -1,14 +1,11 @@
-// Survey the WHOLE ability corpus in the world's compendia — race traits, class features,
-// subclass features, feats and spells — so the abilities sweep is planned from what the packs
-// actually ship rather than from memory. Read-only; writes raw JSON to a file for offline
-// classification (tools/classify-corpus.mjs). Nothing here touches the world.
+// Survey the WHOLE ability corpus in the world's compendia — race traits, class and subclass
+// features, feats and spells. Read-only; writes raw JSON for offline classification
+// (tools/classify-corpus.mjs).
 //
 // Two passes, like scan-riders.mjs: the index carries activities/activation/uses/text, and a
-// getDocument() pass on the (larger) feature+spell set pulls the embedded effects, because the
-// effect is the mechanism — a feature that ships an effect is one the gate can already READ,
-// while a text-only feature is one that needs a row (the Steady Aim lesson, 2026-09-02).
-// Class/subclass/race documents are read fully for their ItemGrant advancements, which is the
-// only way a class feature knows which class or subclass it belongs to.
+// getDocument() pass pulls the embedded effects — a feature that ships an effect is one the gate
+// can READ, a text-only one needs a row. Class/subclass/race documents are read for their ItemGrant
+// advancements, the only way a feature knows its class or subclass.
 //
 // Usage: node tools/scan-corpus.mjs [outfile.json]
 import { writeFileSync } from 'node:fs';
@@ -38,9 +35,8 @@ const result = await f.evaluate(async () => {
   const activityOf = a => ({
     type: a?.type,
     name: a?.name || '',
-    // ⚠ In dnd5e 5.x the activation LIVES on the activity for features; `override` only
-    // matters for spells, which keep casting time on the item. Read it always, and say
-    // whether it was overridden.
+    // ⚠ A feature's activation LIVES on the activity; `override` matters only for spells, which keep
+    // casting time on the item.
     activation: a?.activation?.type ?? null,
     activationOverride: !!a?.activation?.override,
     actCondition: a?.activation?.condition || '',

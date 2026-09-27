@@ -1,6 +1,5 @@
-// Read-only probe (2026-09-04): what the table's Goading / Trip cards actually carry — the saves
-// verdicts, the effect receipts, the target's effects and the combat state — after the report
-// "applying goading attack didnt do anything". Nothing is written.
+// Read-only probe: what a table's hit-maneuver cards (Goading / Trip) carry — the saves verdicts,
+// the effect receipts, the target's effects and the combat state. Nothing is written.
 //
 //   node tools/probe-hitmenu-table.mjs [messageId ...]     default: every card with a hitManeuverCard flag
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).

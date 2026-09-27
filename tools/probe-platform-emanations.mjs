@@ -1,12 +1,11 @@
-// Probe: what dnd5e 6.0.1's own region behaviours do for aura spells, with Battle Flow OUT of the
-// way. Two phases:
+// Probe: what dnd5e's own region behaviours do for aura spells, with Battle Flow OUT of the way.
 //   read     — module may stay on. For each aura spell on the BF Test Cleric (given from the
 //              packs if missing), print activity.behaviors / applicableBehaviors / effects.
 //   walk     — switches Battle Flow OFF in the world (and back ON at the end), starts the spell
-//              (concentration), creates the region the way TemplatePlacement.fromActivity does
-//              (placement itself needs a click — mimicked), lets the platform attach behaviours,
-//              walks a FRIENDLY, a NEUTRAL and a HOSTILE token in and out, ends concentration,
-//              and reports what landed and what cleaned up.
+//              (concentration), creates the region as TemplatePlacement.fromActivity does
+//              (placement needs a click — mimicked), lets the platform attach behaviours, walks a
+//              FRIENDLY, a NEUTRAL and a HOSTILE token in and out, ends concentration, and reports
+//              what landed and what cleaned up.
 // Usage: node probe-platform-emanations.mjs read|walk
 import { Foundry } from "fvtt-mcp-dnd5e/client";
 import { loadEnv } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battleflow/tools/harness.mjs";
@@ -117,8 +116,8 @@ const WALK = async () => {
   let behaviors = await waitFor(() => region.behaviors.size ? [...region.behaviors] : null, 6000) ?? [];
   log.push(`region ${region.id} attached=${region.attachment?.token?.id === clrTok.id} AUTO behaviors=${JSON.stringify(behaviors.map(b => ({ type: b.type, name: b.name, system: b.system.toObject?.() ?? b.system })))}`);
   if (!behaviors.length) {
-    // the pack declares none — author the platform's own behaviour by hand, the way
-    // createBehaviorData would for an ally-affecting activity (dispositions → FRIENDLY only)
+    // The pack declares none: author the platform's behaviour as createBehaviorData would for an
+    // ally-affecting activity (FRIENDLY only).
     const fx = item.effects.contents[0];
     try {
       await region.createEmbeddedDocuments("RegionBehavior", [{ type: "dnd5e.applyActiveEffect", name: "probe: apply " + fx.name,

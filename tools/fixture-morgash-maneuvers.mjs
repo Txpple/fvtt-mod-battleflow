@@ -1,9 +1,7 @@
-// Morgash's maneuvers vs the 2024 PHB pack (2026-09-04): the table's Goading Attack demanded its
-// save, Jetten failed, and NOTHING landed — the probe (probe-hitmenu-table.mjs) found the save
-// activity's effect entry did not RESOLVE: the item on the actor had no "Goaded" effect at all,
-// though the pack's copy carries one (transfer: true). This compares every maneuver on an actor
-// against the pack, effect by effect, and with `--fix` replaces a mismatched item with the pack's
-// copy (same name, the pool re-resolved by identifier — hit-menu.js reads all three shapes).
+// Compare every maneuver on an actor against the 2024 PHB pack, effect by effect: a save activity's
+// effect entry that does not RESOLVE (the actor's item lacks the pack's transfer effect) lands
+// nothing. `--fix` replaces a mismatched item with the pack's copy (same name, the pool re-resolved
+// by identifier — hit-menu.js reads all three shapes).
 //
 //   node tools/fixture-morgash-maneuvers.mjs [--actor "Morgash the Gravemaker"] [--fix]
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight). Read-only without --fix.

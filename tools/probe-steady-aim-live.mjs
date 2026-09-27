@@ -1,6 +1,6 @@
-// Read-only look at the live world after the user's Steady Aim report (2026-09-02): the chip on
-// the rogue, the reminder records on the rogue's attack cards since the feature was used, and
-// what the gate's effect pass sees right now. Usage: node tools/probe-steady-aim-live.mjs
+// Read-only look at the live world's Steady Aim: the chip on the rogue, the reminder records on its
+// attack cards since the use, and what the gate's effect pass sees now.
+// Usage: node tools/probe-steady-aim-live.mjs
 import { connectSuite, disposeSafely, loadEnv } from './harness.mjs';
 
 const f = await connectSuite({ tag: 'probe-steady-live', watchdogMs: 120_000, requireElect: false, env: loadEnv() });

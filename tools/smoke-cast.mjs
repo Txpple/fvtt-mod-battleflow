@@ -1,24 +1,18 @@
-// Battle Flow Phase 3 (cast slice) smoke test — auto-apply on cast, driven end to end in
-// the live world: a no-save utility cast's effects land on every target (with concentration
-// linkage) on the native card — always the bus since v1.10.0 ripped the suppression
-// machinery out — a heal activity's self-rolled healing lands through the shared applier,
-// and the exclusions (damage activities, targetless casts) stay untouched.
+// Live suite: auto-apply on cast. A no-save utility cast's effects land on every target (with
+// concentration linkage) on the native card; a heal activity's self-rolled healing lands through
+// the shared applier; damage activities and targetless casts stay untouched.
 //
-// Harness discipline (HANDOFF): every setting touched is restored to whatever was found;
-// every message this run creates is deleted on the way out; BF Test fixtures are long-rested;
-// new-message searches go by ID-SET DIFFERENCE, never timestamps or tail windows.
+// Every setting touched is restored; every message this run creates is deleted; BF Test fixtures
+// are long-rested; new messages are found by ID-SET DIFFERENCE, never timestamps.
 //
-// Sections (ARCHITECTURE §11 *Adding a TEST* rule 2): `--section 3`, `--section 1,2`, `--list`. Fixtures and teardown ALWAYS
-// run; only the numbered assertion blocks are skippable.
+// Sections: `--section 3`, `--section 1,2`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
-// THE COVERAGE MAP (tools/coverage-map.mjs): the machines this suite drives — a change to one
-// re-runs it under `battery.mjs --changed`. Spine files are never claimed: their change is the
-// full battery. `npm run coverage` checks the claims both ways. Exported only so the linter reads
-// it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
+// The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
+// it connects on evaluation.
 export const COVERS = [
-  'cast.js',                // the cast slice — utility effects, the heal, the used-up item
-  'polish.js'               // the cast-slice birth stamps the slice reads
+  'cast.js',                // utility effects, the heal, the used-up item
+  'polish.js'               // the birth stamps casting reads
 ];
 
 const SECTIONS = {
@@ -43,8 +37,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const log = [];
   const skips = [];
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
-  // The section gate — see tools/harness.mjs. This closure is serialized into the page, so the
-  // plan and the titles arrive as DATA and the predicate is spelled out here.
+  // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
   const want = id => {
     if (!sections || sections.includes(String(id))) return true;
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
@@ -77,16 +70,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    // ⚠ SETTINGS FIRST, in their own guard — a cleanup error later in this sequence must
-    // never leave the table wearing suite settings (bit live 2026-08-17). The user's
-    // config is sacred; the rest is best-effort.
+    // ⚠ SETTINGS FIRST, in their own guard: a later cleanup error must never leave suite settings on.
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
-      // End anything the caster is still concentrating on — the native dependentOn cascade
-      // (active-GM — this client) strips the applied chips with it.
+      // End the caster's concentration: the native dependentOn cascade strips the applied chips.
       for (const e of [...(npc.concentration?.effects ?? [])]) { try { await e.delete(); } catch { /* gone */ } }
-      // Sweep stragglers on the targets by name (batched — the synthetic-actor lesson).
+      // Sweep stragglers on the targets by name (batched: a synthetic actor rebuilds on every write).
       for (const a of [victim, shielder, npc]) {
         const strays = a.effects.filter(e =>
           e.name.startsWith('BF Blessed') || e.name.startsWith('BF Favored') || e.name.startsWith('BF Potioned'));
@@ -122,7 +112,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('requireTarget', false);
     await set('reactionHold', false);   // the Missile exclusion must not stamp a spell hold
     await set('riders', false);
-    await set('effectRiders', false);   // the cast slice stands alone
+    await set('effectRiders', false);   // casting stands alone
     await set('masteryRiders', false);
     await set('concMode', 'off');
 
@@ -144,8 +134,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.hp.value': victim.system._source.attributes.hp.value,
     };
 
-    // Fixture spells, the innate shape (consumption.spellSlot: false — how §6 gave an NPC a
-    // working Magic Missile). Fixed 16-char ids so activities can name their effects.
+    // Fixture spells, innate (consumption.spellSlot: false). Fixed 16-char ids so activities can name their effects.
     const EFF = 'bfblesseffect000';
     const [blessItem] = await npc.createEmbeddedDocuments('Item', [{
       name: 'BF Test Bless', type: 'spell',
@@ -230,9 +219,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const usageCards = msgs => msgs.filter(m =>
       (m.type === 'usage'));
 
-    // The watermark, the usage result and its readout, out here rather than in §1: every
-    // section below re-snaps and re-reads them, so a block-scoped `let` in the first one
-    // would leave the rest with nothing.
+    // Shared across sections, so declared outside the section gates.
     let before;
     let use;
     let msgs;
@@ -270,11 +257,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `description=${JSON.stringify(receipt1?.targets?.[0]?.effects?.[0]?.description ?? null)}`);
 
     }
-    // ---------------------------------------------------- 2. the rip stayed ripped (v1.10.0)
+    // ---------------------------------------------------- 2. no suppression machinery
     if (want(2)) {
-      // The suppression machinery is DELETED, settings and all — a re-registration is the
-      // regression this guards against. And "every use shows its first card" is a count:
-      // one cast, exactly one usage card, no replacement bfCards anywhere.
+      // A re-registered suppression setting is the regression; one cast is exactly one usage card.
       ok('2a. the suppression settings are unregistered (the machinery stayed dead)',
         ['suppressAttackCards', 'suppressWeaponCards', 'suppressSpellCards',
           'suppressFeatureCards', 'suppressOtherCards']
@@ -313,9 +298,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       target(victimToken);
       await sleep(120);
       before = snap();
-      // subsequentActions:false + an explicit configure:false roll — the harness's timing
-      // idiom (the §6 Magic Missile pattern): live, the subsequent roll opens the native
-      // dialog on the caster's client, which is the player's own dice moment and stays.
+      // subsequentActions:false + an explicit configure:false roll: live, the subsequent roll opens the
+      // native dialog on the caster's client.
       use = await activityOf(cureItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
       if (use === undefined) return { fatal: 'the Cure fixture cast was refused' };
       await activityOf(cureItem, 'heal').rollDamage({}, { configure: false },
@@ -339,7 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     // ---------------------------------------------------- 4. damage activities: the card posts,
     if (want(4)) {
-      // the cast slice keeps its hands off — Magic Missile is the negate hold's seam.
+      // casting keeps its hands off — Magic Missile is the negate hold's seam.
       const mhpBefore = victim.system.attributes.hp.value;
       target(victimToken);
       await sleep(120);
@@ -355,9 +339,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           && (victim.system.attributes.hp.value === mhpBefore),
         `usageCards=${usageCards(msgs).length} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
 
-      // 4b: the SAME spell, listed with the hold on — the native card is the hold's home
-      // (v1.10.0: no replacement plumbing left). Here nobody targeted can cast Shield, so
-      // the card posts with NO hold on it and the cast slice still stays out.
+      // 4b: the SAME spell, listed, with the hold on: nobody targeted can cast Shield, so the card posts
+      // with NO hold and casting still stays out.
       await set('reactionHold', true);
       await set('blockList', 'BF Test Missile:Shield');
       target(victimToken);
@@ -387,13 +370,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `usageCards=${usageCards(msgs).length}`);
 
     }
-    // ---------------------------------------------------- 6. SELF-tagged activities self-aim (v1.11.0)
+    // ---------------------------------------------------- 6. SELF-tagged activities self-aim
     if (want(6)) {
-      // "Anything that is tagged SELF should self aim" (user call 2026-08-17, finding ① —
-      // Morgash Second-Winded the target dummy through the incidental snapshot). A self
-      // activity ignores the UI targets, aims at its own actor, and needs no target at all.
-      // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; the carve-out below (6d)
-      // is what SURVIVES of v1.5.1 — a listed reaction stays the hold machinery's.
+      // A self activity ignores the UI targets, aims at its own actor, and needs no target at all.
       const [windItem] = await npc.createEmbeddedDocuments('Item', [{
         name: 'BF Test Second Wind', type: 'feat',
         system: {
@@ -421,7 +400,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await npc.update({ 'system.attributes.hp.value': Math.max(1, npcMax - 10) });
       const npcBefore = npc.system.attributes.hp.value;
       const vBefore6 = victim.system.attributes.hp.value;
-      target(victimToken); // the WRONG target, on purpose — the accident ① reproduces
+      target(victimToken); // the WRONG target, on purpose
       await sleep(120);
       before = snap();
       use = await activityOf(windItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
@@ -499,12 +478,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + ` npcChip=${!!npc.effects.find(e => e.name === 'BF Favored')}`
           + ` victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
 
-      // 6d. A LISTED reaction cast FREESTANDING self-aims like any other SELF ability (user,
-      // 2026-09-06: Shield "should be castable freecasting ... conformance with other abilities
-      // like Adrenaline Rush"). Before this the carve-out was blanket — a listed reaction was
-      // never the cast slice's — and Gren's Shield sat on its card with the system's own apply
-      // buttons aimed at whatever was targeted. The hold settings are ON here: the carve-out
-      // now keys on a PENDING HOLD naming the caster (6e), not on the list alone.
+      // 6d. A LISTED reaction cast FREESTANDING self-aims like any SELF ability (RULINGS *A listed
+      // reaction cast freestanding*): the carve-out keys on a PENDING HOLD naming the caster (6e).
       await set('reactionHold', true);
       await set('holdApplyEffect', true);
       await set('interruptList', 'BF Test Favor:ac');
@@ -525,12 +500,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `card=${!!listedCard} payloadTargets=${JSON.stringify(listedCard?.getFlag(MOD, 'castApply')?.targets ?? null)}`
           + ` npcChips=${favored().length} victimChip=${!!victim.effects.find(e => e.name === 'BF Favored')}`);
 
-      // 6e. The carve-out that SURVIVES of v1.5.1, now exact: with a hold PENDING on the caster
-      // the cast is an ANSWER, and the hold machinery owns its application (Shield's +5 — the
-      // +10-two-chips catch, 2026-08-16). The cast slice must not stamp — so the effect can
-      // land at most ONCE, the hold's. A pending hold is fabricated here (its shape is the
-      // hold flag's: status, targets[].uuid/reaction/answer); the real hold path, AC read
-      // exactly +5, is smoke-hold's.
+      // 6e. With a hold PENDING on the caster the cast is an ANSWER and the hold machinery owns its
+      // application: casting must not stamp, so the effect lands at most ONCE. A pending hold is
+      // fabricated here (the hold flag's shape); the real hold path is smoke-hold's.
       await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
       const fakeHold = await ChatMessage.create({
         content: '<p>BF Test: a fabricated pending hold (smoke-cast 6e)</p>',
@@ -559,18 +531,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ---------------------------------------------------- 7. a used-up item still applies
-    // (user, 2026-09-22: "in sandbox i have a potion of resistence on gren, but it doesnt auto
-    // apply … when drnk/used"). dnd5e 6.0 SPENDS before it posts: the drink that uses up the last
-    // potion DELETES it, and only then is the card created — so the activity the stamp names is
-    // gone when the elect applies. The cast slice reads it off the card's snapshot now (lookup.js
-    // cardActivity). A stack keeps its item until the last drink, so both shapes are walked.
+    // dnd5e SPENDS before it posts (NOTES *A use SPENDS before it posts*): the last potion is deleted
+    // before its card exists, so casting reads the activity off the card's snapshot. A stack keeps its
+    // item until the last drink: both shapes are walked.
     if (want(7)) {
-      // ⚠ THE DRINKER IS THE TOKEN'S OWN ACTOR when the Attacker's token is unlinked (the monster
-      // norm — fixture-suite places both goblins unlinked). At the table an unlinked monster drinks
-      // from its TOKEN's sheet, and the card names that token, so Battle Flow applies to the actor
-      // the card names. A potion on the WORLD actor's sheet beside an unlinked token is a sheet
-      // nobody at the table drinks from: on 2026-09-23 the rebuilt fixture's token took the effect
-      // (correctly) while 7a/7c read the world actor and saw nothing. Drink as the table does.
+      // ⚠ THE DRINKER IS THE TOKEN'S OWN ACTOR when the token is unlinked (the monster norm): the card
+      // names that token, so the effect lands there, not on the world actor.
       const drinker = scene.tokens.find(t => t.actorId === npc.id)?.actor ?? npc;
       const POT = 'bfpotioneffect00';
       const potion = qty => ({

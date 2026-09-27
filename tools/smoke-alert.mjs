@@ -1,17 +1,10 @@
-// Battle Flow initiative-swap smoke test — ALERT (the origin feats, 2026-09-25: "initiative swap
-// should have a form after initiative all roll, list non incapacitated allies, each persons
-// initiative, and they can select which to swap, and then swap yes no buttons"; "alert pick is
-// enough"). Once every combatant has an Initiative, the Alert holder is asked once per combat; the
-// allies on its side who are not Incapacitated are listed with their Initiative; Swap exchanges the
-// two numbers in the tracker, No leaves it.
+// Live suite: ALERT's Initiative Swap. Once every combatant has an Initiative, the Alert holder is
+// asked once per combat; allies on its side who are not Incapacitated are listed with their
+// Initiative; Swap exchanges the two numbers in the tracker, No leaves it.
 //
-// Fixtures: BF Test Halfling (a character; tools/fixture-suite.mjs) is lent the PHB's Alert; BF Test
-// Cleric and BF Test Bard stand as its allies, BF Test Victim as the enemy. The suite places
-// TEMPORARY linked tokens in a strip it finds empty and runs its own combats; both are deleted in
-// teardown.
-//
-// Harness discipline: every setting touched is restored; the lent item, the tokens, the combats, the
-// statuses it set and every message this run creates are deleted.
+// Fixtures (tools/fixture-suite.mjs): BF Test Halfling is lent the PHB's Alert; BF Test Cleric and
+// BF Test Bard are its allies, BF Test Victim the enemy. TEMPORARY linked tokens in a strip it finds
+// empty and its own combats, all deleted in teardown with everything else it touched.
 //
 // Sections: `--section 3`, `--list`. Fixtures and teardown ALWAYS run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
