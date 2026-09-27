@@ -207,6 +207,7 @@ createChatMessage	hew.js
 dnd5e.preRollDamageV2	hew.js
 dnd5e.renderChatMessage	hew.js
 dnd5e.preCreateUsageMessage	hew.js
+preCreateChatMessage	hew.js
 dnd5e.preUseActivity	command.js
 dnd5e.postUseActivity	command.js
 createChatMessage	command.js

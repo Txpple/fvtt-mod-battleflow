@@ -377,3 +377,15 @@ Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
     console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
   }
 });
+
+// …and the swing's ATTACK and DAMAGE cards (the walk: "needs suffix for attack and dmg cards too") — each
+// roll card keeps its own item snapshot (`system.item`), renamed as the card is created.
+Hooks.on("preCreateChatMessage", doc => {
+  try {
+    if ( !doc.getFlag(MODULE_ID, "poleStrike") && !doc.getFlag(MODULE_ID, "poleStrikeDie") ) return;
+    const name = doc.system?.item?.name;
+    if ( name && !/— Pole Strike$/.test(name) ) doc.updateSource({ "system.item.name": `${name} — Pole Strike` });
+  } catch(err) {
+    console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
+  }
+});
