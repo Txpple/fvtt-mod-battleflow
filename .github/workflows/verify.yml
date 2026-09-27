@@ -20,9 +20,14 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
       - run: npm ci
       - run: npm run verify
+      # A commit whose subject starts "comments:" must leave the code identical.
+      - run: node tools/check-comment-only.mjs --range "${{ github.event.before }}..${{ github.sha }}"
+        if: github.event_name == 'push'

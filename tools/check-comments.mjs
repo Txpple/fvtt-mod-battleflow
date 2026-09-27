@@ -34,6 +34,7 @@
 //
 //   node tools/check-comments.mjs
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { dirname, join, relative } from "node:path";
 
@@ -100,6 +101,52 @@ for (const file of jsFiles(SCRIPTS)) {
     i += 1;
   }
 }
+
+/* --- history in comments ---------------------------------------------------------------- */
+
+// A comment says what the code does and why, in the present tense. Dates, quotes of the user and
+// the story of walks, slices, phases and releases belong in RULINGS and git, never in scripts/.
+const HISTORY = [
+  [/\b20\d\d-\d\d-\d\d\b/, "a date"],
+  [/\b(the user|user,|user's call|user rul\w*|ruled by)\b|\(gg\)/i, "a quote or ruling of the user"],
+  [/\bv\d+\.\d+/, "a version"],
+  [/\b(Slice [A-Z0-9]\b|Phase \d|Stage \d|walk-\d|dogfood|handoff)|\bthe \w+ walk\b/i, "project history"]
+];
+const ts = createRequire(join(ROOT, "package.json"))("typescript");
+const history = [];
+for (const file of jsFiles(SCRIPTS)) {
+  const rel = relative(ROOT, file).replace(/\\/g, "/");
+  const text = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const seen = new Set();
+  const collect = ranges => {
+    for (const r of ranges ?? []) {
+      if (seen.has(r.pos)) continue;
+      seen.add(r.pos);
+      const body = text.slice(r.pos, r.end);
+      const line0 = sf.getLineAndCharacterOfPosition(r.pos).line;
+      body.split("\n").forEach((line, k) => {
+        const hit = HISTORY.find(([re]) => re.test(line));
+        if (hit) history.push(`${rel}:${line0 + k + 1} — ${hit[1]}: "${line.trim().slice(0, 70)}"`);
+      });
+    }
+  };
+  const visit = node => {
+    collect(ts.getLeadingCommentRanges(text, node.getFullStart()));
+    collect(ts.getTrailingCommentRanges(text, node.getEnd()));
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  collect(ts.getLeadingCommentRanges(text, sf.endOfFileToken.getFullStart()));
+}
+// Phase 1 of HANDOFF.md turns this on once scripts/ is clean; until then `--history` reports.
+const ENFORCE_HISTORY = false;
+if (process.argv.includes("--history")) {
+  for (const h of history) console.log(h);
+  console.log(`${history.length} comment line(s) carry history.`);
+  process.exit(0);
+}
+if (ENFORCE_HISTORY) failures.push(...history);
 
 /* --- report ---------------------------------------------------------------------------- */
 
