@@ -1,21 +1,14 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the reaction hold — a pause, NOT a system. One
- * machine on one `hold` flag, a DIRECTORY: one part per moment, importing each other one way, and
- * THIS file its only public face (the layer checker fails any outside import of a part).
- * Shield-class reactions trigger on "you are hit", BEFORE damage, so the chain pauses and a human
- * answers; the module never plays the reaction (DESIGN.md §4). The hold lives on the attack
- * message; popup and card row are views of it, so every answer channel needs no coordination.
- * ⚠ THE IMPORT LIST IS LOAD-BEARING: parts register hooks as they evaluate, so this order is the
- * registration order (check-hook-order). The parts are a DAG; clock.js evaluates first via
- * trigger.js, which is order-neutral.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the reaction hold — a pause, NOT a system: the chain
+ * pauses on "you are hit" and a human answers (DESIGN.md §4). One `hold` flag on the attack message;
+ * a DIRECTORY whose only public face is this file (the layer checker enforces it).
+ * ⚠ THE IMPORT LIST IS LOAD-BEARING: it is the parts' hook registration order (check-hook-order).
  */
-// ⚠ Bare on purpose: this import pins auto-damage.js's evaluation, and with it the registration
-// order check-hook-order asserts. The cycle auto-damage.js → hold/index.js → trigger.js is safe:
-// a hoisted `function` called at hook time (the re-export below is a live binding). ARCHITECTURE §10.
+// ⚠ Bare on purpose: pins auto-damage.js's evaluation (the asserted order). The cycle through
+// trigger.js is safe: a hoisted `function` called at hook time. ARCHITECTURE §10.
 import "../auto-damage.js";
-// ⚠ ONE-WAY: ui.js is the spine and knows nothing of the hold; importing anything under hold/ from
-// ui.js re-forms a cycle. These two bare imports make ui.js (and its damage-offer bar) and
-// effect-riders.js evaluate before any part, so the bar registers above the hold row.
+// ⚠ ONE-WAY: ui.js must never import hold/. These make ui.js and effect-riders.js evaluate before
+// any part, so the damage-offer bar registers above the hold row.
 import "../ui.js";
 import "../effect-riders.js";
 

@@ -1,27 +1,19 @@
 /**
- * Battle Flow — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto. A
- * damage-activity roll with no attack in its chain applies itself on the elect, per target,
- * deferring to a pending spell hold and skipping a negated target; the veto at
- * `dnd5e.preApplyDamage` blocks wherever the tray's button is pressed.
+ * Battle Flow — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
+ * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, whisperNoGM } from "../core.js";
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
 
-/**
- * The negate veto. A no-attack spell (Magic Missile) is applied at dnd5e.preApplyDamage or not at
- * all, so that is the one place a negated target can be spared (the hook cancels on an explicit
- * false). Scoped to a damage roll whose usage card carries a resolved `negate` hold naming THIS
- * actor `negated`; fires on whichever client applies, never GM-only.
- * ⚠ Accepted gap (ARCHITECTURE.md §6): Apply pressed while the hold is still PENDING lands — there
- * is no verdict yet, and vetoing pending applications would strand a hold answered Pass.
- */
+/* The negate veto: preApplyDamage is the one place a negated target can be spared (an explicit false
+ * cancels), on whichever client applies. ⚠ Accepted gap (ARCHITECTURE.md §6): Apply pressed while
+ * the hold is PENDING lands — vetoing it would strand a hold answered Pass. */
 Hooks.on("dnd5e.preApplyDamage", (actor, _amount, _updates, options) => {
   if ( !setting(S.reactionHold) || !actor ) return;
-  // The tray passes the DAMAGE message; the usage card with the hold is one hop back.
   const damageMessage = options?.originatingMessage;
-  // ⚠ Damage only: healing takes applyDamage too, and a reaction must never refuse someone a cure.
+  // ⚠ Damage only: healing takes applyDamage too.
   if ( !isCard(damageMessage, CARD.damage) ) return;
   const origin = damageMessage.getOriginatingMessage?.();
   let hold = (origin && (origin !== damageMessage)) ? origin.getFlag(MODULE_ID, "hold") : null;
@@ -44,12 +36,8 @@ Hooks.on("dnd5e.preApplyDamage", (actor, _amount, _updates, options) => {
   return false;
 });
 
-/* --- the no-attack damage applier ----------------------------------------------------------
- * A damage-activity roll with no attack in its chain applies itself to its snapshot targets on
- * the elect: a pending spell-hold claim defers the whole roll (the resolution releases it), a
- * negated target is skipped, the rest land through the receipt applier. The birth stamp
- * (`spellDamage`) is the gate, so history is inert and render-resume is safe.
- * ------------------------------------------------------------------------------------------- */
+/* The applier: a no-attack damage roll applies itself on the elect; a pending spell-hold claim defers
+ * it, a negated target is skipped. The birth stamp (`spellDamage`) gates it, so history is inert. */
 
 async function applySpellDamage(message) {
   try {
@@ -58,8 +46,7 @@ async function applySpellDamage(message) {
     const hold = message.getOriginatingMessage?.()?.getFlag?.(MODULE_ID, "hold");
     if ( hold && (hold.status === "pending") ) return;                     // bridged and still open
     if ( message.getFlag(MODULE_ID, "spellHoldPending") === true ) {
-      // Claimed for a hold: a hold already RESOLVED (damage pressed after the answer) applies per
-      // its verdicts; otherwise wait — the release write re-triggers.
+      // A RESOLVED hold applies per its verdicts; otherwise the release write re-triggers.
       if ( !hold || (hold.status === "pending") ) return;
     }
     const targets = targetsOf(message)
@@ -78,10 +65,8 @@ async function applySpellDamage(message) {
         "The roll stands — apply it from the card's damage tray.");
     }
     if ( !writable.length ) return;
-    // ⚠ LAZILY bound on purpose: a static import would evaluate auto-apply.js (and through it
-    // concentration.js) first, registering concentration's preApplyDamage cause capture AHEAD of
-    // the veto above. Foundry stops at the first false, so a vetoed application would strand a
-    // captured cause. Keep this dynamic.
+    // ⚠ LAZY: a static import would register concentration's preApplyDamage capture AHEAD of the veto,
+    // and a vetoed application would strand a captured cause. Keep this dynamic.
     const { applyDamagesWithReceipt } = await import("../auto-apply.js");
     await applyDamagesWithReceipt(message, writable, damages);
   } catch(err) {
@@ -92,8 +77,7 @@ async function applySpellDamage(message) {
 /** The spell-damage moment's SUBJECT: the CASTER, whose roll and message it is. */
 const spellDamageSubject = message => message?.getAssociatedActor?.()?.uuid ?? null;
 
-// Three triggers, all flag-driven: arrival, the claim settling (cleared by the caster or released
-// by the resolution below), and render (reload resume) — declared on the `spellDamage` stamp.
+// Three triggers: arrival, the claim settling (update), and render (reload resume).
 registerResumable("spellDamage", {
   pending: (_flag, message, cause) => (cause === "create")
     || ((cause === "update") && (message.getFlag(MODULE_ID, "spellHoldPending") === false) && !message.getFlag(MODULE_ID, "receipt"))
@@ -104,7 +88,7 @@ registerResumable("spellDamage", {
 
 Hooks.on("updateChatMessage", message => {
   if ( !setting(S.autoApply) || !drivesMomentFor(spellDamageSubject(message)) ) return;
-  // A spell hold resolved: release every damage roll waiting on it (the release is the bus event).
+  // A resolved spell hold releases every damage roll waiting on it.
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( (hold?.trigger === "spell") && (hold.status === "resolved") ) {
     for ( const dmg of game.messages.contents.filter(m =>

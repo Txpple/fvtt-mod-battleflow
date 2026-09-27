@@ -16,16 +16,9 @@ import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsInData, targetsOf } from "./decide/card.js";
 
-/* ---------------------------------------------------------------------------------------------
- *   1. THE DICE: dnd5e's DamageActivity follows its card with the damage ROLL DIALOG, a click the
- *      table is never asked elsewhere (and the card's buttons are hidden). So a bare damage
- *      activity aimed at targets is rolled at the use on the casting client (offered, or straight),
- *      chained to the usage card, where polish.js's `spellDamage` stamp and hold/spell-damage.js's
- *      applier land it. Volley spells stay the volley machine's; a listed hold keeps its claim.
- *   2. THE SAVE the text ties to the damage (Heat Metal): a DAMAGE_SAVES row names the damage and
- *      save activities, and the save is USED at the same targets right after the dice — the
- *      saves machine's from there. The drop is a judgment, said on the card.
- * ------------------------------------------------------------------------------------------- */
+/* THE DICE: a bare damage activity aimed at targets is rolled at the use on the casting client,
+ * chained to the usage card, where the `spellDamage` applier lands it (no roll dialog click).
+ * THE SAVE: a DAMAGE_SAVES row's save activity is USED at the same targets right after the dice. */
 
 const listed = () => listedNames(damageSaveEntries());
 
@@ -36,16 +29,13 @@ function drives(activity, targetCount) {
   if ( !actor?.isOwner || !modeAllows(actor) ) return false;
   if ( volleyEntryFor(activity.item) ) return false;                  // the volley machine rolls its darts
   if ( MANEUVER_FEATURE_NAMES.has(lower(activity.item?.name)) ) return false;   // a maneuver's damage activity is its DIE — other machines'
-  // A transformation whose damage is a PULSE at the bearer's turn end (Inner Radiance): the use is
-  // the transform alone.
+  // A transformation whose damage is a turn-end PULSE: the use is the transform alone.
   if ( setting(S.emanations) && pulseFormKey(EMANATIONS, { itemName: activity.item?.name, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
   if ( !activity.damage?.parts?.length ) return false;
   return targetCount > 0;
 }
 
-// ⚠ ONE ROLL, NEVER TWO: dnd5e's DamageActivity follows its card with a damage roll (through the
-// dialog), so the native follow-up (`_triggerSubsequentActions`) is switched off at the use and
-// the dice are the module's.
+// ⚠ ONE ROLL, NEVER TWO: the native follow-up roll (`_triggerSubsequentActions`) is switched off at the use.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
   try {
     const snapshot = targetsInData(messageConfig?.data);   // null: not written yet — the client's targets
@@ -82,8 +72,7 @@ async function driveDamageCast(activity, message, targets) {
   const follows = !!row && listed().has(lower(row.key)) && (row.damage ?? []).some(n => lower(n) === lower(activity.name));
   await message.setFlag(MODULE_ID, "damageCast", { ...statContext(actor.uuid), activity: activity.name,
     scaling: Number(message.system?.scaling ?? 0), ...(follows ? { save: row.save, key: row.key } : {}) });
-  // The dice: the caster's when they asked for them, the module's otherwise. Not awaited past the
-  // offer — the demand below must not wait on it.
+  // Not awaited past the offer: the demand below must not wait on it.
   if ( setting(S.playerRollDamage) ) void offerSaveDamageRoll(activity, message, { damageOnSave: null, targets });
   else await rollDamageForSave(activity, message);
   if ( !follows ) return;

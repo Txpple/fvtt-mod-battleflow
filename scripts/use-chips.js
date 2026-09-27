@@ -15,13 +15,9 @@ import { attackMessageForDamage } from "./auto-damage.js";
 import { momentButton, openMomentPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * USE CHIPS (USE_CHIPS): a utility activity with NO effect (Steady Aim) has nothing to apply, so
- * its USE becomes a chip — an ActiveEffect named as the feature, the rule in its description, the
- * rules' window, and what the text changes (Speed 0). The effect table has a row by that name, so
- * the gate reads it and the roll spends it with a receipt. Membership is the Effect Sources list.
- * Runs on the using client (postUseActivity); a standing chip is refreshed, never doubled.
- * ------------------------------------------------------------------------------------------- */
+/* USE CHIPS (USE_CHIPS): a utility activity with NO effect becomes, on use, a chip named as the
+ * feature, which the effect table's row lets the gate read and the roll spend. On the using client;
+ * refreshed, never doubled. */
 
 const USE_CHIP_INDEX = tableIndex(USE_CHIPS);
 
@@ -50,8 +46,7 @@ async function writeUseChip(actor, item, row, message) {
     name: item.name, img: item.img ?? "icons/svg/aura.svg",
     description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${item.name} was used; the next attack roll spends it.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
-    // A COPY: the registry row is frozen, and the document migration writes into its changes
-    // ("Cannot add property type, object is not extensible").
+    // ⚠ A COPY: the registry row is frozen and the document migration writes into its changes.
     changes: (row.changes ?? []).map(c => ({ ...c })),
     ...(clock ? chipData(clock) : {}),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key } }
@@ -76,13 +71,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
-/* ---------------------------------------------------------------------------------------------
- * CARD CHIPS (CARD_CHIPS; the Card Chips list): Tinker has NO activity, so the Prestidigitation
- * cast asks the caster in a popup whether to build a device, with what is left. Nothing is written
- * without the answer. Every device is its OWN chip (`stacks`); at the row's max the popup says to
- * remove one first. The card carries the offer too, as a recall. Asked on the casting client; a
- * recall asks whoever presses it, if they own the caster.
- * ------------------------------------------------------------------------------------------- */
+/* CARD CHIPS (CARD_CHIPS): a feature with NO activity is asked in a popup on the triggering cast;
+ * nothing is written without the answer. Each device is its OWN chip (`stacks`), capped at the row's max. */
 
 const CARD_FLAG = "cardChip";
 
@@ -181,17 +171,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
 });
 
-/* ---------------------------------------------------------------------------------------------
- * THE COATINGS (COATINGS; RULINGS *Bent by choice — the rule of cool*). A row answers to its
- * `list`.
- *   THE USE (preUseActivity): the pack's Apply Poison enchantment is VETOED and becomes a chip on
- *   the ACTOR — a minute of world time, a dose spent (none left: a warning). Its own card says the
- *   Bonus Action; a float over the token, as core floats other effects.
- *   THE HIT (preRollDamageV2 stamps a WEAPON attack's damage while the chip stands; the author
- *   spends it once the damage lands and the hold is off): the chip goes, and the feature's own
- *   save activity is used at the creatures hit (the saves machine's from there); SAVE_PRESSES'
- *   "Poisoner" row presses Poisoned. A miss spends nothing.
- * ------------------------------------------------------------------------------------------- */
+/* THE COATINGS (COATINGS; RULINGS *Bent by choice — the rule of cool*). THE USE: the pack's
+ * enchantment is VETOED and becomes a chip on the ACTOR, a dose spent. THE HIT: a weapon's landed
+ * damage spends the chip and uses the feature's save activity at the creatures hit; a miss spends nothing. */
 
 const COAT_FLAG = "coat";          // on the chip: which row
 const COAT_USE = "coatUse";        // on the card the use posts
@@ -340,9 +322,8 @@ async function spendCoat(message) {
     const offered = spent ? Object.keys(found.row.saves) : [];
     const ability = spent ? coatSaveAbility({ offered, assigned: asiAssigned(feature),
       mods: Object.fromEntries(offered.map(a => [a, attacker.system?.abilities?.[a]?.mod ?? 0])) }) : null;
-    // ⚠ THE SAVE IS A RIDER: the pack lists the saves as `riders.activity`, and dnd5e hides a rider
-    // on its source item (Activity#isHidden → canUse false). The coating enchants nothing, so the
-    // save runs from an in-memory copy of the feat with that list emptied; nothing written.
+    // ⚠ THE SAVE IS A RIDER, and dnd5e hides a rider on its source item (Activity#isHidden): it runs
+    // from an in-memory copy of the feat with `riders.activity` emptied; nothing written.
     const source = feature ? feature.clone({ "flags.dnd5e.riders.activity": [] }, { keepId: true }) : null;
     const act = (source && ability) ? activityNamed(source, found.row.saves[ability]) : null;
     let claimed = false;

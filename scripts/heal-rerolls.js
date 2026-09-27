@@ -1,11 +1,7 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE HEALING REROLLS — every healing die showing a 1
- * is rerolled, automatically (decide/registry.js HEAL_REROLLS; Healer). A reroll of a 1 can never
- * make the healing smaller, so it is not a choice (DESIGN R1) and asks nothing.
- * The roll is born with `healReroll` DUE (preRollDamageV2) and the heal applier (cast.js) holds the
- * healing while it waits, so it lands ONCE with the faces that stood. Battle Medic's `1dXr1` has its
- * `r1` taken off at the roll so the feat's reroll is this one. The patch is Empowered's
- * (`rerollFaces`, `rebuildRolls`), the new dice on their own card; a second 1 stands.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE HEALING REROLLS (HEAL_REROLLS) — every healing 1
+ * is rerolled automatically, never a choice (DESIGN R1). The roll is born `healReroll` DUE and the
+ * heal applier waits, so healing lands ONCE; a pack's own `r1` is taken off. A second 1 stands.
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
@@ -158,9 +154,8 @@ async function reroll(message, keys) {
 }
 
 /**
- * THE COMPLETION — the one step between "answering" and "used": the patched rolls onto the
- * message, the outcome onto the flag (the settling write the heal applier waits on), and any
- * healing already applied moved by the difference. Idempotent by status.
+ * THE COMPLETION, "answering" → "used": patched rolls, the settling flag write the heal applier
+ * waits on, and applied healing moved by the difference. Idempotent by status.
  */
 async function complete(message) {
   const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
@@ -178,8 +173,7 @@ async function complete(message) {
 /** Past the longest the pause can be, with slack. */
 const RESUME_MS = 20_000;
 registerResumable(HEAL_FLAG, {
-  // A completion the rolling client never took, a DUE never promoted, a PENDING never rerolled
-  // (it died inside the pause): the driver finishes the one and takes the others.
+  // A completion never taken, a DUE never promoted, a PENDING never rerolled: the driver finishes them.
   pending: (flag, message) => ((flag?.status === "answering") && !!flag.pending && ((Date.now() - (flag.pending.at ?? 0)) > RESUME_MS))
     || (["due", "pending"].includes(flag?.status) && ((Date.now() - (message.timestamp ?? 0)) > RESUME_MS)),
   drives: flag => drivesMomentFor(flag?.actorUuid ?? null),

@@ -1,19 +1,14 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: an emanation's reach, range, and the effect it hands the platform.
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- * The platform keeps the geometry and the clock (a token-attached Region); this is the RULES half:
- * who an aura reaches, how far, and the member's effect with the SOURCE's numbers read in (the
- * platform would resolve a formula against the wearer). RULINGS *Emanations*.
+ * Battle Flow — DECISION: an emanation's reach, range and member effect, the SOURCE's numbers read in
+ * (the platform would resolve against the wearer). Pure (ARCHITECTURE.md §2); RULINGS *Emanations*.
  */
 
-/** Foundry's token dispositions (CONST.TOKEN_DISPOSITIONS), plain here on purpose. */
+/** CONST.TOKEN_DISPOSITIONS, plain here on purpose. */
 export const DISPOSITION = Object.freeze({ SECRET: -2, HOSTILE: -1, NEUTRAL: 0, FRIENDLY: 1 });
 
 /**
- * Does an emanation of this REACH touch a creature of this disposition, from a source of that one?
- * Helpful: the source's side and neutrals. Harmful: the other side, not neutrals (the caster's
- * default designation). All: every side, as written. A SECRET token is never reached.
+ * Does this REACH touch the creature? Helpful: own side + neutrals; harmful: the other side. Never SECRET.
  * @param {"helpful"|"harmful"|"all"} reach
  * @param {number} sourceDisposition
  * @param {number} targetDisposition
@@ -30,10 +25,8 @@ export function reachAdmits(reach, sourceDisposition, targetDisposition) {
 }
 
 /**
- * Does an area whose activity names who it affects (`target.affects.type`) take in this creature?
- * "enemy": anyone not on the caster's side; "ally": the caster's side; anything else: everyone.
- * The caster's own token is the caller's to leave out.
- * @param {string|null} affects   the activity's `target.affects.type`
+ * Does an area's `target.affects.type` take in this creature? The caster's own token is the caller's to leave out.
+ * @param {string|null} affects
  * @param {number} casterDisposition
  * @param {number} targetDisposition
  */
@@ -47,13 +40,11 @@ export function affectsAdmits(affects, casterDisposition, targetDisposition) {
 }
 
 /**
- * The listed PULSE row whose form this use is, or null (Inner Radiance on Celestial Revelation).
- * That use is the transformation alone: the ring is the sweep's and the damage the pulse's at the
- * bearer's turn end, so no machine rolls the activity's damage at the use.
+ * The listed PULSE row whose form this use is (its damage is the pulse's at turn end, never the use's).
  * @param {Record<string, {pulse?: object|null, item?: string, activity?: string}>} table   EMANATIONS
  * @param {{ itemName: string|null|undefined, activityName: string|null|undefined }} use
- * @param {Set<string>} listed   the Emanations list, lower-cased
- * @returns {string|null}   the row's key
+ * @param {Set<string>} listed   lower-cased
+ * @returns {string|null}
  */
 export function pulseFormKey(table, { itemName, activityName }, listed) {
   const item = String(itemName ?? "").toLowerCase();
@@ -67,8 +58,7 @@ export function pulseFormKey(table, { itemName, activityName }, listed) {
 }
 
 /**
- * Walk a dotted path through plain roll data. A scale value is an object carrying `value`
- * (`{ value: 10 }`); the number is what an emanation wants.
+ * Walk a dotted path through roll data; a scale value (`{ value: 10 }`) yields its number.
  * @param {Record<string, any>} data
  * @param {string} path
  * @returns {number|string|null}
@@ -85,9 +75,7 @@ export function lookupRollData(data, path) {
 }
 
 /**
- * Replace every `@path` token in a formula with its value from the roll data, so the SOURCE's
- * numbers travel with the effect. An unresolved token is left in place and reported, so the EDGE
- * can refuse rather than ship a silent zero (NOTES §2).
+ * Replace every `@path`; an unresolved one is reported so the EDGE refuses a silent zero (NOTES §2).
  * @param {string} formula
  * @param {Record<string, any>} data
  * @returns {{ text: string, unresolved: string[] }}
@@ -103,8 +91,7 @@ export function resolveFormula(formula, data) {
 }
 
 /**
- * The pack's effect changes with the source's numbers read in; a value with an `@` is resolved and
- * folded to a number when plain arithmetic, anything else passes through untouched.
+ * The pack's effect changes with the source's numbers read in, plain arithmetic folded.
  * @param {Array<{key: string, mode: number, value: string, priority?: number|null}>} changes
  * @param {Record<string, any>} data     the SOURCE's roll data
  * @returns {{ changes: Array<{key: string, mode: number, value: string, priority?: number|null}>, unresolved: string[] }}
@@ -126,19 +113,17 @@ export function foldArithmetic(text) {
   const t = String(text).trim();
   if ( !/^[-+*/()\d.\s]+$/.test(t) || !/\d/.test(t) ) return t;
   try {
-    // A closed arithmetic grammar only (digits, + - * / and parentheses): no identifiers reach here.
+    // Closed grammar (digits, + - * / and parentheses): no identifier reaches here.
     const n = Function(`"use strict"; return (${t});`)();
     return Number.isFinite(n) ? String(n) : t;
   } catch { return t; }
 }
 
 /**
- * How far this emanation reaches: the activity's own size, else the row's range (a number, or a
- * content formula such as `@scale.paladin.aura`). Null when the content gives nothing — a Paladin
- * below 6th level has no aura, with no level table here.
+ * Reach in feet: the activity's template size, else the row's range (number or formula); null when content gives none.
  * @param {{ range?: number|string|null }} row
  * @param {Record<string, any>} rollData
- * @param {number|string|null|undefined} activitySize   the activity's target.template.size, if any
+ * @param {number|string|null|undefined} activitySize
  * @returns {number|null}
  */
 export function emanationRange(row, rollData, activitySize = null) {
@@ -156,9 +141,8 @@ export function emanationRange(row, rollData, activitySize = null) {
 }
 
 /**
- * Is an area's HEAL due for this member now (Aura of Life's 1 HP at turn start)?
+ * Is an area's HEAL due for this member now? ⚠ No "dead" guard: the 0-HP creature is the one the text names.
  * @param {{heal?: {on: string, when?: string}|null}} row
- * ⚠ No "dead" guard: dnd5e marks a 0-HP creature dead itself, and that is the one the text names.
  * @param {{cause: string, hp?: number|null}} facts
  * @returns {{due: boolean, why: string}}
  */
@@ -171,8 +155,7 @@ export function healTriggerDue(row, { cause, hp = null }) {
 }
 
 /**
- * Is a triggered save due now? Once per turn in combat, every time out of it (turns count only for
- * a combatant in the running combat).
+ * Is a triggered save due now? Once per turn in combat, every time out of it.
  * @param {{ inCombat: boolean, chitStands: boolean }} facts
  */
 export function triggerDue({ inCombat, chitStands }) {
@@ -181,13 +164,10 @@ export function triggerDue({ inCombat, chitStands }) {
 }
 
 /**
- * The scenes play is on NOW: the active scene and every scene a connected user is viewing (the
- * count is per aura, so a second live scene never stacks; RULINGS *Emanations*).
- * ⚠ A GM's view counts ONLY while no player is connected: a GM previewing an old scene where the
- * party's leftover tokens stand would otherwise hand an ally the aura on the real map. An Assistant
- * GM (the MCP bridge, a suite) is a GM here.
- * @param {string|null} activeSceneId   game.scenes.active's id
- * @param {Array<{ sceneId: string|null, name?: string|null, isGM?: boolean }>} viewers   each CONNECTED user's viewed scene
+ * The scenes play is on NOW: the active scene and every scene a connected user views. ⚠ A GM's view
+ * (Assistant GM included) counts ONLY with no player connected: a preview of an old scene would bleed in.
+ * @param {string|null} activeSceneId
+ * @param {Array<{ sceneId: string|null, name?: string|null, isGM?: boolean }>} viewers   CONNECTED users only
  * @returns {Map<string, string>}   scene id → why it is live
  */
 export function liveScenes(activeSceneId, viewers = []) {
@@ -203,9 +183,8 @@ export function liveScenes(activeSceneId, viewers = []) {
 }
 
 /**
- * Does an emanation on this scene apply anything now? Only on a LIVE scene: an effect lives on the
- * actor, and a linked actor is one document across scenes, so a ring elsewhere would bleed in.
- * @param {string|null} regionSceneId   the scene the emanation's region is on
+ * Does an emanation on this scene apply now? Only on a LIVE scene: a linked actor spans scenes.
+ * @param {string|null} regionSceneId
  * @param {Map<string, string>|null} live   `liveScenes`' answer
  * @returns {{ applies: boolean, why: string }}
  */
@@ -217,11 +196,9 @@ export function appliesOnScene(regionSceneId, live) {
 }
 
 /**
- * ONE AURA, however many scenes it stands on: the source's item and the row. A linked bearer's item
- * has one uuid on every scene, so the ally inside both rings wears ONE effect; an unlinked bearer's
- * item lives on its own token (a different aura). A region naming no item is a group of one.
+ * ONE AURA across scenes (item uuid + row), so two rings of a linked bearer give ONE effect.
  * @param {string|null} itemUuid
- * @param {string|null} key   the emanation row's name
+ * @param {string|null} key
  * @param {string} regionId
  */
 export function emanationGroup(itemUuid, key, regionId) {
@@ -229,9 +206,8 @@ export function emanationGroup(itemUuid, key, regionId) {
 }
 
 /**
- * Who wears one aura's effect across all its regions, and from which region: the first region
- * that admits a creature names its copy (pass the likeliest scene first). A feature's own bearer
- * never wears its ring (its transfer effect is on the sheet); a spell's caster does when reached.
+ * Who wears one aura's effect, and from which region (the first that admits it; pass the likeliest
+ * first). A feature's bearer never wears its own ring (its transfer effect is on the sheet); a spell's caster does.
  * @param {Array<{ regionId: string, applies: boolean, kind: string, reach: "helpful"|"harmful",
  *   sourceTokenId: string|null, sourceDisposition: number,
  *   inside: Array<{ tokenId: string, actorKey: string, disposition: number }> }>} areas
@@ -252,12 +228,10 @@ export function groupMembers(areas) {
 }
 
 /**
- * The damage type an emanation's roll wears when the part carries several (Spirit Guardians): the
- * caster's pick, else by alignment as the text says — evil → necrotic, otherwise radiant, else
- * the part's first type.
- * @param {string[]} types      the part's types, in the pack's order
- * @param {string|null} alignment   the caster's alignment text
- * @param {string|null} chosen  a pick already made, if it is one of the types
+ * The damage type of a multi-type part: the caster's pick, else evil → necrotic, else radiant, else the first.
+ * @param {string[]} types      in the pack's order
+ * @param {string|null} alignment
+ * @param {string|null} chosen
  * @returns {{ type: string|null, why: string }}
  */
 export function damageTypeFor(types, alignment = null, chosen = null) {
@@ -272,14 +246,11 @@ export function damageTypeFor(types, alignment = null, chosen = null) {
 }
 
 /**
- * The ActiveEffect a member receives: the pack's effect, named for its source, carrying the
- * resolved changes and the fingerprint the floor reads.
- * @param {{ key: string, rule?: string }} row   as `tableIndex`'s `rowNamed` hands it; its name is
- *        `key` — ⚠ the rows carry no `name`.
- * @param {{ name: string, img?: string|null, description?: string|null, changes: any[] }} effect   the pack's effect, changes already resolved
+ * The ActiveEffect a member receives: the pack's effect named for its source, with the floor's fingerprint.
+ * @param {{ key: string, rule?: string }} row   ⚠ rows carry no `name`; `key` is it
+ * @param {{ name: string, img?: string|null, description?: string|null, changes: any[] }} effect   changes already resolved
  * @param {{ sourceName: string, itemUuid: string|null, regionId: string, group?: string|null, moduleId: string, flagKey: string, status?: string|null }} ids
- *        `status`: a status id so the token SHOWS the effect (Foundry draws only temporary
- *        effects, and a standing aura has no clock). `group`: the aura it copies (`emanationGroup`).
+ *        `status` makes the token SHOW it (Foundry draws only temporary effects; an aura has no clock).
  */
 export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, group = null, moduleId, flagKey, status = null }) {
   return {

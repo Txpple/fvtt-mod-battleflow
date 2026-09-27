@@ -8,14 +8,10 @@ import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
 
-/**
- * Targets from an attack message's snapshot that the roll actually hit: crit hits, fumble misses,
- * else total >= ac. A null AC (total cover, no AC data) is a MISS, as dnd5e 6 judges it.
- */
+/** The attack's snapshot targets the roll hit; a null AC (total cover) MISSES, as dnd5e 6 judges it. */
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
   if ( !(roll instanceof dnd5e.dice.D20Roll) ) return [];
-  // The judgment is pure (decide/verdict.js); `foldsFrom` walks the fold registry, this supplies the reader.
   return hitsAmong({
     targets: targetsOf(attackMessage),
     folds: foldsFrom(key => attackMessage.getFlag(MODULE_ID, key)),
@@ -31,11 +27,8 @@ export function modeAllows(actor) {
   return modeAdmits(setting(S.autoDamage), actor?.type === "character");
 }
 
-/**
- * The attack roll a damage message descends from; null outside an attack chain (save/AoE damage).
- * ⚠ The damage's own `attackFor` stamp leads: under a volley every ray shares one usage card, so
- * "the last attack before this damage" names the wrong ray. That walk is the fallback only.
- */
+/** The attack roll a damage message descends from; null outside an attack chain.
+ * ⚠ The `attackFor` stamp leads: a volley's rays share one usage card, so walking back is the fallback. */
 export function resolveAttackMessage(damageMessage) {
   const forId = damageMessage.getFlag(MODULE_ID, "attackFor");
   if ( forId ) {
@@ -50,10 +43,7 @@ export function resolveAttackMessage(damageMessage) {
     .pop() ?? null;
 }
 
-/**
- * The acting actor behind a message, as a uuid. The message's own speaker leads — a reaction's
- * respondsTo hop would name the attacker as the source of the defender's self-cast.
- */
+/** The acting actor's uuid; the message's own speaker leads (a reaction's hop names the attacker). */
 export function statSourceOf(message) {
   const actor = message?.getAssociatedActor?.();
   if ( actor ) return actor.uuid;
@@ -70,10 +60,7 @@ export function grantingActor(effect) {
   } catch { return null; }
 }
 
-/**
- * Has this chip already been SPENT on record? With no GM connected a spent chip's delete cannot
- * happen, so a `chipSpend` receipt written after the chip's last write counts as spent.
- */
+/** Is this chip SPENT on record? With no GM its delete cannot happen, so a later `chipSpend` receipt counts. */
 export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   const bearerUuid = effect?.parent?.uuid;
   if ( !effect?.id || !bearerUuid ) return false;
@@ -88,21 +75,16 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   return false;
 }
 
-/** A status's clock from a platform pseudo-expiry (`sourceEnd` …); dnd5e judges the turn edge live
- * (ActiveEffect5e#isExpiryEvent) and keeps the value null. */
+/** A clock from a platform pseudo-expiry (`sourceEnd` …); dnd5e judges the edge live, value null. */
 const clockOfExpiry = expiry => ({ "duration.expiry": expiry, "duration.value": null, "duration.units": "rounds" });
 
 /**
- * Put a status condition on an actor and make sure it actually LANDED.
- * ⚠ `toggleStatusEffect(id, { active: true })` silently no-ops when any carrier exists (a disabled
- * one included) or another module's hook interferes. So re-enable a disabled canonical carrier,
- * else build the effect directly (it can carry `origin`; `keepId` keeps the canonical id), and
- * fall back to the toggle.
+ * Put a status on an actor and make sure it LANDED. ⚠ `toggleStatusEffect(id, { active: true })`
+ * no-ops when any carrier exists (disabled too): re-enable a canonical carrier, else build it, else toggle.
  */
 export async function forceStatus(actor, statusId, { origin = null, expiry = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
-  // ⚠ Only the CANONICAL condition is re-enabled (told by its localized name): a disabled pack
-  // effect that merely carries the status (an old Trip) would revive its own name and changes.
+  // ⚠ Only the CANONICAL condition (by localized name) is re-enabled; a pack effect would revive its own changes.
   // ⚠ `CONFIG.statusEffects` is an OBJECT keyed by id in dnd5e 6.
   const canonicalName = game.i18n.localize(CONFIG.statusEffects[statusId]?.name ?? "");
   const active = actor.effects.find(e => e.statuses.has(statusId) && !e.disabled);
@@ -115,7 +97,6 @@ export async function forceStatus(actor, statusId, { origin = null, expiry = nul
     try {
       const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
       if ( origin ) effect.updateSource({ origin });
-      // A press with a clock ("until the end of your next turn"): the platform's pseudo-expiry.
       if ( expiry ) effect.updateSource(clockOfExpiry(expiry));
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
     } catch(err) {
@@ -129,11 +110,8 @@ export async function forceStatus(actor, statusId, { origin = null, expiry = nul
 }
 
 
-/**
- * Take a status OFF an actor and make sure it is gone; best-effort, never throws.
- * ⚠ `toggleStatusEffect(id, { active: false })` THROWS when a concurrent remover (dnd5e's own
- * "HP positive again" handler) wins, and only deletes the canonical-id carrier. NOTES.md §1.
- */
+/** Take a status OFF and make sure it is gone; never throws. ⚠ `toggleStatusEffect(id, { active: false })`
+ * throws when a concurrent remover wins and deletes only the canonical carrier. NOTES.md §1. */
 export async function clearStatus(actor, statusId) {
   if ( !(actor instanceof Actor) ) return false;
   for ( const effect of actor.effects.filter(e => e.statuses?.has?.(statusId)) ) {
@@ -163,8 +141,7 @@ export function damagePartsOf(rolls) {
 }
 
 /**
- * Rolls rebuilt from PATCHED roll data, each total re-evaluated.
- * ⚠ `_evaluateTotal` is PRIVATE Foundry API (`fromData` restores the stored `_total`); one home.
+ * Rolls rebuilt from PATCHED data, totals re-evaluated. ⚠ `_evaluateTotal` is PRIVATE Foundry API; one home.
  * @param {object[]} rollsData  `Roll#toJSON` shapes
  * @returns {Roll[]}
  */
@@ -172,10 +149,7 @@ export function rebuildRolls(rollsData) {
   return (rollsData ?? []).map(rd => { const r = Roll.fromData(rd); r._total = r._evaluateTotal(); return r; });
 }
 
-/**
- * A human's answer as a `rollSavingThrow`/`rollConcentration` config; empty when it asked nothing.
- * ⚠ An unrollable bonus is dropped with a warning, never thrown: the table is waiting on the roll.
- */
+/** A human's answer as a `rollSavingThrow`/`rollConcentration` config; an unrollable bonus warns, never throws. */
 export function rollConfigFor(mode, bonus) {
   const override = {};
   if ( mode === "advantage" ) override.options = { advantage: true, disadvantage: false };
@@ -200,10 +174,7 @@ export function placeOf(attacker) {
     round: combat.round, turn: combat.turn, time: game.time.worldTime };
 }
 
-/**
- * The CURRENT turn's place, for the once-per-turn chit: it belongs to the turn in progress (an
- * opportunity attack's chit dies with the victim's turn), so a summon outside the tracker gets one.
- */
+/** The turn IN PROGRESS, for the once-per-turn chit (an opportunity attack's dies with the victim's turn). */
 export function turnPlace() {
   const combat = game.combat;
   if ( !combat?.started ) return null;
@@ -212,11 +183,8 @@ export function turnPlace() {
     round: combat.round, turn: combat.turn, time: game.time.worldTime };
 }
 
-/**
- * What a clock becomes on the document; out of combat the platform's `_preCreate` fills the start.
- * ⚠ A summon outside the tracker takes this path on purpose: `combat: null` would not help, since
- * Foundry falls back to the bearer's combatant.
- */
+/** A clock as document data; out of combat `_preCreate` fills the start.
+ * ⚠ `combat: null` would not help a summon outside the tracker: Foundry falls back to the bearer's combatant. */
 export function chipData(clock) {
   return { duration: { ...clock.duration, expired: false },
     start: clock.start ?? { time: game.time.worldTime } };
@@ -243,8 +211,7 @@ export function turnChitStands(actor, key, riderKey = null) {
 }
 
 /**
- * Write a once-per-turn chit for the turn in progress, replacing stale ones. Nothing is written
- * out of combat or without an owner here (the feature repeats — the cheaper failure).
+ * Write a once-per-turn chit, replacing stale ones; none out of combat or without an owner (the cheaper failure).
  * @param {Actor} actor
  * @param {string} key
  * @param {{name: string, img?: string|null, description?: string, origin?: string|null, riderKey?: string|null}} chit
@@ -301,10 +268,8 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
 }
 
 /**
- * Who put an effect on, and what it came from: its origin walked up to an Actor, keeping the Item.
- * ⚠ Provenance has many shapes (dnd5e 6's `system.origin.*`, legacy `origin`, hand-dragged) and
- * goes stale. An applied copy carries its TEMPLATE's stale compendium `item` beside a fresh
- * `activity`, so each candidate is tried, `activity` first, until one reaches a world Actor.
+ * Who put an effect on and from what Item. ⚠ An applied copy carries its template's stale compendium
+ * `item` beside a fresh `activity`: candidates are tried, `activity` first, until one reaches a world Actor.
  */
 export function effectSourceOf(marker) {
   const so = marker.system?.origin ?? {};
@@ -339,9 +304,7 @@ function sourceFromUuid(uuid) {
   return item ? { actor: doc, item } : null;
 }
 
-/**
- * The pool an activity consumes. Packs name it by item id, bare identifier or compendium UUID.
- */
+/** The pool an activity consumes; packs name it by item id, bare identifier or compendium UUID. */
 export function poolOf(actor, activity) {
   for ( const c of (activity?.consumption?.targets ?? []) ) {
     if ( c.type !== "itemUses" ) continue;
@@ -365,9 +328,9 @@ export async function spendSuperiorityDie(actor, pool, ability) {
 }
 
 /**
- * Spend N uses of a pool under a name of its own (Sorcery Points from Font of Magic).
- * @param {number} n how many uses to spend (the option's own consumption value, read live)
- * @param {string|null} poolName the name the record shows for the pool; the item's by default
+ * Spend N uses of a pool, recorded under `poolName` (default the item's).
+ * @param {number} n
+ * @param {string|null} poolName
  */
 export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null) {
   if ( !pool ) return null;
@@ -379,8 +342,7 @@ export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null
 }
 
 /**
- * Every pool spend a message records, in one row shape (usage-card deltas, hand spends, hold and
- * hit-menu picks), player-owned actors only.
+ * Every pool spend a message records (card deltas, hand, hold and hit-menu picks), player-owned only.
  * @returns {{pool: string, spent: number, left: number, max: number, ability?: string, at?: number}[]}
  */
 export function poolSpendsOn(message) {
@@ -467,10 +429,7 @@ export function dispositionHex(value, fallback) {
   return (typeof value === "number") ? `#${value.toString(16).padStart(6, "0")}` : fallback;
 }
 
-/**
- * Glyph, colour and word for a token's ABSOLUTE disposition, as the canvas border draws it —
- * never relative to whoever rolls. Colour is never the only carrier.
- */
+/** Glyph, colour and word for a token's ABSOLUTE disposition, as the border draws it; never colour alone. */
 export function dispositionStyle(token) {
   const D = CONST.TOKEN_DISPOSITIONS;
   const colors = CONFIG.Canvas?.dispositionColors ?? {};

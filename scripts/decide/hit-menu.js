@@ -1,25 +1,18 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the hit menu. Which options a hit offers, grouped by the feature that
- * pays for them; which picks are legal; whether a swept-at creature is hit. Pure functions over
- * plain data (ARCHITECTURE.md §2). RULINGS *The hit menu* and *The hit menu — a pick per group*:
- * one pick per group, a pick in each group rides the one hit. The reading and the arithmetic are
- * decided here, never the choice.
+ * Battle Flow — DECISION: the hit menu — the options a hit offers grouped by paying feature, the
+ * legal picks, whether a swept-at creature is hit. Pure (ARCHITECTURE.md §2); RULINGS *The hit menu*
+ * and *The hit menu — a pick per group*. The reading and arithmetic are decided here, never the choice.
  */
 
 /**
- * The menu for one hit: every group whose paying feature stands on the sheet with a resolved pool,
- * and under it every listed option the sheet grants, in table order. `feature: null` requires
- * nothing on the sheet; `pool: "option"` pays per OPTION (`pools` keyed by option). `fits` is the
- * size judge per option: false greys the row; null (unreadable) leaves it open.
+ * The menu for one hit: each group whose feature stands with a resolved pool, and its listed options
+ * in table order. `pool: "option"` pays per OPTION; `fits` false greys a row, null leaves it open.
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
  *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
  *          fits?: Record<string, boolean|null|undefined>}} facts
- *        `listed` = the Hit Menu list's feature names; `features` = the feat names on the sheet;
- *        `melee` = whether this attack is a melee attack; `pools` = per group key (per option key
- *        for an option-pool group), the uses left and the die the sheet resolved (null when the
- *        pool or the die could not be read)
+ *        `pools` keyed by group (by option for an option-pool group); null when unreadable
  * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number, rule: string,
  *            perOption: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
  *            rows: {key: string, feature: string, label: string, cost: string, mode: string, save: boolean,
@@ -48,7 +41,6 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       // The size judge (`maxSize`, Hill's Tumble): only a MEASURED misfit greys the row.
       const tooLarge = !!row.maxSize && (fits?.[key] === false);
       const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
-      // An option paying from its own uses says how many stand, "2 of 3 uses left".
       const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${group.dieLabel}${(Number(pool.max) || rowLeft) === 1 ? "" : "s"} left`;
       const cost = perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
@@ -92,7 +84,7 @@ export function hitPick({ menu, chosen = [] }) {
 }
 
 /**
- * The picks a hit-menu record holds: `picks`, or an older single-pick record read as a list of one.
+ * The picks a hit-menu record holds; a single-pick record reads as a list of one.
  * @param {any} record
  * @returns {any[]}
  */
@@ -102,9 +94,7 @@ export function picksOf(record) {
 }
 
 /**
- * Would the ORIGINAL attack roll hit a second creature? The system's own render-time test, the
- * shape `hitsAmong` uses: a critical always hits, a fumble never, otherwise the total against the
- * AC. An AC the module cannot read is "unknown" — the table's, never a guess.
+ * Would the ORIGINAL attack roll hit a second creature (the `hitsAmong` shape)? Unreadable AC is "unknown", never a guess.
  * @param {{total: number, isCritical?: boolean, isFumble?: boolean, ac: number|null|undefined}} facts
  * @returns {"hit"|"miss"|"unknown"}
  */
