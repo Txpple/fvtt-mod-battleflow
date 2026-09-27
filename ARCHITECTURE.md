@@ -1039,6 +1039,17 @@ an added die, a reaction that moves AC):
 4. **Move, do not rewrite.** Flag shapes, setting keys, list defaults, table keys, rules text
    and card copy do not change in a move, and no lint cleanup rides inside a move commit.
 
+**Writing a comment** (the rule `tools/check-comments.mjs` enforces in `scripts/`):
+1. Say what the code does and why, in the present tense. A why is a constraint of the platform, a
+   rule of the game, or a hazard the next edit could walk into.
+2. No history: no dates, no quotes of the user, no walk, slice, phase, session or release story, no
+   "was" or "used to". A ruling lives in RULINGS, a measured platform fact in NOTES, history in git.
+3. Keep it short. A `/**` block says what a function answers and its contract; a line comment marks
+   a hazard (⚠) or a step that is not obvious. Code that reads plainly gets no comment.
+4. Point, do not copy: name the doc and its section instead of restating it.
+5. A commit that only touches comments starts its subject `comments:`, and CI proves the code did
+   not change (`tools/check-comment-only.mjs`).
+
 **Any change:**
 1. Which north star does it serve? If none, it is not in scope.
 2. Does it add a required GM click? → redesign (N4).
