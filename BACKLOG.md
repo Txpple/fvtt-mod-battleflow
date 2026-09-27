@@ -7,19 +7,8 @@
 > item becomes owed it leaves this file for a commission the user hands the next session. There
 > is no standing handoff file, by user call: a commission is written when there is one and
 > retired when it is delivered. **The current one is [HANDOFF.md](HANDOFF.md), the refactor and
-> recalibration (2026-09-27), which every slice below waits for.** A closed item leaves too — its record is git history. (The last,
-> HANDOFF.md of 2026-09-26 — the battery for the PHB feats walk — was retired 2026-09-27 when the
-> owed suite sections were built (sneak 12, styles 15, metamagic 23, heal rewritten) and the full
-> battery was green (three runs; the reds were the walk's linked dummies on the active scene and a
-> suite false positive, both fixed) — released as v2.3.0. Before it, HANDOFF.md of 2026-09-26 — the
-> dice that rise, tested — was retired the same day: the full
-> battery green, the `changedDice` probe run and its one wrong guess fixed (Reliable Talent's
-> floor, NOTES §2), the dice walk table handed to the user; its text is in git history. The
-> fighting styles walk before it PASSED, all nine styles. Before those,
-> HANDOFF.md of 2026-09-25 — the Slice A walk, species and origin feats by hand — was retired on
-> 2026-09-26 when the walk was done and the full battery green; its rulings are RULINGS *The
-> species walk, continued* and *The origin feats*, the release's list below, its text in git
-> history. The one before, Slice A's plan of 2026-09-24, lives on as SWEEP §6.)
+> recalibration (2026-09-27), which every slice below waits for.** A closed item leaves too; its
+> record, like every retired commission's, is git history.
 >
 > Three files, three jobs: this file is *not now, and here is why*; [DESIGN.md](DESIGN.md) §8
 > is *no, and here is what would change the answer*; [ARCHITECTURE.md](ARCHITECTURE.md) §10 is
