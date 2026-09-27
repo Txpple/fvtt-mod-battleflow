@@ -929,7 +929,8 @@ one sensible answer, the way Great Weapon Fighting's does.
   copy carries no type, so a typeless copy arriving on a character (a level-up, a drag, a drop) posts
   a card to its owners and opens a popup — Acid, Cold, Fire, Lightning, Thunder, less the types its
   other copies already name, and Later. The answer renames the copy "Elemental Adept (Fire)"; the
-  card's Choose type… button asks again; a rename by hand settles the card too (`fighting-styles.js`,
+  card's Choose type… button asks again; a rename by hand settles the card too; and a click on a
+  typeless feat on the sheet (its own card, `dnd5e.displayCard`) asks there as well (`fighting-styles.js`,
   the row's `choices`).
 - **Healer rerolls every 1 as the dice land** — no popup; the healing waits for the new dice and
   lands once, the new die on its own card and over the healer on the canvas (`heal-rerolls.js`, the

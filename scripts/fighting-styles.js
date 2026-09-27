@@ -823,13 +823,18 @@ Hooks.on("createItem", (item, _options, userId) => {
   } catch(err) { console.error(`${TITLE} | A typed feat's pick failed.`, err); }
 });
 
-async function postTypePick(actor, item, name, row) {
+/** The types this copy may still take — or null (and a warning) when the other copies hold them all. */
+function typesLeftFor(actor, item, name, row) {
   const others = typedCopies(actor, name).filter(i => i.id !== item.id).map(i => i.name);
   const left = typeChoicesLeft(row.choices, typesInNames(others, name, damageTypeKeys()));
-  if ( !left.length ) {
-    ui.notifications.warn(`${actor.name} already has every ${name} type — this copy has none left to choose.`);
-    return;
-  }
+  if ( left.length ) return left;
+  ui.notifications.warn(`${actor.name} already has every ${name} type — this copy has none left to choose.`);
+  return null;
+}
+
+async function postTypePick(actor, item, name, row) {
+  const left = typesLeftFor(actor, item, name, row);
+  if ( !left ) return;
   const owners = game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id);
   const message = await ChatMessage.implementation.create({
     speaker: ChatMessage.implementation.getSpeaker({ actor }), content: "", whisper: owners,
@@ -837,6 +842,23 @@ async function postTypePick(actor, item, name, row) {
   });
   if ( message ) await askTypePick(message);
 }
+
+// THE FEAT'S OWN CARD asks too (the user, 2026-09-26: "if a person clicks the elemental adept card and
+// if it doesnt have an element, do the popup there too"): the pack's feat has no activity, so a click
+// on the sheet posts its card — a typeless copy's card carries the pick and the popup opens over it.
+Hooks.on("dnd5e.displayCard", (item, card) => {
+  try {
+    if ( !(card instanceof ChatMessage) || !card.isAuthor ) return;
+    const actor = item?.actor;
+    const found = (actor instanceof Actor) && actor.isOwner ? typelessRowOf(item) : null;
+    if ( !found ) return;
+    const left = typesLeftFor(actor, item, found.name, found.row);
+    if ( !left ) return;
+    void card.setFlag(MODULE_ID, PICK_FLAG, { ...statContext(actor.uuid), row: found.name, itemUuid: item.uuid, left, chosen: null })
+      .then(() => askTypePick(card))
+      .catch(err => console.error(`${TITLE} | ${found.name}'s type could not be asked — rename it "${found.name} (Fire)".`, err));
+  } catch(err) { console.error(`${TITLE} | A typed feat's card pick failed.`, err); }
+});
 
 /** The popup: a button per type still open, and Later. */
 async function askTypePick(message) {
