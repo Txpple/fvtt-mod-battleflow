@@ -209,6 +209,13 @@ a list. The full list of what is refused and why is in [DESIGN.md §4](DESIGN.md
 The trade is fewer features for a module that is small enough to read, cannot be taken down by
 a system update it did not see coming, and never plays a decision for you.
 
+## Contributing
+
+Battle Flow is one author's design for how a 2024 fight should run on stock dnd5e: batteries
+included, a few switches for the DM, nothing else to configure. It is public so you can read it
+and use it. Issues and pull requests are not accepted. If you want to shape every part of the
+automation yourself, midi-qol is built for exactly that.
+
 ## License
 
 MIT

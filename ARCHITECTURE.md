@@ -1095,7 +1095,9 @@ surprise came from elsewhere.
 - **An index for the whole-log scans — parked** (measured 2026-09-05: 35 sites, 13 in saves). The
   fix is an index by flag when a world's age makes it visible, never a tail window.
 - **An architecture pass before the sweep — not taken (user, 2026-09-24, the long-term order;
-  BACKLOG *The long-term order*).** The machine-tier pass already did it, and the registry model
+  BACKLOG *The long-term order*); TAKEN 2026-09-27, once the PHB feats were done** — the refactor
+  and recalibration, [HANDOFF.md](HANDOFF.md), measured against the peers' repos. What follows is
+  the 2026-09-24 reasoning. The machine-tier pass already did it, and the registry model
   exists so a sweep row costs minutes. The structural work worth doing is the sweep's own, each
   piece built by the feature that proves its shape (Slice A built the `roll` interrupt kind and
   the damage-dice fold that way). [decide/registry.js](scripts/decide/registry.js) is split when
