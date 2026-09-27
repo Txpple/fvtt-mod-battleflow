@@ -55,7 +55,25 @@ readable its code is.
 - Biome at zero warnings, and `check` runs with `--error-on-warnings` (`5436720`).
 - The README's *Contributing* section; GitHub Issues off.
 
-## Phase 1 — comments and docs
+## Phase 1 — comments and docs ✅ delivered 2026-09-27
+
+| | Before | After |
+| --- | --- | --- |
+| `scripts/` comment lines | 14,766 (39%) | 5,094 (17.8%) |
+| `scripts/` total lines | 40,412 | 30,884 |
+| `tools/` comment lines | 6,695 (18%) | 3,533 (10.5%) |
+| Dated comment lines, both | 1,559 | 0 |
+
+- The rule is ARCHITECTURE §11 *Writing a comment*; `tools/check-comments.mjs` fails the gate on
+  history in a `scripts/` comment; every `comments:` commit is proven by
+  `tools/check-comment-only.mjs`, locally and in CI.
+- 34 rulings the comments carried and RULINGS did not are in RULINGS *Rulings the code carried*,
+  to fold into their features' sections at the next recut.
+- What stays above ~15% is typed JSDoc in `decide/` (the type checker reads it) and hazards.
+- The docs keep their dated records (a measurement keeps its date); BACKLOG's header lost its
+  story of retired commissions.
+
+The plan as written:
 
 - **The rule, written down:** a comment says what the code does and why, in the present tense.
   No dates, no quotes of the user, no walk, slice, session or release history, no "was" or
