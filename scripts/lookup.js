@@ -66,6 +66,23 @@ export function holdsFor(actor, holding) {
 export const activityNamed = (item, name) =>
   [...(item?.system?.activities ?? [])].find(a => sameName(a.name, name)) ?? null;
 
+/**
+ * The abilities a feat's own Ability Score Improvement assigned (dnd5e's record on the item), or
+ * null when the feat came without its advancement (dropped on by hand). Moved here from use-chips.js
+ * with its second customer (2026-09-27, the PHB feats group 5: Inspiring Leader's amount is "the
+ * modifier of the ability you increased with this feat", as the Poisoner's save DC is).
+ */
+export function asiAssigned(feature) {
+  try {
+    const advancements = feature?.advancement?.byId ? Object.values(feature.advancement.byId)
+      : Object.values(feature?.system?.advancement ?? {});
+    const asi = advancements.find(a => a?.type === "AbilityScoreImprovement");
+    const assignments = asi?.value?.assignments ?? {};
+    const keys = Object.entries(assignments).filter(([, v]) => Number(v) > 0).map(([k]) => k);
+    return keys.length ? keys : null;
+  } catch { return null; }
+}
+
 /** The first activity of a type on an item (`save`, `damage`, …), or null. */
 export const activityOfType = (item, type) =>
   [...(item?.system?.activities ?? [])].find(a => a.type === type) ?? null;

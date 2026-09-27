@@ -27,11 +27,11 @@
  * table's (the row's caveat, said on the popup).
  * ------------------------------------------------------------------------------------------- */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { lower, itemNamed, activityNamed, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
+import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./settings.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine } from "./decide/rebukes.js";
-import { poolOf, reactionSpent, spendReaction, withTargets } from "./shared.js";
+import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets } from "./shared.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -63,8 +63,12 @@ function reactionActivity(item, row) {
   return [...(item?.system?.activities ?? [])].find(a => a.activation?.type === "reaction") ?? null;
 }
 
-/** Every listed rebuke this bearer may take at this damager, right now — the options its popup offers. */
-function offersFor(actor, source) {
+/**
+ * Every listed rebuke this bearer may take at this damager, right now — the options its popup offers.
+ * `ward`: the WARD rows only (Sentinel — the bearer a bystander to a hit on someone else, 2026-09-27),
+ * else the bearer's own rebukes only; `attackHit`: the damage came from an attack (a `hit` row's need).
+ */
+function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
   const damager = tokenForUuid(source.uuid);
@@ -72,6 +76,8 @@ function offersFor(actor, source) {
   const out = [];
   for ( const [name, row] of Object.entries(REBUKES) ) {
     if ( !listed.has(lower(name)) ) continue;
+    if ( !!row.ward !== ward ) continue;
+    if ( row.hit && !attackHit ) continue;
     const item = itemNamed(actor, name);
     if ( !item ) continue;
     const activity = reactionActivity(item, row);
@@ -92,11 +98,14 @@ function offersFor(actor, source) {
       usesLeft: (item.type === "spell") ? null : usesLeft,              // a spell with no free cast left may still take a slot
       slot: free ? null : slotStands(actor, item),
       whileStands: row.while ? actor.effects.some(e => !e.disabled && (lower(e.name) === lower(row.while))) : null,
-      equipped: row.equipped ? !!item.system?.equipped : null
+      equipped: row.equipped ? !!item.system?.equipped : null,
+      // a ward's: the one who hit stands on another side of the map (the tokens' dispositions)
+      side: row.ward ? (!!bearer && !!damager && (bearer.document.disposition !== damager.document.disposition)) : null
     });
     if ( blocked ) continue;
     out.push({ name, itemId: item.id, activityId: activity?.id ?? null, img: item.img, reach,
       attack: row.attack ?? null, advantage: !!row.advantage, free, handUse: free && !pool,
+      ...(row.opportunity ? { opportunity: true } : {}), ...(row.ward ? { ward: true } : {}),
       cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }) });
   }
   return { distance, options: out };
@@ -112,20 +121,29 @@ Hooks.on("dnd5e.applyDamage", (actor, amount, options) => {
     if ( !listedNames(rebukeEntries()).size ) return;
     const source = origin.getAssociatedActor?.();
     if ( !(source instanceof Actor) || (source.uuid === actor.uuid) ) return;
-    void stampRebuke(actor, source, Number(amount), origin);
+    const attackHit = isAttackDamage(origin);
+    void stampRebuke(actor, source, Number(amount), origin, { attackHit });
+    if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
   } catch(err) {
     console.error(`${TITLE} | The rebuke offer failed — use the reaction from the sheet.`, err);
   }
 });
 
-async function stampRebuke(actor, source, amount, origin) {
-  const { distance, options } = offersFor(actor, source);
+/** Did this damage come from an attack's hit — its card's activity an attack, or chained to one? */
+function isAttackDamage(origin) {
+  if ( cardActivity(origin)?.type === "attack" ) return true;
+  try { return !!resolveAttackMessage(origin); } catch { return false; }
+}
+
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit });
   if ( !options.length ) return;
   const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
   const flag = {
     status: "pending", actorUuid: actor.uuid, actorName: actor.name,
     sourceUuid: source.uuid, sourceName: source.name, distance, amount, originId: origin.id,
     options, answer: null, choice: null,
+    ...(ward ? { ward: true, targetUuid: ward.uuid, targetName: ward.name } : {}),
     ...statContext(source.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
@@ -133,10 +151,38 @@ async function stampRebuke(actor, source, amount, origin) {
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: `${source.name} damaged ${actor.name}`, subtitle: `${amount} damage${(distance !== null) ? ` · ${distance} ft away` : ""}` }),
+      title: ward ? `${source.name} hit ${ward.name}` : `${source.name} damaged ${actor.name}`,
+      subtitle: ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
+        : `${amount} damage${(distance !== null) ? ` · ${distance} ft away` : ""}` }),
     flags: { [MODULE_ID]: { [REBUKE_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
+}
+
+/**
+ * THE WARDS (Sentinel's Guardian — the PHB feats, group 6, 2026-09-27): "Immediately after a creature
+ * within 5 feet of you ... hits a target other than you with an attack, you can make an Opportunity
+ * Attack against that creature." The same damage landing, asked of every OTHER creature on the scene
+ * holding a listed ward row — never the one hit, never the one hitting — within the row's reach of
+ * the hitter and on another side of the map from it (offersFor, the gate). One ask per bearer per
+ * card that dealt it: a second application of the same damage asks nothing more.
+ */
+const wardsAsked = new Set();
+async function stampWards(hurt, source, amount, origin) {
+  const listed = listedNames(rebukeEntries());
+  if ( !Object.entries(REBUKES).some(([name, row]) => row.ward && listed.has(lower(name))) ) return;
+  const seen = new Set();
+  for ( const t of canvas.tokens?.placeables ?? [] ) {
+    const bearer = t.actor;
+    if ( !bearer || seen.has(bearer.uuid) ) continue;
+    seen.add(bearer.uuid);
+    if ( (bearer.uuid === hurt.uuid) || (bearer.uuid === source.uuid) ) continue;
+    const key = `${origin.id}|${bearer.uuid}`;
+    if ( wardsAsked.has(key) ) continue;
+    if ( !offersFor(bearer, source, { ward: true, attackHit: true }).options.length ) continue;
+    wardsAsked.add(key);
+    await stampRebuke(bearer, source, amount, origin, { attackHit: true, ward: { uuid: hurt.uuid, name: hurt.name } });
+  }
 }
 
 /* --- who folds and who keeps the clock: the author, or the GM when the author has gone --------- */
@@ -233,10 +279,13 @@ async function driveRebuke(message, option) {
         attack = activity;
       }
       if ( !attack ) return;
-      const use = await attack.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
+      // An Opportunity Attack says so on its cards (Sentinel's Guardian): the Halt rider reads it.
+      const oa = !!option.opportunity;
+      const use = await attack.use({ subsequentActions: false }, { configure: false },
+        { data: { flags: { [MODULE_ID]: { rebukeFor: message.id, ...(oa ? { opportunity: true } : {}) } } } });
       const usageId = use?.message?.id ?? null;
       await attack.rollAttack(option.advantage ? { advantage: true } : {}, { configure: false },
-        { data: { ...(usageId ? { "system.origin": usageId } : {}), flags: { [MODULE_ID]: { rebukeFor: message.id } } } });
+        { data: { ...(usageId ? { "system.origin": usageId } : {}), flags: { [MODULE_ID]: { rebukeFor: message.id, ...(oa ? { opportunity: true } : {}) } } } });
     });
     await spendReaction(actor, { origin: item?.uuid ?? null, what: option.name });
   } catch(err) {
@@ -257,8 +306,9 @@ async function showPopup(message) {
   await openMomentPopup(message, REBUKE_FLAG, actor, {
     title: `Reaction — ${flag.actorName}`, icon: "fa-solid fa-bolt",
     content: bfCard({ img: flag.options[0]?.img ?? null, eyebrow: `Reaction — ${flag.options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: `${flag.sourceName} damaged you — answer?`,
-      subtitle: `${flag.amount} damage${(flag.distance !== null) ? ` · ${flag.distance} ft away` : ""}`, lines })
+      title: flag.ward ? `${flag.sourceName} hit ${flag.targetName} — strike?` : `${flag.sourceName} damaged you — answer?`,
+      subtitle: flag.ward ? `${flag.sourceName} is ${flag.distance} ft from you — an Opportunity Attack`
+        : `${flag.amount} damage${(flag.distance !== null) ? ` · ${flag.distance} ft away` : ""}`, lines })
       + holdBarHTML(flag, "to answer"),
     buttons: [
       ...flag.options.map((o, i) => ({ action: `use-${i}`, label: o.name, default: i === 0, callback: () => { void answerRebuke(message, "use", i); } })),

@@ -731,7 +731,7 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
  * @param {Actor} actor
  * @param {string} ability
  */
-function judgeSave(actor, ability, { concentration = false } = {}) {
+function judgeSave(actor, ability, { concentration = false, askId = null } = {}) {
   const on = new Set(reminderEntries().map(e => e.kind));
   if ( !on.has("condition") && !on.has("effect") ) return null;
   const sources = [];
@@ -740,7 +740,8 @@ function judgeSave(actor, ability, { concentration = false } = {}) {
       enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name }));
   }
   if ( on.has("effect") ) {
-    const roll = { kind: "save", ability };
+    // A save to keep Concentration reads its own mode field too (War Caster — decide/reminders.js modeKeys).
+    const roll = { kind: "save", ability, ...(concentration ? { concentration: true } : {}) };
     sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
     // The effect table's `saves` facet (Aura of Purity, Circle of Power — 2026-09-05), read
     // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
@@ -761,9 +762,27 @@ function judgeSave(actor, ability, { concentration = false } = {}) {
         const rec = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
         sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${itemNameOf(card) ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
       }
+      // Mage Slayer's Concentration Breaker (the PHB feats, group 4, 2026-09-27): the damage that
+      // forced THIS check was dealt by a creature holding the feat — the concentration ask records
+      // it (concentration.js `breakerFor`), and the gate says so, counted, like Extended's mark.
+      const breaker = concentrationAskFor(actor, askId)?.breaker ?? null;
+      if ( breaker ) {
+        sources.push(reminderSource("effect", "disadvantage", `${breaker.by} — ${breaker.feat}`, breaker.rule ?? ""));
+      }
     }
   }
   return new DialogCarried({ ...saveGate(sources), actorUuid: actor.uuid, ability, failed: false });
+}
+
+/**
+ * The concentration ask this save answers: the one its dialog carries (concentration.js opens the
+ * dialog with the ask's card on `bfSaveDemand`), else — a save rolled from the sheet — the oldest
+ * still pending for this actor, the one a bare roll answers (the demand registry's order).
+ */
+function concentrationAskFor(actor, askId = null) {
+  const carried = askId ? game.messages.get(askId)?.getFlag(MODULE_ID, "concentration") : null;
+  if ( carried ) return carried;
+  return pendingDemandsFor(actor.uuid, { flagKey: "concentration" })[0]?.card?.getFlag(MODULE_ID, "concentration") ?? null;
 }
 
 /**
@@ -800,7 +819,8 @@ Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, message) => {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const actor = config?.subject;
     if ( !(actor instanceof Actor) ) return;
-    const gate = judgeSave(actor, config.ability, { concentration: !!config.isConcentration });
+    const gate = judgeSave(actor, config.ability, { concentration: !!config.isConcentration,
+      askId: config.isConcentration ? (dialog?.options?.bfSaveDemand?.cardId ?? null) : null });
     if ( !gate ) return;
     dialog.options ??= {};
     dialog.options.bfSaveGate = gate;

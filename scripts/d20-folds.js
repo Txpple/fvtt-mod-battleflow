@@ -60,12 +60,12 @@
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext }
   from "./core.js";
 import { d20FoldEntries, metamagicEntries, listedNames } from "./settings.js";
-import { cardActivity, itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
+import { activityNamed, cardActivity, itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
 import { grantingActor, hitTargets, modeAllows, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { ADVANTAGE_BUYS, SUPERIORITY_FOLDS } from "./decide/registry.js";
+import { ADVANTAGE_BUYS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
@@ -265,10 +265,43 @@ const ADVANTAGE = {
   }
 };
 
-const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE };
+/**
+ * Guarded Mind (the PHB feats, group 4, 2026-09-27 — Mage Slayer): a FAILED Intelligence, Wisdom or
+ * Charisma save made a success, once per Short or Long Rest (SAVE_SUCCEEDS). Nothing is rolled: the
+ * spend is the feature's own activity (its consumption takes the item's use — dnd5e's, P2), and the
+ * contribution is the verdict (decide/verdict.js). Offered on the saves the row names only — the
+ * save's ability rides the roll (`ctx.ability`).
+ */
+const SUCCEED = {
+  tests: ["save"],
+  find: (actor, entry, ctx = {}) => {
+    const key = Object.keys(SAVE_SUCCEEDS).find(k => lower(k) === lower(entry.name));
+    const row = key ? SAVE_SUCCEEDS[key] : null;
+    if ( !row || !ctx.ability || !row.abilities.includes(ctx.ability) ) return null;
+    const item = itemNamed(actor, key);
+    const activity = item ? activityNamed(item, row.activity) : null;
+    if ( !item || !activity ) return null;
+    const pool = poolOf(actor, activity) ?? item;
+    const left = Number(pool?.system?.uses?.value ?? 0);
+    if ( !(left > 0) ) return null;
+    return { kind: "succeed", key, row, item, activity, pool, left };
+  },
+  die: () => null,                                        // no die: the verdict itself
+  spend: async (_actor, marker, message) => {
+    // `foldSpend`: this use is the rescue's spend, never the sheet's (the tactical note above).
+    const used = await marker.activity.use({ subsequentActions: false }, { configure: false }, {
+      data: { ...originData(message.id), flags: { [MODULE_ID]: { foldSpend: message.id } } }
+    });
+    return !!used;                                        // a use that did not happen grants nothing
+  }
+};
+
+const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE, succeed: SUCCEED };
 /** The kinds that REPLACE the d20 rather than add to it — heroic, Seeking Spell since 2026-09-09, and
  * Lucky's Advantage since 2026-09-25 (its replacement is the HIGHER of the two — `resolveFold`). */
 const REROLL_KINDS = new Set(["heroic", "seeking", "advantage"]);
+/** The kinds whose contribution is the VERDICT — nothing rolled, nothing added (Guarded Mind, 2026-09-27). */
+const VERDICT_KINDS = new Set(["succeed"]);
 
 // The bard behind an Inspired effect — `origin` is their ITEM, and the actor is its parent — is
 // `grantingActor` in shared.js since 2026-09-01: the reminder gate's Sapped-by line is the same
@@ -299,7 +332,8 @@ const scopeOf = entry => (entry.kind === "tactical")
  * @param {Actor} actor
  * @param {"attack"|"save"|"check"|"initiative"} testKind
  * @param {string[]} [spent]
- * @param {{skill?: string|null}} [ctx]   the check's skill, for a scoped entry (Ambush: Stealth only)
+ * @param {{skill?: string|null, spell?: boolean, ability?: string|null}} [ctx]   the check's skill, for a
+ *        scoped entry (Ambush: Stealth only); the save's ability, for a `succeed` row (Guarded Mind: Int/Wis/Cha)
  */
 function availableFolds(actor, testKind, spent = [], ctx = {}) {
   const out = [];
@@ -320,15 +354,18 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
       // The Superiority Die is a scale value — resolved on the fighter, "d8" read as "1d8".
       dieFormula = resolveDie(actor, dieFormula);
     }
-    if ( !REROLL_KINDS.has(entry.kind) && !dieFormula ) continue;   // a die-kind with no die is off
+    if ( !REROLL_KINDS.has(entry.kind) && !VERDICT_KINDS.has(entry.kind) && !dieFormula ) continue;   // a die-kind with no die is off
     // ⚠ `name` is the LOOKUP KEY (the item or effect to find); `label` is what the table reads.
     // For `bardic` those genuinely differ — "Inspired" vs "Bardic Inspiration". See KIND_LABEL.
     // A scoped entry is called by its own name (Ambush is not Tactical Mind on a card).
     // An `advantage` offer (Lucky, 2026-09-25) says its own cost and quotes its own row.
     const buy = (entry.kind === "advantage") ? { cost: `1 ${marker.row.point} · ${Number(marker.item.system.uses.value ?? 0)} left`,
       rule: marker.row.rule } : {};
+    // A `succeed` offer (Guarded Mind, 2026-09-27) is called by its BENEFIT's name and quotes its row.
+    const succeed = (entry.kind === "succeed") ? { label: marker.row.label, rule: marker.row.rule,
+      cost: `${RESCUE_KINDS.succeed.cost} · ${marker.left} left` } : {};
     out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
-      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy });
+      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy, ...succeed });
   }
   return out;
 }
@@ -432,14 +469,16 @@ for ( const [hook, testKind] of PLAIN_HOOKS ) {
       // button on the same message and race the withheld verdict.
       if ( (testKind === "save") && pendingSaveDemandFor(subject) ) return;
       const skill = data?.skill ?? null;   // the skill hook's own data (dnd5e 5.3.3: `{ ability, skill|tool, subject }`)
+      // The save's ability (dnd5e 6.0.5: `{ ability, subject }`) — a `succeed` row reaches some saves only.
+      const ability = (testKind === "save") ? (data?.ability ?? null) : null;
       // A maneuver ARMED from the sheet (Tactical Assessment, Ambush) folds in by itself; the
       // other folds the check admits are offered after, inside that stamp.
       if ( (testKind === "check") && await applyArmedFold(message, subject, testKind, { skill }) ) return;
-      const offers = availableFolds(subject, testKind, [], { skill });
+      const offers = availableFolds(subject, testKind, [], { skill, ability });
       if ( !offers.length ) return;
       const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
       await message.setFlag(MODULE_ID, "d20fold",
-        { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}) });
+        { ...baseFlag(subject, offers, testKind, rolls[0].total, window), ...(skill ? { skill } : {}), ...(ability ? { ability } : {}) });
       armFoldTimer(message);
     } catch(err) {
       console.error(`${TITLE} | D20 fold stamp (${hook}) failed.`, err);
@@ -549,12 +588,15 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     if ( !Number.isFinite(dc) || !Number.isFinite(total) || (total >= dc) ) return false;
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) || !modeAllows(actor) ) return false;
-    const offers = availableFolds(actor, "save");
+    // The save's ability, off the roll's own message (dnd5e 6.0: `system.ability`) — Guarded Mind's reach.
+    const ability = rollMessage.system?.ability ?? null;
+    const offers = availableFolds(actor, "save", [], { ability });
     if ( !offers.length ) return false;
 
     const window = Math.max(0, Number(setting(S.saveTimer)) || 0);
     await rollMessage.setFlag(MODULE_ID, "d20fold", {
       ...baseFlag(actor, offers, "save", total, window),
+      ...(ability ? { ability } : {}),
       dc,                                   // ⚠ the ask OWNS it — never re-derived here
       resume: { cardId: card.id, uuid, ...(by ? { by } : {}) }     // how, and by whom, the withheld verdict gets finished
     });
@@ -666,7 +708,7 @@ async function resolveFold(message, answer) {
       // last Second Wind spent elsewhere. Recording a spend that did not happen shipped a lie
       // once (ui.js:407); spending something no longer there is the same lie in reverse.
       // The find takes the roll's context too (Seeking Spell fits a SPELL attack alone — carried on the flag).
-      marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell });
+      marker = spec.find(actor, { name: offer.name, kind }, { spell: !!flag.spell, ability: flag.ability ?? null });
       if ( !marker ) {
         await queueFlagWrite(message, "d20fold", current => {
           current.status = "resolved";
@@ -694,30 +736,35 @@ async function resolveFold(message, answer) {
       // 1. REALLY spend it — a write, a use() or a delete, whichever this kind is.
       if ( !(await spec.spend(actor, marker, message)) ) return;
 
-      // 2. The new number, public, stamped so no other recognizer can claim it.
-      const rolled = REROLL_KINDS.has(kind)
-        ? await rerollOf(message, actor)
-        : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
-      if ( !rolled ) return;
-      // Lucky's Advantage (2026-09-25): the second d20 is rolled as a reroll is, and the HIGHER of
-      // the two stands — the replacement recorded is whichever roll that is, its crit with it.
-      if ( kind === "advantage" ) {
-        const first = message.rolls?.[0];
-        if ( first && (Number(first.total) > Number(rolled.summary.total)) ) {
-          rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
+      // 2. The new number, public, stamped so no other recognizer can claim it. A VERDICT kind
+      //    (Guarded Mind, 2026-09-27) rolls nothing: the spend above was the whole of it.
+      let rolled = null;
+      let rolledMessage = null;
+      if ( !VERDICT_KINDS.has(kind) ) {
+        rolled = REROLL_KINDS.has(kind)
+          ? await rerollOf(message, actor)
+          : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
+        if ( !rolled ) return;
+        // Lucky's Advantage (2026-09-25): the second d20 is rolled as a reroll is, and the HIGHER of
+        // the two stands — the replacement recorded is whichever roll that is, its crit with it.
+        if ( kind === "advantage" ) {
+          const first = message.rolls?.[0];
+          if ( first && (Number(first.total) > Number(rolled.summary.total)) ) {
+            rolled.summary = { total: first.total, isCritical: first.isCritical === true, isFumble: first.isFumble === true };
+          }
         }
+        // the fold over the roller, on every client — each modifies a roll already made (RULINGS, the
+        // dice that rise): a die added as "+N", a reroll turning over, Lucky's two d20s
+        const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
+        const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
+          oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
+        rolledMessage = await rolled.roll.toMessage({
+          speaker: ChatMessage.getSpeaker({ actor }),
+          flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`
+            : REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
+          flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
+        });
       }
-      // the fold over the roller, on every client — each modifies a roll already made (RULINGS, the
-      // dice that rise): a die added as "+N", a reroll turning over, Lucky's two d20s
-      const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
-      const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
-        oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
-      const rolledMessage = await rolled.roll.toMessage({
-        speaker: ChatMessage.getSpeaker({ actor }),
-        flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`
-          : REROLL_KINDS.has(kind) ? `${labelOf(offer)} — the reroll` : `${labelOf(offer)} — the die`,
-        flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } }
-      });
 
       // 3. Record the spend, then compose the verdict across EVERY fold on this message.
       //
@@ -734,7 +781,8 @@ async function resolveFold(message, answer) {
       // finished one, and the verdict write strips the marker.
       const entry = {
         kind, name: offer.name, label: offer.label, pendingVerdict: true,
-        ...(REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
+        ...(VERDICT_KINDS.has(kind) ? { verdict: "saved" }
+          : REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
       };
       await queueFlagWrite(message, "d20fold", current => {
         if ( current.status !== "pending" ) return false;
@@ -786,9 +834,11 @@ async function resolveFold(message, answer) {
 
     // What is still available AFTER this spend — the re-offer (finding 6).
     // By NAME (2026-09-05): spending Ambush must not hide Tactical Mind, its kind-mate, from the re-offer.
-    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell });
+    const remaining = availableFolds(actor, flag.testKind, spends.map(s => s.name ?? s.kind), { skill: flag.skill ?? null, spell: !!flag.spell, ability: flag.ability ?? null });
     const stillFailing = isStillFailing(flag, composed, baseRoll, folds);
     const reoffer = remaining.length && stillFailing;
+    // A save made a success outright (Guarded Mind) — there is no arithmetic to state, only the verdict.
+    const succeeded = folds.some(f => f.verdict === "saved");
 
     const lines = [];
     let anyHit = false;
@@ -826,6 +876,10 @@ async function resolveFold(message, answer) {
           lines.push(`${sumText(flag, composed)} vs AC ${ac} — `
             + (t.verdict === "hit" ? `<strong>now hits ${t.name}</strong>` : `still misses ${t.name}`));
         }
+      } else if ( succeeded ) {
+        lines.push(Number.isFinite(current.dc)
+          ? `${flag.baseTotal} vs DC ${current.dc} — <strong>succeeds instead</strong>.`
+          : "<strong>The save succeeds instead.</strong>");
       } else if ( Number.isFinite(current.dc) ) {
         const made = composed.total >= current.dc;
         // A check that carried a DC (a requested one) passes; only a save "saves" (the walk, 2026-09-24).
@@ -907,6 +961,8 @@ function isStillFailing(flag, composed, baseRoll, folds) {
   if ( flag.testKind === "attack" ) {
     return !(flag.targets ?? []).some(t => foldedVerdict(t, baseRoll, folds) === "hit");
   }
+  // A save made a success outright (Guarded Mind) — with or without a DC, it is no longer failing.
+  if ( (folds ?? []).some(f => f.verdict === "saved") ) return false;
   if ( Number.isFinite(flag.dc) ) return composed.total < flag.dc;
   return true;
 }
@@ -927,6 +983,7 @@ async function announce(message, actor, name, testKind, anyHit, lines, marker) {
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
       title: (testKind === "attack")
         ? (anyHit ? `${name} — the miss becomes a hit` : `${name} — still a miss`)
+        : (marker?.kind === "succeed") ? `${name} — the failed save succeeds instead`
         : `${name} — the roll is patched`,
       subtitle: (marker?.kind === "tactical") ? "one Superiority Die spent" : `${actor.name} spends ${name}`,
       lines
@@ -1139,13 +1196,16 @@ function testKindPhrase(flag) {
   return `check · rolled ${flag.baseTotal}`;
 }
 
+/** The cost the card says for an offer — the kind's sentence; a verdict kind's own (its uses left). */
+const costOnCard = o => (VERDICT_KINDS.has(o.kind) ? (o.cost ?? SPEND_COST[o.kind]) : SPEND_COST[o.kind]) ?? null;
+
 /** The offer card's body: what can be spent, and — under holdReveal — what it has to beat. */
 function offerLines(flag, offers) {
   // ⚠ The cost rides on the offer's OWN line, so it reaches the card and the popup alike and
   // can never be read as applying to a different fold in the list.
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
-    + (REROLL_KINDS.has(o.kind) ? " — reroll the d20" : ` — add ${o.dieFormula}`)
-    + (SPEND_COST[o.kind] ? ` <em>(${SPEND_COST[o.kind]})</em>` : ""));
+    + (REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? " — succeed instead" : ` — add ${o.dieFormula}`)
+    + (costOnCard(o) ? ` <em>(${costOnCard(o)})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {
       lines.push(`Needs +${t.margin} to reach ${t.name} (AC ${t.ac} vs ${flag.baseTotal}).`);
@@ -1172,6 +1232,13 @@ function resolvedLines(flag, message) {
       : "Passed — the roll stands."];
   }
   const lines = [];
+  // A save made a success outright (Guarded Mind) moved no number — the verdict is the whole line.
+  if ( (flag.spends ?? []).some(s => VERDICT_KINDS.has(s.kind)) ) {
+    lines.push(Number.isFinite(flag.dc)
+      ? `<strong>The save succeeds instead</strong> — ${flag.baseTotal} vs DC ${flag.dc}.`
+      : "<strong>The save succeeds instead.</strong>");
+    return lines;
+  }
   if ( Number.isFinite(flag.foldedTotal) ) {
     lines.push(`<strong>${flag.baseTotal}</strong> → <strong>${flag.foldedTotal}</strong>`);
   }

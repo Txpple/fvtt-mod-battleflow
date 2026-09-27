@@ -66,7 +66,8 @@ const SECTIONS = {
   22: 'the save gate says WHY when the PLATFORM bends the save (2026-09-04): an item effect on the sheet is a box',
   24: 'the chained roll\'s SUMMARY (the 6.0 pass, phase 4): the roll\'s card hidden, the gate\'s record inside the usage card, the nudge, summaries off; the verdict written into the platform\'s row, the line only where no row (2026-09-18)',
   25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card',
-  26: 'a FEATURE row\'s saves facet (Slice A, 2026-09-24): Brave, a text-only trait on the sheet, counts Advantage against a demand that would frighten, and nothing against one that would poison'
+  26: 'a FEATURE row\'s saves facet (Slice A, 2026-09-24): Brave, a text-only trait on the sheet, counts Advantage against a demand that would frighten, and nothing against one that would poison',
+  27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never'
 };
 // §2 rolls the damage of the demand §1 cast (`card1`); §13 rides §12's completed lifecycle —
 // its card, its template id and its 140px scene. Both couplings are declared in the code
@@ -110,7 +111,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['saves', 'saveTimer', 'autoDamage', 'autoApply',
     'dramaticBeat', 'requireTarget', 'reactionHold',
-    'riders', 'effectRiders', 'masteryRiders', 'concMode', 'castApply'];
+    'riders', 'effectRiders', 'masteryRiders', 'concMode', 'castApply', 'd20FoldAsk', 'd20Folds'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -220,6 +221,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       priorActor[a.id] = {
         'system.attributes.hp.value': a.system._source.attributes.hp.value,
         'system.abilities.con.save.roll.bonus': a.system._source.abilities?.con?.save?.roll?.bonus ?? '',
+        'system.abilities.wis.save.roll.bonus': a.system._source.abilities?.wis?.save?.roll?.bonus ?? '',
       };
     }
     priorActor[victim.id]['system.resources.legres.max'] =
@@ -280,6 +282,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             save: { ability: ['dex'], dc: { calculation: '', formula: '15' } },
             target: { override: false, prompt: true }
           },
+          // §27's shape — the same demand on a WISDOM save (the PHB feats, group 4: Guarded Mind
+          // reaches Intelligence, Wisdom and Charisma saves only).
+          bfsavewis0000000: {
+            _id: 'bfsavewis0000000', type: 'save',
+            activation: { type: 'action', override: false },
+            consumption: { targets: [], spellSlot: false },
+            damage: { onSave: 'half', parts: [{ custom: { enabled: true, formula: '10' }, types: ['poison'] }] },
+            effects: [{ _id: EFF_FAIL, onSave: false }, { _id: EFF_ALWAYS, onSave: true }],
+            save: { ability: ['wis'], dc: { calculation: '', formula: '15' } },
+            target: { override: false, prompt: true }
+          },
           bfsaveself000000: {
             _id: 'bfsaveself000000', type: 'save',
             activation: { type: 'action', override: false },
@@ -335,6 +348,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const saveActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveact0000000');
     const selfActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsaveself000000');
     const dexActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavedex0000000');
+    const wisActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavewis0000000');
     const fullActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavefull000000');
     const tmplActivity = () => npc.items.get(poisonItem.id).system.activities.get('bfsavetmpl000000');
     const target = (...tokens) => {
@@ -2339,6 +2353,100 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `gone=${gone} card=${!!card25} stamped=${!!stamped} popup=${!!popup} outcome=${entry?.outcome} applied=${entry?.applied} chip=${!!chip}`);
       } finally {
         await saveBonus(victim, priorActor[victim.id]['system.abilities.con.save.roll.bonus']);
+        await clearChips();
+      }
+    }
+
+    // ============================================== 27. Guarded Mind on a demanded save
+    // (the PHB feats, group 4, 2026-09-27 — Mage Slayer): "If you fail an Intelligence, a Wisdom,
+    // or a Charisma saving throw, you can cause yourself to succeed instead." The `succeed` D20
+    // fold, offered on the withheld verdict of a DEMANDED Wisdom save the victim fails by force:
+    // the offer carries the benefit's name; pressing it spends the feat's one use through its own
+    // activity and the verdict lands SAVED — half damage, the fail-only effect never lands, the row
+    // names it. With the use gone, the next failure is not offered it; a Constitution save never is.
+    if (want(27)) {
+      const pack = game.packs.get('dnd-players-handbook.feats');
+      const idx = pack ? await pack.getIndex() : [];
+      const src = idx.find?.(e => e.name === 'Mage Slayer');
+      const doc = src ? await pack.getDocument(src._id) : null;
+      if (!doc) return { fatal: 'section 27: no Mage Slayer in dnd-players-handbook.feats' };
+      const [feat] = await victim.createEmbeddedDocuments('Item', [doc.toObject()]);
+      created.items.push({ actorId: victim.id, id: feat.id });
+      const wisBonus = v => victim.update({ 'system.abilities.wis.save.roll.bonus': v });
+      // The offer rides the fold's own gates: the ask on (d20FoldAsk), the side admitted (autoDamage
+      // "all" — modeAllows), no fold clock (saveTimer 0 stamps no deadline).
+      const priorAsk = game.settings.get(MOD, 'd20FoldAsk');
+      await game.settings.set(MOD, 'd20FoldAsk', true);
+      await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`)?.default ?? '');   // the shipped list carries Mage Slayer:succeed
+      await set('autoDamage', 'all');
+      const rescueRow = kind => [...document.querySelectorAll('.application')]
+        .map(el => el.querySelector(`[data-bf-rescue-action="${kind}"]`)).find(Boolean) ?? null;
+      const demand = async (activity, ability) => {
+        target(victimToken);
+        await sleep(120);
+        const use = await activity.use({}, { configure: false }, {});
+        const card = use?.message instanceof ChatMessage ? use.message : null;
+        if (!card) return { card: null, roll: null };
+        await until(() => card.getFlag(MOD, 'saves'));
+        await sleep(600);
+        await victim.rollSavingThrow({ ability }, { configure: false }, {});
+        const roll = await until(() => game.messages.contents.findLast(m => (m.speaker?.actor === victim.id)
+          && (m.system?.ability === ability) && (m.timestamp >= card.timestamp)), 6000);
+        return { card, roll };
+      };
+      try {
+        await clearChips();
+        await wisBonus('-30');                    // a forced failure against DC 15
+        await healFull(victim);
+        const vMax = victim.system.attributes.hp.max;
+        const { card, roll } = await demand(wisActivity(), 'wis');
+        const fold = roll ? await until(() => roll.getFlag(MOD, 'd20fold'), 8000) : null;
+        const offer = (fold?.offers ?? []).find(o => o.kind === 'succeed');
+        ok('27a. a failed demanded Wisdom save is WITHHELD and offered Guarded Mind — the benefit\'s name, its rule, the use left',
+          !!card && !!offer && (offer.label === 'Guarded Mind') && /succeed instead/.test(offer.rule ?? '') && /1 left/.test(offer.cost ?? '')
+            && !entryOf(card, victim)?.done,
+          `card=${!!card} roll=${!!roll} offers=${JSON.stringify(fold?.offers ?? null)} done=${entryOf(card, victim)?.done}`);
+        const row = await until(() => rescueRow('succeed'), 8000);
+        row?.click();
+        const entry = card ? await until(() => { const e = entryOf(card, victim); return e?.applied ? e : null; }, 20000) : null;
+        const spent = await until(() => Number(victim.items.get(feat.id)?.system?.uses?.value) === 0, 6000);
+        ok('27b. pressed: the feat\'s one use is spent through its own activity, and the save is SAVED — named on the verdict',
+          (entry?.outcome === 'saved') && (entry?.madeBy === 'Guarded Mind') && !!spent,
+          `outcome=${entry?.outcome} madeBy=${entry?.madeBy} uses=${victim.items.get(feat.id)?.system?.uses?.value} row=${!!row}`);
+        const dmgTaken = await until(() => (victim.system.attributes.hp.value === vMax - 5) ? true : null, 10000);
+        ok('27c. the success\'s consequences: half damage, the fail-only effect never lands, the onSave one does',
+          !!dmgTaken && !chipOn(victim, 'BF Poisoned') && !!chipOn(victim, 'BF Splashed'),
+          `hp=${victim.system.attributes.hp.value}/${vMax} poisoned=${!!chipOn(victim, 'BF Poisoned')} splashed=${!!chipOn(victim, 'BF Splashed')}`);
+        const settled = roll?.getFlag(MOD, 'd20fold');
+        ok('27d. the fold settles as a spend with the verdict, no die, no reroll',
+          (settled?.status === 'resolved') && (settled?.spends?.[0]?.kind === 'succeed') && (settled?.spends?.[0]?.verdict === 'saved')
+            && !Number.isFinite(settled?.spends?.[0]?.die) && !settled?.spends?.[0]?.reroll,
+          JSON.stringify(settled?.spends ?? null));
+        // The use is gone: the next failure is not offered it.
+        await clearChips();
+        await healFull(victim);
+        const again = await demand(wisActivity(), 'wis');
+        const e2 = again.card ? await until(() => { const e = entryOf(again.card, victim); return e?.applied ? e : null; }, 15000) : null;
+        const f2 = again.roll?.getFlag(MOD, 'd20fold');
+        ok('27e. with the use spent, the next failed Wisdom save is not offered Guarded Mind — it fails',
+          (e2?.outcome === 'failed') && !(f2?.offers ?? []).some(o => o.kind === 'succeed'),
+          `outcome=${e2?.outcome} offers=${JSON.stringify(f2?.offers ?? null)}`);
+        // A Constitution save is never Guarded Mind's, even with the use back.
+        await victim.items.get(feat.id)?.update({ 'system.uses.spent': 0 });
+        await clearChips();
+        await healFull(victim);
+        await saveBonus(victim, '-30');
+        const con = await demand(saveActivity(), 'con');
+        const e3 = con.card ? await until(() => { const e = entryOf(con.card, victim); return e?.applied ? e : null; }, 15000) : null;
+        const f3 = con.roll?.getFlag(MOD, 'd20fold');
+        ok('27f. a failed Constitution save is never offered it — the rule names Intelligence, Wisdom and Charisma',
+          (e3?.outcome === 'failed') && !(f3?.offers ?? []).some(o => o.kind === 'succeed'),
+          `outcome=${e3?.outcome} offers=${JSON.stringify(f3?.offers ?? null)}`);
+      } finally {
+        await wisBonus(priorActor[victim.id]['system.abilities.wis.save.roll.bonus']);
+        await saveBonus(victim, priorActor[victim.id]['system.abilities.con.save.roll.bonus']);
+        await game.settings.set(MOD, 'd20FoldAsk', priorAsk);
+        await set('autoDamage', 'off');
         await clearChips();
       }
     }

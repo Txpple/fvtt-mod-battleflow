@@ -63,6 +63,10 @@
  */
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
+  // Guarded Mind (the PHB feats, group 4, 2026-09-27): "you can cause yourself to succeed instead" —
+  // no number moves; the save's VERDICT is the contribution (`foldedSave` reads it as `forced`).
+  // A save's alone — the attack side (a uuid) has no "saved" to force.
+  if ( spend?.kind === "succeed" ) return (uuid === undefined) ? { verdict: "saved" } : null;
   // Seeking Spell (2026-09-09) is the second reroll — the same replace, the same crit and fumble.
   // Lucky's Advantage on initiative (2026-09-25) replaces too: the resolver records the HIGHER of
   // the two d20s as its `reroll` (d20-folds.js), so the kept one's total and crit are what stand.
@@ -299,12 +303,15 @@ export const SAVE_FOLDS = [
  * to kill.
  *
  * ⚠ `forced` (legendary resistance) still wins regardless — it is not arithmetic, it is a
- * ruling, and folding a die into a save that was never going to be rolled makes no sense.
+ * ruling, and folding a die into a save that was never going to be rolled makes no sense. A fold
+ * whose contribution IS the verdict (Guarded Mind's `succeed`, 2026-09-27) is the same ruling,
+ * spent by the roller: `made` says which of the two made it a success, for the card.
  */
 export function foldedSave({ total, dc, forced = false, folds = [] }) {
   const rolled = foldedRoll({ total }, folds);
+  const made = (folds ?? []).some(f => f?.verdict === "saved");
   return { total: rolled.total, added: rolled.added, replaced: rolled.replaced,
-    outcome: saveOutcome(rolled.total, dc, forced) };
+    outcome: saveOutcome(rolled.total, dc, forced || made), ...(made ? { made: true } : {}) };
 }
 
 /**
@@ -407,5 +414,5 @@ function verdictStakes(flag, t) {
   const base = (t.outcome === "saved")
     ? `saved${half}` : `failed${(t.evasion && flag.hasDamage) ? " — half damage (Evasion)" : ""}`;
   return `vs DC ${flag.dc} — ${base}`
-    + `${t.forced ? " (legendary resistance)" : ""}${t.timedOut ? " (timer)" : ""}`;
+    + `${t.forced ? " (legendary resistance)" : ""}${t.madeBy ? ` (${t.madeBy})` : ""}${t.timedOut ? " (timer)" : ""}`;
 }

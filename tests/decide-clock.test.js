@@ -194,7 +194,11 @@ describe("the registry's clock-rider data", () => {
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
       // …or a Critical Hit's own (the PHB feats, group 3: Slasher, Crusher, Piercer): the crit is the limit.
-      if (row.when === "any") expect(row.uses === true || row.crit === true, key).toBe(true);
+      // …or an Opportunity Attack's (the PHB feats, group 6: Sentinel's Halt) — the Reaction is the limit.
+      if (row.when === "any")
+        expect(row.uses === true || row.crit === true || row.judge === "opportunity", key).toBe(
+          true
+        );
       if (row.effects || row.lands)
         expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
       expect(row.rule.length, key).toBeGreaterThan(20);
@@ -252,5 +256,32 @@ describe("the on-hit riders' facts (the PHB feats, group 3, 2026-09-26)", () => 
     expect(row("slasher-critical").lands.from).toBeUndefined();
     expect(reg.EFFECT_BENDS.Slashed.attacker).toBe("disadvantage");
     expect(reg.EFFECT_BENDS.Hamstrung).toBeUndefined();
+  });
+});
+
+describe("Sentinel's Halt — an Opportunity Attack's rider (the PHB feats, group 6, 2026-09-27)", () => {
+  const halt = () => reg.CLOCK_RIDERS["sentinel-halt"];
+  it("due on an attack the module drove as an Opportunity Attack, and on a melee attack off the attacker's own turn", () => {
+    expect(c.riderDue(halt(), { opportunity: "driven" })).toEqual({
+      due: true,
+      why: "an Opportunity Attack"
+    });
+    expect(c.riderDue(halt(), { opportunity: "offTurn" })).toEqual({
+      due: true,
+      why: "a melee attack off your turn"
+    });
+    expect(c.riderDue(halt(), { opportunity: null })).toEqual({
+      due: false,
+      why: "not an Opportunity Attack"
+    });
+  });
+  it("lands the pack's own Halted, for the rest of the CURRENT turn (the halt clock, pinned to the turn), and says its caveat", () => {
+    expect(halt().lands).toMatchObject({ name: "Halted", from: "Halted" });
+    expect(halt().lands.id).toHaveLength(16);
+    expect(halt()).toMatchObject({ clock: "halt", caveat: "only on an Opportunity Attack" });
+    expect(chips.CHIP_WINDOWS.halt).toEqual({ value: 0, units: "turns", expiry: "turnEnd" });
+    expect(chips.TURN_PINNED).toContain("halt");
+    expect(chips.TURN_CHITS).toContain("halt"); // out of combat there is no turn — the pack's own duration stands
+    expect(chips.chipClock("halt", null)).toBe(null);
   });
 });

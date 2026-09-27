@@ -279,6 +279,41 @@ describe("rescueView — two machines, one window", () => {
     }
   };
 
+  it("a SUCCEED row (Guarded Mind, 2026-09-27) is called by its benefit, quotes its row, says it rolls nothing", () => {
+    const view = p.rescueView(
+      read({
+        d20fold: {
+          status: "pending",
+          testKind: "save",
+          ability: "wis",
+          baseTotal: 9,
+          dc: 15,
+          offers: [
+            {
+              kind: "succeed",
+              name: "Mage Slayer",
+              label: "Guarded Mind",
+              dieFormula: null,
+              cost: "one use, back after a Short or Long Rest · 1 left",
+              rule: "Guarded Mind. If you fail an Intelligence, a Wisdom, or a Charisma saving throw, you can cause yourself to succeed instead."
+            }
+          ]
+        }
+      })
+    );
+    expect(view.rows).toHaveLength(1);
+    expect(view.rows[0]).toMatchObject({
+      kind: "succeed",
+      action: "succeed",
+      label: "Guarded Mind",
+      icon: "fa-solid fa-shield-halved"
+    });
+    expect(view.quotes[0].detail).toBe(
+      "The save succeeds instead — no roll — one use, back after a Short or Long Rest · 1 left."
+    );
+    expect(view.quotes[0].text.startsWith("Guarded Mind.")).toBe(true);
+  });
+
   it("two TACTICAL rows on one check (Tactical Mind and Ambush, 2026-09-05) get distinct keys, actions and quotes", () => {
     const view = p.rescueView(
       read({

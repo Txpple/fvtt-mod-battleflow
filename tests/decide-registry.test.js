@@ -231,11 +231,13 @@ describe("d20 folds — three spends, one mechanism", () => {
     // 2026-09-05: Ambush and Tactical Assessment ship too — the tactical SPEND with a scope of their own.
     // 2026-09-09: Seeking Spell too — the metamagic pass's reroll on a spell attack's miss.
     // 2026-09-25: Lucky's `advantage` too — the no-dialog initiative road of its Advantage half.
+    // 2026-09-27: Mage Slayer's `succeed` too — Guarded Mind (the PHB feats, group 4).
     expect(entries.map(e => e.kind).sort()).toEqual([
       "advantage",
       "bardic",
       "heroic",
       "seeking",
+      "succeed",
       "tactical",
       "tactical",
       "tactical"
@@ -389,7 +391,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // Advantage half, the Halfling walk: the box bought before the roll, the no-dialog initiative fold).
     // 2026-09-25: 33 → 34 — `shove` joins the maneuver folds (Tavern Brawler's push: the bash offer
     // on an Unarmed Strike with no save behind it; the origin feats).
-    expect(total).toBe(34);
+    // 2026-09-27: 34 → 35 — `succeed` joins the d20 folds (Mage Slayer's Guarded Mind: a failed save
+    // made a success — the verdict itself, no die; the PHB feats, group 4).
+    expect(total).toBe(35);
   });
 
   it("puts every kind-bearing list spec's set in the table — unless the spec says it is MEMBERSHIP", () => {
@@ -505,6 +509,33 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
   it("every save row is also a row of the condition table — one membership list switches both gates", () => {
     for (const key of Object.keys(reg.SAVE_BENDS))
       expect(reg.CONDITION_STATUSES.has(key), key).toBe(true);
+  });
+});
+
+describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4, 2026-09-27)", () => {
+  it("Mage Slayer's Guarded Mind: its activity, its label, the three mental saves, the rule verbatim", () => {
+    expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual(["Mage Slayer"]);
+    const row = reg.SAVE_SUCCEEDS["Mage Slayer"];
+    expect(Object.isFrozen(row)).toBe(true);
+    expect(row).toMatchObject({ activity: "Guard Mind", label: "Guarded Mind" });
+    expect([...row.abilities]).toEqual(["int", "wis", "cha"]);
+    expect(row.rule.startsWith("Guarded Mind. If you fail an Intelligence")).toBe(true);
+  });
+  it("is the `succeed` kind's table, and the D20 Folds list ships its row", () => {
+    expect(reg.D20_FOLD_KINDS.has("succeed")).toBe(true);
+    expect(reg.LIST_SPECS.d20Folds.default).toContain("Mage Slayer:succeed");
+  });
+  it("Mage Slayer's Concentration Breaker is a feat row of the fighting-style table that `breaks` concentration", () => {
+    expect(reg.FIGHTING_STYLES["Mage Slayer"]).toMatchObject({
+      gate: "always",
+      feat: true,
+      breaks: "concentration"
+    });
+    expect(
+      Object.values(reg.FIGHTING_STYLES)
+        .filter(r => r.breaks)
+        .map(r => r.key)
+    ).toEqual(["mage-slayer"]);
   });
 });
 

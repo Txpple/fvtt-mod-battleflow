@@ -15,10 +15,13 @@
  * request), and the result is that client's. Nothing is asked: the feature's text grants it.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { lower, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { listedNames, restGrantEntries } from "./settings.js";
 import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { REST_GRANTS } from "./decide/registry.js";
+import { coatSaveAbility } from "./decide/chips.js";
+import { riderPartFormula } from "./decide/clock.js";
+import { holdsTemp, mealStanding } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { isPartyMember } from "./shared.js";
@@ -40,7 +43,7 @@ function grantsFor(actor, restType) {
   for ( const [name, row] of Object.entries(REST_GRANTS) ) {
     if ( row.to ) continue;   // given to others, asked after the rest (the song, below)
     if ( !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
-    if ( !actor.items.some(i => (i.type === "feat") && (lower(i.name) === lower(name))) ) continue;
+    if ( !actor.items.some(i => (i.type === "feat") && (lower(i.name) === lower(featureOf(name, row)))) ) continue;
     const write = GRANT_WRITES[row.grant]?.(actor);
     if ( write ) out.push({ name, grant: row.grant, write });
   }
@@ -95,17 +98,31 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * cap enforced as they are made, a tick pinging the creature's token, one OK.
  *
  *   - THE ASK is a card the resting client posts once the rest is done, naming the allies the map
- *     puts within the row's reach (characters on the owner's side, nearest edges — R1), each marked
- *     with whether it already has the grant. Nobody who could take it: no card.
+ *     puts within the row's reach (characters on the owner's side, nearest edges — R1; the owner
+ *     too where the row says `self`; every one on the scene where the rule names no distance),
+ *     each marked with whether it already has the grant. Nobody who could take it: no card.
  *   - THE POPUP opens on whoever answers for the owner (canAnswerFor); no clock — a rest is nobody
  *     else's wait, and the card's button reopens it. The allies without it start ticked, the Party
- *     first, up to the cap (the owner's Proficiency Bonus — the feat's own limit).
+ *     first, up to the cap (the row's — the owner's Proficiency Bonus for the song).
  *   - THE WRITE is to OTHER actors, so it is the GM's: a GM answering folds directly; a player's
  *     answer is an envelope the elect folds (the relay registry), and the elect lands the picks.
- *     With no GM on, the player is told to tick the boxes by hand.
+ *     With no GM on, the player is told to give it by hand.
+ *
+ * THE PHB FEATS, group 5 (2026-09-27 — RULINGS *The PHB feats — groups 4–6*): the same popup gives
+ * Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats — the amount read off the feat's
+ * own heal activity, given only where it is more than the creature holds), and Chef's Replenishing
+ * Meal: the activity's extra die, healed to an eater that spends Hit Dice in the SAME Short Rest.
+ * Each creature rests on its own client in any order, so an eater whose rest already ended is
+ * judged off its rest card (the Hit Dice it spent, stamped below) and healed at once; one still
+ * resting carries the meal on its sheet (`mealFed`) and is healed as its own rest ends.
  * ========================================================================================== */
 
 const SONG_FLAG = "restSong";
+const SPENT_FLAG = "restSpent";   // a Short Rest card's Hit Dice spent (the meal reads it)
+const FED_FLAG = "mealFed";       // an eater still resting, carrying the Chef's meal
+
+/** The feature a row is read off — its own name, or the feat it is a benefit of (Chef's two). */
+const featureOf = (name, row) => row.feature ?? name;
 
 /** The listed `to: "allies"` rows this actor holds for this rest — `[{ name, row, item }]`. */
 function songRowsFor(actor, restType) {
@@ -113,50 +130,153 @@ function songRowsFor(actor, restType) {
   const out = [];
   for ( const [name, row] of Object.entries(REST_GRANTS) ) {
     if ( (row.to !== "allies") || !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
-    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
+    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(featureOf(name, row))));
     if ( item ) out.push({ name, row, item });
   }
   return out;
 }
 
-/** Whether an actor already holds what the grant gives. */
-const HAS_GRANT = { inspiration: actor => actor?.system?.attributes?.inspiration === true };
+/**
+ * The heal activity a row reads its amount from — the named one, or (Inspiring Leader) the one that
+ * stands for the ability the feat raised: its own Ability Score Improvement's record, else the higher
+ * modifier among the activities the sheet still carries (the pack: "delete the other").
+ */
+function grantActivityOf(actor, item, row) {
+  if ( row.activity ) return activityNamed(item, row.activity);
+  if ( !row.activities ) return null;
+  const offered = Object.entries(row.activities).filter(([, n]) => activityNamed(item, n)).map(([a]) => a);
+  const ability = coatSaveAbility({ offered, assigned: asiAssigned(item),
+    mods: Object.fromEntries(offered.map(a => [a, actor.system?.abilities?.[a]?.mod ?? 0])) });
+  return ability ? activityNamed(item, row.activities[ability]) : null;
+}
+
+/** A heal activity's amount as a formula, resolved on the owner's sheet — "1d8", "13" — or null (N1). */
+function grantFormulaOf(actor, activity) {
+  const h = activity?.healing;
+  const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+  try {
+    const resolved = raw ? Roll.replaceFormulaData(raw, actor.getRollData()) : null;
+    return (resolved && Roll.validate(resolved)) ? resolved : null;
+  } catch { return null; }
+}
+
+/** The amount a Temporary Hit Points row gives — its formula with no dice, evaluated. */
+function tempAmountOf(formula) {
+  try { return formula ? Math.max(0, Math.floor(Number(Roll.safeEval(formula)) || 0)) : 0; } catch { return 0; }
+}
+
+/** The facts of a creature's latest Short Rest card — its end, the Hit Dice spent, its request — or null. */
+function lastShortRestOf(actor) {
+  for ( const m of game.messages.contents.slice(-300).reverse() ) {
+    if ( (m.type !== "rest") || (m.system?.type !== "short") ) continue;
+    const spent = m.getFlag(MODULE_ID, SPENT_FLAG);
+    if ( spent?.actorUuid !== actor.uuid ) continue;
+    return { at: spent.at ?? m.timestamp, hitDice: spent.hitDice ?? 0, requestId: spent.requestId ?? null };
+  }
+  return null;
+}
+
+/** Whether an actor already holds what the grant gives — the row greyed "(has it)". */
+const HAS_GRANT = {
+  inspiration: actor => actor?.system?.attributes?.inspiration === true,
+  temphp: (actor, flag) => holdsTemp(actor?.system?.attributes?.hp?.temp, flag.amount),
+  meal: (_actor, _flag, c) => c.meal === "none"
+};
+
+/** What a candidate's row says beside its name, greyed or not. */
+function candidateNote(grant, c) {
+  if ( grant === "meal" ) return (c.meal === "spent") ? `spent ${c.hitDice} Hit ${c.hitDice === 1 ? "Die" : "Dice"}`
+    : (c.meal === "none") ? "spent no Hit Dice" : "still resting — when they spend a Hit Die";
+  if ( grant === "temphp" ) return c.has ? `has ${c.temp} temp HP` : (c.temp ? `${c.temp} temp HP now` : "");
+  return c.has ? "has it" : "";
+}
 
 /** The allies the map puts within reach of the owner's token — characters on its side, one row per actor. */
-function songCandidates(actor, row) {
+function songCandidates(actor, row, flag, ownRest = null) {
   const own = tokenOfActor(actor);
   if ( !own ) return [];
-  const seen = new Set([actor.uuid]);
+  const seen = new Set(row.self ? [] : [actor.uuid]);
   const out = [];
   for ( const t of canvas.tokens?.placeables ?? [] ) {
     const a = t.actor;
     if ( !a || (a.type !== "character") || seen.has(a.uuid) ) continue;
     if ( t.document.disposition !== own.document.disposition ) continue;
-    const feet = nearestFeet(own, t);
-    if ( (feet === null) || (feet > row.reach) ) continue;
+    const feet = (a.uuid === actor.uuid) ? 0 : nearestFeet(own, t);
+    if ( feet === null ) continue;
+    if ( Number.isFinite(row.reach) && (feet > row.reach) ) continue;
     seen.add(a.uuid);
-    out.push({ uuid: a.uuid, name: t.document.name ?? a.name, tokenId: t.id, feet: Math.round(feet),
-      party: isPartyMember(a.uuid), has: !!HAS_GRANT[row.grant]?.(a) });
+    const c = { uuid: a.uuid, name: t.document.name ?? a.name, tokenId: t.id, feet: Math.round(feet),
+      party: isPartyMember(a.uuid), self: a.uuid === actor.uuid };
+    if ( row.grant === "temphp" ) c.temp = Number(a.system?.attributes?.hp?.temp) || 0;
+    if ( row.grant === "meal" ) {
+      const rest = ((a.uuid === actor.uuid) && ownRest) ? ownRest : lastShortRestOf(a);
+      c.meal = mealStanding({ rest, chef: { at: flag.restAt, requestId: flag.requestId } });
+      c.hitDice = rest?.hitDice ?? 0;
+    }
+    c.has = !!HAS_GRANT[row.grant]?.(a, flag, c);
+    c.note = candidateNote(row.grant, c);
+    out.push(c);
   }
   return out.sort((x, y) => (Number(y.party) - Number(x.party)) || (x.feet - y.feet));
 }
 
-/** The cap a row names — "prof": the owner's Proficiency Bonus. */
-const capOf = (actor, row) => (row.cap === "prof") ? Math.max(1, Number(actor.system?.attributes?.prof) || 1) : (Number(row.cap) || 1);
+/** The cap a row names — "prof": the owner's Proficiency Bonus; a number; a formula on the owner's sheet. */
+function capOf(actor, row) {
+  if ( row.cap === "prof" ) return Math.max(1, Number(actor.system?.attributes?.prof) || 1);
+  if ( Number.isFinite(row.cap) ) return Math.max(1, row.cap);
+  try { return Math.max(1, Math.floor(Number(Roll.safeEval(Roll.replaceFormulaData(String(row.cap), actor.getRollData()))) || 1)); }
+  catch { return 1; }
+}
+
+/** What the grant is called on the card and in the popup — the amount where there is one. */
+function grantText(flag) {
+  if ( flag.grant === "temphp" ) return `${flag.amount} Temporary Hit Points`;
+  if ( flag.grant === "meal" ) return `an extra ${flag.formula} Hit Points`;
+  return GRANT_LABEL[flag.grant] ?? flag.grant;
+}
+
+// Every Short Rest card records the Hit Dice its creature spent (the meal reads it — dnd5e's card
+// says it only in its words), on the resting client, which authored the card.
+Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+  try {
+    const type = result?.type ?? config?.type;
+    const message = result?.message;
+    if ( (type !== "short") || !(actor instanceof Actor) || !message?.isOwner ) return;
+    void message.setFlag(MODULE_ID, SPENT_FLAG, { actorUuid: actor.uuid, hitDice: Math.max(0, -(Number(result.dhd) || 0)),
+      requestId: config?.request?.id ?? null, at: Date.now() }).catch(() => {});
+  } catch(err) {
+    console.warn(`${TITLE} | Could not record the Hit Dice spent in the rest.`, err);
+  }
+});
 
 Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
-    for ( const { name, row, item } of songRowsFor(actor, result?.type ?? config?.type ?? "long") ) {
-      const candidates = songCandidates(actor, row);
+    const restType = result?.type ?? config?.type ?? "long";
+    for ( const { name, row, item } of songRowsFor(actor, restType) ) {
+      const base = { status: "pending", row: name, grant: row.grant, itemId: item.id, actorUuid: actor.uuid, actorName: actor.name,
+        cap: capOf(actor, row), reach: Number.isFinite(row.reach) ? row.reach : null, restAt: Date.now(),
+        requestId: config?.request?.id ?? null, ...statContext(actor.uuid) };
+      if ( (row.grant === "temphp") || (row.grant === "meal") ) {
+        const formula = grantFormulaOf(actor, grantActivityOf(actor, item, row));
+        if ( !formula ) {
+          console.warn(`${TITLE} | ${name}: its heal activity could not be read off ${actor.name}'s sheet — give it by hand.`);
+          continue;
+        }
+        base.formula = formula;
+        if ( row.grant === "temphp" ) {
+          base.amount = tempAmountOf(formula);
+          if ( !(base.amount > 0) ) continue;
+        }
+      }
+      const ownRest = { at: base.restAt, hitDice: Math.max(0, -(Number(result?.dhd) || 0)), requestId: base.requestId };
+      const candidates = songCandidates(actor, row, base, ownRest);
       if ( !candidates.some(c => !c.has) ) continue;   // nobody who could take it
+      const flag = { ...base, candidates };
       void ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor }),
-        content: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${GRANT_LABEL[row.grant] ?? row.grant} for allies` }),
-        flags: { [MODULE_ID]: { [SONG_FLAG]: {
-          status: "pending", row: name, grant: row.grant, itemId: item.id, actorUuid: actor.uuid, actorName: actor.name,
-          cap: capOf(actor, row), reach: row.reach, candidates, ...statContext(actor.uuid)
-        } } }
+        content: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for allies` }),
+        flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
       }).catch(err => console.error(`${TITLE} | ${name}'s ask could not be posted.`, err));
     }
   } catch(err) {
@@ -184,7 +304,7 @@ async function answerSong(message, picks) {
     return;
   }
   if ( !game.users.activeGM ) {
-    ui.notifications?.warn(`${flag.row}: a GM must be on to give ${GRANT_LABEL[flag.grant] ?? flag.grant} — tick it on each sheet by hand.`);
+    ui.notifications?.warn(`${flag.row}: a GM must be on to give ${grantText(flag)} — give it on each sheet by hand.`);
     return;
   }
   await ChatMessage.create({
@@ -205,7 +325,27 @@ registerRelay("restSongAnswer", {
   }
 });
 
-/** The elect lands the picks: each sheet's box ticked, the names written back for the card. */
+/** The meal's dice for each eater, rolled on ONE card (the dice show), healed on each sheet. */
+async function serveMeal(flag, eaters, { chefName = flag.actorName } = {}) {
+  if ( !eaters.length ) return [];
+  const rolls = [];
+  const served = [];
+  for ( const actor of eaters ) {
+    const roll = await new Roll(flag.formula).evaluate();
+    rolls.push(roll);
+    await actor.applyDamage([{ value: roll.total, type: "healing" }]);
+    served.push({ name: actor.name, total: roll.total });
+  }
+  await ChatMessage.create({
+    speaker: { alias: chefName }, rolls,
+    content: bfCard({ eyebrow: "Replenishing Meal", tone: "good",
+      title: served.map(s => `${s.name} +${s.total}`).join(", "),
+      subtitle: `${chefName}'s cooking — ${flag.formula} Hit Points each, on top of the Hit Dice spent` })
+  });
+  return served;
+}
+
+/** The elect lands the picks: each sheet written (or, for a meal still waiting, marked), the names written back for the card. */
 async function landSong(message) {
   let claimed = false;
   await queueFlagWrite(message, SONG_FLAG, current => {
@@ -216,18 +356,43 @@ async function landSong(message) {
   if ( !claimed ) return;
   const flag = message.getFlag(MODULE_ID, SONG_FLAG);
   const given = [];
+  const waiting = [];
   try {
+    const picked = [];
     for ( const uuid of flag.picks ?? [] ) {
       const target = await fromUuid(uuid).catch(() => null);
-      if ( !(target instanceof Actor) ) continue;
-      const write = GRANT_WRITES[flag.grant]?.(target);
-      if ( write ) await target.update(write);
-      given.push(flag.candidates.find(c => c.uuid === uuid)?.name ?? target.name);
+      if ( target instanceof Actor ) picked.push(target);
+    }
+    if ( flag.grant === "meal" ) {
+      // Judged afresh at the landing — an eater may have finished its rest since the ask.
+      const now = [];
+      for ( const target of picked ) {
+        const standing = mealStanding({ rest: lastShortRestOf(target), chef: { at: flag.restAt, requestId: flag.requestId } });
+        if ( standing === "spent" ) now.push(target);
+        else if ( standing === "resting" ) {
+          await target.setFlag(MODULE_ID, FED_FLAG, { chef: flag.actorName, formula: flag.formula, at: flag.restAt,
+            requestId: flag.requestId ?? null, cardId: message.id });
+          waiting.push(target.name);
+        }
+      }
+      given.push(...(await serveMeal(flag, now)).map(s => `${s.name} +${s.total}`));
+    } else {
+      for ( const target of picked ) {
+        const write = (flag.grant === "temphp")
+          ? (holdsTemp(target.system?.attributes?.hp?.temp, flag.amount) ? null : { "system.attributes.hp.temp": flag.amount })
+          : GRANT_WRITES[flag.grant]?.(target);
+        if ( write ) await target.update(write);
+        // Temporary Hit Points name only those who gained them (a pool that grew since the ask keeps its own).
+        if ( write || (flag.grant !== "temphp") ) given.push(flag.candidates.find(c => c.uuid === target.uuid)?.name ?? target.name);
+      }
     }
   } catch(err) {
     console.error(`${TITLE} | ${flag.row}'s grant failed part-way — check the sheets.`, err);
   } finally {
-    await queueFlagWrite(message, SONG_FLAG, current => { current.applied = true; current.applying = false; current.given = given; });
+    await queueFlagWrite(message, SONG_FLAG, current => {
+      current.applied = true; current.applying = false; current.given = given;
+      if ( waiting.length ) current.waiting = waiting;
+    });
   }
 }
 
@@ -235,6 +400,26 @@ registerResumable(SONG_FLAG, {
   pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
   drives: () => isActiveGM(),
   drive: landSong
+});
+
+// An eater that was still resting when the Chef's meal was served: its own rest's end heals it, when it
+// spent Hit Dice in that rest — on its own client, which owns the sheet. A meal from another sitting is
+// dropped unserved; so is one whose eater spent none.
+Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+  try {
+    if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+    const fed = actor.getFlag(MODULE_ID, FED_FLAG);
+    if ( !fed ) return;
+    const type = result?.type ?? config?.type;
+    const rest = { at: Date.now(), hitDice: Math.max(0, -(Number(result?.dhd) || 0)), requestId: config?.request?.id ?? null };
+    const standing = (type === "short") ? mealStanding({ rest, chef: { at: fed.at, requestId: fed.requestId } }) : "none";
+    void (async () => {
+      await actor.unsetFlag(MODULE_ID, FED_FLAG);
+      if ( standing === "spent" ) await serveMeal({ formula: fed.formula, actorName: fed.chef }, [actor]);
+    })().catch(err => console.error(`${TITLE} | ${fed.chef}'s meal could not be served — heal ${fed.formula} by hand.`, err));
+  } catch(err) {
+    console.error(`${TITLE} | The meal at the rest's end failed.`, err);
+  }
 });
 
 /* --- the popup (Careful Spell's picker) and the card ---------------------------------------------- */
@@ -245,20 +430,23 @@ async function showSongPopup(message) {
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
   const row = REST_GRANTS[flag.row] ?? null;
-  const label = GRANT_LABEL[flag.grant] ?? flag.grant;
+  const what = grantText(flag);
   // Sorted Party first, nearest first (songCandidates): the first `cap` who lack it start ticked.
   const ticked = new Set(flag.candidates.filter(c => !c.has).slice(0, flag.cap).map(c => c.uuid));
+  const note = c => c.note ?? (c.has ? "has it" : "");
   const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;${c.has ? "opacity:0.5;" : "cursor:pointer;"}">
       <input type="checkbox" name="bf-rest-song" value="${esc(c.uuid)}" data-token="${esc(c.tokenId ?? "")}" ${c.has ? "data-has=\"1\" disabled" : ""} ${ticked.has(c.uuid) ? "checked" : ""} style="margin:0;">
-      <span>${esc(c.name)}${c.has ? ` <span style="opacity:0.8">(has it)</span>` : ""}</span>
-      <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.feet} ft</span></label>`;
+      <span>${esc(c.name)}${note(c) ? ` <span style="opacity:0.8">(${esc(note(c))})</span>` : ""}</span>
+      <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
   const group = (title, list) => list.length ? `<div style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
   const party = flag.candidates.filter(c => c.party), others = flag.candidates.filter(c => !c.party);
+  const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
+  const cap = (row?.cap === "prof") ? `up to ${flag.cap} (your Proficiency Bonus)` : `up to ${flag.cap}`;
   const dialog = await openMomentPopup(message, SONG_FLAG, actor, {
-    title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-music", width: 420,
+    title: `${flag.row} — ${flag.actorName}`, icon: (flag.grant === "inspiration") ? "fa-solid fa-music" : "fa-solid fa-heart", width: 420,
     content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
-      title: `Who gets ${label}?`,
-      subtitle: `allies within ${flag.reach} ft · up to ${flag.cap} (your Proficiency Bonus)`,
+      title: `Who gets ${what}?`,
+      subtitle: `allies ${reach} · ${cap}`,
       lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
       + `<div data-bf-rest-song data-cap="${flag.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>`,
     buttons: [
@@ -291,8 +479,12 @@ Hooks.once("ready", () => document.addEventListener("change", ev => {
 
 /** The card's line — who was given it, or that it waits. */
 function songLine(flag) {
-  const label = GRANT_LABEL[flag.grant] ?? flag.grant;
-  if ( flag.applied ) return (flag.given ?? []).length ? `${label} given to ${flag.given.join(", ")}` : "no one was picked";
+  const label = grantText(flag);
+  if ( flag.applied ) {
+    const given = (flag.given ?? []).length ? `${label} — ${flag.given.join(", ")}` : "";
+    const waiting = (flag.waiting ?? []).length ? `still resting: ${flag.waiting.join(", ")} (when they spend a Hit Die)` : "";
+    return [given, waiting].filter(Boolean).join(" · ") || "no one was picked";
+  }
   if ( flag.status === "resolved" ) return `giving ${label}…`;
   return `asking ${flag.actorName} who gets ${label}`;
 }
@@ -306,7 +498,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-rest-song-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-music" data-tooltip="${esc(flag.row)}"></i> ${esc(songLine(flag))}`;
+    div.innerHTML = `<i class="${(flag.grant === "inspiration") ? "fa-solid fa-music" : "fa-solid fa-heart"}" data-tooltip="${esc(flag.row)}"></i> ${esc(songLine(flag))}`;
     if ( flag.status === "pending" ) {
       const actor = resolveUuid(flag.actorUuid);
       if ( canAnswerFor(actor) ) {

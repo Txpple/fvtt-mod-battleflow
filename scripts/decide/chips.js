@@ -69,11 +69,21 @@ export const CHIP_WINDOWS = Object.freeze({
   // ⚠ ZERO TURNS, judged at the reactor's turnStart — NOT a one-round window: a Reaction spent
   // on somebody else's turn comes back at the reactor's NEXT turn, which can be less than a
   // round away (smoke-hold §7 measured the rounds shape returning it a round late).
-  reaction: Object.freeze({ value: 0, units: "turns", expiry: "turnStart" })
+  reaction: Object.freeze({ value: 0, units: "turns", expiry: "turnStart" }),
+  // Sentinel's Halt (the PHB feats, group 6, 2026-09-27): "for the rest of the current turn" — the
+  // turn the Opportunity Attack lands in, which is the MOVER's, not the attacker's (TURN_PINNED).
+  halt: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
 });
 
 /** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
-export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim", "reaction"]);
+export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim", "reaction", "halt"]);
+
+/**
+ * The windows pinned to the CURRENT turn's place (the Cleave chit's `turnPlace`), not the
+ * attacker's: an effect a rider lands "for the rest of the current turn" on someone whose turn it
+ * is — Halt, made on the mover's turn by somebody else's reaction.
+ */
+export const TURN_PINNED = Object.freeze(["halt"]);
 
 /**
  * Does a Reaction chip still STAND — the reactor has not yet begun a turn since it was written?

@@ -192,7 +192,11 @@ export const INTERRUPT_ROLLS = Object.freeze({
 // road for an initiative rolled with no dialog (the carousel, Roll All), where the gate's box
 // (ADVANTAGE_BUYS) never showed. A kind because the arithmetic differs from all four: neither an
 // add nor a plain replace, a keep-the-higher of two.
-export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage"]);
+// `succeed` (2026-09-27, the PHB feats group 4 - Mage Slayer's Guarded Mind): a FAILED SAVE turned
+// into a success, paid with a use through the feature's own activity (SAVE_SUCCEEDS). A kind because
+// the arithmetic differs from all five: no die and no reroll - the verdict itself (decide/verdict.js,
+// a `verdict` contribution on the save side, the way a negate hold forces the attack side's).
+export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"]);
 
 /**
  * The closed set of volley kinds. Lives here, in the pure layer, so that ONE definition serves
@@ -302,6 +306,25 @@ export const ADVANTAGE_BUYS = Object.freeze({
 });
 
 /**
+ * THE SAVES THAT SUCCEED INSTEAD (the PHB feats, group 4, 2026-09-27 — RULINGS *The PHB feats —
+ * groups 4–6*): a feature that turns a FAILED saving throw into a success, once per rest — the
+ * `succeed` D20 fold (d20-folds.js). Offered where a failure is known (a save the module demanded:
+ * after the roll, before the verdict applies — the withhold) and on a save rolled from the sheet as
+ * an offer the roller judges (no DC is known there — the DC finding). Keyed by the FEATURE's name
+ * (the D20 Folds list's lookup key); membership is that list's `succeed` rows.
+ *   activity   the feature's own activity whose use pays (its consumption spends the item's use)
+ *   label      what the offer and the card call it — the benefit's name, not the feat's
+ *   abilities  the saves it reaches (ability ids) — "an Intelligence, a Wisdom, or a Charisma saving throw"
+ *   rule       the benefit's paragraph, verbatim (law 8)
+ */
+export const SAVE_SUCCEEDS = Object.freeze({
+  "Mage Slayer": Object.freeze({ activity: "Guard Mind", label: "Guarded Mind",
+    abilities: Object.freeze(["int", "wis", "cha"]),
+    rule: "Guarded Mind. If you fail an Intelligence, a Wisdom, or a Charisma saving throw, you can cause yourself to succeed instead. Once you use this benefit, you can’t use it again until you finish a Short or Long Rest.",
+    from: "General feat" })
+});
+
+/**
  * SNEAK ATTACK (user, 2026-09-02 — the prototype *Sneak Attack, Cunningly*, built as drawn): the
  * feature by NAME on the attacker's sheet, its dice read off the feature's own damage activity
  * (`@scale.rogue.sneak-attack`, resolved on the sheet — never a table of dice by level), and its
@@ -402,7 +425,9 @@ export const DEATH_STRIKE = Object.freeze({
  *   label     what the offer and the card call the rider, when the activity's name would not say
  *             it ("Burn" → "Fire's Burn"); the activity's name by default, the feature's for "Damage"
  *   requires  "sneak" — only on an armed Sneak Attack (Assassinate's second clause)
- *   judge     "raging" — the bearer must be raging (an effect named Rage, or the status)
+ *   judge     "raging" — the bearer must be raging (an effect named Rage, or the status);
+ *             "opportunity" — the hit is an Opportunity Attack's (Sentinel's Halt): driven as one by
+ *             the module, or a melee attack off the attacker's own turn (then ticked with the caveat)
  *   type      "weapon" — the extra damage takes the WEAPON's own type; otherwise the part's first
  *   weapon    true — a weapon attack only (every 2024 row says "with a weapon")
  *   caveat    what the module cannot judge, said on the line
@@ -497,7 +522,17 @@ export const CLOCK_RIDERS = Object.freeze({
   "piercer-critical": Object.freeze({ feature: "Piercer", activity: null, label: "Piercer — Enhanced Critical", when: "any", crit: true, dealt: "piercing",
     bonusDice: 1, says: "one additional damage die",
     rule: "Enhanced Critical. When you score a Critical Hit that deals Piercing damage to a creature, you can roll one additional damage die when determining the extra Piercing damage the target takes.",
-    from: "General feat (Piercer)" })
+    from: "General feat (Piercer)" }),
+  // THE PHB FEATS, group 6 (2026-09-27): Sentinel's Halt — the pack's own "Halted" (Speed 0) on an
+  // Opportunity Attack's hit, for the rest of the CURRENT turn (the `halt` clock, pinned to the turn
+  // it lands in). `judge: "opportunity"`: an attack the module drove as one (Sentinel's Guardian — its
+  // card says so), or a melee attack made off the attacker's own turn in combat, which the offer
+  // ticks with the caveat (an Opportunity Attack made from the sheet carries no mark of its own).
+  "sentinel-halt": Object.freeze({ feature: "Sentinel", activity: null, label: "Halt", when: "any", judge: "opportunity",
+    lands: Object.freeze({ name: "Halted", from: "Halted", id: "bfHalted00000000" }), clock: "halt",
+    says: "Speed 0 for the rest of the current turn", caveat: "only on an Opportunity Attack",
+    rule: "Halt. When you hit a creature with an Opportunity Attack, the creature’s Speed becomes 0 for the rest of the current turn.",
+    from: "General feat (Sentinel)" })
 });
 
 /**
@@ -1130,14 +1165,27 @@ export const TOKEN_SIZE_NAMES = tableIndex(TOKEN_SIZES).names;
  * update (rest-grants.js, `dnd5e.preRestCompleted`), and the rest card says so. Keyed by the
  * FEATURE's name; membership is the Rest Grants list.
  *   rests   which rests give it ("long", "short")
- *   grant   what the sheet gains — "inspiration" (Heroic Inspiration, the sheet's box)
+ *   grant   what the sheet gains — "inspiration" (Heroic Inspiration, the sheet's box); "temphp"
+ *           (Temporary Hit Points, the amount read off the feature's own heal activity — N1 — and
+ *           given only where it is more than the creature holds: they do not stack); "meal" (Chef's
+ *           Replenishing Meal: the activity's extra dice, healed to a creature that spends Hit Dice
+ *           in the SAME Short Rest — rest-grants.js, the meal)
  *   to      absent — the owner gains it on the rest's own update; "allies" — the owner GIVES it to
  *           allies, asked in a courtesy popup once the rest is done (Musician, the origin feats,
  *           2026-09-25 — user: "give a courtesy popup after long and short rest, listing the allies
  *           within 30 ft, player picks which ones to give inspiration. grey out the ones that already
  *           have and so note it"; "you can leverage the general form of careful spell")
- *   reach   ("allies") the feet an ally may stand from the owner's token — the map settles it (R1)
- *   cap     ("allies") how many may be given it — "prof": the owner's Proficiency Bonus
+ *   feature the feature's name on the sheet, where the row is one of its benefits (Chef's two) —
+ *           the row's own name by default
+ *   self    ("allies") the owner may pick itself ("which can include yourself")
+ *   reach   ("allies") the feet an ally may stand from the owner's token — the map settles it (R1);
+ *           null — the rule names no distance (Chef's food): every ally on the scene
+ *   cap     ("allies") how many may be given it — "prof": the owner's Proficiency Bonus; a number;
+ *           or a formula on the owner's roll data ("4 + @prof")
+ *   activity  the feature's own HEAL activity the amount is read from (Bolstering Treats, the meal)
+ *   activities  by ability — the activity that stands for the ability the feat raised (Inspiring
+ *           Leader ships one per ability, "delete the other"): the feat's own Ability Score
+ *           Improvement picks it, else the higher modifier (Poisoner's pick, decide/chips.js)
  *   rule    the feature's sentence, verbatim (law 8)
  */
 export const REST_GRANTS = Object.freeze({
@@ -1145,7 +1193,24 @@ export const REST_GRANTS = Object.freeze({
     rule: "You gain Heroic Inspiration whenever you finish a Long Rest.", from: "Human" }),
   "Musician": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "inspiration", to: "allies", reach: 30, cap: "prof",
     rule: "Encouraging Song. As you finish a Short or Long Rest, you can play a song on a Musical Instrument with which you have proficiency and give Heroic Inspiration to allies who hear the song. The number of allies you can affect in this way equals your Proficiency Bonus.",
-    from: "Origin feat (Entertainer)" })
+    from: "Origin feat (Entertainer)" }),
+  // THE PHB FEATS, group 5 (2026-09-27, the rest grants — RULINGS *The PHB feats — groups 4–6*):
+  // Musician's popup, a grant of Temporary Hit Points, the amount the pack's own heal activity's.
+  "Inspiring Leader": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "temphp", to: "allies", self: true, reach: 30, cap: 6,
+    activities: Object.freeze({ wis: "Inspire with Wisdom", cha: "Inspire with Charisma" }),
+    rule: "Bolstering Performance. When you finish a Short or Long Rest, you can give an inspiring performance: a speech, song, or dance. When you do so, choose up to six allies (which can include yourself) within 30 feet of yourself who witness the performance. The chosen creatures each gain Temporary Hit Points equal to your character level plus the modifier of the ability you increased with this feat.",
+    from: "General feat" }),
+  // Chef's two benefits, one row each (the feat is `feature`). Bolstering Treats are HANDED OUT after
+  // the Long Rest as their Temporary Hit Points — a bend by choice (RULINGS *Bent by choice*): the
+  // treats last 8 hours and are eaten as a Bonus Action by the rule.
+  "Bolstering Treats": Object.freeze({ feature: "Chef", rests: Object.freeze(["long"]), grant: "temphp", to: "allies", self: true, reach: null, cap: "prof",
+    activity: "Bolstering Treats",
+    rule: "Bolstering Treats. With 1 hour of work or when you finish a Long Rest, you can cook a number of treats equal to your Proficiency Bonus if you have ingredients and Cook’s Utensils on hand. These special treats last 8 hours after being made. A creature can use a Bonus Action to eat one of those treats to gain a number of Temporary Hit Points equal to your Proficiency Bonus.",
+    from: "General feat (Chef)" }),
+  "Replenishing Meal": Object.freeze({ feature: "Chef", rests: Object.freeze(["short"]), grant: "meal", to: "allies", self: true, reach: null, cap: "4 + @prof",
+    activity: "Replenishing Meal",
+    rule: "Replenishing Meal. As part of a Short Rest, you can cook special food if you have ingredients and Cook’s Utensils on hand. You can prepare enough of this food for a number of creatures equal to 4 plus your Proficiency Bonus. At the end of the Short Rest, any creature who eats the food and spends one or more Hit Dice to regain Hit Points regains an extra 1d8 Hit Points.",
+    from: "General feat (Chef)" })
 });
 
 /** The rest grants' row names, lower-cased — the closed set the Rest Grants list is validated against. */
@@ -1198,6 +1263,12 @@ export const DROP_TO_ONE_NAMES = tableIndex(DROP_TO_ONE).names;
  *   while     an effect's name that must stand on the bearer (Fount of Moonlight's reaction exists
  *             only while the spell does: its "Wreathed in Light")
  *   equipped  true — the item must be equipped ("while you hold the sword")
+ *   ward      true — the bearer is NOT the creature damaged: a BYSTANDER within `range` of the
+ *             damager, on another side of the map from it, whose attack hit someone else (Sentinel's
+ *             Guardian — the PHB feats, group 6, 2026-09-27). Asked of every such bearer on the scene.
+ *   hit       true — only an ATTACK's damage counts ("hits a target other than you with an attack")
+ *   opportunity  true — the answer is an Opportunity Attack: the driven attack says so on its card,
+ *             and the Halt rider reads it (CLOCK_RIDERS "sentinel-halt")
  *   caveat    what the table judges ("that you can see")
  *
  * The spell's slot is the lowest the sheet holds (the hold's rule — no picker inside a Reaction's
@@ -1214,7 +1285,13 @@ export const REBUKES = Object.freeze({
   "Retaliation": Object.freeze({ attack: "melee", range: 5, from: "Barbarian 14",
     rule: "When you take damage from a creature that is within 5 feet of you, you can take a Reaction to make one melee attack against that creature, using a weapon or an Unarmed Strike." }),
   "Sword of Answering": Object.freeze({ activity: "Attack Reaction", advantage: true, equipped: true, from: "DMG legendary weapon",
-    rule: "While you hold the sword, you can take a Reaction to make one melee attack with it against any creature in your reach that deals damage to you. You have Advantage on the attack roll, and any damage dealt with this special attack ignores any Immunity or Resistance the target has." })
+    rule: "While you hold the sword, you can take a Reaction to make one melee attack with it against any creature in your reach that deals damage to you. You have Advantage on the attack roll, and any damage dealt with this special attack ignores any Immunity or Resistance the target has." }),
+  // THE PHB FEATS, group 6 (2026-09-27 — RULINGS *The PHB feats — groups 4–6*): Retaliation's answer,
+  // asked of a bystander. The pack ships Sentinel with no activity (only Halt's effect), so the
+  // answer is one melee attack with the weapon last swung, as Retaliation's is.
+  "Sentinel": Object.freeze({ attack: "melee", range: 5, ward: true, hit: true, opportunity: true, from: "General feat",
+    caveat: "its Disengage half — nothing records a Disengage",
+    rule: "Guardian. Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack, you can make an Opportunity Attack against that creature." })
 });
 
 /** The rebukes' item names, lower-cased — the closed set the Rebukes list is validated against. */
@@ -2058,6 +2135,10 @@ const KIT_TEND_NAMES = tableIndex(KIT_TENDS).names;
  *              type in its name is a greyed face that says so
  *   spells     the row reaches a SPELL's damage only ("spells you cast"), never a weapon's; its
  *              `minimum` then floors that spell's dice of the row's types, not the whole roll
+ *   breaks     "concentration": a creature the OWNER damages makes the save to keep its Concentration
+ *              at Disadvantage (Mage Slayer's Concentration Breaker) — read by concentration.js when
+ *              it stamps the ask (the damage's dealer, off the card that dealt it), and said in the
+ *              save gate's box; the roll nets it with the concentrator's own Advantage (War Caster)
  *   gate "always"  no equipment in the rule: the face is live whenever the feat is on the sheet
  * The two reactions (Interception, Protection) and Blind Fighting's sight are NOT rows here: they
  * land by mechanism — the interrupt tables and the gate before the roll (SWEEP §1).
@@ -2107,6 +2188,12 @@ export const FIGHTING_STYLES = Object.freeze({
     from: "General feat" }),
   "Poisoner": Object.freeze({ key: "poisoner", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["poison"]),
     rule: "Potent Poison. When you make a damage roll that deals Poison damage, it ignores Resistance to Poison damage.",
+    from: "General feat" }),
+  // THE PHB FEATS, group 4 (2026-09-27, the saves — RULINGS *The PHB feats — groups 4–6*): the pack
+  // ships Mage Slayer with nothing for the breaker (its one activity is Guarded Mind's — a D20 fold,
+  // SAVE_SUCCEEDS). The row is the switch and the face; the concentration machine reads it.
+  "Mage Slayer": Object.freeze({ key: "mage-slayer", gate: "always", feat: true, breaks: "concentration",
+    rule: "Concentration Breaker. When you damage a creature that is concentrating, it has Disadvantage on the saving throw it makes to maintain Concentration.",
     from: "General feat" })
 });
 const FIGHTING_STYLE_NAMES = tableIndex(FIGHTING_STYLES).names;
@@ -2143,7 +2230,8 @@ export const KIND_SETS = [
       + "`shove` (2026-09-25) is the bash offer on an Unarmed Strike with no save — Tavern Brawler's push" },
   { name: "d20Fold", owner: "d20-folds.js", kinds: D20_FOLD_KINDS, system: null,
     note: "where the marker lives and how it is spent — the three surveyed features (v1.23.0); "
-      + "the ARITHMETIC is shared and already shipped with D8, so only the spend earns a kind" },
+      + "the ARITHMETIC is shared and already shipped with D8, so only the spend earns a kind — "
+      + "bar `advantage` (keep the higher d20) and `succeed` (2026-09-27: the verdict itself, no die)" },
   { name: "volley", owner: "volleys.js", kinds: VOLLEY_KINDS, system: null,
     note: "how a multi-projectile spell resolves: aggregated damage, or independent attacks" },
   { name: "mastery", owner: "mastery.js", kinds: MASTERY_KINDS, system: 8,
@@ -2245,7 +2333,9 @@ export const LIST_SPECS = {
     // Seeking Spell (the metamagic pass, Stage 4, 2026-09-09): a REROLL like heroic, on a SPELL
     // attack's miss, paid from Font of Magic by hand — the item is the lookup key, and the
     // Metamagic list must admit it too (the option's own switch).
-    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage"
+    // Mage Slayer (the PHB feats, group 4, 2026-09-27): Guarded Mind, the `succeed` fold — the FEAT
+    // is the lookup key (SAVE_SUCCEEDS), the benefit's name the label.
+    default: "Heroic Inspiration:heroic, Tactical Mind:tactical, Inspired:bardic, Ambush:tactical, Tactical Assessment:tactical, Seeking Spell:seeking, Lucky:advantage, Mage Slayer:succeed"
   },
   rider: {
     label: "Rider List", setting: "riderList",

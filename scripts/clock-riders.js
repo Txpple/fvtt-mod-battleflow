@@ -92,7 +92,12 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     weapon: item.type === "weapon",
     dealt: roll.dealt ?? dealtTypesOf(activity),
     // a Critical Hit: the attack's own d20, or the damage roll made critical (a Paralyzed target's)
-    critical: !!attackMessage?.rolls?.[0]?.isCritical || (roll.critical === true)
+    critical: !!attackMessage?.rolls?.[0]?.isCritical || (roll.critical === true),
+    // an Opportunity Attack (Sentinel's Halt, the PHB feats group 6): one the module DROVE as such says
+    // so on its card; a melee attack off the attacker's own turn in a running combat may be one
+    opportunity: attackMessage?.getFlag(MODULE_ID, "opportunity") ? "driven"
+      : (combat?.started && combat.combatant && (combat.combatant.actor?.uuid !== attacker.uuid)
+        && (activity?.attack?.type?.value === "melee")) ? "offTurn" : null
   };
   const out = [];
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {

@@ -44,10 +44,12 @@ describe("CHIP_WINDOWS — the rules text as v14 duration data", () => {
       "sneak",
       "rider",
       "steadyAim",
-      "reaction"
+      "reaction",
+      "halt"
     ]);
     expect(c.CHIP_WINDOWS.reaction).toEqual({ value: 0, units: "turns", expiry: "turnStart" });
-    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider", "steadyAim", "reaction"]);
+    // `halt` (the PHB feats, group 6, 2026-09-27): Sentinel's "for the rest of the current turn"
+    expect(c.TURN_CHITS).toEqual(["cleave", "sneak", "rider", "steadyAim", "reaction", "halt"]);
     expect(c.CHIP_WINDOWS.sneak).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.CHIP_WINDOWS.rider).toEqual(c.CHIP_WINDOWS.cleave);
     expect(c.chipClock("sneak", null)).toBeNull();

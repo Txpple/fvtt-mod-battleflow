@@ -591,6 +591,12 @@ export const RESCUE_KINDS = {
     icon: "fa-solid fa-clover",
     cost: "the use is spent either way, and the higher d20 stands"
   },
+  // Guarded Mind (the PHB feats, group 4, 2026-09-27): no label of its own either — the offer is called
+  // by its row's (SAVE_SUCCEEDS) and quotes its row's rule. No die: the verdict itself.
+  succeed: {
+    icon: "fa-solid fa-shield-halved",
+    cost: "one use, back after a Short or Long Rest"
+  },
   precision: {
     label: "Precision Attack",
     icon: "fa-solid fa-crosshairs",
@@ -866,7 +872,8 @@ export function rescueView(read, { composed = null, reveal = false,
       text: r.rule ?? RESCUE_KINDS[r.kind]?.rule ?? null,
       detail: (r.spent || r.withdrawn) ? ""
         : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20"
-          : (r.kind === "advantage") ? "Roll another d20 for Advantage, the higher stands" : `Adds ${r.die ?? "a die"}`}`
+          : (r.kind === "advantage") ? "Roll another d20 for Advantage, the higher stands"
+          : (r.kind === "succeed") ? "The save succeeds instead — no roll" : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")
     }))
     .filter(q => q.text);

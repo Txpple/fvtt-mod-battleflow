@@ -45,7 +45,8 @@ const SECTIONS = {
   12: 'the cause rides the real chain',
   13: 'a sheet edit is damage too — then zero HP is not a save',
   14: 'the crash-resume re-drives a dead fold',
-  15: 'Incapacitated breaks concentration — no save, the cascade, the card (user, 2026-09-02)'
+  15: 'Incapacitated breaks concentration — no save, the cascade, the card (user, 2026-09-02)',
+  16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); off the list, nothing; the dialog\'s gate lists it'
 };
 // Concentration is a STATE, so a section that never calls `ensureConc` inherits one. §§1, 5,
 // 11, 13 and 14 stand up their own; every other section names the nearest one that does.
@@ -56,6 +57,7 @@ const DEPENDS = {
   6: ['5'], 7: ['5'], 8: ['5'], 9: ['5'], 10: ['5'],
   12: ['11']
 };
+// §16 stands up its own concentration (ensureConc) and its own settings.
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 // Three casts, a dozen damage/poll cycles, one real attack chain, one 3.5s timer wait.
@@ -103,7 +105,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['concMode', 'concTimer', 'concBreak', 'concVisibility',
     'autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
-    'riders', 'effectRiders', 'masteryRiders'];
+    'riders', 'effectRiders', 'masteryRiders', 'fightingStyleList', 'reminderList'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -724,6 +726,81 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `effects=${concEffects().length} card=${!!card15} says=${/Incapacitated/.test(card15?.content ?? '')}`);
       if (pressed) await shielder.deleteEmbeddedDocuments('ActiveEffect', [pressed.id]).catch(() => {});
       await sleep(300);
+    }
+
+    // ================================================== 16. Mage Slayer's Concentration Breaker
+    // (the PHB feats, group 4, 2026-09-27): "When you damage a creature that is concentrating, it has
+    // Disadvantage on the saving throw it makes to maintain Concentration." The damage rides a card
+    // spoken by the attacker (the dealer the ask reads, as a hit's damage card is); the save bonus
+    // keeps every verdict a success, so the MODE is what is measured — against a control roll the
+    // same fixture makes without the feat (the sheet's own con-save mode is whatever it is).
+    if (want(16)) {
+      await set('concMode', 'auto');
+      await set('concTimer', 0);
+      await set('reminderList', 'vex, sap, prone, condition, range, effect, sneak, buy');
+      await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? '');
+      const eff = concEffects()[0] ?? await ensureConc();
+      if (!eff) return { fatal: 'recast failed for section 16 (slots?)' };
+      await saveBonus('+30');
+      await setTemp(500);
+      const dealt = async (n = 12) => {
+        const card = await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: npc }), content: 'probe: the attacker\'s damage' });
+        await shielder.applyDamage([{ value: n, type: 'bludgeoning', properties: new Set() }],
+          { isDelta: true, ignore: true, originatingMessage: card });
+        return card;
+      };
+      const modeOf = ask => (ask?.outcome?.rollMessageId ? game.messages.get(ask.outcome.rollMessageId) : null)?.rolls?.[0]?.options?.advantageMode;
+      // The control: the attacker without the feat.
+      const tc = marker();
+      await dealt();
+      const control = (await waitFor(() => doneAskNew(tc)))?.getFlag(MOD, 'concentration');
+      const m0 = modeOf(control);
+      ok('16. control: the attacker without Mage Slayer — the ask records no breaker',
+        !!control && !control.breaker && Number.isFinite(m0), `ask=${!!control} breaker=${JSON.stringify(control?.breaker ?? null)} mode=${m0}`);
+      // Lend the PHB's Mage Slayer to the attacker.
+      const pack = game.packs.get('dnd-players-handbook.feats');
+      const entry = pack ? (await pack.getIndex()).find(e => e.name === 'Mage Slayer') : null;
+      const source = entry ? await pack.getDocument(entry._id) : null;
+      if (!source) return { fatal: 'no Mage Slayer in dnd-players-handbook.feats' };
+      const [lent] = await npc.createEmbeddedDocuments('Item', [source.toObject()]);
+      created.items.push({ actorId: npc.id, id: lent.id });
+      const t1 = marker();
+      await dealt();
+      const askMsg = await waitFor(() => doneAskNew(t1));
+      const ask = askMsg?.getFlag(MOD, 'concentration');
+      // The dealer is whoever the card speaks for — on this range the goblin's UNLINKED token, so its
+      // synthetic actor (the base actor's id, the token's uuid), holding the lent feat through the base.
+      const dealer = ask?.breaker?.uuid ? fromUuidSync(ask.breaker.uuid) : null;
+      ok('16b. damage from the holder: the ask records the breaker — the feat and who dealt it',
+        (ask?.breaker?.feat === 'Mage Slayer') && (dealer?.id === npc.id) && /Concentration Breaker/.test(ask?.breaker?.rule ?? ''),
+        `breaker=${JSON.stringify(ask?.breaker ?? null)} dealer=${dealer?.id} npc=${npc.id}`);
+      ok('16c. the ask card says it',
+        /Mage Slayer/.test(askMsg?.content ?? '') && /Disadvantage/.test(askMsg?.content ?? ''),
+        'the card does not name Mage Slayer and Disadvantage');
+      // dnd5e nets: the sheet's own Advantage (m0 = 1) beside the breaker is a plain roll; otherwise Disadvantage.
+      const expected = (m0 > 0) ? 0 : -1;
+      ok('16d. the auto roll carries the Disadvantage, netted by dnd5e with the sheet\'s own mode',
+        modeOf(ask) === expected, `mode=${modeOf(ask)} expected=${expected} (control ${m0})`);
+      // Off the Fighting Styles list: the switch.
+      await set('fightingStyleList', (game.settings.get(MOD, 'fightingStyleList') ?? '').split(',').map(s => s.trim()).filter(s => s && (s !== 'Mage Slayer')).join(', '));
+      const t2 = marker();
+      await dealt();
+      const off = (await waitFor(() => doneAskNew(t2)))?.getFlag(MOD, 'concentration');
+      ok('16e. Mage Slayer off the Fighting Styles list: no breaker, the control\'s mode',
+        !!off && !off.breaker && (modeOf(off) === m0), `breaker=${JSON.stringify(off?.breaker ?? null)} mode=${modeOf(off)}`);
+      await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? '');
+      // Prompt mode: the system's dialog opens with the gate's box naming the feat.
+      await set('concMode', 'prompt');
+      const t3 = marker();
+      await dealt();
+      await waitFor(() => asksNew(t3)[0]);
+      const popup = await waitFor(() => concPopups()[0], 5000);
+      const gateText = popup?.querySelector('[data-bf-reminder]')?.textContent ?? '';
+      ok('16f. prompt mode: the dialog\'s gate lists the attacker\'s Mage Slayer, counted as Disadvantage',
+        /Mage Slayer/.test(gateText) && /Disadvantage/i.test(gateText), `gate="${gateText.replace(/\s+/g, ' ').slice(0, 200)}"`);
+      dialogButtons(popup).find(b => b.textContent.trim() === 'Normal')?.click();
+      await waitFor(() => doneAskNew(t3));
+      await set('concMode', 'auto');
     }
   } catch (err) {
     ok('SUITE', false, `unhandled: ${err?.message}\n${err?.stack}`);

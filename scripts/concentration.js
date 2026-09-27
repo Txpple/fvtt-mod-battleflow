@@ -4,9 +4,11 @@
  */
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor,
   drivesMomentFor, canApplyTo, whisperNoGM, statContext } from "./core.js";
-import { cardItem, resolveUuid } from "./lookup.js";
+import { cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML } from "./decide/present.js";
+import { fightingStyleEntries, listedNames } from "./settings.js";
+import { FIGHTING_STYLES } from "./decide/registry.js";
+import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
@@ -64,9 +66,11 @@ Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
   // behind the damage is one read — through the card, so a used-up item still names itself;
   // the speaker names the attacker.
   const source = cardItem(message)?.name ?? null;
-  const attacker = message.getAssociatedActor?.()?.name ?? null;
+  const dealer = message.getAssociatedActor?.() ?? null;
+  const attacker = dealer?.name ?? null;
   if ( actor.concentration?.effects?.size ) {
-    recentDamageCauses.set(actor.uuid, { at: Date.now(), source, attacker });
+    // The dealer's ACTOR rides too (the PHB feats, group 4): Mage Slayer is read off its sheet.
+    recentDamageCauses.set(actor.uuid, { at: Date.now(), source, attacker, dealerUuid: dealer?.uuid ?? null });
   }
 });
 
@@ -74,8 +78,37 @@ function takeRecentCause(actorUuid) {
   const cause = recentDamageCauses.get(actorUuid);
   recentDamageCauses.delete(actorUuid);
   if ( !cause || ((Date.now() - cause.at) > 3000) ) return null;
-  return (cause.source || cause.attacker) ? { source: cause.source, attacker: cause.attacker } : null;
+  return (cause.source || cause.attacker)
+    ? { source: cause.source, attacker: cause.attacker, ...(cause.dealerUuid ? { dealerUuid: cause.dealerUuid } : {}) } : null;
 }
+
+/**
+ * MAGE SLAYER'S CONCENTRATION BREAKER (the PHB feats, group 4, 2026-09-27 — RULINGS *The PHB feats —
+ * groups 4–6*): "When you damage a creature that is concentrating, it has Disadvantage on the saving
+ * throw it makes to maintain Concentration." The damage's dealer — the card that dealt it names its
+ * actor (the cause above) — holds a listed FIGHTING_STYLES row that `breaks` concentration: the ask
+ * records who and why, the gate says it (reminders.js), and every roll of the ask carries the
+ * Disadvantage, netted by dnd5e with the concentrator's own Advantage (War Caster: both, a plain roll).
+ * Damage with no card behind it (a sheet edit) names no dealer and breaks nothing — the honest floor.
+ * @param {Actor|null} concentrator
+ * @param {string|null} dealerUuid
+ * @returns {{feat: string, by: string, uuid: string, rule: string}|null}
+ */
+function breakerFor(concentrator, dealerUuid) {
+  if ( !dealerUuid || (dealerUuid === concentrator?.uuid) ) return null;
+  const dealer = resolveUuid(dealerUuid);
+  if ( !(dealer instanceof Actor) ) return null;
+  const listed = listedNames(fightingStyleEntries());
+  for ( const [name, row] of Object.entries(FIGHTING_STYLES) ) {
+    if ( (row.breaks !== "concentration") || !listed.has(lower(name)) ) continue;
+    if ( featureNamed(dealer, name) ) return { feat: name, by: dealer.name, uuid: dealer.uuid, rule: row.rule };
+  }
+  return null;
+}
+
+/** The roll's own Disadvantage when a breaker stands — `options.disadvantage` alone, so dnd5e nets
+ * it with any Advantage the sheet carries (never `advantage: false`, which would out-vote War Caster). */
+const breakerRolls = ask => ask?.breaker ? { rolls: [{ options: { disadvantage: true } }] } : {};
 
 /** What the actor is concentrating on, by name — the system's own fallback chain. */
 function concentratingOn(actor) {
@@ -154,6 +187,7 @@ async function stampConcentrationAsk(actor, changes) {
 
   const dc = actor.getConcentrationDC(damage);              // the system's clamp(half, 10, 30)
   const cause = takeRecentCause(actor.uuid);
+  const breaker = breakerFor(actor, cause?.dealerUuid ?? null);
   const window = Math.max(0, Number(setting(S.concTimer)) || 0);
   const abilityLabel = CONFIG.DND5E.abilities[concAbility(actor)]?.label ?? "Constitution";
 
@@ -163,7 +197,7 @@ async function stampConcentrationAsk(actor, changes) {
       eyebrow: "Concentration check",
       title: `${abilityLabel} save, DC ${dc}`,
       subtitle: `${actor.name} — concentrating on ${names.join(", ") || "a spell"}`,
-      lines: [causeLine(cause, damage)],
+      lines: [causeLine(cause, damage), ...(breaker ? [breakerLine(breaker)] : [])],
       tone: "pending"
     }),
     speaker: ChatMessage.getSpeaker({ actor }),
@@ -182,10 +216,14 @@ async function stampConcentrationAsk(actor, changes) {
       // in the air).
       effectIds: [...actor.concentration.effects].map(e => e.id),
       ...(cause ? { cause } : {}),
+      ...(breaker ? { breaker } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     } } }
   });
 }
+
+/** "Mage Slayer (Morgash) — the save is made at Disadvantage." */
+const breakerLine = breaker => `<strong>${esc(breaker.feat)}</strong> (${esc(breaker.by)}) — the save is made at Disadvantage.`;
 
 /** "Took 12 damage from Morgash's Greatsword." — with whatever parts the cause actually has. */
 function causeLine(cause, damage) {
@@ -230,9 +268,16 @@ async function rollConcentrationAnswer(askMessage, { timedOut = false, mode = nu
     if ( game.messages.some(m => m.getFlag(MODULE_ID, "respondsTo") === askMessage.id) ) return;
     const actor = await fromUuid(ask.actorUuid);
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
+    // Mage Slayer's Disadvantage rides the straight roll too (the buzzer, auto mode) — unless a mode
+    // was pressed, which is the roller's own call over every source (the dialog's buttons).
+    const config = rollConfigFor(mode, bonus);
+    if ( ask.breaker && !mode ) {
+      config.rolls ??= [{}];
+      config.rolls[0].options = { ...(config.rolls[0].options ?? {}), disadvantage: true };
+    }
     await actor.rollConcentration(
       { target: ask.dc,
-        ...rollConfigFor(mode, bonus) },
+        ...config },
       { configure: false },
       {
         data: { flags: { [MODULE_ID]: {
@@ -628,6 +673,7 @@ async function showConcPopup(message, ask) {
         subtitle: `${ask.actorName} — concentrating on ${ask.names?.join(", ") || "a spell"}`,
         lines: [
           causeLine(ask.cause, ask.damage),
+          ...(ask.breaker ? [breakerLine(ask.breaker)] : []),
           `A failed save ends <strong>${ask.names?.join(", ") || "the spell"}</strong>`
             + `${setting(S.concBreak) ? "" : " (breaking is off — the GM ends it by hand)"}.`
         ],
@@ -635,8 +681,10 @@ async function showConcPopup(message, ask) {
       }),
       bar: card => card.getFlag(MODULE_ID, "concentration")
     });
+    // The breaker's Disadvantage is the roll's own (the dialog opens on it, netted with War Caster);
+    // the gate's box says why and marks the net (reminders.js judgeSave).
     const rolls = await actor.rollConcentration(
-      { target: ask.dc },
+      { target: ask.dc, ...breakerRolls(ask) },
       { configure: true, options: { bfSaveDemand: demand } },
       {
         data: { flags: { [MODULE_ID]: { respondsTo: message.id } } },

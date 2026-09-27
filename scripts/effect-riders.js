@@ -5,9 +5,9 @@
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { cardActivity, profileEffects, resolveUuid } from "./lookup.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
-import { CHIP_FLAG, chipClock } from "./decide/chips.js";
+import { CHIP_FLAG, TURN_PINNED, chipClock } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
-import { chipData, placeOf, statSourceOf } from "./shared.js";
+import { chipData, placeOf, statSourceOf, turnPlace } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
 
 /* ---------------------------------------------------------------------------------------------
@@ -312,6 +312,13 @@ Hooks.on("createActiveEffect", effect => {
 });
 
 /**
+ * Where a rider's clock is pinned: the ATTACKER's place (the Slow mastery's — an opportunity attack's
+ * window is still the attacker's next turn start), or — for a window "for the rest of the current
+ * turn" (Halt, TURN_PINNED) — the turn it lands in, whoever's that is.
+ */
+const clockPlace = (clock, attacker) => TURN_PINNED.includes(clock) ? turnPlace() : (attacker ? placeOf(attacker) : null);
+
+/**
  * AN EFFECT WITH NO ACTIVITY TO CARRY IT (the PHB feats, group 3, 2026-09-26 — Slasher, Crusher): the
  * rider's `lands` built as a template on the FEATURE — its own effect `from` (changes kept unless
  * `bare`), renamed, under a fixed id so a second hit refreshes the one copy — and landed through the
@@ -331,7 +338,7 @@ export async function applyItemEffectOnHit(receiptMessage, feature, lands, targe
     if ( data.system ) data.system.changes = [];
   }
   const template = new ActiveEffect.implementation(data, { parent: feature });
-  const window = clock ? chipClock(clock, attacker ? placeOf(attacker) : null) : null;
+  const window = clock ? chipClock(clock, clockPlace(clock, attacker)) : null;
   await applyEffectsWithReceipt(receiptMessage, [template], targets,
     { source: source ?? statSourceOf(receiptMessage), clock: window ? chipData(window) : null });
 }
@@ -352,7 +359,7 @@ export async function applyActivityEffectsOnHit(receiptMessage, activity, target
   // 6.0: an activity's list holds PROFILES whose effects resolve asynchronously (lookup.js).
   const effects = (await profileEffects(activity?.effects)).map(({ effect }) => effect).filter(Boolean);
   if ( !effects.length || !targets?.length ) return;
-  const window = clock ? chipClock(clock, attacker ? placeOf(attacker) : null) : null;
+  const window = clock ? chipClock(clock, clockPlace(clock, attacker)) : null;
   await applyEffectsWithReceipt(receiptMessage, effects, targets,
     { source: source ?? statSourceOf(receiptMessage), clock: window ? chipData(window) : null });
 }

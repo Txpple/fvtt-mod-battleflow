@@ -350,12 +350,15 @@ export function checkGate(sources) {
  * platform's and is never re-set (R-A).
  *
  * The keys, as the system writes them (dnd5e.mjs, AdvantageModeField.setMode call sites):
- *   save  → `system.abilities.<ability>.save.roll.mode`
+ *   save  → `system.abilities.<ability>.save.roll.mode`; a save to keep Concentration also
+ *           `system.attributes.concentration.roll.mode` (War Caster's Advantage — dnd5e 6.0.5's
+ *           `rollConcentration` combines that field alone; the PHB feats, group 4, 2026-09-27:
+ *           Mage Slayer's Disadvantage nets against it, so the gate has to see it)
  *   check → `system.abilities.<ability>.check.roll.mode`, `system.skills.<skill>.roll.mode`,
  *           `system.tools.<tool>.roll.mode`
  *
  * @param {{effects?: {id?: string, name: string, item?: string|null, changes?: {key: string, value: string|number}[]}[],
- *          roll: {kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null},
+ *          roll: {kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean},
  *          rollLabel?: string, name?: string}} facts
  *        `rollLabel` = the roll in the table's words ("Wisdom saving throws", "Stealth checks")
  * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, effectId?: string, effectName: string, item: string|null}[]}
@@ -384,13 +387,14 @@ export function modeSources({ effects = [], roll, rollLabel = "this roll", name 
 
 /**
  * The sheet paths whose change sets the mode of this roll — see `modeSources`.
- * @param {{kind?: string|null, ability?: string|null, skill?: string|null, tool?: string|null}} [roll]
+ * @param {{kind?: string|null, ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean}} [roll]
  * @returns {string[]}
  */
-export function modeKeys({ kind = null, ability = null, skill = null, tool = null } = {}) {
+export function modeKeys({ kind = null, ability = null, skill = null, tool = null, concentration = false } = {}) {
   const keys = [];
   if ( kind === "save" ) {
     if ( ability ) keys.push(`system.abilities.${ability}.save.roll.mode`);
+    if ( concentration ) keys.push("system.attributes.concentration.roll.mode");
   } else if ( kind === "check" ) {
     if ( ability ) keys.push(`system.abilities.${ability}.check.roll.mode`);
     if ( skill ) keys.push(`system.skills.${skill}.roll.mode`);

@@ -3,7 +3,7 @@
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite } from "./core.js";
-import { lower, featureNamed, activityNamed, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./settings.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
@@ -400,18 +400,6 @@ async function spendCoat(message) {
   } finally {
     spending.delete(message.id);
   }
-}
-
-/** The abilities a feat's own Ability Score Improvement assigned (dnd5e's record on the item), or null. */
-function asiAssigned(feature) {
-  try {
-    const advancements = feature?.advancement?.byId ? Object.values(feature.advancement.byId)
-      : Object.values(feature?.system?.advancement ?? {});
-    const asi = advancements.find(a => a?.type === "AbilityScoreImprovement");
-    const assignments = asi?.value?.assignments ?? {};
-    const keys = Object.entries(assignments).filter(([, v]) => Number(v) > 0).map(([k]) => k);
-    return keys.length ? keys : null;
-  } catch { return null; }
 }
 
 // The damage card says it (R5): the coating spent on the hit, and who saves.

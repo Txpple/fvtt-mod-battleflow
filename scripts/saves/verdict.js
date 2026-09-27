@@ -155,6 +155,10 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       });
       entry.outcome = judged.outcome;
       entry.total = judged.total;
+      // A fold that made the save a success outright (Guarded Mind, 2026-09-27) is named on the verdict.
+      if ( judged.made && !forced ) {
+        entry.madeBy = (rollMessage.getFlag(MODULE_ID, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
+      }
       entry.rollMessageId = rollMessage.id;
       if ( evasionApplies(rollMessage.getAssociatedActor?.(), current) ) entry.evasion = true;
       // Circle of Power (2026-09-05): a success against half-on-save spell damage takes none.

@@ -31,10 +31,14 @@ export function rebukeReach(row, activityFeet) {
  * @param {boolean|null} f.slot      a spell slot stands (null: not a spell)
  * @param {boolean|null} f.whileStands  the row's `while` effect stands (null: no `while`)
  * @param {boolean|null} f.equipped  the item is equipped (null: no `equipped` rule)
+ * @param {boolean|null} [f.side]    a ward's: the damager is on ANOTHER side of the map (null: not a ward)
  * @returns {string|null}
  */
-export function rebukeBlocked({ self, hp, reactionSpent, distance, reach, usesLeft, slot, whileStands, equipped }) {
+export function rebukeBlocked({ self, hp, reactionSpent, distance, reach, usesLeft, slot, whileStands, equipped, side = null }) {
   if ( self ) return "self";
+  // A ward (Sentinel, 2026-09-27) is asked of a bystander only when the one who hit stands on another
+  // side of the map from it — its own side's attacks are the table's to punish by hand.
+  if ( side === false ) return "an ally";
   if ( !(Number(hp) > 0) ) return "down";
   if ( reactionSpent ) return "reaction spent";
   if ( whileStands === false ) return "not active";
@@ -62,11 +66,19 @@ export function rebukeCost({ usesLeft = null, usesMax = null, spell = false }) {
 /**
  * The card's line for a rebuke record — source, then result (law 6).
  * @param {{actorName?: string, sourceName?: string, answer?: string|null, choice?: string|null,
- *          timedOut?: boolean, distance?: number|null}} flag
+ *          timedOut?: boolean, distance?: number|null, ward?: boolean, targetName?: string}} flag
  */
 export function rebukeLine(flag) {
   const who = flag?.actorName ?? "The creature";
   const at = flag?.sourceName ?? "the creature that damaged it";
+  // A ward (Sentinel's Guardian, 2026-09-27): the bearer answers a hit on SOMEONE ELSE.
+  if ( flag?.ward ) {
+    const hurt = flag.targetName ?? "someone else";
+    if ( flag.answer === "use" ) return `${flag.choice} — ${who} strikes ${at} for hitting ${hurt}`;
+    if ( flag.answer === "pass" ) return `${who} lets ${at}'s hit on ${hurt} go${flag.timedOut ? " (timer)" : ""}`;
+    const near = Number.isFinite(Number(flag?.distance)) && (flag?.distance !== null) ? ` (${flag.distance} ft)` : "";
+    return `${who} may strike ${at}${near} — it hit ${hurt}`;
+  }
   if ( flag?.answer === "use" ) return `${flag.choice} — ${who} answers ${at}`;
   if ( flag?.answer === "pass" ) return `${who} lets ${at}'s damage go${flag.timedOut ? " (timer)" : ""}`;
   const feet = Number.isFinite(Number(flag?.distance)) && (flag?.distance !== null) ? ` (${flag.distance} ft)` : "";

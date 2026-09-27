@@ -766,6 +766,33 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
   it("returns the number it judged, so the card cannot disagree with its own arithmetic", () => {
     expect(v.foldedSave({ total: 9, dc: 15, folds: [{ add: 6 }] }).total).toBe(15);
   });
+
+  // Guarded Mind (the PHB feats, group 4, 2026-09-27): "you can cause yourself to succeed instead".
+  it("a `succeed` spend contributes the VERDICT on the save side — no number moves — and nothing on the attack side", () => {
+    const spends = [
+      { kind: "succeed", name: "Mage Slayer", label: "Guarded Mind", verdict: "saved" }
+    ];
+    const folds = v.foldsFrom(key => (key === "d20fold" ? { spends } : null), v.SAVE_FOLDS);
+    expect(folds).toEqual([{ verdict: "saved", from: "d20fold" }]);
+    expect(v.foldedSave({ total: 4, dc: 15, folds })).toEqual({
+      total: 4,
+      added: 0,
+      replaced: false,
+      outcome: "saved",
+      made: true
+    });
+    // The attack side names targets; a save's success has nothing to force there.
+    const attack = v.foldsFrom(
+      key => (key === "d20fold" ? { targets: [{ uuid: "t1" }], spends } : null),
+      v.ATTACK_FOLDS
+    );
+    expect(attack).toEqual([]);
+  });
+
+  it("a plain success carries no `made` — only a fold that made it one names itself", () => {
+    expect(v.foldedSave({ total: 18, dc: 15 })).not.toHaveProperty("made");
+    expect(v.foldedSave({ total: 1, dc: 30, forced: true })).not.toHaveProperty("made");
+  });
 });
 
 describe("modeAdmits — the npc/pc/all gate", () => {
@@ -867,6 +894,12 @@ describe("verdictText — the one line the row and the card both read", () => {
 
   it("says nothing for an unresolved target", () => {
     expect(v.verdictText(flag, { done: false })).toBe(null);
+  });
+
+  it("names the fold that made a failed save a success (Guarded Mind, 2026-09-27)", () => {
+    expect(
+      v.verdictText(flag, { done: true, outcome: "saved", total: 6, madeBy: "Guarded Mind" })
+    ).toBe("6 vs DC 15 — saved — half damage (Guarded Mind)");
   });
 
   it("states the total, the DC and the stakes", () => {

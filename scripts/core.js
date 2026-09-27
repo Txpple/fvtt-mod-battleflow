@@ -292,10 +292,11 @@ export function sheetModeEffects(actor) {
  * The roll in the table's words, for the mode box's rule line — "Wisdom saving throws",
  * "Stealth checks", "Thieves' Tools checks". The system's labels where it has them; the id
  * where it does not, which is honest rather than wrong.
- * @param {{kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null}} roll
+ * @param {{kind: "save"|"check", ability?: string|null, skill?: string|null, tool?: string|null, concentration?: boolean}} roll
  */
-export function rollLabelFor({ kind, ability = null, skill = null, tool = null }) {
+export function rollLabelFor({ kind, ability = null, skill = null, tool = null, concentration = false }) {
   const abl = ability ? (CONFIG.DND5E?.abilities?.[ability]?.label ?? ability) : null;
+  if ( (kind === "save") && concentration ) return "saving throws to maintain Concentration";
   if ( kind === "save" ) return `${abl ?? "these"} saving throws`;
   if ( skill ) return `${CONFIG.DND5E?.skills?.[skill]?.label ?? skill} checks`;
   if ( tool ) {

@@ -7,6 +7,8 @@
 //
 // Fixtures: BF Test Halfling (a character; tools/fixture-suite.mjs) is lent the PHB's Resourceful
 // and Musician for the run. Its hit points, hit dice, uses and inspiration are put back afterwards.
+// §8–§11 (the PHB feats, group 5, 2026-09-27) lend Inspiring Leader and Chef and reuse the song's
+// tokens; every creature they touch keeps its hit points, Hit Dice and temp HP (restored whole).
 // The song's sections place TEMPORARY linked tokens on the test range — the Halfling, BF Test
 // Cleric 10 ft away, BF Test Bard 15 ft away (already inspired), BF Test Fighter 40 ft away — in a
 // strip the suite finds empty at run time, and delete them in teardown.
@@ -29,9 +31,13 @@ const SECTIONS = {
   4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("(has it)"); OK gives it, the card names who',
   5: 'Musician after a Short Rest: it asks too',
   6: 'every ally within 30 ft already has Heroic Inspiration: no card, no popup',
-  7: 'Musician off the Rest Grants list: no card'
+  7: 'Musician off the Rest Grants list: no card',
+  8: 'Inspiring Leader (the PHB feats, group 5) after a Short Rest: the amount read off its activity (level + the higher of Wis/Cha on a copy with no ASI record), up to six, the owner too, within 30 ft; a creature holding more is greyed; OK gives the temp HP',
+  9: 'Chef after a Long Rest: Bolstering Treats handed out as the Proficiency Bonus in temp HP, up to that many, every ally on the scene; no meal on a Long Rest',
+  10: 'Chef after a Short Rest: Replenishing Meal — the Cleric rested first and spent Hit Dice (healed 1d8 now, its dice on a card), the Fighter spent none (greyed), the Bard still resting (carries the meal); every Short Rest card records its Hit Dice',
+  11: 'the Bard\'s own Short Rest ends with Hit Dice spent: the meal heals it then'
 };
-const DEPENDS = {};
+const DEPENDS = { 11: ['10'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'rest', watchdogMs: 180_000 });
@@ -75,7 +81,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const scene = game.scenes.getName('Battle Flow Test Range');
       const live = placed.filter(id => scene?.tokens.get(id));
       if (live.length) await scene.deleteEmbeddedDocuments('Token', live);
-      for (const s of snapshots) await s.actor.update({ 'system.attributes.inspiration': s.inspiration });
+      for (const s of snapshots) {
+        if (s.whole) {
+          await s.actor.update({ system: { attributes: s.whole.system.attributes } }, { isRest: true });
+          const classes = s.whole.items.filter(i => (i.type === 'class') && s.actor.items.get(i._id))
+            .map(i => ({ _id: i._id, 'system.hd.spent': i.system?.hd?.spent ?? 0 }));
+          if (classes.length) await s.actor.updateEmbeddedDocuments('Item', classes);
+          if (s.actor.getFlag(MOD, 'mealFed')) await s.actor.unsetFlag(MOD, 'mealFed');
+        }
+        for (const a of game.actors.filter(x => x.getFlag(MOD, 'mealFed'))) await a.unsetFlag(MOD, 'mealFed');
+        await s.actor.update({ 'system.attributes.inspiration': s.inspiration });
+      }
     } catch (err) { log.push(`TEARDOWN tokens ERROR: ${err?.message}`); }
     try {
       const live = lent.filter(id => actor.items.get(id));
@@ -138,7 +154,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     // ================================================== 4–7. the song
-    if (['4', '5', '6', '7'].some(id => !sections || sections.includes(id))) {
+    if (['4', '5', '6', '7', '8', '9', '10', '11'].some(id => !sections || sections.includes(id))) {
       await set('restGrantList', 'Musician');   // Resourceful out: the Halfling's own box stays out of it
       let musician = null;
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -248,6 +264,169 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
         await sleep(1200);
         ok('7a. Musician off the list: no card', !songCard(t0), `card=${!!songCard(t0)}`);
+      }
+
+      // ================================================== 8–11. the PHB feats, group 5 (2026-09-27)
+      // The same popup, a grant of Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats)
+      // and Chef's Replenishing Meal. Each lends the PHB's own feat and reads the amount the way the
+      // machine must: off the feat's heal activity, on the Halfling's sheet.
+      const lendFeat = async name => {
+        if (actor.items.some(i => i.name === name)) return actor.items.find(i => i.name === name);
+        let doc = null;
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex()).find(e => (e.name === name) && (e.type === 'feat'));
+          if (hit) { doc = await pack.getDocument(hit._id); break; }
+        }
+        if (!doc) return null;
+        const [item] = await actor.createEmbeddedDocuments('Item', [doc.toObject()]);
+        lent.push(item.id);
+        return item;
+      };
+      const popupFor = text => [...foundry.applications.instances.values()]
+        .find(app => app.rendered && (app.element?.textContent ?? '').includes(text)) ?? null;
+      const tempOf = a => Number(a.system.attributes.hp.temp) || 0;
+      // ⚠ A row with no reach lists EVERY ally on the scene — the test range carries party tokens (Gren)
+      // and other fixtures. The popup's ticks are set to the suite's own creatures only before OK.
+      const tickOnly = (app, keep) => {
+        for (const box of app?.element?.querySelectorAll('input[name="bf-rest-song"]') ?? []) {
+          // the cap greys unticked rows (disabled); only a "has it" row stays out of reach
+          const on = !box.dataset.has && keep.some(a => a.uuid === box.value);
+          box.checked = on;
+          if (on) box.disabled = false;
+        }
+      };
+      const hpOf = a => Number(a.system.attributes.hp.value) || 0;
+      // Every creature this block touches keeps its hit points, Hit Dice and temp HP (teardown restores).
+      for (const a of [actor, ...allies]) {
+        if (!snapshots.some(s => s.actor === a && s.whole)) {
+          const whole = a.toObject();
+          snapshots.push({ actor: a, whole, inspiration: a.system.attributes.inspiration });
+        }
+      }
+
+      if (want(8)) {
+        await set('restGrantList', 'Inspiring Leader');
+        const feat = await lendFeat('Inspiring Leader');
+        if (!feat) return { fatal: 'the PHB ships no "Inspiring Leader" feat this box can find', results, log, skips };
+        // The lent copy carries no Ability Score Improvement record, so the higher of Wisdom and
+        // Charisma stands (the Poisoner's pick); the amount is the activity's own: level + that modifier.
+        const mod = Math.max(actor.system.abilities.wis.mod, actor.system.abilities.cha.mod);
+        const amount = Number(actor.system.details.level) + mod;
+        await cleric.update({ 'system.attributes.hp.temp': 0 });
+        await bard.update({ 'system.attributes.hp.temp': amount + 5 });   // holds more already — greyed
+        await fighter.update({ 'system.attributes.hp.temp': 0 });
+        await actor.update({ 'system.attributes.hp.temp': 0 });
+        const t0 = Date.now();
+        await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
+        const card = await waitFor(() => songCard(t0), 6000);
+        const flag = card?.getFlag(MOD, 'restSong');
+        const names = (flag?.candidates ?? []).map(c => `${c.name}:${c.feet}${c.has ? ':has' : ''}`);
+        ok('8a. Inspiring Leader after a Short Rest: the amount is the activity\'s (level + the higher of Wis/Cha), up to six, the owner too, within 30 ft',
+          !!flag && (flag.grant === 'temphp') && (flag.amount === amount) && (flag.cap === 6)
+            && flag.candidates.some(c => (c.uuid === actor.uuid) && c.self) && flag.candidates.some(c => (c.uuid === cleric.uuid) && !c.has)
+            && flag.candidates.some(c => (c.uuid === bard.uuid) && c.has) && !flag.candidates.some(c => c.uuid === fighter.uuid),
+          `amount=${flag?.amount} expected=${amount} cap=${flag?.cap} candidates=${names.join(', ')}`);
+        const app = await waitFor(() => popupFor(`Who gets ${amount} Temporary Hit Points`), 6000);
+        const bb = boxOf(app, bard);
+        ok('8b. the popup asks "Who gets N Temporary Hit Points?", the Bard greyed with what it holds',
+          !!app && !!bb?.disabled && /temp HP/.test(bb?.closest('label')?.textContent ?? ''),
+          `popup=${!!app} bard=${bb?.disabled} "${(bb?.closest('label')?.textContent ?? '').replace(/\s+/g, ' ').trim()}"`);
+        app?.element?.querySelector('button[data-action="ok"]')?.click();
+        const landed = await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
+        ok('8c. OK gives it: the Cleric and the leader hold the amount, the Bard keeps its larger pool, the Fighter (40 ft) nothing',
+          !!landed && (tempOf(cleric) === amount) && (tempOf(actor) === amount) && (tempOf(bard) === amount + 5) && (tempOf(fighter) === 0),
+          `cleric=${tempOf(cleric)} self=${tempOf(actor)} bard=${tempOf(bard)} fighter=${tempOf(fighter)} amount=${amount}`);
+      }
+
+      if (want(9)) {
+        await set('restGrantList', 'Bolstering Treats, Replenishing Meal');
+        const chef = await lendFeat('Chef');
+        if (!chef) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
+        const prof = Number(actor.system.attributes.prof);
+        for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
+        const t0 = Date.now();
+        await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
+        const card = await waitFor(() => songCard(t0), 6000);
+        const flag = card?.getFlag(MOD, 'restSong');
+        ok('9a. Chef after a Long Rest: Bolstering Treats handed out — the Proficiency Bonus as Temporary Hit Points, up to that many, every ally on the scene (the Fighter at 40 ft too)',
+          !!flag && (flag.row === 'Bolstering Treats') && (flag.amount === prof) && (flag.cap === prof) && (flag.reach === null)
+            && flag.candidates.some(c => c.uuid === fighter.uuid),
+          `row=${flag?.row} amount=${flag?.amount} cap=${flag?.cap} reach=${flag?.reach} candidates=${(flag?.candidates ?? []).map(c => c.name).join(', ')}`);
+        const app = await waitFor(() => popupFor(`Who gets ${prof} Temporary Hit Points`), 6000);
+        const startTicked = [...(app?.element?.querySelectorAll('input[name="bf-rest-song"]:checked') ?? [])].length;
+        const mine = [cleric, fighter].slice(0, prof);
+        tickOnly(app, mine);
+        app?.element?.querySelector('button[data-action="ok"]')?.click();
+        await waitFor(() => card?.getFlag(MOD, 'restSong')?.applied, 6000);
+        const given = [actor, cleric, bard, fighter].filter(a => tempOf(a) === prof).map(a => a.uuid);
+        ok('9b. the first cap-many start ticked; OK gives exactly the picked the treats (the Cleric, the Fighter at 40 ft)',
+          (startTicked === Math.min(prof, flag?.candidates?.length ?? 0)) && (given.length === mine.length) && mine.every(a => given.includes(a.uuid)),
+          `startTicked=${startTicked} given=${given.length} picked=${mine.length} prof=${prof}`);
+        ok('9c. a Long Rest is not Replenishing Meal\'s — no meal card', !game.messages.contents.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === 'Replenishing Meal')),
+          'a meal card appeared on a Long Rest');
+      }
+
+      // The meal in both orders: the Cleric has rested (Hit Dice spent), the Fighter has rested (none
+      // spent), the Bard has not rested yet — then the Chef's own Short Rest asks.
+      let mealCard = null;
+      if (want(10)) {
+        await set('restGrantList', 'Replenishing Meal');   // the Long Rest below must not hand out treats
+        if (!await lendFeat('Chef')) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
+        await actor.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });   // Hit Dice back, a clean slate
+        for (const m of game.messages.contents.filter(m => m.getFlag(MOD, 'restSong') && (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong').status === 'pending'))) await m.delete();
+        for (const a of [cleric, bard, fighter]) await a.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });
+        await cleric.update({ 'system.attributes.hp.value': Math.max(1, cleric.system.attributes.hp.max - 20) });
+        await bard.update({ 'system.attributes.hp.value': Math.max(1, bard.system.attributes.hp.max - 20) });
+        // The Cleric rests first and spends Hit Dice (autoHD, no dialog); the Fighter rests at full HP and spends none.
+        await cleric.shortRest({ dialog: false, chat: true, advanceTime: false, autoHD: true, autoHDThreshold: 1 });
+        await fighter.shortRest({ dialog: false, chat: true, advanceTime: false });
+        await sleep(600);
+        const clericCard = game.messages.contents.filter(m => (m.type === 'rest') && (m.speaker?.actor === cleric.id)).pop();
+        const spentCleric = clericCard?.getFlag(MOD, 'restSpent');
+        ok('10a. every Short Rest card records the Hit Dice its creature spent (the Cleric\'s, autoHD)',
+          (spentCleric?.actorUuid === cleric.uuid) && (spentCleric?.hitDice > 0), JSON.stringify(spentCleric ?? null));
+        const clericHp = hpOf(cleric);
+        const t0 = Date.now();
+        await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
+        mealCard = await waitFor(() => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === 'Replenishing Meal')).pop(), 6000);
+        const flag = mealCard?.getFlag(MOD, 'restSong');
+        const cOf = a => flag?.candidates?.find(c => c.uuid === a.uuid);
+        ok('10b. the Chef\'s Short Rest asks who eats — up to 4 + Proficiency Bonus; the Cleric spent Hit Dice, the Fighter spent none (greyed), the Bard is still resting',
+          !!flag && (flag.grant === 'meal') && (flag.formula === '1d8') && (flag.cap === 4 + Number(actor.system.attributes.prof))
+            && (cOf(cleric)?.meal === 'spent') && !cOf(cleric)?.has && (cOf(fighter)?.meal === 'none') && cOf(fighter)?.has
+            && (cOf(bard)?.meal === 'resting') && !cOf(bard)?.has,
+          `formula=${flag?.formula} cap=${flag?.cap} ${(flag?.candidates ?? []).map(c => `${c.name}:${c.meal}${c.has ? ':greyed' : ''}`).join(', ')}`);
+        const app = await waitFor(() => popupFor('Who gets an extra 1d8 Hit Points'), 6000);
+        tickOnly(app, [cleric, bard]);
+        app?.element?.querySelector('button[data-action="ok"]')?.click();
+        const landed = await waitFor(() => mealCard?.getFlag(MOD, 'restSong')?.applied, 8000);
+        const served = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(cleric.name)), 6000);
+        const gain = hpOf(cleric) - clericHp;
+        const rolled = served?.rolls?.[0]?.total;
+        ok('10c. OK: the Cleric (rested, Hit Dice spent) is healed now by the rolled 1d8, on one card with the dice',
+          !!landed && !!served && Number.isFinite(rolled) && (rolled >= 1) && (rolled <= 8) && (gain === Math.min(rolled, cleric.system.attributes.hp.max - clericHp)),
+          `served=${!!served} rolled=${rolled} gain=${gain}`);
+        const fed = bard.getFlag(MOD, 'mealFed');
+        ok('10d. the Bard, still resting, carries the meal to its own rest\'s end; the card says it waits',
+          (fed?.formula === '1d8') && ((mealCard?.getFlag(MOD, 'restSong')?.waiting ?? []).join() === bard.name),
+          `fed=${JSON.stringify(fed ?? null)} waiting=${JSON.stringify(mealCard?.getFlag(MOD, 'restSong')?.waiting)}`);
+      }
+
+      if (want(11)) {
+        if (!bard.getFlag(MOD, 'mealFed')) {
+          skips.push('§11 needs §10 (the Bard carrying the meal)');
+        } else {
+          const before = hpOf(bard);
+          const t1 = Date.now();
+          await bard.shortRest({ dialog: false, chat: true, advanceTime: false, autoHD: true, autoHDThreshold: 1 });
+          const served = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t1) && (m.rolls?.length) && /Replenishing Meal/.test(m.content ?? '') && m.content.includes(bard.name)), 8000);
+          await waitFor(() => !bard.getFlag(MOD, 'mealFed'), 4000);
+          const restCard = game.messages.contents.filter(m => (m.type === 'rest') && (m.speaker?.actor === bard.id)).pop();
+          const spent = restCard?.getFlag(MOD, 'restSpent')?.hitDice ?? 0;
+          ok('11a. the Bard\'s own Short Rest ends with Hit Dice spent: the meal\'s 1d8 heals it then, its card with the dice, and the mark is gone',
+            (spent > 0) && !!served && !bard.getFlag(MOD, 'mealFed') && (hpOf(bard) > before),
+            `spent=${spent} served=${!!served} fed=${!!bard.getFlag(MOD, 'mealFed')} hp ${before} → ${hpOf(bard)}`);
+        }
       }
     }
 

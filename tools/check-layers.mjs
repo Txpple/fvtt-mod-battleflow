@@ -159,6 +159,7 @@ export const LAYER_OF = {
   "decide/emanations.js": "decision",
   "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line (2026-09-25)
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it (2026-09-25)
+  "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands (2026-09-27)
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",

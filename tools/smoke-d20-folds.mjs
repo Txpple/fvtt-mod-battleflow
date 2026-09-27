@@ -37,9 +37,10 @@ const SECTIONS = {
   7: "TWO TARGETS, ONE DIE — the fold's card counts the die once, not once per target",
   8: "THE WINDOW CLOSES — when the clock runs out, and when a spend makes it moot",
   9: "THE WASTED-SPEND RACE — a click on a dead premise burns nothing",
-  10: "THE REFUND ASK — Tactical Mind on a raw check asks whether it failed; refund restores the use, keep does not"
+  10: "THE REFUND ASK — Tactical Mind on a raw check asks whether it failed; refund restores the use, keep does not",
+  11: "GUARDED MIND (the PHB feats, group 4) — a Wisdom save rolled from the sheet is offered the `succeed` fold; pressed, the use is spent and the card says the save succeeds instead; a Dexterity save never is"
 };
-const DEPENDS = { 2: [1], 3: [1], 5: [1], 10: [1] };
+const DEPENDS = { 2: [1], 3: [1], 5: [1], 10: [1], 11: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 
@@ -86,10 +87,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Tactical Assessment), and since 2026-09-09 Seeking Spell (the metamagic pass's reroll on a
       // spell attack's miss), and since 2026-09-25 Lucky's `advantage` (the Halfling walk); what this
       // asserts is that every entry is one of the five kinds (D20_FOLD_KINDS) and each is represented.
-      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage"];
-      ok("all five kinds are listed and live",
-        (entries.length >= KINDS.length) && entries.every(e => KINDS.includes(e.kind))
-          && KINDS.every(k => entries.some(e => e.kind === k)),
+      // Since 2026-09-27 Mage Slayer's `succeed` (Guarded Mind, the PHB feats group 4) — a world whose
+      // stored list predates it simply lists five.
+      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"];
+      const REQUIRED = ["heroic", "tactical", "bardic", "seeking", "advantage"];
+      ok("all six kinds are known, and the five surveyed before group 4 are listed and live",
+        (entries.length >= REQUIRED.length) && entries.every(e => KINDS.includes(e.kind))
+          && REQUIRED.every(k => entries.some(e => e.kind === k)),
         JSON.stringify(entries));
 
       ok("heroic marker is a boolean on the sheet",
@@ -1337,6 +1341,78 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await game.settings.set(MODULE_ID, "holdTimer", priorTimer).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
           await fighter.items.get(sw.id)?.update({ "system.uses.spent": priorSpent }).catch(() => {});
+          for (const m of made) await m.delete().catch(() => {});
+        }
+      }
+    }
+
+    /* --- 11: GUARDED MIND on a save rolled from the sheet -------------------------------- */
+    // (the PHB feats, group 4, 2026-09-27 — Mage Slayer): no DC exists for a save rolled from the
+    // sheet (the DC finding), so the `succeed` fold is an OFFER the roller judges — and pressing it
+    // spends the feat's one use through its own activity and says the save succeeds instead.
+    if (has(11)) {
+      const pack = game.packs.get("dnd-players-handbook.feats");
+      const src = pack ? (await pack.getIndex()).find(e => e.name === "Mage Slayer") : null;
+      const doc = src ? await pack.getDocument(src._id) : null;
+      if (!doc) {
+        skips.push("section 11: no Mage Slayer in dnd-players-handbook.feats");
+      } else {
+        const priorFolds = game.settings.get(MODULE_ID, "d20Folds");
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const made = [];
+        let lent = null;
+        try {
+          await game.settings.set(MODULE_ID, "d20Folds", game.settings.settings.get(`${MODULE_ID}.d20Folds`)?.default ?? priorFolds);
+          await fighter.update({ "system.attributes.inspiration": false });   // no reroll row beside it
+          [lent] = await fighter.createEmbeddedDocuments("Item", [doc.toObject()]);
+          const priorDialogs = new Set([...document.querySelectorAll(".application")].map(el => el.id));
+          const since = Date.now();
+          await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
+          const msg = await until(() => game.messages.contents
+            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), 8000);
+          if (msg) made.push(msg);
+          const flag = msg?.getFlag(MODULE_ID, "d20fold");
+          const offer = (flag?.offers ?? []).find(o => o.kind === "succeed");
+          ok("§11 a Wisdom save rolled from the sheet is offered Guarded Mind, by the benefit's name, the save's ability on the flag",
+            !!offer && (offer.label === "Guarded Mind") && (flag?.ability === "wis") && !Number.isFinite(flag?.dc),
+            JSON.stringify({ offers: flag?.offers, ability: flag?.ability }));
+          const popup = await until(() => [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')), 8000);
+          popup?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
+          // The Bardic die the fixture holds is not re-offered: the save succeeded (no longer failing).
+          const done = await until(() => {
+            const cur = msg?.getFlag(MODULE_ID, "d20fold");
+            return (cur?.status === "resolved") ? cur : null;
+          }, 20_000);
+          ok("§11 pressed: the spend is the verdict — no die, no reroll — and the fold settles with no re-offer",
+            !!done && (done.spends?.length === 1) && (done.spends?.[0]?.kind === "succeed") && (done.spends?.[0]?.verdict === "saved")
+              && !Number.isFinite(done.spends?.[0]?.die) && !done.spends?.[0]?.reroll,
+            JSON.stringify(done?.spends ?? null));
+          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, 6000);
+          ok("§11 the feat's one use is really spent (its own Guard Mind activity)", !!spent,
+            `uses=${fighter.items.get(lent.id)?.system?.uses?.value}`);
+          const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since)
+            && /the failed save succeeds instead/.test(m.content ?? "")), 8000);
+          ok("§11 the card says it: Guarded Mind — the failed save succeeds instead", !!card, card ? "posted" : "NO CARD");
+          for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
+          // A Dexterity save is not Guarded Mind's (the use restored, so only the rule can refuse it).
+          await fighter.items.get(lent.id)?.update({ "system.uses.spent": 0 });
+          const since2 = Date.now();
+          await fighter.rollSavingThrow({ ability: "dex" }, { configure: false }, { create: true });
+          await sleep(800);
+          const dMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "dex"));
+          const dOffers = (dMsg?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).map(o => o.kind);
+          ok("§11 a Dexterity save is never offered it", !!dMsg && !dOffers.includes("succeed"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
+          for (const m of game.messages.contents.filter(m => m.timestamp >= since2)) made.push(m);
+          // Close whatever rescue window the Dex save's other offer raised — Pass spends nothing.
+          [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
+            ?.querySelector('button[data-action="pass"]')?.click();
+          await sleep(400);
+        } finally {
+          if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
+          await game.settings.set(MODULE_ID, "d20Folds", priorFolds).catch(() => {});
           for (const m of made) await m.delete().catch(() => {});
         }
       }

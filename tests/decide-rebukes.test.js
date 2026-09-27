@@ -69,3 +69,50 @@ describe("rebukes — a Reaction to damage, aimed at its dealer (the Goliath wal
     expect(reg.LIST_SPECS.rebukes.default).toBe(Object.keys(reg.REBUKES).join(", "));
   });
 });
+
+describe("Sentinel's Guardian — a ward, asked of a bystander (the PHB feats, group 6, 2026-09-27)", () => {
+  const open = {
+    self: false,
+    hp: 20,
+    reactionSpent: false,
+    distance: 5,
+    reach: 5,
+    usesLeft: null,
+    slot: null,
+    whileStands: null,
+    equipped: null,
+    side: true
+  };
+  it("asked only when the one who hit stands on another side of the map, within the 5 feet", () => {
+    expect(rb.rebukeBlocked(open)).toBeNull();
+    expect(rb.rebukeBlocked({ ...open, side: false })).toBe("an ally");
+    expect(rb.rebukeBlocked({ ...open, distance: 10 })).toBe("out of reach");
+    expect(rb.rebukeBlocked({ ...open, reactionSpent: true })).toBe("reaction spent");
+    expect(rb.rebukeBlocked({ ...open, side: null })).toBeNull(); // not a ward: no side rule
+  });
+  it("the row: Retaliation's melee answer, 5 feet, a ward, an attack's hit only, an Opportunity Attack", () => {
+    expect(reg.REBUKES.Sentinel).toMatchObject({
+      attack: "melee",
+      range: 5,
+      ward: true,
+      hit: true,
+      opportunity: true
+    });
+    expect(reg.REBUKES.Sentinel.rule.startsWith("Guardian.")).toBe(true);
+    expect(reg.LIST_SPECS.rebukes.default).toContain("Sentinel");
+  });
+  it("the card line names the one it hit", () => {
+    const f = {
+      actorName: "Morgash",
+      sourceName: "Hobgoblin",
+      targetName: "Gren",
+      distance: 5,
+      ward: true
+    };
+    expect(rb.rebukeLine(f)).toBe("Morgash may strike Hobgoblin (5 ft) — it hit Gren");
+    expect(rb.rebukeLine({ ...f, answer: "use", choice: "Sentinel" })).toBe(
+      "Sentinel — Morgash strikes Hobgoblin for hitting Gren"
+    );
+    expect(rb.rebukeLine({ ...f, answer: "pass" })).toBe("Morgash lets Hobgoblin's hit on Gren go");
+  });
+});

@@ -1241,6 +1241,39 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
     expect(r.modeKeys({ kind: "check", tool: "thief" })).toEqual(["system.tools.thief.roll.mode"]);
     expect(r.modeKeys({ kind: "save" })).toEqual([]);
     expect(r.modeKeys({ kind: "initiative", ability: "dex" })).toEqual([]);
+    // A save to keep Concentration also reads its own field — War Caster's Advantage (2026-09-27,
+    // the PHB feats group 4: Mage Slayer's Disadvantage nets against it).
+    expect(r.modeKeys({ kind: "save", ability: "con", concentration: true })).toEqual([
+      "system.abilities.con.save.roll.mode",
+      "system.attributes.concentration.roll.mode"
+    ]);
+    expect(r.modeKeys({ kind: "save", ability: "con" })).toEqual([
+      "system.abilities.con.save.roll.mode"
+    ]);
+    const [wc] = r.modeSources({
+      effects: [
+        {
+          name: "War Caster",
+          item: "War Caster",
+          changes: [{ key: "system.attributes.concentration.roll.mode", value: "1" }]
+        }
+      ],
+      roll: { kind: "save", ability: "con", concentration: true },
+      rollLabel: "saving throws to maintain Concentration"
+    });
+    expect(wc).toMatchObject({ bend: "advantage", label: "You — War Caster" });
+    expect(
+      r.modeSources({
+        effects: [
+          {
+            name: "War Caster",
+            item: "War Caster",
+            changes: [{ key: "system.attributes.concentration.roll.mode", value: "1" }]
+          }
+        ],
+        roll: { kind: "save", ability: "con" }
+      })
+    ).toEqual([]);
     const [s] = r.modeSources({
       effects: [
         {
