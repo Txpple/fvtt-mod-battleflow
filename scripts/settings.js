@@ -25,6 +25,16 @@ Hooks.once("init", () => {
     range: { min: 0, max: 10, step: 0.5 }
   });
 
+  // THE DICE WAIT (the user, 2026-09-26: parked as "the dice wait as a setting, after Dramatic
+  // Beat", then "set the default to 0 from 6 and apply"). Was a hardcoded six-second cap on
+  // waiting for Dice So Nice before a verdict or a roll's question opens (ui.js dramaticVerdictPause).
+  game.settings.register(MODULE_ID, S.diceWait, {
+    name: "Wait for the Dice",
+    hint: "Seconds, at most, that a verdict or a question about a roll (a failed concentration save, Topple's prone, Empowered Spell, Savage Attacker, Piercer) waits for Dice So Nice's dice to come to rest before it shows. 0 shows it at once, while the dice are still rolling. The Dramatic Beat, if any, comes after.",
+    scope: "world", config: true, type: Number, default: 0,
+    range: { min: 0, max: 10, step: 0.5 }
+  });
+
   // ⚠ A per-CLIENT setting, and a DELIBERATE reversal of "max options later, one switch
   // now" — recorded as one in DESIGN.md's Per-client section. v1.9.5 DELETED `saveAutoRoll`,
   // whose shape was "the POPUP is the default, the opt-out is silent auto-roll"; this is that

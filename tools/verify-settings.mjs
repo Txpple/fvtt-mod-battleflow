@@ -18,6 +18,7 @@ setTimeout(() => { console.error('[verify] WATCHDOG 120s'); process.exit(3); }, 
 const REFERENCE = {
   autoDamage: 'all',
   autoApply: true,
+  diceWait: 0,       // user call 2026-09-26: "set the default to 0 from 6 and apply" — the hardcoded six-second wait for Dice So Nice, made a setting
   dramaticBeat: 0,   // user call 2026-08-20 (third walk): "set all the beats to 0" — 0 is the DELIBERATE table value now, not suite residue; the module default already agrees
   requireTarget: true,
   reactionHold: true,

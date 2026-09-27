@@ -10,6 +10,7 @@ export const TITLE = "Battle Flow";
 export const S = {
   autoDamage: "autoDamage",
   dramaticBeat: "dramaticBeat",
+  diceWait: "diceWait",                 // the verdict pause's wait for Dice So Nice (the user, 2026-09-26: default 0)
   playerRollDamage: "playerRollDamage",
   effectBar: "effectBar",       // the effect view's bar above the hotbar (client, 2026-09-15 draft)
   effectHover: "effectHover",   // the effect view's hover card and held key (client, 2026-09-15 draft)

@@ -529,11 +529,13 @@ export async function dramaticVerdictPause(rollMessage) {
   // never RESOLVES (a cross-client animation that never played, a headless page) would hang
   // this await forever — and everything behind the pause (the cascade, the prone, the break
   // card) would silently never happen, which is exactly the live 2026-08-16 shape of
-  // "concentration read broken but Bless survived". Dice are cosmetic; six seconds is more
-  // drama than any roll needs.
+  // "concentration read broken but Bless survived". Dice are cosmetic. The cap is the table's
+  // since 2026-09-26 (the Wait for the Dice setting — six seconds hardcoded before; 0 by default,
+  // the user's call: the question opens while the dice still roll).
+  const wait = Math.max(0, Number(setting(S.diceWait)) || 0) * 1000;
   try {
-    const dice = game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id);
-    if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, 6000))]);
+    const dice = wait ? game.dice3d?.waitFor3DAnimationByMessageID?.(rollMessage.id) : null;
+    if ( dice ) await Promise.race([dice, new Promise(r => setTimeout(r, wait))]);
   }
   catch(err) { /* dice are cosmetic; never let them block a verdict */ }
   const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
