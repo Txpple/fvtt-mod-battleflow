@@ -74,7 +74,7 @@ appears in the replicated log.
 | Apply damage / effects | **Active-GM elect** (`isActiveGM()`) | Ownership is a permission fact; a single writer prevents double-apply |
 | Roll a PC's save / concentration | **Owning player's** | Their character, their dice |
 | NPC saves, offline-owner fallback | **Active-GM elect** | GM owns everything; the fallback keeps the chain moving |
-| Answer a moment | **Whoever owns the decision** | Buttons sit with the decider (`canAnswerFor`) |
+| Answer a moment | **Whoever owns the decision** | Buttons sit with the decider (`canAnswerFor`): the owning player while connected, the GM when no owner is — ⚠ the ONE gate for every moment popup (`openMomentPopup` applies it); no machine adds a GM quiet on top (the hold kept one until 2026-09-27 and an offline player's Shield popped for nobody). A moment born of an action on one client (a level-up's type pick, a cast's card chip, the roller's own dice popups) opens on that client |
 | Override / adjudicate | **GM** | Rulings sit with the adjudicator; also the AFK fallback |
 
 ### The driver table — machine × moment × driver × no-GM

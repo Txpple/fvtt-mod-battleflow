@@ -190,8 +190,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       });
       controls.append(momentButton("Answer", () => {
         shownMoments.delete(popupKey(message.id, "hold"));
-        // `manual` — a deliberate click, so it bypasses the GM's player-owned quiet above.
-        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"), { manual: true });
+        void showHoldPopup(message, message.getFlag(MODULE_ID, "hold"));
       }, { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" }));
       block.append(controls);
     });
@@ -305,7 +304,7 @@ async function holdPopupContent(target, roll, actor, hold) {
  * (reported live 2026-08-15). Now the instance is held so the hold's own update can close it,
  * and closing for ANY reason releases the decision back to the card row.
  */
-async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
+async function showHoldPopup(attackMessage, hold) {
   const roll = attackMessage.rolls[0];
   for ( const target of hold.targets ) {
     // An answered target's decision is made — reopening its popup (the card's Answer button
@@ -318,32 +317,20 @@ async function showHoldPopup(attackMessage, hold, { manual = false } = {}) {
     for ( const guard of (target.guards ?? []) ) {
       if ( guard.passed ) continue;
       const guardActor = resolveUuid(guard.uuid);
-      if ( !canAnswerFor(guardActor) ) continue;
-      if ( !manual && game.user.isGM && guardActor?.hasPlayerOwner ) continue;   // the GM's quiet, as below
+      if ( !canAnswerFor(guardActor) ) continue;   // canAnswerFor alone routes — see below
       await showGuardPopup(attackMessage, target, guard, guardActor, hold, roll);
     }
     if ( (target.selfAsk === false) || target.selfPassed ) continue;
     if ( !canAnswerFor(actor) ) continue;
 
-    // THE GM'S UNSOLICITED POPUPS ARE NON-PLAYER-OWNED TARGETS ONLY. This is the save
-    // machine's rule (v1.12.0 finding ④, user: "as a GM i dont care to see other player
-    // saves"), and `gmQuiet` has lived in saves.js and mastery.js since — the hold was the
-    // one machine that never got it. Restated against the hold 2026-08-19: "as a DM, I
-    // shouldn't see Gren's shield popup. DM doesn't want to be spammed with player popups.
-    // DM can just see the card timer tick."
-    //
-    // ⚠ The case this actually fixes is the OFFLINE owner. A player-owned target whose owner
-    // is PRESENT never reaches this line — canAnswerFor is already false on the GM client,
-    // which is why the requirement looked satisfied for as long as the players were logged
-    // in and looked broken the moment the DM tested alone. canAnswerFor deliberately falls
-    // back to the GM when the owner is away; that fallback is what was spamming the DM.
-    // Such a target now rides the hold timer instead, which is the right answer twice over:
-    // expiry is a PASS, and an absent player was never going to spend a reaction anyway.
-    // NPCs and unowned characters keep their popups — the monster side is the GM's to answer.
-    //
-    // `manual` is the deliberate-recall escape hatch: the card's Answer button passes it, so
-    // the DM can always summon the question on purpose. A click is never spam.
-    if ( !manual && game.user.isGM && actor?.hasPlayerOwner ) continue;
+    // canAnswerFor ALONE ROUTES — the rule every other popup follows (the user, 2026-09-27, the PHB
+    // feats walk: "shield was one of the first things we ever did, make it conform with general
+    // behavior"). The owning player's client gets the popup while that player is connected; with no
+    // owner connected the GM does. The hold kept an older GM quiet (2026-08-19, "as a DM, I shouldn't
+    // see Gren's shield popup") after saves, topple and the folds dropped theirs in v1.19.x (finding
+    // (h): the quiet was mutually exclusive with canAnswerFor's own active-owner check, so an offline
+    // player's reaction popped for NOBODY and the clock passed it). An ONLINE owner still keeps the
+    // GM out, inside canAnswerFor — the 2026-08-19 taste where it was made.
 
     // THE POPUP THAT RESCUES A HIT (Slice A, ruled 2026-09-24): a defender holding a `roll` row
     // is asked in the row shape — every way to rescue the hit a ticked row, one answer.
