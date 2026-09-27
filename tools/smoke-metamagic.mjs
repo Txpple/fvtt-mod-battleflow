@@ -370,7 +370,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Everything waits on the answer: no damage dice, no damage popup, while the ask stands.
       const damageFor = () => game.messages.filter(m => (m._source.system?.origin === card.id) && (m.type === 'damage')).length;
       const damageBefore = damageFor();
-      const offerBefore = [...foundry.applications.instances.values()].some(a => a.rendered && /Damage — your roll|Roll damage/i.test(a.element?.textContent ?? ''));
+      const offerApps = [...foundry.applications.instances.values()].filter(a => a.rendered && /Damage — your roll|Roll damage/i.test(a.element?.textContent ?? ''));
+      const offerBefore = offerApps.length > 0;
+      if (offerBefore) log.push(`castArea(${key}): damage-looking windows open while the ask stood: ${offerApps.map(a => `${a.constructor?.name}:"${(a.title ?? '').slice(0, 60)}"`).join(' | ')}`);
       const deferred = !!card.getFlag(MOD, 'savesDeferredRoll');
       if (pick) await pick(askRows, askPopup?.element ?? null);
       askPopup?.element?.querySelector('button[data-action="ok"]')?.click();
