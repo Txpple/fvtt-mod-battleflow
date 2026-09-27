@@ -6,11 +6,11 @@
  * body here is the one maneuvers.js carried; nothing was rewritten.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor } from "./core.js";
-import { cardActivity, resolveUuid, foldEntryFor } from "./lookup.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, canAnswerFor, combatStamp } from "./core.js";
+import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
 import { maneuverFoldEntries } from "./settings.js";
-import { RULE_TEXT } from "./decide/registry.js";
-import { modeAllows } from "./shared.js";
+import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
+import { hitTargets, modeAllows } from "./shared.js";
 import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
@@ -29,7 +29,15 @@ import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledge
  * reminder; module-applied damage is the only exact witness of "reduced to 0".
  * ========================================================================================== */
 
-async function postHewReminder(attacker, featItem, weapon, why) {
+/** The bonus-swing row a listed `hew` feat stands for — its own row, or Hew's shape (a crit or a kill). */
+const swingRowOf = name => {
+  const key = Object.keys(BONUS_SWINGS).find(k => lower(k) === lower(name));
+  return key ? BONUS_SWINGS[key] : null;
+};
+const whenOf = name => swingRowOf(name)?.when ?? "critOrKill";
+
+async function postHewReminder(attacker, featItem, weapon, why, row = null) {
+  const label = row?.label ?? "Hew";
   // The card is the durable record; the POPUP is the moment (walk finding (c), the user's
   // design law verbatim: "our design language is to give players popup notifications on
   // easy things to forget" — the first walk's crit card posted and was scrolled past).
@@ -39,16 +47,18 @@ async function postHewReminder(attacker, featItem, weapon, why) {
     speaker: ChatMessage.getSpeaker({ actor: attacker }),
     content: bfCard({
       img: featItem.img, eyebrow: `Feat — ${featItem.name}`, tone: "good",
-      title: `Hew — ${attacker.name} can attack again`,
+      title: `${label} — ${attacker.name} can attack again`,
       subtitle: why,
       // (z): the rule line is the feat's own sentence, verbatim; the swing note stays as
       // the module's hint.
-      lines: [ruleLine(RULE_TEXT.hew),
-        `Swing <strong>${weapon?.name ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
+      lines: [ruleLine(row?.rule ?? RULE_TEXT.hew),
+        row?.swing ?? `Swing <strong>${weapon?.name ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }),
     flags: { [MODULE_ID]: { hewNotice: {
       attackerUuid: attacker.uuid, itemName: featItem.name, itemImg: featItem.img,
       weaponName: weapon?.name ?? null, why,
+      ...(row ? { label, rule: row.rule, swing: row.swing ?? null } : {}),
+      ...(row?.when === "attack" ? { stamp: combatStamp() } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     } } }
   });
@@ -58,13 +68,13 @@ async function postHewReminder(attacker, featItem, weapon, why) {
 async function showHewPopup(message, notice) {
   const attacker = resolveUuid(notice.attackerUuid);
   await openMomentPopup(message, "hew", attacker, {
-    title: `Hew — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle", width: 420,
+    title: `${notice.label ?? "Hew"} — ${attacker?.name ?? ""}`, icon: "fa-solid fa-axe-battle", width: 420,
     content: bfCard({
       img: notice.itemImg, eyebrow: `Feat — ${notice.itemName}`, tone: "good",
-      title: `Hew — ${attacker?.name ?? "you"} can attack again`,
+      title: `${notice.label ?? "Hew"} — ${attacker?.name ?? "you"} can attack again`,
       subtitle: notice.why,
-      lines: [ruleLine(RULE_TEXT.hew),
-        `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
+      lines: [ruleLine(notice.rule ?? RULE_TEXT.hew),
+        notice.swing ?? `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
     }) + momentBarHTML(notice, "reminder"),
     // The ACK (law 2, finding (j)): OK resolves the card's pending presentation everywhere.
     buttons: [{ action: "ok", label: "OK", default: true,
@@ -129,7 +139,7 @@ async function hewChainContext(damageMessage) {
   if ( activity?.attack?.type?.value !== "melee" ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
   if ( !attacker || !modeAllows(attacker) ) return null;
-  const found = foldEntryFor(attacker, "hew", maneuverFoldEntries());
+  const found = foldEntryFor(attacker, "hew", maneuverFoldEntries().filter(e => whenOf(e.name) === "critOrKill"));
   if ( !found ) return null;
   return { attackMessage, activity, attacker, found };
 }
@@ -189,5 +199,82 @@ Hooks.on("updateChatMessage", message => {
   if ( message.getFlag(MODULE_ID, "hewNotice")?.acknowledged ) {
     const dialog = livePopups.get(popupKey(message.id, "hew"));
     if ( dialog ) void dialog.close();
+  }
+});
+
+/* --- the ATTACK trigger (the PHB feats, 2026-09-27 — Polearm Master's Pole Strike, the user's "P1") --
+ * "Immediately after you take the Attack action and attack with a Quarterstaff, a Spear, or a weapon
+ * that has the Heavy and Reach properties, you can use a Bonus Action ...": a BONUS_SWINGS row with
+ * `when: "attack"`. The same reminder, after the attack RESOLVES (finding (k)'s order — never ahead of
+ * its own damage): on the damage card of a hit, or on the attack card when it missed every target.
+ * On the owner's own turn in a running combat, once per turn (Extra Attack's second swing asks
+ * nothing more); out of combat, every such attack. The elect posts; the swing is from the sheet.
+ * ------------------------------------------------------------------------------------------- */
+
+/** Does this weapon qualify for the row — a named base item, or every named property? */
+function swingWeaponFits(row, item) {
+  if ( item?.type !== "weapon" ) return false;
+  const base = item.system?.type?.baseItem ?? null;
+  if ( base && (row.weapons?.base ?? []).includes(base) ) return true;
+  const props = row.weapons?.properties ?? [];
+  return !!props.length && props.every(pr => item.system?.properties?.has?.(pr));
+}
+
+/** The listed attack-row feat this attack earns a reminder for, with its item — or null. */
+function attackSwingFor(attackMessage) {
+  const activity = cardActivity(attackMessage, activityUuidOf(attackMessage));
+  if ( activity?.attack?.type?.value !== "melee" ) return null;
+  const attacker = attackMessage.getAssociatedActor?.();
+  if ( !attacker || !modeAllows(attacker) ) return null;
+  for ( const entry of maneuverFoldEntries().filter(e => (e.kind === "hew") && (whenOf(e.name) === "attack")) ) {
+    const row = swingRowOf(entry.name);
+    if ( !swingWeaponFits(row, activity.item) ) continue;
+    const found = foldEntryFor(attacker, "hew", [entry]);
+    if ( found ) return { attacker, activity, row, item: found.item };
+  }
+  return null;
+}
+
+/** On the owner's own turn (a running combat), and not yet reminded this turn. */
+function swingTurnOpen(attacker, row) {
+  const combat = game.combat;
+  if ( !combat?.started || !combat.getCombatantsByActor(attacker).length ) return true;
+  if ( combat.combatant?.actor?.uuid !== attacker.uuid ) return false;          // an Opportunity Attack: not the Attack action
+  const stamp = combatStamp();
+  return !game.messages.contents.slice(-60).some(m => {
+    const n = m.getFlag(MODULE_ID, "hewNotice");
+    return n && (n.attackerUuid === attacker.uuid) && (n.label === row.label) && (n.stamp === stamp);
+  });
+}
+
+const swingPosted = new Set();
+async function maybeSwingReminder(attackMessage) {
+  try {
+    if ( !isActiveGM() || swingPosted.has(attackMessage.id) ) return;
+    if ( attackMessage.getFlag(MODULE_ID, "swingNoticed") ) return;
+    const ctx = attackSwingFor(attackMessage);
+    if ( !ctx || !swingTurnOpen(ctx.attacker, ctx.row) ) return;
+    swingPosted.add(attackMessage.id);
+    await attackMessage.setFlag(MODULE_ID, "swingNoticed", true);
+    await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}`, ctx.row);
+  } catch(err) {
+    console.error(`${TITLE} | The bonus swing reminder failed.`, err);
+  }
+}
+
+Hooks.on("createChatMessage", message => {
+  if ( !isActiveGM() ) return;
+  // A miss resolves at the roll: remind now.
+  if ( isCard(message, CARD.attack) ) {
+    if ( !hitTargets(message).length ) void maybeSwingReminder(message);
+    return;
+  }
+  // A hit resolves with its damage: remind once the damage card exists (the chain Hew reads).
+  if ( isCard(message, CARD.damage) ) {
+    const originId = originIdOf(message);
+    const origin = originId ? game.messages.get(originId) : null;
+    const attack = !origin ? null : isCard(origin, CARD.attack) ? origin
+      : ((origin.getAssociatedRolls?.("attack") ?? []).at(-1) ?? null);
+    if ( attack && isCard(attack, CARD.attack) ) void maybeSwingReminder(attack);
   }
 });

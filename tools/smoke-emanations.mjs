@@ -41,7 +41,8 @@ const SECTIONS = {
   13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
   14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
   15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration',
-  16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands'
+  16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
+  17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; the Glaive put away, the ring goes"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
 
@@ -677,6 +678,82 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('emanationList', prior.emanationList);
     if (addedItems.length) { const live = addedItems.filter(id => cleric.items.get(id)); if (live.length) await cleric.deleteEmbeddedDocuments('Item', live); addedItems.length = 0; }
 
+
+    // ================================================== 17. Polearm Master's Reactive Strike
+    // (2026-09-27, the user: "an invisible emanation … if a hostile person gets the emanation … a popup
+    // reminding the player they can attack (same shape as hew too)"). The Ranger is lent the feat and a
+    // Glaive (Heavy, Reach): an invisible 10-foot ring stands around it with no card; the hostile Victim
+    // MOVING into it raises Hew's reminder on the Ranger ("Reactive Strike"); the ring sliding over the
+    // standing Victim does not; the Glaive unequipped, the ring goes.
+    if (want(17)) {
+      const phb = async (name, type) => {
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return (await pack.getDocument(hit._id)).toObject();
+        }
+        return null;
+      };
+      const feat = await phb('Polearm Master', 'feat');
+      const glaive = await phb('Glaive', 'weapon');
+      if (!feat || !glaive) return { fatal: 'section 17: no Polearm Master or Glaive in the PHB packs', results, log, skips };
+      glaive.system.equipped = true;
+      const lent = await ranger.createEmbeddedDocuments('Item', [feat, glaive]);
+      const lentIds = lent.map(i => i.id);
+      const glaiveItem = lent.find(i => i.type === 'weapon');
+      try {
+        await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians, Polearm Master');
+        // Apart first: the Ranger home, the Victim six squares east of it.
+        const far = { x: rgrTok.x + 6 * grid, y: rgrTok.y };
+        const near = { x: rgrTok.x + 2 * grid, y: rgrTok.y };     // one square between: inside 10 ft
+        await vicTok.update(far, mv());
+        await sleep(600);
+        const t0 = Date.now();
+        const ring = await waitFor(() => featureRegion(rgrTok, 'Polearm Master'), 10000);
+        const shape = ring?.shapes?.[0] ?? null;
+        ok('17a. holding the Glaive, an invisible ring of its REACH (10 ft) stands around the Ranger, and no card announces it',
+          !!ring && (shape?.radius === 10 * px) && (ring.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED)
+            && !game.messages.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationCard')?.key === 'Polearm Master')),
+          `ring=${ring?.id} radius=${shape?.radius} expected=${10 * px}`);
+        const notices = t => game.messages.filter(m => (m.timestamp >= t) && (m.getFlag(MOD, 'hewNotice')?.label === 'Reactive Strike'));
+        // The hostile MOVES in.
+        const t1 = Date.now();
+        await vicTok.update(near, mv());
+        let card = await waitFor(() => notices(t1)[0] ?? null, 4000);
+        let how = 'update (teleport)';
+        if (!card) {
+          // A teleport may carry no passed waypoints (Foundry's tokenMoveIn wants a movement): walk it instead.
+          await vicTok.update(far, mv());
+          await sleep(600);
+          await vicTok.move([{ x: near.x, y: near.y, action: 'displace' }]);
+          card = await waitFor(() => notices(t1)[0] ?? null, 5000);
+          how = 'move (displace)';
+        }
+        log.push(`§17: the entry was raised by ${card ? how : 'NEITHER move'}`);
+        const n = card?.getFlag(MOD, 'hewNotice');
+        ok('17b. the hostile moving into the reach raises Hew\'s reminder on the Ranger — "Reactive Strike", the one who entered named',
+          !!card && (n?.attackerUuid === ranger.uuid) && (n?.targetName === vicTok.name) && /Reactive Strike/.test(card.content ?? ''),
+          `card=${!!card} via=${how} notice=${JSON.stringify(n ?? null)}`);
+        // The RING slides over a standing Victim: the Victim steps out, the Ranger steps up to it.
+        await vicTok.update(far, mv());
+        await sleep(800);
+        const t2 = Date.now();
+        await rgrTok.update({ x: far.x - 2 * grid, y: far.y }, mv());
+        await sleep(2500);   // load-bearing: time for a WRONG reminder
+        ok('17c. the Ranger stepping up to a standing Victim is no entry — no reminder', !notices(t2).length, `notices=${notices(t2).length}`);
+        await rgrTok.update(home[rgrTok.id], mv());
+        await sleep(600);
+        await glaiveItem.update({ 'system.equipped': false });
+        const gone = await waitFor(() => !featureRegion(rgrTok, 'Polearm Master'), 8000);
+        ok('17d. the Glaive put away: the ring goes', !!gone, `ring=${featureRegion(rgrTok, 'Polearm Master')?.id ?? 'gone'}`);
+      } finally {
+        const live = lentIds.filter(id => ranger.items.get(id));
+        if (live.length) await ranger.deleteEmbeddedDocuments('Item', live).catch(() => {});
+        await vicTok.update(home[vicTok.id], mv()).catch(() => {});
+        await rgrTok.update(home[rgrTok.id], mv()).catch(() => {});
+        await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
+        await sleep(800);
+      }
+    }
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

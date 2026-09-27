@@ -203,6 +203,7 @@ deleteChatMessage	riposte.js
 dnd5e.renderChatMessage	hew.js
 createChatMessage	hew.js
 updateChatMessage	hew.js
+createChatMessage	hew.js
 dnd5e.preUseActivity	command.js
 dnd5e.postUseActivity	command.js
 createChatMessage	command.js

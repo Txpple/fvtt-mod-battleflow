@@ -6,6 +6,9 @@
 //                      the Caster swinging at the Mage Slayer asks the Sentinel (Guardian → Halt); the
 //                      Mage Slayer hitting the concentrating Caster asks its save at Disadvantage; the
 //                      Caster's Command at the Mage Slayer is a Wisdom save Guarded Mind can turn
+//                      BF Feat Polearm Master (a Glaive held, a Quarterstaff stowed) three squares north
+//                      of the Caster: the Caster stepping into its 10-ft reach raises Reactive Strike's
+//                      reminder; its own swing with the Glaive raises Pole Strike's
 //   the camp (south):  BF Feat Inspiring Leader and BF Feat Chef side by side, 5 ft apart — the north
 //                      walkers are out of Inspiring Leader's 30 ft and on the scene for the Chef's food
 // Every walker starts at HALF its hit points (a Short Rest then has Hit Dice worth spending). The
@@ -49,6 +52,7 @@ const out = await f.evaluate(async () => {
   const WALKERS = {
     'BF Feat Mage Slayer': { base: 'fighter', feat: 'Mage Slayer', items: [['Longsword', 'weapon', true]] },
     'BF Feat Sentinel': { base: 'fighter', feat: 'Sentinel', items: [['Longsword', 'weapon', true]] },
+    'BF Feat Polearm Master': { base: 'fighter', feat: 'Polearm Master', items: [['Glaive', 'weapon', true], ['Quarterstaff', 'weapon', false]] },
     'BF Feat Inspiring Leader': { base: 'sorcerer', feat: 'Inspiring Leader', items: [['Fire Bolt', 'spell', true]] },
     'BF Feat Chef': { base: 'fighter', feat: 'Chef', items: [['Longsword', 'weapon', true], ["Cook's Utensils", 'tool', false]] }
   };
@@ -126,6 +130,7 @@ const out = await f.evaluate(async () => {
     [CASTER]: [1820, 1400],
     'BF Feat Mage Slayer': [1680, 1400],
     'BF Feat Sentinel': [1960, 1400],
+    'BF Feat Polearm Master': [1820, 980],   // three squares north of the Caster: move the Caster one square toward it — its Glaive reaches 10 ft
     'BF Feat Inspiring Leader': [1820, 2380],
     'BF Feat Chef': [1960, 2380]
   };

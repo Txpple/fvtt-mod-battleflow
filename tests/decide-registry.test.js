@@ -622,3 +622,28 @@ describe("tableIndex — one access to a name-keyed table (the machine-tier pass
     expect(reg.tableIndex(reg.DAMAGE_SHIELDS).rowNamed("fire shield")?.key).toBe("Fire Shield");
   });
 });
+
+describe("Polearm Master (2026-09-27, the user's P1 and the reach ring)", () => {
+  it("Pole Strike is a BONUS_SWINGS row on the attack trigger, Hew's stays the crit-or-kill shape, and the Maneuver Folds list ships it", () => {
+    expect(reg.BONUS_SWINGS["Great Weapon Master"].when).toBe("critOrKill");
+    const pole = reg.BONUS_SWINGS["Polearm Master"];
+    expect(pole).toMatchObject({ when: "attack", label: "Pole Strike" });
+    expect([...pole.weapons.base]).toEqual(["quarterstaff", "spear"]);
+    expect([...pole.weapons.properties]).toEqual(["hvy", "rch"]);
+    expect(pole.rule.startsWith("Pole Strike. Immediately after")).toBe(true);
+    expect(reg.LIST_SPECS.maneuverFolds.default).toContain("Polearm Master:hew");
+  });
+  it("Reactive Strike is an invisible, quiet feature ring of the held weapon's reach that alerts on a hostile moving in", () => {
+    const row = reg.EMANATIONS["Polearm Master"];
+    expect(row).toMatchObject({
+      kind: "feature",
+      reach: "harmful",
+      range: "weaponReach",
+      effect: null,
+      quiet: true
+    });
+    expect(row.alert).toMatchObject({ on: "moveIn", label: "Reactive Strike" });
+    expect([...row.holding.properties]).toEqual(["hvy", "rch"]);
+    expect(row.rule.startsWith("Reactive Strike.")).toBe(true);
+  });
+});

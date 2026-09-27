@@ -45,6 +45,7 @@ const SECTIONS = {
   C: 'Crusher (the PHB feats, group 3, 2026-09-26): a Mace hit (Bludgeoning) offers the push — the Crusher rule quoted, Push 5 feet announced; a Dagger hit (Piercing) offers nothing; a Huge target (two sizes larger) offers nothing',
   I: 'finding ⑥: Interpose (save-success reaction)',
   H: '② + (c): the Hew reminder POPS now',
+  PS: "Pole Strike (Polearm Master, 2026-09-27): an attack with a Spear posts Hew's reminder for the other end's Bonus Action swing, and it pops; a weapon that does not qualify says nothing",
   Q: '(s): the cascade is a staircase queue'
 };
 // Each group stands up its own fixtures and restores the settings it pinned, so none of them
@@ -1275,6 +1276,57 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 25);
         await set('holdTimer', 0);
         skips.push('H — the CRIT trigger is not forced headlessly (nat-20 farming under disadvantage); it now rides the SAME damage-side chain context the kill path pins ((k): dedupe unified on the damage message)');
+      }
+    }
+
+    /* ============================================== PS — Pole Strike's reminder (Hew's shape, 2026-09-27) */
+    // The user's pick "P1" off BACKLOG's Polearm Master options: after an attack with a Quarterstaff, a
+    // Spear or a Heavy + Reach weapon, Hew's OK-only reminder says a Bonus Action swing with the other
+    // end is there; a weapon that does not qualify says nothing. Out of combat, every such attack.
+    if (want('PS')) {
+      await set('maneuverFolds', `${SUITE_FOLDS}, Polearm Master:hew`);
+      const phb = async (name, type) => {
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return (await pack.getDocument(hit._id)).toObject();
+        }
+        return null;
+      };
+      const feat = await phb('Polearm Master', 'feat');
+      const spear = await phb('Spear', 'weapon');
+      if (!feat || !spear) return { fatal: 'section PS: no Polearm Master or Spear in the PHB packs' };
+      spear.system.equipped = true;
+      const lent = await pc.createEmbeddedDocuments('Item', [feat, spear]);
+      try {
+        await set('holdTimer', 15);
+        await acFlat(victim, 1);
+        await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+        const spearAct = pc.items.get(lent.find(i => i.type === 'weapon').id).system.activities.find(a => a.type === 'attack');
+        const pole = t => game.messages.contents.filter(m => (m.timestamp >= t) && /Pole Strike — .*can attack again/.test(m.content ?? ''));
+        const t0 = Date.now();
+        const { msg } = await attack(spearAct, victimToken);
+        await waitDamage(msg?._source.system?.origin, 10000);
+        const card = await until(() => pole(t0)[0] ?? null, 10000);
+        ok('PS1. an attack with a Spear, held by a Polearm Master, posts Pole Strike\'s reminder — the rule and the swing from the sheet',
+          !!card && /Pole Strike\. Immediately after you take the Attack action/.test(card.content ?? '') && /other end/.test(card.content ?? ''),
+          `card=${!!card}`);
+        const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="ok"]')), 6000);
+        ok('PS2. the reminder POPS (Hew\'s OK-only shape)', !!popup, `popup=${!!popup}`);
+        popup?.querySelector('button[data-action="ok"]')?.click();
+        await sleep(400);
+        ok('PS3. one reminder for the attack, and no Hew beside it', (pole(t0).length === 1)
+          && !game.messages.contents.some(m => (m.timestamp >= t0) && /Hew — /.test(m.content ?? '')), `pole=${pole(t0).length}`);
+        const t1 = Date.now();
+        const { msg: m2 } = await attack(pcAttackAct(), victimToken);
+        await waitDamage(m2?._source.system?.origin, 10000);
+        await sleep(2000);   // load-bearing: time for a WRONG reminder
+        ok('PS4. an attack with a weapon that does not qualify says nothing', !pole(t1).length, `pole=${pole(t1).length}`);
+      } finally {
+        await pc.deleteEmbeddedDocuments('Item', lent.map(i => i.id).filter(id => pc.items.get(id))).catch(() => {});
+        await acFlat(victim, 25);
+        await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
+        await set('holdTimer', 0);
+        await set('maneuverFolds', SUITE_FOLDS);
       }
     }
 

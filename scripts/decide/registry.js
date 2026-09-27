@@ -255,6 +255,28 @@ export const RULE_TEXT = {
 };
 
 /**
+ * THE BONUS SWINGS (the PHB feats, 2026-09-27 — the user's pick "P1" off BACKLOG's Polearm Master
+ * options): a feat whose text grants one more attack as a Bonus Action, REMINDED — the `hew` fold's
+ * OK-only popup and card (hew.js), the swing made from the sheet. A `hew` entry on the Maneuver Folds
+ * list whose feat is not a row here is Great Weapon Master's shape: `when: "critOrKill"`.
+ *   when      "critOrKill" — after a Critical Hit or a creature reduced to 0 with a melee weapon (Hew);
+ *             "attack" — after an attack with a qualifying weapon on the owner's own turn, once per turn
+ *   weapons   ("attack") the weapons that qualify: a base item named in `base`, or one carrying every
+ *             property in `properties` (dnd5e's ids)
+ *   label     what the popup and the card call the swing
+ *   swing     the line saying what to swing, from the sheet
+ *   rule      the benefit's sentence, verbatim (law 8)
+ */
+export const BONUS_SWINGS = Object.freeze({
+  "Great Weapon Master": Object.freeze({ when: "critOrKill", label: "Hew", rule: RULE_TEXT.hew }),
+  "Polearm Master": Object.freeze({ when: "attack", label: "Pole Strike",
+    weapons: Object.freeze({ base: Object.freeze(["quarterstaff", "spear"]), properties: Object.freeze(["hvy", "rch"]) }),
+    swing: "Use <strong>Pole Strike</strong> on the feat, from the sheet — the other end, 1d4 Bludgeoning.",
+    rule: "Pole Strike. Immediately after you take the Attack action and attack with a Quarterstaff, a Spear, or a weapon that has the Heavy and Reach properties, you can use a Bonus Action to make a melee attack with the opposite end of the weapon. The weapon deals Bludgeoning damage, and the weapon’s damage die for this attack is a d4.",
+    from: "General feat" })
+});
+
+/**
  * The REMINDER kinds — the sources of Advantage or Disadvantage the gate can read off the table
  * before an attack roll (HANDOFF Stage 2, 2026-09-01). Each is a distinct way of KNOWING:
  *   vex    the attacker's own Vexed chip on a target      → Advantage
@@ -899,6 +921,14 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *              caster may use — Aura of Vitality's heal is AIMED, a choice, so it is offered and
  *              never played (R1); `activity` names the heal to use from the card
  *   effect null   a ring and a card and nothing applied — a barrier (Antilife Shell), a notice
+ *   holding    (a feature) the ring stands only while the source HOLDS a weapon that qualifies — an
+ *              equipped weapon whose base item is named in `base`, or that carries every property in
+ *              `properties` (Polearm Master, 2026-09-27)
+ *   range "weaponReach"  the reach of that weapon: its own reach, else 10 ft with Reach, else 5 ft
+ *   alert      a REMINDER to the source when a creature the row reaches MOVES INTO the ring
+ *              (`on: "moveIn"` — Foundry's tokenMoveIn, raised only when the creature itself moved):
+ *              Hew's popup (the `hewNotice` card, hew.js draws it), the swing from the sheet
+ *   quiet      raise and lower the ring with no card — it stands and falls with what is held
  *
  * ⚠ Aura of Courage's pack effect ("Courageous") carries NO change — the Frightened immunity is a
  * CONTENT fix at the world (user, 2026-09-03: "agree"), and the module applies what the pack ships.
@@ -983,7 +1013,19 @@ export const EMANATIONS = Object.freeze({
     reach: "all", range: null, effect: null, incapacitated: false,
     pulse: Object.freeze({ on: "sourceTurnEnd", activity: "Inner Radiance" }),
     rule: "Searing light temporarily radiates from your eyes and mouth. For the duration, you shed Bright Light in a 10-foot radius and Dim Light for an additional 10 feet, and at the end of each of your turns, each creature within 10 feet of you takes Radiant damage equal to your Proficiency Bonus.",
-    from: "Aasimar — Celestial Revelation (character level 3)" })
+    from: "Aasimar — Celestial Revelation (character level 3)" }),
+  // THE PHB FEATS, 2026-09-27 (the user, off BACKLOG's Polearm Master options: "if wielding right weapon
+  // with polearm master, an invisible emanation. if a hostile person gets the emanation buff, then trigger
+  // a popup reminding the player they can attack (same shape as hew too)"). The ring is the REACH of the
+  // qualifying weapon held (`holding`, `range: "weaponReach"`), invisible, applying nothing; a hostile
+  // creature MOVING into it (Foundry's own tokenMoveIn — the mover moved, not the ring) raises Hew's
+  // reminder on the wielder (`alert`). Nothing is driven: the Reaction's attack is from the sheet.
+  "Polearm Master": Object.freeze({ kind: "feature", reach: "harmful", range: "weaponReach", effect: null, incapacitated: true, quiet: true,
+    holding: Object.freeze({ base: Object.freeze(["quarterstaff", "spear"]), properties: Object.freeze(["hvy", "rch"]) }),
+    alert: Object.freeze({ on: "moveIn", label: "Reactive Strike",
+      swing: "Take your <strong>Reaction</strong> to make one melee attack at it, from the sheet." }),
+    rule: "Reactive Strike. While you’re holding a Quarterstaff, a Spear, or a weapon that has the Heavy and Reach properties, you can take a Reaction to make one melee attack against a creature that enters the reach you have with that weapon.",
+    from: "General feat" })
 });
 
 /**
@@ -2308,7 +2350,8 @@ export const LIST_SPECS = {
     label: "Maneuver Folds", setting: "maneuverFolds",
     columns: ["name", "kind"], kindColumn: "kind", kinds: MANEUVER_KINDS, fallback: null,
     default: "Precision Attack:precision, Riposte:riposte, Shield Master:interpose, "
-      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove, Crusher:shove"
+      + "Shield Master:bash, Great Weapon Master:hew, Commander's Strike:command, Tavern Brawler:shove, Crusher:shove, "
+      + "Polearm Master:hew"
   },
   d20Folds: {
     label: "D20 Folds", setting: "d20Folds",

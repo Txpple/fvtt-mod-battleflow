@@ -791,6 +791,7 @@ export const STATE_KEYS = Object.freeze({
   timedOut: "the buzzer's mark on a roll it made; the verdict it lands is the resolve",
   hewNotice: "Hew's reminder card — presentation",
   hewNoticed: "the reminder's once-per-swing latch — presentation",
+  swingNoticed: "the attack-trigger bonus swing's dedupe (Pole Strike, 2026-09-27) — the hewNotice card is the moment",
   rollCtx: "the data plane's roll context stamp — stats, never a moment",
   combatRoster: "the data plane's turn→actor map — stats, never a moment",
   // effect fingerprint fields (the chips), never on a message

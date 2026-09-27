@@ -6,7 +6,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, activeCombatFor, statContext,
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { emanationEntries, listedNames } from "./settings.js";
-import { turnChitStands, writeTurnChit } from "./shared.js";
+import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
@@ -135,11 +135,13 @@ Hooks.once("init", () => {
     static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
     static async #onTurnStart(event) { if ( !gmHandles(event) ) return; await maybeHeal(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnStart"); }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
+    static async #onMoveIn(event) { if ( !gmHandles(event) ) return; await maybeAlert(this, event.data?.token ?? null, event.data?.movement ?? null); }
     static events = {
       [EV.TOKEN_ENTER]: this.#onEnter,
       [EV.TOKEN_EXIT]: this.#onExit,
       [EV.TOKEN_TURN_END]: this.#onTurnEnd,
       [EV.TOKEN_TURN_START]: this.#onTurnStart,
+      [EV.TOKEN_MOVE_IN]: this.#onMoveIn,
       [EV.BEHAVIOR_ACTIVATED]: this.#onToggle,
       [EV.BEHAVIOR_DEACTIVATED]: this.#onToggle
     };
@@ -379,6 +381,55 @@ async function maybeTrigger(behType, token, cause) {
     if ( hasDamage && card ) await rollDamageForSave(activity, card);
   } catch(err) {
     console.error(`${TITLE} | Emanation trigger failed — ask for the save by hand.`, err);
+  }
+}
+
+/* --- the alert: a creature moving INTO the ring reminds its source (Polearm Master's Reactive Strike) --- */
+
+/**
+ * An `alert` row (2026-09-27, the user's shape: "an invisible emanation … if a hostile person gets the
+ * emanation … a popup reminding the player they can attack (same shape as hew too)"): Foundry raises
+ * tokenMoveIn only for a token that MOVED into the region — the ring sliding over a standing creature is
+ * not an entry ("a creature that enters the reach"). The reminder is Hew's card and popup (`hewNotice`,
+ * drawn by hew.js off the bus); once per movement, and not while the source's Reaction is spent or it is
+ * Incapacitated. A creature that passes through the reach and out in one move is not seen (the region
+ * compares where the move began and ended).
+ */
+const alerted = new Set();
+async function maybeAlert(behType, token, movement) {
+  try {
+    if ( !isActiveGM() || !token?.actor ) return;
+    const sys = behType;
+    const row = rowNamed(sys.key);
+    if ( !row?.alert || (row.alert.on !== "moveIn") || behType.behavior?.disabled || !live() || !listed().has(lower(row.key)) ) return;
+    const region = behType.region;
+    if ( !appliesHere(region) ) return;
+    const source = resolveUuid(sys.source);
+    const bearer = source?.actor ?? null;
+    if ( !bearer || (token.id === source.id) ) return;
+    if ( !reachAdmits(sys.reach, source.disposition ?? 1, token.disposition) ) return;
+    if ( reactionSpent(bearer) || bearer.statuses?.has?.("incapacitated") ) return;
+    const key = `${region.id}|${token.id}|${movement?.id ?? Date.now()}`;
+    if ( alerted.has(key) ) return;
+    alerted.add(key);
+    const item = resolveUuid(sys.item);
+    const weapon = row.holding ? heldWeaponFor(bearer, row.holding) : null;
+    const window = Math.max(0, Number(setting(S.holdTimer)) || 0);
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: bearer, token: source }),
+      content: bfCard({ img: item?.img ?? null, eyebrow: `Feat — ${item?.name ?? row.key}`, tone: "good",
+        title: `${row.alert.label} — ${token.name} entered ${bearer.name}'s reach`,
+        subtitle: weapon ? `${weapon.name} · ${weaponReachOf(weapon)} ft` : "",
+        lines: [ruleLine(row.rule), row.alert.swing] }),
+      flags: { [MODULE_ID]: { hewNotice: {
+        attackerUuid: bearer.uuid, itemName: item?.name ?? row.key, itemImg: item?.img ?? null,
+        weaponName: weapon?.name ?? null, why: `${token.name} entered your reach`,
+        label: row.alert.label, rule: row.rule, swing: row.alert.swing, targetName: token.name,
+        ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+      } } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | ${behType?.key ?? "An emanation"}'s reminder failed — the reaction is yours by hand.`, err);
   }
 }
 
@@ -642,6 +693,20 @@ function activitySizeOf(item, rollData, activity = null) {
   try { const r = Roll.replaceFormulaData(String(raw), rollData); return Roll.validate(r) ? Roll.safeEval(r) : null; } catch { return null; }
 }
 
+/** The equipped weapon a `holding` row asks for — a named base item, or every named property — or null. */
+function heldWeaponFor(actor, holding) {
+  return actor.items.find(i => (i.type === "weapon") && (i.system?.equipped === true) && (
+    (holding.base ?? []).includes(i.system?.type?.baseItem ?? "")
+    || (!!holding.properties?.length && holding.properties.every(p => i.system?.properties?.has?.(p))))) ?? null;
+}
+
+/** A weapon's reach in feet: its own, else 10 with the Reach property, else 5 (the 2024 rule). */
+function weaponReachOf(weapon) {
+  const own = Number(weapon?.system?.range?.reach);
+  if ( Number.isFinite(own) && (own > 0) ) return own;
+  return weapon?.system?.properties?.has?.("rch") ? 10 : 5;
+}
+
 /** What a feature's emanation on this token should look like now, or null when it should not stand. */
 function featureSpec(tok, row) {
   const actor = tok.actor;
@@ -652,10 +717,13 @@ function featureSpec(tok, row) {
   // A `while` row stands only while its effect stands on the bearer — the transformation's own
   // (Searing Radiance, landed at the use by token-lights.js, 1 minute): it ends, the ring goes.
   if ( row.while && !actor.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) return null;
+  // A `holding` row stands only while a qualifying weapon is held — its reach is the ring (Polearm Master).
+  const held = row.holding ? heldWeaponFor(actor, row.holding) : null;
+  if ( row.holding && !held ) return null;
   const rollData = actor.getRollData();
   const act = row.activity ? activityNamed(item, row.activity) : null;
   if ( row.activity && !act ) return null;
-  const range = emanationRange(row, rollData, activitySizeOf(item, rollData, act));
+  const range = (row.range === "weaponReach") ? weaponReachOf(held) : emanationRange(row, rollData, activitySizeOf(item, rollData, act));
   if ( !range ) return null;
   // A ring that applies nothing to its members (a `pulse` row): the ring is the geometry the
   // pulse reads at the bearer's turn end, and nobody wears it.
@@ -1060,6 +1128,7 @@ function describeChanges(changes) {
 const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])].map(t => String(t).toLowerCase());
 
 async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null } = {}) {
+  if ( row.quiet ) return;   // a ring that follows what is held says nothing as it rises and falls
   try {
     const reach = (row.reach === "helpful") ? "allies and neutrals inside" : (row.reach === "all") ? "every creature inside" : "enemies inside";
     const pulseLine = row.pulse ? (() => {
