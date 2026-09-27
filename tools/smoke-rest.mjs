@@ -336,6 +336,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('8c. OK gives it: the Cleric and the leader hold the amount, the Bard keeps its larger pool, the Fighter (40 ft) nothing',
           !!landed && (tempOf(cleric) === amount) && (tempOf(actor) === amount) && (tempOf(bard) === amount + 5) && (tempOf(fighter) === 0),
           `cleric=${tempOf(cleric)} self=${tempOf(actor)} bard=${tempOf(bard)} fighter=${tempOf(fighter)} amount=${amount}`);
+
+        // 8d. A feat taken through its Ability Score Improvement names the ability — the LOWER one here
+        // (Wisdom 16, Charisma 10, the record says Charisma), so the amount is level + 0, not level + 3;
+        // the rest card keeps that one activity row, called "Inspire with Performance" (the walk).
+        const asi = Object.entries(feat.system.advancement ?? {}).find(([, v]) => v?.type === 'AbilityScoreImprovement');
+        if (!asi) skips.push('8d. the lent feat carries no Ability Score Improvement advancement');
+        else {
+          const was = { wis: actor.system.abilities.wis.value, cha: actor.system.abilities.cha.value };
+          await actor.update({ 'system.abilities.wis.value': 16, 'system.abilities.cha.value': 10 });
+          await feat.update({ [`system.advancement.${asi[0]}.value.assignments`]: { cha: 1 } });
+          for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
+          const want8d = Number(actor.system.details.level) + actor.system.abilities.cha.mod;
+          const t1 = Date.now();
+          await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
+          const card8d = await waitFor(() => songCard(t1), 6000);
+          const f8d = card8d?.getFlag(MOD, 'restSong');
+          const rest = game.messages.contents.find(m => (m.timestamp >= t1) && (m.type === 'rest'));
+          await sleep(500);
+          const rows = [...(document.querySelector(`#chat [data-message-id="${rest?.id}"]`)?.querySelectorAll('.activities li.activity') ?? [])];
+          const subs = rows.map(li => li.querySelector('.subtitle')?.textContent?.trim());
+          ok('8d. the feat’s own Ability Score Improvement names the ability (Charisma, the lower): level + its modifier; the rest card lists ONE row, "Inspire with Performance"',
+            (f8d?.amount === want8d) && (subs.filter(n => /Inspire with/.test(n ?? '')).length === 1) && subs.includes('Inspire with Performance'),
+            `amount=${f8d?.amount} expected=${want8d} rows=[${subs.join(' | ')}]`);
+          const app8d = await waitFor(() => popupFor('Temporary Hit Points'), 6000);
+          app8d?.close?.();
+          await actor.update({ 'system.abilities.wis.value': was.wis, 'system.abilities.cha.value': was.cha });
+        }
       }
 
       if (want(9)) {
