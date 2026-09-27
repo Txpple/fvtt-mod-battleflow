@@ -362,3 +362,18 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   div.textContent = `Pole Strike — the other end: ${f.now} Bludgeoning in place of ${f.was}`;
   content.appendChild(div);
 });
+
+// The swing's own usage card is titled for what it is — "Quarterstaff — Pole Strike" (the walk, 2026-09-27:
+// "it would be nice if the card indicated it was pole strike"): the card's item snapshot is renamed as the
+// card is born (the card's DATA, never its HTML), on the swing's card alone.
+Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
+  try {
+    const data = messageConfig?.data;
+    if ( !foundry.utils.getProperty(data ?? {}, `flags.${MODULE_ID}.poleStrike`) ) return;
+    const item = data.system?.item;
+    if ( item?.name && !/— Pole Strike$/.test(item.name) ) item.name = `${item.name} — Pole Strike`;
+    if ( data.title ) data.title = `${data.title} — Pole Strike`;
+  } catch(err) {
+    console.warn(`${TITLE} | The Pole Strike card could not be titled.`, err);
+  }
+});
