@@ -67,6 +67,12 @@
       "proof": "<span class=\"title\">{{ item.name }}</span>",
       "found": true
     },
+    "cardHeader": {
+      "where": "dnd5e",
+      "file": "templates/chat/parts/card-header.hbs",
+      "proof": "<section class=\"card-header no-description\">",
+      "found": true
+    },
     "cardActivityRow": {
       "where": "dnd5e",
       "file": "templates/chat/parts/card-activities.hbs",

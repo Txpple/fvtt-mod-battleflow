@@ -18,7 +18,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // it as the declaration it is: ⚠ NEVER import a suite (it connects on evaluation) — the map is parsed.
 export const COVERS = [
   'reminders.js',           // the gate — every source, the net, the press, the check gate
-  'chip-spend.js'           // §2 / §11 — the roll spends the chip
+  'chip-spend.js',          // §2 / §11 — the roll spends the chip
+  'effect-view.js'          // §14 — the hover card's Cover section
 ];
 
 const SECTIONS = {
@@ -34,7 +35,8 @@ const SECTIONS = {
   10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown',
   11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll',
   12: 'the check gate: Poisoned and Frightened on a raw check and a skill, the record, never on a programmatic roll (2026-09-03)',
-  13: 'the range cancellers (the PHB feats, group 2, 2026-09-26): Crossbow Expert answers the point-blank row (listed, net Normal) and not a dart\'s; Sharpshooter answers long range; Half Cover — the attack records the AC without it and the card says so, and the gate lists it; Spell Sniper answers a cantrip\'s point-blank row'
+  13: 'the range cancellers (the PHB feats, group 2, 2026-09-26): Crossbow Expert answers the point-blank row (listed, net Normal) and not a dart\'s; Sharpshooter answers long range; Half Cover — the attack records the AC without it and the card says so, and the gate lists it; Spell Sniper answers a cantrip\'s point-blank row',
+  14: 'measured cover (2026-09-27, the 2024 DMG\'s corner lines): the hover card\'s Cover section and the attack\'s recorded AC — a creature in the way is Half, an open line None, a wall across is Total (Sharpshooter or not), a wall\'s corner is Half and Sharpshooter takes it off, a hand-set Three-Quarters stands over a measured Half'
 };
 const DEPENDS = { 8: ['1'] };
 
@@ -1194,6 +1196,153 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         for (const it of [xbowItem, dartItem, cantrip]) await drop(it);
         await clearStatuses();
+      }
+    }
+
+    if (want(14)) {
+      await sleep(600);
+      await clearChips();
+      await clearStatuses();
+      await closeGates();
+      const findPHB = async (name, type) => {
+        for (const pack of game.packs.filter(pk => (pk.metadata.packageName === 'dnd-players-handbook') && (pk.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) return pack.getDocument(hit._id);
+        }
+        return null;
+      };
+      const give = async data => {
+        const [made] = await pc.createEmbeddedDocuments('Item', [data]);
+        created.items.push({ actorId: pc.id, id: made.id });
+        return made;
+      };
+      const drop = async item => {
+        if (!item) return;
+        if (pc.items.get(item.id)) await pc.deleteEmbeddedDocuments('Item', [item.id]).catch(() => {});
+        const i = created.items.findIndex(x => x.id === item.id); if (i >= 0) created.items.splice(i, 1);
+      };
+      const priorCover = game.settings.get(MOD, 'measuredCover');
+      const priorHover = game.settings.get(MOD, 'effectHover');
+      const priorOverride = victim.system._source.attributes.ac.override ?? null;
+      const priorVictimAt = { x: victimTokenDoc.x, y: victimTokenDoc.y };
+      const walls = [];
+      let farDoc = null, dartItem = null, ss = null;
+      try {
+        await set('measuredCover', true);
+        await game.settings.set(MOD, 'effectHover', true);
+        await victim.update({ 'system.attributes.ac.override': null });
+        const dartSrc = await findPHB('Dart', 'weapon');
+        if (!dartSrc) throw new Error('the PHB Dart is not on this box');
+        dartItem = await give(dartSrc.toObject());
+        const dart = () => pc.items.get(dartItem.id).system.activities.find(a => a.type === 'attack');
+        // the far victim three squares out along the row; the adjacent victim stands between
+        const placed = await placeToken(victim, 1500 - (squarePx * 3), 1400);
+        farDoc = placed.doc;
+        const far = placed.token;
+        const others = canvas.tokens.placeables.filter(t => ![far, pcToken, victimToken].includes(t)).map(t => `${t.name}@${t.document.x},${t.document.y}`);
+        log.push(`§14 other tokens on the scene: ${others.join('; ') || 'none'}`);
+        await sleep(300);
+        const baseAC = Number(victim.system.attributes.ac.value);
+        // the section labels are drawn in capitals (text-transform), so innerText reads "COVER" — match the label /i
+        const hoverText = async () => {
+          pcToken.control({ releaseOthers: true });
+          Hooks.callAll('hoverToken', far, true);
+          await sleep(150);
+          const card = document.querySelector('.bf-ev-card');
+          const text = card?.innerText?.replace(/\s+/g, ' ') ?? '';
+          Hooks.callAll('hoverToken', far, false);
+          return text;
+        };
+        const shoot = async () => {
+          far.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          const rolls = await dart().rollAttack({}, { configure: false }, {});
+          const msg = rolls?.[0]?.parent ?? null;
+          await sleep(400);
+          return msg;
+        };
+        const lineOf = msg => document.querySelector(`.message[data-message-id="${msg?.id}"] .bf-cover-measured`)?.dataset?.bfCoverMeasured ?? '';
+        const addWall = async c => {
+          const [w] = await scene.createEmbeddedDocuments('Wall', [{ c }]);
+          walls.push(w.id);
+          await sleep(400);
+        };
+        const clearWalls = async () => {
+          const live = walls.filter(id => scene.walls.get(id));
+          if (live.length) await scene.deleteEmbeddedDocuments('Wall', live);
+          walls.length = 0;
+          await sleep(400);
+        };
+
+        // 14a/b — a creature in the way: Half, on the card and on the attack
+        {
+          const text = await hoverText();
+          ok('14a. hovering the far victim with the attacker selected: the card opens with "Half Cover (+2 AC)" over "Hobgoblin in the way"',
+            /Cover Half Cover \(\+2 AC\) .*in the way/i.test(text) && /Effects/i.test(text), text.slice(0, 200));
+          const shot = await shoot();
+          const rec = shot?.system?.targets?.[0]?.ac;
+          ok(`14b. …and the attack RECORDS AC ${baseAC + 2} (base ${baseAC} + 2); the card says "Cover — the …: Half Cover (+2 AC)"`,
+            (rec === baseAC + 2) && (shot?.getFlag(MOD, 'coverMeasured')?.targets?.[0]?.bonus === 2) && /Cover — .*Half Cover \(\+2 AC\)/.test(lineOf(shot)),
+            `recorded=${rec} base=${baseAC} line="${lineOf(shot)}"`);
+        }
+        // 14c — the line cleared: No Cover, the base AC, no line
+        await victimTokenDoc.update({ y: 1400 + (squarePx * 3) });
+        await sleep(500);
+        {
+          const text = await hoverText();
+          const shot = await shoot();
+          ok('14c. the adjacent victim stepped out of the line: "No Cover" on the card; the attack records the base AC and its card draws NO cover row',
+            /Cover No Cover/i.test(text) && (shot?.system?.targets?.[0]?.ac === baseAC) && !shot?.getFlag(MOD, 'coverMeasured') && !lineOf(shot),
+            `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
+        }
+        // 14d — a wall across the whole row between them: Total, the attack records no AC, Sharpshooter or not
+        const midX = 1500 - (squarePx * 1.5);
+        await addWall([midX, 1400 - (squarePx * 6), midX, 1400 + (squarePx * 6)]);
+        ss = await give({ name: 'Sharpshooter', type: 'feat', system: { description: { value: '' } } });
+        {
+          const text = await hoverText();
+          const shot = await shoot();
+          ok('14d. a wall across the line: "Total Cover" over "a wall in the way"; the attack records NO AC (a miss) even with Sharpshooter, and says why',
+            /Total Cover a wall in the way/.test(text) && (shot?.system?.targets?.[0]?.ac === null) && /the .*: Total Cover$/.test(lineOf(shot))
+              && !shot?.getFlag(MOD, 'coverIgnored'), `card="${text.slice(0, 120)}" recorded=${shot?.system?.targets?.[0]?.ac} line="${lineOf(shot)}"`);
+        }
+        await clearWalls();
+        // 14e — a wall's corner: two of the best corner's four lines blocked, Half; Sharpshooter takes it off
+        await addWall([midX, 1400 - (squarePx * 6), midX, 1400 + (squarePx * 0.8)]);
+        {
+          const text = await hoverText();
+          const shot = await shoot();
+          ok('14e. a wall\'s corner: "Half Cover (+2 AC)" over "a wall in the way · Sharpshooter ignores it (ranged weapon attacks)"; the attack records the base AC and says Sharpshooter ignored the cover',
+            /Cover Half Cover \(\+2 AC\) a wall in the way · Sharpshooter ignores it \(ranged weapon attacks\)/i.test(text)
+              && (shot?.system?.targets?.[0]?.ac === baseAC) && (shot?.getFlag(MOD, 'coverIgnored')?.targets?.[0]?.cover === 2),
+            `card="${text.slice(0, 200)}" recorded=${shot?.system?.targets?.[0]?.ac}`);
+        }
+        await drop(ss); ss = null;
+        // 14f — a hand-set Three-Quarters over a measured Half: the most protective stands, nothing added
+        await victim.toggleStatusEffect('coverThreeQuarters', { active: true });
+        await sleep(300);
+        {
+          const acWith = Number(victim.system.attributes.ac.value);
+          const shot = await shoot();
+          ok(`14f. a hand-set Three-Quarters Cover (AC ${acWith}) over a measured Half: the attack records AC ${acWith} — the degrees never add — and the card names the one that stands`,
+            (acWith === baseAC + 5) && (shot?.system?.targets?.[0]?.ac === acWith) && /the .*: Three-Quarters Cover \(\+5 AC\)$/.test(lineOf(shot)),
+            `acWith=${acWith} recorded=${shot?.system?.targets?.[0]?.ac}`);
+        }
+        await victim.toggleStatusEffect('coverThreeQuarters', { active: false });
+      } finally {
+        await closeGates();
+        await clearStatuses();
+        const liveWalls = walls.filter(id => scene.walls.get(id));
+        if (liveWalls.length) await scene.deleteEmbeddedDocuments('Wall', liveWalls).catch(() => {});
+        if (farDoc && scene.tokens.get(farDoc.id)) await scene.deleteEmbeddedDocuments('Token', [farDoc.id]).catch(() => {});
+        if (farDoc) { const i = created.tokens.indexOf(farDoc.id); if (i >= 0) created.tokens.splice(i, 1); }
+        await victimTokenDoc.update(priorVictimAt).catch(() => {});
+        await victim.update({ 'system.attributes.ac.override': priorOverride }).catch(() => {});
+        await drop(ss);
+        await drop(dartItem);
+        await set('measuredCover', priorCover).catch(() => {});
+        await game.settings.set(MOD, 'effectHover', priorHover).catch(() => {});
+        pcToken.control({ releaseOthers: true });
       }
     }
 

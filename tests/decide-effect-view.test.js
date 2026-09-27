@@ -26,6 +26,25 @@ const fact = (over = {}) => ({
   ...over
 });
 
+describe("the tone reads a marker status as no condition (2026-09-27, Aura of Protection's copy on an ally)", () => {
+  it("an aura's member copy — bfEmanation, +2 to saves — is a buff; a real condition beside it is still red", () => {
+    const copy = fact({
+      statuses: ["bfEmanation"],
+      changes: [{ key: "system.bonuses.abilities.save", mode: 2, value: 2 }]
+    });
+    expect(toneOf(copy)).toBe("buff");
+    expect(toneOf({ ...copy, statuses: ["bfEmanation", "poisoned"] })).toBe("debuff");
+    expect(
+      toneOf(
+        fact({
+          statuses: ["bfEmanation"],
+          changes: [{ key: "system.attributes.ac.bonus", mode: 2, value: -2 }]
+        })
+      )
+    ).toBe("debuff");
+  });
+});
+
 describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, never actions)", () => {
   it("lists the active effects that are clocked, a condition, or applied — never worn gear", () => {
     expect(listed(fact())).toBe(true);

@@ -20,6 +20,9 @@
 /** The module's marks that sit on a VICTIM — debuffs by nature. */
 export const MARK_KEYS = Object.freeze(["vex", "sap", "slow"]);
 
+/** The statuses the module puts on its OWN effects as markers, never a condition (emanations.js: an aura's member copy). */
+export const MARKER_STATUSES = Object.freeze(["bfEmanation"]);
+
 /*
  * One effect, as the edge read it off the sheet.
  * @typedef {object} EffectFact
@@ -117,7 +120,10 @@ export function toneOf(fact) {
   // Concentration first (user, 2026-09-15: "a special mechanic frequently used, so lets make that
   // yellow"): dnd5e's own concentration effect carries the `concentrating` status.
   if ( (fact.statuses ?? []).includes("concentrating") ) return "concentration";
-  if ( (fact.statuses ?? []).length ) return "debuff";
+  // A CONDITION is red; the module's own MARKER status is not one (the user, 2026-09-27: Aura of
+  // Protection's copy on an ally drew red — it wears `bfEmanation` so the token shows it). Its
+  // changes decide, like any effect's.
+  if ( (fact.statuses ?? []).some(s => !MARKER_STATUSES.includes(s)) ) return "debuff";
   if ( fact.chipKey && MARK_KEYS.includes(fact.chipKey) ) return "debuff";
   const signs = (fact.changes ?? []).map(changeSign).filter(Boolean);
   if ( signs.includes("penalty") ) return "debuff";

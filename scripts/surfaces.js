@@ -61,6 +61,10 @@ export const SURFACES = Object.freeze({
    * damage cards read `getAssociatedItem()`, not their snapshot), so a swing's own label is drawn here
    * (hew.js — "Quarterstaff — Pole Strike", the walk 2026-09-27). */
   cardHeaderTitle: ".card-header .name-stacked .title",
+  /** A roll card's header (chat/parts/card-header.hbs) — the attack's cover row is drawn directly
+   * under it, above everything else on the card (the user, 2026-09-27: "cover is like an important
+   * thing, it should be up above"). */
+  cardHeader: ".card-header",
   /** A card's listed activity row (chat/parts/card-activities.hbs) — the rest card lists a feat's
    * rest-period activities here; rest-grants.js drops the ones its own after-rest popup gives. */
   cardActivityRow: ".activities li.activity[data-activity-uuid]"
@@ -84,5 +88,6 @@ export const SURFACE_SOURCES = Object.freeze({
   dialogRoll: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: 'data-action="{{ @key }}"' },
   dialogFooter: { where: "dnd5e", file: "dnd5e.mjs", proof: 'class ActivityUsageDialog extends Dialog5e' },
   cardHeaderTitle: { where: "dnd5e", file: "templates/chat/parts/card-header.hbs", proof: '<span class="title">{{ item.name }}</span>' },
+  cardHeader: { where: "dnd5e", file: "templates/chat/parts/card-header.hbs", proof: '<section class="card-header no-description">' },
   cardActivityRow: { where: "dnd5e", file: "templates/chat/parts/card-activities.hbs", proof: '<li class="activity flexrow item-tooltip" data-activity-uuid="{{ uuid }}"' }
 });

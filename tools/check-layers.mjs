@@ -141,6 +141,7 @@ export const LAYER_OF = {
 
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
   "decide/geometry.js": "decision",
+  "decide/cover.js": "decision",        // measured cover: the 2024 DMG's corner lines, counted (2026-09-27)
   "decide/metamagic.js": "decision",
   "decide/dice-changers.js": "decision",
   "decide/area-ask.js": "decision",
