@@ -291,3 +291,32 @@ export function cardChipRowKey(table, { itemName, featureNames }, listed) {
 export function chipsLeft(standing, max) {
   return Math.max(0, (Number(max) || 0) - (Number(standing) || 0));
 }
+
+/**
+ * THE COATING'S SAVE (COATINGS, the Poisoner — the user, 2026-09-26): the pack ships one save
+ * activity per ability the feat raises ("Poison Save (Dexterity)", "(Intelligence)"), the DC read
+ * off that ability, and a note to delete the other. The sheet settles it where it can: the ability
+ * the feat's own Ability Score Improvement assigned; a sheet with no record (a feat dropped on
+ * without its advancement) takes the higher modifier of the offered, the first offered on a tie.
+ * @param {{offered?: string[], assigned?: string[]|null, mods?: Record<string, number>}} [facts]
+ * @returns {string|null}  the ability key, or null when nothing is offered
+ */
+export function coatSaveAbility({ offered = [], assigned = null, mods = {} } = {}) {
+  const chosen = (assigned ?? []).find(a => offered.includes(a));
+  if ( chosen ) return chosen;
+  let best = null;
+  for ( const a of offered ) if ( (best === null) || ((Number(mods[a]) || 0) > (Number(mods[best]) || 0)) ) best = a;
+  return best;
+}
+
+/**
+ * A feature's doses left — its item uses (`max` less `spent`), never below zero. A max that is not
+ * a number (a formula not yet prepared) reads as none.
+ * @param {{max?: number|string|null, spent?: number|null}} uses
+ * @returns {number}
+ */
+export function dosesLeft({ max = null, spent = 0 } = {}) {
+  const m = Number(max);
+  if ( !Number.isFinite(m) ) return 0;
+  return Math.max(0, m - (Number(spent) || 0));
+}

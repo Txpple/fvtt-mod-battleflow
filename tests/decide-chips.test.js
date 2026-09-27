@@ -339,3 +339,44 @@ describe("card chips — Tinker on the Prestidigitation card (the Gnome walk, 20
     expect(reg.LIST_SPECS.cardChips.default).toBe(Object.keys(reg.CARD_CHIPS).join(", "));
   });
 });
+
+describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poison is a buff on the actor)", () => {
+  /** @type {typeof import("../scripts/decide/chips.js")} */
+  let ch;
+  /** @type {typeof import("../scripts/decide/registry.js")} */
+  let reg;
+  beforeAll(async () => {
+    ch = await import("../scripts/decide/chips.js");
+    reg = await import("../scripts/decide/registry.js");
+  });
+  it("the save is the ability the feat's own ASI assigned, whatever the modifiers say", () => {
+    expect(
+      ch.coatSaveAbility({ offered: ["dex", "int"], assigned: ["int"], mods: { dex: 4, int: 1 } })
+    ).toBe("int");
+  });
+  it("with no record, the higher modifier; a tie takes the first offered; nothing offered is null", () => {
+    expect(ch.coatSaveAbility({ offered: ["dex", "int"], mods: { dex: 1, int: 3 } })).toBe("int");
+    expect(ch.coatSaveAbility({ offered: ["dex", "int"], mods: { dex: 2, int: 2 } })).toBe("dex");
+    expect(
+      ch.coatSaveAbility({ offered: ["dex", "int"], assigned: ["str"], mods: { dex: 3, int: 0 } })
+    ).toBe("dex");
+    expect(ch.coatSaveAbility({ offered: [] })).toBeNull();
+  });
+  it("doses left are the item's uses: max less spent, never below zero; an unprepared max is none", () => {
+    expect(ch.dosesLeft({ max: 3, spent: 0 })).toBe(3);
+    expect(ch.dosesLeft({ max: 3, spent: 2 })).toBe(1);
+    expect(ch.dosesLeft({ max: 3, spent: 5 })).toBe(0);
+    expect(ch.dosesLeft({ max: "@prof", spent: 0 })).toBe(0);
+  });
+  it("the Poisoner's row: Apply Poison becomes the Poison Coating for a minute, a dose spent, one save per raised ability, switched by the Fighting Styles list", () => {
+    const row = reg.COATINGS.Poisoner;
+    expect(row.activity).toBe("Apply Poison");
+    expect(row.chip).toBe("Poison Coating");
+    expect(row.seconds).toBe(60);
+    expect(row.dose).toBe(1);
+    expect(Object.keys(row.saves)).toEqual(["dex", "int"]);
+    expect(row.list).toBe("fightingStyles");
+    expect(reg.LIST_SPECS[row.list].default).toMatch(/\bPoisoner\b/);
+    expect(reg.SAVE_PRESSES.Poisoner.status).toBe("poisoned");
+  });
+});

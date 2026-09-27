@@ -516,6 +516,28 @@ export const USE_CHIPS = Object.freeze({
 });
 
 /**
+ * THE COATINGS (the user, 2026-09-26, the PHB feats walk — RULINGS *Bent by choice — the rule of
+ * cool*: "when Apply Poison is clicked, it puts a poison buff (self only) on the actor. dont make
+ * the separate card ... player then gets poisoner buff for the minute or until they hit something,
+ * then its removed. make clear its a bonus action"). A use chip of its own kind: the feature's
+ * named `activity` (an enchantment the pack ships — drag a weapon onto its card) is VETOED at the
+ * use and becomes a chip on the ACTOR instead, named `chip`, for `seconds`; it spends `dose` of the
+ * feature's uses. The NEXT weapon hit spends the chip: the feature's own save activity for the
+ * ability its DC is read off (`saves` — the pack ships one per ability the feat raises; the pick
+ * is decide/chips.js `coatSaveAbility`) is used at the struck creatures, so the damage on a failure
+ * is the pack's (N1), and SAVE_PRESSES presses what the pack only names.
+ *   list   the listed-names switch the row answers to — the Fighting Styles list's entry for the
+ *          same feat, which already runs its Potent Poison: one feat, one switch
+ * ⚠ NOT A KIND — one table read by one machine (use-chips.js); a second customer is a row.
+ */
+export const COATINGS = Object.freeze({
+  "Poisoner": Object.freeze({ key: "poisoner", activity: "Apply Poison", chip: "Poison Coating", seconds: 60, dose: 1,
+    saves: Object.freeze({ dex: "Poison Save (Dexterity)", int: "Poison Save (Intelligence)" }), list: "fightingStyles",
+    rule: "As a Bonus Action, you can apply a poison dose to a weapon or piece of ammunition. Once applied, the poison retains its potency for 1 minute or until you deal damage with the poisoned item, whichever is shorter. When a creature takes damage from the poisoned item, that creature must succeed on a Constitution saving throw (DC 8 plus the modifier of the ability increased by this feat and your Proficiency Bonus) or take 2d8 Poison damage and have the Poisoned condition until the end of your next turn.",
+    from: "General feat" })
+});
+
+/**
  * CARD CHIPS (user, 2026-09-25, the Gnome walk: "for gnome tinker, just make it a buff on the char
  * that lasts for the duration, use like a chit that is the same as the icon"; ruled: a button on
  * the Prestidigitation card; "yea just give a buff called tiny clockwork device ... the rest is
@@ -562,7 +584,12 @@ export const SAVE_PRESSES = Object.freeze({
   "Grease": Object.freeze({ status: "prone", onFail: true,
     rule: "When the grease appears, each creature standing in its area must succeed on a Dexterity saving throw or have the Prone condition. A creature that enters the area or ends its turn there must also succeed on that save or fall Prone." }),
   "Sleet Storm": Object.freeze({ status: "prone", onFail: true,
-    rule: "When a creature enters the Cylinder for the first time on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration." })
+    rule: "When a creature enters the Cylinder for the first time on a turn or starts its turn there, it must succeed on a Dexterity saving throw or have the Prone condition and lose Concentration." }),
+  // The Poisoner's coating (COATINGS, 2026-09-26): the feat's save activities carry the 2d8 and no
+  // effect; the Poisoned is pressed here, on the platform's own clock — `expiry` is the pseudo-
+  // expiry "until the end of your next turn" is (sourceEnd, judged against the Poisoner's turn).
+  "Poisoner": Object.freeze({ status: "poisoned", onFail: true, expiry: "sourceEnd",
+    rule: "When a creature takes damage from the poisoned item, that creature must succeed on a Constitution saving throw (DC 8 plus the modifier of the ability increased by this feat and your Proficiency Bonus) or take 2d8 Poison damage and have the Poisoned condition until the end of your next turn." })
 });
 
 /**

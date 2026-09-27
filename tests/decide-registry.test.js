@@ -509,8 +509,19 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
 });
 
 describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03)", () => {
-  it("is the three rows the audit found bare and single-save: Web, Grease, Sleet Storm", () => {
-    expect(Object.keys(reg.SAVE_PRESSES).sort()).toEqual(["Grease", "Sleet Storm", "Web"]);
+  it("is the three rows the audit found bare and single-save — Web, Grease, Sleet Storm — and the Poisoner's coating", () => {
+    expect(Object.keys(reg.SAVE_PRESSES).sort()).toEqual([
+      "Grease",
+      "Poisoner",
+      "Sleet Storm",
+      "Web"
+    ]);
+  });
+  it("the Poisoner's Poisoned lasts until the end of the Poisoner's next turn — the platform's sourceEnd; the spells' presses carry no clock", () => {
+    expect(reg.SAVE_PRESSES.Poisoner.status).toBe("poisoned");
+    expect(reg.SAVE_PRESSES.Poisoner.expiry).toBe("sourceEnd");
+    for (const k of ["Web", "Grease", "Sleet Storm"])
+      expect(reg.SAVE_PRESSES[k].expiry, k).toBeUndefined();
   });
   it("every row presses a standard 2024 status on the failure and quotes its clause", () => {
     const STANDARD = new Set([

@@ -167,7 +167,7 @@ async function pressSaveStatus(card, flag, entry, press) {
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( !(saver instanceof Actor) || !canApplyTo(saver) ) return;
   if ( saver.statuses?.has?.(press.status) ) return;   // already wearing it — nothing to press, nothing to receipt
-  const landed = await forceStatus(saver, press.status, { origin: flag.sourceUuid ?? null });
+  const landed = await forceStatus(saver, press.status, { origin: flag.sourceUuid ?? null, expiry: press.expiry ?? null });
   if ( !landed ) return;
   const effect = saver.effects.find(e => e.statuses?.has?.(press.status));
   if ( !effect ) return;

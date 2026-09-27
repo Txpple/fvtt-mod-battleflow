@@ -320,6 +320,22 @@ describe("the moment registry — shape", () => {
         ]
       },
       useChip: { sourceUuid: "Actor.rogue", effectId: "e", name: "Steady Aim", bend: "advantage" },
+      coatUse: {
+        sourceUuid: "Actor.poisoner",
+        key: "poisoner",
+        chip: "Poison Coating",
+        effectId: "e",
+        left: 2
+      },
+      coatHit: {
+        sourceUuid: "Actor.poisoner",
+        status: "spent",
+        key: "poisoner",
+        attackId: "atk",
+        ability: "dex",
+        targets: [{ uuid: "Actor.goblin", name: "Goblin" }],
+        saveId: "s"
+      },
       cardChip: {
         sourceUuid: "Actor.gnome",
         key: "Tinker",

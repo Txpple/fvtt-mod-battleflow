@@ -117,6 +117,14 @@ dnd5e.postUseActivity	use-chips.js
 dnd5e.renderChatMessage	use-chips.js
 dnd5e.postUseActivity	use-chips.js
 dnd5e.renderChatMessage	use-chips.js
+dnd5e.preUseActivity	use-chips.js
+dnd5e.renderChatMessage	use-chips.js
+createActiveEffect	use-chips.js
+deleteActiveEffect	use-chips.js
+dnd5e.preRollDamageV2	use-chips.js
+createChatMessage	use-chips.js
+updateChatMessage	use-chips.js
+dnd5e.renderChatMessage	use-chips.js
 dnd5e.renderChatMessage	area-ask.js
 ready	area-ask.js
 updateChatMessage	area-ask.js

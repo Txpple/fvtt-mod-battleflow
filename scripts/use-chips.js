@@ -2,13 +2,15 @@
  * Battle Flow — Use chips: a feature the pack ships as TEXT ONLY becomes a chip on use, so the gate can read it and the roll can spend it.
  * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
-import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
-import { lower } from "./lookup.js";
-import { effectEntries, cardChipEntries, listedNames } from "./settings.js";
-import { chipData, placeOf } from "./shared.js";
-import { bfCard, ruleLine } from "./decide/present.js";
-import { USE_CHIPS, CARD_CHIPS, tableIndex } from "./decide/registry.js";
-import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft } from "./decide/chips.js";
+import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite } from "./core.js";
+import { lower, featureNamed, activityNamed, resolveUuid } from "./lookup.js";
+import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./settings.js";
+import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
+import { bfCard, esc, ruleLine } from "./decide/present.js";
+import { USE_CHIPS, CARD_CHIPS, COATINGS, tableIndex } from "./decide/registry.js";
+import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
+import { tokenForUuid } from "./geometry.js";
+import { attackMessageForDamage } from "./auto-damage.js";
 import { momentButton, openMomentPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 
@@ -196,4 +198,227 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     const actor = fromUuidSync(f.sourceUuid ?? "");
     if ( actor?.isOwner ) content?.appendChild(momentButton(`Build a ${row.chip}…`, () => void askCardChip(message)));
   }
+});
+
+/* ---------------------------------------------------------------------------------------------
+ * THE COATINGS (the user, 2026-09-26, the PHB feats walk — a rule of cool, RULINGS *Bent by
+ * choice*: "when Apply Poison is clicked, it puts a poison buff (self only) on the actor. dont make
+ * the separate card or whatever it is they want player to do. player then gets poisoner buff for
+ * the minute or until they hit something, then its removed. make clear its a bonus action"; and
+ * "have it do the name of effect/floating text buff"). The table is decide/registry.js COATINGS;
+ * a row answers to its `list` (the Poisoner: the Fighting Styles list's own entry for the feat).
+ *
+ *   THE USE (`dnd5e.preUseActivity`, the using client) — the pack's Apply Poison is an enchantment
+ *   whose card asks for a weapon dropped on it; the use is VETOED and becomes a chip on the ACTOR
+ *   instead: "Poison Coating", a minute of world time, a dose of the feature's uses spent (none
+ *   left: a warning, nothing written). The table sees a card of its own — the Bonus Action said —
+ *   and a float over the token, "+(Poison Coating)", as core floats every other effect.
+ *   THE HIT (`dnd5e.preRollDamageV2` stamps the damage of a WEAPON attack while the chip stands;
+ *   the author spends it once the damage lands and the hold is off) — the chip goes ("−(Poison
+ *   Coating)"), and the feature's own save activity is used at the creatures the attack hit, so
+ *   the Constitution save, the 2d8 on a failure and the card are the saves machine's; the Poisoned
+ *   it only names is SAVE_PRESSES' "Poisoner" row, until the end of the Poisoner's next turn. A
+ *   miss spends nothing — the rule spends the poison when the item deals damage.
+ * ------------------------------------------------------------------------------------------- */
+
+const COAT_FLAG = "coat";          // on the chip: which row
+const COAT_USE = "coatUse";        // on the card the use posts
+const COAT_HIT = "coatHit";        // on the damage message that spends the chip
+
+/** The listed-names readers a row's `list` may name. */
+const COAT_LISTS = { fightingStyles: fightingStyleEntries };
+
+/** The row whose vetoed activity this is, on a listed feature — `{ name, row }` or null. */
+function coatRowFor(activity) {
+  const item = activity?.item;
+  for ( const [name, row] of Object.entries(COATINGS) ) {
+    if ( (lower(item?.name) !== lower(name)) || (lower(activity?.name) !== lower(row.activity)) ) continue;
+    if ( !listedNames(COAT_LISTS[row.list]?.() ?? []).has(lower(name)) ) continue;
+    return { name, row };
+  }
+  return null;
+}
+
+/** The coating chip standing on an actor, or null. */
+const coatChipOf = actor => actor?.effects?.find?.(e => !!e.getFlag(MODULE_ID, COAT_FLAG) && !e.disabled) ?? null;
+
+/** A row by its `key` — `{ name, row }` or null. */
+function coatRowKeyed(key) {
+  const name = Object.keys(COATINGS).find(n => COATINGS[n].key === key);
+  return name ? { name, row: COATINGS[name] } : null;
+}
+
+Hooks.on("dnd5e.preUseActivity", activity => {
+  try {
+    const found = coatRowFor(activity);
+    const actor = activity?.actor;
+    if ( !found || !actor?.isOwner ) return;
+    void writeCoat(actor, activity, found.name, found.row)
+      .catch(err => console.error(`${TITLE} | ${found.row.chip} could not be written — track it by hand.`, err));
+    return false;   // the pack's enchantment card is not drawn: the chip on the actor IS the use
+  } catch(err) {
+    console.error(`${TITLE} | A coating's use failed — use the feature by hand.`, err);
+  }
+});
+
+async function writeCoat(actor, activity, name, row) {
+  const feature = activity.item;
+  const uses = feature.system?.uses ?? {};
+  const left = Number.isFinite(Number(uses.value)) ? Math.max(0, Number(uses.value)) : dosesLeft({ max: uses.max, spent: uses.spent });
+  if ( left < row.dose ) {
+    ui.notifications.warn(`${actor.name} has no poison doses left — make more first (${name}: Create Poison Doses).`);
+    return;
+  }
+  await feature.update({ "system.uses.spent": (Number(uses.spent) || 0) + row.dose });
+  const stale = actor.effects.filter(e => !!e.getFlag(MODULE_ID, COAT_FLAG));
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id));
+  const place = placeOf(actor);
+  const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
+    name: row.chip, img: activity.img || feature.img || "icons/svg/poison.svg",
+    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${name}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
+    origin: feature.uuid, disabled: false, transfer: false,
+    duration: { value: row.seconds, units: "seconds", expired: false },
+    start: place ? { combat: place.combat, combatant: place.combatant, initiative: place.initiative, round: place.round, turn: place.turn, time: place.time }
+      : { time: game.time.worldTime },
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", [COAT_FLAG]: row.key } }
+  }]);
+  await ChatMessage.implementation.create({
+    speaker: ChatMessage.implementation.getSpeaker({ actor }),
+    content: "",
+    flags: { [MODULE_ID]: { [COAT_USE]: { ...statContext(actor.uuid), key: row.key, feature: name, chip: row.chip,
+      effectId: effect?.id ?? null, left: left - row.dose, img: effect?.img ?? null } } }
+  });
+}
+
+// The card says it (R5): the Bonus Action, what the chip does, the doses left.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const u = message.getFlag(MODULE_ID, COAT_USE);
+  const found = u ? coatRowKeyed(u.key) : null;
+  if ( !found ) return;
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({
+    img: u.img ?? null, eyebrow: `${u.feature} — ${found.row.activity} · Bonus Action`, tone: "good",
+    title: `${u.chip} — the next weapon hit poisons`,
+    subtitle: `1 minute, or until it deals damage · ${u.left} dose${u.left === 1 ? "" : "s"} left`,
+    lines: [ruleLine(found.row.rule)]
+  });
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
+});
+
+// The float, every client: "+(Poison Coating)" as it lands, "−(Poison Coating)" as it goes — core
+// floats only an effect with changes, and the chip has none (fighting-styles.js, the same idiom).
+const floatCoat = (effect, on) => {
+  try {
+    const actor = effect.parent;
+    if ( !effect.getFlag(MODULE_ID, COAT_FLAG) || !(actor instanceof Actor) || !canvas?.interface?.createScrollingText ) return;
+    for ( const token of actor.getActiveTokens(true) ) {
+      if ( !token.visible || token.document.isSecret ) continue;
+      canvas.interface.createScrollingText(token.center, `${on ? "+" : "−"}(${effect.name})`, {
+        anchor: CONST.TEXT_ANCHOR_POINTS.CENTER,
+        direction: on ? CONST.TEXT_ANCHOR_POINTS.TOP : CONST.TEXT_ANCHOR_POINTS.BOTTOM,
+        distance: 2 * token.h, fontSize: 28, stroke: 0x000000, strokeThickness: 4, jitter: 0.25
+      });
+    }
+  } catch(err) { console.warn(`${TITLE} | The coating's float could not draw.`, err); }
+};
+Hooks.on("createActiveEffect", effect => floatCoat(effect, true));
+Hooks.on("deleteActiveEffect", effect => floatCoat(effect, false));
+
+/* --- the hit: a weapon's damage while the chip stands ------------------------------------------ */
+
+Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+  try {
+    const activity = config?.subject;
+    if ( (activity?.type !== "attack") || (activity.item?.type !== "weapon") ) return;
+    const attacker = activity.actor;
+    const chip = coatChipOf(attacker);
+    if ( !chip ) return;
+    const attackMessage = attackMessageForDamage(config, message);
+    if ( !attackMessage ) return;
+    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${COAT_HIT}`, {
+      ...statContext(attacker.uuid), status: "due", key: chip.getFlag(MODULE_ID, COAT_FLAG), chipId: chip.id, attackId: attackMessage.id
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The coating could not ride the hit — use the feature's save by hand.`, err);
+  }
+});
+
+Hooks.on("createChatMessage", message => {
+  if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
+});
+// The hold's release (hold/continue.js writes `attackHoldPending: false`) brings a held hit back.
+Hooks.on("updateChatMessage", message => {
+  if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
+});
+
+const spending = new Set();
+
+async function spendCoat(message) {
+  const f = message.getFlag(MODULE_ID, COAT_HIT);
+  if ( (f?.status !== "due") || spending.has(message.id) ) return;
+  if ( message.getFlag(MODULE_ID, "attackHoldPending") === true ) return;   // its release brings this back
+  spending.add(message.id);
+  try {
+    const found = coatRowKeyed(f.key);
+    const attackMessage = game.messages.get(f.attackId);
+    const attacker = resolveUuid(f.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
+    const hits = attackMessage ? hitTargets(attackMessage) : [];
+    // A miss deals no damage: the coating stands for the next swing.
+    const spent = !!found && !!attacker && (hits.length > 0);
+    const feature = spent ? featureNamed(attacker, found.name) : null;
+    const offered = spent ? Object.keys(found.row.saves) : [];
+    const ability = spent ? coatSaveAbility({ offered, assigned: asiAssigned(feature),
+      mods: Object.fromEntries(offered.map(a => [a, attacker.system?.abilities?.[a]?.mod ?? 0])) }) : null;
+    const act = (feature && ability) ? activityNamed(feature, found.row.saves[ability]) : null;
+    let claimed = false;
+    await queueFlagWrite(message, COAT_HIT, current => {
+      if ( current.status !== "due" ) return false;
+      current.status = spent ? "spent" : "moot";
+      if ( spent ) {
+        current.ability = ability;
+        current.targets = hits.map(t => ({ uuid: t.uuid, name: t.name }));
+        if ( !act ) current.note = `${found.name}: no "${found.row.saves[ability] ?? "save"}" activity on the sheet — roll the save by hand`;
+      }
+      claimed = true;
+    });
+    if ( !claimed || !spent ) return;
+    const chip = attacker.effects.get(f.chipId) ?? coatChipOf(attacker);
+    if ( chip ) await chip.delete();
+    if ( !act ) return;
+    const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
+    const results = await withTargets(tokens, () => act.use({ consume: false }, { configure: false }, {}));
+    const card = results?.message;
+    if ( card instanceof ChatMessage ) await queueFlagWrite(message, COAT_HIT, current => { current.saveId = card.id; });
+  } catch(err) {
+    console.error(`${TITLE} | The coating's save failed — use the feature's save by hand.`, err);
+  } finally {
+    spending.delete(message.id);
+  }
+}
+
+/** The abilities a feat's own Ability Score Improvement assigned (dnd5e's record on the item), or null. */
+function asiAssigned(feature) {
+  try {
+    const advancements = feature?.advancement?.byId ? Object.values(feature.advancement.byId)
+      : Object.values(feature?.system?.advancement ?? {});
+    const asi = advancements.find(a => a?.type === "AbilityScoreImprovement");
+    const assignments = asi?.value?.assignments ?? {};
+    const keys = Object.entries(assignments).filter(([, v]) => Number(v) > 0).map(([k]) => k);
+    return keys.length ? keys : null;
+  } catch { return null; }
+}
+
+// The damage card says it (R5): the coating spent on the hit, and who saves.
+Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+  const f = message.getFlag(MODULE_ID, COAT_HIT);
+  const found = (f?.status === "spent") ? coatRowKeyed(f.key) : null;
+  if ( !found ) return;
+  const who = (f.targets ?? []).map(t => esc(t.name ?? "")).join(", ");
+  const line = document.createElement("div");
+  line.innerHTML = bfCard({
+    eyebrow: found.name, tone: "good",
+    title: `${found.row.chip} spent on the hit`,
+    subtitle: f.note ?? `a Constitution save for ${who} — on a failure, 2d8 Poison and Poisoned until the end of your next turn`
+  });
+  html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });

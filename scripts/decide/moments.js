@@ -473,6 +473,25 @@ export const MOMENT_RECORDS = Object.freeze({
     })
   },
 
+  coatUse: {
+    events: ["spend"],
+    means: "a coating was written at its use — the Poisoner's Apply Poison vetoed into the Poison Coating chip on the actor, a dose spent (use-chips.js COATINGS, 2026-09-26); on the card the use posts",
+    resolved: (r, ctx) => whole(["spend"], {
+      actor: source(r) ?? ctx.actorUuid, ability: r.chip ?? null,
+      details: { key: r.key ?? null, effectId: r.effectId ?? null, left: r.left ?? null }
+    })
+  },
+
+  coatHit: {
+    events: ["spend"],
+    means: "a coating was spent by a weapon hit — the chip gone, the feature's own save used at the creatures struck (use-chips.js COATINGS, 2026-09-26); resolved once spent, a miss is moot",
+    resolved: (r, ctx) => (r?.status === "spent") ? whole(["spend"], {
+      actor: source(r) ?? ctx.actorUuid, attackId: r.attackId ?? null, ability: r.key ?? null,
+      targets: (r.targets ?? []).map(t => ({ uuid: t.uuid ?? null, name: t.name ?? null })),
+      details: { saveAbility: r.ability ?? null, saveId: r.saveId ?? null, note: r.note ?? null }
+    }) : []
+  },
+
   cardChip: {
     events: ["spend"],
     means: "a card chip offered on a cast's card and, once built, the chip it wrote — Tinker's Tiny Clockwork Device (use-chips.js); the build is the resolve",
@@ -763,6 +782,7 @@ export const STATE_KEYS = Object.freeze({
   combatRoster: "the data plane's turn→actor map — stats, never a moment",
   // effect fingerprint fields (the chips), never on a message
   useKey: "an ActiveEffect field — which use-chip this is",
+  coat: "an ActiveEffect field — which coating this chip is (use-chips.js COATINGS: the Poisoner's Poison Coating)",
   cardKey: "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
   stacks: "an ActiveEffect field — a deliberate stack, one chip per device; the twin-chip dedupe leaves it alone (effect-riders.js)",
   die: "an ActiveEffect field — the die a chip carries",

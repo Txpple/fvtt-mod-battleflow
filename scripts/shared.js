@@ -140,6 +140,10 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   return false;
 }
 
+/** A pressed status's clock from a platform pseudo-expiry (`sourceEnd` …) — dnd5e judges the turn
+ * edge live (ActiveEffect5e#isExpiryEvent) and keeps the value null. */
+const clockOfExpiry = expiry => ({ "duration.expiry": expiry, "duration.value": null, "duration.units": "rounds" });
+
 /**
  * Put a status condition on an actor and make sure it actually LANDED.
  *
@@ -155,7 +159,7 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
  * suite cleanup keys on (the immortal-prone lesson). The toggle stays as the fallback,
  * the verify stays loud: a status that cannot land is a table-facing failure.
  */
-export async function forceStatus(actor, statusId, { origin = null } = {}) {
+export async function forceStatus(actor, statusId, { origin = null, expiry = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
   // ⚠ ONLY THE CANONICAL CONDITION IS EVER RE-ENABLED (user report 2026-09-03: "when Morgash
   // applied Topple, it applied Cunning Strike: Tripped instead"). A disabled leftover that
@@ -172,11 +176,14 @@ export async function forceStatus(actor, statusId, { origin = null } = {}) {
     // An already-ACTIVE effect keeps its own history — origin is only written by whoever lands it.
   } else if ( dormant ) {
     // Enabling our press on a disabled CANONICAL leftover stamps the source.
-    await dormant.update({ disabled: false, ...(origin ? { origin } : {}) });
+    await dormant.update({ disabled: false, ...(origin ? { origin } : {}), ...(expiry ? clockOfExpiry(expiry) : {}) });
   } else {
     try {
       const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
       if ( origin ) effect.updateSource({ origin });
+      // A press with a clock (SAVE_PRESSES `expiry` — the Poisoner's "until the end of your next
+      // turn"): the platform's pseudo-expiry, whose value dnd5e keeps null; its start is the create's.
+      if ( expiry ) effect.updateSource(clockOfExpiry(expiry));
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
     } catch(err) {
       console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);

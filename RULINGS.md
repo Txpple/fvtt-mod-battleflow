@@ -58,6 +58,7 @@ as its code.**
 | The rule as written | What the module does | Why it's more fun | Since |
 | --- | --- | --- | --- |
 | **Interpose Shield** (Shield Master): a Reaction when "subjected to an effect that allows you to make a Dexterity saving throw to take only half damage" — taken before the save is known | offered only AFTER the save SUCCEEDS (a Dexterity half-damage save, a Shield held, the Reaction free): Use turns the half into none and spends the Reaction; a failed save never asks (`saves/choices.js`, kind `interpose`) | the Reaction is never wasted on a save that fails, and the ask comes with the good news (ruled "B", 2026-09-26; built so since walk-5 (y)) | 2026-09-26 (built earlier; recorded as a choice this day) |
+| **Poisoner's Apply Poison**: a dose applied to ONE weapon or piece of ammunition, potent for 1 minute or until that item deals damage | the use puts a **Poison Coating** on the CHARACTER (no weapon picked — the pack's drop-a-weapon card is not drawn): a Bonus Action said on its own card, a dose spent, "+(Poison Coating)" floated; the NEXT weapon hit spends it — the feat's own save at the creatures struck, 2d8 and Poisoned (until the end of the Poisoner's next turn, `sourceEnd`) on a failure; a miss spends nothing (`use-chips.js` COATINGS; the switch is the Fighting Styles list's Poisoner) | no weapon bookkeeping, and the poison always meets the next thing the Poisoner hits (the user, 2026-09-26: *"make it a buff applied to the actor"*) | 2026-09-26 |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
