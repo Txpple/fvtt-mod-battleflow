@@ -1,11 +1,7 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the VIEWS — the card row (the demand's rows, bars, Roll and Answer
- * buttons) and the create / update / delete watchers, every resume floor on them.
- * The machine-tier pass, Stage 4c (2026-09-05, ruling 3): saves.js became this directory —
- * one flag, one machine, one part per spine step; index.js is the only public face and fixes
- * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
- * (The empty "who volunteers: the opt-out's silent roller" section marker saves.js still carried
- * — a fossil of the retired house popup — is not carried over.)
+ * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the VIEWS — the card row
+ * (the demand's rows, bars, Roll and Answer buttons) and the create / update / delete watchers,
+ * every resume floor on them. index.js is the directory's only public face.
  */
 import { MODULE_ID, rollerUserFor,
   drivesMomentFor, canAnswerFor } from "../core.js";
@@ -25,8 +21,8 @@ import { CARD, isCard, resistedOf } from "../decide/card.js";
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
 Hooks.on("createChatMessage", message => {
-  // A save roll landing: fold it into whatever demand it answers. The demand names its own
-  // driver, so the gate moves inside — this hook cannot know the card before it looks (v1.27.2).
+  // A save roll landing folds into the demand it answers; the demand names its own driver, so the
+  // gate sits inside.
   if ( isCard(message, CARD.save) ) {
     const found = saveAnsweredBy(message);
     if ( found && drivesMomentFor(found.card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) )
@@ -54,25 +50,22 @@ Hooks.on("updateChatMessage", message => {
   for ( const t of flag.targets ?? [] ) {
     const dialog = livePopups.get(popupKey(message.id, `save:${t.uuid}`));
     if ( dialog && (t.done || (flag.status !== "pending")) ) void dialog.close();
-    // The fold choices' popups close the same way (v1.19.x ⑤/⑥), and their buzzer re-arms.
+    // The fold choices' popups close the same way.
     const choiceDialog = livePopups.get(popupKey(message.id, `choice:${t.uuid}`));
     if ( choiceDialog && (!t.choice || t.choice.answer) ) void choiceDialog.close();
   }
   armSaveChoiceTimer(message);
-  // A DROPPED entry's popup is asking a withdrawn question (the live Shatter strand,
-  // 2026-08-17: containment moved the demand off a snapshot target, and the popup sat open
-  // with a dead bar and no buzzer ever coming — the buzzer only knows entries that still
-  // exist). Sweep every popup for this card whose entry is GONE, and clear its shown-latch
-  // so a re-arrival gets a fresh ask. Runs on every client — the popup lives wherever
-  // canAnswerFor put it, not where the refresh ran.
+  // A DROPPED entry's popup asks a withdrawn question (containment moved the demand off a target)
+  // and no buzzer will come for it: close every popup for this card whose entry is gone, and clear
+  // its shown-latch so a re-arrival gets a fresh ask. Every client — the popup lives wherever
+  // canAnswerFor put it.
   const savePrefix = `${message.id}|save:`;
   for ( const [key, dialog] of [...livePopups] ) {
     if ( !key.startsWith(savePrefix) ) continue;
     const uuid = key.slice(savePrefix.length);
     if ( !(flag.targets ?? []).some(t => t.uuid === uuid) ) void dialog.close();
   }
-  // The latch key IS the popup key (the spine), so the dropped-entry sweep un-latches
-  // through the same prefix — a re-arrival gets a fresh ask.
+  // The latch key IS the popup key, so the same prefix un-latches.
   for ( const key of [...shownMoments] ) {
     if ( !key.startsWith(savePrefix) ) continue;
     const uuid = key.slice(savePrefix.length);
@@ -80,16 +73,16 @@ Hooks.on("updateChatMessage", message => {
   }
   if ( flag.status !== "pending" ) disarmSaveTimer(message.id);
   else {
-    // The demand lands as an UPDATE (the system creates the card, the caster stamps it a
-    // beat later), so arrival work rides here as well as on render.
+    // The demand lands as an UPDATE (the system creates the card, the caster stamps it a beat
+    // later), so arrival work rides here as well as on render.
     armSaveTimer(message);
   }
   if ( drivesMomentFor(flag.sourceUuid ?? null) ) {
     for ( const t of flag.targets ?? [] ) {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }
-    // The sweep's convergent floor (finding ②): a done demand re-offers its spent-area
-    // cleanup here, so a one-shot lost to an elect flip lands on the next update.
+    // The convergent floor: a done demand re-offers its spent-area cleanup, so a one-shot lost to
+    // an elect flip lands on the next update.
     if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
 });
@@ -102,8 +95,7 @@ Hooks.on("deleteChatMessage", message => {
 
 /* --- the views: the card row and the dialog -------------------------------------------------- */
 
-// A SPELL THAT CHOOSES ITS TARGETS (2026-09-24): who its area affects, one line on the spell's
-// card once the choice stands — asked or not — above the demand's rows (law 6: source, then result).
+// A spell that chooses its targets: who its area affects, one line above the demand's rows.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const record = message.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
   if ( !Array.isArray(record?.chosen) ) return;
@@ -120,14 +112,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
 
-  // A WAITING demand (the v1.12.0 targetless template stamp): zero targets, clock unarmed.
-  // Say so — a silent card here is indistinguishable from finding ③'s bug — and run the
-  // adoption floor on the elect: the CRUD hooks are only fast-paths (the headless ground
-  // truth), so a render is what reliably notices the placed area.
+  // A WAITING demand (a targetless template stamp): zero targets, clock unarmed. Say so, and run
+  // the adoption floor on the elect — the template CRUD hooks are only fast-paths, so a render is
+  // what reliably notices the placed area.
   if ( !flag.targets?.length ) {
     if ( flag.status !== "pending" ) return;
     void refreshDemandFromTemplates(message);   // gated on the demand's own driver inside
-    // The area HAS landed and its caster is being asked about it — the ask's own line speaks.
+    // The area has landed and its caster is being asked; the ask's own line speaks.
     if ( message.getFlag(MODULE_ID, AREA_ASK_FLAG)?.status === "pending" ) return;
     const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
     const row = document.createElement("div");
@@ -151,23 +142,16 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const abilityLabel = CONFIG.DND5E.abilities[flag.abilities?.[0]]?.label ?? flag.abilities?.[0] ?? "";
 
   for ( const t of flag.targets ) {
-    // THE SUMMARY ROW IS THE LINE (user ruling 2026-09-18, the 6.0 walk: the platform's summary
-    // row and this line said each verdict twice — "one row per creature, the platform's, carrying
-    // Battle Flow's words"). A resolved target whose roll is summarized INSIDE this card gets the
-    // verdict's tail written into that row beside its total, and no line of its own; a target
-    // with no summary row (summaries off on this client, an automatic failure that rolled no die,
-    // the target gone) keeps the line below. The platform re-renders the summary from its
-    // template on every render of the card, so the tail is written fresh each time.
+    // The platform's SUMMARY ROW is the line: a resolved target whose roll is summarized inside
+    // this card gets the verdict's tail in that row beside its total; one with no summary row keeps
+    // the line below. The platform re-renders the summary on every render, so the tail is fresh.
     if ( t.done && t.rollMessageId ) {
       const summary = [...html.querySelectorAll(SURFACES.cardSummary)].find(el => el.dataset.messageId === t.rollMessageId) ?? null;
       const host = summary?.querySelector(SURFACES.summaryRow) ?? null;
       const tail = host ? verdictTail(flag, t) : null;
       if ( tail ) {
         if ( !host.querySelector(".bf-verdict") ) {
-          // TWO LINES (user, 2026-09-18: "red part circle is on one line top, and other is line
-          // below … justify the number check/x to the right"): the row wraps, the name's pill
-          // list grows to push the total to the right edge, and the verdict takes the whole
-          // second line — so a name never breaks to make room for the words.
+          // Two lines: the row wraps, the names push the total right, the verdict takes line two.
           host.style.flexWrap = "wrap";
           const names = host.querySelector("ul");
           if ( names ) { names.style.flex = "1 1 auto"; names.style.minWidth = "0"; names.style.justifyContent = "flex-start"; }
@@ -194,17 +178,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       const actor = resolveUuid(t.uuid);
       const roller = (actor instanceof Actor) ? rollerUserFor(actor) : null;
       line.style.opacity = "0.75";
-      // Since finding (h) the GM's popup really does pop for an offline owner's actor, so
-      // naming the roller is true again — the old "the timer (owner offline)" special case
-      // described the quiet this fix removed.
       line.textContent = `${t.name} — ${abilityLabel} save DC ${flag.dc}, waiting on ${roller?.name ?? "the GM"}`;
     }
     row.appendChild(line);
-    // EVERY pending row runs the demand's bar (v1.11.0, finding ④ — "two timers tick
-    // side by side" was the user's expectation on a two-target demand; the single bar
-    // under the last row read as that row's alone, with the others' "missing"). Each bar
-    // anchors to the same absolute deadline, so the popup pairing and the drift-0 rule
-    // are untouched — a resolved row's bar leaves with its pending text.
+    // EVERY pending row runs the demand's bar, all anchored to the same absolute deadline.
     if ( pending && !t.done ) {
       const bar = document.createElement("div");
       bar.innerHTML = holdBarHTML(flag, "to roll");
@@ -216,11 +193,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     scheduleBarSync(row);
     armSaveTimer(message);
 
-    // Resume, stateless (the split discipline): an answer landed while nobody could fold;
-    // a verdict landed while nobody could apply; damage landed while nobody could reconcile.
+    // Resume, stateless: an answer, verdict or damage that landed while nobody could act.
     if ( drivesMomentFor(flag.sourceUuid ?? null) ) {
-      // The containment floor: a pending demand follows its area on every render — the
-      // template CRUD hooks are only fast-paths (measured unreliable on the headless elect).
+      // The containment floor: a pending demand follows its area on every render (the template
+      // CRUD hooks are unreliable on the headless elect).
       void refreshDemandFromTemplates(message);
       for ( const t of flag.targets ) {
         if ( t.done ) continue;
@@ -234,17 +210,9 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done ) continue;
       const actor = resolveUuid(t.uuid);
       if ( !canAnswerFor(actor) ) continue;
-      // v1.19.x finding (h): canAnswerFor ALONE routes the popup. The old extra
-      // `isGM && hasPlayerOwner` quiet was mutually exclusive with canAnswerFor's own
-      // active-owner check, so a player-owned target with its owner OFFLINE popped for
-      // nobody and the buzzer ate the save — the walk's log shows Thomas failing two
-      // Fireballs "(timer)" while the solo GM watched the bar. The v1.12.0 ruling ("as a
-      // GM i dont care to see other player saves") is UNTOUCHED where it was made: an
-      // online owner still excludes the GM inside canAnswerFor.
-      // (No pre-roll choice can pend here since walk-5 (y): choices open off the VERDICT,
-      // on entries this !t.done loop already skips — the save ask never defers.)
-      // CASCADING, NO QUEUE (user, 2026-09-02): every pending demand opens its dialog once,
-      // stepped down the staircase; the button recalls this card's dialog regardless.
+      // canAnswerFor ALONE routes the popup: an online owner excludes the GM; with the owner
+      // offline the GM gets it, never nobody. Every pending demand opens its dialog once, cascading
+      // (no queue); the button recalls it.
       const shownKey = popupKey(message.id, `save:${t.uuid}`);
       if ( !shownMoments.has(shownKey) ) {
         shownMoments.add(shownKey);
@@ -257,18 +225,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     }
   }
 
-  // Fold choices (v1.19.x ⑤/⑥): a pending choice pops for whoever owns its SUBJECT —
-  // player-first, GM fallback (finding ①'s routing) — carries its own bar, keeps an Answer
-  // recall, and re-arms its buzzer on render. Deliberately OUTSIDE `pending`: choices open
-  // after a verdict, so the demand itself may already read resolved.
+  // Fold choices pop for whoever owns their SUBJECT, with a bar, an Answer recall and a buzzer
+  // re-armed on render. OUTSIDE `pending`: choices open after a verdict.
   let choiceBars = false;
   for ( const t of flag.targets ?? [] ) {
     const c = t.choice;
     if ( !c || c.answer || t.applied ) continue;
     if ( c.deadline ) {
-      // momentBarHTML, never holdBarHTML (finding (n)): the sub-object has no status, and
-      // the status-gated wrapper rendered "" here for a whole round — the card showed a
-      // pending choice with no drain anywhere on screen.
+      // momentBarHTML, never holdBarHTML: the sub-object has no status, and the status-gated
+      // wrapper would render nothing.
       const bar = document.createElement("div");
       bar.innerHTML = momentBarHTML(c, "to answer");
       row.appendChild(bar);
@@ -291,8 +256,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       if ( t.done && !t.applied ) void applySaveConsequences(message, t.uuid);
     }
     if ( flag.targets.some(t => t.done) ) void reconcileSaveDamage(message);
-    // The sweep's convergent floor (finding ②) — render side, the reload-resume twin of
-    // the update floor above.
+    // The convergent floor, render side: the reload-resume twin of the update floor.
     if ( flag.status !== "pending" ) void cleanupSpentTemplates(message);
   }
   html.querySelector(SURFACES.messageContent)?.appendChild(row);

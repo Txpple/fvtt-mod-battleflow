@@ -1,6 +1,7 @@
 /**
- * Battle Flow — Damage casts: a bare damage activity rolls its dice at the use, and a listed row demands the save its text names after the damage lands.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — Damage casts: a bare damage activity rolls its dice at the use, and a listed row
+ * demands the save its text names after the damage lands (RULINGS *Damage casts*). EDGE layer
+ * (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, S, setting, statContext } from "./core.js";
 import { lower, activityNamed } from "./lookup.js";
@@ -16,32 +17,14 @@ import { SURFACES } from "./surfaces.js";
 import { targetsInData, targetsOf } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
- * DAMAGE CASTS (user, 2026-09-04 — "make heat metal spell work"). MEASURED on the sandbox: the
- * 2024 PHB's Heat Metal is a BARE damage activity ("Cast and Heat", 2d8 Fire at one object's
- * holder; "Reheat" the same as a Bonus Action) plus a save activity ("On Damage Save" — Con, no
- * damage, the Heated Metal effect on a failure) that nothing chains. Two things stood between it
- * and the table:
- *
- *   1. THE DICE WERE A DIALOG'S. dnd5e's DamageActivity follows its card by opening the damage
- *      ROLL DIALOG (its `_triggerSubsequentActions` calls rollDamage with a dialog) — a click the
- *      attack resolver and the save demand never ask of anyone — and with the card's buttons
- *      hidden (polish.js) that dialog was the only path. So the general half: a bare damage
- *      activity aimed at targets is the module's to roll the moment it is used, on the casting
- *      client — offered when the caster wants their dice back, rolled straight otherwise, the
- *      native follow-up switched off at the use so it never rolls twice — chained to the usage
- *      card, where polish.js's `spellDamage` stamp and hold/spell-damage.js's no-attack applier already land it
- *      on the targets with a receipt. Volley spells stay the volley machine's; a listed hold
- *      (Magic Missile) keeps its pending claim untouched.
- *   2. THE SAVE NEVER FOLLOWED. The text ties it to the damage — "if a creature is holding or
- *      wearing the object and takes the damage from it, the creature must succeed on a
- *      Constitution saving throw or drop the object … If it doesn't drop the object, it has
- *      Disadvantage" — so a listed row (DAMAGE_SAVES) names the damage activities and the save
- *      activity, and the save is USED at the same targets right after the dice go, so the
- *      demand, the timer, the roll and the failed-save press are the saves machine's. The pack's
- *      effect lands on the failure; the drop is a judgment (can it? will it?) said on the card.
- *
- * The gate already read Heated Metal on the holder's attacks (EFFECT_BENDS); the check gate reads
- * it now too (the row's `checks` facet — decide/reminders.js effectCheckSources).
+ *   1. THE DICE: dnd5e's DamageActivity follows its card with the damage ROLL DIALOG, a click the
+ *      table is never asked elsewhere (and the card's buttons are hidden). So a bare damage
+ *      activity aimed at targets is rolled at the use on the casting client (offered, or straight),
+ *      chained to the usage card, where polish.js's `spellDamage` stamp and hold/spell-damage.js's
+ *      applier land it. Volley spells stay the volley machine's; a listed hold keeps its claim.
+ *   2. THE SAVE the text ties to the damage (Heat Metal): a DAMAGE_SAVES row names the damage and
+ *      save activities, and the save is USED at the same targets right after the dice — the
+ *      saves machine's from there. The drop is a judgment, said on the card.
  * ------------------------------------------------------------------------------------------- */
 
 const listed = () => listedNames(damageSaveEntries());
@@ -52,20 +35,17 @@ function drives(activity, targetCount) {
   const actor = activity.actor;
   if ( !actor?.isOwner || !modeAllows(actor) ) return false;
   if ( volleyEntryFor(activity.item) ) return false;                  // the volley machine rolls its darts
-  if ( MANEUVER_FEATURE_NAMES.has(lower(activity.item?.name)) ) return false;   // a maneuver's damage activity is its DIE — other machines' (2026-09-05)
-  // A transformation whose damage is a PULSE at the bearer's turn end (Inner Radiance, 2026-09-25):
-  // the use is the transform alone — the emanation's pulse rolls the dice, never the use.
+  if ( MANEUVER_FEATURE_NAMES.has(lower(activity.item?.name)) ) return false;   // a maneuver's damage activity is its DIE — other machines'
+  // A transformation whose damage is a PULSE at the bearer's turn end (Inner Radiance): the use is
+  // the transform alone.
   if ( setting(S.emanations) && pulseFormKey(EMANATIONS, { itemName: activity.item?.name, activityName: activity.name }, listedNames(emanationEntries())) ) return false;
   if ( !activity.damage?.parts?.length ) return false;
   return targetCount > 0;
 }
 
-// ⚠ ONE ROLL, NEVER TWO. dnd5e's DamageActivity DOES follow its card with a damage roll — through
-// the roll DIALOG, which is the click the table was making — so a machine that also rolls would
-// roll twice. The volley machine's claim, applied here: the native follow-up is switched off at
-// the use, and the dice are the module's (straight, or offered). Measured 2026-09-05: the empty
-// `_triggerSubsequentActions` this file first assumed is the ATTACK activity's; the damage
-// activity's calls rollDamage with a dialog.
+// ⚠ ONE ROLL, NEVER TWO: dnd5e's DamageActivity follows its card with a damage roll (through the
+// dialog), so the native follow-up (`_triggerSubsequentActions`) is switched off at the use and
+// the dice are the module's.
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
   try {
     const snapshot = targetsInData(messageConfig?.data);   // null: not written yet — the client's targets
@@ -102,13 +82,12 @@ async function driveDamageCast(activity, message, targets) {
   const follows = !!row && listed().has(lower(row.key)) && (row.damage ?? []).some(n => lower(n) === lower(activity.name));
   await message.setFlag(MODULE_ID, "damageCast", { ...statContext(actor.uuid), activity: activity.name,
     scaling: Number(message.system?.scaling ?? 0), ...(follows ? { save: row.save, key: row.key } : {}) });
-  // The dice: the caster's when they asked for them (the save path's own offer), the module's
-  // otherwise. Not awaited past the offer — the demand below must not wait fifteen seconds.
+  // The dice: the caster's when they asked for them, the module's otherwise. Not awaited past the
+  // offer — the demand below must not wait on it.
   if ( setting(S.playerRollDamage) ) void offerSaveDamageRoll(activity, message, { damageOnSave: null, targets });
   else await rollDamageForSave(activity, message);
   if ( !follows ) return;
-  // The save the text ties to the damage, used at the same targets — the saves machine takes it
-  // from here (the demand card is the save's own usage card). No slot: the spell was cast already.
+  // The save, used at the same targets; the saves machine takes it from here. No slot: already cast.
   const save = activityNamed(activity.item, row.save);
   if ( !save ) { console.warn(`${TITLE} | ${row.key}: no activity named "${row.save}" on the sheet — ask for the save by hand.`); return; }
   const tokens = targets.map(t => tokenForUuid(t.uuid)).filter(Boolean);

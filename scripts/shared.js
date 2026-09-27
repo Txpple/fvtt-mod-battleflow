@@ -1,35 +1,21 @@
 /**
- * Battle Flow — Shared helpers: the hit test and the chain walk.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — Shared EDGE helpers: the hit test, the attack-chain lookup, status forcing, turn
+ * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, S, setting, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands } from "./decide/chips.js";
 import { foldsFrom, hitsAmong, modeAdmits } from "./decide/verdict.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Shared: the hit test and the chain walk
- * ------------------------------------------------------------------------------------------- */
 
 /**
- * Targets from an attack message's snapshot that the attack roll actually hit, recomputing
- * the system's own render-time test: crit hits, fumble misses, otherwise total >= ac.
- * A null AC (total cover, or a target with no AC data) is a MISS — the platform's own verdict
- * since dnd5e 6.0 (`AttackMessageData#evaluatedTargets`; user ruling 4 of the 6.0 pass,
- * 2026-09-15). 5.3.3's tray read it as a hit and this module left the row to humans; both
- * readings are gone. The snapshot is read through the card seam (decide/card.js `targetsOf`:
- * `uuid` is the target ACTOR, one row per actor, the token beside it).
+ * Targets from an attack message's snapshot that the roll actually hit: crit hits, fumble misses,
+ * else total >= ac. A null AC (total cover, no AC data) is a MISS, as dnd5e 6 judges it.
  */
 export function hitTargets(attackMessage) {
   const roll = attackMessage.rolls[0];
   if ( !(roll instanceof dnd5e.dice.D20Roll) ) return [];
-  // EDGE: read the message, hand plain data to the judgment (decide/verdict.js), which is where
-  // the stale-AC trap and the fold composition are documented.
-  //
-  // ⚠ THE FOLD CHANNELS ARE NO LONGER NAMED HERE (D8, 2026-08-23). This used to pass `held:`
-  // and `precision:` as two hand-written parameters, so a third fold meant editing this call,
-  // the signature and the body. `foldsFrom` walks the REGISTRY instead and the only thing this
-  // shell still supplies is the reader — which is also what keeps the judgment pure.
+  // The judgment is pure (decide/verdict.js); `foldsFrom` walks the fold registry, this supplies the reader.
   return hitsAmong({
     targets: targetsOf(attackMessage),
     folds: foldsFrom(key => attackMessage.getFlag(MODULE_ID, key)),
@@ -37,36 +23,18 @@ export function hitTargets(attackMessage) {
   });
 }
 
-/** EDGE: the system's own label for a weapon mastery key — shared by the mastery machine and the
- * reminder gate (moved out of mastery.js 2026-09-01). */
+/** EDGE: the system's own label for a weapon mastery key. */
 export const masteryLabel = key => CONFIG.DND5E.weaponMasteries[key]?.label ?? key;
 
-/**
- * Does the attacker-side mode admit this actor's side of the table? One home for the
- * npc/pc/all gate — Phase 1a and Graze both read it, and a mode added here reaches both.
- */
+/** Does the attacker-side mode (npc/pc/all) admit this actor's side of the table? */
 export function modeAllows(actor) {
   return modeAdmits(setting(S.autoDamage), actor?.type === "character");
 }
 
 /**
- * The attack roll a damage message descends from.
- *
- * ⚠ THE DAMAGE'S OWN STAMP LEADS ((ii), the v1.20.0 walk, 2026-08-21): every roll
- * rollDamageForAttack makes carries `attackFor` — the id of the exact attack it answers —
- * because the registry walk below CANNOT be trusted under a volley: all three ray attacks
- * share one originating usage card, and "the last attack rolled before this damage" is
- * whichever ray landed last, not the ray this damage belongs to. At the table that
- * misattributed every offered ray damage to ray 3 — ray 1's dice re-tested against ray 3's
- * MISS never applied at all (the user's "the damage didnt auto apply"), and a hold's
- * belt-and-braces read the wrong attack's absent hold. The walk stays as the fallback for
- * rolls this module never drove (the native Damage button).
- *
- * Walk (fallback): damage → originating usage card → associated attack rolls
- * (chronological) → the last one rolled before this damage. When the origin itself IS an
- * attack message (an attack rolled without a usage card; our own programmatic stamp falls
- * back to the attack's id), use it directly. Null when the damage isn't part of an attack
- * chain (save/AoE damage — Phase 2).
+ * The attack roll a damage message descends from; null outside an attack chain (save/AoE damage).
+ * ⚠ The damage's own `attackFor` stamp leads: under a volley every ray shares one usage card, so
+ * "the last attack before this damage" names the wrong ray. That walk is the fallback only.
  */
 export function resolveAttackMessage(damageMessage) {
   const forId = damageMessage.getFlag(MODULE_ID, "attackFor");
@@ -83,17 +51,8 @@ export function resolveAttackMessage(damageMessage) {
 }
 
 /**
- * The acting actor behind a message, as a uuid — the data plane's source resolution
- * (core.js `statContext`), one implementation beside the chain walk it belongs with.
- *
- * The message's OWN actor leads, and that is a finding, not a shortcut: the handoff drafted
- * a respondsTo-first order, but the respondsTo hop points at the message being ANSWERED — for
- * a reaction response (the defender's own Shield, receipt embedded at creation) that hop
- * names the ATTACKER as the source of the defender's self-cast. Every receipt-bearing message
- * is spoken by the actor whose action caused it (the attacker's damage roll, the caster's
- * usage card, the healer's healing roll, the reactor's response), so the speaker IS the
- * source. The originating-message hop stays as the fallback for a roll whose own speaker
- * resolution comes up empty.
+ * The acting actor behind a message, as a uuid. The message's own speaker leads — a reaction's
+ * respondsTo hop would name the attacker as the source of the defender's self-cast.
  */
 export function statSourceOf(message) {
   const actor = message?.getAssociatedActor?.();
@@ -103,12 +62,7 @@ export function statSourceOf(message) {
   return null;
 }
 
-/**
- * The actor behind an effect's `origin` — the ITEM that applied it, and that item's parent: the
- * bard behind an Inspired die, the attacker behind a Sapped chip. Lived in d20-folds.js until
- * the reminder gate needed the same line (review finding 11a, 2026-09-01). Null when the origin
- * is missing, unresolvable, or not an actor's item.
- */
+/** The actor behind an effect's `origin` item (the bard behind an Inspired die), or null. */
 export function grantingActor(effect) {
   try {
     const origin = effect?.origin ? fromUuidSync(effect.origin) : null;
@@ -117,14 +71,8 @@ export function grantingActor(effect) {
 }
 
 /**
- * Has this chip already been SPENT on record? The spend writes its receipt on the attack card
- * FIRST and deletes the chip SECOND, and with no GM connected the delete cannot happen (a
- * player cannot write the monster) — so the document lingers and the gate, reading documents
- * alone, listed the same Vex as live on every swing and spent it again each time (review
- * finding 13, 2026-09-01). A recorded spend counts as spent whatever the sheet says: the log
- * is walked newest-first, bounded, for a `chipSpend` entry naming this chip on this bearer,
- * written AFTER the chip's own last write — a chip refreshed by a later hit keeps its id, and
- * an older receipt is about its earlier life.
+ * Has this chip already been SPENT on record? With no GM connected a spent chip's delete cannot
+ * happen, so a `chipSpend` receipt written after the chip's last write counts as spent.
  */
 export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   const bearerUuid = effect?.parent?.uuid;
@@ -140,49 +88,34 @@ export function chipSpentOnRecord(effect, { limit = 100 } = {}) {
   return false;
 }
 
-/** A pressed status's clock from a platform pseudo-expiry (`sourceEnd` …) — dnd5e judges the turn
- * edge live (ActiveEffect5e#isExpiryEvent) and keeps the value null. */
+/** A status's clock from a platform pseudo-expiry (`sourceEnd` …); dnd5e judges the turn edge live
+ * (ActiveEffect5e#isExpiryEvent) and keeps the value null. */
 const clockOfExpiry = expiry => ({ "duration.expiry": expiry, "duration.value": null, "duration.units": "rounds" });
 
 /**
  * Put a status condition on an actor and make sure it actually LANDED.
- *
- * ⚠ `toggleStatusEffect(id, { active: true })` resolves without doing anything when ANY
- * effect carrying that status already exists — a DISABLED leftover included — and it can
- * come back empty-handed when another module's create-hook interferes. Both no-ops are
- * silent, and one of them is the live "topple failed but nothing fell prone" report
- * (2026-08-16): the verdict announced and the press did nothing. So: enable a disabled
- * carrier if that is what exists; otherwise BUILD the effect directly — since v1.11.0
- * the direct build leads because it can carry an `origin` naming who pressed it
- * (finding ⑤: the Prone chip's source should say Morgash), which toggleStatusEffect
- * cannot. fromStatusEffect keeps the CANONICAL id and keepId preserves it — the id every
- * suite cleanup keys on (the immortal-prone lesson). The toggle stays as the fallback,
- * the verify stays loud: a status that cannot land is a table-facing failure.
+ * ⚠ `toggleStatusEffect(id, { active: true })` silently no-ops when any carrier exists (a disabled
+ * one included) or another module's hook interferes. So re-enable a disabled canonical carrier,
+ * else build the effect directly (it can carry `origin`; `keepId` keeps the canonical id), and
+ * fall back to the toggle.
  */
 export async function forceStatus(actor, statusId, { origin = null, expiry = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
-  // ⚠ ONLY THE CANONICAL CONDITION IS EVER RE-ENABLED (user report 2026-09-03: "when Morgash
-  // applied Topple, it applied Cunning Strike: Tripped instead"). A disabled leftover that
-  // merely CARRIES the status — a pack's own effect from an earlier Trip, expired or reverted —
-  // is not this press: re-enabling it revives that effect's name, duration and changes under
-  // Topple's origin, and the gate then names the wrong source. Told by the status's own
-  // localized name, which is what fromStatusEffect builds.
-  // ⚠ `CONFIG.statusEffects` is an OBJECT keyed by id since dnd5e 6.0 (`_configureStatusEffects`);
-  // the 5.x array's `.find` threw here on every press (the 6.0 pass, 2026-09-15).
+  // ⚠ Only the CANONICAL condition is re-enabled (told by its localized name): a disabled pack
+  // effect that merely carries the status (an old Trip) would revive its own name and changes.
+  // ⚠ `CONFIG.statusEffects` is an OBJECT keyed by id in dnd5e 6.
   const canonicalName = game.i18n.localize(CONFIG.statusEffects[statusId]?.name ?? "");
   const active = actor.effects.find(e => e.statuses.has(statusId) && !e.disabled);
   const dormant = actor.effects.find(e => e.statuses.has(statusId) && e.disabled && (e.name === canonicalName));
   if ( active ) {
-    // An already-ACTIVE effect keeps its own history — origin is only written by whoever lands it.
+    // An already-active effect keeps its own origin.
   } else if ( dormant ) {
-    // Enabling our press on a disabled CANONICAL leftover stamps the source.
     await dormant.update({ disabled: false, ...(origin ? { origin } : {}), ...(expiry ? clockOfExpiry(expiry) : {}) });
   } else {
     try {
       const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
       if ( origin ) effect.updateSource({ origin });
-      // A press with a clock (SAVE_PRESSES `expiry` — the Poisoner's "until the end of your next
-      // turn"): the platform's pseudo-expiry, whose value dnd5e keeps null; its start is the create's.
+      // A press with a clock ("until the end of your next turn"): the platform's pseudo-expiry.
       if ( expiry ) effect.updateSource(clockOfExpiry(expiry));
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
     } catch(err) {
@@ -197,40 +130,19 @@ export async function forceStatus(actor, statusId, { origin = null, expiry = nul
 
 
 /**
- * Take a status condition OFF an actor and make sure it is actually GONE. The removal twin of
- * `forceStatus` above, and it exists for the same reason: **`toggleStatusEffect` is unreliable
- * in BOTH directions, and its failure modes are opposite.**
- *
- * ⚠ Adding, it no-ops silently when a carrier already exists. **Removing, it THROWS when the
- * carrier has just gone** — `ActiveEffect "dnd5edead0000000" does not exist!` straight out of the
- * server backend — because `{ active: false }` resolves the id from the CONFIG status and issues
- * a delete without re-checking. Anything that removes the same status concurrently wins the race
- * and leaves this call rejecting.
- *
- * ⚠ THAT RACE IS NOT HYPOTHETICAL AND IT COST THREE SIGHTINGS TO NAME. `clearDefeated` restores
- * the pool above zero and then clears the dead mark — and dnd5e's own "HP is positive again"
- * handler is removing that very effect at the same moment. Whoever loses throws. The caller was
- * an un-caught `await` in a click listener, so the rejection was invisible AND it skipped the
- * two writes after it: **the human's revert applied to the actor and was never recorded on the
- * card.** See NOTES.md §1 and `smoke-battleflow` §4b.
- *
- * ⚠ It also fixes the second half of the `toggleStatusEffect` problem NOTES.md records: removing
- * by status id only ever deletes the CANONICAL-id effect, so a custom-id carrier of the same
- * status is immortal. This deletes **every** carrier, by its own id.
- *
- * Best-effort by contract: it never throws, because every one of its callers is doing cleanup
- * AFTER the thing that mattered has already been written.
+ * Take a status OFF an actor and make sure it is gone; best-effort, never throws.
+ * ⚠ `toggleStatusEffect(id, { active: false })` THROWS when a concurrent remover (dnd5e's own
+ * "HP positive again" handler) wins, and only deletes the canonical-id carrier. NOTES.md §1.
  */
 export async function clearStatus(actor, statusId) {
   if ( !(actor instanceof Actor) ) return false;
   for ( const effect of actor.effects.filter(e => e.statuses?.has?.(statusId)) ) {
-    // ⚠ Re-read before deleting. The collection above is a snapshot, and this loop awaits.
+    // ⚠ Re-read before deleting: the list is a snapshot and this loop awaits.
     if ( !actor.effects.get(effect.id) ) continue;
     try {
       await effect.delete();
     } catch(err) {
-      // A concurrent delete is the EXPECTED loss here, not a defect — the status is gone,
-      // which is all this function promised. Anything else is worth a line.
+      // A concurrent delete is the expected loss here; anything else is worth a line.
       if ( !actor.effects.get(effect.id) ) continue;
       console.warn(`${TITLE} | Could not clear status "${statusId}" from ${actor.name}.`, err);
     }
@@ -239,20 +151,8 @@ export async function clearStatus(actor, statusId) {
 }
 
 
-/* ---------------------------------------------------------------------------------------------
- * Shared EDGE helpers — the blocks that were copied rather than shared (the duplicate census,
- * 2026-08-22). Both are EDGE by §2 rule 1: one calls dnd5e's aggregator, the other validates a
- * formula and warns a human. Their pure cores are a three-branch table and a map, too small to
- * be worth an import into decide/ — what was worth fixing is that there were SEVEN copies.
- * ------------------------------------------------------------------------------------------- */
 
-/**
- * A damage message's rolls as the damage descriptors the appliers take — the system's own
- * aggregation, with properties respected so bypasses survive.
- *
- * Was byte-identical in FOUR files (auto-apply, cast, hold, saves), which made it the
- * most-duplicated block in the tree.
- */
+/** A damage message's rolls as the appliers' descriptors, properties respected so bypasses survive. */
 export function damagePartsOf(rolls) {
   return dnd5e.dice.aggregateDamageRolls(rolls, { respectProperties: true })
     .map(roll => ({
@@ -263,12 +163,8 @@ export function damagePartsOf(rolls) {
 }
 
 /**
- * A damage message's rolls rebuilt from PATCHED roll data (decide/damage-dice.js — a die struck,
- * a face added), each total re-evaluated so every reader downstream sees the new number. Lifted
- * out of metamagic.js (Empowered Spell, 2026-09-09) on 2026-09-24 when Savage Attacker became the
- * second customer (Slice A). ⚠ `_evaluateTotal` is PRIVATE Foundry API, accepted since Empowered
- * shipped: `Roll.fromData` restores the stored `_total`, and the terms' new results only count
- * once the total is taken again. One home, so a Foundry release that renames it breaks one line.
+ * Rolls rebuilt from PATCHED roll data, each total re-evaluated.
+ * ⚠ `_evaluateTotal` is PRIVATE Foundry API (`fromData` restores the stored `_total`); one home.
  * @param {object[]} rollsData  `Roll#toJSON` shapes
  * @returns {Roll[]}
  */
@@ -277,15 +173,8 @@ export function rebuildRolls(rollsData) {
 }
 
 /**
- * A human's answer turned into the roll configuration it implies — spread straight into a
- * `rollSavingThrow`/`rollConcentration` config, and EMPTY when the answer asked for nothing.
- *
- * Was byte-identical in THREE machines (concentration, mastery's topple, saves), each with its
- * own copy of the same nine lines and the same `Object.keys(...).length` spread — the
- * pre-drift state, not yet drifted.
- *
- * ⚠ An unrollable bonus is dropped with a warning rather than thrown: a typo in the box must
- * not stall the roll the table is waiting on.
+ * A human's answer as a `rollSavingThrow`/`rollConcentration` config; empty when it asked nothing.
+ * ⚠ An unrollable bonus is dropped with a warning, never thrown: the table is waiting on the roll.
  */
 export function rollConfigFor(mode, bonus) {
   const override = {};
@@ -300,12 +189,7 @@ export function rollConfigFor(mode, bonus) {
   return Object.keys(override).length ? { rolls: [override] } : {};
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE TURN CHITS' EDGE (moved out of mastery.js 2026-09-02 — the D8 lesson, a seam built by its
- * second customer): where an attacker stands in the running combat, what a chip's clock becomes
- * on the document, and the once-per-turn chit — written when a thing is dealt, dead with the
- * turn it was written in — which Cleave, Sneak Attack and the clock riders all keep the same way.
- * ------------------------------------------------------------------------------------------- */
+/* --- Turn chits: once-per-turn marks, dead with the turn they were written in -------------- */
 
 /** The attacker's place in the RUNNING combat, for decide/chips.js — or null out of combat. */
 export function placeOf(attacker) {
@@ -317,11 +201,8 @@ export function placeOf(attacker) {
 }
 
 /**
- * The CURRENT turn's place in the running combat — whoever's turn it is — for the once-per-turn
- * chit, which belongs to the turn IN PROGRESS and not to the attacker: an opportunity attack's
- * chit dies with the victim's turn, not at the attacker's own next turnEnd (review finding 3,
- * 2026-09-01). Read off `game.combat` alone, so an attacker who is not in the tracker (a
- * summon) still gets a chit and is not reminded on every hit (finding 18). Null out of combat.
+ * The CURRENT turn's place, for the once-per-turn chit: it belongs to the turn in progress (an
+ * opportunity attack's chit dies with the victim's turn), so a summon outside the tracker gets one.
  */
 export function turnPlace() {
   const combat = game.combat;
@@ -332,24 +213,16 @@ export function turnPlace() {
 }
 
 /**
- * What a clock becomes on the document: the window, un-expired, and its start. In combat the
- * start is the attacker's place (decide/chips.js); out of combat only the time is ours to say
- * and the platform's own `_preCreate` fills the rest — a refresh re-times an existing chip.
- *
- * ⚠ AN ATTACKER IN A RUNNING COMBAT BUT NOT IN THE TRACKER (a summon, a hazard) takes that same
- * path ON PURPOSE (review finding 20, 2026-09-01, the proposed fix measured and refused). The
- * platform stamps whoever's turn it IS, which for a creature acting on its summoner's turn reads
- * "your next turn" correctly; writing `combat: null` instead does NOT make the chip time-based
- * while the BEARER is tracked — Foundry falls back to the bearer's own combatant and expires the
- * chip at exactly the same moment — so there is no better stamp to write, and none is.
+ * What a clock becomes on the document; out of combat the platform's `_preCreate` fills the start.
+ * ⚠ A summon outside the tracker takes this path on purpose: `combat: null` would not help, since
+ * Foundry falls back to the bearer's combatant.
  */
 export function chipData(clock) {
   return { duration: { ...clock.duration, expired: false },
     start: clock.start ?? { time: game.time.worldTime } };
 }
 
-/** The turn a chit was written in, as the house stamp (decide/chips.js `chitStamp`). `start.combat`
- * is a ForeignDocumentField — a Combat document, or null once that combat is gone. */
+/** The turn a chit was written in, as the house stamp. `start.combat` is a Combat or null. */
 export function chitStampOf(effect) {
   const combat = effect.start?.combat;
   return chitStamp({ combat: (typeof combat === "string") ? combat : (combat?.id ?? null),
@@ -357,17 +230,12 @@ export function chitStampOf(effect) {
 }
 
 /**
- * Does a once-per-turn chit of this kind stand on the actor for the RUNNING turn? By stamp
- * comparison, never by the platform's mark (review finding 17, 2026-09-01 — the mark is
- * GM-written and a no-GM table never sees it). Out of combat nothing stands.
+ * Does a once-per-turn chit stand for the RUNNING turn? By stamp, never the GM-written expired mark.
  * @param {Actor} actor
  * @param {string} key   a CHIP_WINDOWS turn-chit key ("cleave" | "sneak" | "rider")
  * @param {string|null} [riderKey]   for "rider" chits, WHICH rider (the flag's `riderKey`)
  */
 export function turnChitStands(actor, key, riderKey = null) {
-  // ⚠ The ATTACKER's combat, not whatever the tracker is on (user ruling 2026-09-02: "the turn
-  // counting should only be in combat" — a rogue outside the fight met "used this turn" from a
-  // chit stamped with somebody else's turn). No combatant, no turn, no chit.
   const stamp = activeCombatFor(actor) ? combatStamp() : null;
   if ( !stamp || !actor ) return false;
   return actor.effects.some(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
@@ -375,11 +243,8 @@ export function turnChitStands(actor, key, riderKey = null) {
 }
 
 /**
- * Write a once-per-turn chit on the actor: stale chits of the kind go first (earlier turns', or
- * a combat that ended with nobody to tidy them), then one for the turn IN PROGRESS. Out of
- * combat there is no turn to be once-per, so nothing is written (`chipClock` yields null).
- * A chit nobody may write (no owner on this client) is simply not written — the feature
- * repeats, which is the cheaper failure. Returns the effect, or null.
+ * Write a once-per-turn chit for the turn in progress, replacing stale ones. Nothing is written
+ * out of combat or without an owner here (the feature repeats — the cheaper failure).
  * @param {Actor} actor
  * @param {string} key
  * @param {{name: string, img?: string|null, description?: string, origin?: string|null, riderKey?: string|null}} chit
@@ -389,9 +254,7 @@ export async function writeTurnChit(actor, key, { name, img = null, description 
   if ( !activeCombatFor(actor) ) return null;   // the attacker's own combat, or no turn to be once-per
   const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === key)
     && (!riderKey || (e.getFlag(MODULE_ID, "riderKey") === riderKey)));
-  // Best-effort: the platform's own tidy deletes an expired chit on the turn boundary, and a
-  // writer racing it met "ActiveEffect does not exist" (the shields suite, 2026-09-05). A chit
-  // that is already gone is the outcome wanted.
+  // Best-effort: the platform may already have deleted an expired chit.
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id).filter(id => actor.effects.get(id))).catch(() => {});
   const clock = chipClock(key, turnPlace());
   if ( !clock ) return null;
@@ -402,20 +265,9 @@ export async function writeTurnChit(actor, key, { name, img = null, description 
   }, { parent: actor });
 }
 
-/* ---------------------------------------------------------------------------------------------
- * THE REACTION CHIP (user, 2026-09-02). One Reaction per round, back at the start of the
- * creature's own turn — a chip on the combat clock like every other window this module keeps,
- * replacing the `reactionSpent` actor flag (whose two clear hooks were the module counting
- * turns by hand). Every interrupt that spends the Reaction writes it; every hold's offer gate
- * reads it. Out of combat there is no turn to bring it back, so nothing is written — the old
- * flag's stranding guard, now the clock's own shape.
- * ------------------------------------------------------------------------------------------- */
+/* --- The Reaction chip: spent Reaction, back at the start of the creature's own turn ---------- */
 
-/**
- * Is this creature's Reaction spent — a Reaction chip standing? By the platform's mark AND the
- * stamp arithmetic (decide/chips.js `reactionStands`): the chip is dead once the reactor has
- * begun a turn since it was written, whether or not a GM was there to write the mark.
- */
+/** Is this creature's Reaction spent? Stamp arithmetic too, so it dies without a GM's mark. */
 export function reactionSpent(actor) {
   if ( !actor ) return false;
   const chips = actor.effects?.filter(e => e.getFlag(MODULE_ID, CHIP_FLAG) === "reaction") ?? [];
@@ -428,9 +280,7 @@ export function reactionSpent(actor) {
 }
 
 /**
- * Spend the Reaction: the chip on the reactor, clocked to their own next turn. Only in the
- * running combat they are part of; only where this client may write to them. A live chip is
- * left standing (one Reaction is one Reaction).
+ * Spend the Reaction: a chip clocked to the reactor's next turn; only in their running combat.
  * @param {Actor} actor
  * @param {{origin?: string|null, what?: string}} [by]   what spent it, for the chip's description
  */
@@ -451,33 +301,10 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
 }
 
 /**
- * Who put an effect on, and what it came from: walk its origin uuid up to the nearest Actor,
- * keeping the Item passed on the way. Both answers fall out of one walk. Lived in hit-riders.js
- * as `markSource` until the damage shields needed the same walk (2026-09-04) — a ward on the
- * defender is a mark in reverse, and the D8 lesson is that a seam is built by its second customer.
- *
- * ⚠ Verified against a live mark, and it does NOT match a straight reading of the effect tray.
- * The 5.x tray set `origin = concentration ?? effect` (effect-application.mjs:184), but that
- * first branch only fired when `chatMessage.system.concentration` was set; a real Hunter's Mark
- * on this table arrived pointing at the SOURCE ITEM'S OWN EFFECT,
- * `Actor.<caster>.Item.<hunters-mark>.ActiveEffect.<marker>`. Since dnd5e 6.0 the tray writes no
- * `origin` at all: the provenance is `system.origin.{actor, item, activity, effect, message}`
- * (the platform's own `getSourceActor` reads actor ?? item ?? activity ?? origin), and this
- * module's applier writes both. Do not code to any one shape — the walk ends at the same Actor
- * and Item whichever was written, and also survives a mark dragged on by hand.
- *
- * ⚠ Origins go stale. Prone effects on this table point at a token that no longer exists and
- * resolve to null, so every hop must tolerate a miss.
- *
- * ⚠ AN APPLIED COPY CARRIES ITS TEMPLATE'S LINEAGE (measured 2026-09-23 — Session 8's Hunter's
- * Mark paid no die on six hits). The 6.0 migration moved every world item's effect-template
- * `origin` — the pack's own uuid, `Compendium.dnd-players-handbook.spells.Item.phbsplHuntersMar`
- * — into `system.origin.item` (207 of the world's 243 applied templates). Both appliers (the
- * tray's `_prepareEffectData` and ours) copy the template and MERGE their provenance over it, so
- * a copy on the target carries a fresh `activity` beside a stale compendium `item`. Reading
- * `item` first walked to the pack, found no actor and dropped the mark. So each candidate is
- * TRIED: the first that walks to a world Actor with an item wins, and `activity` leads — it is
- * the field every application writes fresh, where `item`/`actor` can ride in from the template.
+ * Who put an effect on, and what it came from: its origin walked up to an Actor, keeping the Item.
+ * ⚠ Provenance has many shapes (dnd5e 6's `system.origin.*`, legacy `origin`, hand-dragged) and
+ * goes stale. An applied copy carries its TEMPLATE's stale compendium `item` beside a fresh
+ * `activity`, so each candidate is tried, `activity` first, until one reaches a world Actor.
  */
 export function effectSourceOf(marker) {
   const so = marker.system?.origin ?? {};
@@ -490,7 +317,6 @@ export function effectSourceOf(marker) {
   return null;
 }
 
-/** One candidate's walk for effectSourceOf: the uuid up to its Actor, keeping the Item passed. */
 function sourceFromUuid(uuid) {
   let doc = null;
   try { doc = fromUuidSync(uuid); } catch { return null; }
@@ -503,28 +329,18 @@ function sourceFromUuid(uuid) {
   // A pack's actor is nobody at the table — a compendium uuid is lineage, never a source.
   if ( !(doc instanceof Actor) || doc.pack ) return null;
 
-  // The other shape: an effect sitting directly ON the caster, which NAMES its item rather than
-  // living underneath one — what the tray writes when the spell began concentration. The walk
-  // above finds the actor but never passes an Item, so the name has to be read off the flag.
-  // ⚠ This is uuid resolution, not a concentration test: nothing here asks whether anyone is
-  // still concentrating, and nothing should.
+  // An effect ON the caster names its item in a flag. ⚠ Uuid resolution, not a concentration test.
   if ( !item ) {
     const carried = root?.getFlag?.("dnd5e", "item");
     try { item = carried?.uuid ? fromUuidSync(carried.uuid) : null; } catch { item = null; }
-    // ⚠ `flags.dnd5e.item.data` is populated ONLY when the item is not on the actor
-    // (active-effect.mjs:714) — the cached-spell shape innate and statblock casting use. Without
-    // this fallback a monster's mark resolves to no item and silently stops paying.
+    // ⚠ `.data` exists only when the item is not on the actor (statblock casting).
     if ( !item && carried?.data ) item = new Item.implementation(carried.data, { parent: doc });
   }
   return item ? { actor: doc, item } : null;
 }
 
 /**
- * The pool an activity consumes — the item its first `itemUses` target names. Lived in hit-menu.js
- * until the hold's Parry needed the same read (2026-09-05): a seam built by its second customer. The 2024 pack
- * ships the target three ways (measured 2026-09-04): an item ID once advancement has remapped
- * it, the bare identifier `combat-superiority` (Trip, Goading, Menacing, Pushing, Disarming,
- * Maneuvering), and the compendium UUID of Combat Superiority (Distracting, Sweeping).
+ * The pool an activity consumes. Packs name it by item id, bare identifier or compendium UUID.
  */
 export function poolOf(actor, activity) {
   for ( const c of (activity?.consumption?.targets ?? []) ) {
@@ -541,17 +357,7 @@ export function poolOf(actor, activity) {
 }
 
 /**
- * THE ONE PASS-THROUGH FOR A DIE THE MODULE SPENDS BY HAND (user, 2026-09-05: "when maneuvers
- * are consumed, it's not consistent with the popup about consuming a sup die and how many are
- * left in the floating text … maybe you need a single pass-through function all the maneuvers
- * call so it's uniform"). A maneuver used through its own activity spends the pool through dnd5e,
- * which stamps `system.deltas` on the usage card and resources.js flashes it; a maneuver the
- * module plays WITHOUT a use (Parry at the hold, the hit menu at the damage) spent the pool
- * silently. Now both roads meet in one record shape — `{pool, spent, left, max}`, the same row
- * resources.js reads off dnd5e's deltas — written by this function onto the caller's own flag
- * (`poolSpend`, or a hold target's), and `poolSpendsOn` reads either road so every card, popup
- * and flash say the same thing (`spendLine` in decide/present.js).
- *
+ * Spend a die by hand, in the record shape `poolSpendsOn` reads beside dnd5e's own deltas.
  * @returns {Promise<{pool: string, spent: number, left: number, max: number, ability: string, actorUuid: string|null, at: number}|null>}
  */
 export async function spendSuperiorityDie(actor, pool, ability) {
@@ -559,10 +365,7 @@ export async function spendSuperiorityDie(actor, pool, ability) {
 }
 
 /**
- * The same pass-through for a pool spent N at a time under a name of its own (the metamagic
- * pass, 2026-09-09: Heightened and Quickened cost 2 Sorcery Points, and the pool item is
- * called Font of Magic while the table calls the points Sorcery Points). One record shape, one
- * reader, one wording — `Sorcery Points: 3 of 5 remaining` on the flash, the card and the popup.
+ * Spend N uses of a pool under a name of its own (Sorcery Points from Font of Magic).
  * @param {number} n how many uses to spend (the option's own consumption value, read live)
  * @param {string|null} poolName the name the record shows for the pool; the item's by default
  */
@@ -576,11 +379,8 @@ export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null
 }
 
 /**
- * Every pool spend a message records, in the one row shape — dnd5e's own `system.deltas` on a
- * usage card (recovery-rhythm pools only, the resource notices' gate), the module's `poolSpend`
- * flag (a hand spend, the function above), and a hold target's `poolSpend` (Parry's, at the
- * answer). Player-owned actors only, the line the notices draw. `left`/`max` for a delta row are
- * read LIVE off the post-consumption document, as resources.js always did.
+ * Every pool spend a message records, in one row shape (usage-card deltas, hand spends, hold and
+ * hit-menu picks), player-owned actors only.
  * @returns {{pool: string, spent: number, left: number, max: number, ability?: string, at?: number}[]}
  */
 export function poolSpendsOn(message) {
@@ -614,7 +414,6 @@ export function poolSpendsOn(message) {
   if ( flagged ) hand.push(...(Array.isArray(flagged) ? flagged : [flagged]));
   for ( const t of (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []) ) if ( t.poolSpend ) hand.push(t.poolSpend);
   const hm = message?.getFlag?.(MODULE_ID, "hitManeuver");
-  // a spend per pick (the hit menu's list, 2026-09-27); a record from before it holds one itself
   for ( const pick of (Array.isArray(hm?.picks) ? hm.picks : (hm ? [hm] : [])) ) if ( pick?.poolSpend ) hand.push(pick.poolSpend);
   for ( const r of hand ) {
     let spender = null;
@@ -625,9 +424,7 @@ export function poolSpendsOn(message) {
 }
 
 /**
- * The platform's own descriptor for one creature (decide/card.js `describeTarget`, the shape of
- * `TargetsField.getDescriptors`) — read off the TOKEN when there is one, the actor otherwise. What
- * the module writes when IT names a target (polish.js: the potion that aims at its drinker).
+ * The platform's target descriptor for one creature, read off the token when there is one.
  * @param {Token|TokenDocument|null} token
  * @param {Actor|null} actor
  */
@@ -640,7 +437,7 @@ export function targetDescriptorOf(token, actor) {
     ac: subject.system?.attributes?.ac?.value ?? null, totalCover: !!subject.statuses?.has?.("coverTotal") });
 }
 
-/** Aim the user's targets at these tokens for the duration of `fn`, then put them back. */
+/** Aim this client's targets at these tokens for the duration of `fn`, then put them back. */
 export async function withTargets(tokens, fn) {
   const before = [...game.user.targets];
   try {
@@ -653,10 +450,7 @@ export async function withTargets(tokens, fn) {
   }
 }
 
-/**
- * A PARTY member (the metamagic ask's first group, 2026-09-09): in the primary party group, or a
- * player-owned character. A token actor is read through its base.
- */
+/** A party member: in the primary party group, or a player-owned character. */
 export function isPartyMember(uuid) {
   try {
     const actor = fromUuidSync(uuid);
@@ -674,17 +468,8 @@ export function dispositionHex(value, fallback) {
 }
 
 /**
- * THE DISPOSITION CUE (moved from polish.js 2026-09-25 when Alert's lineup became its second
- * customer — user: "like in the select windows /target list we have the icon and its highlighted
- * portrait ... you have the precedent").
- * ABSOLUTE disposition, never relative to whoever is rolling (user call, 2026-08-19). The row
- * reads the target's OWN friendly/neutral/hostile exactly as the canvas border draws it, so it
- * means the same thing on every dialog on every client and can never contradict the screen.
- * ⚠ Known and accepted: when the GM rolls for a monster, a `friendly` token is that monster's
- * enemy but still draws the ally icon. The GM knows the fiction; a cue that silently flips
- * meaning depending on who holds the dice would be worse than one that is always literal.
- * Colour is never the only carrier — glyph, colour and word all say it (colour-blind readers,
- * and screenshots in scrollback).
+ * Glyph, colour and word for a token's ABSOLUTE disposition, as the canvas border draws it —
+ * never relative to whoever rolls. Colour is never the only carrier.
  */
 export function dispositionStyle(token) {
   const D = CONST.TOKEN_DISPOSITIONS;
@@ -702,8 +487,6 @@ export function dispositionStyle(token) {
     case D.SECRET:
       return { icon: "fa-solid fa-eye-slash", label: "secret",
         color: dispositionHex(colors.SECRET, "#a612d4") };
-    // A token with no readable disposition says so rather than guessing — calling an unknown
-    // "enemy" would be exactly the false alarm the [!] flag was struck for.
     default:
       return { icon: "fa-solid fa-circle-question", label: "unknown", color: "inherit" };
   }

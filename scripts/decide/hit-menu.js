@@ -1,35 +1,17 @@
 // @ts-check
 /**
  * Battle Flow — DECISION: the hit menu. Which options a hit offers, grouped by the feature that
- * pays for them; which picks are legal; whether a swept-at creature is hit.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * THE FLOW AS DRAWN (user ruling 2026-09-04, the prototype *Battle Flow Hit Menu* — "looks good"):
- * on a hit the damage offer carries one group per paying feature on the sheet (Combat Superiority
- * beside Cunning Strike), a row per option the sheet grants, the row the name and its cost and
- * nothing else — the save and the condition live in the rule folded under it and on the card
- * after. One pick per group ("You can use only one maneuver per attack"); a group with no die left
- * keeps its rows, greyed. The die rides the damage roll for every option but a sweep, whose die
- * is rolled apart at a second creature. One pick PER GROUP, and a pick in each group rides the one
- * hit (2026-09-27, BACKLOG closed: a Goliath Battle Master knocks the target Prone with Hill's
- * Tumble AND rides a maneuver — the rules allow both; the record is a list, a part per pick).
- *
- * What is decided here is the reading and the arithmetic, never the choice: which rows the sheet
- * grants and the list admits, which the pool can pay for, whether a pick is legal, and whether
- * an attack total would hit a second creature's AC.
+ * pays for them; which picks are legal; whether a swept-at creature is hit. Pure functions over
+ * plain data (ARCHITECTURE.md §2). RULINGS *The hit menu* and *The hit menu — a pick per group*:
+ * one pick per group, a pick in each group rides the one hit. The reading and the arithmetic are
+ * decided here, never the choice.
  */
 
 /**
  * The menu for one hit: every group whose paying feature stands on the sheet with a resolved pool,
- * and under it every listed option the sheet grants, in table order.
- *
- * A group with `feature: null` requires nothing on the sheet (Giant Ancestry, Slice A 2026-09-24);
- * a group with `pool: "option"` pays per OPTION — `pools` is then keyed by the option's key, each
- * with its own uses, die and damage type, and a row without a pool is absent. A row with a `press`
- * and no die shows its own count, "2 of 3 uses left". `fits` is the size judge's answer per option key (`maxSize`): false
- * greys the row with the fact as its tag; null (the size could not be read) leaves it open.
- *
+ * and under it every listed option the sheet grants, in table order. `feature: null` requires
+ * nothing on the sheet; `pool: "option"` pays per OPTION (`pools` keyed by option). `fits` is the
+ * size judge per option: false greys the row; null (unreadable) leaves it open.
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
  *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
@@ -66,8 +48,7 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       // The size judge (`maxSize`, Hill's Tumble): only a MEASURED misfit greys the row.
       const tooLarge = !!row.maxSize && (fits?.[key] === false);
       const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
-      // An option paying from its own uses says how many stand, "2 of 3 uses left" (the Goliath
-      // walk, 2026-09-25: "1 use" read as the boon's whole count, and never moved).
+      // An option paying from its own uses says how many stand, "2 of 3 uses left".
       const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${group.dieLabel}${(Number(pool.max) || rowLeft) === 1 ? "" : "s"} left`;
       const cost = perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
@@ -91,11 +72,7 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
 }
 
 /**
- * The PICK: the chosen rows, one per group at most ("You can use only one maneuver per attack"),
- * every one affordable — a pick in EACH group rides the hit (2026-09-27: the record is a list since
- * then; before it one record held one pick and a second group's was dropped). The offer keeps the
- * pick legal as it is made; this is the arithmetic that stands behind it, and an illegal pick — two
- * in one group, or an unaffordable row — is dropped.
+ * The PICK: the chosen rows, at most `max` per group, each affordable; an illegal pick is dropped.
  * @param {{menu: ReturnType<typeof hitMenu>, chosen?: Iterable<string>}} facts
  * @returns {{picks: {group: string, row: any}[], dropped: string[]}}
  */
@@ -115,9 +92,7 @@ export function hitPick({ menu, chosen = [] }) {
 }
 
 /**
- * The picks a hit-menu record holds — the list since 2026-09-27 (`picks`, a part per pick), and a
- * record from before it (one pick, its fields on the record itself) read as a list of one. The one
- * reader for `hitPick` on the attack and `hitManeuver` on the damage roll.
+ * The picks a hit-menu record holds: `picks`, or an older single-pick record read as a list of one.
  * @param {any} record
  * @returns {any[]}
  */

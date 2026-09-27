@@ -1,10 +1,8 @@
 /**
- * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the VERDICT — the fold (the elect judges the roll against the stored
- * DC, through the fold seam and the withhold), the die-less fold, the demand's registration, the
- * public verdict line and its twin supersede, the legendary-resistance flip and its unwind.
- * The machine-tier pass, Stage 4c (2026-09-05, ruling 3): saves.js became this directory —
- * one flag, one machine, one part per spine step; index.js is the only public face and fixes
- * the registration order. Every body here is the one saves.js carried; nothing was rewritten.
+ * Battle Flow — MACHINE, a part of scripts/saves/ (ARCHITECTURE.md §7): the VERDICT — the fold
+ * (the elect judges the roll against the stored DC, through the fold seam and the withhold), the
+ * die-less folds, the demand's registration, and the legendary-resistance flip and its unwind.
+ * index.js is the directory's only public face and fixes the registration order.
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
@@ -15,12 +13,9 @@ import { disarmSaveTimer } from "./ask.js";
 import { applySaveConsequences, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
 
 /**
- * THE FOLD WITHOUT A DIE: a save the rules fail before it is rolled, recorded as the failure
- * it is. The same write `foldSaveAnswer` makes — `done`, the outcome, the card closing when
- * every target is in — with no roll message and the condition standing where the total would.
- * The consequences follow exactly as for a rolled failure. The buzzer takes this path too for
- * a target that cannot succeed (`timedOut`): rolling dice the rules have already failed would
- * be the module contradicting the table.
+ * THE FOLD WITHOUT A DIE: a save the rules fail before it is rolled, recorded as the failure it is
+ * (the condition standing where the total would), consequences as for a rolled failure. The buzzer
+ * takes this path too: rolling dice the rules already failed would contradict the table.
  */
 export async function foldSaveAutoFail(card, uuid, { sources = [], timedOut = false } = {}) {
   const key = `${card.id}|${uuid}`;
@@ -56,10 +51,8 @@ export async function foldSaveAutoFail(card, uuid, { sources = [], timedOut = fa
 }
 
 /**
- * THE MIRROR (Trance, 2026-09-27 — "magic can't put you to sleep"): a save the rules PASS before it
- * is rolled, recorded as the success it is — the automatic failure's write with the outcome
- * turned, the feature standing where the total would. The consequences follow as for a rolled
- * success (a sleep spell's failed-save effect is never applied).
+ * The mirror (Trance): a save the rules PASS before it is rolled, recorded as a success; a sleep
+ * spell's failed-save effect is never applied.
  */
 export async function foldSaveAutoSucceed(card, uuid, { sources = [], timedOut = false } = {}) {
   const key = `${card.id}|${uuid}`;
@@ -97,15 +90,12 @@ export async function foldSaveAutoSucceed(card, uuid, { sources = [], timedOut =
 /* --- the fold: the elect judges the roll against the stored DC ------------------------------ */
 
 /** Which pending demand target a save roll answers, or null. */
-// Declared to the spine's demand registry (Stage 2, 2026-09-05), the three channels as before:
-//   1) The module's own roll — `respondsTo` + `saveFor`: exact by construction; a stamp without
-//      the target is another machine's channel.
-//   2) Chained to a demand card — the native card's own save button arrives this way (buildPost
-//      stamps originatingMessage from the click's enclosing card). A save chained to any OTHER
-//      message belongs to that chain and is never read as an answer here.
-//   3) A bare sheet roll answers the oldest pending demand naming this actor with a matching
-//      ability — DEFERRING to a pending concentration ask (priority 0 to this 1; the two cannot
-//      be told apart; simultaneous pendings are a corner the topple fold already accepts).
+// Declared to the demand registry, three channels:
+//   1) The module's own roll (`respondsTo` + `saveFor`): exact by construction.
+//   2) Chained to a demand card (the native save button). A save chained to any OTHER message
+//      belongs to that chain and is never an answer here.
+//   3) A bare sheet roll answers the oldest pending demand for this actor and ability — DEFERRING
+//      to a pending concentration ask (priority 0 to this 1; the two cannot be told apart).
 registerDemand("saves", {
   priority: 1, chained: true,
   answering: (flag, f) => (flag && f.saveFor) ? { uuid: f.saveFor } : null,
@@ -120,11 +110,10 @@ export function saveAnsweredBy(rollMessage) {
   return first ? { card: first.card, uuid: first.entry.uuid } : null;
 }
 
-/** Same-client fold latch — the create watcher, the buzzer and the render resume can race. */
+/** Same-client fold latch: the create watcher, the buzzer and the render resume can race. */
 const saveFolds = new Set();
 
-// The withheld side of the protocol (Stage 3b): a verdict this machine paused for an offer is
-// finished by the same fold, handed back through the spine — d20-folds.js used to import it.
+// The withheld side: a verdict paused for an offer is finished by the same fold, via the spine.
 registerWithheld("saves", {
   resume: ({ cardId, uuid }, rollMessage) => {
     const card = game.messages.get(cardId);
@@ -139,40 +128,23 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
   try {
     const total = rollMessage.rolls?.[0]?.total;
     if ( typeof total !== "number" ) return;
-    // The stored DC is the authority (the ask's-DC rule) — plus `resisted`, in case
-    // legendary resistance beat the fold to the message (a resume after an elect reload).
+    // The stored DC is the authority, plus `resisted` in case legendary resistance beat the fold
+    // to the message (a resume after an elect reload).
     const forced = resistedOf(rollMessage);
     const timedOut = rollMessage.getFlag(MODULE_ID, "timedOut") === true;
 
-    /* --- THE D20 FOLD OFFER: WITHHOLD, DO NOT UNDO (v1.23.0) ---------------------------------
-     *
-     * ⚠ THIS IS THE ONE PLACE A FAILED SAVE CAN STILL BE PATCHED, and v1 shipped without it.
-     * Three table reports in one session — Fireball, Shatter, Hold Person — all the same cause:
-     * this function folds AND APPLIES the verdict the instant the roll lands, so an offer made
-     * afterwards arrives after the damage is already on the sheet.
-     *
-     * ⚠ It is a WITHHOLD, exactly like a reaction hold pausing an attack chain, and never an
-     * undo. Nothing has been applied at this point, so §11 rule 4's auto-revert debt is not
-     * reached — which is the whole reason to pause HERE rather than let the verdict land and
-     * take it back.
-     *
-     * ⚠ The offer is gated on the FAILURE, and it can be, because this side owns the DC (the
-     * ask's-DC rule). That is the one thing a raw ability check can never do.
-     *
-     * ⚠ Legendary resistance and a timed-out roll are excluded: `forced` is a ruling rather than
-     * arithmetic, and a save the clock already answered has nobody left at the keyboard.
-     * ⚠ Asked of the spine's withhold registry (Stage 3b, 2026-09-05 — it used to be a lazy
-     * import of d20-folds.js, the cycle's out-edge) and it FAILS OPEN there — a broken offer
-     * must never swallow a verdict. `saveFolds` releases on the early return, so the resume can
-     * re-enter here.
-     */
+    /* ⚠ THE D20 FOLD OFFER: WITHHOLD, DO NOT UNDO. This is the one place a failed save can still be
+     * patched: the verdict applies the instant it folds, so an offer must pause it here, before
+     * anything is applied (like a reaction hold pausing an attack chain; no auto-revert debt).
+     * Gated on the FAILURE, which this side can judge because it owns the DC. Legendary resistance
+     * and a timed-out roll are excluded. The withhold registry FAILS OPEN (a broken offer never
+     * swallows a verdict); `saveFolds` releases on the early return so the resume can re-enter. */
     if ( !forced && !timedOut ) {
       const dc = card.getFlag(MODULE_ID, "saves")?.dc;
       if ( await withholds(rollMessage, { by: "saves", card, uuid, total, dc }) ) return;
     }
-    // ⚠ THROUGH THE SERIALIZER (core.js): per-target independence means two targets can fold
-    // their answers against this one card at the same instant, and a clone-mutate-set drops
-    // whichever landed first. A lost fold re-demands a target that has already rolled.
+    // ⚠ THROUGH THE SERIALIZER (core.js): two targets can fold against this card at once, and a
+    // clone-mutate-set drops one — re-demanding a target that already rolled.
     let folded = false;
     let allDone = false;
     await queueFlagWrite(card, "saves", current => {
@@ -180,27 +152,22 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       const entry = current.targets?.find(t => !t.done && (t.uuid === uuid));
       if ( !entry ) return false;   // nothing to fold — never write
       entry.done = true;
-      // ⚠ THROUGH THE FOLD (D8, 2026-08-23). `SAVE_FOLDS` ships empty, so this is today's
-      // arithmetic exactly — `saveOutcome(total, dc, forced)` with nothing added and nothing
-      // replaced. What it buys is that the SEAM exists: a rerolled or boosted save lands by
-      // declaring a spec, not by editing this resolver. The attack side had that channel since
-      // v1.19.0 and the save side had none at all, which is the half of D8 that was real work.
-      // ⚠ The folds are read off the ROLL MESSAGE, not off this card. A save-side fold changes
-      // the number a particular roll produced, so it belongs on the roll — the same locality the
-      // attack side uses, where the folds ride the attack message rather than the usage card.
+      // Through the fold seam (`SAVE_FOLDS`): a rerolled or boosted save lands by declaring a spec,
+      // not by editing this resolver. ⚠ The folds are read off the ROLL message, not the card: a
+      // fold changes what a particular roll produced.
       const judged = foldedSave({
         total, dc: current.dc, forced,
         folds: foldsFrom(key => rollMessage.getFlag(MODULE_ID, key), SAVE_FOLDS)
       });
       entry.outcome = judged.outcome;
       entry.total = judged.total;
-      // A fold that made the save a success outright (Guarded Mind, 2026-09-27) is named on the verdict.
+      // A fold that made the save a success outright (Guarded Mind) is named on the verdict.
       if ( judged.made && !forced ) {
         entry.madeBy = (rollMessage.getFlag(MODULE_ID, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
       }
       entry.rollMessageId = rollMessage.id;
       if ( evasionApplies(rollMessage.getAssociatedActor?.(), current) ) entry.evasion = true;
-      // Circle of Power (2026-09-05): a success against half-on-save spell damage takes none.
+      // Circle of Power: a success against half-on-save spell damage takes none.
       const noneBy = noneOnSuccessFor(rollMessage.getAssociatedActor?.(), current);
       if ( noneBy ) entry.noneOnSuccess = noneBy;
       if ( timedOut ) entry.timedOut = true;
@@ -219,22 +186,13 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
   }
 }
 
-/* --- the verdict line, RETIRED (user, 2026-09-18, the 6.0 walk) ----------------------------- *
- * v1.19.0 (FLOW item 7) posted one public card per verdict — a reversal of standing item 15's
- * "NO verdict announcement cards", because the demand card's rows folded verdicts silently and
- * an open demand read as a stalled one on scrollback. Since the 6.0 pass the usage card carries
- * every verdict where the table looks — in the platform's summary row beside the total
- * (saves/views.js, `verdictTail`) or in its own line where no row exists — so the card said it
- * a third time: "didnt we say that these would be redundant now". Gone with it: the `announced`
- * claim, the `verdictLine` flag and the twin-supersede hook. Topple's "stays standing" card is
- * another machine's and stands. */
+/* The verdict shows on the usage card itself (saves/views.js `verdictTail`); no verdict card. */
 
 /* --- legendary resistance: the one late answer ----------------------------------------------
- * resistSave (npc.mjs) spends the resource and stamps `system.resisted` (decide/card.js
- * `resistedOf`) onto the SAVE message as an update — strictly after the failure landed, possibly after its
- * consequences did. The elect overturns the verdict: flip the entry, and if consequences
- * already ran, un-apply what the failure applied (receipt-exact) and re-apply what a success
- * grants. This is the corner Phase 2.5 recorded as accepted; Phase 2 owns it.
+ * resistSave (npc.mjs) stamps `system.resisted` (decide/card.js `resistedOf`) onto the SAVE message
+ * as an update, strictly after the failure landed and possibly after its consequences did. The
+ * elect flips the entry, un-applies what the failure applied (receipt-exact) and re-applies what a
+ * success grants.
  * --------------------------------------------------------------------------------------------- */
 
 export async function flipForcedSave(rollMessage) {
@@ -244,32 +202,24 @@ export async function flipForcedSave(rollMessage) {
         t => t.rollMessageId === rollMessage.id);
       if ( !found ) continue;
       if ( found.outcome !== "failed" ) return; // already saved, or already flipped
-      // ⚠ THROUGH THE SERIALIZER (core.js): the flip lands while this target's own
-      // consequence pass may be mid-flight against the same card, and a clone-mutate-set
-      // would overwrite whatever that pass had just recorded. The failed-check repeats
-      // INSIDE the lock, so two flips racing the same roll cannot both claim it.
+      // ⚠ THROUGH THE SERIALIZER: this target's consequence pass may be mid-flight on the card; the
+      // failed-check repeats INSIDE the lock so two racing flips cannot both claim it.
       let flipped = null;
       await queueFlagWrite(card, "saves", current => {
         const entry = current.targets?.find(t => t.rollMessageId === rollMessage.id);
         if ( entry?.outcome !== "failed" ) return false;
         entry.outcome = "saved";
         entry.forced = true;
-        // The fail line already posted (v1.19.0) — clear the claim so the CORRECTED verdict
-        // announces too. Two lines is honest history: the failure happened, then the
-        // resistance overturned it; the forced marker keeps the twin-supersede from eating
-        // the correction as a duplicate.
+        // Clear the announced claim so the corrected verdict is not taken for a duplicate.
         entry.announced = false;
         flipped = foundry.utils.deepClone(entry);
       });
       if ( !flipped ) return;   // another writer claimed the flip first
       const entry = flipped;
-      // ALWAYS unwind, whatever `applied` says: the effects pass and the damage pass are
-      // independently timed (damage can land through the arrival path before the effects
-      // pass marks `applied`), and the receipts are the truth of what actually happened —
-      // an unwind over empty receipts is a no-op, and a still-pending consequence pass
-      // re-reads the flipped flag after its pause and applies the success path itself.
+      // ALWAYS unwind, whatever `applied` says: the effects and damage passes are timed
+      // independently, and the receipts are the truth (an unwind over empty receipts is a no-op; a
+      // pending consequence pass re-reads the flipped flag and applies the success path).
       await unwindFailedConsequences(card, entry);
-      // The corrected verdict shows on the card itself — the flag write above re-renders it.
       return; // one roll answers one entry
     }
   } catch(err) {
@@ -278,10 +228,8 @@ export async function flipForcedSave(rollMessage) {
 }
 
 async function unwindFailedConsequences(card, entry) {
-  // Effects: remove what only a failure grants; keep what a success would also get. Matched
-  // by NAME against the stamped onSave list — fuzzier than ids, but the applied document's
-  // id is per-target and the source's isn't, and the realistic case (one effect, no onSave
-  // twin) is exact.
+  // Effects: remove what only a failure grants. Matched by NAME against the stamped onSave list
+  // (the applied document's id is per-target).
   const flag = card.getFlag(MODULE_ID, "saves");
   const keep = new Set(flag?.effectNames?.always ?? []);
   const receipt = card.getFlag(MODULE_ID, "effectReceipt");
@@ -289,13 +237,10 @@ async function unwindFailedConsequences(card, entry) {
     if ( e.reverted || keep.has(e.name) ) continue;
     await revertEffect(card, entry.uuid, e.id);
   }
-  // Damage: revert the failure's application, then re-apply at the success multiplier
-  // DIRECTLY (the reconcile guard treats any receipt entry as handled, so a manual revert
-  // sticks — this path is the one deliberate exception, and the merge replaces the reverted
-  // entry so the card ends up telling the final truth).
-  // ⚠ Lazily bound on purpose: a static import of receipts.js would evaluate it BEFORE this
-  // file and register its render row ahead of ours — the ESM order trap. The entry imports
-  // saves/ before receipts.js so the verdict row renders above the receipt rows; keep it so.
+  // Damage: revert the failure's application, then re-apply at the success multiplier DIRECTLY
+  // (the reconcile guard treats any receipt as handled; this is the deliberate exception).
+  // ⚠ Lazily bound on purpose: a static import of receipts.js would evaluate it BEFORE this file
+  // and register its render row ahead of ours (the ESM order trap). Keep it lazy.
   const { revertTarget } = await import("../receipts.js");
   for ( const dmg of saveDamageMessages(card) ) {
     const had = dmg.getFlag(MODULE_ID, "receipt")?.targets

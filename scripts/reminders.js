@@ -1,6 +1,7 @@
 /**
- * Battle Flow — The gate machine: what bends this attack, save or check, and what it nets to — BEFORE the dice.
- * Split from mastery.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — The gate machine: what bends this attack, save or check, and what it nets to,
+ * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
+ * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
 import { MODULE_ID, S, TITLE, activeCombatFor, setting, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
 import { featureNamed, resolveUuid } from "./lookup.js";
@@ -19,56 +20,16 @@ import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
 
-/* ---------------------------------------------------------------------------------------------
- * THE GATE (HANDOFF Stage 2 + 3, user rulings 2026-09-01: "I don't want a rescue, I want
- * proactivity"; "if you have multiple sources of adv/disadv contending, it always nets to a
- * regular attack") — INSIDE THE SYSTEM'S OWN DIALOG (user ruling 2026-09-02: "can't the gate
- * look more like the native UI?" — it IS the native UI now).
- *
- * When something this module can READ bends an attack roll — the attacker's own Vexed chip on
- * a target, a Sapped chip on the attacker, Prone on either side (with the 5-foot geometry), a
- * row of the condition table, or a ranged attack's own range — dnd5e's Attack Roll dialog opens
- * as it always does, and Battle Flow adds ONE fieldset to it, beside the dialog's own
- * CONFIGURATION: one header line — the count of modifiers and the net as a coloured tag — then a
- * box per source with its bend as the same tag and its rule quoted verbatim (no net block;
- * user, 2026-09-02). The dialog's DEFAULT BUTTON is the net — the
- * highlighted button is the outcome the solver worked out — and the human presses one of the
- * dialog's own three. The roll goes out natively: the card link, the crit, the attack mode, the
- * ammunition, the mastery, the roll mode and the situational bonus are all the system's,
- * untouched. Nothing here sets a mode (R-A); nothing here re-issues a roll (the 2026-09-01
- * re-issue and its three review findings — the orphaned card, the pinned choices, the forwarded
- * event — are gone with it).
- *
- * ⚠ THE SECTION FOLLOWS THE DIALOG (user, 2026-09-02: "refresh on change of the combo box").
- * The dialog re-renders on every change to its own dropdowns and the render hook fires each
- * time, so the sources are re-judged from the form as it stands — a dagger switched to Thrown
- * grows its range box, switched back it loses it — and the highlighted default moves with the
- * net. A re-target on the canvas re-judges too, the way the dialog's target list already does.
- *
- * ⚠ THE DIALOG IS FORCED OPEN when a reminder applies. dnd5e reads the fast-forward keys AFTER
- * the pre-roll hooks (buildConfigure: preRoll hooks, then applyKeybindings, which sets
- * `dialog.configure ??=` — so a `true` written here survives it), and a shift-clicked swing at
- * a Vexed target still meets the reminder. That is the whole point of a gate.
- *
- * WHERE IT RUNS: on the roller's client — the pre-roll hook fires where the dice are rolled —
- * so it needs no elect and works with no GM connected. A GM rolling a Sapped goblin meets it
- * exactly as a player rolling a Vexed target does.
- *
- * WHAT IT NEVER TOUCHES: a roll whose caller suppressed the dialog (`configure: false`) — the
- * resolver's own rolls, the volley's rays, the riposte inside a fold, a macro, the suites. No
- * dialog, no gate.
- *
- * The pre-roll hook is TEMPLATED (dnd5e.preRoll<Name>V2) — pinned in check-hook-dispatch beside
- * its damage twin, and measured live (tools/probe-expiry.mjs, hookSurfaces). The record of what
- * was pressed rides the generic `dnd5e.postRollConfiguration`, which fires once per roll after
- * the dialog closes with the finalized rolls in hand; the section itself rides the core render
- * hook polish.js already rides for the same dialog.
- * ------------------------------------------------------------------------------------------- */
+/* THE ATTACK GATE: sources that bend the roll get ONE fieldset in dnd5e's own Attack Roll dialog,
+ * the default button moved to the net; the roll goes out natively, on the roller's client.
+ * ⚠ Re-judged on every dialog re-render and re-target (a dagger switched to Thrown grows a box).
+ * ⚠ FORCED open when a reminder applies: dnd5e applies fast-forward keys AFTER the pre-roll hooks
+ *   (`dialog.configure ??=`). A caller's `configure: false` is never touched. */
 
-/** Does the attack MODE make the roll ranged — a weapon thrown, or 6.0's own `ranged` mode (WeaponAttackMode gained it)? */
+/** Does the attack mode make the roll ranged — a weapon thrown, or the `ranged` mode? */
 const modeIsRanged = attackMode => (attackMode === "ranged") || String(attackMode ?? "").startsWith("thrown");
 
-/** The Distant Spell range a roll's originating card carries, in feet, or null (metamagic.js writes it). */
+/** The Distant Spell range a roll's originating card carries, in feet, or null. */
 function distantRangeOn(message) {
   try {
     const data = message?.data ?? {};
@@ -78,7 +39,7 @@ function distantRangeOn(message) {
   } catch { return null; }
 }
 
-/** The dialogs standing with a gate in them — re-judged on a re-target (the polish.js idiom: the APP, not the element). */
+/** The dialogs standing with a gate in them, re-judged on a re-target. */
 const openGates = new Set();
 
 Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
@@ -89,27 +50,19 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
     const attacker = activity.item?.actor;
     if ( !(attacker instanceof Actor) ) return;
     if ( !reminderEntries().length ) return;          // the list is the switch
-    // ONE judgement, re-runnable from the dialog's own form: the sources, the net, the view.
-    // A Distant Spell cast (2026-09-09): the spell's usage card carries the doubled range, and this
-    // attack roll names that card as its origin — the gate's range reminder reads the doubled value.
+    // The spell's usage card (this roll's origin) carries a Distant Spell's doubled range.
     const rangeFeet = distantRangeOn(message);
     const judge = attackMode => ({ ...judgeRoll(attacker, { activity, attackMode, rangeFeet }), attackMode: attackMode ?? null });
     const first = judge(config.attackMode);
-    // The dialog carries the judgement whether or not it found anything — one object shared
-    // with the config, so the record reads what was LAST shown after any re-judgement, and a
-    // dialog that opened bare can still grow a box when its dropdown turns a dagger into a
-    // thrown one. Only a judgement WITH sources forces the dialog open and sets its default.
-    // ⚠ A DialogCarried, not a plain object (ui.js): the platform deep-clones and merges the
-    // dialog options on their way to the rendered app, and a plain object arrives as a COPY —
-    // the section's re-judgement and the Sneak Attack tick were written on the copy while the
-    // record read the original (measured 2026-09-02: the tick recorded as unarmed). A class
-    // instance passes through both by reference, so the config, the dialog and the record hold ONE object.
+    // The dialog carries the judgement even when empty, so a dropdown change can still grow a
+    // box, and the record reads what was LAST shown.
+    // ⚠ A DialogCarried, not a plain object (ui.js): dnd5e deep-clones the dialog options, so a
+    // plain object arrives as a COPY and the record would read the original.
     const gate = new DialogCarried({ ...first, attackerUuid: attacker.uuid, judge });
     dialog.options ??= {};
     dialog.options.bfReminder = gate;
     config.bfReminder = gate;
-    // A Sneak Attack to offer forces the dialog open too: the tick is a choice the roller
-    // must see (user, 2026-09-02), whatever the roll's own sources.
+    // A Sneak Attack to offer forces the dialog open too: the tick is a choice the roller must see.
     if ( !first.sources.length && !first.sneak ) return;
     dialog.configure = true;
     dialog.options.defaultButton = first.net;
@@ -118,16 +71,13 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
   }
 });
 
-/**
- * The range feats THIS attack meets (RANGE_FEATS, the PHB feats group 2): the attacker's feats by
- * name against the attack's own kind — a Ranged weapon, a spell's attack roll, a crossbow.
- */
+/** The range feats (RANGE_FEATS) this attack meets: the attacker's feats against the attack's kind. */
 function rangeFeatsOf(attacker, activity) {
   const item = activity?.item;
   const weapon = item?.type === "weapon";
   const kind = item?.system?.type?.value ?? "";
   return rangeFeatsFor(attacker?.items?.filter(i => i.type === "feat").map(i => i.name) ?? [], {
-    // a Ranged weapon by its KIND (simpleR, martialR) — a dart thrown is still one; a dagger thrown is not
+    // a Ranged weapon by its KIND (simpleR, martialR): a dart thrown is one, a dagger thrown is not
     rangedWeapon: weapon && /R$/.test(kind),
     spell: activity?.attack?.type?.classification === "spell",
     crossbow: weapon && CROSSBOWS.includes(item?.system?.type?.baseItem)
@@ -135,9 +85,8 @@ function rangeFeatsOf(attacker, activity) {
 }
 
 /**
- * The cover a target's AC carries — dnd5e's own prepared number (its statuses and any effect's). An
- * AC OVERRIDE leaves the cover out of the value (dnd5e 6.0.5, `prepareArmorClass`: the override
- * stands alone), so there is nothing in the AC to take off.
+ * The cover a target's AC carries — dnd5e's prepared number. An AC OVERRIDE leaves cover out of
+ * the value (`prepareArmorClass`), so there is nothing to take off.
  */
 const coverOf = actor => {
   const ac = actor?.system?.attributes?.ac;
@@ -146,22 +95,9 @@ const coverOf = actor => {
 };
 
 /**
- * COVER AT THE ATTACK — one handler, two steps, in this order on every target the attack records
- * (`system.targets[].ac`, the AC as dnd5e built it at the roll, cover statuses folded in):
- *
- *   1. MEASURED COVER (the user, 2026-09-27; RULINGS *Measured cover*): the 2024 DMG's corner
- *      lines from the attacker's token to the target's (geometry.js `measuredCoverBetween`). The
- *      most protective degree applies and degrees never add: the recorded AC rises by what the
- *      measure gives over the cover already carried (a GM's hand-set status stands when higher);
- *      Total Cover records no AC — a miss, as dnd5e records a `coverTotal` target. What was
- *      measured rides the card (`coverMeasured`) and draws one line. The Measured Cover setting is
- *      the switch.
- *   2. BYPASS COVER (Sharpshooter, Spell Sniper — group 2, 2026-09-26): for an attacker whose feat
- *      ignores Half and Three-Quarters Cover the recorded AC is the target's without it — the
- *      carried cover and the measured rise both — so the card's hit and miss, and every reader of
- *      the record, agree on every client. Dialog or no dialog (a shift-click still ignores the
- *      cover). Total Cover records no AC and stays so. What was ignored rides the card
- *      (`coverIgnored`) and draws one line. The Reminder Sources' `range` kind is the switch.
+ * Cover at the attack, per recorded target: MEASURED cover raises the recorded AC by what it adds
+ * over the carried cover (Total records no AC; RULINGS *Measured cover*), then a BYPASS feat
+ * (Sharpshooter) records the AC without Half/Three-Quarters cover, so every client agrees.
  */
 Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
   try {
@@ -177,8 +113,7 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
     for ( const t of targets ) {
       const actor = t?.actor ? resolveUuid(t.actor) : null;
       const name = t?.name ?? actor?.name ?? "";
-      // THE CARD SAYS THE COVER ON EVERY ATTACK (the user, 2026-09-27: "a card should have the cover
-      // status on its attack roll") — No Cover included; a hand-set status that wins is the one named.
+      // The card names the cover on every attack; a hand-set status that wins is the one named.
       if ( (t?.ac === null) || (t?.ac === undefined) ) {
         if ( from && actor?.statuses?.has?.("coverTotal") ) measured.push({ name, key: "total", label: degreeOf(null).label, bonus: null });
         continue;
@@ -191,7 +126,7 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
         if ( total ) { t.ac = null; measured.push({ name, key: m.degree.key, label: m.degree.label, bonus: null }); continue; }
         if ( raise ) { t.ac = Number(t.ac) + raise; carried += raise; }
         const stands = raise ? m.degree : degreeOf(carried);
-        // No Cover draws no row (the user, 2026-09-27: "you dont need to put no cover on the card")
+      // No Cover draws no row
         if ( stands.key !== "none" ) measured.push({ name, key: stands.key, label: stands.label, bonus: stands.bonus });
       }
       if ( !feat || !carried ) continue;
@@ -207,16 +142,14 @@ Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
   }
 });
 
-/** The degree a cover bonus stands for (0, 2, 5), or Total for null — the card's words for a hand-set status. */
+/** The degree a cover bonus stands for (0, 2, 5), or Total for null. */
 const degreeOf = bonus => COVER_DEGREES.find(d => d.bonus === bonus) ?? COVER_DEGREES[0];
 
-/** The cover row's colour, read for the ATTACKER (the hover card's): none green, Half and Three-Quarters orange, Total red. */
+/** The cover row's colour, read for the ATTACKER: none green, Half/Three-Quarters orange, Total red. */
 const COVER_TONE = { none: TONE.good, half: TONE.pending, threeQuarters: TONE.pending, total: TONE.bad };
 
-// THE COVER ROW, on every attack while the cover is measured, directly under the card's header
-// (the user, 2026-09-27: "its not very prominent", "cover is like an important thing, it should be
-// up above"): the degree's picture, "Half Cover (+2 AC)", then who it is against — and, when a feat
-// took it off, "Sharpshooter ignores it" on the same row. One row per target.
+// The cover row, directly under the card's header: one row per target, the degree and who it is
+// against, and the feat that ignored it.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverMeasured");
@@ -266,9 +199,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 /**
- * Draw — or redraw — the section in a rendered dialog from the form as it stands, and move the
- * dialog's default button to the net. Idempotent: a re-render that changed nothing redraws the
- * same section; a judgement that yields no source removes it and defaults to Normal.
+ * Draw or redraw the section from the form as it stands, and move the default button to the net.
+ * Idempotent; a judgement with no source removes the section.
  */
 function drawGate(app, { force = false } = {}) {
   const gate = app.options?.bfReminder;
@@ -286,7 +218,6 @@ function drawGate(app, { force = false } = {}) {
   if ( unchanged && !force ) return;
   const next = gate.judge(attackMode);
   Object.assign(gate, next);
-  // A section the human unfolded stays unfolded through the dialog's own re-renders.
   const open = !!existing?.querySelector("details[data-bf-reminder-details]")?.open;
   existing?.remove();
   if ( wants(next) ) {
@@ -294,10 +225,8 @@ function drawGate(app, { force = false } = {}) {
     host.innerHTML = reminderFieldsetHTML(next.view, { open });
     const fieldset = host.firstElementChild;
     if ( next.sneak ) {
-      // THE SNEAK ATTACK BOX (user, 2026-09-02): under the sources, OUTSIDE the fold — a choice
-      // the roller must see without a click. The tick is the human's and survives the dialog's
-      // own re-renders; its first state is what the module read (Advantage ⇒ ticked). Used
-      // this turn: greyed, no tick, the reason said.
+      // The Sneak Attack box sits OUTSIDE the fold. The tick is the human's and survives re-renders;
+      // its first state is what the module read. Used this turn: greyed, reason said.
       if ( typeof gate.sneakArmed !== "boolean" ) gate.sneakArmed = next.sneak.armed;
       if ( next.sneak.used ) gate.sneakArmed = false;
       const box = document.createElement("div");
@@ -312,20 +241,16 @@ function drawGate(app, { force = false } = {}) {
     else if ( buttons ) buttons.insertAdjacentElement("beforebegin", fieldset);
     else element.querySelector("form")?.appendChild(fieldset);
   }
-  // The highlighted default follows the net — marked to stay marked (ui.js markDefaultButton).
   markDefaultButton(element, next.net);
 }
 
-// The section: on every render of a dialog carrying the gate — the first, and each re-render
-// the dialog's own dropdowns cause (only its formula part is replaced; the section is a sibling
-// inserted AFTER the CONFIGURATION fieldset, the same markup, so the dialog's own styling
-// dresses it).
+// Every render of a dialog carrying a gate (the dialog's re-renders replace only its formula
+// part; the section is a sibling after the CONFIGURATION fieldset).
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   try {
     const check = app.options?.bfCheckGate;
     if ( check ) drawCheckGate(element, check);
-    // The save gate's section (below) — beside the demand fieldset saves/ask.js draws on the same
-    // dialog; the demand object rides in so the Fails button can record the failure on it.
+    // The save gate sits beside saves/ask.js's demand fieldset; the demand rides in for Fails.
     const save = app.options?.bfSaveGate;
     if ( save ) drawSaveGate(app, element, save, app.options?.bfSaveDemand ?? null);
     if ( !app.options?.bfReminder ) return;
@@ -336,7 +261,7 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
   }
 });
 
-// A re-target while the dialog stands fires no dialog render; the judgement follows the canvas.
+// A re-target fires no dialog render; the judgement follows the canvas.
 Hooks.on("targetToken", () => {
   for ( const app of openGates ) {
     if ( app.rendered && app.element ) { try { drawGate(app, { force: true }); } catch(err) { console.error(`${TITLE} | Reminder section failed to redraw.`, err); } }
@@ -344,18 +269,8 @@ Hooks.on("targetToken", () => {
   }
 });
 
-/* --- THE CHECK GATE (user go 2026-09-03) — the third table on the one machine -----------------
- * An ability check — a raw check, a skill, a tool — meets the same gate the attack and the save
- * meet: the roller's statuses against the check table (CHECK_BENDS), the Condition Sources list
- * as the switch, the section drawn into the system's own dialog, the default moved to the net,
- * the press recorded on the check's message. TEMPLATED like its two siblings
- * (dnd5e.preRoll<HookName>V2 — rollAbilityCheck, rollSkill and rollToolCheck all carry
- * `abilityCheck` in their hookNames), pinned in check-hook-dispatch. ⚠ Initiative is an ability
- * check too and is OUT by design (BACKLOG: Invisible's Advantage, Incapacitated's Disadvantage
- * on initiative are not d20s this module meets) — its dialog's hookNames carry
- * `initiativeDialog`, and that is the skip. Nothing is applied: Poisoned's Disadvantage the
- * platform already rolls (CHECK_BENDS says so); the gate reminds and records.
- * ------------------------------------------------------------------------------------------- */
+/* THE CHECK GATE: checks, skills and tools meet the same machine (CHECK_BENDS); nothing applied.
+ * ⚠ Initiative is OUT by design (its hookNames carry `initiativeDialog`, the skip). */
 Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
@@ -370,13 +285,11 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
         table: CHECK_BENDS, name: actor.name }));
     }
     if ( on.has("effect") ) {
-      // The platform's own mode for this check, read off the sheet's effect changes — the same
-      // reader the save gate uses (user, 2026-09-04); heavy armour's Stealth Disadvantage is
-      // the system's own doing and not an effect, so it stays the dialog's unexplained default.
+      // The platform's own mode for this check, read off the sheet's effect changes (heavy armour's
+      // Stealth Disadvantage is not an effect and stays unexplained).
       const roll = { kind: "check", ability: config.ability ?? null, skill: config.skill ?? null, tool: config.tool ?? null };
       sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
-      // …and the effect table's rows that bend ability checks by their text (Heated Metal), by
-      // name off the sheet — the attack gate's effect kind, on the check (2026-09-04).
+      // …and the effect table's rows that bend checks by their text (Heated Metal).
       sources.push(...effectCheckSources({
         effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name })),
         features: actor.items.filter(i => i.type === "feat").map(i => i.name),
@@ -396,8 +309,7 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
   }
 });
 
-/** The check gate's section in the dialog — the attack gate's fieldset, folded, after the
- * configuration part; the default button moved to the net. Idempotent across re-renders. */
+/** The check gate's section, folded, after the configuration part; the default moved to the net. */
 function drawCheckGate(element, gate) {
   if ( !gate?.sources?.length || !element ) return;
   if ( !element.querySelector("[data-bf-reminder]") ) {
@@ -413,7 +325,7 @@ function drawCheckGate(element, gate) {
   markDefaultButton(element, gate.net);
 }
 
-// The check's record — the same flag the attack and the save stamp, on the check's message.
+// The check's record: the attack's flag, on the check's message.
 Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfCheckGate;
@@ -428,10 +340,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   }
 });
 
-// The record: what was shown, what it netted to, what the human pressed — stamped on the
-// attack message's data after the dialog closes with rolls in hand (a closed dialog hands back
-// no rolls, and no roll is no record; a judgement that emptied out is no record either). The
-// spend reads it off the message at creation.
+// The attack's record: what was shown, the net, what was pressed — only with rolls in hand.
 Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfReminder;
@@ -443,8 +352,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
         ...statContext(gate.attackerUuid)
       });
     }
-    // The Sneak Attack choice rides the attack message too — armed or not, with the dice the
-    // sheet resolved and the weapon's type, so the damage offer and the rider read one record.
+    // The Sneak Attack choice rides the attack message, armed or not, for the damage offer to read.
     if ( gate.sneak ) {
       const { dice, number, faces, type, weaponName } = gate.sneak;
       foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.sneak`, {
@@ -457,14 +365,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   }
 });
 
-/* --- reading the table ---------------------------------------------------------------------- */
-
-/**
- * The range facts of THIS attack, as the dialog stands: is it a ranged attack roll (the
- * activity's attack type, or a weapon thrown — the attack mode is the dialog's dropdown), and
- * its normal and long range in feet. A weapon's range is the item's (normal/long) unless the
- * activity overrides it; a spell's is the activity's single range.
- */
+/** The range facts of THIS attack as the dialog stands: ranged or not, normal and long feet. */
 function rangeFactsFor(activity, attackMode, rangeFeet = null) {
   const item = activity?.item;
   const thrown = String(attackMode ?? "").startsWith("thrown");
@@ -476,17 +377,14 @@ function rangeFactsFor(activity, attackMode, rangeFeet = null) {
   } else {
     value = item.system.range?.value; long = item.system.range?.long; units = item.system.range?.units;
   }
-  // A Distant Spell cast (metamagic.js, 2026-09-09) carries its doubled range on the card; the
-  // caller read it off the originating card and hands it in as feet, and it stands in for the
-  // spell's own for this cast alone (a spell has one range, so no long band).
+  // A Distant Spell's doubled range stands in for this cast alone (a spell has no long band).
   if ( rangeFeet !== null ) return { ranged: true, normalFeet: Number(rangeFeet), longFeet: null };
   return { ranged: true, normalFeet: feetOf(value, units), longFeet: feetOf(long, units) };
 }
 
 /**
- * The enemies within 5 feet of the attacker's token: alive, not Incapacitated, on the other
- * side of the table (a friendly attacker's enemies are hostile tokens and vice versa; a neutral
- * or secret attacker has none the module can name). "Can see you" is the caveat the box carries.
+ * The enemies within 5 feet of the attacker's token: alive, not Incapacitated, on the other side
+ * (a neutral or secret attacker has none the module can name).
  */
 function closeEnemiesOf(attackerToken) {
   if ( !attackerToken ) return [];
@@ -505,11 +403,8 @@ function closeEnemiesOf(attackerToken) {
 }
 
 /**
- * Is an ALLY of the attacker within 5 feet of this target (user, 2026-09-22 — Pack Tactics, and
- * Sneak Attack's second clause)? The mirror of `closeEnemiesOf`: a token on the attacker's own
- * side of the table (friendly with friendly, hostile with hostile), alive, not Incapacitated, and
- * another creature than the attacker or the target. Null when the attacker's side cannot be
- * named — no token, a neutral or secret one — which the callers count rather than guess.
+ * Is an ALLY of the attacker within 5 feet of this target (Pack Tactics, Sneak Attack)? Null when
+ * the attacker's side cannot be named (no token, neutral or secret).
  */
 function allyNearTarget(attackerToken, targetToken) {
   const mine = attackerToken?.document?.disposition;
@@ -525,14 +420,14 @@ function allyNearTarget(attackerToken, targetToken) {
   return false;
 }
 
-/** The feet between a bearer's token and its effect's source's token — null when either is off the scene. */
+/** The feet between a bearer's token and its effect's source's token, or null. */
 function sourceFeetOf(bearer, sourceUuid) {
   if ( !sourceUuid || (sourceUuid === bearer?.uuid) ) return null;
   const from = tokenOfActor(bearer), to = tokenForUuid(sourceUuid);
   return (from && to) ? nearestFeet(from, to) : null;
 }
 
-/** A creature's special senses, in feet — dnd5e 6.0's `senses.ranges`, the flat 5.x keys as a fallback. */
+/** A creature's special senses, in feet (dnd5e 6 `senses.ranges`, flat keys as a fallback). */
 function sensesOf(actor) {
   const senses = actor?.system?.attributes?.senses ?? {};
   const ranges = senses.ranges ?? senses;
@@ -540,16 +435,8 @@ function sensesOf(actor) {
 }
 
 /**
- * Every source this gate can read for the roll about to happen, in the order the table reads
- * them: the attacker's own state first, then each target's. Names are the TOKEN's where a token
- * is what was targeted — that is what the table calls it. A chip is live when the platform has
- * not marked it (decide/chips.js) AND no spend is already on record for it (shared.js) — a chip
- * a no-GM table could not delete is still spent — AND an earlier roll of the same volley has
- * not already spent it (`spent`, the ids a volley's earlier rays used up; the chip is still on
- * the sheet while the caster aims). `activity` and `attackMode` are the roll's, as the dialog
- * stands — the range kind reads them. `targets` are the tokens this roll is at; the user's own
- * targets when not given. Each chip source carries its `effectId`, so a volley can carry the
- * spend forward ray by ray; `spendNote` is appended to a chip's label ("— spent by this ray").
+ * Every source the gate reads for this roll, attacker first, then each target. A chip is live
+ * unless marked dead, spent on record (no-GM tables), or spent by an earlier ray (`spent`).
  */
 function sourcesFor(attacker, enabled, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "", rangeFeet = null } = {}) {
   const out = [];
@@ -560,30 +447,23 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const attackerToken = tokenOfActor(attacker);
   const feats = enabled.has("range") ? rangeFeatsOf(attacker, activity) : { cancels: [], cover: null, reach: null };
   const range = enabled.has("range") ? reachedRange(rangeFactsFor(activity, attackMode, rangeFeet), feats.reach) : { ranged: false };
-  // The effect kind: which abilities to look for, the roll's own scope, and each sheet's facts.
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
     type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null) };
-  // An effect's SOURCE: the module's own stamp on what it applied (effect-riders.js), else the
-  // actor behind the effect's origin — the `except: "source"` facet reads it (Goaded, Distracted).
+  // An effect's SOURCE: the module's own stamp, else the actor behind its origin (`except: "source"`).
   const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
-  // The ITEM an effect comes from, by name, for a row's `item` discriminator (decide/reminders.js
-  // effectCarriesRow): an aura's member copy names its emanation row, else the origin item.
+  // The ITEM an effect comes from, by name, for a row's `item` discriminator.
   const itemOf = e => {
     const key = e.getFlag(MODULE_ID, "emanation")?.key;
     if ( key ) return key;
     const origin = e.origin ? resolveUuid(e.origin) : null;
-    // ⚠ dnd5e 6.0 stamps an APPLIED effect's origin with the ACTIVITY (…Item.x.Activity.y), not the
-    // item — read through to the activity's item, or the `item` discriminator never knows it and
-    // one "Protected" stands for every other (measured 2026-09-26, smoke-guards §2: the fighting
-    // style's effect also counted as Protection from Evil and Good's).
+    // ⚠ dnd5e 6 stamps an applied effect's origin with the ACTIVITY; read through to its item.
     const item = (origin instanceof Item) ? origin : ((origin?.item instanceof Item) ? origin.item : null);
     return item?.name ?? null;
   };
   const sheetOf = actor => ({
     uuid: actor.uuid,
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
-      // how far the effect's source stands from its bearer — a `sourceWithin` row reads it (Protection)
       sourceFeet: sourceFeetOf(actor, sourceOf(e)) })),
     features: actor.items.filter(i => i.type === "feat").map(i => i.name),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
@@ -592,7 +472,6 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
 
-  // The attacker's own state.
   if ( enabled.has("sap") ) {
     for ( const e of attacker.effects ) {
       if ( (e.getFlag(MODULE_ID, CHIP_FLAG) !== "sap") || !live(e) ) continue;
@@ -605,8 +484,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     out.push(...proneSources({ attackerProne: attacker.statuses?.has?.("prone"), attackerName }));
   }
   if ( conditions.length ) {
-    // The attacker's own Invisible (or Hiding) is judged against its target: seen by every target
-    // this roll is at, it is listed, not counted (decide/reminders.js sightOf).
+    // The attacker's own Invisible is listed, not counted, when every target sees it (sightOf).
     const aimed = [...(targets ?? game.user.targets)].filter(t => t.actor && (t.actor.uuid !== attacker.uuid));
     const seers = aimed.map(t => ({ t, seen: sightOf(sensesOf(t.actor), attackerToken ? nearestFeet(attackerToken, t) : null) }));
     const attackerSeenBy = (seers.length && seers.every(x => x.seen)) ? seers[0].seen : null;
@@ -621,7 +499,6 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     out.push(...effectSources({ attacker: attackerSheet, enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, pass: "attacker" }));
   }
 
-  // Each target.
   for ( const token of (targets ?? game.user.targets) ) {
     const target = token.actor;
     if ( !target || (target.uuid === attacker.uuid) ) continue;
@@ -647,8 +524,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
         targetName, cancels: feats.cancels, coverBonus: feats.cover ? coverOf(target) : 0, coverFeat: feats.cover, rules: RANGE_RULES }));
     }
     if ( attackerSheet ) {
-      // Target-side rows, and the attacker-side rows that hinge on THIS target (Bloodied,
-      // Grappled, an ally beside it…) — the attacker's plain rows went out once above.
+      // Target-side rows, and attacker-side rows that hinge on THIS target (Bloodied, an ally beside it).
       out.push(...effectSources({ attacker: attackerSheet, target: { ...sheetOf(target), allyNear: allyNearTarget(attackerToken, token) },
         enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
     }
@@ -656,12 +532,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   return out;
 }
 
-/**
- * Has this target NOT yet taken a turn in the first round of the running combat (Assassinate's
- * clock)? Read off the combat the ATTACKER is in: round one, and the target's combatant sits
- * after the current turn in the order — the creature acting now has begun its turn, and one
- * not in the tracker at all has none to take (false, never guessed). Out of combat: false.
- */
+/** Has this target not yet acted in round one of the attacker's combat (Assassinate)? */
 function targetNotActed(attacker, target) {
   const combat = activeCombatFor(attacker);
   if ( !combat || (combat.round !== 1) ) return false;
@@ -679,11 +550,8 @@ function hpFraction(actor) {
 }
 
 /**
- * THE JUDGE, for any surface that meets a roll before its dice: the sources this attacker's
- * roll bends by, the net, and the view the section draws. The dialog's gate calls it on every
- * render; a volley's aim popup calls it once per ray, in ray order, handing forward the chips
- * earlier rays spend (`spent`) — the Sap that ray 1 uses up is not offered to ray 2. Null when
- * the Reminder Sources list is empty: the list is the switch.
+ * THE JUDGE for any surface before the dice: sources, net, view. A volley calls it per ray,
+ * handing forward the chips earlier rays spent. Null when the Reminder Sources list is empty.
  * @param {Actor} attacker
  * @param {{activity?: object|null, attackMode?: string|null, targets?: Token[]|null,
  *          spent?: Set<string>|null, spendNote?: string}} [facts]
@@ -695,23 +563,15 @@ export function judgeRoll(attacker, { activity = null, attackMode = null, target
   const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote, rangeFeet });
   const net = netMode(sources);
   const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net, targets ?? game.user.targets) : null;
-  // ⚠ Only what the rules SPEND carries forward through a volley's rays (user report, 2026-09-02:
-  // Innate Sorcery — a standing effect — showed on ray 1 alone): Vex, Sap, and an effect row
-  // marked `spend`. Every other source with an effect id stands for every ray.
+  // ⚠ Only what the rules SPEND carries forward through a volley (Vex, Sap, a `spend` effect row);
+  // a standing effect stands for every ray.
   const spendable = s => s.effectId && (s.spend || (s.kind === "vex") || (s.kind === "sap"));
   return { sources, net, view: reminderView(sources, net), spends: sources.filter(spendable).map(s => s.effectId), sneak };
 }
 
 /**
- * THE SNEAK ATTACK FACTS for this roll (user, 2026-09-02 — the seventh kind): the feature by
- * name on the attacker's sheet, its dice read off the feature's own damage activity and
- * resolved on the sheet (`@scale.rogue.sneak-attack` → "7d6"; anything that does not resolve
- * to plain dice is never armed — an unresolved token rolls zero in silence), and the weapon
- * as the dialog stands: Finesse, or ranged (the attack's type, or a thrown mode). The ally
- * within 5 feet is read off the map for every target (user, 2026-09-22 — the DESIGN §8 row
- * reopened), and the box ticks itself when the conditions hold; the tick stays the player's.
- * Null when there is nothing to offer: no feature, no dice, a weapon that does not qualify, a
- * non-weapon attack.
+ * The Sneak Attack facts for this roll, or null. Dice not resolving to plain dice are never armed
+ * (an unresolved token rolls zero in silence); the box ticks itself when the conditions hold.
  */
 function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
   const item = activity?.item;
@@ -731,7 +591,7 @@ function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
   if ( !sneakWeaponQualifies({ finesse, ranged }) ) return null;
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;   // "the same as the weapon's type"
   const used = turnChitStands(attacker, "sneak");
-  // The ally clause holds only when it is MEASURED true at every target of the roll.
+  // The ally clause holds only when measured true at every target.
   const aimed = [...(targets ?? [])].filter(t => t.actor && (t.actor.uuid !== attacker.uuid));
   const attackerToken = tokenOfActor(attacker);
   const allyNear = aimed.length ? aimed.every(t => allyNearTarget(attackerToken, t) === true) : null;
@@ -745,11 +605,7 @@ function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
 
 /* --- the card line -------------------------------------------------------------------------- */
 
-// The attack card SAYS it was reminded: what was on the table, what it netted to, what was
-// pressed — so a roll that went out with Advantage is explained where everyone looks (R5), and
-// the stats plane can read honour off the flag. Stateless, like every render hook here.
-// The attack card says a Sneak Attack was ARMED (the prototype's screen 2): one line, the dice
-// and the once-per-turn — the damage card says what rode. An unticked box says nothing.
+// The attack card says a Sneak Attack was ARMED; the damage card says what rode.
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const s = message.getFlag(MODULE_ID, "sneak");
   if ( !s?.armed ) return;
@@ -762,9 +618,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 
-// A save's record lands on a roll the platform draws as a SUMMARY inside the usage card at 6.0
-// (the roll's own card hidden) — so the row rides ui.js's cardRow seam: the same drawer, on the
-// shown card or inside the summary, wherever the table looks.
+// The reminder record's row. At dnd5e 6 a save's roll draws as a summary inside the usage card, so
+// the row rides ui.js's cardRow seam.
 Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;
@@ -778,27 +633,12 @@ Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
   host.appendChild(line);
 }));
 
-/* ---------------------------------------------------------------------------------------------
- * THE SAVE GATE (option E, user ruling 2026-09-02 — RULINGS *The gate before the roll*, the save gate) — the second of the
- * three tables on the one gate machine, moved here from saves.js in the machine-tier pass, Stage
- * 4c (2026-09-05): the gate machine owns the attack, the check and the save gate alike. The
- * judge, the pre-roll hook, the section drawn into the system's own saving-throw dialog (with
- * the Fails button when the save cannot succeed), the sheet-roll failure card and the record.
- * The demand's fieldset on the same dialog is the saves machine's own (saves/ask.js); the two
- * meet only through the dialog's options — no import either way. The saves buzzer reads the
- * automatic failures off decide/ directly (saves/ask.js autoFailSources) for the same reason.
- * ------------------------------------------------------------------------------------------- */
+/* THE SAVE GATE (RULINGS *The gate before the roll*). The demand's fieldset on the same dialog is
+ * saves/ask.js's; the two meet only through the dialog's options — no import either way. */
 
 /**
- * THE SAVE GATE'S JUDGE: the roller's statuses against the save table for this ability, and
- * the effects on the roller's own sheet that set the platform's mode for it (user, 2026-09-04:
- * "see the calculus for why there is advantage/dis, just like attacks" — The Duskheart's
- * `+1` on Wisdom saves opened the dialog at `1d20adv` with no word about who), netted as the
- * attack gate nets, or `fails` when a source says the save cannot succeed. Null when the
- * Reminder Sources list carries neither `condition` nor `effect` — the list is the switch, for
- * saves as for attacks; WHICH conditions is the Condition Sources list, and the mode reader
- * rides the `effect` kind because that is what it reads. A DialogCarried, so the pre-roll
- * hook, the rendered dialog and the record all hold one object.
+ * The save gate's judge: statuses, the sheet's mode effects, effect rows against the demand, and
+ * the metamagic / Mage Slayer marks. Null unless `condition` or `effect` is a Reminder Source.
  * @param {Actor} actor
  * @param {string} ability
  */
@@ -811,47 +651,39 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
       enabled: conditionEntries().map(e => e.kind), table: SAVE_BENDS, name: actor.name }));
   }
   if ( on.has("effect") ) {
-    // A save to keep Concentration reads its own mode field too (War Caster — decide/reminders.js modeKeys).
+    // A Concentration save reads its own mode field too (War Caster).
     const roll = { kind: "save", ability, ...(concentration ? { concentration: true } : {}) };
     sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
-    // The effect table's `saves` facet (Aura of Purity, Circle of Power — 2026-09-05), read
-    // against the DEMAND this roller is answering; a bare sheet roll has none and is listed.
+    // The effect table's `saves` facet (Aura of Purity), read against the demand being answered.
     const demand = pendingDemandFor(actor)?.demand ?? null;
     sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
       features: actor.items.filter(i => i.type === "feat").map(i => i.name),
       enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
-    // Heightened Spell's mark on the demand (metamagic, 2026-09-09): THIS roller's saves against
-    // the spell are at Disadvantage — the caster's option, quoted from the caster's own feat.
+    // Heightened Spell's mark on the demand: THIS roller's saves against the spell at Disadvantage.
     const mark = demand?.heightened ?? null;
     if ( mark && (mark.uuid === actor.uuid) ) {
       sources.push(reminderSource("effect", "disadvantage", `${actor.name} — Heightened Spell${mark.caster ? ` (${mark.caster}'s)` : ""}`, mark.rule ?? ""));
     }
-    // Extended Spell (metamagic, 2026-09-09): a concentration save for a spell cast Extended is
-    // at Advantage — the option's own second sentence, read off the cast's card.
+    // Extended Spell: a concentration save for a spell cast Extended is at Advantage.
     if ( concentration ) {
       for ( const card of extendedCastsHeldBy(actor) ) {
         const rec = card.getFlag(MODULE_ID, METAMAGIC_FLAG);
         sources.push(reminderSource("effect", "advantage", `${actor.name} — Extended Spell (${itemNameOf(card) ?? rec.spellName ?? "the spell"})`, rec.rule ?? ""));
       }
-      // Mage Slayer's Concentration Breaker (the PHB feats, group 4, 2026-09-27): the damage that
-      // forced THIS check was dealt by a creature holding the feat — the concentration ask records
-      // it (concentration.js `breakerFor`), and the gate says so, counted, like Extended's mark.
+      // Mage Slayer: the damage that forced this check came from the feat's holder (concentration.js `breakerFor`).
       const breaker = concentrationAskFor(actor, askId)?.breaker ?? null;
       if ( breaker ) {
         sources.push(reminderSource("effect", "disadvantage", `${breaker.by} — ${breaker.feat}`, breaker.rule ?? ""));
       }
     }
   }
-  // A save that cannot fail is a DEMAND's (Trance's "magic can't put you to sleep"); a concentration
-  // check answers no such demand, so a pending one's facet never passes it.
+  // A save that cannot fail is a DEMAND's (Trance); a concentration check answers no demand.
   const own = concentration ? sources.map(s => (s.autoSucceed ? { ...s, autoSucceed: false } : s)) : sources;
   return new DialogCarried({ ...saveGate(own), actorUuid: actor.uuid, ability, failed: false });
 }
 
 /**
- * The concentration ask this save answers: the one its dialog carries (concentration.js opens the
- * dialog with the ask's card on `bfSaveDemand`), else — a save rolled from the sheet — the oldest
- * still pending for this actor, the one a bare roll answers (the demand registry's order).
+ * The concentration ask this save answers: the one its dialog carries, else the oldest pending one.
  */
 function concentrationAskFor(actor, askId = null) {
   const carried = askId ? game.messages.get(askId)?.getFlag(MODULE_ID, "concentration") : null;
@@ -860,9 +692,8 @@ function concentrationAskFor(actor, askId = null) {
 }
 
 /**
- * The Extended casts this actor is still concentrating on: the newest usage card per spell that
- * carries the Extended flag, matched to a standing concentration effect by the spell's uuid (the
- * effect's origin) or the item id the system stamps on it.
+ * The Extended casts this actor still concentrates on: the newest Extended usage card per spell,
+ * matched to a concentration effect by origin or the system's item id.
  */
 function extendedCastsHeldBy(actor) {
   const held = (actor?.effects ?? []).filter(e => !e.disabled && e.statuses?.has?.("concentrating"));
@@ -879,15 +710,12 @@ function extendedCastsHeldBy(actor) {
   return out;
 }
 
-/** The demand this actor is mid-answer on, if any — the newest pending card naming it undone. */
+/** The demand this actor is mid-answer on, if any. */
 function pendingDemandFor(actor) {
   return pendingDemandsFor(actor.uuid, { flagKey: "saves" }).at(-1)?.card.getFlag(MODULE_ID, "saves") ?? null;
 }
 
-// THE GATE, on every saving throw that opens a dialog — forced by a demand or rolled from the
-// sheet (option E folds the old option D in: one surface for every save). Templated like the
-// attack hook (dnd5e.preRoll<Name>V2 — pinned in check-hook-dispatch). A judgement with a
-// source forces the dialog open — a shift-clicked save still meets it — and sets the default.
+// The save gate, on every saving throw that opens a dialog (a demand's or a sheet roll's).
 Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
@@ -901,18 +729,14 @@ Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, _message) => {
     config.bfSaveGate = gate;
     if ( !gate.sources.length ) return;
     dialog.configure = true;
-    // Fails takes the focus itself below; the dialog's own default stays Normal behind it.
+    // Fails/Succeeds take focus themselves; the dialog's own default stays Normal behind them.
     dialog.options.defaultButton = (gate.autoFail || gate.autoSucceed) ? "normal" : gate.net;
   } catch(err) {
     console.error(`${TITLE} | Save gate failed — rolling natively.`, err);
   }
 });
 
-/**
- * The gate's section in the dialog — the attack gate's fieldset, on the save hook — and the
- * fourth button when the save cannot succeed. Idempotent across the dialog's own re-renders
- * (only its formulas part is replaced; the section and the button are siblings that persist).
- */
+/** The save gate's section, plus Fails / Succeeds when the outcome is fixed. Idempotent. */
 function drawSaveGate(app, element, gate, demand) {
   if ( !gate?.sources?.length ) return;
   if ( !element.querySelector("[data-bf-reminder]") ) {
@@ -948,8 +772,7 @@ function drawSaveGate(app, element, gate, demand) {
       sibling.insertAdjacentElement("beforebegin", fails);
     }
   }
-  // THE MIRROR (Trance, 2026-09-27): a save that cannot FAIL gets Succeeds — no dice, the success
-  // recorded on the demand. Only with a demand: the facet never passes a bare sheet roll.
+  // Succeeds: only with a demand to record it on — the facet never passes a bare sheet roll.
   if ( gate.autoSucceed && demand && !element.querySelector("[data-bf-succeeds]") ) {
     const sibling = modeButtonsEl.find(b => b.dataset.action !== "bf-succeeds");
     if ( sibling ) {
@@ -967,13 +790,10 @@ function drawSaveGate(app, element, gate, demand) {
       sibling.insertAdjacentElement("beforebegin", succeeds);
     }
   }
-  // The highlighted default follows the net — Fails when the save cannot succeed, Succeeds when it
-  // cannot fail — marked to stay marked (ui.js markDefaultButton).
   markDefaultButton(element, gate.autoFail ? "bf-fails" : (gate.autoSucceed && demand) ? "bf-succeeds" : gate.net);
 }
 
-/** A sheet save that cannot succeed, pressed Fails with no demand to record it on: the card
- * is the record (R5) — nothing else in the world knows this save was owed. */
+/** A sheet save pressed Fails with no demand to record it: the card is the record (R5). */
 function postSheetAutoFail(gate) {
   const actor = resolveUuid(gate.actorUuid);
   if ( !(actor instanceof Actor) ) return;
@@ -992,8 +812,7 @@ function postSheetAutoFail(gate) {
   }).catch(err => console.error(`${TITLE} | Automatic-failure card failed.`, err));
 }
 
-// The record: what the gate showed, what it netted to, what was pressed — on the save message,
-// the attack gate's flag and the attack gate's card line (reminders.js reads it for any roll).
+// The save's record: the attack gate's flag, on the save message.
 Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfSaveGate;

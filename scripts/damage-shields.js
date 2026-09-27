@@ -1,6 +1,7 @@
 /**
- * Battle Flow — Damage shields: a standing ward on the DEFENDER pays out against the ATTACKER when a melee attack roll hits — the hit rider mirrored.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — Damage shields: a standing ward on the DEFENDER pays out against the ATTACKER when
+ * a melee attack roll hits — the hit rider mirrored (RULINGS *Damage shields*). The table is
+ * decide/registry.js DAMAGE_SHIELDS; membership is the Damage Shields list.
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
@@ -17,46 +18,25 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, castLevelOn, isCard } from "./decide/card.js";
 
 /* ---------------------------------------------------------------------------------------------
- * DAMAGE SHIELDS (user, 2026-09-04 — "death armor needs its damage shield effect automated";
- * "not sure if that fits in a family"). It does not fit one of SWEEP §1's eight: it is a NINTH
- * shape, the hit rider MIRRORED. A standing effect on the DEFENDER — Death Armor's ward, Fire
- * Shield's warm or chill shield, Armor of Agathys' frost — pays out against the ATTACKER when a
- * melee attack roll hits, and there is no choice in it (DESIGN §2 R1: the machine may play an
- * outcome; judgment is what it never plays). The table is decide/registry.js DAMAGE_SHIELDS;
- * membership is the Damage Shields list.
- *
- *   THE WARD — found on the hit creature's sheet by the pack's effect NAME, and walked to its
- *   source the way a mark is (shared.js `effectSourceOf`: effect → origin item → caster). The
- *   warded creature need not be the caster (Death Armor is a touch spell on an ally), so the walk
- *   is the only way to the dice: the pack's damage activity on the CASTER's copy of the spell.
- *   Armor of Agathys ships no effect at all, so the module MARKS the cast itself (below).
- *
- *   THE HIT — judged ONCE, on the attack's DAMAGE roll landing, on the elect (auto-apply's three
- *   triggers with auto-apply's gates: arrival for an unheld roll; the hold's release, and render
- *   for a reload's resume, for a roll that WAS held — see `consider`). By then the hold has
- *   settled and `hitTargets` is final — a Shield that turned the hit into a miss pays nothing. A melee attack
- *   roll (the activity's own attack type), within the ward's own reach (the activity's range,
- *   over the distance the gate measures), once per turn where the text says so (a turn chit on
- *   the DEFENDER — the Cleave shape), while the temp HP stand for Agathys.
- *
- *   THE PAYOUT — the ward's activity is rolled by the elect with dnd5e's own roller (no message:
- *   the roll is posted here, as the defender's, so it can never be mistaken for a spell the
- *   caster pressed), the type set by the standing effect where the part offers several (Fire
- *   Shield's [cold, fire]), and applied to the attacker through the receipt chokepoint with a
- *   note naming the ward. One payout per ward per hit, claimed on the damage message BEFORE the
- *   dice (`damageShields.paid`), so a reload or a second client can never pay twice. With no GM
- *   the flow-elect law holds: the roll posts, the monster is not written, the driver is told.
+ * THE WARD: found on the hit creature by the pack's effect NAME and walked to its source
+ * (shared.js `effectSourceOf`) — the warded creature need not be the caster, so the walk is the
+ * only way to the dice. Armor of Agathys ships no effect, so the module MARKS the cast (below).
+ * THE HIT: judged ONCE, on the attack's damage roll landing, on the elect, after any hold settled
+ * (a Shield that turned the hit into a miss pays nothing): melee, within the ward's reach, once
+ * per turn where the text says so (a turn chit on the DEFENDER), while Agathys' temp HP stand.
+ * THE PAYOUT: the ward's activity rolled by the elect and posted as the DEFENDER's (never mistaken
+ * for a cast), applied to the attacker through the receipt chokepoint. One payout per ward per
+ * hit, claimed on the damage message BEFORE the dice (`damageShields.paid`). With no GM the roll
+ * posts and the driver is told.
  * ------------------------------------------------------------------------------------------- */
 
 const listed = () => listedNames(damageShieldEntries());
 const { rowNamed } = tableIndex(DAMAGE_SHIELDS);
 
 /**
- * Every listed ward standing on this creature: the row, the standing effect, its source (actor
- * and item), the pack's damage activity, the type the effect decides, and the cast's upcast.
- * A ward whose source cannot be walked (a hand-dragged compendium effect) falls back to the
- * creature's OWN copy of the spell — right for a self-cast, and said in the console otherwise.
- * One entry per ward: a Fire Shield with both Warm and Chill standing pays once, as the first.
+ * Every listed ward standing on this creature, with its source, damage activity, type and upcast.
+ * A ward whose source cannot be walked falls back to the creature's OWN copy of the spell. One
+ * entry per ward: Fire Shield with both Warm and Chill standing pays once.
  */
 function shieldsOn(defender) {
   const names = listed();
@@ -71,7 +51,7 @@ function shieldsOn(defender) {
       if ( row.mark ) {
         const mark = effect.getFlag(MODULE_ID, "shield");
         if ( mark?.key !== key ) continue;
-        // live only: a mark is written only for a spell listed BY NAME, which a scroll ("Spell Scroll: X") never is
+        // live only: a scroll ("Spell Scroll: X") is never listed by name, so it is never marked
         const item = resolveUuid(mark.itemUuid);
         source = item ? { actor: item.actor ?? defender, item } : null;
         scaling = Number(mark.scaling ?? 0);
@@ -115,24 +95,15 @@ function settledMeleeAttack(message) {
   return attackMessage;
 }
 
-/** Damage messages this client has judged — a re-render or a flag write on one never re-judges it. */
+/** Damage messages this client has judged; a re-render or flag write never re-judges one. */
 const judged = new Set();
 
 /**
- * ⚠ JUDGED ONCE, AT THE HIT. The judge reads the world AS IT IS — the tokens' distance, the
- * ward on the defender, the turn chit, the temp HP — so a second reading of an old damage
- * message answers a different question: not "did this hit strike back" but "would it strike
- * back now". The shields suite caught it flaking three ways in a full run (2026-09-05): a
- * ranged hit "paid" because the earlier MELEE message from 10 feet was re-judged after the
- * goblin stepped back to 5; an empty list "paid" because the previous section's unwarded hit
- * was re-judged once the ward was put on; and the once-per-turn chit stood on the next turn
- * because the second hit of the previous turn was re-judged after the turn ended and wrote the
- * chit afresh. The re-reader was `dnd5e.renderChatMessage`, which dnd5e fires on every card
- * whenever the log re-renders — and at a reload, for EVERY card, against a table that has moved
- * on. So the three triggers take the appliers' own gates (auto-apply.js, hold/spell-damage.js): creation
- * judges an unheld roll once; an update or a render judges only a roll that WAS held and has
- * been released (`attackHoldPending === false`), once, and a released roll's judgement is
- * stamped on the card (`damageShields.judged`) so a reload does not judge it again.
+ * ⚠ JUDGED ONCE, AT THE HIT. The judge reads the world AS IT IS (distance, ward, chit, temp HP), so
+ * re-reading an old damage message answers "would it strike back now", not "did it". dnd5e fires
+ * renderChatMessage on every card at every re-render and reload, so the triggers take the
+ * appliers' gates: creation judges an unheld roll once; update/render judge only a roll that WAS
+ * held and released (`attackHoldPending === false`), stamped `damageShields.judged` across reloads.
  */
 function consider(message, { resume = false } = {}) {
   if ( !listed().size ) return false;
@@ -144,11 +115,9 @@ function consider(message, { resume = false } = {}) {
   return !!settledMeleeAttack(message);
 }
 
-// Declared to the spine's resumable registry (Stage 3, 2026-09-05), FLAGLESS: the hit is the
-// system's own damage roll, judged at creation before anything of this module is on it; the
-// hold's release (update) and the reload (render) are the resume, gated as above. The three
-// registrations and the in-flight `runs` latch were this file's; `judged` (this client has
-// judged it — never twice) stays, because it is memory, not a latch.
+// Declared to the resumable registry, FLAGLESS: the hit is the system's own damage roll, judged at
+// creation; the hold's release (update) and a reload (render) are the resume, gated above.
+// `judged` is memory, not a latch.
 registerResumable("damageShields", {
   flagless: true,
   pending: (_flag, message, cause) => consider(message, { resume: cause !== "create" }),
@@ -162,9 +131,7 @@ registerResumable("damageShields", {
 async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
   judged.add(damageMessage.id);
   try {
-    // A released roll's judgement is stamped on the card first, so a reload (which renders every
-    // card) never judges it a second time against a table that has moved on. An unheld roll needs
-    // no stamp: nothing but its creation ever judges it.
+    // A released roll's judgement is stamped first, so a reload never judges it again.
     if ( wasHeld ) {
       try { await queueFlagWrite(damageMessage, "damageShields", current => { current.judged = true; }); }
       catch(err) { console.warn(`${TITLE} | Could not stamp the shield judgement on the damage card.`, err); }
@@ -181,9 +148,8 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
       if ( !wards.length ) continue;
       const defenderToken = tokenForUuid(t.uuid);
       const distanceFeet = (attackerToken && defenderToken) ? nearestFeet(attackerToken, defenderToken) : null;
-      // ⚠ Read BEFORE any await: Armor of Agathys strikes "while you have these Hit Points", and
-      // the attack's own damage — applied by auto-apply on the same tick — may take the last of
-      // them. The hit happened while the pool stood; the pool is read as it stood.
+      // ⚠ Read BEFORE any await: Agathys strikes "while you have these Hit Points", and the attack's
+      // own damage, applied on the same tick, may take the last of them.
       const tempHP = Number(defender.system?.attributes?.hp?.temp ?? 0);
       const combat = activeCombatFor(defender);
       for ( const s of wards ) {
@@ -219,16 +185,15 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
 
 async function pay({ damageMessage, attackMessage, attacker, defender, ward, judged, distanceFeet, combat }) {
   const { key, row, activity, source, type, scaling } = ward;
-  // The once-per-turn chit on the DEFENDER — written first, so a second hit in the same tick
-  // finds it standing. Out of combat there is no turn: nothing is written, every hit strikes.
+  // The once-per-turn chit on the DEFENDER, written first so a second hit in the same tick finds
+  // it. Out of combat nothing is written and every hit strikes.
   if ( (row.when === "oncePerTurn") && combat ) {
     await writeTurnChit(defender, "rider", { name: `${key} — struck this turn`, img: source.item.img ?? null,
       description: `${key} has struck an attacker this turn; once per turn. This chit ends with the turn.`,
       origin: source.item.uuid, riderKey: `shield:${key}` }).catch(() => {});
   }
-  // The pack's own roller, no message: the dice are the activity's (its parts, its upcast
-  // scaling), and the message is posted below as the DEFENDER's so nothing downstream reads
-  // it as a spell the caster pressed — no chain, no attack, no target snapshot.
+  // The pack's own roller, no message: posted below as the DEFENDER's, so nothing downstream reads
+  // it as a spell the caster pressed.
   let rolls = [];
   try {
     rolls = await activity.rollDamage(scaling > 0 ? { scaling } : {}, { configure: false }, { create: false });
@@ -259,8 +224,7 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
     flags: { [MODULE_ID]: { damageShield: { ...record, rolled: true, formula, total, type: typeOut } } }
   });
   if ( !(rollMessage instanceof ChatMessage) ) return;
-  // Through the receipt chokepoint at the ATTACKER — the system's resistance math, a receipt
-  // with a revert on the ward's own roll card. A monster the driver cannot write is spoken for.
+  // Through the receipt chokepoint at the ATTACKER; a monster the driver cannot write is spoken for.
   if ( canApplyTo(attacker) ) {
     await applyDamagesWithReceipt(rollMessage, [{ uuid: attacker.uuid, name: attacker.name }], damagePartsOf(rolls),
       { note: `${key} on ${defender.name}` });
@@ -271,10 +235,8 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
 
 /* --- the mark: a ward the pack ships no effect for (Armor of Agathys) ------------------------ */
 
-// The casting client owns the caster: the cast's activity used (postUseActivity fires where
-// `use()` ran) writes a chip named as the spell is, with the item's duration on the world clock
-// and the cast's level for the upcast — the use-chip idiom (use-chips.js). A standing chip is
-// refreshed, never doubled: a recast refreshes the temp HP too.
+// The casting client writes a chip named as the spell, with the item's duration and the cast's
+// level for the upcast (the use-chip idiom). A standing chip is refreshed, never doubled.
 Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
@@ -309,9 +271,8 @@ async function writeMark(actor, item, row, { spellLevel, scaling, message }) {
   }
 }
 
-// "The spell ends early if you have no Temporary Hit Points": the pool going to zero ends the
-// mark — on the elect for the bearer, wherever the write may land. The strike that emptied the
-// pool has already paid (the pool is read before the application lands).
+// "The spell ends early if you have no Temporary Hit Points": the pool at zero ends the mark, on
+// the bearer's elect. The strike that emptied the pool has already paid.
 Hooks.on("updateActor", (actor, changes) => {
   try {
     if ( !(actor instanceof Actor) ) return;
@@ -319,8 +280,7 @@ Hooks.on("updateActor", (actor, changes) => {
     if ( Number(actor.system?.attributes?.hp?.temp ?? 0) > 0 ) return;
     const marks = actor.effects.filter(e => { const m = e.getFlag(MODULE_ID, "shield"); return m && DAMAGE_SHIELDS[m.key]?.while === "tempHP"; });
     if ( !marks.length || !drivesMomentFor(actor.uuid) || !canApplyTo(actor) ) return;
-    // One ending per bearer at a time: the attack's damage and a tidy can both move the pool in
-    // one tick, and two deletes of the same chip make the second throw (measured, first run).
+    // One ending per bearer at a time: two deletes of the same chip in one tick make the second throw.
     if ( endings.has(actor.uuid) ) return;
     endings.add(actor.uuid);
     void endMarks(actor, marks).finally(() => endings.delete(actor.uuid));

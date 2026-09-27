@@ -1,102 +1,22 @@
 /**
- * Battle Flow — combat resolution that flows (DESIGN.md is the north star).
- *
- * Phase 1: the attack resolver. Two independent halves plus receipts, each behind its own
- * world setting (Game Settings → Configure Settings → Battle Flow), all default ON since 2026-09-03 (they shipped OFF before; the defaults match tools/verify-settings.mjs):
- *
- *   - Auto-Roll Damage on Hit: when an attack roll resolves on the attacker's own client,
- *     re-run the system's hit test against the targets snapshotted on the attack message and,
- *     if at least one target was hit, press the card's Damage button programmatically —
- *     ammo/attack-mode recovery identical to the native handler, crit pre-configured, no
- *     dialog. A miss means the damage dice never exist. Modes: off / NPC attacks only /
- *     everyone, plus an optional "dramatic beat" delay between hit reveal and damage dice.
- *   - Auto-Apply Damage: on the active GM's client (single writer), a damage-roll message
- *     that chains back to an attack applies itself to the targets that attack hit, through
- *     the system's own resistance/immunity/threshold math (Actor5e#applyDamage) — exactly
- *     what the GM-only damage tray does, pressed automatically. The tray stays rendered and
- *     remains the manual path for corrections and edge calls — but it collapses on the
- *     applied card exactly as if Apply had been pressed (same setting guard), so an already-
- *     applied roll is never one accidental click away from landing twice.
- *   - Receipts + revert: every application stamps what it did (per-target prior HP snapshot,
- *     deltas, and WHY the number moved — immune/resists/vulnerable/threshold, read from the
- *     system's own calculateDamage annotations) into a flag on the damage message. The card
- *     grows a receipt row everyone can read — who took what, and the reason when traits
- *     changed the number — while HP pools and the per-target ↩ revert stay GM-only.
- *     Idempotent and reload-proof: the flag is the state, the row is just a view of it.
- *   - Effect riders (Phase 1.9A): a hit applies the effects riding it — the attack
- *     activity's own effect list lands on the targets it hit through the native application
- *     path (same origin rules, same re-enable-instead-of-stack), per target, with a
- *     per-effect receipt + revert on the damage card. Ray of Frost's slow arrives with its
- *     damage instead of waiting for a click in the card's tray.
- *   - The reaction hold (Phase 1.5): when an attack hits someone holding a curated interrupt
- *     reaction, the chain pauses instead of resolving — popup for whoever owns the decision,
- *     durable row on the attack card, GM override, and a re-test against the target's LIVE
- *     AC once answered (a Shield that turns the hit into a miss ends the chain and the
- *     damage dice never exist). The module waits for a human; it never plays the reaction.
- *   - Table polish (first dogfood feedback, 2026-08-15; recut 2026-08-17): a no-target gate
- *     that cancels an attack before anything rolls or consumes ("popup error, then exit
- *     out"), hidden card action buttons (every use posts its first card, the machine runs
- *     the workflows — only Refund Resource and Place Measured Template stay pressable), and
- *     a per-client setting that centers the system's roll dialogs instead of lower-right.
- *     The card SUPPRESSION machinery was removed at v1.10.0 (ARCHITECTURE.md §8).
- *   - Concentration assist (Phase 2.5): a concentrating creature that takes damage gets the
- *     save run instead of a whisper card nobody reads — popup (or silent auto-roll) on the
- *     owner's client, DC from the system, and on a failure the module presses the button the
- *     system never presses itself: endConcentration, whose native cascade strips everything
- *     riding the spell. At 0 HP there is no save; concentration just ends, announced.
- *
- * Architecture (ARCHITECTURE.md §4): the chat log is the state and the bus. No sockets, no
- * in-memory workflow object, no patching. The attacker's client volunteers the damage roll
- * (its attack, its dice); the active-GM elect volunteers the application (ownership is a
- * permission fact; a single writer prevents double-apply); the chain is resolved through the
- * system's own message registry (`system.origin`), never a parallel one.
- *
- * Ground truths (dnd5e release-6.0.1, on Foundry v14 — the 6.0 pass, 2026-09-15; NOTES §2 *the 6.0 pass*):
- *   - dnd5e.rollAttackV2 fires on the rolling client only, after the attack message exists
- *     and before ammo consumption; rolls[0].parent IS the attack message (basic-roll.mjs
- *     buildPost assigns it whenever a message document was created).
- *   - Every roll card is a TYPED message (`type: attack | damage | healing | save | check`)
- *     with a data model: `system.{activity, item, origin, targets}` on every roll card and the
- *     roll's own facts beside them (`system.{ability, mode, mastery, ammunition}` on an attack,
- *     `system.onSave` on a damage roll, `system.{type, resisted}` on a save). Nothing is written
- *     to `flags.dnd5e` any more and the world migration deletes the old keys — every read goes
- *     through decide/card.js, the one seam, and every HTML anchor through scripts/surfaces.js.
- *   - Hit/miss is computed at render time and never persisted (AttackMessageData#evaluatedTargets):
- *     isMiss = ac === null || (!crit && ((total < ac) || fumble)). Downstream consumers recompute
- *     (decide/verdict.js hitsAmong) — a null AC is a MISS, the platform's verdict, adopted.
- *   - system.targets = [{actor, token, ac, img, name}], one row per TOKEN
- *     (TargetsField.getDescriptors); ac is null under total cover. This module keys its records
- *     by the ACTOR (decide/card.js targetsOf: `uuid` = the actor, one row per actor).
- *   - system.origin is natively stamped from the DOM click's enclosing card (basic-roll.mjs
- *     buildPost); a programmatic roll MUST pass it in message data explicitly (decide/card.js
- *     originData) or the roll never enters dnd5e.registry.messages — indexed on
- *     `_source.system.origin` ONLY — and the chain breaks.
- *   - The native damage tray builds damages via aggregateDamageRolls(rolls,
- *     {respectProperties: true}) → {value, type, properties: Set} and applies with
- *     actor.applyDamage(damages, {multiplier: 1, isDelta: true, originatingMessage, origin}).
- *     Mirrored verbatim so the system's math stays authoritative. Healing activities mark their
- *     rolls "healing", never "damage".
- *   - applyDamage writes system.attributes.hp.{value,temp,tempmax}. Receipts snapshot the
- *     SOURCE values (actor.system._source): Actor#update writes source data, and derived
- *     values can carry active-effect noise that a later revert must not bake in.
- *   - dnd5e.renderChatMessage (message, html) fires after all system card enrichment — the
- *     seam the receipt row renders on.
+ * Battle Flow — combat resolution that flows (DESIGN.md is the north star). The only esmodules
+ * entry: it imports every machine, and nothing else.
+ * The chat log is the state and the bus (ARCHITECTURE.md §4): no sockets, no in-memory workflow,
+ * no patching; the chain is resolved through dnd5e's own message registry. The platform facts the
+ * machines stand on are NOTES §2.
  */
 
-/* ---------------------------------------------------------------------------------------------
- * The entry (ARCHITECTURE.md §7): the only esmodules entry, importing every sibling in the original
- * section order. Plain ES imports — no build step, no manifest change. Evaluation order is
- * import-graph order, not this list; the one registration-order constraint that matters (the
- * hold's preApplyDamage veto before concentration's cause capture) is held by hold/spell-damage.js reaching
- * auto-apply.js through a lazy import — see the comment at that call site before making it
- * static.
- * ------------------------------------------------------------------------------------------- */
+/* ⚠ Hooks register in module evaluation order (import-graph order, which this list drives), and
+ * renderChatMessage rows render in registration order, so a card's row order follows this list
+ * (tools/check-hook-order.mjs pins it; ARCHITECTURE.md §7). The hold's preApplyDamage veto before
+ * concentration's cause capture is held by hold/spell-damage.js reaching auto-apply.js through a
+ * LAZY import — keep it lazy. */
 
 import "./core.js";
 import "./settings.js";
 import "./shared.js";
 import "./holds.js";
-import "./events.js";   // the moment events — what the module PUBLISHES at a resolve (2026-09-11)
+import "./events.js";   // the moment events: what the module PUBLISHES at a resolve
 import "./polish.js";
 import "./auto-damage.js";
 import "./hold/index.js";
@@ -105,116 +25,75 @@ import "./hit-riders.js";
 import "./auto-apply.js";
 import "./effect-riders.js";
 import "./mastery.js";
-// ⚠ topple.js and chip-spend.js in mastery.js's slot (the machine-tier pass, Stage 4b,
-// 2026-09-05): the Topple demand's lifecycle and the chip spend, in the order mastery.js
-// registered them — its rows stay above theirs on a shared attack card.
+// topple.js and chip-spend.js sit in mastery.js's slot: its rows stay above theirs on an attack card.
 import "./topple.js";
 import "./chip-spend.js";
 import "./reminders.js";
-// advantage-buys.js right after reminders.js (2026-09-25, Lucky's Advantage): its render hook adds
-// the buy box to the section the gate just drew, and its record overwrites the gate's with the buy in.
+// advantage-buys.js right after reminders.js: it adds its box to the section the gate just drew,
+// and its record overwrites the gate's with the buy in.
 import "./advantage-buys.js";
-// rest-grants.js (2026-09-25, Resourceful): a rest's grant rides the rest's own update; its line
-// is the rest card's alone, so its place in the order matters to nothing else.
 import "./rest-grants.js";
-// drop-to-one.js (2026-09-25, Relentless Endurance and Death Ward): the 1 is written in the damage's
-// own update at dnd5e.preApplyDamage; its card is its own.
 import "./drop-to-one.js";
-// sneak.js after reminders.js: the gate stamps the arm on the attack message, the sneak machine
-// reads it at the damage roll; its card lines sit under the gate's (2026-09-02).
+// sneak.js after reminders.js: the gate stamps the arm on the attack, sneak reads it at the damage
+// roll; its card lines sit under the gate's.
 import "./sneak.js";
-// clock-riders.js beside sneak.js: the same seam (preRollDamageV2), the same shape of card line.
+// clock-riders.js beside sneak.js: the same seam (preRollDamageV2).
 import "./clock-riders.js";
-// The damage shields (2026-09-04): a ward on the DEFENDER pays out against the attacker when the
-// attack's damage lands — the hit rider mirrored; it renders on its own roll card only.
 import "./damage-shields.js";
-// The damage casts (2026-09-04): a bare damage activity rolls its dice at the use; a listed row
-// (Heat Metal) demands its save after — the save is the saves machine's from there.
 import "./damage-casts.js";
-// hit-menu.js beside them: the same seam, the general form of the Cunning Strike menu (2026-09-04).
 import "./hit-menu.js";
-// The superiority uses (2026-09-05): the Battle Master's Bonus Action maneuvers — a chip, a marker
-// or a rolled bonus at the use, the die on the hit after; declares into the offer like the hit menu.
 import "./superiority-uses.js";
-// use-chips.js beside them: a text-only feature's use becomes a chip the gate reads (2026-09-02).
+// use-chips.js: a text-only feature's use becomes a chip the gate reads.
 import "./use-chips.js";
-// Metamagic (2026-09-09): the pick rides the cast dialog, the points spend on the card. Before
-// saves/ so its birth flag exists on the same preCreate cycle the demand stamp reads.
+// metamagic.js before saves/: its birth flag must exist on the same preCreate cycle the demand
+// stamp reads.
 import "./metamagic.js";
-// The damage dice rolled twice (Slice A, 2026-09-24 — Savage Attacker): Empowered's fold on a weapon
-// hit's dice, beside it — the same seams (preRollDamageV2's birth flag, rollDamageV2's offer), a
-// card line under the damage roll's own. Its preRollDamageV2 registration lands after every rider's,
-// which is nothing it reads: the weapon's roll count is auto-damage.js's, taken first.
+// dice-changers.js registers its preRollDamageV2 after every rider's, which is nothing it reads:
+// the weapon's roll count is auto-damage.js's, taken first.
 import "./dice-changers.js";
-// heal-rerolls.js (2026-09-25, the origin feats — Healer): the healing roll's dice, Empowered's
-// popup beside Savage's — the same seams (a preRollDamageV2 birth flag, rollDamageV2's offer) on a
-// HEALING roll, which no damage machine reads; cast.js's heal applier waits on its claim.
+// heal-rerolls.js: the damage machines' seams on a HEALING roll; cast.js's heal applier waits on its claim.
 import "./heal-rerolls.js";
-// unarmed-dice.js (2026-09-25, the origin-feat walk — Tavern Brawler): the plain Unarmed Strike's
-// damage formula swapped at preRollDamageV2 for the feature's own die, and one line on its card.
-// It reads the roll's parts before anything counts them: auto-damage.js's weapon-roll count is of
+// unarmed-dice.js swaps the Unarmed Strike's formula at preRollDamageV2; auto-damage.js counts
 // ROLLS, not parts, so the swap moves nothing it counts.
 import "./unarmed-dice.js";
-// THE FIGHTING STYLES (2026-09-26): each listed style's face on the character, gated on what is
-// equipped, and its number on the damage roll it fits (Great Weapon Fighting's floor, Thrown, Two-
-// Weapon, Dueling; Defense's AC on its face). Beside the unarmed dice: Unarmed Fighting's die is theirs.
+// fighting-styles.js beside unarmed-dice.js: Unarmed Fighting's die is theirs.
 import "./fighting-styles.js";
-// kit-tend.js (2026-09-25, the origin-feat walk — Healer's Battle Medic): its own moment (the kit's
-// use, postUseActivity) and its own line on the kit's card; the healing it drives is heal-rerolls.js's
-// and cast.js's, unchanged.
 import "./kit-tend.js";
-// initiative-swap.js (2026-09-25, the origin feats — Alert): its own moment (the last Initiative
-// landing, updateCombatant on the elect) and its own card; its place in the order matters to nothing.
 import "./initiative-swap.js";
-// ⚠ THE MANEUVER FOLDS after mastery.js, before concentration.js ON PURPOSE (v1.19.0): their
-// card rows must render below the mastery rows and above the saves verdict row / receipt rows —
-// renderChatMessage surface order IS registration order. check-hook-order.mjs asserts it.
-// ⚠ FIVE FILES IN maneuvers.js's ONE SLOT (the machine-tier pass, Stage 4a, 2026-09-05), in the
-// order the sections of that file registered — precision, riposte, hew, the bash offer,
-// Commander's Strike — so the snapshot keeps every relative order the one file held.
+// ⚠ The maneuver folds after mastery.js, before concentration.js ON PURPOSE: their rows render
+// below the mastery rows and above the saves verdict and receipt rows. These five keep the
+// relative order one file once held. check-hook-order.mjs asserts it.
 import "./precision.js";
 import "./riposte.js";
 import "./hew.js";
 import "./bash-offer.js";
 import "./command.js";
-// The rebuke (the Goliath walk, 2026-09-25): a Reaction to damage aimed at its dealer — Riposte's
-// shape on the damage's landing (dnd5e.applyDamage), after the folds so its card row renders below theirs.
+// rebukes.js after the folds, so its card row renders below theirs.
 import "./rebukes.js";
-// The damage hold (the Goliath walk, 2026-09-25): a reduction "when you take damage" claimed at the
-// applier (auto-apply.js registerDamageClaim) for every damage the module lands, not only a hit's.
+// damage-holds.js: a reduction "when you take damage", claimed at the applier for every damage landed.
 import "./damage-holds.js";
-// ⚠ d20-folds.js immediately after maneuvers.js ON PURPOSE (v1.23.0): it is the same family of
-// post-roll fold and its row belongs directly below the maneuver rows — Precision offers a
-// superiority die on the same missed attack that a Bardic die or a reroll would patch, and a
-// table reading the card top-to-bottom should meet them in that order. renderChatMessage
-// surface order IS registration order; check-hook-order.mjs asserts the pair.
+// ⚠ d20-folds.js right after the maneuver folds ON PURPOSE: the same family of post-roll fold,
+// its row directly below theirs (Precision and a Bardic die patch the same missed attack).
+// check-hook-order.mjs asserts the pair.
 import "./d20-folds.js";
 import "./concentration.js";
 import "./cast.js";
-// ⚠ volleys.js after cast.js, before saves.js ON PURPOSE (v1.20.0): its volley row renders
-// on the usage card above the saves machinery's rows, and its preRollDamageV2 dart
-// multiplier must not disturb hit-riders' (attack-gated, disjoint) registration order.
+// ⚠ volleys.js after cast.js, before saves/ ON PURPOSE: its row renders above the saves rows, and
+// its preRollDamageV2 dart multiplier must not disturb hit-riders' registration order.
 import "./volleys.js";
-// ⚠ saves/ before receipts.js ON PURPOSE: its verdict row must register (and so render)
-// above the receipt rows, and it reaches receipts.js only through a lazy import() so this
-// entry position is what actually decides the order. check-hook-order.mjs asserts it.
-// ⚠ A DIRECTORY MACHINE (the machine-tier pass, Stage 4c, 2026-09-05 — ruling 3): the entry
-// imports its index and nothing else in there; the index's own import list fixes the order of
-// its parts (§7). The save GATE left for reminders.js in the same move.
+// ⚠ saves/ before receipts.js ON PURPOSE: its verdict row renders above the receipt rows, and it
+// reaches receipts.js only through a lazy import(), so this position decides the order.
+// check-hook-order.mjs asserts it. The entry imports the index only; its list orders the parts.
 import "./saves/index.js";
-// emanations.js after saves.js: its trigger card carries a `saves` demand the saves machine drives
-// (the chat log is the bus — no import between them); it renders no row on any shared card (2026-09-03).
+// emanations.js after saves/: its trigger card carries a `saves` demand the saves machine drives
+// (through the chat log, no import); it renders no row on a shared card.
 import "./emanations.js";
-// token-lights.js after emanations.js (the Aasimar walk, 2026-09-25): the light's effect is what an
-// emanation's `while` row stands on; its card row renders beneath the use's own rows.
+// token-lights.js after emanations.js: its card row renders beneath the use's own rows.
 import "./token-lights.js";
 import "./receipts.js";
-// resources.js last: its one-line spend record renders at the very bottom of the usage
-// card, below every workflow row — a footer, which is what a ledger line is.
+// resources.js last among the rows: its spend line is the usage card's footer.
 import "./resources.js";
-// stats.js after everything: the data plane's own edge (rollCtx + the combat roster). It
-// renders no card rows, so its position constrains nothing — it sits at the end so the
-// machines' registrations keep their pinned order unchanged.
+// stats.js renders no rows; at the end so the machines' pinned order is unchanged.
 import "./stats.js";
-// THE EFFECT VIEW (DESIGN §6, 2026-09-15 draft): a view over the sheet — writes nothing.
+// The effect view: a view over the sheet, writes nothing.
 import "./effect-view.js";

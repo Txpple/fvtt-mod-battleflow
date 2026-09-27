@@ -1,12 +1,7 @@
 /**
- * Battle Flow — Table polish: the no-target gate, the cast-slice birth stamps, hidden card buttons, dialog centering.
- * Split from battleflow.js (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
- *
- * ⚠ The card SUPPRESSION machinery (the 1.1 master + the 1.9D per-source buckets + the
- * replacement-bfCard plumbing) was REMOVED at v1.10.0 — user call, 2026-08-17: "we rip out
- * the card suppression machinery, and we just have machinery to hide non-refund-resource
- * buttons." Every use posts its first card; hideCardButtons below is the one card-shaping
- * switch left. ARCHITECTURE.md §8 carries the full policy.
+ * Battle Flow — Table polish: the no-target gate, the drinker default, the cast birth stamps,
+ * hidden card buttons, the dialog target block and dialog centering. EDGE layer (ARCHITECTURE.md §7).
+ * Every use posts its first card; hiding buttons is the one card-shaping switch (ARCHITECTURE.md §8).
  */
 import { MODULE_ID, S, setting } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./settings.js";
@@ -16,12 +11,8 @@ import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard,
 import { targetDescriptorOf, dispositionStyle } from "./shared.js";
 import { cardActivity, profileEffectSync } from "./lookup.js";
 
-/* ---------------------------------------------------------------------------------------------
- * Table polish — the no-target gate, the birth stamps, hidden buttons, dialog centering
- * ------------------------------------------------------------------------------------------- */
 
-// Require a target to attack: cancel the use before anything rolls or consumes. Same
-// initiating-client veto pattern as combatplus's initiative gate — a table-manners rail.
+// Require a target to attack: veto the use on the initiating client before anything rolls or consumes.
 Hooks.on("dnd5e.preUseActivity", activity => {
   if ( !setting(S.requireTarget) ) return;
   if ( activity?.type !== "attack" ) return;
@@ -30,37 +21,12 @@ Hooks.on("dnd5e.preUseActivity", activity => {
   return false;
 });
 
-/* ---------------------------------------------------------------------------------------------
- * A DRUNK POTION DEFAULTS TO THE DRINKER (FLOW item 4, re-shaped 2026-08-19 after the v1.16.0
- * walk). User's shape: "if no target, then auto target self; if target exists, then use that."
- *
- * ⚠ THIS IS A DEFAULT, NOT A FORCE — and that is the whole design. v1.11.0's `affects: self`
- * self-aim DISCARDS the snapshot, which is right for Second Wind (there is no other sensible
- * target) and wrong for a potion (handing one to a downed ally is a real table move). So the
- * empty case is filled and a real target always wins. This retires the "self-aim UNLESS the
- * target is friendly" carve-out FLOW item 4 had to invent — no friendliness is inferred here.
- *
- * MEASURED, 2026-08-19 (probe-potion-aim, retired in b82ab8e — git history), both facts load-bearing:
- * - Healing potions carry `affects.type: "creature"`, activity type `heal` — NOT `self` and
- *   NOT blank. So the module was never wrong to leave them alone (the 02:41:58 "healed the
- *   chest" sighting is faithful behaviour), the "blank affects must not guess" rule is not in
- *   play, and filling an empty aim is a default INSIDE what the data already allows.
- * - `messageFlags` snapshots targets BEFORE this hook fires (dnd5e 5.3.3 Activity#use), so
- *   setting a canvas target here does NOT reach the card — a three-case control proved it
- *   (target set before use: stamped; set in this hook: empty). The snapshot must be written
- *   directly. `messageConfig` is passed in mutable for exactly this.
- *
- * BOTH sides are written on purpose: the SNAPSHOT is what every downstream machine reads
- * (hold, saves, mastery, shared, cast), and the LIVE TARGET is what the dialog's target block
- * paints — so the table SEES the default before confirming instead of learning where it went
- * from the receipt afterwards (user call, 2026-08-19).
- *
- * The gate is structural and carries NO NAME LIST, keeping faith with the cast slice: `heal`
- * + `creature` + no template separates a drinkable potion from Oil, which is also subtype
- * `potion` but is `save`/`creature` plus `damage`/`space`-with-template because you THROW it.
- * No setting, for the same reason self-aim has none — and the application it feeds is already
- * gated by castApply.
- * ------------------------------------------------------------------------------------------- */
+/* A DRUNK POTION DEFAULTS TO THE DRINKER: with no target, the drinker; a real target always wins
+ * (handing a potion to a downed ally is a real table move). Structural, no name list: `heal` +
+ * `creature` + no template (Oil is thrown: save/damage with a template).
+ * ⚠ `messageFlags` snapshots targets BEFORE this hook, so a canvas target set here never reaches
+ * the card: the snapshot is written directly (downstream reads it), and the live target is set
+ * so the dialog shows the default before confirming. */
 
 /** A consumable whose aim is "one creature, no template" — a potion you drink. */
 function potionDefaultsToDrinker(activity) {
@@ -74,17 +40,14 @@ function potionDefaultsToDrinker(activity) {
 Hooks.on("dnd5e.preUseActivity", (activity, _usageConfig, _dialogConfig, messageConfig) => {
   if ( !potionDefaultsToDrinker(activity) ) return;
 
-  // RULE 2 — a real target always wins. BOTH sides must be empty before filling: the snapshot
-  // decides the outcome, the live set decides what the dialog shows, and acting on a
-  // disagreement between them would target the canvas without changing the roll.
+  // Both the snapshot and the live set must be empty before filling.
   const path = `data.${TARGETS_KEY}`;
   const snapshot = foundry.utils.getProperty(messageConfig ?? {}, path);
   if ( game.user.targets.size || (Array.isArray(snapshot) && snapshot.length) ) return;
 
   const actor = activity.actor;
   if ( !actor ) return;
-  // A token is needed to TARGET, but not to aim: an off-scene drinker still gets the snapshot
-  // so the heal lands, matching how `affects: self` needs no token at all.
+  // No token needed to aim: an off-scene drinker still gets the snapshot.
   const token = actor.getActiveTokens?.()?.[0] ?? null;
   const descriptor = targetDescriptorOf(token, actor);
   if ( !descriptor ) return;
@@ -93,25 +56,13 @@ Hooks.on("dnd5e.preUseActivity", (activity, _usageConfig, _dialogConfig, message
   token?.setTarget(true, { releaseOthers: false });
 });
 
-/**
- * The activity a card was produced by, or null — the platform's own read (dnd5e 6.0
- * `getAssociatedActivity`: `system.activity.uuid` with strict:false, the item's collection by
- * id when the uuid is stale). The guard stays: three byte-identical copies of it stood in this
- * file until the duplicate census collected them (2026-08-23), and a pre-create document may
- * not resolve a speaker yet. EDGE by §2 rule 1 (it resolves a document). One home since
- * 2026-09-22: lookup.js `cardActivity`, which also answers for an item the use deleted.
- */
+/** The activity a card was produced by, or null (lookup.js `cardActivity`). */
 const activityOf = doc => cardActivity(doc);
 
 /**
- * Phase 3's structural gate — no name list, a shape (DESIGN.md R4 done right): a used
- * activity with NO outcome gate. `utility` carrying effects applies them at cast (Bless,
- * Hunter's Mark's Mark Creature AND Move Mark, Heroism); `heal` applies its self-rolled
- * healing (the roll message is stamped separately — see the preCreate hook). Attack
- * activities are 1.9A's (gated on the hit); save activities are Phase 2's (their cards are
- * load-bearing); bare `damage` activities are deliberately OUT — Magic Missile is the
- * negate hold's seam, and an auto-apply here would beat every pending hold's verdict
- * (HANDOFF standing item 2).
+ * The cast gate, structural (DESIGN.md R4): a used `utility` activity carrying effects, or a
+ * `heal`. Attacks are gated on the hit and saves on their cards; bare `damage` is OUT — an
+ * auto-apply here would beat a pending negate hold's verdict.
  */
 function castApplyQualifies(doc) {
   if ( !setting(S.castApply) ) return false;
@@ -119,26 +70,17 @@ function castApplyQualifies(doc) {
   if ( (activityType !== "utility") && (activityType !== "heal") ) return false;
   const activity = activityOf(doc);
   const affects = activity?.target?.affects?.type ?? null;
-  // BLANK affects stays out — hand-authored shapes carry no aim data and the cast slice
-  // must not guess (unchanged from v1.5.1).
+  // BLANK affects stays out: no aim data, and the cast must not guess.
   if ( !affects ) return false;
   const payloadWorthy = (activityType === "heal") || !!doc.system?.effects?.length;
   if ( affects !== "self" ) {
     return payloadWorthy && !!targetsOf(doc).length;
   }
-  // A SELF-tagged activity SELF-AIMS (v1.11.0, user call: "anything that is tagged SELF
-  // should self aim") — the caster is the target, any UI snapshot is incidental (Second
-  // Wind healed the targeted dummy, 2026-08-17), and no UI target is required at all.
-  // Supersedes the v1.5.1 "self-buffs stay tray clicks" stance; DESIGN.md R4 amended.
-  // ⚠ The one carve-out is v1.5.1's ORIGINAL catch, narrowed 2026-09-06: a LISTED reaction
-  // with "Apply the Reaction's Own Effect" on is applied by the hold machinery when cast IN
-  // ANSWER to a hold (Shield's +5 — the +10-two-chips bug, 2026-08-16), so the cast slice keeps
-  // its hands off exactly then. Cast FREESTANDING — no pending hold names the caster — a listed
-  // reaction self-aims like any other SELF ability (user, 2026-09-06: Shield "should be castable
-  // freecasting just as a matter of conformance with other abilities like Adrenaline Rush").
-  // The hold's message exists BEFORE the answering cast's card, so preCreate sees it; and the
-  // hold's own applier (hold/answer.js) only runs when a hold is pending — the two paths can
-  // never both land on one cast.
+  // A SELF-tagged activity self-aims: the caster is the target, any UI snapshot is incidental.
+  // ⚠ Except a LISTED reaction cast in answer to a PENDING hold: the hold applies its effect
+  // (hold/answer.js), so the cast keeps its hands off. Freestanding, it self-aims
+  // (RULINGS *A listed reaction cast freestanding*). The hold's message exists before the
+  // answering card, so preCreate sees it; the two paths never both land.
   if ( setting(S.reactionHold) && setting(S.holdApplyEffect) ) {
     const itemName = (activity?.item?.name ?? "").toLowerCase();
     if ( interruptEntries().some(e => e.name.toLowerCase() === itemName)
@@ -148,10 +90,8 @@ function castApplyQualifies(doc) {
 }
 
 /**
- * Is a hold WAITING on this actor's reaction? The hold flag's shape is the hold machine's
- * (hold/answer.js answerHoldsFor reads the same three fields); the WHOLE log is scanned, never
- * a tail window — the same rule that file records. A pending hold means the cast that follows
- * is an ANSWER, and the hold applies its effect; none means it is a freestanding self-cast.
+ * Is a hold WAITING on this actor's reaction (the flag shape hold/answer.js reads)? The WHOLE log
+ * is scanned, never a tail window.
  */
 function holdPendingFor(actorUuid) {
   if ( !actorUuid ) return false;
@@ -163,10 +103,8 @@ function holdPendingFor(actorUuid) {
 }
 
 /**
- * A listed cast's CHOICE between alternative effects (EFFECT_CHOICES — Fire Shield's warm or
- * chill shield), stamped pending on the card; the caster answers on the card (cast.js) and the
- * elect applies only the pick. Null where the item is unlisted or the activity carries fewer
- * than two of the row's names.
+ * A listed cast's CHOICE between alternative effects (EFFECT_CHOICES — Fire Shield's warm or chill),
+ * stamped pending on the card for the caster to answer. Null when unlisted or fewer than two match.
  */
 const EFFECT_CHOICE_INDEX = tableIndex(EFFECT_CHOICES);
 function castChoice(activity) {
@@ -175,8 +113,8 @@ function castChoice(activity) {
   const key = EFFECT_CHOICE_INDEX.keyNamed(name);
   const row = key ? EFFECT_CHOICES[key] : null;
   if ( !row ) return null;
-  // ⚠ SYNC — this runs at preCreate. 6.0's profiles resolve their effects asynchronously; the
-  // names are read off the item's own embedded effects by the profile's id (lookup.js).
+  // ⚠ SYNC at preCreate: profiles resolve effects asynchronously, so names come off the item's
+  // embedded effects by the profile's id (lookup.js).
   const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(p => profileEffectSync(p, activity?.item)?.name));
   return options ? { key, options, ask: row.ask, rule: row.rule, chosen: null } : null;
 }
@@ -191,23 +129,17 @@ function castPayload(doc) {
     concentration: doc.system?.concentration ?? null,
     scaling: doc.system?.scaling ?? 0,
     spellLevel: castLevelOn(doc),
-    // A SELF-tagged activity aims at its own actor — the snapshot is incidental (v1.11.0).
+    // A SELF-tagged activity aims at its own actor.
     targets: self ? [{ uuid: self.uuid, name: self.name }]
       : targetsOf(doc).map(t => ({ uuid: t.uuid, name: t.name })),
-    // The caster's pick between alternative effects, pending until answered (2026-09-05).
     ...(choice ? { choice } : {})
   };
 }
 
 Hooks.on("preCreateChatMessage", doc => {
-  // Cast auto-apply (Phase 3, cast slice): a healing roll aimed at targets is claimed at
-  // creation, on the initiating client. The STAMP, never the setting, is what the elect
-  // keys on later — an unstamped message can never be applied, so a render of last week's
-  // log is inert by construction, and a mid-session kill still resolves what was stamped.
-  // A SELF-tagged heal aims at its own actor and needs no UI target at all (v1.11.0,
-  // finding ① — Second Wind healed the targeted dummy because this stamp read the
-  // incidental snapshot; the self-aim gate existed on the castApply path since v1.5.1
-  // and the heal-roll path had missed it).
+  // Cast auto-apply: a healing roll aimed at targets is claimed at creation, on the initiating
+  // client. The STAMP, never the setting, is what the elect keys on, so an old log is inert and a
+  // mid-session kill still resolves. A SELF-tagged heal aims at its own actor, no UI target.
   if ( setting(S.castApply) && isCard(doc, CARD.healing) ) {
     const activity = activityOf(doc);
     if ( (activity?.target?.affects?.type === "self") && activity?.actor ) {
@@ -218,15 +150,10 @@ Hooks.on("preCreateChatMessage", doc => {
     }
   }
 
-  // The no-attack damage applier's birth stamp (v1.6.0, user call: "it should auto
-  // apply; the shield stuff is its own mechanic"): a damage-ACTIVITY roll aimed at
-  // targets is claimed at creation — same discipline as healPending, so history stays
-  // inert. A BLOCKLISTED spell's roll additionally carries the hold's pending claim,
-  // which makes the auto-applier defer until the hold question settles: the caster
-  // clears it if no hold stamps, the hold's resolution releases it otherwise. The claim
-  // is stamped from birth precisely so the applier can never lose a race to the hold.
-  // NOT gated on autoApply: the stamp is also what the veto's fallback keys on, whether
-  // or not anything auto-applies.
+  // The no-attack damage applier's birth stamp: a damage-activity roll aimed at targets. A
+  // BLOCKLISTED spell's roll also carries the hold's pending claim, from birth, so the applier
+  // defers and can never win a race against the hold. Not gated on autoApply: the veto's
+  // fallback keys on the stamp too.
   if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage") && targetsOf(doc).length ) {
     const claim = { spellDamage: true };
     if ( setting(S.reactionHold) ) {
@@ -237,38 +164,21 @@ Hooks.on("preCreateChatMessage", doc => {
     doc.updateSource({ flags: { [MODULE_ID]: claim } });
   }
 
-  // The usage card is a message SUBTYPE (`type: "usage"`). Since dnd5e 6.0 every card is typed
-  // and the legacy `flags.dnd5e.messageType` this once also accepted is gone (decide/card.js).
+  // The usage card is a message SUBTYPE (`type: "usage"`, decide/card.js).
   if ( !isCard(doc, CARD.usage) ) return;
 
-  // Phase 3 (cast slice): a no-gate cast the applier will handle — the native card is the
-  // bus, stamped with the payload the elect executes from. Cards are never suppressed
-  // (v1.10.0); a bare heal needs no stamp here because its roll message carries healPending.
+  // A no-gate cast the applier will handle: the usage card is stamped with the elect's payload
+  // (a bare heal needs none — its roll message carries healPending).
   if ( castApplyQualifies(doc) && doc.system?.effects?.length ) {
     doc.updateSource({ flags: { [MODULE_ID]: { castApply: castPayload(doc) } } });
   }
 });
 
-// Hide the cards' action buttons — the module RUNS those workflows (attacks auto-roll,
-// saves pop up on their owners, damage applies by verdict), so the buttons are a second,
-// manual path that forks the machine: a save button that rolls for whatever token is
-// SELECTED (the live topple trap), a damage button that double-rolls. Exactly ONE
-// survives: Refund Resource — bookkeeping, not workflow (the v1.9.5 spec, restored at
-// v1.12.0 by the user's third ask; the v1.10.0/v1.11.0 Place Measured Template exemption
-// and its conditional template-standing machinery are deleted outright). Post-cast
-// placement lives in the cast-time usage prompt and the canvas template controls, and the
-// save machine's WAITING demand (saves.js, v1.12.0) adopts an area whenever it lands —
-// the containment-starvation rationale is gone.
-//
-// Since dnd5e 6.0 the buttons are DATA — `system.buttons[]` on the usage message, each drawn
-// through its `visibility` and the activity's own `shouldHideChatButton` (the 6.0 pass, phase
-// 4, NOTES §2 *the 6.0 pass* §2.M). So the hide is a filter on that data at the card's birth
-// (`dnd5e.preCreateUsageMessage`), not a sweep of a DOM the platform re-renders at will: a
-// button that is not in the data is on no client's card, and a re-render cannot draw it back.
-// The handlers underneath survive (`Activity#onChatAction`), so anything that still reaches
-// them folds normally; Refund Resource keeps the platform's own rule (shown once something
-// was consumed). ⚠ The setting is read on the CREATING client — it is world-scoped, so every
-// client reads the same answer.
+// Hide the cards' action buttons: the module RUNS those workflows, so the buttons are a second,
+// manual path that forks the machine (a save button rolls for whatever token is selected).
+// Only Refund Resource survives — bookkeeping, not workflow. The buttons are DATA
+// (`system.buttons[]`), filtered at the card's birth, so no re-render can draw one back; the
+// handlers underneath survive (NOTES §2).
 const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
 Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
@@ -279,26 +189,11 @@ Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * The target block (FLOW item 2) — the dialog says who it is aimed at, before the dice
- *
- * The mistake this catches, priced live 2026-08-18 at 02:11:15: "I'm trying to target Oscar"
- * — Goldthorn hit MORGASH for 8, reverted by hand. The player had a stale target and no
- * surface told them so until the damage landed.
- *
- * DISPLAY-ONLY, DELIBERATELY. An earlier design put a checkbox on each row to untarget from
- * the dialog; it was scoped out (user call, 2026-08-19) because every downstream machine here
- * reads the message SNAPSHOT — `system.targets` (decide/card.js) in hold, saves, mastery, shared and cast —
- * while only the requireTarget veto and hit-riders read `game.user.targets` live. Until it is
- * MEASURED that dnd5e stamps that flag after the dialog resolves, a checkbox would change the
- * canvas and not the roll: a control that looks authoritative and lies. Because this stays
- * display-only and stateless it is the same class as hideCardButtons and carries NO setting.
- * Closing the dialog is still the cancel, so the veto survives — it just isn't a forced ack.
- *
- * The icon is NEUTRAL INFORMATION ON EVERY ROW, never a judgement on any row (user call,
- * 2026-08-19: "don't use ! because it's like a flag, and some spells are meant to cast on
- * allies"). Bless, Bane and every heal legitimately aim at allies; an alarm on all of those
- * trains the table to ignore it. The reader does the catching — a skull on the person you
- * meant to heal is the whole mechanism.
+ * The target block: the roll and usage dialogs say who they are aimed at, before the dice (a
+ * stale target otherwise shows only when the damage lands).
+ * DISPLAY-ONLY: every downstream machine reads the message SNAPSHOT, so an untarget checkbox
+ * would change the canvas and not the roll. The disposition is neutral information on every row,
+ * never an alarm — Bless and heals legitimately aim at allies.
  * ------------------------------------------------------------------------------------------- */
 
 const TARGET_BLOCK_CLASS = "battleflow-target-block";
@@ -318,9 +213,7 @@ function buildTargetBlock() {
 
   const targets = Array.from(game.user.targets);
 
-  // The ZERO case is not an edge case — it is the point. requireTarget only guards `attack`
-  // activities (the veto at the top of this file), so a spell or an item reaches this dialog
-  // with nothing targeted and nothing else says so.
+  // The ZERO case is the point: requireTarget guards only attacks, so a spell arrives untargeted.
   const heading = document.createElement("div");
   heading.textContent = targets.length ? `Targeted — ${targets.length}` : "No targets";
   Object.assign(heading.style, {
@@ -336,23 +229,17 @@ function buildTargetBlock() {
       display: "flex", alignItems: "center", gap: "0.5rem", margin: "2px 0"
     });
 
-    // THE TOKEN'S OWN ART, framed exactly like the receipt card's damage rows (user call,
-    // 2026-08-19: "put the actor tokens in… like they are included on the cards for hp
-    // changes"). The token texture beats the actor portrait here because the question this
-    // block answers is "is that the thing I clicked on the canvas?" — so it should show what
-    // is ON the canvas. Falls back to the actor portrait, then to the disposition glyph, so a
-    // token with no art still renders a row rather than a hole.
+    // The token's own art (what is ON the canvas), then the actor portrait, then the glyph.
     const art = token.document?.texture?.src || token.actor?.img || null;
     let portrait;
     if ( art ) {
       portrait = document.createElement("img");
       portrait.src = art;
       portrait.alt = label;
-      portrait.className = "gold-icon"; // the receipts' native framing, same as the HP rows
+      portrait.className = "gold-icon"; // the receipts' native framing
       Object.assign(portrait.style, {
         flex: "0 0 auto", width: "32px", height: "32px", objectFit: "cover", borderRadius: "4px",
-        // Disposition rides the FRAME rather than a separate glyph — the border is the same
-        // colour the canvas draws around that token, so the two cannot disagree.
+        // Disposition rides the frame, the colour the canvas draws around that token.
         border: `2px solid ${color}`
       });
     } else {
@@ -369,9 +256,7 @@ function buildTargetBlock() {
       whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis"
     });
 
-    // ⚠ The WORD stays, and is not decoration. With the glyph gone, colour would otherwise be
-    // the only thing separating ally from enemy — unreadable for a colour-blind player and in
-    // any screenshot. Frame colour, alt text and this word are three independent carriers.
+    // ⚠ The WORD stays: frame colour, alt text and word are three carriers (colour-blind readers).
     const word = document.createElement("span");
     word.textContent = label;
     Object.assign(word.style, { flex: "0 0 auto", opacity: "0.7", fontSize: "0.9em", color });
@@ -384,11 +269,8 @@ function buildTargetBlock() {
 
 /**
  * Idempotent repaint: the old block is removed, never appended beside.
- * ⚠ Deliberately does NOT gate on `element.isConnected`. The render hook fires while the
- * dialog's element is still DETACHED — it is inserted into the document afterwards — so an
- * isConnected guard here rejects every genuine open and the block only ever appeared on a
- * forced re-render (measured 2026-08-19, probe-target-block.mjs). Appending to a detached
- * element is fine: the block travels with it when the app inserts it.
+ * ⚠ Do NOT gate on `element.isConnected`: the render hook fires while the element is still
+ * DETACHED, so that guard would reject every genuine open.
  */
 function paintTargetBlock(element) {
   if ( !element ) return;
@@ -396,36 +278,22 @@ function paintTargetBlock(element) {
   element.append(buildTargetBlock());
 }
 
-// ⚠ THE OPPOSITE RE-RENDER DISCIPLINE FROM THE CENTERING DIRECTLY BELOW — deliberately, and
-// do not "harmonize" them. Centering is FIRST RENDER ONLY because re-centering would fight the
-// user dragging the window. This repaints on EVERY render: re-renders fire on every option
-// change (advantage, attack mode, roll mode), and a stale target list is worse than no list.
-// Rebuilding from live state each pass costs nothing and cannot drift.
-//
-// It is also registered BEFORE the centering hook on purpose: hooks run in registration order,
-// so the block exists by the time centering measures offsetHeight. Move it after and every
-// dialog centres as though it were shorter than it is.
+// ⚠ Repaints on EVERY render (option changes re-render; a stale list is worse than none), unlike
+// centering, which is first-render only. Registered BEFORE the centering hook on purpose: hooks run
+// in registration order, so the block exists when centering measures offsetHeight.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   paintTargetBlock(element);
   openTargetBlocks.add(app);
 });
 
-// The SPELL/ITEM half (user: "it showed for attacks, spells, items, etc"). The usage dialog —
-// where a spell's slot level is chosen — is a different application class from the roll
-// dialog: `ActivityUsageDialog` (probed 2026-08-19; Enchant/Summon/Transform/Order subclass
-// it, and ApplicationV2 fires render hooks for every class in the inheritance chain, so the
-// base name covers all of them). Same paint, same discipline, same block.
-// VERIFIED rendering a real ActivityUsageDialog with the block present (2026-08-19).
+// The usage dialog (spells, items): `ActivityUsageDialog`; its subclasses fire the base's render hook.
 Hooks.on("renderActivityUsageDialog", (app, element) => {
   paintTargetBlock(element);
   openTargetBlocks.add(app);
 });
 
-// The canvas can re-target while the dialog stands, and that fires no dialog re-render at all.
-// A list that quietly ignores the canvas is the same class of lie as the rejected checkbox.
-// ⚠ The set holds the APP, not the element: an element is detached at hook time and is
-// REPLACED on re-render, so a set of elements both drops live dialogs and leaks dead ones.
-// The app answers "am I still up?" honestly through its own lifecycle.
+// A canvas re-target fires no dialog re-render. ⚠ The set holds the APP, not the element: the
+// element is replaced on re-render.
 Hooks.on("targetToken", () => {
   for ( const app of openTargetBlocks ) {
     if ( app.rendered && app.element ) paintTargetBlock(app.element);
@@ -433,9 +301,8 @@ Hooks.on("targetToken", () => {
   }
 });
 
-// Center the system's roll-configuration dialogs (dnd5e docks them lower-right:
-// left = innerWidth - 710, top = clientY - 80). First render only — re-renders fire on every
-// option change in the dialog, and re-centering those would fight the user dragging it.
+// Center the system's roll dialogs (dnd5e docks them lower-right). First render only, so it never
+// fights a player dragging the window.
 Hooks.on("renderRollConfigurationDialog", (app, element) => {
   if ( !setting(S.centerRollDialogs) || app._bfCentered ) return;
   app._bfCentered = true;

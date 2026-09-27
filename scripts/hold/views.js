@@ -1,11 +1,8 @@
 /**
- * Battle Flow — the reaction hold, part 8: THE VIEWS. The durable row on the attack card (with
- * the reload resumes: the buzzer re-armed, a ready hold re-driven, the popup re-shown) and the
- * popup — the ability rendered as itself, the math only when the reveal is on. Moved into the
- * hold from ui.js by D6 (2026-08-23): a view of the hold flag belongs with the machine that
- * owns the flag, and the spine knows nothing of this feature. The damage-offer bar is NOT the
- * hold's and stays in ui.js, registered first (this part imports ui.js, so ui.js's body — and
- * its registration — evaluate first; check-hook-order asserts `ui.js` before `hold/views.js`).
+ * Battle Flow — the reaction hold: THE VIEWS. The durable row on the attack card (with the reload
+ * resumes: buzzer re-armed, a ready hold re-driven, the popup re-shown) and the popups — the
+ * ability rendered as itself, the math only when the reveal is on. ⚠ ui.js's damage-offer bar
+ * registers first because this file imports ui.js (check-hook-order asserts it).
  */
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
@@ -21,12 +18,8 @@ import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 
 /**
- * The math a hold is allowed to show, or null when the reveal is off (the RAW default: you know
- * you were hit, not by how much).
- *
- * ⚠ ONE gate for BOTH surfaces. The popup used to reveal the numbers while the card row said
- * only "Shield?", so the same hold told two different stories depending on where you read it.
- * Any new surface reads this too — do not re-derive the numbers locally.
+ * The math a hold may show, or null when the reveal is off (RAW: you know you were hit, not by how
+ * much). ⚠ ONE gate for every surface, so card and popup tell the same story — never re-derive.
  */
 function revealDetail(target, roll, actor) {
   if ( !setting(S.holdReveal) ) return null;
@@ -48,10 +41,7 @@ function revealLine(reveal, target) {
   return text;
 }
 
-// The hold's durable row on the attack card. ⚠ Registration order is on-card order, and this
-// registration used to live in ui.js: the pinned assertion moved with it (check-hook-order.mjs
-// now reads hold.js before mastery.js). ui.js's damage-offer bar still registers first because
-// this file imports ui.js, which is the same relative order they had inside one handler.
+// The hold's durable row on the attack card. ⚠ Registration order is on-card order (check-hook-order).
 Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
@@ -65,14 +55,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
     block.style.marginTop = "0.25rem";
     row.append(block);
 
-    // The card is the PUBLIC record of this moment — everyone watching the log sees the same
-    // thing, whether or not they are the one being asked.
+    // The card is the PUBLIC record of this moment: everyone sees the same thing.
     void fromUuid(target.uuid).then(actor => {
       const roll = message.rolls[0];
-      // A spell hold has no d20 anywhere on its message, so there is no math to reveal — asking
-      // revealDetail anyway prints "null vs AC 15" and invents a verdict about an attack that
-      // was never rolled. The reveal SETTING is untouched by this: a negate hold discloses
-      // nothing a target could metagame on, because the answer never depends on a number.
+      // A spell hold has no d20, so there is no math to reveal (it would print "null vs AC 15"),
+      // and the answer never depends on a number.
       const spell = hold.trigger === "spell";
       const reveal = spell ? null : revealDetail(target, roll, actor);
       const lines = [];
@@ -94,15 +81,12 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         const cast = target.answer === "cast";
         const negated = target.verdict === "negated";
         tone = (target.verdict === "miss") || negated ? "good" : cast ? "bad" : "neutral";
-        // "skip" is retired (v1.1.15) but still labelled, because holds answered that way are
-        // already sitting in the chat log and a re-render must not relabel history.
+        // "skip" is still labelled: holds answered that way sit in old logs.
         eyebrow = negated ? "Reaction — it worked"
           : cast ? "Reaction — cast"
           : target.answer === "skip" ? "Reaction — skipped"
           : target.timedOut ? "Reaction — timed out" : "Reaction — passed";
-        // Resolved cards carry the numbers the verdict was reached with, so a surprising
-        // outcome can be read straight off the card instead of reconstructed. A spell hold has
-        // no acAtVerdict, so this skips itself.
+        // A resolved card carries the numbers its verdict was reached with (a spell hold has none).
         if ( cast && (target.acAtVerdict != null) ) {
           const moved = target.acAtVerdict !== target.ac;
           lines.push(`AC <strong>${target.ac}</strong>${moved ? ` → <strong>${target.acAtVerdict}</strong>` : ""}`
@@ -117,14 +101,11 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
           ? "The reaction window closed — no answer, so the attack lands."
           : "Let it land — no reaction.");
       }
-      // THE ATTACKER'S VIEW OF A BENT ROLL (Slice A, prototype scene 2d, ruled 2026-09-24): the
-      // eyebrow names the source, the first line who bent the roll and what it did — "Lucky bent the
-      // roll — Disadvantage, 17 → 13, MISS" — and the struck d20 sits under it for anyone checking.
-      // A resolved view, so it draws itself and returns: nothing below (the maneuver words, the
-      // controls, the resumes) belongs to a hold that is done.
+      // The attacker's view of a BENT roll: who bent it and what it did, the struck d20 under it.
+      // A resolved view, so it draws itself and returns.
       if ( (target.answer === "roll") && target.bent && target.verdict && (hold.status !== "pending") ) {
         const rescue = target.rescue ?? target.reaction;
-        // A guard's (Protection, 2026-09-26): the card says whose — "Protection (Rowan) bent the roll".
+        // A guard's bend names whose: "Protection (Rowan) bent the roll".
         const by = target.guardedBy ?? null;
         const label = by ? `${rescue} (${by.name})` : rescue;
         const { headline, detail } = bentLines({ rescue: label, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
@@ -137,12 +118,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
         return;
       }
 
-      // A MANEUVER reaction (Parry — INTERRUPT_REDUCTIONS) wears the maneuver family's language
-      // (user, 2026-09-05: "the same UI language and design as Riposte and other maneuvers"):
-      // `Maneuver — Name`, `Name — what happened`, who and the cost. The hold's own words stay
-      // for spells and features.
-      // A reduction row that is not a maneuver (Stone's Endurance, Slice A 2026-09-24) wears the
-      // same shape in its own voice — the row's eyebrow, trigger and spend, stamped on the flag.
+      // A MANEUVER reaction (Parry — INTERRUPT_REDUCTIONS) wears the maneuver family's language;
+      // a non-maneuver reduction row (Stone's Endurance) the same shape in its own voice.
       const maneuver = !!target.reduce;
       let title = target.reaction;
       if ( maneuver ) {
@@ -169,21 +146,15 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       scheduleBarSync(block);
 
       if ( hold.status !== "pending" ) return;
-      // A reload lands here with the hold still open — re-arm the buzzer from the flag's
-      // deadline rather than restarting the window.
+      // A reload lands here with the hold open: re-arm the buzzer from the flag's deadline.
       armHoldTimer(message);
-      // This target's decision is made; controls belong only to the still-undecided — the target
-      // itself while it is asked, or a guard beside it (Protection) who has not answered.
+      // Controls only for the still-undecided: the target while asked, or an unanswered guard.
       const selfOpen = (target.selfAsk !== false) && !target.selfPassed && canAnswerFor(actor);
       const guardOpen = (target.guards ?? []).some(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)));
       if ( target.answer || (!selfOpen && !guardOpen) ) return;
 
-      // ⚠ ONE input surface. When this client gets popups, the popup decides and the card only
-      // watches — it offers a way to call the popup BACK (a dismissed popup must never strand
-      // the decision) but never a second set of answer controls. With popups off the card is
-      // the only surface there is, so it carries the real buttons.
-      // The popup decides, the card recalls it — the card-only mode (the old holdView
-      // opt-out) left with the settings collapse (2026-08-16): one input surface, always.
+      // ⚠ ONE input surface: the popup decides, and the card only offers to call it BACK (a
+      // dismissed popup must never strand the decision) — never a second set of answer controls.
       const controls = document.createElement("div");
       Object.assign(controls.style, {
         display: "flex", gap: "0.3rem", marginTop: "0.4rem", justifyContent: "flex-end"
@@ -197,17 +168,13 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   }
   html.querySelector(SURFACES.messageContent)?.appendChild(row);
 
-  // Resume a hold that is READY but has nobody driving it: every answer landed, then the
-  // continuing client reloaded before writing the verdict (the settle window makes that gap
-  // up to holdSettle seconds wide). The buzzer only passes UNANSWERED targets, so without
-  // this a fully-answered hold sat pending forever. Views are stateless and re-derive from
-  // the flag, so the view is exactly where readiness gets re-checked; the in-flight claim
-  // makes the drive idempotent across re-renders.
+  // Resume a hold that is READY with nobody driving it (every answer landed, then the continuing
+  // client reloaded before the verdict): the buzzer only passes UNANSWERED targets, so without this
+  // it sits pending forever. The in-flight claim makes the drive idempotent across re-renders.
   if ( (hold.status === "pending") && hold.targets.every(t => t.answer)
     && isContinuingClient(hold) ) void continueHold(message);
 
-  // The popup: attention for the person whose decision it is. Ephemeral by design — closing
-  // it is not an answer, because the row above is the durable state.
+  // The popup is ephemeral: closing it is not an answer, the row above is the durable state.
   const shownKey = popupKey(message.id, "hold");
   if ( (hold.status === "pending") && !shownMoments.has(shownKey) ) {
     shownMoments.add(shownKey);
@@ -220,7 +187,7 @@ function maneuverPopupContent(attackMessage, target, actor, hold) {
   const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
   const row = key ? INTERRUPT_REDUCTIONS[key] : null;
   const attackerName = attackMessage.getAssociatedActor?.()?.name ?? "The attacker";
-  // The pool as it stands, before the spend — the same words the card will use after it.
+  // The pool as it stands before the spend, in the words the card uses after it.
   const item = actor?.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
   const activity = item?.system?.activities?.get(target.reduce?.activityId) ?? null;
   const pool = activity ? poolOf(actor, activity) : null;
@@ -235,13 +202,11 @@ function maneuverPopupContent(attackMessage, target, actor, hold) {
 }
 
 /**
- * The reaction rendered as its own card: portrait, name, who is reacting, the ability's real
- * text, and — only if the reveal is on — the math. This is the moment the whole feature exists
- * to protect, so it should read like the ability rather than like a confirm box.
+ * The reaction rendered as its own card: portrait, name, who reacts, the ability's real text, and
+ * the math only if the reveal is on — it should read like the ability, not a confirm box.
  */
 async function holdPopupContent(target, roll, actor, hold) {
-  // ⚠ The reaction's real item. Matched by bare name this showed a worn shield's artwork above
-  // a worn shield's description in the popup that is supposed to be the moment of the spell.
+  // ⚠ The reaction's real item, not a bare-name match (a worn shield shares the spell's name).
   const item = reactionItem(actor, target.reaction, target);
   const img = item?.img ?? "icons/svg/shield.svg";
   const subtitle = [target.name, item?.system?.activation?.type === "reaction" ? "Reaction" : null]
@@ -257,8 +222,7 @@ async function holdPopupContent(target, roll, actor, hold) {
     description = item?.system?.description?.value ?? "";
   }
 
-  // No d20 on a spell hold, so no math to show and nothing conditional to weigh: the question
-  // is simply whether to spend the reaction, and the outcome of taking it is total.
+  // A spell hold: no math, and taking the reaction's outcome is total.
   const spell = hold?.trigger === "spell";
   const reveal = spell ? null : revealDetail(target, roll, actor);
   const situation = spell
@@ -296,24 +260,16 @@ async function holdPopupContent(target, roll, actor, hold) {
 }
 
 /**
- * Show the hold popup and keep it honest about its own lifetime.
- *
- * ⚠ A popup is a VIEW, and a view must not outlive its state. This used to be a blocking
- * DialogV2.wait() with no handle, so answering anywhere else — the card row, a cast straight
- * from the sheet, a GM Skip — left it on screen still asking a question that had been answered
- * (reported live 2026-08-15). Now the instance is held so the hold's own update can close it,
- * and closing for ANY reason releases the decision back to the card row.
+ * Show the hold popup. ⚠ A popup is a VIEW and must not outlive its state: the instance is held so
+ * the hold's own update closes it, and closing for any reason releases the decision to the card.
  */
 async function showHoldPopup(attackMessage, hold) {
   const roll = attackMessage.rolls[0];
   for ( const target of hold.targets ) {
-    // An answered target's decision is made — reopening its popup (the card's Answer button
-    // recalls popups for the whole message) re-asked a question and produced a second
-    // "passes" card through the response channel.
+    // An answered target's decision is made; reopening would produce a second "passes" card.
     if ( target.answer ) continue;
     const actor = await fromUuid(target.uuid);
-    // THE GUARDS (Protection, 2026-09-26, ruled P1): each guard's owner is asked in a popup of its
-    // own, beside whatever the target itself is asked.
+    // Each unanswered guard's owner (Protection) is asked in a popup of its own.
     for ( const guard of (target.guards ?? []) ) {
       if ( guard.passed ) continue;
       const guardActor = resolveUuid(guard.uuid);
@@ -323,27 +279,13 @@ async function showHoldPopup(attackMessage, hold) {
     if ( (target.selfAsk === false) || target.selfPassed ) continue;
     if ( !canAnswerFor(actor) ) continue;
 
-    // canAnswerFor ALONE ROUTES — the rule every other popup follows (the user, 2026-09-27, the PHB
-    // feats walk: "shield was one of the first things we ever did, make it conform with general
-    // behavior"). The owning player's client gets the popup while that player is connected; with no
-    // owner connected the GM does. The hold kept an older GM quiet (2026-08-19, "as a DM, I shouldn't
-    // see Gren's shield popup") after saves, topple and the folds dropped theirs in v1.19.x (finding
-    // (h): the quiet was mutually exclusive with canAnswerFor's own active-owner check, so an offline
-    // player's reaction popped for NOBODY and the clock passed it). An ONLINE owner still keeps the
-    // GM out, inside canAnswerFor — the 2026-08-19 taste where it was made.
+    // canAnswerFor ALONE routes, as every popup does: the owning player while connected, else the GM.
 
-    // THE POPUP THAT RESCUES A HIT (Slice A, ruled 2026-09-24): a defender holding a `roll` row
-    // is asked in the row shape — every way to rescue the hit a ticked row, one answer.
+    // A defender holding a `roll` row is asked in the rescue shape: one ticked row, one answer.
     if ( target.rows?.length ) { await showRescuePopup(attackMessage, target, actor, hold, roll); continue; }
 
-    // ⚠ THE SAME TWO BUTTONS FOR EVERYONE. The question is binary — take the reaction or don't
-    // — and it is the same question whoever is answering it. A GM-only third button ("Skip")
-    // stood here until v1.1.15 and made the GM's popup a different shape from the player's for
-    // no behavioural difference at all: it ran the same code as Pass, and the whole chain only
-    // ever asks `answer === "cast"`. See the card controls for why it went.
-    // A maneuver reaction (Parry) asks in the maneuver family's shape — Riposte's popup: the
-    // art, `Maneuver — Name`, what happened, the cost, the rule; the answer button is the
-    // maneuver's own name (user, 2026-09-05).
+    // ⚠ The same two buttons for everyone: the question is binary whoever answers it. A maneuver
+    // reaction (Parry) asks in Riposte's shape, its answer button the maneuver's name.
     const maneuver = !!target.reduce;
     await openMomentPopup(attackMessage, target.uuid, actor, {
       title: maneuver ? `${target.reaction} — ${actor?.name ?? ""}` : target.reaction,
@@ -360,11 +302,9 @@ async function showHoldPopup(attackMessage, hold) {
 }
 
 /**
- * A GUARD's popup (Protection, the fighting styles 2026-09-26, ruled R1 and P1 off
- * prototypes/fighting-styles.html): asked of the creature beside the one being hit, after the roll
- * shows the hit — one tick row, "Protection · Disadvantage · a Reaction", the rule folded; Answer
- * bends the roll (the second d20, the lower standing), Pass lets the others be asked. Keyed apart
- * from the target's own popup, so each closes on its own answer.
+ * A GUARD's popup (Protection): asked of the creature beside the one hit, after the roll shows the
+ * hit. One tick row; Answer bends the roll, Pass lets the others be asked. Keyed apart from the
+ * target's own popup, so each closes on its own answer.
  */
 async function showGuardPopup(attackMessage, target, guard, guardActor, hold, roll) {
   const row = INTERRUPT_ROLLS[guard.row] ?? null;
@@ -394,8 +334,7 @@ async function showGuardPopup(attackMessage, target, guard, guardActor, hold, ro
         callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) }
     ]
   });
-  // The tick stays even on one row (the rescue popup's ruling): ticked to start, Answer live with it
-  // — a row that can do nothing starts unticked, Answer off.
+  // The tick stays even on one row: ticked to start; a row that can do nothing starts unticked, Answer off.
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
   const box = form?.querySelector?.('input[name="bf-guard"]') ?? null;
   const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
@@ -405,13 +344,10 @@ async function showGuardPopup(attackMessage, target, guard, guardActor, hold, ro
 }
 
 /**
- * THE POPUP THAT RESCUES A HIT (Slice A, ruled 2026-09-24 off prototypes/slice-a.html, scenes
- * 2a–2c): the hold popup the table knows from Shield, with more than one row — "Rescue the hit —
- * <defender>" when there are several. Each way to rescue the hit is a row (decide/present.js
- * `tickRowsHTML`); one ticked at a time; Answer uses the ticked one, Pass lets the hit land, and at
- * expiry the buzzer passes. A spent row stays greyed with its reason, re-read live as the popup
- * opens. The situation line states the premise and never an outcome (law 5): Shield might lift
- * the AC past the roll, the second d20 might not turn it — the popup says neither.
+ * THE POPUP THAT RESCUES A HIT (RULINGS *Rescuing the hit — the `roll` interrupt*): one tick row
+ * per way to rescue it, one ticked at a time; Answer uses it, Pass lets the hit land, the buzzer
+ * passes at expiry. A spent row stays greyed with its reason. The situation line states the
+ * premise, never an outcome.
  */
 async function showRescuePopup(attackMessage, target, actor, hold, roll) {
   const rows = rescueRowsNow(actor, target, roll);
@@ -429,7 +365,7 @@ async function showRescuePopup(attackMessage, target, actor, hold, roll) {
       + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${situation}</div>`
       + tickRowsHTML({ name: "bf-rescue", rows }),
     buttons: [
-      // The window goes at the click (Empowered's lesson): the answer is fired, not awaited.
+      // The window goes at the click: the answer is fired, not awaited.
       { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
         const pick = button?.form?.querySelector?.('input[name="bf-rescue"]:checked')?.value ?? null;
         const row = rows.find(r => (r.key === pick) && !r.off);
