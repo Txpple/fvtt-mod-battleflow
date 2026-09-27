@@ -1,20 +1,16 @@
 // @ts-check
 /**
- * Battle Flow — DECISION: the clock a chip carries, and what spends it.
- *
- * Pure functions over plain data (ARCHITECTURE.md §2). No Foundry, no imports.
- *
- * The platform keeps the clock (it judges `duration.expiry` against the combatant in `start`), so a
- * chip's window is written once, here; the module owns only which roll SPENDS a chip.
- * ⚠ The window values are measured, not read (NOTES *v14 owns effect expiry*): a window closing at
- * the end of the attacker's own turn is `value: 0`, and a `rounds` window counts from `start.round`.
+ * Battle Flow — DECISION: the clock a chip carries, and what spends it. Pure (ARCHITECTURE.md §2).
+ * The platform keeps the clock (`duration.expiry` against `start`'s combatant); the module owns only
+ * which roll SPENDS a chip. ⚠ Window values are measured (NOTES *v14 owns effect expiry*): the end of
+ * the attacker's own turn is `value: 0`, and a `rounds` window counts from `start.round`.
  */
 
-/** The flag key every Battle Flow chip carries (`flags.<module>.mastery = <key>`). */
+/** `flags.<module>.mastery = <key>` on every chip. */
 export const CHIP_FLAG = "mastery";
 
 /**
- * Does a chip belong to this attacker? Its `origin` is the weapon that applied it.
+ * A chip's `origin` is the weapon that applied it.
  * @param {string|null|undefined} origin
  * @param {string} attackerUuid
  */
@@ -23,14 +19,9 @@ export function chipOwnedBy(origin, attackerUuid) {
 }
 
 /**
- * The RAW window of each chip this module authors, as v14 duration data.
- *
- *   vex     "before the end of your next turn"        → 1 round, judged at the attacker's turnEnd
- *   sap     "before the start of your next turn"      → 1 round, judged at the attacker's turnStart
- *   slow    "until the start of your next turn"       → the same window as sap
- *   cleave, sneak, rider  "once per turn" chits on the attacker: dead with the turn IN PROGRESS
- *           (an opportunity attack's dies with the victim's turn), so `start` is the current
- *           turn's place; out of combat no chit is written (`chipClock` → null)
+ * The RAW window of each chip, as v14 duration data. Vex ends at the attacker's next turn end, Sap
+ * and Slow at its next turn start; the once-per-turn chits die with the turn IN PROGRESS (an
+ * opportunity attack's with the victim's turn).
  */
 export const CHIP_WINDOWS = Object.freeze({
   vex: Object.freeze({ value: 1, units: "rounds", expiry: "turnEnd" }),
@@ -39,28 +30,24 @@ export const CHIP_WINDOWS = Object.freeze({
   cleave: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
   sneak: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
   rider: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  // Steady Aim: ends with the attacker's turn or its next attack roll; out of combat, until spent.
   steadyAim: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" }),
-  // A spent Reaction, back at the reactor's turn start; read by every hold's offer gate.
-  // ⚠ ZERO TURNS, not one round: a Reaction spent on another's turn returns at the reactor's NEXT
-  // turn, which can be less than a round away.
+  // ⚠ ZERO TURNS, not one round: a Reaction spent on another's turn returns at the reactor's NEXT turn.
   reaction: Object.freeze({ value: 0, units: "turns", expiry: "turnStart" }),
-  // Sentinel's Halt: "the rest of the current turn", the MOVER's, not the attacker's (TURN_PINNED).
+  // Sentinel's Halt: the rest of the MOVER's turn (TURN_PINNED).
   halt: Object.freeze({ value: 0, units: "turns", expiry: "turnEnd" })
 });
 
-/** The once-per-turn chits — no turn, no chit (`chipClock` yields null for them out of combat). */
+/** The once-per-turn chits: none out of combat. */
 export const TURN_CHITS = Object.freeze(["cleave", "sneak", "rider", "steadyAim", "reaction", "halt"]);
 
-/** The windows pinned to the CURRENT turn's place (`turnPlace`), not the attacker's. */
+/** Pinned to the CURRENT turn's place, not the attacker's. */
 export const TURN_PINNED = Object.freeze(["halt"]);
 
 /**
- * Does a Reaction chip still STAND (the reactor has not begun a turn since)? Stamp arithmetic,
- * not the platform's GM-written mark, so a no-GM table gets its Reaction back. No clock: stands;
- * no combat: dead.
+ * Has the reactor not begun a turn since? Stamp arithmetic, not the GM-written mark, so a no-GM
+ * table gets its Reaction back. No clock: stands; no combat: dead.
  * @param {{start?: {round?: number|null, turn?: number|null}|null, now: {round: number, turn: number}|null,
- *          actorTurn: number|null}} facts   `actorTurn` = the reactor's index in the turn order (null: not in it)
+ *          actorTurn: number|null}} facts   `actorTurn` = the reactor's turn index (null: not in it)
  */
 export function reactionStands({ start = null, now, actorTurn }) {
   if ( !start || (start.round === null) || (start.round === undefined) || (start.turn === null) || (start.turn === undefined) ) return true;
@@ -72,21 +59,17 @@ export function reactionStands({ start = null, now, actorTurn }) {
   return now.turn < back.turn;
 }
 
-/** The chips a turn boundary can end, keyed by who the window belongs to. */
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
 
 /**
- * The clock for one chip: its duration and, in a running combat, the `start` that pins it to the
- * given place (an opportunity attack is made on somebody else's turn).
+ * One chip's duration and, in combat, the `start` pinning it to `place`: the attacker's place, or
+ * the current turn's for a chit. Null for an unclocked key or a chit out of combat.
  * @param {string} key                      a CHIP_WINDOWS key
  * @param {{combat: string, combatant: string|null, initiative: number|null,
  *          round: number, turn: number, time: number}|null} place
- *        the attacker's place in the RUNNING combat (Vex, Sap, Slow), or the CURRENT turn's
- *        place (the Cleave chit — `mastery.js` `turnPlace`), or null out of combat
  * @returns {{duration: {value: number, units: string, expiry: string},
  *            start?: {combat: string, combatant: string|null, initiative: number|null,
  *                     round: number, turn: number, time: number}}|null}
- *          null for a chip this module does not clock, and for a once-per-turn chit out of combat
  */
 export function chipClock(key, place) {
   const window = CHIP_WINDOWS[/** @type {keyof typeof CHIP_WINDOWS} */ (key)];
@@ -101,10 +84,8 @@ export function chipClock(key, place) {
 
 
 /**
- * Is a chip dead by the platform's reading? Expired, or a clock that never resolved. A chip with
- * no clock is left alone.
- * ⚠ ZERO REMAINING IS ALIVE: a one-round chip reads 0 for the whole round its boundary falls in.
- * Negative is the no-GM fallback (the mark is GM-written); it never kills early.
+ * Expired, or a clock that never resolved; a chip with no clock is left alone.
+ * ⚠ ZERO REMAINING IS ALIVE (a one-round chip reads 0 all its last round); negative is the no-GM fallback.
  * @param {{expired?: boolean, remaining?: number|null, value?: number|null}} duration
  */
 export function chipIsDead({ expired = false, remaining = null, value = null } = {}) {
@@ -117,11 +98,9 @@ export function chipIsDead({ expired = false, remaining = null, value = null } =
 }
 
 /**
- * The once-per-turn chit's identity: the turn it was written in (`combat:round:turn`, core.js
- * `combatStamp`), or null. A chit lives while its stamp equals the running combat's, so it needs
- * no GM (the platform's expiry mark is GM-written; it only tidies the document).
- * @param {{combat?: string|null, round?: number|null, turn?: number|null}|null|undefined} start
- *        the effect's `start`, `combat` already reduced to an id
+ * A chit's identity, `combat:round:turn` (core.js `combatStamp`): it lives while that equals the
+ * running combat's, so it needs no GM.
+ * @param {{combat?: string|null, round?: number|null, turn?: number|null}|null|undefined} start   `combat` as an id
  */
 export function chitStamp(start) {
   if ( !start?.combat || (start.round === null) || (start.round === undefined)
@@ -130,10 +109,8 @@ export function chitStamp(start) {
 }
 
 /**
- * Does this attack roll SPEND this chip? The rules spend it whether or not the roll honoured it.
- *   vex  on the TARGET: spent by the applying attacker's next attack roll against it
- *   sap  on the sapped creature: spent by its own next attack roll, at anyone
- * Everything else is closed by its window alone.
+ * Does this attack roll SPEND this chip, honoured or not? Vex (on the target): the applier's next
+ * attack at it; Sap: the sapped creature's own next attack. The rest close by window alone.
  * @param {string} key
  * @param {{bearer: "attacker"|"target", attackerOwnsChip?: boolean}} roll
  */
@@ -146,7 +123,7 @@ export function chipSpentBy(key, { bearer, attackerOwnsChip = false }) {
 }
 
 /**
- * The roll mode from the system's signed advantage mode (the decision layer cannot read CONFIG).
+ * The roll mode from the signed advantage mode (no CONFIG here).
  * @param {number|null|undefined} advantageMode
  * @returns {"advantage"|"disadvantage"|"normal"}
  */
@@ -158,15 +135,14 @@ export function rollModeOf(advantageMode) {
 }
 
 /**
- * Was the chip's rule HONOURED by the roll that spent it? Vex wants advantage, Sap disadvantage.
- * ⚠ When the gate showed the NET of every source, honour is the press matching the net (Vex and
- * Sap together net to normal).
+ * Did the spending roll honour the chip? Vex wants advantage, Sap disadvantage. ⚠ When the gate
+ * showed a NET, honour is matching the net (Vex and Sap together net to normal).
  * @param {string} key
  * @param {"advantage"|"disadvantage"|"normal"} mode
- * @param {"advantage"|"disadvantage"|"normal"|null} [net]  the gate's net, only when it showed this kind (`netShownFor`)
+ * @param {"advantage"|"disadvantage"|"normal"|null} [net]  from `netShownFor`
  */
 export function chipHonoured(key, mode, net = null) {
-  // A spent effect (EFFECT_BENDS `spend: "attack"`) is judged against the net shown, if any.
+  // A spent effect (EFFECT_BENDS `spend: "attack"`).
   if ( key === "effect" ) return net ? (mode === net) : null;
   if ( !["vex", "sap"].includes(key) ) return null;
   if ( net ) return mode === net;
@@ -175,11 +151,10 @@ export function chipHonoured(key, mode, net = null) {
 }
 
 /**
- * The net a spent chip is judged against: the gate's net when the gate listed a source of this
- * kind, else null. A net the chip did not contribute to would make a false receipt.
- * @param {{sources?: {kind?: string}[], net?: string|null}|null|undefined} reminder
- *        the `reminder` flag on the attack message, when the gate re-issued it
- * @param {string} key   the spent chip's kind
+ * The gate's net, only when the gate listed a source of this kind: a net the chip did not feed
+ * would make a false receipt.
+ * @param {{sources?: {kind?: string}[], net?: string|null}|null|undefined} reminder   the attack's `reminder` flag
+ * @param {string} key
  * @returns {"advantage"|"disadvantage"|"normal"|null}
  */
 export function netShownFor(reminder, key) {
@@ -189,8 +164,7 @@ export function netShownFor(reminder, key) {
 }
 
 /**
- * THE constructor for a `chipSpend` entry: the receipt that a chip vanished because the rules
- * spent it (DESIGN R5). The edge stamps the data-plane context at the flag level.
+ * THE `chipSpend` entry: the receipt that the rules spent a chip (DESIGN R5).
  * @param {{id: string, name: string, img?: string|null, key: string, bearerUuid: string,
  *          bearerName: string, mode: "advantage"|"disadvantage"|"normal",
  *          net?: "advantage"|"disadvantage"|"normal"|null}} spent
@@ -203,12 +177,11 @@ export function spendRecord({ id, name, img = null, key, bearerUuid, bearerName,
 /* --- card chips ------------------------------------------------------------------------------ */
 
 /**
- * The card-chip row a cast offers, or null: the cast item's name is the row's `on`, the caster
- * owns the row's `feature`, and the row is listed.
+ * The listed card-chip row whose `on` is the cast item and whose `feature` the caster owns, or null.
  * @param {Record<string, {on: string, feature: string}>} table
  * @param {{ itemName: string|null|undefined, featureNames: Iterable<string> }} use
- * @param {Set<string>} listed   the Card Chips list, lower-cased row names
- * @returns {string|null}   the row's key
+ * @param {Set<string>} listed   lower-cased row names
+ * @returns {string|null}
  */
 export function cardChipRowKey(table, { itemName, featureNames }, listed) {
   const item = String(itemName ?? "").toLowerCase();
@@ -223,7 +196,6 @@ export function cardChipRowKey(table, { itemName, featureNames }, listed) {
 }
 
 /**
- * How many more of a row's chips may be built: `max` less what stands, never below zero.
  * @param {number} standing
  * @param {number} max
  * @returns {number}
@@ -233,11 +205,10 @@ export function chipsLeft(standing, max) {
 }
 
 /**
- * The coating's save ability. The pack ships one save activity per ability the feat can raise:
- * take the one the feat's own Ability Score Improvement assigned, else the higher modifier
- * offered (the first on a tie).
+ * The coating's save ability (the pack ships one save per ability the feat can raise): the one the
+ * feat's ASI assigned, else the higher modifier offered, the first on a tie.
  * @param {{offered?: string[], assigned?: string[]|null, mods?: Record<string, number>}} [facts]
- * @returns {string|null}  the ability key, or null when nothing is offered
+ * @returns {string|null}
  */
 export function coatSaveAbility({ offered = [], assigned = null, mods = {} } = {}) {
   const chosen = (assigned ?? []).find(a => offered.includes(a));
@@ -248,7 +219,7 @@ export function coatSaveAbility({ offered = [], assigned = null, mods = {} } = {
 }
 
 /**
- * A feature's doses left (`max` less `spent`, floor 0); an unprepared formula max reads as none.
+ * An unprepared formula max reads as none.
  * @param {{max?: number|string|null, spent?: number|null}} uses
  * @returns {number}
  */

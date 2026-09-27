@@ -1,18 +1,12 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): area and token geometry that needs
- * no Foundry at all. An activity's area is a REGION, and its shapes are the truth. Reads fields
- * off document-SHAPED objects and returns plain values; the Foundry-facing callers live in
- * [geometry.js](../geometry.js), the EDGE.
- *
- * ⚠ Depend downward only: nothing here may import a machine, the spine, or core.js.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): area and token geometry over document-SHAPED objects,
+ * no Foundry; an area is a REGION. The edge is ../geometry.js. ⚠ Depend downward only.
  */
 
 /**
- * The Region shape type a dnd5e template type is placed as (`TemplatePlacement#createShapeData`):
- * `rect` → `rectangle`, `ray` → `line`, `radius` → `emanation`; the others keep their names.
- * Null for a type the placement does not know.
- * @param {string|null|undefined} templateType   The `template` of an areaTargetTypes row.
+ * The Region shape a dnd5e template type is placed as (`TemplatePlacement#createShapeData`), or null.
+ * @param {string|null|undefined} templateType
  * @returns {"circle"|"cone"|"rectangle"|"line"|"emanation"|"ring"|null}
  */
 export function regionShapeTypeFor(templateType) {
@@ -31,12 +25,11 @@ export function regionShapeTypeFor(templateType) {
 }
 
 /**
- * The shape data of an emanation around a token, exactly as dnd5e's `TemplatePlacement` writes it:
- * a `token` base (position, size, shape) and the radius in PIXELS from the base's edge. The
- * module's own placements must match the platform's byte for byte.
- * @param {{x:number, y:number, width:number, height:number, shape?:number|null}} tok   The token document's fields.
- * @param {number} radiusPx   The emanation's radius in pixels.
- * @param {{ shape?: number }} [defaults]   The base shape to use when the token names none (Foundry's RECTANGLE_1 is 0).
+ * An emanation around a token byte for byte as dnd5e's `TemplatePlacement` writes it: a `token`
+ * base and the radius in PIXELS from the base's edge.
+ * @param {{x:number, y:number, width:number, height:number, shape?:number|null}} tok
+ * @param {number} radiusPx
+ * @param {{ shape?: number }} [defaults]   when the token names none (RECTANGLE_1 is 0)
  */
 export function emanationShapeData(tok, radiusPx, { shape = 0 } = {}) {
   return {
@@ -52,10 +45,8 @@ export function emanationShapeData(tok, radiusPx, { shape = 0 } = {}) {
 }
 
 /**
- * The system's length-unit KEY for a scene's grid units, or null (blank included: unlabelled is
- * not feet). `scene.grid.units` is a free string dnd5e never maps, so typed spellings are folded
- * here; the conversion (`dnd5e.utils.convertLength`) belongs to the EDGE.
- * ⚠ Never compare a scene-unit distance with a feet literal: a metric 3 m is not "within 5 feet".
+ * The length-unit KEY for `scene.grid.units` (a free string dnd5e never maps), or null: blank is not feet.
+ * ⚠ Never compare a scene-unit distance with a feet literal: 3 m is not "within 5 feet".
  * @param {string|null|undefined} units
  * @returns {"ft"|"m"|"mi"|"km"|null}
  */
@@ -68,7 +59,6 @@ export function lengthUnitKey(units) {
   return null;
 }
 
-/** A token's center from its document alone — object.center when drawn, geometry otherwise. */
 export function tokenCenter(tok) {
   if ( tok.object ) return tok.object.center;
   const grid = tok.parent?.grid?.size;
@@ -76,8 +66,7 @@ export function tokenCenter(tok) {
   return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
 }
 
-/** Every occupied grid square's center for a token, one sample per square: a large token counts
- * when ANY square is in the area. Sub-square tokens keep the single center sample. */
+/** One sample per occupied square: a large token counts when ANY square is in the area. */
 export function tokenSamplePoints(tok) {
   const grid = tok.parent?.grid?.size;
   if ( !grid ) return [];

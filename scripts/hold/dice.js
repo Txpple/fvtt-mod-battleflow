@@ -1,8 +1,6 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7), a part of the reaction hold: its DICE. When a `roll`
- * answer bends an attack, the d20s rise over the creature that was hit (decide/rescue-hit.js
- * `bentChips` says which, dice-rise.js draws them); a cast AC reaction floats its bonus.
- * Every client, once, off the `bent` record landing; a reload replays nothing.
+ * Battle Flow — the reaction hold's DICE: a bent attack's d20s, or a cast AC reaction's bonus, rise
+ * over the creature hit. Every client, once, off the record landing; a reload replays nothing.
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { bentChips } from "../decide/rescue-hit.js";

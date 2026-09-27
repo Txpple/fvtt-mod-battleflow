@@ -1,11 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — feats whose rule turns on what
- * the owner holds or wears, or how the attack is made (decide/registry.js FIGHTING_STYLES, the
- * arithmetic in decide/fighting-styles.js; RULINGS *The fighting styles*).
- * THE FACE: one ActiveEffect per listed style, live or disabled with the reason, kept from the
- * EQUIPPED boxes; a pack effect that is ungated is switched off while the face carries the rule.
- * THE ROLL: bonuses join the parts on `preRollDamageV2`; a die floor is a `minN` modifier added once
- * the rolls are built. The `fightingStyle` record is the card's line, the canvas dice and the stats' `gain`.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE FIGHTING STYLES — feats turning on what the owner
+ * holds or wears, or how it attacks (RULINGS *The fighting styles*). THE FACE: one ActiveEffect per
+ * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
+ * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
@@ -339,10 +336,8 @@ Hooks.on("updateActiveEffect", (effect, changes) => {
 });
 
 /* --- THE BLOCK (Heavy Armor Master) ------------------------------------------------------------ *
- * The pack's ungated `traits.dm` effect is taken over; the face's gate is "while wearing Heavy armor".
- * `dnd5e.preCalculateDamage` runs on every application, before resistances (the rule's order).
- * Only an ATTACK's damage card is cut. The cut rides the options into `preApplyDamage` and the
- * actor's own update, so every client pops it; auto-apply.js reads `bfBlock` for the receipt.
+ * `dnd5e.preCalculateDamage` runs before resistances (the rule's order); only an ATTACK's damage is
+ * cut. The cut rides the options and the actor's update so every client pops it.
  * ------------------------------------------------------------------------------------------- */
 
 const BLOCK = "bfArmorBlock";          // on the damage options and the calculation, client-local
@@ -378,9 +373,8 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
 });
 
 /* --- THE IGNORED RESISTANCE (Elemental Adept, Poisoner) ----------------------------------------- *
- * RULINGS *The PHB feats — groups 1–3*. The rows are the ATTACKER's (the damage card's actor); the
- * hook hands dnd5e its own `options.ignore.resistance` Set. ⚠ A copy, never the caller's Set: the
- * damage tray keeps its options between renders. `bfIgnored` carries it to the receipt row.
+ * RULINGS *The PHB feats — groups 1–3*. The ATTACKER's rows fill dnd5e's `options.ignore.resistance`.
+ * ⚠ A copy, never the caller's Set: the damage tray keeps its options between renders.
  * ------------------------------------------------------------------------------------------- */
 
 const IGNORED = "bfIgnored";

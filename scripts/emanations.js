@@ -22,11 +22,8 @@ import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * An attached Region does the geometry and raises enter / exit / turn events to the behaviour type
- * below (NOTES *v14 models an emanation end to end*). The pack's effect formulas resolve against
- * the WEARER, so a member gets the effect with the source's numbers read in (decide/emanations.js).
- * ------------------------------------------------------------------------------------------- */
+// An attached Region does the geometry and raises enter/exit/turn events (NOTES *v14 models an emanation end to end*).
+// The pack's formulas resolve against the WEARER, so a member's effect has the source's numbers read in.
 
 const FLAG = "emanation";                       // on the region, and on every member effect
 const TYPE = `${MODULE_ID}.emanation`;          // the behaviour type this module registers
@@ -40,16 +37,11 @@ const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
 /** The visibility fields every ring wears: never drawn, unlocked by hand to see it. */
 const ringHidden = () => ({ visibility: RING_VISIBILITY(), locked: true });
 
-/**
- * Where a token STANDS: its committed placement (the source), never an animation frame. ⚠ A ring
- * raised from interim x/y sits off its token for good (NOTES *An attached emanation is RE-BASED*).
- */
+/** ⚠ A token's committed placement, never an animation frame: a ring raised off interim x/y drifts for good (NOTES *An attached emanation is RE-BASED*). */
 const standing = tok => ({ x: tok._source?.x ?? tok.x, y: tok._source?.y ?? tok.y,
   width: tok._source?.width ?? tok.width, height: tok._source?.height ?? tok.height, shape: tok._source?.shape ?? tok.shape });
 
-/** The one Battle Flow behaviour on a region, or null. */
 const behaviorOf = region => region?.behaviors?.find(b => b.type === TYPE) ?? null;
-/** The region's Battle Flow flag, or null. */
 const flagOf = region => region?.getFlag?.(MODULE_ID, FLAG) ?? null;
 
 /* --- the behaviour type: registered at init, events handled on the GM ---------------------- */

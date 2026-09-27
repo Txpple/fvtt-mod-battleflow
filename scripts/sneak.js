@@ -1,6 +1,6 @@
 /**
- * Battle Flow — Sneak Attack, cunningly: the dice ride the damage, the costs come off first, the effects go through the saves machine, once per turn is a chit.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — Sneak Attack: the dice ride the damage, Cunning Strike costs come off first, the
+ * effects go through the saves machine, once per turn is a chit. Split shape (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
@@ -16,19 +16,10 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 
-/* ---------------------------------------------------------------------------------------------
- * The gate (reminders.js) arms Sneak Attack on the attack message; the damage offer asks WHICH
- * Cunning Strike, committed BEFORE the dice. Here: the RIDER pushes what is left of the sneak dice
- * as its own part (crit-doubled with the weapon's); the EFFECTS `use()` the pack's own save
- * activities at the hit target after the damage lands; the FOLLOW-UPS on a failed save (Envenom
- * Weapons' Poisoned, Death Strike's doubled damage) apply on the driver, off the demand card.
- * The rider and effects run on the ROLLER's client, which owns the rogue's items.
- * ------------------------------------------------------------------------------------------- */
+// The gate arms Sneak Attack; the offer's Cunning Strike pick is committed BEFORE the dice. The rider
+// and the effects run on the ROLLER's client (it owns the items); failed-save follow-ups on the driver.
 
-/**
- * The activity on an item by name — one name, or a list in order of preference where the
- * first with a use left wins (Rend Mind's free use before its three-dice use).
- */
+/** By name, or a preference list where the first with a use left wins (Rend Mind's free use first). */
 function activityNamed(item, names) {
   const wanted = (Array.isArray(names) ? names : [names]).map(lower);
   const all = [...(item?.system?.activities ?? [])];
@@ -55,10 +46,10 @@ function sneakArmedOn(attackMessage) {
 }
 
 /**
- * What the damage offer shows for an armed Sneak Attack, and what it commits. ⚠ The pick lives in
- * memory (`chosen`), so the buzzer commits it without reading a DOM that may already be gone.
+ * The offer part for an armed Sneak Attack. ⚠ The pick lives in memory (`chosen`): the buzzer
+ * commits it without a DOM that may be gone.
  * @param {ChatMessage} attackMessage
- * @param {object} activity   the attack activity (for the weapon's own formula on the button)
+ * @param {object} activity
  */
 function sneakOfferParts(attackMessage, activity) {
   const sneak = sneakArmedOn(attackMessage);
@@ -164,8 +155,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
       attackId: attackMessage.id, dice: sneak.dice, formula, cost, dc: sneak.dc ?? null,
       cunning: chosen.map(r => ({ key: r.key, label: r.activity ?? r.rule.split(" (")[0], line: !r.activity, rule: r.rule }))
     });
-    // Spent by dealing the damage: the arm is consumed (a second Damage press must not ride) and
-    // the once-per-turn chit written.
+    // Spent by dealing damage: the arm consumed (a second Damage press must not ride), the chit written.
     void attackMessage.setFlag(MODULE_ID, "sneak", { ...sneak, rolled: true })
       .catch(err => console.warn(`${TITLE} | Could not mark the Sneak Attack rolled.`, err));
     void writeTurnChit(attacker, "sneak", {
@@ -183,8 +173,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 /** Same-client latch: the effects run once per damage message. */
 const effectsRun = new Set();
 
-// The damage message landing is the trigger, on its author's client (the roller's, who can
-// `use()` the items). `dnd5e.rollDamageV2` does not reliably hand over the message.
+// The damage message landing, on its author's client. ⚠ `dnd5e.rollDamageV2` does not reliably hand over the message.
 Hooks.on("createChatMessage", message => {
   if ( !message.isAuthor ) return;
   const sd = message.getFlag(MODULE_ID, "sneakDamage");

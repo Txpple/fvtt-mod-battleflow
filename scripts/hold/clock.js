@@ -1,17 +1,13 @@
 /**
- * Battle Flow — the reaction hold, part 2: THE BUZZER, and the clock's own delete sweep (the
- * popup/latch/ack sweep is the spine's, ui.js). Imported by the triggers and the continuation,
- * so its `deleteChatMessage` registration comes first among the hold's.
+ * Battle Flow — the reaction hold: THE BUZZER. Imported by the triggers and the continuation, so
+ * its `deleteChatMessage` registration comes first among the hold's.
  */
 import { MODULE_ID, isContinuingClient } from "../core.js";
 import { armDeadline, disarmDeadline } from "../ui.js";
 
 const armedTimers = new Map();
 
-/**
- * Arm the hold's buzzer: one authoritative clock on the client that owns the continuation,
- * re-checked when it fires so an answer in the last instant wins.
- */
+/** One authoritative clock, on the continuing client; re-checked at fire so a last-instant answer wins. */
 export function armHoldTimer(message) {
   const hold = message?.getFlag(MODULE_ID, "hold");
   if ( !hold?.deadline || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
@@ -22,7 +18,7 @@ export function disarmHoldTimer(messageId) {
   disarmDeadline(armedTimers, messageId);
 }
 
-/** At the buzzer, every unanswered target passes — the default outcome of an unmade decision. */
+/** At the buzzer every unanswered target passes. */
 async function fireHoldTimer(messageId) {
   const message = game.messages.get(messageId);
   const hold = message?.getFlag(MODULE_ID, "hold");
@@ -30,7 +26,7 @@ async function fireHoldTimer(messageId) {
   const merged = foundry.utils.deepClone(hold);
   let expired = false;
   for ( const target of merged.targets ) {
-    if ( target.answer ) continue;      // answered in the last instant — it wins, not the clock
+    if ( target.answer ) continue;
     target.answer = "pass";
     target.answeredAt = Date.now();
     target.timedOut = true;
@@ -40,7 +36,7 @@ async function fireHoldTimer(messageId) {
   await message.setFlag(MODULE_ID, "hold", merged);
 }
 
-// The buzzer must not outlive its message. The popup/latch/ack state is swept by ui.js, by prefix.
+// The buzzer must not outlive its message (ui.js sweeps the popup/latch/ack state).
 Hooks.on("deleteChatMessage", message => {
   disarmHoldTimer(message.id);
 });

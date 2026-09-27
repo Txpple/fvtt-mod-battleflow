@@ -1,7 +1,6 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): Commander's Strike, the `command` fold — the
  * fighter's die on an ally's Reaction attack.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
@@ -14,13 +13,8 @@ import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentA
 import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
 
-/* =============================================================================================
- * The fighter uses "Directed Attack" (a damage activity targeting the ALLY; `use()` spends the
- * Superiority Die). The fighter's client stamps the card (the ally, the die resolved on the
- * FIGHTER); the GM writes a chip on the ally carrying the die; the ally's owner gets an OK-only
- * notice and attacks from their own sheet; the chip's die rides that attack's damage in the
- * weapon's type, and spends the ally's Reaction.
- * ========================================================================================== */
+// "Directed Attack" targets the ALLY and spends the die; the GM writes a chip carrying it on the
+// ally, whose owner attacks from their own sheet; the die rides that damage and spends their Reaction.
 
 Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   try {
@@ -60,10 +54,7 @@ async function stampCommand(activity, fighter, message, found) {
   });
 }
 
-/**
- * THE CHIP, written once by the GM (the fighter may not own the ally): the die on the ally until
- * the end of the fighter's turn, spent by the ally's next attack's damage.
- */
+/** THE CHIP, by the GM (the fighter may not own the ally): until the fighter's turn ends, spent by the ally's next damage. */
 async function ensureCommandChip(message) {
   const flag = message.getFlag(MODULE_ID, "command");
   if ( !flag || (flag.status !== "directed") || flag.chipId || !flag.ally?.uuid ) return;
@@ -105,10 +96,7 @@ async function showCommandNotice(message) {
   });
 }
 
-/**
- * THE RIDE: the chip's die folds INTO the base roll (one total, crit-doubled with it); the chip
- * and the ally's Reaction are spent, and the damage message says so.
- */
+/** THE RIDE: the die folds INTO the base roll (crit-doubled with it); chip and Reaction spent. */
 Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;

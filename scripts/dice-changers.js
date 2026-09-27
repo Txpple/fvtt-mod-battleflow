@@ -1,12 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DICE CHANGERS — one popup per damage roll, a row
- * per feature that changes the landed dice (RULINGS *The dice changers — one popup*): Empowered
- * Spell (`pick`), Savage Attacker (`set`), Piercer (`one`), run in that order by one Apply. The pure
- * half is decide/dice-changers.js; the die arithmetic decide/damage-dice.js.
- *
- * The damage message is born with the record DUE; auto-apply.js holds an attack's application
- * while it waits, so the dice land ONCE. The question opens only once the attack's hold is off
- * the roll. Damage already applied (a spell with no attack) is moved by the difference.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE DICE CHANGERS — one popup per damage roll, rows
+ * run in order by one Apply (RULINGS *The dice changers — one popup*). The message is born DUE and
+ * auto-apply.js holds the application meanwhile, so the dice land ONCE; the question opens once the
+ * hold is off. Damage already applied is moved by the difference.
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
@@ -33,8 +29,7 @@ const offering = new Set();
 const resolving = new Set();
 
 /**
- * Every DAMAGE_EITHER row this attacker holds that fits THIS hit, in table order. A `weapon` row
- * wants a weapon; a `dealt` row a hit that deals its type.
+ * Every DAMAGE_EITHER row this attacker holds that fits THIS hit, in table order.
  * @param {Actor} attacker
  * @param {{weapon?: boolean, dealt?: string[]}} [hit]
  */
@@ -63,10 +58,8 @@ const weaponRollsOf = message => {
   return Number.isFinite(n) && (n > 0) ? n : 1;
 };
 
-/** The whole roll's total, every part. */
 const rollsTotal = rolls => (rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
 
-/** A row's feature on the actor's sheet — its image and its uuid. */
 const featureOf = (actor, row) => featureNamed(actor, row.feature) ?? actor?.items?.find(i => i.name === row.feature) ?? null;
 
 /* --- the birth flag: every row that fits, due or spent this turn ------------------------------- */

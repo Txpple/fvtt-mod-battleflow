@@ -1,12 +1,8 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE SWAP — a feature that trades its
- * owner's Initiative with a willing ally's right after Initiative is rolled (decide/registry.js
- * INITIATIVE_SWAPS). The owner's pick stands for the ally's willingness; nobody else is asked.
- *
- * When every combatant has an Initiative, the GM posts one card per listed, non-Incapacitated
- * owner, once per roll (the combat's flag is the latch); no ally on the owner's side, no card.
- * The owner picks an ally or No (the clock answers No). The tracker is the GM's to write: a
- * player's answer travels by relay, and the swap lands from both combatants' LIVE numbers.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE INITIATIVE SWAP — trade the owner's Initiative
+ * with a willing ally's once all have rolled; the owner's pick stands for the ally's willingness.
+ * The GM posts one card per listed, non-Incapacitated owner per roll; the clock answers No. The
+ * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
 import { lower, resolveUuid } from "./lookup.js";

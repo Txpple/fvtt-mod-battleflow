@@ -1,8 +1,6 @@
 /**
- * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER, the `bash` fold's trigger — a listed
- * carrier's melee hit offers Shield Master's bash (and a `shove` feat's push); the save and the
- * Prone-or-push choice that follow are the saves machine's.
- * Split shape (ARCHITECTURE.md §7); battleflow.js is the only esmodules entry.
+ * Battle Flow — MACHINE (ARCHITECTURE.md §7): the bash OFFER — a listed carrier's melee hit offers
+ * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
 import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat,
   combatStamp, statContext, drivesMomentFor } from "./core.js";
@@ -18,22 +16,15 @@ import { CARD, isCard } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
 
-/* =============================================================================================
- * THE BASH OFFER — the HIT is the trigger: a Use/Pass offer stamped on the attacker's OWN attack
- * message (so the answer writes directly); accepting aims at the struck target and drives the
- * feat's save activity. Once per turn in combat; out of combat every hit offers.
- * ⚠ THE SEQUENCE (decide/sequence.js): stamped QUEUED at the hit, promoted to pending (the clock
- * starts) once the damage has landed and any mastery decision is answered; moot when nobody is
- * left standing. With every payout stage off nothing would promote it, so it opens at the hit.
- * ========================================================================================== */
+// The offer is stamped on the attacker's OWN attack message (the answer writes directly). Once per
+// turn in combat; out of combat every hit offers.
+// ⚠ THE SEQUENCE (decide/sequence.js): QUEUED at the hit, pending (clock starts) once the damage and
+// any mastery decision are done, moot when nobody is standing; with every payout stage off it opens at the hit.
 
 const bashOfferTimers = new Map();
 const bashOfferInFlight = new Set();
 
-/**
- * The offer kinds. A `shove` has no save behind it: accepting announces the push (the token is
- * moved by hand, never by the module) and spends the turn's use.
- */
+/** A `shove` has no save: accepting announces the push (moved by hand, never by the module) and spends the use. */
 const OFFER_KINDS = Object.freeze({
   bash: { used: "bashUsed", eyebrow: "Maneuver", verb: "bash", use: "Use", icon: "fa-solid fa-shield-halved" },
   shove: { used: "shoveUsed", eyebrow: "Feat", verb: "push", use: "Push 5 feet", icon: "fa-solid fa-hand-back-fist" }
@@ -131,15 +122,13 @@ function offerClock() {
   return window ? { window, deadline: Date.now() + (window * 1000) } : {};
 }
 
-/* --- THE SEQUENCE: queued at the hit, promoted after the damage and the mastery's decision --- */
+/* --- THE SEQUENCE ------------------------------------------------------------------------------ */
 
-/** Is there a damage message for this attack? (The chokepoint calls in only after its stages ran.) */
 function damageLandedFor(attackMessage) {
   return game.messages.contents.some(m => isCard(m, CARD.damage)
     && (resolveAttackMessage(m)?.id === attackMessage.id));
 }
 
-/** The facts the decision reads, gathered from the attack message and the world. */
 async function offerFacts(attackMessage, { damageLanded } = {}) {
   const b = attackMessage.getFlag(MODULE_ID, "bashOffer");
   if ( !b ) return null;
@@ -161,10 +150,7 @@ async function offerFacts(attackMessage, { damageLanded } = {}) {
   };
 }
 
-/**
- * Move a queued offer along, on the attacker's driver. Idempotent, so the chokepoint, the mastery
- * watcher and the render resume can all call it. Promotion starts the clock; moot resolves quietly.
- */
+/** Move a queued offer along on the attacker's driver. Idempotent: the chokepoint, mastery watcher and resume all call it. */
 export async function sequenceBashOffer(attackMessage, { damageLanded } = {}) {
   try {
     const facts = await offerFacts(attackMessage, { damageLanded });

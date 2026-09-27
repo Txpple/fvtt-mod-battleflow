@@ -1,41 +1,31 @@
 // @ts-check
 /**
- * Battle Flow — DECISION layer (ARCHITECTURE.md §2): which pending DEMAND a roll answers.
- *
- * Several machines demand a save of a creature (concentration, saves, the Topple fold); a roll
- * answers by its `respondsTo` stamp, its chain (`originatingMessage`), or bare by actor and
- * ability. A bare roll can answer only one demand, so the machines are ordered by an explicit
- * `priority`: concentration, then saves, then Topple. Plain data only; the spine hands in the cards.
- * Also: the saves flag's constructors and its verdict reader.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): which pending DEMAND a roll answers, by its
+ * `respondsTo` stamp, its chain, or bare by actor and ability. A bare roll answers one machine, by
+ * `priority`: concentration, then saves, then Topple. Also the saves flag's constructors and reader.
  */
 
 /**
- * The shapes (on the first declaration, where the comments check wants a doc block).
- *
  * @typedef {object} RollFacts
- * @property {string | null} respondsTo        the module's own answer stamp — the card id
- * @property {string | null} saveFor           the saves channel's target uuid, beside respondsTo
- * @property {string | null} originatingMessage the system's chain — the card the roll was pressed on
- * @property {string | null} actorUuid         who rolled
- * @property {string | null} ability           which ability
- * @property {string | null} rollType          the roll's kind (`save`, `check`, … — decide/card.js `rollKindOf`; a
- *                                              concentration or death save is a `save` whose sub-kind rides `saveKind`)
- * @property {string | null} [saveKind]         `ability` | `concentration` | `death` on a save, null otherwise
+ * @property {string | null} respondsTo        the module's answer stamp — the card id
+ * @property {string | null} saveFor           the saves channel's target uuid
+ * @property {string | null} originatingMessage the card the roll was pressed on
+ * @property {string | null} actorUuid
+ * @property {string | null} ability
+ * @property {string | null} rollType          decide/card.js `rollKindOf`
+ * @property {string | null} [saveKind]         `ability` | `concentration` | `death` on a save
  *
  * @typedef {object} DemandCard
  * @property {string} id
- * @property {Record<string, any>} flags       the registered flag keys this card carries
+ * @property {Record<string, any>} flags
  *
  * @typedef {object} DemandSpec
  * @property {string} flagKey
  * @property {number} priority                 lower answers a bare roll first
- * @property {((flag: any, facts: RollFacts) => any) | null} answering
- *   the entry a `respondsTo` roll answers on THIS flag; null on the spec: never accepts a stamped roll
+ * @property {((flag: any, facts: RollFacts) => any) | null} answering  null: never accepts a stamped roll
  * @property {boolean} chained                 may a roll chained to the card answer it
- * @property {(flag: any, facts: RollFacts) => any} pendingEntry
- *   the undone entry THIS ROLL would answer, or null (the spec gates on type and ability)
- * @property {(flag: any, actorUuid: string) => any} pendingFor
- *   the undone entry naming this actor, with NO roll in hand
+ * @property {(flag: any, facts: RollFacts) => any} pendingEntry  the undone entry THIS ROLL would answer
+ * @property {(flag: any, actorUuid: string) => any} pendingFor    the undone entry naming this actor, no roll in hand
  *
  * @typedef {object} DemandMatch
  * @property {string} cardId
@@ -44,13 +34,8 @@
 const byPriority = (/** @type {DemandSpec[]} */ specs) => [...specs].sort((a, b) => a.priority - b.priority);
 
 /**
- * Which demand this roll answers, and on which card(s).
- *
- * 1. A stamped roll (`respondsTo`) answers exactly the card it names, or nothing.
- * 2. A chained roll (`originatingMessage`) answers the card it chains to, or nothing.
- * 3. A bare roll answers the highest-priority machine with a pending entry for this actor and
- *    ability: EVERY such card of it, oldest first; the caller claims the first it can.
- *
+ * A stamped or chained roll answers exactly its card, or nothing. A bare roll answers the top-priority
+ * machine with a pending entry: every such card, oldest first; the caller claims the first it can.
  * @param {RollFacts} facts
  * @param {DemandCard[]} cards  oldest first
  * @param {DemandSpec[]} specs
@@ -95,11 +80,11 @@ export function resolveDemand(facts, cards, specs) {
 }
 
 /**
- * Every pending demand naming this actor, oldest first: "is this creature mid-answer", with no roll in hand.
+ * Every pending demand naming this actor, oldest first, with no roll in hand.
  * @param {string} actorUuid
- * @param {DemandCard[]} cards  oldest first
+ * @param {DemandCard[]} cards
  * @param {DemandSpec[]} specs
- * @param {{ flagKey?: string | null }} [opts]  one machine's demands only
+ * @param {{ flagKey?: string | null }} [opts]
  * @returns {Array<{ flagKey: string, cardId: string, entry: any }>}
  */
 export function pendingDemands(actorUuid, cards, specs, { flagKey = null } = {}) {
@@ -116,16 +101,15 @@ export function pendingDemands(actorUuid, cards, specs, { flagKey = null } = {})
   return out;
 }
 
-/* --- THE SAVES FLAG: its constructors and its verdict reader (ARCHITECTURE §4) ------------------ */
+/* --- THE SAVES FLAG (ARCHITECTURE §4) ------------------------------------------------------------ */
 
-/** One target's entry — per-target state is an ARRAY with uuid fields, never a uuid-keyed map. */
+/** Per-target state is an ARRAY with uuid fields, never a uuid-keyed map. */
 export function saveTargetEntry(uuid, name) {
   return { uuid, name, done: false, outcome: null, total: null, rollMessageId: null };
 }
 
 /**
- * The demand flag. `stat` is the data-plane stamp (`statContext`); `window` and `deadline` are the
- * caller's (this layer has no clock). Optional facets appear only when given.
+ * The demand flag; optional facets appear only when given. `stat` is `statContext`.
  * @param {object} d
  * @param {string} [d.status]
  * @param {object} d.stat
@@ -170,8 +154,7 @@ export function saveDemandData({ status = "pending", stat, abilities, dc, damage
 }
 
 /**
- * Does this demand put its target to sleep (Trance)? A word match on the spell's name or a
- * failed-save effect's, never a list of spells.
+ * Does this demand put its target to sleep (Trance)? A word match, never a list of spells.
  * @param {{itemName?: string|null, effectNames?: (string|null|undefined)[]}} facts
  */
 export function putsToSleep({ itemName = null, effectNames = [] } = {}) {
@@ -180,8 +163,8 @@ export function putsToSleep({ itemName = null, effectNames = [] } = {}) {
 }
 
 /**
- * The verdicts a demand card carries: every target that has answered. Follow-ups read these, never the array.
- * @param {any} flag  the saves flag, or nothing
+ * Every target that has answered. Follow-ups read these, never the array.
+ * @param {any} flag
  * @returns {Array<{ uuid: string, name: string, outcome: string | null, total: number | null }>}
  */
 export function verdictsOn(flag) {
