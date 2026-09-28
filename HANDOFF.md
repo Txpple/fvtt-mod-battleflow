@@ -93,40 +93,33 @@ The plan as written:
 - **Done when:** no dated line in a `scripts/` comment, and comments at or under about 15% of the
   shipped lines.
 
-## Phase 2 — the content shape, in one move
+## Phase 2 — the content shape ✅ delivered 2026-09-27
 
-- **Measure:** probe the sandbox's packs and snapshot every row's identifier, compendium source
-  and rules version. dnd5e stamps `system.identifier` when an item is created and indexes it
-  (`actor.identifiedItems`). Seventeen differ between the SRD and PHB copies (the named-wizard
-  spells, Channel Divinity), so an alias table covers them.
-- **Look items up** by identifier (type-scoped, rules version checked), then compendium source as
-  a tie-break, then the name with a warning. The lookups are `scripts/lookup.js` and
-  `scripts/hold/lookup.js`.
-- **The tables are the only list:** the 31 list settings go, after prod's saved lists are
-  compared with the defaults (read only) so no house row is lost. The list parsers retire with
-  them; `tools/verify-settings.mjs` stays, cut to the seven world settings (the suites still write
-  them).
-- **Settings:** 65 down to ten, as ruled. Every other setting's behaviour becomes the default,
-  always on; Hold Settle becomes a constant.
+| | Before | After |
+| --- | --- | --- |
+| Settings | 65 (31 lists) | 10 (seven world, three client) |
+| How content is found | English names | dnd5e `system.identifier` first, the name as fallback |
+| Copied rule text | 258 strings | 0: pointers to the book, read at render time |
+| Proved by the build | — | 228 content rows and 251 rule pointers against the packs' snapshot |
 
-  | Setting | Scope | Choices | Replaces |
-  | --- | --- | --- | --- |
-  | Decision Timer | world | seconds, 0 waits (24) | the damage, hold, concentration, save and reminder timers |
-  | Dramatic Beat | world | seconds (0) | Dramatic Beat; Wait for the Dice becomes automatic |
-  | Players Roll Their Own Saves | world | Prompt / Roll automatically | Concentration Checks' mode, widened to the saves the module demands |
-  | Concentration Checks Are Public | world | on / off | unchanged |
-  | Hold Shows the Math | world | on / off | Hold Shows the Math; Skip Hopeless Holds follows it |
-  | Optional Masteries | world | Ask the attacker / Take automatically | Mastery: Ask First |
-  | Resource Use Notices | world | on / off | unchanged |
-  | Roll Your Own Damage | client | on / off (on) | unchanged |
-  | Effect Bar | client | on / off (on) | unchanged |
-  | Effect Cards on Hover and Alt | client | on / off (on) | unchanged |
-
-  Auto-Roll Damage's NPC/PC split goes (Roll Your Own Damage covers the player who rolls), and
-  Measured Cover is always on.
-- **Rule text:** read from the item's own description, or dnd5e's rules reference for the
-  glossary rows. The "the rule ▸" fold changes, so it gets a prototype first.
-- **Proof:** a CI check that every row resolves in the snapshot; the full battery; a walk.
+- **Settings** (`4357272`, RULINGS *The settings*): every machine always on; one Decision Timer;
+  Players Roll Their Own Saves covers the demanded saves too. The 31 lists are code tables (prod's
+  saved lists all equalled the defaults). The suites' retired keys are translated by
+  `tools/harness.mjs` `retireSettings`; `verify-settings` holds the seven world settings.
+- **Identity** (`b51a161`, ARCHITECTURE §6 *How a row names its content*): measured on the sandbox
+  (dnd5e 6.0.5, 32 packs): every table name slugs to its item's identifier, so the tables keep
+  their names; `ALIASES` is empty. Newly found: a statblock's renamed copy ("Heat Metal -
+  Spellcasting"). Shield-like names are type-scoped.
+- **Rule text** (`fc82949`, `c5b92d9`, RULINGS *The rule fold reads the book*, option A off the
+  prototype): `scripts/rule-text.js` fills every pointer from the item's own paragraph (its bold
+  lead) or dnd5e's rules page; pointers name the house's books first.
+- **The proof:** `npm run identifiers` in verify; the full battery green on the committed code
+  (2026-09-28, 43 rows, 76 min; `858b4af` adapted the suites, no module bug among 27 failing
+  ones); the user's walk is owed. Nothing released: prod stays v2.5.0.
+- **The walk** (the user's): the settings page shows ten; a popup's "the rule ▸" opens the book's
+  own paragraph (Guarded Mind, a Battle Master maneuver, Prone in the attack gate); a monster
+  casting a renamed spell ("Heat Metal - Spellcasting") is recognised.
+- **Residue:** BACKLOG *Phase 2's residue*.
 
 ## Phase 3 — machine hygiene
 

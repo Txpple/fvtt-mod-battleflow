@@ -54,6 +54,9 @@ feats were done: ARCHITECTURE's appendix *Decided against*, and [HANDOFF.md](HAN
 - **Effects are still found by name.** ActiveEffects carry no identifier: the effect table's 48
   effect-keyed rows and the `effect` fields match the effect's name. The effect's origin item has
   one, a candidate key when a renamed effect bites.
+- **A suite's teardown leaves `noCover` on the scenes.** The full battery of 2026-09-28 ended with
+  every scene still flagged (verify-settings --fix cleared them): some suite exits without the
+  harness teardown. Find it, or clear the flags in the battery's closing sweep.
 - **Rule pointers name the Player's Handbook pack.** An item pointer falls back to the system's
   2024 packs by identifier when its `uuid` does not resolve (a table without the PHB module); a
   rules-page pointer reads `CONFIG.DND5E`.
