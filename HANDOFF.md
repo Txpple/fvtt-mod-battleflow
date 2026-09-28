@@ -121,17 +121,47 @@ The plan as written:
   casting a renamed spell ("Heat Metal - Spellcasting") is recognised.
 - **Residue:** BACKLOG *Phase 2's residue*.
 
-## Phase 3 — machine hygiene
+## Phase 3 — machine hygiene ✅ delivered 2026-09-28
 
-- One ordered handler per chat event, with an explicit order table. It retires the hook-order
-  snapshot and the lazy import. A static check proves every writing handler is gated to one
-  client. Two to read closely: the relay in `ui.js` (its `owns` lets any owner write) and the
-  forced-save flip in `saves/views.js`.
-- The 32 listeners on `…V2` hook names move to the documented names.
-- The waits that poll for another client's write become one wait-for-message helper.
-- `@ts-check` spreads outward from the damage chain (auto-damage, auto-apply, the hold).
-- A static check for HTML built from unescaped values.
-- **Proof:** the battery.
+| | Before | After |
+| --- | --- | --- |
+| How hooks run | 310 `Hooks.on` sites; the order was import-graph order, frozen by a snapshot | one dispatcher: one platform listener per hook, the handlers in a 62-row `ORDER` table |
+| Lazy imports holding the order | 3 | 0 |
+| Listeners on dnd5e's `…V2` names | 32 | 0 |
+| Writing handlers proven to run on one client | not checked | every handler on an every-client hook walked to its writes; 6 ungated writes found and gated |
+| Files the type checker reads | 26 (`decide/`) | 39: `decide/`, the damage chain, the dispatcher |
+| Names put into HTML unescaped | not checked | 46 found and escaped |
+| Timer loops polling for a write | 3 | 0 |
+
+- **The dispatcher** (`94f0ff8`, ARCHITECTURE §7 *Registration order is the dispatcher's ORDER*):
+  [scripts/dispatch.js](scripts/dispatch.js) `listen(hook, key, fn)`; the per-hook order came out
+  identical to the retired snapshot (325 registrations, 0 hooks differ). `VETOABLE` names the hooks
+  the platform dispatches with `Hooks.call`, proven against the bundle. `npm run hooks` fails on a
+  registration outside the dispatcher, a key that is not the file's own, a file missing from
+  `ORDER`, a `false` returned where the platform ignores it, and on its 18 load-bearing pairs.
+- **The roll hooks on their documented names** (`d9820ae`): dnd5e 6.0.5 dispatches every `…V2`
+  roll hook right after its plain twin, with the same arguments. `check-hook-dispatch` now expands
+  the templated names from each roll's `hookNames`; the pinned holes are gone.
+- **One client writes, proven** (`afbf06b`, ARCHITECTURE §3): `npm run writers`
+  ([tools/check-writers.mjs](tools/check-writers.mjs)). It found a save's damage reconciled on every
+  client at the roll's arrival, the legendary-resistance flip on every client, the hit menu's sheet
+  repair on every owner, a type pick settled by every GM, the shield judgement stamped everywhere,
+  and the ack relay folding on any owner. Each is gated; core's `keepsMessage` replaced four copies.
+- **`@ts-check` spreads** (`a2db19e`, `51ad905`): 60 errors on the first pass, 0 now. Foundry's
+  globals are `any` (`types/foundry.d.ts`), so a file's own logic and its calls into the tree are
+  what is checked. The offer-part registry moved to `ui.js`: a machine registers at its own
+  evaluation, and the spine is never on an import cycle.
+- **HTML escaping** (`7468666`, ARCHITECTURE §11 *Writing HTML*): `npm run html`
+  ([tools/check-html.mjs](tools/check-html.mjs)).
+- **One wait** (`588ea46`, ARCHITECTURE §5 *Timer mechanics*): `waitForWrite` in `ui.js`.
+- **What a table can see:** a name carrying `&` or `<` now shows as typed. Nothing else changes.
+- **The proof:** the full battery green on the committed code (2026-09-28, 43 rows, 79 min):
+  hooks 312/312 registrations fired; claims 111/119 proven, the 8 unproven the known ones
+  (polish.js's non-record behaviours, the two-client suites reading low). One suite fix rode
+  along (`3da1b20`): with one Decision Timer, smoke-saves §18/11's two buzzers raced. The battery
+  left `noCover` on six scenes again (BACKLOG *Phase 2's residue*); `verify-settings --fix` cleared them.
+- **The walk** (the user's): play as usual — a hold, a save spell, the damage offer; a name with
+  `&` or `<` in it shows on a card as typed.
 
 ## Phase 4 — release discipline
 
