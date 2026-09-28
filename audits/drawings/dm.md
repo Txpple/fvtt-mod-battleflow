@@ -12,6 +12,10 @@
 > books are worth building once (they arrive with their PHB or MM customer), and its own rows wait for
 > the item to be found. Traps, hazards and siege weapons are save-and-damage activities the demand
 > already runs, and are NATIVE or the GM's.
+>
+> **RULED OUT 2026-09-28 (the user): nothing in the DMG is built — high impact, limited value.** The
+> register ([../dmg-register.md](../dmg-register.md)) records where each row lands the day an item is
+> found; a build then is a new commission on the user's word (RULINGS *The DMG register*).
 
 ## The shapes the DMG shares with the other books
 

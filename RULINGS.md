@@ -1537,6 +1537,13 @@ it, `itemUses` consumed): a `COATINGS` row on the item's own activity needs the 
 words (the feat's ASI-picked save, the Fighting Styles switch, the card's "2d8 and Poisoned") read off the
 row. Neither is built; the scope is the user's call.
 
+**RULED OUT (the user, 2026-09-28, on seeing the register):** *"lets scope out DMG, nothing is really worth our
+time at the moment … intentionally ruled out those items because high impact limited value."* Nothing in
+the DMG is built — not `CRIT_RIDERS`, not the injury-poison `COATINGS` rows, not the 29 WAITS rows:
+each is a machine change or a new reader for a found item no one holds. The register stands as the record
+of where each row lands the day an item is in a player's hands; that day is a new commission on the user's
+word, never owed. The order moves on to Slice B.
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code
