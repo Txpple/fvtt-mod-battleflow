@@ -1129,8 +1129,10 @@ surprise came from elsewhere.
   about 295 `getFlag` reads over about 76 keys); D3 already repaid the correctness half through
   `queueFlagWrite`; knip means it arrives all at once or not at all; it buys nothing a test can
   assert. Re-opening it is the user's call.
-- **`hold/index.js` ↔ `auto-damage.js` — permanent.** The bare `import "./auto-damage.js"` pins
-  evaluation order; breaking it drops the damage-offer bar below the hold row.
+- **`hold/` ↔ `auto-damage.js` — permanent.** The service stamps the hold on the roll it rolls
+  (`stampHoldIfInterrupted`), and the hold's continuation rolls the held crit through the service;
+  both calls are hoisted functions at hook time. The hook order is the dispatcher's table, not the
+  cycle's.
 - **`auto-apply.js` ↔ `mastery.js` — permanent.** Breaking it moves `applyDamagesWithReceipt`,
   the damage chokepoint — low value, real risk.
 - **The page-helper bundle for live suites — not built (2026-08-23).** `f.evaluate` cannot

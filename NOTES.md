@@ -42,10 +42,12 @@ on (`smoke-battleflow` §4c).
 on-screen ones skip. **Render hooks must be stateless.** (Also why `querySelectorAll` over a
 message's controls returns each button more than once.)
 
-**ESM evaluation order is import-graph order, not entry-list order** — the rule and the cycle
-shape are [ARCHITECTURE §7](ARCHITECTURE.md) *Registration order is import-graph order*. Relative
-order between same-hook registrations can be behavioral because `Hooks.call` stops at the first
-`false`.
+**ESM evaluation order is import-graph order, not entry-list order**, and inside an import cycle
+a module's body can run before a module it imports: a `const` there is still in its dead zone
+when the other side calls in (the offer-part store hit it, 2026-09-28). The module's hook order
+is therefore not evaluation order but the dispatcher's table — [ARCHITECTURE §7](ARCHITECTURE.md)
+*Registration order is the dispatcher's ORDER*. Relative order between same-hook handlers can
+be behavioral because `Hooks.call` stops at the first `false`.
 
 **A CSS animation is not instantiated until its element is actually rendered**, and a chat
 message is first inserted into a tree that is not rendering yet: a card's countdown bar reported

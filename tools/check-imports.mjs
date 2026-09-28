@@ -5,9 +5,8 @@
 // export is declared (the linter is satisfied) and resolves to `undefined`, failing only at the
 // table inside a hook handler. `checkJs` is off (tsconfig.json), so this is that slice for free.
 //
-// ⚠ DYNAMIC imports are checked too: `const { x } = await import("./ui.js")` is the module's lazy
-// idiom (breaking cycles, pinning evaluation order) and fails even more quietly. `npm run layers`
-// prints the lazy-import tally; never type a count here.
+// ⚠ DYNAMIC imports are checked too: `const { x } = await import("./ui.js")` fails even more
+// quietly. `npm run layers` prints the lazy-import tally; never type a count here.
 //
 // Star imports and bare side-effect imports are not examined: the first resolves by property,
 // the second binds nothing.
