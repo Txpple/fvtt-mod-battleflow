@@ -569,11 +569,24 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *              a class-scaled feature (N1) · "weaponReach": the held weapon's (10 with Reach, else 5)
  *   effect     the pack's effect by name, its changes RESOLVED against the source (else each member adds
  *              its own Charisma); null: a ring and a card only
- *   trigger    a save demanded `on` "enter" and/or "turnEnd", `oncePerTurn`; the activity's save judges
+ *   trigger    a save demanded `on` "enter" and/or "turnEnd", `oncePerTurn`; the activity's save judges.
+ *              `on: "move"` (Spike Growth): the activity's plain damage per `per` feet a creature MOVES
+ *              inside the area, paid once per movement when the move lands — never a pause (DESIGN §8)
+ *   band       an `area` whose burning side is `feet` wide on ONE side of the wall it was placed as (Wall of
+ *              Fire): the region is widened by the band on the side away from the caster, and the cast's
+ *              card offers the other side (`ask`); a ring burns outside by default, inside on the ask
+ *   ask        an `area` cast asks the caster to pick from `options` (Magic Circle's creature types) on the
+ *              cast's card — every option on by default, toggled there; the picks live on the region
+ *   gate       the attack gate reads the area: a creature of a chosen type (`types: "chosen"`) attacking a
+ *              target INSIDE it rolls at `attacker` (Magic Circle's Disadvantage; reminders.js)
+ *   noCastSave the cast's own save activity demands nothing at the placement (Magic Circle's Charisma save
+ *              is for a teleport in, never for standing inside)
  *   heal       a heal paid `on` "turnStart" `when` "zeroHP" from `activity`
  *   remind     a notice at the source's turn start naming an AIMED heal — offered, never played (R1)
  *   holding    the ring stands only while a qualifying weapon is held (`base`, or every `properties`)
- *   alert      a reminder to the source when a reached creature itself MOVES INTO the ring (tokenMoveIn)
+ *   alert      a reminder to the source when a reached creature itself MOVES INTO the ring (tokenMoveIn),
+ *              or `on: "moveOut"` OUT of it; `kind: "notice"` a plain card with `says` (no Reaction, no
+ *              button — Magic Circle's entry ban, Forcecage's exit ban); `types: "chosen"` only the asked types
  *   incapacitated  inactive while the source is Incapacitated;  quiet  no card
  *   item / activity / while / pulse   see the Inner Radiance row
  * Membership: the Emanations list. What is left out on purpose: RULINGS *Emanations*.
@@ -645,7 +658,6 @@ export const EMANATIONS = Object.freeze({
   // THE AREAS THAT PULSE (the spells slice, Tier 3; RULINGS *The spells slice — Tier 3*): the
   // 2024 text of each is "enters the area or ends its turn there", "when the area moves into its space",
   // "only once per turn" — Spirit Guardians' trigger to the word. Reach "all": every creature, the caster too.
-  // Held out: Wall of Fire (no area in its data, a one-sided band), Spike Growth (damage per 5 ft moved — DESIGN §4).
   "Moonbeam": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
     trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
     caveat: "the Magic action that moves the beam is the caster's drag of the template; a shape-shifter's reversion is the table's",
@@ -673,7 +685,37 @@ export const EMANATIONS = Object.freeze({
     trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
     caveat: "the Bonus Action that rolls the sphere is its token's move; a creature it is rolled into is entered",
     rule: Object.freeze({ item: "Flaming Sphere", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFlamingSph" }),
-    from: "Druid / Sorcerer / Wizard spell, level 2 (Concentration, 1 minute)" })
+    from: "Druid / Sorcerer / Wizard spell, level 2 (Concentration, 1 minute)" }),
+  // THE HELD SPELLS (RULINGS *The spells slice — the held spells*). The wall's one burning side is a BAND
+  // the region is widened by; the cast's own save (everyone in the wall as it appears) is the pack's.
+  "Wall of Fire": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    band: Object.freeze({ feet: 10, ask: "Which side of the wall burns?" }),
+    caveat: "the wall is opaque and 20 feet high — the table's; the burning side is the region as widened, flip it on the cast's card",
+    rule: Object.freeze({ item: "Wall of Fire", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplWallofFire" }),
+    from: "Druid / Sorcerer / Wizard spell, level 4 (Concentration, 1 minute)" }),
+  // Damage per 5 feet MOVED inside the area, paid when the move lands (DESIGN §4's second exception).
+  "Spike Growth": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["move"]), per: 5 }),
+    caveat: "Difficult Terrain, and the Wisdom (Perception or Survival) check to see the spikes, are the table's",
+    rule: Object.freeze({ item: "Spike Growth", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSpikeGrowt" }),
+    from: "Druid / Ranger spell, level 2 (Concentration, 10 minutes)" }),
+  // The circle stands its hour where placed (no concentration: the GM deletes the region when the hour is up).
+  "Magic Circle": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false, noCastSave: true,
+    ask: Object.freeze({ what: "types", label: "Which creature types does the circle ward against?",
+      options: Object.freeze(["celestial", "elemental", "fey", "fiend", "undead"]) }),
+    gate: Object.freeze({ attacker: "disadvantage", types: "chosen" }),
+    alert: Object.freeze({ on: "moveIn", kind: "notice", label: "Magic Circle", types: "chosen",
+      says: "cannot willingly enter the circle by nonmagical means — a teleport in needs a Charisma save (the spell's own)" }),
+    caveat: "possession, and Charmed or Frightened from a warded type, are the table's; the circle stands its hour until the region is deleted; the reversed circle (kept in) is the table's",
+    rule: Object.freeze({ item: "Magic Circle", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMagicCircl" }),
+    from: "Cleric / Paladin / Warlock / Wizard spell, level 3 (1 hour)" }),
+  "Forcecage": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    alert: Object.freeze({ on: "moveOut", kind: "notice", label: "Forcecage",
+      says: "leaves the cage — the walls hold it; a teleport out needs a Charisma save (the spell's own), and a failure wastes the action" }),
+    caveat: "the bars' cover, spells cast through the bars, and the solid box blocking spells are the table's; the cage stands its hour with the concentration",
+    rule: Object.freeze({ item: "Forcecage", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplForcecage0" }),
+    from: "Bard / Warlock / Wizard spell, level 7 (Concentration, 1 hour)" })
 });
 
 /**
@@ -1453,8 +1495,13 @@ export const REPEAT_TRIGGERS = new Set(["turnEnd", "damaged", "action"]);
  *              is the cast's; the repeat's success takes none)
  *   count      { saves, fails?, press? } — the tally on the effect: `saves` successes end it, `fails` failures
  *              stop the asking (Contagion) or press `press` (Flesh to Stone's Petrified)
+ *   item       the spell, where the key must differ from it (a second row on one spell — Prismatic Spray's rays)
+ *   activity   the save activity by NAME, where the spell's first save activity is not the repeat's
+ *              (Prismatic Spray's "Indigo Save (Con)" — the Cast is a Dexterity save)
  *   caveat     what the rule leaves to the table, said on the card
- * Membership: every row. Left out on purpose: Eyebite's Asleep (ends on damage, no save — the table's).
+ * Membership: every row. Left out on purpose: Eyebite's Asleep (ends on damage, no save — the table's);
+ * Prismatic Spray's violet ray (its save is at the CASTER's next turn start, when the pack's own clock ends
+ * the Blinded anyway — the plane shift is the table's).
  */
 export const REPEAT_SAVES = Object.freeze({
   "Hold Person": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]),
@@ -1510,7 +1557,13 @@ export const REPEAT_SAVES = Object.freeze({
   // The save is the dancer's ACTION: offered at its turn start, never demanded by the clock.
   "Otto's Irresistible Dance": Object.freeze({ effect: "Irresistible Dance", on: Object.freeze(["action"]),
     rule: Object.freeze({ item: "Otto's Irresistible Dance", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplOttosIrres" }),
-    from: "Bard / Wizard spell, level 6 (Concentration, 1 minute)" })
+    from: "Bard / Wizard spell, level 6 (Concentration, 1 minute)" }),
+  // The indigo ray's Restrained (RAY_TABLES lands it): Flesh to Stone's count against the spell's own Con save.
+  "Prismatic Spray (Indigo)": Object.freeze({ item: "Prismatic Spray", effect: "Petrifying (Indigo)", activity: "Indigo Save (Con)",
+    on: Object.freeze(["turnEnd"]), count: Object.freeze({ saves: 3, fails: 3, press: "petrified" }),
+    caveat: "three failures press Petrified until freed by Greater Restoration or the like — the table's",
+    rule: Object.freeze({ item: "Prismatic Spray", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPrismaticS" }),
+    from: "Sorcerer / Wizard spell, level 7 (instantaneous; the ray's Restrained lasts until the saves decide it)" })
 });
 
 /**
@@ -1568,6 +1621,67 @@ export const DUPLICATES = Object.freeze({
 });
 
 /**
+ * THE DAMAGE SHARES (RULINGS *The spells slice — the held spells*; damage-shares.js): a standing effect on a
+ * creature whose text says its CASTER takes what it takes (Warding Bond). Read on `dnd5e.applyDamage`, the
+ * rebukes' seam: the amount that LANDED on the bearer is applied to the caster (the effect's origin actor)
+ * as untyped damage — the same number, no second resistance — with its own receipt on the same card, no
+ * choice (R1). Keyed by the spell; the effect is found by its name AND its origin (`repeatRowFor`).
+ *   effect    the pack's effect on the BEARER;  share  the fraction of the landed amount (1: the same)
+ *   within    feet — beyond it the bond is out of reach: nothing is shared and a card says so
+ *   endsAt    "zeroHP" — the caster dropping to 0 ends the spell (the effect deleted, receipted)
+ * Not a kind: one machine, rows of data.
+ */
+export const DAMAGE_SHARES = Object.freeze({
+  "Warding Bond": Object.freeze({ effect: "Bonded", share: 1, within: 60, endsAt: "zeroHP",
+    caveat: "the bond's end at more than 60 feet, or at a re-cast on either creature, is the table's — delete Bonded",
+    rule: Object.freeze({ item: "Warding Bond", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplWardingBon" }),
+    from: "Cleric / Paladin spell, level 2 (1 hour)" })
+});
+
+/**
+ * THE HEAL ON HIT (RULINGS *The spells slice — the held spells*; heal-on-hit.js): a spell whose damage, once
+ * it has LANDED, heals its caster a share of what landed (Vampiric Touch — Lifedrinker's shape, SWEEP §3
+ * item 4). Read on `dnd5e.applyDamage`: the dealing card's activity answers the row; the amount taken of
+ * the row's `type` (every part of it, on this spell) times `share`, floored, is healed on the caster with a
+ * receipt on the same card, once per creature per card, no choice (R1). Keyed by the spell.
+ *   share   the fraction healed;  type  the damage type the text names, or null for every type
+ * Not a kind: one machine, rows of data.
+ */
+export const HEAL_ON_HIT = Object.freeze({
+  "Vampiric Touch": Object.freeze({ share: 0.5, type: "necrotic",
+    rule: Object.freeze({ item: "Vampiric Touch", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplVampiricTo" }),
+    from: "Sorcerer / Warlock / Wizard spell, level 3 (Concentration, 1 minute)" })
+});
+
+/**
+ * THE RAY TABLES (RULINGS *The spells slice — the held spells*; prismatic.js): a cone whose text rolls a die
+ * PER CREATURE to pick which ray hits it (Prismatic Spray). The cast's own demand is closed at birth; when
+ * the cone is placed the machine rolls `die` per creature inside and raises ONE demand per (creature, ray)
+ * against the `cast` activity's save, the ray's `type` forced onto the damage roll; a ray with `save`
+ * demands that activity instead and lands `effect` on a failure (the module's own, since the pack ties the
+ * effects to the Cast). A `twice` face rolls two more, ignoring that face.
+ *   rays    by face: { colour, type } for damage, { colour, save, effect, words } for a condition
+ * Not a kind: one machine, rows of data.
+ */
+export const RAY_TABLES = Object.freeze({
+  "Prismatic Spray": Object.freeze({ die: 8, cast: "Cast", twice: 8,
+    rays: Object.freeze({
+      1: Object.freeze({ colour: "red", type: "fire" }),
+      2: Object.freeze({ colour: "orange", type: "acid" }),
+      3: Object.freeze({ colour: "yellow", type: "lightning" }),
+      4: Object.freeze({ colour: "green", type: "poison" }),
+      5: Object.freeze({ colour: "blue", type: "cold" }),
+      6: Object.freeze({ colour: "indigo", save: "Indigo Save (Con)", effect: "Petrifying (Indigo)",
+        words: "Restrained; the save repeats at the end of each of its turns — three successes end it, three failures petrify it" }),
+      7: Object.freeze({ colour: "violet", save: "Violet Save (Wis)", effect: "Teleporting (Violet)",
+        words: "Blinded until the start of the caster's next turn; the Wisdom save then — a failure sends it to another plane — is the table's" }),
+      8: Object.freeze({ colour: "special", twice: true })
+    }),
+    rule: Object.freeze({ item: "Prismatic Spray", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPrismaticS" }),
+    from: "Sorcerer / Wizard spell, level 7 (instantaneous, a 60-foot Cone)" })
+});
+
+/**
  * THE R4 TRIPWIRE (DESIGN.md R4, ARCHITECTURE §6): every closed kind set, with the size of the dnd5e enum it
  * mirrors (`system`; null for the module's own). tools/check-registry.mjs pins the total, so ADDING A KIND
  * FAILS THE GATE until the pin moves on purpose. Only masteries mirror one (`CONFIG.DND5E.weaponMasteries`).
@@ -1595,7 +1709,8 @@ export const KIND_SETS = [
   { name: "emanation", owner: "emanations.js", kinds: EMANATION_KINDS, system: null,
     note: "how an emanation lives: always on with a feature's source token, or cast and adopted from "
       + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock; "
-      + "`area` (the spells slice): the template adopted where it was placed, attached to nothing" },
+      + "`area` (the spells slice): the template adopted where it was placed, attached to nothing — its "
+      + "trigger words (enter, turnEnd, move) and its band, ask, gate and alert facets are vocabulary, not kinds" },
   { name: "repeatSave", owner: "repeat-saves.js", kinds: REPEAT_TRIGGERS, system: null,
     note: "what raises a landed effect's repeated save (the spells slice, 2026-09-28): the bearer's turn "
       + "end, damage landing on it, or the bearer's own action offered at its turn start" }
@@ -1672,6 +1787,9 @@ export const repeatSaveEntries = () => everyRow(Object.keys(REPEAT_SAVES));
 export const turnGrantEntries = () => everyRow(Object.keys(TURN_GRANTS));
 export const wardEntries = () => everyRow(Object.keys(WARDS));
 export const duplicateEntries = () => everyRow(Object.keys(DUPLICATES));
+export const damageShareEntries = () => everyRow(Object.keys(DAMAGE_SHARES));
+export const healOnHitEntries = () => everyRow(Object.keys(HEAL_ON_HIT));
+export const rayTableEntries = () => everyRow(Object.keys(RAY_TABLES));
 export const damageEitherEntries = () => everyRow(Object.keys(DAMAGE_EITHER));
 export const cardChipEntries = () => everyRow(Object.keys(CARD_CHIPS));
 export const rebukeEntries = () => everyRow(Object.keys(REBUKES));

@@ -214,7 +214,8 @@ describe("REPEAT_SAVES — the table (Tier 2)", () => {
       expect(row.on.length, key).toBeGreaterThan(0);
       for (const t of row.on) expect(reg.REPEAT_TRIGGERS.has(t), `${key}:${t}`).toBe(true);
       expectPointer(row.rule, key);
-      expect(row.rule.item, key).toBe(key);
+      // A second row on one spell names the spell in `item` (Prismatic Spray's indigo ray); the pointer is the spell's.
+      expect(row.rule.item, key).toBe(row.item ?? key);
       expect(row.from, key).toBeTypeOf("string");
     }
     expect(reg.repeatSaveEntries().map(e => e.kind)).toContain("hold person");
@@ -255,7 +256,7 @@ describe("REPEAT_SAVES — the table (Tier 2)", () => {
       Object.keys(reg.REPEAT_SAVES)
         .filter(k => reg.REPEAT_SAVES[k].count)
         .sort()
-    ).toEqual(["Contagion", "Flesh to Stone"]);
+    ).toEqual(["Contagion", "Flesh to Stone", "Prismatic Spray (Indigo)"]);
   });
   it("the three chosen-area spells (Slow, Fear, Confusion) are rows here too — the repeat is a second row on the same spell", () => {
     for (const k of ["Slow", "Fear", "Confusion"]) {
@@ -550,9 +551,333 @@ describe("EMANATIONS — the `area` kind (Tier 3)", () => {
     expect([...row.trigger.on]).toEqual(["enter", "turnEnd"]);
     expect(row.rule.item).toBe("Flaming Sphere");
   });
-  it("Wall of Fire and Spike Growth are OUT (no area in the data; damage per 5 feet moved)", () => {
-    expect(reg.EMANATIONS["Wall of Fire"]).toBeUndefined();
-    expect(reg.EMANATIONS["Spike Growth"]).toBeUndefined();
+  it("Wall of Fire and Spike Growth are IN since the held spells (Tier 4): the wall as a banded area, the spikes on the `move` trigger", () => {
+    expect(reg.EMANATIONS["Wall of Fire"].kind).toBe("area");
+    expect(reg.EMANATIONS["Wall of Fire"].band).toEqual({
+      feet: 10,
+      ask: "Which side of the wall burns?"
+    });
+    expect(reg.EMANATIONS["Spike Growth"].kind).toBe("area");
+    expect([...reg.EMANATIONS["Spike Growth"].trigger.on]).toEqual(["move"]);
+  });
+});
+
+describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spells*)", () => {
+  /** @type {typeof import("../scripts/decide/damage-shares.js")} */
+  let ds;
+  /** @type {typeof import("../scripts/decide/heal-on-hit.js")} */
+  let hh;
+  /** @type {typeof import("../scripts/decide/prismatic.js")} */
+  let pr;
+  /** @type {typeof import("../scripts/decide/emanations.js")} */
+  let em;
+  beforeAll(async () => {
+    ds = await import("../scripts/decide/damage-shares.js");
+    hh = await import("../scripts/decide/heal-on-hit.js");
+    pr = await import("../scripts/decide/prismatic.js");
+    em = await import("../scripts/decide/emanations.js");
+  });
+
+  it("Warding Bond: the one DAMAGE_SHARES row — Bonded, the same amount, within 60 feet, ended at the caster's 0 HP; found by the effect and its origin", () => {
+    expect(Object.keys(reg.DAMAGE_SHARES)).toEqual(["Warding Bond"]);
+    const row = reg.DAMAGE_SHARES["Warding Bond"];
+    expect(Object.isFrozen(row)).toBe(true);
+    expect(row).toMatchObject({ effect: "Bonded", share: 1, within: 60, endsAt: "zeroHP" });
+    expectPointer(row.rule);
+    expect(reg.damageShareEntries()).toEqual([{ kind: "warding bond" }]);
+    const bond = { name: "Warding Bond", type: "spell", system: { identifier: "warding-bond" } };
+    expect(
+      rs.repeatRowFor({
+        table: reg.DAMAGE_SHARES,
+        answers: reg.answers,
+        item: bond,
+        effectName: "Bonded"
+      })?.key
+    ).toBe("Warding Bond");
+    expect(
+      rs.repeatRowFor({
+        table: reg.DAMAGE_SHARES,
+        answers: reg.answers,
+        item: bond,
+        effectName: "Protected"
+      })
+    ).toBeNull();
+  });
+  it("the share's verdict: the same number within reach, nothing beyond 60 feet, nothing when the caster is down, an unmeasured distance counts as in reach", () => {
+    const row = reg.DAMAGE_SHARES["Warding Bond"];
+    expect(ds.shareVerdict(row, { amount: 9, distanceFeet: 30 })).toMatchObject({
+      shares: true,
+      amount: 9
+    });
+    expect(ds.shareVerdict(row, { amount: 9, distanceFeet: 65 })).toMatchObject({
+      shares: false,
+      amount: 0
+    });
+    expect(ds.shareVerdict(row, { amount: 9, distanceFeet: 65 }).why).toMatch(
+      /beyond the bond's 60 feet/
+    );
+    expect(ds.shareVerdict(row, { amount: 9, distanceFeet: null })).toMatchObject({
+      shares: true,
+      amount: 9
+    });
+    expect(ds.shareVerdict(row, { amount: 9, casterHp: 0 })).toMatchObject({ shares: false });
+    expect(ds.shareVerdict(row, { amount: 0 })).toMatchObject({ shares: false });
+    expect(ds.shareVerdict({ share: 0.5 }, { amount: 7 })).toMatchObject({
+      shares: true,
+      amount: 3
+    });
+    expect(ds.shareEnds(row, { casterHp: 0 })).toMatchObject({ ends: true });
+    expect(ds.shareEnds(row, { casterHp: 3 })).toMatchObject({ ends: false });
+    expect(
+      ds.shareTitle({ spell: "Warding Bond", bearer: "Gren", caster: "Ysolde", amount: 9 })
+    ).toBe("Warding Bond — Ysolde takes 9 with Gren");
+  });
+
+  it("Vampiric Touch: the one HEAL_ON_HIT row — half the necrotic damage; the amount by the parts' proportion, floored", () => {
+    expect(Object.keys(reg.HEAL_ON_HIT)).toEqual(["Vampiric Touch"]);
+    const row = reg.HEAL_ON_HIT["Vampiric Touch"];
+    expect(row).toMatchObject({ share: 0.5, type: "necrotic" });
+    expectPointer(row.rule);
+    expect(reg.healOnHitEntries()).toEqual([{ kind: "vampiric touch" }]);
+    expect(
+      hh.healOnHitAmount(row, { taken: 11, parts: [{ value: 11, type: "necrotic" }] })
+    ).toMatchObject({ heals: true, amount: 5 });
+    // a rider of another type beside it: only the necrotic share heals
+    expect(
+      hh.healOnHitAmount(row, {
+        taken: 20,
+        parts: [
+          { value: 10, type: "necrotic" },
+          { value: 10, type: "fire" }
+        ]
+      })
+    ).toMatchObject({ heals: true, amount: 5 });
+    expect(
+      hh.healOnHitAmount(row, { taken: 8, parts: [{ value: 8, type: "fire" }] })
+    ).toMatchObject({ heals: false, amount: 0 });
+    expect(hh.healOnHitAmount(row, { taken: 0, parts: [] })).toMatchObject({ heals: false });
+    expect(
+      hh.healOnHitAmount(row, { taken: 1, parts: [{ value: 1, type: "necrotic" }] })
+    ).toMatchObject({ heals: false, amount: 0 });
+    expect(
+      hh.healOnHitTitle({
+        spell: "Vampiric Touch",
+        caster: "Ysolde",
+        amount: 1,
+        target: "a goblin"
+      })
+    ).toBe("Vampiric Touch — Ysolde regains 1 Hit Point from a goblin");
+  });
+
+  it("Prismatic Spray: the one RAY_TABLES row — a d8, the Cast, an 8 rolls twice; five damage rays, two condition rays with their own saves", () => {
+    expect(Object.keys(reg.RAY_TABLES)).toEqual(["Prismatic Spray"]);
+    const row = reg.RAY_TABLES["Prismatic Spray"];
+    expect(row).toMatchObject({ die: 8, cast: "Cast", twice: 8 });
+    expectPointer(row.rule);
+    expect(reg.rayTableEntries()).toEqual([{ kind: "prismatic spray" }]);
+    expect([1, 2, 3, 4, 5].map(f => row.rays[f].type)).toEqual([
+      "fire",
+      "acid",
+      "lightning",
+      "poison",
+      "cold"
+    ]);
+    expect(row.rays[6]).toMatchObject({
+      colour: "indigo",
+      save: "Indigo Save (Con)",
+      effect: "Petrifying (Indigo)"
+    });
+    expect(row.rays[7]).toMatchObject({
+      colour: "violet",
+      save: "Violet Save (Wis)",
+      effect: "Teleporting (Violet)"
+    });
+    expect(row.rays[8].twice).toBe(true);
+  });
+  it("the draw: one face is one ray; an 8 is two more draws, never a ray itself; a die stuck on 8 is cut", () => {
+    const row = reg.RAY_TABLES["Prismatic Spray"];
+    const feed = faces => {
+      let i = 0;
+      return () => faces[i++] ?? 8;
+    };
+    expect(pr.raysFor(row, feed([3])).rays.map(r => r.colour)).toEqual(["yellow"]);
+    const two = pr.raysFor(row, feed([8, 1, 6]));
+    expect(two.rays.map(r => r.colour)).toEqual(["red", "indigo"]);
+    expect(two.faces).toEqual([8, 1, 6]);
+    const three = pr.raysFor(row, feed([8, 8, 2, 5, 7]));
+    expect(three.rays.map(r => r.colour)).toEqual(["orange", "blue", "violet"]);
+    const stuck = pr.raysFor(row, () => 8, { cap: 5 });
+    expect(stuck.rays).toEqual([]);
+    expect(stuck.faces).toHaveLength(5);
+  });
+  it("the words and the verdict: a damage ray's demand names its type; a condition ray lands its effect on a failure only", () => {
+    const red = { face: 1, colour: "red", type: "fire" };
+    const indigo = {
+      face: 6,
+      colour: "indigo",
+      type: null,
+      save: "Indigo Save (Con)",
+      effect: "Petrifying (Indigo)",
+      words: "Restrained"
+    };
+    expect(
+      pr.rayWords({ spell: "Prismatic Spray", ray: red, target: "a goblin", caster: "Ysolde" })
+    ).toMatchObject({
+      title: "Prismatic Spray — the red ray strikes a goblin",
+      eyebrow: "Ysolde's Prismatic Spray"
+    });
+    expect(
+      pr.rayWords({ spell: "Prismatic Spray", ray: red, target: "a goblin" }).subtitle
+    ).toMatch(/Fire damage · Dexterity save/);
+    expect(
+      pr.rayWords({ spell: "Prismatic Spray", ray: indigo, target: "a goblin" }).subtitle
+    ).toBe("Restrained");
+    expect(pr.rayVerdict(red, "saved")).toEqual({ lands: null, says: "half the fire damage" });
+    expect(pr.rayVerdict(indigo, "failed")).toEqual({
+      lands: "Petrifying (Indigo)",
+      says: "Petrifying (Indigo) lands — the save failed"
+    });
+    expect(pr.rayVerdict(indigo, "saved").lands).toBeNull();
+    expect(
+      pr.raySummaryLines([{ name: "a goblin", faces: [8, 1, 6], rays: [red, indigo] }])
+    ).toEqual(["a goblin: d8 → 8, 1, 6 — red (fire) and indigo"]);
+  });
+  it("the indigo ray's repeat is a second REPEAT_SAVES row on the spell: found by the Petrifying effect with the spell as its origin, its own named save, Flesh to Stone's count", () => {
+    const row = reg.REPEAT_SAVES["Prismatic Spray (Indigo)"];
+    expect(row).toMatchObject({
+      item: "Prismatic Spray",
+      effect: "Petrifying (Indigo)",
+      activity: "Indigo Save (Con)"
+    });
+    expect(row.count).toEqual({ saves: 3, fails: 3, press: "petrified" });
+    const spray = {
+      name: "Prismatic Spray",
+      type: "spell",
+      system: { identifier: "prismatic-spray" }
+    };
+    expect(
+      rs.repeatRowFor({
+        table: reg.REPEAT_SAVES,
+        answers: reg.answers,
+        item: spray,
+        effectName: "Petrifying (Indigo)"
+      })?.key
+    ).toBe("Prismatic Spray (Indigo)");
+    // the violet ray is NOT a row: its save is at the caster's next turn start, when the pack's own clock ends the Blinded
+    expect(Object.keys(reg.REPEAT_SAVES).filter(k => /Violet/.test(k))).toEqual([]);
+  });
+
+  it("the placed areas of Tier 4: Wall of Fire (a save area with a band), Spike Growth (the move trigger, per 5 feet), Magic Circle (no cast save, the types ask, the gate, the entry notice), Forcecage (the exit notice)", () => {
+    for (const k of ["Wall of Fire", "Spike Growth", "Magic Circle", "Forcecage"]) {
+      const row = reg.EMANATIONS[k];
+      expect(row, k).toBeDefined();
+      expect(Object.isFrozen(row), k).toBe(true);
+      expect(row.kind, k).toBe("area");
+      expect(row.reach, k).toBe("all");
+      expect(row.effect, k).toBeNull();
+      expectPointer(row.rule, k);
+      expect(row.rule.item, k).toBe(k);
+      expect(
+        reg.emanationEntries().map(e => e.kind),
+        k
+      ).toContain(k.toLowerCase());
+    }
+    expect([...reg.EMANATIONS["Wall of Fire"].trigger.on]).toEqual(["enter", "turnEnd"]);
+    expect(reg.EMANATIONS["Spike Growth"].trigger.per).toBe(5);
+    const circle = reg.EMANATIONS["Magic Circle"];
+    expect(circle.noCastSave).toBe(true);
+    expect(circle.ask).toMatchObject({ what: "types" });
+    expect([...circle.ask.options]).toEqual(["celestial", "elemental", "fey", "fiend", "undead"]);
+    expect(circle.gate).toEqual({ attacker: "disadvantage", types: "chosen" });
+    expect(circle.alert).toMatchObject({ on: "moveIn", kind: "notice", types: "chosen" });
+    expect(reg.EMANATIONS.Forcecage.alert).toMatchObject({ on: "moveOut", kind: "notice" });
+    expect(reg.EMANATIONS.Forcecage.trigger).toBeUndefined();
+    // the R4 tripwire did not move: every facet is vocabulary on the `area` kind
+    expect(reg.EMANATION_KINDS.size).toBe(3);
+  });
+  it("the band (decide/emanations.js): a line's width grows by the band and its centreline shifts half of it to the side; the far side from the caster is the default; the ring burns outside as a ring, inside as the disc", () => {
+    const line = { type: "line", x: 100, y: 100, length: 300, width: 10, rotation: 0 }; // east-west wall
+    const plus = em.bandShape(line, 1, 40);
+    expect(plus).toMatchObject({ type: "line", x: 100, width: 50, length: 300 });
+    expect(plus.y).toBeCloseTo(120); // rotation 0 → the plus side is +y (south)
+    const minus = em.bandShape(line, -1, 40);
+    expect(minus.y).toBeCloseTo(80);
+    expect(em.wallSides(line)).toEqual({ plus: "south", minus: "north" });
+    expect(em.compassName(0)).toBe("east");
+    expect(em.compassName(-90)).toBe("north");
+    expect(em.compassName(225)).toBe("north-west");
+    // a caster north of the wall: the far side is south (+1); south of it: north (−1)
+    expect(em.awaySide(line, { x: 250, y: 0 })).toBe(1);
+    expect(em.awaySide(line, { x: 250, y: 300 })).toBe(-1);
+    expect(em.awaySide(line, null)).toBe(1);
+    const circle = { type: "circle", x: 0, y: 0, radius: 100 };
+    expect(em.bandShape(circle, 1, 40)).toMatchObject({
+      type: "ring",
+      radius: 100,
+      innerWidth: 0,
+      outerWidth: 40
+    });
+    expect(em.bandShape(circle, -1, 40)).toMatchObject({ type: "circle", radius: 100 });
+    expect(
+      em.bandShape({ type: "ring", x: 0, y: 0, radius: 100, innerWidth: 0, outerWidth: 40 }, -1, 40)
+    ).toMatchObject({ type: "circle", radius: 100 });
+    expect(em.bandOptions(line).map(o => o.label)).toEqual(["the south side", "the north side"]);
+    expect(em.bandOptions(circle).map(o => o.side)).toEqual([1, -1]);
+    expect(em.bandShape(line, 1, 0)).toEqual(line);
+  });
+  it("the ask and the gate: every type on by default; a creature's type read off the sheet; the circle bends only a chosen type attacking a target inside", () => {
+    const circle = { key: "Magic Circle", ...reg.EMANATIONS["Magic Circle"] };
+    expect(em.askDefaults(circle.ask)).toEqual([
+      "celestial",
+      "elemental",
+      "fey",
+      "fiend",
+      "undead"
+    ]);
+    expect(em.creatureTypeOf({ value: "fiend" })).toBe("fiend");
+    expect(em.creatureTypeOf({ value: "custom", custom: "Fey Lord" })).toBe("fey lord");
+    expect(em.creatureTypeOf(null)).toBeNull();
+    expect(em.typeAdmits(circle.alert, ["fiend"], "fiend")).toBe(true);
+    expect(em.typeAdmits(circle.alert, ["fiend"], "humanoid")).toBe(false);
+    expect(em.typeAdmits({ on: "moveOut" }, [], "humanoid")).toBe(true);
+    const bend = em.circleBend(circle, {
+      attackerType: "undead",
+      picked: ["undead"],
+      targetInside: true
+    });
+    expect(bend).toEqual({
+      bend: "disadvantage",
+      label: "Magic Circle — an undead attacking into the circle"
+    });
+    expect(
+      em.circleBend(circle, { attackerType: "undead", picked: ["fiend"], targetInside: true })
+    ).toBeNull();
+    expect(
+      em.circleBend(circle, { attackerType: "undead", picked: ["undead"], targetInside: false })
+    ).toBeNull();
+    expect(
+      em.circleBend(
+        { key: "Moonbeam", ...reg.EMANATIONS.Moonbeam },
+        { attackerType: "undead", picked: [], targetInside: true }
+      )
+    ).toBeNull();
+  });
+  it("the move's payout (Spike Growth): floor(feet / 5) times the dice, one roll; under 5 feet nothing", () => {
+    const parts = [{ number: 2, denomination: 4, bonus: "", type: "piercing" }];
+    expect(em.movePayout({ per: 5 }, { feet: 15, parts })).toMatchObject({
+      steps: 3,
+      formula: "6d4",
+      type: "piercing"
+    });
+    expect(em.movePayout({ per: 5 }, { feet: 4, parts })).toMatchObject({
+      steps: 0,
+      formula: null
+    });
+    expect(
+      em.movePayout({ per: 5 }, { feet: 10, parts: [{ number: 1, denomination: 6, bonus: "2" }] })
+        .formula
+    ).toBe("2d6 + 2 * (2)");
+    expect(em.movePayout({}, { feet: 5, parts: [] })).toMatchObject({ steps: 1, formula: null });
   });
 });
 

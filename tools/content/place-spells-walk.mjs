@@ -50,7 +50,9 @@ const out = await f.evaluate(async () => {
     'Heroism', 'Synaptic Static', 'Hold Person', 'Hold Monster', "Tasha's Hideous Laughter", 'Blindness/Deafness', 'Crown of Madness',
     'Slow', 'Fear', 'Confusion', 'Phantasmal Killer', 'Eyebite', 'Contagion', 'Dominate Person', 'Flesh to Stone', 'Cure Wounds',
     // Tier 3
-    'Moonbeam', 'Cloud of Daggers', 'Cloudkill', 'Insect Plague', 'Flaming Sphere', 'Sanctuary', 'Mirror Image', 'Sacred Flame'];
+    'Moonbeam', 'Cloud of Daggers', 'Cloudkill', 'Insect Plague', 'Flaming Sphere', 'Sanctuary', 'Mirror Image', 'Sacred Flame',
+    // Tier 4 — the held spells
+    'Warding Bond', 'Vampiric Touch', 'Prismatic Spray', 'Wall of Fire', 'Spike Growth', 'Magic Circle', 'Forcecage', 'Counterspell'];
   const made = {};
   {
     const o = cleric.toObject();
@@ -80,7 +82,8 @@ const out = await f.evaluate(async () => {
       system: {
         abilities: { str: { value: 12 }, dex: { value: 12 }, con: { value: 12 }, int: { value: 10 }, wis: { value: 10 }, cha: { value: 10 } },
         attributes: { hp: { value: 120, max: 120 }, ac: { calc: 'flat', flat: 12 }, movement: { walk: 30 } },
-        details: { type: { value: 'humanoid' }, cr: 1 }
+        // The Target is a Fiend: Magic Circle's ban and Disadvantage have a customer (Tier 4).
+        details: { type: { value: (name === TARGET) ? 'fiend' : 'humanoid' }, cr: 1 }
       },
       prototypeToken: { name, actorLink: true, disposition, width: 1, height: 1, texture: { src: tex } }
     });

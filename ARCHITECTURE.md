@@ -579,6 +579,17 @@ emanations (§6's tripwire 38 → 39) — and added two tables that are not kind
 | `WARDS` (new) | `effect` · `activity` · `gates` · `endsOn` | a standing effect whose bearer makes whoever targets it save FIRST — vetoed at `dnd5e.preRollAttack` / `dnd5e.preUseActivity`, demanded of the attacker, the use made again on a pass with the first press's dialog choice (`wards.js`, Sanctuary); what the bearer does that ends it. Found by the effect's name and origin (`repeatRowFor`) |
 | `DUPLICATES` (new) | `effect` · `die` · `at` · `seesThrough` | a hit that stands after the defender's reactions rolled against the standing duplicates on the hold (`hold/trigger.js` stamps the entry — answered by the machine when nothing else asks; `hold/continue.js` rolls; `hold/views.js`, `hold/dice.js` show); an absorbed hit is a forced `verdict: "absorbed"` on the attack (`decide/verdict.js`); the destroyed duplicate is landed by the defender's driver (Mirror Image) |
 
+The held spells (the same evening; RULINGS *The spells slice — the held spells*) moved no kind: three
+tables that are not kinds and vocabulary on two that exist.
+
+| Table | Word | What it says |
+| --- | --- | --- |
+| `DAMAGE_SHARES` (new) | `effect` · `share` · `within` · `endsAt` | a standing effect whose caster takes what its bearer takes (Warding Bond), read on `dnd5e.applyDamage` — the amount that landed, applied untyped within the reach, the caster's drop to 0 ending it (`damage-shares.js`). Not a kind: one machine, rows of data |
+| `HEAL_ON_HIT` (new) | `share` · `type` | a spell whose landed damage heals its caster a share of the named type (Vampiric Touch), read on the same seam off the dealing card's activity (`heal-on-hit.js`). Not a kind |
+| `RAY_TABLES` (new) | `die` · `cast` · `twice` · `rays` | a cone whose die per creature picks its ray (Prismatic Spray): the cast's demand closed at birth, a demand per (creature, ray) with the ray's type forced or its own save, a condition ray's effect landed by the machine (`prismatic.js`). Not a kind |
+| `REPEAT_SAVES` | `item` · `activity` | a second row on one spell, naming the spell; the save by name where the spell's first is not the repeat's (Prismatic Spray's indigo ray) |
+| `EMANATIONS` | `trigger.on: "move"` · `per` · `band` · `ask` · `gate` · `alert.on: "moveOut"` · `alert.kind: "notice"` · `alert.types` · `noCastSave` | the `area` kind's held-spell facets: damage per feet moved inside (Spike Growth); a burning band on one side of a wall, flipped on the card (Wall of Fire); a pick asked on the card and kept on the region (Magic Circle's types); the attack gate reading the area (the circle's Disadvantage); a notice as a creature moves out, a plain card with no Reaction (Forcecage, the circle's entry), narrowed to the chosen types; a cast whose save is not for standing inside |
+
 ### How a row names its content
 
 A row is keyed by its content's English name, and it FINDS the content by dnd5e's

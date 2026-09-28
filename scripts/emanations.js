@@ -16,7 +16,9 @@ import { emanationShapeData } from "./decide/geometry.js";
 import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
-import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers } from "./decide/emanations.js";
+import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers,
+  awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout } from "./decide/emanations.js";
+import { feetOf } from "./geometry.js";
 import { canAnswerFor } from "./core.js";
 import { momentButton, registerRelay, waitForWrite } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
@@ -73,7 +75,13 @@ listenOnce("init", "emanations", () => {
     static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
     static async #onTurnStart(event) { if ( !gmHandles(event) ) return; await maybeHeal(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnStart"); }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
-    static async #onMoveIn(event) { if ( !gmHandles(event) ) return; await maybeAlert(this, event.data?.token ?? null, event.data?.movement ?? null); }
+    static async #onMoveIn(event) {
+      if ( !gmHandles(event) ) return;
+      await maybeAlert(this, event.data?.token ?? null, event.data?.movement ?? null, "moveIn");
+      await maybeMoveDamage(this, event.data?.token ?? null, event.data?.movement ?? null);
+    }
+    static async #onMoveOut(event) { if ( !gmHandles(event) ) return; await maybeAlert(this, event.data?.token ?? null, event.data?.movement ?? null, "moveOut"); }
+    static async #onMoveWithin(event) { if ( !gmHandles(event) ) return; await maybeMoveDamage(this, event.data?.token ?? null, event.data?.movement ?? null); }
     // biome-ignore-end lint/complexity/noThisInStatic: Foundry calls a region behavior's event handlers with `this` bound to the behavior instance
     static events = {
       [EV.TOKEN_ENTER]: this.#onEnter,
@@ -81,6 +89,8 @@ listenOnce("init", "emanations", () => {
       [EV.TOKEN_TURN_END]: this.#onTurnEnd,
       [EV.TOKEN_TURN_START]: this.#onTurnStart,
       [EV.TOKEN_MOVE_IN]: this.#onMoveIn,
+      [EV.TOKEN_MOVE_OUT]: this.#onMoveOut,
+      [EV.TOKEN_MOVE_WITHIN]: this.#onMoveWithin,
       [EV.BEHAVIOR_ACTIVATED]: this.#onToggle,
       [EV.BEHAVIOR_DEACTIVATED]: this.#onToggle
     };
@@ -316,24 +326,31 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
 
 /**
  * An `alert` row: a creature that MOVED into the reach raises Hew's reminder (`hewNotice`), once per
- * movement. tokenMoveIn fires only for a mover, and a walked move is split at each region edge, so
- * passing through is caught.
+ * movement; a `kind: "notice"` row (an area's ban on entering or leaving) posts a plain card instead.
+ * tokenMoveIn fires only for a mover, and a walked move is split at each region edge, so passing
+ * through is caught.
  */
 const alerted = new Set();
-async function maybeAlert(behType, token, movement) {
+async function maybeAlert(behType, token, movement, cause) {
   try {
     if ( !isActiveGM() || !token?.actor ) return;
     const sys = behType;
     const row = rowNamed(sys.key);
-    if ( !row?.alert || (row.alert.on !== "moveIn") || behType.behavior?.disabled || !listed().has(lower(row.key)) ) return;
+    if ( !row?.alert || (row.alert.on !== cause) || behType.behavior?.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;
+    const key = `${region.id}|${token.id}|${cause}|${movement?.id ?? Date.now()}`;
+    if ( row.alert.kind === "notice" ) {
+      if ( alerted.has(key) ) return;
+      if ( !typeAdmits(row.alert, flagOf(region)?.picked ?? askDefaults(row.ask), creatureTypeOf(token.actor.system?.details?.type ?? null)) ) return;
+      alerted.add(key);
+      return notice(region, row, sys, token, cause);
+    }
     const source = resolveUuid(sys.source);
     const bearer = source?.actor ?? null;
     if ( !bearer || (token.id === source.id) ) return;
     if ( !reachAdmits(sys.reach, source.disposition ?? 1, token.disposition) ) return;
     if ( reactionSpent(bearer) || bearer.statuses?.has?.("incapacitated") ) return;
-    const key = `${region.id}|${token.id}|${movement?.id ?? Date.now()}`;
     if ( alerted.has(key) ) return;
     alerted.add(key);
     const item = resolveUuid(sys.item);
@@ -354,6 +371,76 @@ async function maybeAlert(behType, token, movement) {
     });
   } catch(err) {
     console.error(`${TITLE} | ${behType?.key ?? "An emanation"}'s reminder failed — the reaction is yours by hand.`, err);
+  }
+}
+
+/** A `notice` alert: the area's ban said on a card as a creature moves in or out; the move is never paused (DESIGN §8). */
+async function notice(region, row, sys, token, cause) {
+  const item = resolveUuid(sys.item);
+  const caster = item?.actor ?? null;
+  await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: caster ?? token.actor }),
+    content: bfCard({ img: item?.img ?? null, eyebrow: `${row.key} — the ban`, tone: "bad",
+      title: `${row.alert.label} — ${token.name} ${cause === "moveOut" ? "leaves" : "enters"} ${caster ? `${caster.name}'s ` : "the "}${row.key}`,
+      subtitle: `${token.name} ${row.alert.says}`,
+      lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
+    flags: { [MODULE_ID]: { areaNotice: { ...statContext(caster?.uuid ?? null), key: row.key, cause, regionId: region.id, tokenId: token.id, targetUuid: token.actor.uuid, label: row.alert.label } } }
+  });
+}
+
+/* --- the move: an area pays per feet MOVED inside it (Spike Growth) --------------------------- */
+
+/**
+ * A `trigger on "move"` row: the feet the mover travelled INSIDE the area, from the platform's own split
+ * of the move through the region, per the row's `per`, times the activity's dice — rolled on the caster
+ * and applied with a receipt once the move has landed; once per movement, never a pause (DESIGN §8).
+ */
+const moved = new Set();
+async function maybeMoveDamage(behType, token, movement) {
+  try {
+    if ( !isActiveGM() || !token?.actor || !movement ) return;
+    const sys = behType;
+    const row = rowNamed(sys.key);
+    if ( !row?.trigger?.on.includes("move") || behType.behavior?.disabled || !listed().has(lower(row.key)) ) return;
+    const region = behType.region;
+    if ( !appliesHere(region) ) return;
+    const source = resolveUuid(sys.source);
+    if ( !reachAdmits(sys.reach, source?.disposition ?? 1, token.disposition) ) return;
+    const key = `${region.id}|${token.id}|${movement.id ?? Date.now()}`;
+    if ( moved.has(key) ) return;
+    moved.add(key);
+    // A teleport (Misty Step, the GM's displace) travels no feet through the spikes.
+    if ( (movement.passed?.waypoints ?? []).some(w => CONFIG.Token?.movement?.actions?.[w.action]?.teleport) ) return;
+    const item = resolveUuid(sys.item);
+    const damage = activityOfType(item, "damage");
+    if ( !item || !damage ) return;
+    const segments = token.segmentizeRegionMovementPath(region, [movement.origin, ...(movement.passed?.waypoints ?? [])]);
+    let units = 0;
+    for ( const s of segments ) {
+      const d = canvas.grid.measurePath([{ x: s.from.x, y: s.from.y }, { x: s.to.x, y: s.to.y }]).distance;
+      if ( Number.isFinite(d) ) units += d;
+    }
+    const feet = feetOf(units, region.parent?.grid?.units ?? canvas.scene?.grid?.units) ?? 0;
+    const parts = (damage.damage?.parts ?? []).map(p => ({ number: p.number, denomination: p.denomination, bonus: p.bonus, type: [...(p.types ?? [])][0] ?? null }));
+    const payout = movePayout(row.trigger, { feet: Math.round(feet), parts });
+    if ( !payout.formula ) return;
+    const casterActor = item.actor ?? null;
+    const roll = await new Roll(payout.formula, casterActor?.getRollData?.() ?? {}).evaluate();
+    const type = payout.type ?? "piercing";
+    const actor = token.actor;
+    const card = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+      rolls: [roll],
+      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+        title: `${row.key} — ${actor.name} moved ${Math.round(feet)} feet through it: ${roll.total} ${type} damage`,
+        subtitle: `${payout.why} · ${payout.formula}`,
+        lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
+      flags: { [MODULE_ID]: { areaMove: { ...statContext(casterActor?.uuid ?? null), key: row.key, regionId: region.id, targetUuid: actor.uuid,
+        movementId: movement.id ?? null, feet: Math.round(feet), steps: payout.steps, formula: payout.formula, total: roll.total, type } } }
+    });
+    if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], [{ value: roll.total, type, properties: new Set(["mgc"]) }], { note: row.key });
+  } catch(err) {
+    console.error(`${TITLE} | ${behType?.key ?? "An area"}'s move damage failed — apply it by hand.`, err);
   }
 }
 
@@ -726,13 +813,148 @@ async function adoptSpellRegion(region) {
       effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
     const drawn = region.shapes?.[0]?.radius;
+    // The held spells' facets: the wall's burning band (away from the caster by default) and the ask's picks.
+    const choices = await adoptChoices(region, row, (originTok?.documentName === "Token") ? originTok : (actor?.token ?? actor?.getActiveTokens?.(true, true)?.[0] ?? null));
     await announce(row, actor, item, size ?? (Number.isFinite(drawn) ? drawn / pxPerUnit(region.parent) : null), effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",
-      { activity: activityOfType(item, "save"), regionId: region.id });
+      { activity: activityOfType(item, "save"), regionId: region.id, sceneId: region.parent?.id ?? null, ...choices });
     await reconcileMembers(region);
   } catch(err) {
     console.error(`${TITLE} | Could not adopt a spell's emanation — its effects apply by hand.`, err);
   }
 }
+
+/* --- the held spells' facets: the band and the ask, on the region and offered on the card ------- */
+
+/**
+ * At adoption: a `band` row's region is widened on the side away from the caster (the base shape kept on
+ * the flag, to re-band on a flip); an `ask` row's picks start as every option. Returns the card's facets.
+ */
+async function adoptChoices(region, row, casterTok) {
+  const out = {};
+  try {
+    const f = flagOf(region) ?? {};
+    const next = { ...f };
+    if ( row.band ) {
+      const base = region.shapes?.[0]?.toObject?.() ?? (region.shapes?.[0] ? { ...region.shapes[0] } : null);
+      if ( base ) {
+        const grid = region.parent?.grid?.size ?? 100;
+        const centre = casterTok ? { x: (casterTok._source?.x ?? casterTok.x) + (casterTok.width ?? 1) * grid / 2, y: (casterTok._source?.y ?? casterTok.y) + (casterTok.height ?? 1) * grid / 2 } : null;
+        const side = awaySide(base, centre);
+        next.band = { side, base };
+        out.band = { side, options: bandOptions(base), ask: row.band.ask };
+      }
+    }
+    if ( row.ask ) {
+      next.picked = askDefaults(row.ask);
+      out.picks = { what: row.ask.what, label: row.ask.label, options: [...row.ask.options], picked: [...next.picked] };
+    }
+    if ( row.band || row.ask ) {
+      await region.setFlag(MODULE_ID, FLAG, next);
+      if ( next.band ) await region.update({ shapes: [bandShape(next.band.base, next.band.side, row.band.feet * pxPerUnit(region.parent))] });
+    }
+  } catch(err) { console.warn(`${TITLE} | ${row?.key ?? "An area"}'s band or picks could not be set — edit the region by hand.`, err); }
+  return out;
+}
+
+/** The card's choice folded onto the region: the band's side re-shapes it, the picks are written to its flag. Active GM only. */
+async function applyCardChoices(card) {
+  try {
+    if ( !isActiveGM() ) return;
+    const c = card.getFlag(MODULE_ID, "emanationCard");
+    if ( !c?.regionId || (!c.band && !c.picks) ) return;
+    const scene = c.sceneId ? game.scenes.get(c.sceneId) : null;
+    const region = (scene ?? game.scenes.active)?.regions?.get(c.regionId) ?? null;
+    if ( !region ) return;
+    const f = flagOf(region);
+    const row = f ? rowNamed(f.key) : null;
+    if ( !f || !row ) return;
+    const next = { ...f };
+    let changed = false;
+    if ( c.band && f.band && (c.band.side !== f.band.side) ) {
+      next.band = { ...f.band, side: c.band.side };
+      changed = true;
+      await region.update({ shapes: [bandShape(f.band.base, c.band.side, (row.band?.feet ?? 10) * pxPerUnit(region.parent))] });
+    }
+    if ( c.picks && !foundry.utils.objectsEqual([...(c.picks.picked ?? [])].sort(), [...(f.picked ?? [])].sort()) ) {
+      next.picked = [...(c.picks.picked ?? [])];
+      changed = true;
+    }
+    if ( changed ) await region.setFlag(MODULE_ID, FLAG, next);
+  } catch(err) { console.warn(`${TITLE} | The card's choice could not reach the region — edit it by hand.`, err); }
+}
+
+listen("updateChatMessage", "emanations", message => { if ( message.getFlag(MODULE_ID, "emanationCard") ) void applyCardChoices(message); });
+
+// The pick is a fold onto the card (R2): the GM writes it straight, a player's travels by relay; the region follows the card.
+registerRelay("emanationPickAnswer", {
+  flagKey: "emanationCard",
+  targetOf: a => a.cardId,
+  owns: flag => drivesMomentFor(flag?.sourceUuid ?? null),
+  fold: (current, a) => {
+    if ( a.side !== undefined ) {
+      if ( !current.band || ![1, -1].includes(Number(a.side)) ) return false;
+      current.band = { ...current.band, side: Number(a.side) };
+      return;
+    }
+    if ( !current.picks?.options?.includes(a.type) ) return false;
+    const picked = new Set(current.picks.picked ?? []);
+    if ( picked.has(a.type) ) picked.delete(a.type); else picked.add(a.type);
+    current.picks = { ...current.picks, picked: [...picked] };
+  },
+  cleanup: true
+});
+
+async function answerPick(card, answer) {
+  const flag = card.getFlag(MODULE_ID, "emanationCard");
+  if ( !flag ) return;
+  if ( card.canUserModify?.(game.user, "update") ) {
+    const next = { ...flag };
+    if ( answer.side !== undefined ) { if ( !next.band ) return; next.band = { ...next.band, side: Number(answer.side) }; }
+    else {
+      if ( !next.picks?.options?.includes(answer.type) ) return;
+      const picked = new Set(next.picks.picked ?? []);
+      if ( picked.has(answer.type) ) picked.delete(answer.type); else picked.add(answer.type);
+      next.picks = { ...next.picks, picked: [...picked] };
+    }
+    await card.setFlag(MODULE_ID, "emanationCard", next);
+    return;
+  }
+  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${esc(answer.type ?? String(answer.side))}</p>`,
+    flags: { [MODULE_ID]: { emanationPickAnswer: { cardId: card.id, ...answer } } } });
+}
+
+const capWord = s => `${String(s).charAt(0).toUpperCase()}${String(s).slice(1)}`;
+
+listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
+  const c = message.getFlag(MODULE_ID, "emanationCard");
+  if ( !c?.band && !c?.picks ) return;
+  const holder = html.querySelector(SURFACES.messageContent);
+  if ( !holder ) return;
+  const mayAnswer = canAnswerFor(resolveUuid(c.sourceUuid)) || game.user.isGM;
+  // Each choice as `{ label, on, answer }`; the click is bound here, where a human fires it.
+  const rows = [];
+  if ( c.band ) rows.push({ text: c.band.ask ?? "Which side burns?", choices: (c.band.options ?? []).map(o => ({ label: o.label, on: o.side === c.band.side, answer: { side: o.side } })) });
+  if ( c.picks ) rows.push({ text: c.picks.label ?? "Which?", choices: (c.picks.options ?? []).map(t => ({ label: capWord(t), on: (c.picks.picked ?? []).includes(t), answer: { type: t } })) });
+  for ( const r of rows ) {
+    const div = document.createElement("div");
+    div.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
+    const label = document.createElement("span");
+    label.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.75;";
+    label.textContent = r.text;
+    div.appendChild(label);
+    for ( const choice of r.choices ) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.style.cssText = `font-size:var(--font-size-11,11px);padding:0.15rem 0.6rem;border-radius:3px;line-height:1.4;`
+        + (choice.on ? "font-weight:bold;border:2px solid rgba(70,150,95,0.95);" : "opacity:0.75;");
+      b.textContent = `${choice.label}${choice.on ? " ✓" : ""}`;
+      b.disabled = !mayAnswer;
+      b.addEventListener("click", ev => { ev.preventDefault(); void answerPick(message, choice.answer); });
+      div.appendChild(b);
+    }
+    holder.appendChild(div);
+  }
+});
 
 /* --- the cast: an area from the caster places itself on the caster ------------------------------ */
 
@@ -931,7 +1153,7 @@ function describeChanges(changes) {
 /** The types a save activity's first damage part offers, in the pack's order. */
 const partTypesOf = activity => [...(activity?.damage?.parts?.[0]?.types ?? [])].map(t => String(t).toLowerCase());
 
-async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null } = {}) {
+async function announce(row, actor, item, range, effect, verb, { activity = null, regionId = null, sceneId = null, band = null, picks = null } = {}) {
   if ( row.quiet ) return;   // a ring that follows what is held says nothing as it rises and falls
   try {
     const reach = (row.reach === "helpful") ? "allies and neutrals inside" : (row.reach === "all") ? "every creature inside" : "enemies inside";
@@ -941,6 +1163,8 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
     })() : null;
     const nothing = row.remind ? "a notice at the start of your turn — the heal is yours to aim"
       : pulseLine ? pulseLine
+      : row.trigger?.on?.includes("move") ? `${row.trigger.per ?? 5} feet moved inside pays the dice — when the move lands`
+      : row.alert?.kind === "notice" ? `a card when a creature ${row.alert.on === "moveOut" ? "leaves" : "enters"} — the move is never stopped`
       : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
     const rangeText = (row.kind === "area") ? (range ? `a ${range}-foot area` : "an area") : range ? `${range}-foot Emanation` : "Emanation";
     // A part with several types is a choice the card carries: the alignment's default, or the caster's pick.
@@ -955,8 +1179,9 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
         subtitle: effect ? `${reach}: ${effect.name} — ${describeChanges(effect.changes)}${row.trigger ? " · a save on entering and on ending a turn inside" : ""}${row.heal ? " · an ally at 0 HP regains Hit Points at the start of its turn" : ""}` : (row.trigger ? "a save on entering and on ending a turn inside" : nothing),
         lines: [ruleLine(row.rule), (row.caveat && (row.effect !== null)) ? `<span style="opacity:0.8;">${row.caveat}</span>` : null]
       }),
-      flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId,
-        ...(choice ? { types: choice.types, activityUuid: choice.activityUuid, damageType: choice.type, damageWhy: choice.why, chosen: false } : {}) } } }
+      flags: { [MODULE_ID]: { emanationCard: { ...statContext(actor?.uuid ?? null), key: row.key, verb, range: range ?? null, regionId, ...(sceneId ? { sceneId } : {}),
+        ...(choice ? { types: choice.types, activityUuid: choice.activityUuid, damageType: choice.type, damageWhy: choice.why, chosen: false } : {}),
+        ...(band ? { band } : {}), ...(picks ? { picks } : {}) } } }
     });
   } catch(err) {
     console.warn(`${TITLE} | Could not post the emanation card.`, err);

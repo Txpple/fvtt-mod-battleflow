@@ -69,6 +69,11 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
 - **Sanctuary and Mirror Image play themselves.** Whoever targets a warded creature saves first,
   and a failed save turns the attack aside before it rolls. A hit on a mirrored creature rolls a
   d6 per duplicate off the token; a 3 or higher and a duplicate takes it.
+- **The odd spells too.** Warding Bond hands the caster the same damage. Vampiric Touch heals
+  half of what landed. Prismatic Spray rolls its d8 per creature and raises a save per ray. Wall
+  of Fire burns on the side you pick, Spike Growth charges for every 5 feet walked through it,
+  and Magic Circle and Forcecage say so when a creature crosses their line. Every PHB spell is
+  accounted for in [the register](audits/spells-register.md).
 - **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
 - **Everything announces itself.** Spent slots, used reactions, effects landing and expiring, a
   crit against a paralyzed creature. Each is a line on a card so nothing is a mystery.

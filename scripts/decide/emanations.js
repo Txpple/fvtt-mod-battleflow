@@ -245,6 +245,144 @@ export function damageTypeFor(types, alignment = null, chosen = null) {
   return { type: list[0] ?? null, why: "the part's first type" };
 }
 
+/* --- the held spells' facets: the band, the ask, the gate, the move --------------------------- */
+
+/** The eight compass names, clockwise from east in Foundry's frame (0° = +x, y down). */
+const COMPASS = ["east", "south-east", "south", "south-west", "west", "north-west", "north", "north-east"];
+
+/**
+ * A compass name for a direction in degrees (Foundry's frame: 0° east, 90° south).
+ * @param {number} degrees
+ */
+export function compassName(degrees) {
+  const d = ((Number(degrees) % 360) + 360) % 360;
+  return COMPASS[Math.round(d / 45) % 8];
+}
+
+/**
+ * The two sides of a wall placed as a `line` shape, each named by its compass direction: `plus` is the side
+ * at rotation + 90°, `minus` the other.
+ * @param {{rotation?: number}} shape
+ */
+export function wallSides(shape) {
+  const r = Number(shape?.rotation) || 0;
+  return { plus: compassName(r + 90), minus: compassName(r - 90) };
+}
+
+/**
+ * Which side of the wall faces AWAY from a point (the caster): +1 for the rotation + 90° side, −1 for the
+ * other; +1 when the point is unknown or on the line.
+ * @param {{x: number, y: number, rotation?: number}} shape
+ * @param {{x: number, y: number}|null} point
+ * @returns {1|-1}
+ */
+export function awaySide(shape, point) {
+  if ( !point || !shape ) return 1;
+  const r = (Number(shape.rotation) || 0) * Math.PI / 180;
+  const nx = -Math.sin(r), ny = Math.cos(r);   // the unit normal at rotation + 90°
+  const dot = (point.x - shape.x) * nx + (point.y - shape.y) * ny;
+  return dot > 0 ? -1 : 1;   // the caster stands on the plus side → the far side is minus
+}
+
+/**
+ * THE BAND: the wall's region widened by `bandPx` on one side. A `line` grows its width by the band and its
+ * centreline shifts half the band toward `side`; a `circle` (the ring's cylinder) burns OUTSIDE as a ring of
+ * the band beyond its radius (side +1) or INSIDE as the disc itself (side −1). Any other shape stands as placed.
+ * @param {Record<string, any>} shape   the region's first shape, plain
+ * @param {1|-1} side
+ * @param {number} bandPx
+ * @returns {Record<string, any>}   the new shape data
+ */
+export function bandShape(shape, side, bandPx) {
+  const band = Math.max(0, Number(bandPx) || 0);
+  if ( !shape || !band ) return { ...shape };
+  if ( shape.type === "line" ) {
+    const r = (Number(shape.rotation) || 0) * Math.PI / 180;
+    const nx = -Math.sin(r), ny = Math.cos(r);
+    const shift = (side === -1 ? -1 : 1) * band / 2;
+    return { ...shape, x: shape.x + nx * shift, y: shape.y + ny * shift, width: (Number(shape.width) || 0) + band };
+  }
+  if ( shape.type === "circle" ) {
+    if ( side === -1 ) return { ...shape };
+    return { type: "ring", x: shape.x, y: shape.y, radius: shape.radius, innerWidth: 0, outerWidth: band, ...(shape.gridBased !== undefined ? { gridBased: shape.gridBased } : {}) };
+  }
+  if ( shape.type === "ring" ) {
+    if ( side === -1 ) return { type: "circle", x: shape.x, y: shape.y, radius: shape.radius, ...(shape.gridBased !== undefined ? { gridBased: shape.gridBased } : {}) };
+    return { ...shape, innerWidth: 0, outerWidth: band };
+  }
+  return { ...shape };
+}
+
+/**
+ * The band's two choices as the card offers them, for a shape.
+ * @param {Record<string, any>} shape
+ * @returns {Array<{side: 1|-1, label: string}>}
+ */
+export function bandOptions(shape) {
+  if ( (shape?.type === "circle") || (shape?.type === "ring") ) return [{ side: 1, label: "outside the ring" }, { side: -1, label: "inside the ring" }];
+  const sides = wallSides(shape);
+  return [{ side: 1, label: `the ${sides.plus} side` }, { side: -1, label: `the ${sides.minus} side` }];
+}
+
+/**
+ * An `ask` row's defaults: every option on.
+ * @param {{options?: readonly string[]}|null|undefined} ask
+ */
+export const askDefaults = ask => [...(ask?.options ?? [])];
+
+/**
+ * A creature's type as dnd5e keeps it, lower-cased: a custom type falls back to its text.
+ * @param {{value?: string|null, custom?: string|null, subtype?: string|null}|null|undefined} type
+ */
+export function creatureTypeOf(type) {
+  const v = String(type?.value ?? "").toLowerCase();
+  if ( v && (v !== "custom") ) return v;
+  return String(type?.custom ?? "").toLowerCase() || null;
+}
+
+/**
+ * Does an alert or gate with `types: "chosen"` reach this creature? A row with no `types` reaches every one.
+ * @param {{types?: string|null}} facet
+ * @param {string[]} picked
+ * @param {string|null} creatureType
+ */
+export function typeAdmits(facet, picked, creatureType) {
+  if ( facet?.types !== "chosen" ) return true;
+  if ( !creatureType ) return false;
+  return (picked ?? []).map(t => String(t).toLowerCase()).includes(String(creatureType).toLowerCase());
+}
+
+/**
+ * THE MOVE'S PAYOUT (Spike Growth): feet travelled inside the area, per the row's `per`, times the
+ * activity's dice — one roll of every die at once.
+ * @param {{per?: number}} trigger
+ * @param {{feet: number, parts: Array<{number?: number|null, denomination?: number|null, bonus?: string|null, type?: string|null}>}} facts
+ * @returns {{steps: number, formula: string|null, type: string|null, why: string}}
+ */
+export function movePayout(trigger, { feet, parts }) {
+  const per = Number(trigger?.per) || 5;
+  const steps = Math.floor((Number(feet) || 0) / per);
+  if ( !steps ) return { steps: 0, formula: null, type: null, why: `${feet} ft inside — less than ${per}` };
+  const dice = (parts ?? []).filter(p => Number(p?.number) > 0 && Number(p?.denomination) > 0)
+    .map(p => `${Number(p.number) * steps}d${p.denomination}${p.bonus ? ` + ${steps} * (${p.bonus})` : ""}`);
+  if ( !dice.length ) return { steps, formula: null, type: null, why: "no dice on the activity" };
+  return { steps, formula: dice.join(" + "), type: parts.find(p => p?.type)?.type ?? null, why: `${feet} ft inside — ${steps} × ${per} feet` };
+}
+
+/**
+ * THE CIRCLE'S GATE: a creature of a chosen type attacking a target inside the circle rolls at the gate's
+ * bend. Null when the row has no gate, the attacker's type is not chosen, or the target stands outside.
+ * @param {{gate?: {attacker?: string|null, types?: string|null}|null, key?: string}} row
+ * @param {{attackerType: string|null, picked: string[], targetInside: boolean}} facts
+ * @returns {{bend: string, label: string}|null}
+ */
+export function circleBend(row, { attackerType, picked, targetInside }) {
+  const gate = row?.gate ?? null;
+  if ( !gate?.attacker || !targetInside ) return null;
+  if ( !typeAdmits(gate, picked, attackerType) ) return null;
+  return { bend: String(gate.attacker), label: `${row.key ?? "the circle"} — a${/^[aeiou]/i.test(String(attackerType)) ? "n" : ""} ${attackerType} attacking into the circle` };
+}
+
 /** Text made safe for HTML. ⚠ The pure layer imports nothing: decide/present.js's `esc`, repeated. */
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 

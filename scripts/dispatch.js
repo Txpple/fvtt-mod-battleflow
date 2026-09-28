@@ -60,6 +60,8 @@ export const ORDER = Object.freeze([
   "hew",
   "command",            // the last maneuver row, above the saves rows
   "rebukes",
+  "damage-shares",      // the bond's share on the damage that landed — the rebukes' seam
+  "heal-on-hit",        // the caster's heal on the damage that landed — the same seam
   "damage-holds",
   "d20-folds",          // the d20 fold row directly below the maneuver rows
   "concentration",
@@ -69,6 +71,7 @@ export const ORDER = Object.freeze([
   "saves/areas",
   "saves/ask",
   "saves/views",        // the verdict rows above the receipts
+  "prismatic",          // the ray table: its cast's demand is closed at birth, its ray cards carry saves demands
   "emanations",         // its trigger card carries a saves demand
   "repeat-saves",       // its demand card carries a saves demand too; its line beneath the verdicts
   "turn-grants",

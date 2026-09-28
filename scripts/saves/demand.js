@@ -153,6 +153,8 @@ listen("battleflow.deferredUsageCard", "saves/demand", ({ activity, message, tem
 async function stampSaveDemand(activity, message, results) {
   try {
     if ( message.getFlag(MODULE_ID, "saves") ) return; // never re-stamp
+    // An area whose save is for something other than standing in it (Magic Circle's teleport-in save) demands nothing at the cast.
+    if ( emanationRowFor(activity)?.noCastSave ) return;
     // ⚠ A template spell's targets are what the AREA contains, not what was clicked. postUseActivity
     // fires after placement, so `results.templates` is the real RegionDocument[] (maybe nested).
     const placed = emanationReach(activity, tokensInRegions((results?.templates ?? []).flat().filter(t => t?.parent)));

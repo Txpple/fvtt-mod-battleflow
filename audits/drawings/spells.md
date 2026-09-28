@@ -98,3 +98,63 @@ The user's calls before step 2: (a) is the repeat-save kind in, and does its suc
 effect automatically or land as an offer to the GM (R1 says the machine may act where the rule
 leaves no choice — a success ends the effect, no choice); (b) which of step 3's three go in this
 slice; (c) whether Counterspell is pulled forward from session 0.
+
+## The held spells — BUILT 2026-09-28, evening (RULINGS *The spells slice — the held spells*)
+
+Warding Bond (`DAMAGE_SHARES`), Vampiric Touch (`HEAL_ON_HIT`), Prismatic Spray (`RAY_TABLES` + a
+second `REPEAT_SAVES` row for the indigo ray), Wall of Fire (an `area` with a burning `band`), Spike
+Growth (the `area` kind's `move` trigger — DESIGN §4's second exception, the user's), Magic Circle and
+Forcecage partially (their regions, the circle's types ask, Disadvantage gate and entry notice, the
+cage's exit notice). **Counterspell is NATIVE** by the user's ruling: the caster targets the creature and
+the saves machine demands its Constitution save; nothing watches the cast (RULINGS *Bent by choice*).
+The register below closes the slice: `tools/audit-spells-register.mjs` writes
+[../spells-register.md](../spells-register.md) from the corpus scan, the registry, RULINGS and this table.
+
+## Register verdicts
+
+The hand column the generator reads — a verdict the data cannot derive, one row per spell, by name.
+A spell not listed here takes the generator's default: MODULE when a registry table names it, TEXT when
+the pack ships a paragraph only, NATIVE otherwise. `| **Spell** | OUT / TEXT / NATIVE / MODULE | why |`.
+
+| Spell | Verdict | Why |
+| --- | --- | --- |
+| **Divine Smite** | OUT | a Bonus Action cast after the hit in 2024, never a rider on it (the user, 2026-09-03); the pack's damage on use resolves it |
+| **Banishing Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Blinding Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Searing Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Shining Smite** | MODULE | a smite (out as a rider) whose standing Advantage is an `EFFECT_BENDS` row |
+| **Staggering Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Thunderous Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Wrathful Smite** | OUT | a smite: a Bonus Action cast after the hit (2026-09-03) |
+| **Feather Fall** | OUT | no falling moment the module meets |
+| **Dispel Magic** | OUT | reads a spell's level on the sheet — the table's call |
+| **Mind Spike** | OUT | the audit's false press; the pack resolves the damage, the tracking is the table's |
+| **Raise Dead** | OUT | its penalty is a downtime clock, no combat moment |
+| **Enthrall** | OUT | the save bend turns on "fighting" — the GM's judgment |
+| **Animal Messenger** | OUT | the save bend turns on "fighting" — the GM's judgment; no combat moment |
+| **Wall of Force** | OUT | terrain — a region the table honours, no mechanism to play |
+| **Wall of Stone** | OUT | terrain |
+| **Guards and Wards** | OUT | terrain and a suite of effects the table plays |
+| **Conjure Animals** | OUT | a summon: the summoned actor's own attacks are the attacks machine's already |
+| **Conjure Elemental** | OUT | a summon |
+| **Conjure Fey** | OUT | a summon |
+| **Conjure Celestial** | OUT | a summon |
+| **Animate Objects** | OUT | a summon |
+| **Spiritual Weapon** | OUT | a summon: its attacks are the attacks machine's |
+| **Polymorph** | OUT | a shape change: the platform's transformation |
+| **True Polymorph** | OUT | a shape change: the platform's transformation |
+| **Shapechange** | OUT | a shape change: the platform's transformation |
+| **Animal Shapes** | OUT | a shape change: the platform's transformation |
+| **Chain Lightning** | NATIVE | the leaps are the cast's own targets: the demand at the targets covers them |
+| **Call Lightning** | NATIVE | each strike is a use; the demand at the targets covers it |
+| **Cordon of Arrows** | OUT | the pack's uses model it; the ambush trigger is the table's |
+| **Delayed Blast Fireball** | OUT | the pack's uses model the growing bead; the detonation is the table's |
+| **Wish** | OUT | the table's, entirely |
+| **Antimagic Field** | OUT | a ring that carries no effect (RULINGS *Emanations*: left out) |
+| **Darkness** | OUT | a ring that carries no effect (the sight rules are the table's) |
+| **Daylight** | OUT | a ring that carries no effect |
+| **Counterspell** | NATIVE | the caster targets the creature and the saves machine demands its Constitution save; nothing watches the cast (the user, 2026-09-28 — RULINGS *Bent by choice*) |
+| **Haste** | NATIVE | measured 2026-09-28: Hasted carries the Dexterity save mode; the AC and the action are the pack's |
+| **Synaptic Static** | NATIVE | measured 2026-09-28: Muddled Thoughts carries the −1d6 |
+| **Sorcerous Burst** | NATIVE | measured 2026-09-28: the pack's `1d8x@mod=8` is Foundry's capped explode |
+| **Sleep** | MODULE | `CHOSEN_AREAS` and `SPENT_AREAS`; ⚠ the pack's effect carries Incapacitated where the text says Unconscious — a data slip, landed as shipped |

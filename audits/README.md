@@ -13,6 +13,7 @@
 | File | What |
 | --- | --- |
 | [spells.md](spells.md) | the PHB spells — SWEEP §7 is the drawing |
+| [spells-register.md](spells-register.md) | **the PHB spell register** — every spell: NATIVE / MODULE / TEXT / OUT, why not or how, the bends, the walk tier; `node tools/audit-spells-register.mjs <corpus.json>` from a spells-only scan, the registry, RULINGS and the drawing's *Register verdicts* |
 | [classes/](classes/) | one file per class: the class's features, then each subclass — the order the user asked for (2026-09-28: class by class, all its subclasses, then the next) |
 | [options.md](options.md) | invocations, metamagic, maneuvers, boons |
 | [dm.md](dm.md) | the DMG's features and equipment |

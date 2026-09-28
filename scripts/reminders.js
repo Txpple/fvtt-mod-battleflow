@@ -10,7 +10,9 @@ import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
 import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
-import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
+import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, EMANATIONS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK, tableIndex } from "./decide/registry.js";
+import { askDefaults, circleBend, creatureTypeOf } from "./decide/emanations.js";
+import { tokensInRegions } from "./geometry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
@@ -511,8 +513,30 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
       // Target-side rows, and attacker-side rows that hinge on THIS target (Bloodied, an ally beside it).
       out.push(...effectSources({ attacker: attackerSheet, target: { ...sheetOf(target), allyNear: allyNearTarget(attackerToken, token) },
         enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
+      out.push(...circleSourcesFor(attacker, token, attackerName));
     }
   }
+  return out;
+}
+
+/** THE CIRCLE'S GATE (Magic Circle): a gated area the target stands in, read off the region and its picks. */
+const EMANATION_INDEX = tableIndex(EMANATIONS);
+function circleSourcesFor(attacker, targetToken, attackerName) {
+  const out = [];
+  try {
+    const scene = targetToken?.document?.parent ?? null;
+    if ( !scene ) return out;
+    const attackerType = creatureTypeOf(attacker?.system?.details?.type ?? null);
+    for ( const region of scene.regions ) {
+      const f = region.getFlag(MODULE_ID, "emanation");
+      if ( f?.kind !== "area" ) continue;
+      const row = EMANATION_INDEX.rowNamed(f.key);
+      if ( !row?.gate ) continue;
+      const inside = (tokensInRegions([region]) ?? []).some(e => e.tokenId === targetToken.document.id);
+      const bend = circleBend(row, { attackerType, picked: f.picked ?? askDefaults(row.ask), targetInside: inside });
+      if ( bend ) out.push(reminderSource("effect", bend.bend, `${attackerName} — ${bend.label}`, row.rule));
+    }
+  } catch(err) { console.warn(`${TITLE} | The circle's gate could not be read.`, err); }
   return out;
 }
 

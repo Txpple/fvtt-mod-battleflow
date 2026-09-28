@@ -777,6 +777,14 @@ export const STATE_KEYS = Object.freeze({
   ward: "the demand card a ward raised of whoever targeted its bearer (wards.js, Sanctuary) — beside the saves record, which is the resolve; `settled`, `outcome` and `says` whether the use went on or was turned aside",
   wardEnded: "the card a ward's end posts (wards.js) — its bearer's own attack roll, cast or damage roll ended it; the effect's deletion is the act",
   duplicatesSeen: "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",
+  damageShare: "the card a bond's share posts (damage-shares.js, Warding Bond) — the receipt on the same card is the resolve; `ended` when the caster's drop ended the bond",
+  healOnHit: "on the dealing card: the creatures whose landed damage already paid the caster (heal-on-hit.js, Vampiric Touch) — a latch; on the heal's own card, its facts, and the receipt there is the resolve",
+  prismatic: "the ray table's claim on the cast's card (prismatic.js): pending until the cone stands, rolled once — the rays' demand cards are the moments",
+  prismaticRays: "the summary card of a ray table's roll — a d8 per creature, presentation; the rays' demand cards are the moments",
+  prismaticRay: "one ray's demand card (prismatic.js) — beside the saves record, which is the resolve; `settled` and `says` what a condition ray's verdict landed (the effectReceipt there carries it)",
+  areaNotice: "the card an area's ban posts as a creature moves in or out (emanations.js, Magic Circle and Forcecage) — a notice, the move never paused; presentation",
+  areaMove: "the card an area's move damage posts (emanations.js, Spike Growth) — the receipt on the same card is the resolve",
+  emanationPickAnswer: "an envelope — the caster's band side or type pick on an area's card; the fold onto emanationCard is the resolve, and the region follows it",
   areas: "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
   saveFor: "an envelope field beside respondsTo — the saves channel's target uuid"
 });

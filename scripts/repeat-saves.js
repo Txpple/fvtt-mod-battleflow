@@ -7,7 +7,7 @@
  * here is for the bare ones. The precedent is the emanation's `trigger on "turnEnd"`.
  */
 import { MODULE_ID, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
-import { activityOfType, resolveUuid } from "./lookup.js";
+import { activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { effectSourceOf, forceStatus } from "./shared.js";
 import { REPEAT_SAVES, answers, repeatSaveEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle } from "./decide/repeat-saves.js";
@@ -103,7 +103,8 @@ async function raiseRepeat(effect, row, cause, why) {
   try {
     const actor = effect.parent;
     const item = row.item;
-    const activity = activityOfType(item, "save");
+    // The row's named save where the spell's first is not the repeat's (Prismatic Spray's indigo ray).
+    const activity = row.activity ? activityNamed(item, row.activity) : activityOfType(item, "save");
     const dc = activity?.save?.dc?.value;
     const abilities = [...(activity?.save?.ability ?? [])];
     if ( !(actor instanceof Actor) || !activity || !(dc > 0) || !abilities.length ) return;

@@ -26,6 +26,10 @@ const SECTIONS = {
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
   18: 'THE AREA KIND (the spells slice, Tier 3, 2026-09-28): Moonbeam\'s placed region is adopted where it stands, attached to nothing; a creature walking in is demanded the save (its damage rolled); the beam MOVED onto a standing creature demands it; in combat a turn ended inside demands it, once per turn',
   19: 'Cloud of Daggers: an area whose activity is plain damage — a creature walking in takes the dice, rolled on the caster and applied with a receipt, no save',
+  20: 'THE HELD SPELLS — Wall of Fire: the placed wall (a line) is adopted and WIDENED 10 ft on the side away from the Cleric (the base shape kept); the cast\'s card offers both sides by compass name; a creature ending its turn on the hot side is demanded the Dexterity save with the 5d8 fire, one on the cold side is not; flipping the side on the card re-shapes the region',
+  21: 'Spike Growth: a walked move of 15 ft INSIDE the area pays 6d4 piercing when the move lands — a card with the roll and the feet, a receipt; a teleport pays nothing',
+  22: 'Magic Circle: adopted with every type picked and no save demanded at the placement; a Fiend moving in raises the entry notice (the move carries on); the Fiend attacking a target INSIDE the circle has the gate list "Magic Circle — a fiend attacking into the circle" (net Disadvantage), attacking one outside it lists nothing; unticking Fiend on the card reaches the region and the gate lists nothing',
+  23: 'Forcecage: adopted; a creature walking OUT of the cage raises the exit notice (the move carries on), walking in raises nothing',
   11: 'LIVE SCENES ONLY (user, 2026-09-04: the bleed; 2026-09-23: a viewed scene is live): another scene made active and viewed brings the range\'s rings down and lifts the ally\'s effects; a stale ring on a scene nobody is on is brought down by the ready sweep; the range VIEWED (not active) raises them; two live scenes with the ally inside the ring on both give ONE copy per aura; the range active again raises them once, no stack',
   12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
   13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
@@ -789,6 +793,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // ⚠ Unlinked: the damage lands on the token's own actor, and a token MOVE re-creates that synthetic
         // actor — read it fresh at every assertion, never off an instance captured before the move.
         const vicActor = () => scene.tokens.get(vicTok.id).actor;
+        await vicActor().update({ 'system.attributes.hp.value': vicActor().system.attributes.hp.max });   // earlier sections drain it
         const hp0 = vicActor().system.attributes.hp.value;
         const cubeAt = { x: 1200, y: 1200 };
         const t19 = Date.now();
@@ -807,6 +812,212 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await vicTok.update(home[vicTok.id], mv()); await clrTok.update(home[clrTok.id], mv());
         await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
         await sleep(500);
+      }
+    }
+
+    // ================================================== THE HELD SPELLS (§20–§23): the shared bits
+    const vicActor = () => scene.tokens.get(vicTok.id).actor;   // ⚠ unlinked: read fresh after every move
+    const walk = (tokDoc, x, y) => tokDoc.move([{ x, y, action: 'walk' }], { constrainOptions: { ignoreWalls: true, ignoreTokens: true } });
+    const noticesSince = t => game.messages.filter(m => (m.timestamp >= t) && m.getFlag(MOD, 'areaNotice'));
+    const parkAll = async () => { await vicTok.update({ x: 300, y: 1900 }, mv()); await rgrTok.update({ x: 300, y: 1600 }, mv()); await clrTok.update({ x: 600, y: 1900 }, mv()); await palTok.update({ x: 900, y: 1900 }, mv()); await sleep(500); };
+    const homeAll = async () => { for (const t of [palTok, clrTok, rgrTok, vicTok]) await t.update(home[t.id], mv()); await sleep(500); };
+    const adoptedArea = key => waitFor(() => { const r = areaRegion(key); return r?.behaviors?.some(b => b.type === TYPE) ? r : null; }, 8000);
+
+    // ================================================== 20. Wall of Fire — the band
+    if (want(20)) {
+      await set('saveRolls', 'auto');
+      const item = await giveSpell('Wall of Fire');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.name === 'Create Wall');
+      if (!item || !act) { ok('20-. Wall of Fire lent', false, 'the PHB ships no Wall of Fire this box can find'); }
+      else {
+        await parkAll();
+        await clrTok.update({ x: 1200, y: 900 }, mv());   // the Cleric NORTH of the wall
+        await sleep(400);
+        const t20 = Date.now();
+        // An east–west wall at y = 1200, 30 ft long, 1 ft thick, from x = 1000.
+        const region = await placeArea(item, act, { type: 'line', x: 1000, y: 1200, length: 6 * grid, width: px, rotation: 0 }, 4);
+        const adopted = await waitFor(() => { const r = areaRegion('Wall of Fire'); return r?.getFlag(MOD, 'emanation')?.band ? r : null; }, 8000);
+        const f = adopted?.getFlag(MOD, 'emanation');
+        const shape = adopted?.shapes?.[0];
+        ok('20a. the wall is adopted and WIDENED by 10 ft on the side AWAY from the Cleric (south, +1): the line\'s width grew by 10 ft, its centreline moved 5 ft south, the base shape kept on the flag',
+          !!adopted && (adopted.id === region.id) && (f?.band?.side === 1) && (shape?.type === 'line') && (Math.round(shape.width) === Math.round(11 * px)) && (Math.round(shape.y) === Math.round(1200 + 5 * px)) && (Math.round(f.band.base?.width) === Math.round(px)),
+          `adopted=${!!adopted} band=${JSON.stringify(f?.band && { side: f.band.side, base: f.band.base?.width })} shape=${JSON.stringify(shape && { type: shape.type, y: shape.y, width: shape.width })} px=${px}`);
+        const card = await waitFor(() => game.messages.find(m => (m.timestamp >= t20) && m.getFlag(MOD, 'emanationCard')?.key === 'Wall of Fire') ?? null, 6000);
+        const band = card?.getFlag(MOD, 'emanationCard')?.band;
+        ok('20b. the cast\'s card offers the two sides by compass name, the south side chosen', (band?.side === 1) && (band?.options?.map(o => o.label).join('|') === 'the south side|the north side'),
+          `band=${JSON.stringify(band)}`);
+        // The Victim 5 ft south (inside the band), the Ranger 5 ft north (the cold side); a combat; their turns end.
+        await vicTok.update({ x: 1200, y: 1200 + grid / 2 }, mv()); await rgrTok.update({ x: 1400, y: 1200 - grid * 1.5 }, mv());
+        await sleep(500);
+        await ownCombat([[clrTok, cleric, 20], [vicTok, vicActor(), 10], [rgrTok, ranger, 5]]);
+        await combat.nextTurn(); await sleep(300);   // → the Victim
+        await combat.nextTurn();                     // the Victim's turn ends on the hot side
+        const endCard = await waitFor(() => triggerCards().find(m => (m.timestamp >= t20) && m.getFlag(MOD, 'emanationTrigger')?.key === 'Wall of Fire' && m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd' && m.getFlag(MOD, 'emanationTrigger')?.targetUuid === vicActor().uuid) ?? null, 8000);
+        const ef = endCard?.getFlag(MOD, 'saves');
+        const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= t20) && (m._source.system?.origin === endCard?.id) && (m.type === 'damage')) ?? null, 8000);
+        ok('20c. the Victim ending its turn within 10 ft of the hot side is demanded the Dexterity save, the 5d8 fire rolled', !!endCard && (ef?.abilities?.[0] === 'dex') && !!dmg && /5d8/.test(dmg?.rolls?.[0]?.formula ?? '') && (dmg?.rolls?.[0]?.options?.type === 'fire'),
+          `card=${!!endCard} abilities=${JSON.stringify(ef?.abilities)} formula=${dmg?.rolls?.[0]?.formula} type=${dmg?.rolls?.[0]?.options?.type}`);
+        await closeDialogs();
+        const nBefore = triggerCards().length;
+        await combat.nextTurn();   // the Ranger's turn ends on the cold side
+        await sleep(900);
+        ok('20d. the Ranger ending its turn on the cold side is asked nothing', triggerCards().length === nBefore, `cards=${triggerCards().length} (was ${nBefore})`);
+        // The flip, on the card (the GM writes straight): the region follows.
+        await card.setFlag(MOD, 'emanationCard', { ...card.getFlag(MOD, 'emanationCard'), band: { ...band, side: -1 } });
+        const flipped = await waitFor(() => { const r = scene.regions.get(region.id); return (r?.getFlag(MOD, 'emanation')?.band?.side === -1) ? r : null; }, 8000);
+        ok('20e. flipping the side on the card moves the band: the region re-shaped 5 ft NORTH of the wall', !!flipped && (Math.round(flipped.shapes[0].y) === Math.round(1200 - 5 * px)) && (Math.round(flipped.shapes[0].width) === Math.round(11 * px)),
+          `side=${flipped?.getFlag(MOD, 'emanation')?.band?.side} y=${flipped?.shapes?.[0]?.y} width=${flipped?.shapes?.[0]?.width}`);
+        try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
+        combat = null;
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await homeAll();
+      }
+    }
+
+    // ================================================== 21. Spike Growth — the move
+    if (want(21)) {
+      const item = await giveSpell('Spike Growth');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.type === 'damage');
+      if (!item || !act) { ok('21-. Spike Growth lent', false, 'the PHB ships no Spike Growth this box can find'); }
+      else {
+        await parkAll();
+        const at = { x: 1200, y: 1200 };
+        const t21 = Date.now();
+        const region = await placeArea(item, act, { type: 'circle', x: at.x, y: at.y, radius: 20 * px }, 2);
+        const adopted = await adoptedArea('Spike Growth');
+        ok('21a. the sphere is adopted as an area', !!adopted && (adopted.id === region.id), `adopted=${adopted?.id}`);
+        const moveCards = () => game.messages.filter(m => (m.timestamp >= t21) && m.getFlag(MOD, 'areaMove'));
+        // The Victim teleports IN at the west edge (a teleport pays nothing), then WALKS 15 ft east inside.
+        const west = { x: at.x - 3 * grid - grid / 2, y: at.y - grid / 2 };
+        await vicTok.update(west, mv());
+        await sleep(800);
+        await vicActor().update({ 'system.attributes.hp.value': vicActor().system.attributes.hp.max });   // earlier sections drain it
+        const hp0 = vicActor().system.attributes.hp.value;
+        const n0 = moveCards().length;
+        ok('21b. the teleport in paid nothing', n0 === 0, `cards=${n0}`);
+        await walk(vicTok, at.x - grid / 2, at.y - grid / 2);
+        const card = await waitFor(() => moveCards()[n0] ?? null, 10000);
+        const mf = card?.getFlag(MOD, 'areaMove');
+        const receipt = await waitFor(() => card?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === vicActor().uuid) ?? null, 8000);
+        const hpDown = await waitFor(() => (vicActor().system.attributes.hp.value < hp0) ? true : null, 6000);
+        ok('21c. the walked move of 15 ft inside pays 6d4 piercing when it lands — a card with the roll and the feet, a receipt, the Hit Points down',
+          !!card && (mf?.feet === 15) && (mf?.steps === 3) && /6d4/.test(mf?.formula ?? '') && (mf?.type === 'piercing') && /6d4/.test(card?.rolls?.[0]?.formula ?? '') && !!receipt && !!hpDown,
+          `card=${!!card} flag=${JSON.stringify(mf && { feet: mf.feet, steps: mf.steps, formula: mf.formula, total: mf.total, type: mf.type })} receipt=${!!receipt} hp=${hp0}→${vicActor().system.attributes.hp.value}`);
+        await sleep(800);
+        ok('21d. one movement, one payment', moveCards().length === n0 + 1, `cards=${moveCards().length}`);
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await vicActor().update({ 'system.attributes.hp.value': hp0 });
+        await homeAll();
+      }
+    }
+
+    // ================================================== 22. Magic Circle — the ask, the notice, the gate
+    if (want(22)) {
+      const item = await giveSpell('Magic Circle');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.type === 'save');
+      if (!item || !act) { ok('22-. Magic Circle lent', false, 'the PHB ships no Magic Circle this box can find'); }
+      else {
+        await parkAll();
+        const at = { x: 1200, y: 1200 };
+        // The Ranger INSIDE the circle, the Cleric beside it, the Victim (a Fiend for the run) 20 ft west.
+        await rgrTok.update({ x: at.x - grid / 2, y: at.y - grid / 2 }, mv()); await clrTok.update({ x: at.x + 3 * grid - grid / 2, y: at.y - grid / 2 }, mv()); await vicTok.update({ x: at.x - 4 * grid - grid / 2, y: at.y - grid / 2 }, mv());
+        await sleep(400);
+        const priorType = vicActor().system._source.details?.type?.value ?? '';
+        await vicActor().update({ 'system.details.type.value': 'fiend' });
+        // A club for the Fiend's attacks.
+        let club = null;
+        for (const id of ['dnd-players-handbook.equipment', 'dnd5e.items24']) {
+          const pack = game.packs.get(id);
+          const hit = pack ? (await pack.getIndex()).find(e => e.name === 'Club') : null;
+          if (!hit) continue;
+          const data = (await pack.getDocument(hit._id)).toObject(); delete data._id; data.system.equipped = true;
+          [club] = await vicActor().createEmbeddedDocuments('Item', [data]);
+          break;
+        }
+        const t22 = Date.now();
+        const region = await placeArea(item, act, { type: 'circle', x: at.x, y: at.y, radius: 10 * px }, 3);
+        const adopted = await adoptedArea('Magic Circle');
+        const f = adopted?.getFlag(MOD, 'emanation');
+        const card = await waitFor(() => game.messages.find(m => (m.timestamp >= t22) && m.getFlag(MOD, 'emanationCard')?.key === 'Magic Circle') ?? null, 6000);
+        const picks = card?.getFlag(MOD, 'emanationCard')?.picks;
+        const FIVE = 'celestial,elemental,fey,fiend,undead';
+        const castDemand = game.messages.find(m => (m.timestamp >= t22) && (m.getFlag(MOD, 'saves')?.activityUuid === act.uuid)) ?? null;
+        ok('22a. adopted with every type picked; the card lists the five, all on; no save demanded at the placement', !!adopted && ((f?.picked ?? []).join(',') === FIVE) && ((picks?.options ?? []).join(',') === FIVE) && ((picks?.picked ?? []).join(',') === FIVE) && !castDemand,
+          `adopted=${!!adopted} picked=${JSON.stringify(f?.picked)} card=${JSON.stringify(picks)} castDemand=${!!castDemand}`);
+        // The Fiend walks in: the entry notice, the move carried on.
+        await walk(vicTok, at.x - 2 * grid - grid / 2, at.y - grid / 2);
+        const notice = await waitFor(() => noticesSince(t22).find(m => m.getFlag(MOD, 'areaNotice')?.cause === 'moveIn') ?? null, 8000);
+        const arrived = await waitFor(() => (vicTok.x === at.x - 2 * grid - grid / 2) ? true : null, 8000);
+        ok('22b. the Fiend moving IN raises the entry notice ("cannot willingly enter"); the move carried on', !!notice && /cannot willingly enter/.test(notice?.content ?? '') && !!arrived && (notice?.getFlag(MOD, 'areaNotice')?.targetUuid === vicActor().uuid),
+          `notice=${!!notice} arrived=${!!arrived} text=${notice?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 140)}`);
+        // The gate: the Fiend attacks the Ranger INSIDE → Disadvantage listed; the Cleric OUTSIDE → nothing.
+        const clubAct = () => vicActor().items.get(club?.id)?.system.activities.find(a => a.type === 'attack') ?? null;
+        // The gate draws in the DIALOG (no dialog, no gate): open it, read the section, close it.
+        const gateAt = async tok => {
+          canvas.tokens.get(vicTok.id)?.control({ releaseOthers: true });
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+          canvas.tokens.get(tok.id)?.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          const p = clubAct()?.rollAttack({}, {}, {});
+          const app = await waitFor(() => [...foundry.applications.instances.values()].find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '')) ?? null, 6000);
+          await sleep(400);
+          const text = app?.element?.querySelector('[data-bf-reminder]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+          const net = app?.options?.bfReminder?.net ?? null;
+          try { await app?.close(); } catch { /* gone */ }
+          await Promise.resolve(p).catch(() => {});
+          return { text, net };
+        };
+        const inside = club ? await gateAt(rgrTok) : null;
+        ok('22c. the Fiend attacking the Ranger INSIDE the circle: the gate lists "Magic Circle — a fiend attacking into the circle", net Disadvantage', !!club && !!inside && /Magic Circle — a fiend attacking into the circle/.test(inside.text) && (inside.net === 'disadvantage'),
+          `club=${!!club} net=${inside?.net} text=${inside?.text?.slice(0, 200)}`);
+        const outside = club ? await gateAt(clrTok) : null;
+        ok('22d. the Fiend attacking the Cleric OUTSIDE the circle: no Magic Circle row', !!outside && !/Magic Circle/.test(outside.text),
+          `net=${outside?.net} text=${outside?.text?.slice(0, 200)}`);
+        // Untick Fiend on the card (the GM writes straight): the region follows, the gate lists nothing.
+        const c = card.getFlag(MOD, 'emanationCard');
+        await card.setFlag(MOD, 'emanationCard', { ...c, picks: { ...c.picks, picked: c.picks.picked.filter(x => x !== 'fiend') } });
+        const followed = await waitFor(() => (scene.regions.get(region.id)?.getFlag(MOD, 'emanation')?.picked ?? []).includes('fiend') ? null : true, 8000);
+        const after = club ? await gateAt(rgrTok) : null;
+        ok('22e. unticking Fiend on the card reaches the region, and the gate lists nothing for the Fiend now', !!followed && !!after && !/Magic Circle/.test(after.text),
+          `picked=${JSON.stringify(scene.regions.get(region.id)?.getFlag(MOD, 'emanation')?.picked)} text=${after?.text?.slice(0, 200)}`);
+        await closeDialogs();
+        canvas.tokens.get(vicTok.id)?.release();
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        if (club && vicActor().items.get(club.id)) await vicActor().deleteEmbeddedDocuments('Item', [club.id]);
+        await vicActor().update({ 'system.details.type.value': priorType });
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await homeAll();
+      }
+    }
+
+    // ================================================== 23. Forcecage — the exit notice
+    if (want(23)) {
+      const item = await giveSpell('Forcecage');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.name === 'Create Cage');
+      if (!item || !act) { ok('23-. Forcecage lent', false, 'the PHB ships no Forcecage this box can find'); }
+      else {
+        await parkAll();
+        const at = { x: 1000, y: 1000 };   // a 20-ft cube: 4 squares a side
+        await vicTok.update({ x: at.x + grid, y: at.y + grid }, mv());
+        await sleep(400);
+        const t23 = Date.now();
+        const region = await placeArea(item, act, { type: 'rectangle', x: at.x, y: at.y, width: 4 * grid, height: 4 * grid }, 7);
+        const adopted = await adoptedArea('Forcecage');
+        const card = await waitFor(() => game.messages.find(m => (m.timestamp >= t23) && m.getFlag(MOD, 'emanationCard')?.key === 'Forcecage') ?? null, 6000);
+        ok('23a. the cage is adopted and announced; no effect, no save', !!adopted && (adopted.id === region.id) && !!card && !game.messages.find(m => (m.timestamp >= t23) && (m.getFlag(MOD, 'saves')?.activityUuid === act.uuid)),
+          `adopted=${!!adopted} card=${!!card}`);
+        await walk(vicTok, at.x + 6 * grid, at.y + grid);
+        const notice = await waitFor(() => noticesSince(t23).find(m => m.getFlag(MOD, 'areaNotice')?.cause === 'moveOut') ?? null, 8000);
+        const arrived = await waitFor(() => (vicTok.x === at.x + 6 * grid) ? true : null, 8000);
+        ok('23b. the creature walking OUT of the cage raises the exit notice ("the walls hold it"); the move carried on', !!notice && /walls hold it/.test(notice?.content ?? '') && !!arrived,
+          `notice=${!!notice} arrived=${!!arrived} text=${notice?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 140)}`);
+        const n = noticesSince(t23).length;
+        await walk(vicTok, at.x + grid, at.y + grid);
+        await waitFor(() => (vicTok.x === at.x + grid) ? true : null, 8000);
+        await sleep(800);
+        ok('23c. walking back IN raises nothing', noticesSince(t23).length === n, `notices=${noticesSince(t23).length} (was ${n})`);
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await homeAll();
       }
     }
     return { log, results, skips };

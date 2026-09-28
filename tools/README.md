@@ -160,7 +160,10 @@ ability corpus — race traits, class and subclass features, feats, spells — t
 read-only) · `classify-corpus.mjs` (offline: that JSON sorted into mechanism families, `--list
 <family>` / `--kind <kind>`; the survey behind SWEEP.md) · `audit-presses.mjs` (offline over the
 same JSON: every 2024 save activity whose text presses a condition, against the statuses its
-effects actually carry — the `SAVE_PRESSES` candidates). `probe-steady-aim-live.mjs` reads a
+effects actually carry — the `SAVE_PRESSES` candidates) · `audit-spells-register.mjs <corpus.json>`
+(offline over a spells-only scan and its classified twin: every PHB spell's verdict — NATIVE /
+MODULE / TEXT / OUT — joined with the registry, RULINGS' walk tables and bend registers, and the
+drawing's *Register verdicts*; writes `audits/spells-register.md`). `probe-steady-aim-live.mjs` reads a
 live table's Steady Aim chip and attack records without touching anything;
 `probe-conditions.mjs` presses each 2024 status on a fixture and reads what the platform applies
 (NOTES §2 *What the platform applies for a 2024 condition*), restoring the fixture in `finally`.

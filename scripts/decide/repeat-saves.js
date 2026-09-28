@@ -11,9 +11,10 @@ const effectNamesOf = (/** @type {{effect: string|readonly string[]}} */ row) =>
   (Array.isArray(row.effect) ? row.effect : [row.effect]).map(lower);
 
 /**
- * THE ROW a landed effect answers: its ORIGIN item answers the row's key (identifier, then name) AND its
- * name is one the row names — a Paralyzed from a ghoul's claw is not Hold Person's. `listed` is the
- * membership reader's set (every row by default); `answers` the registry's row matcher.
+ * THE ROW a landed effect answers: its ORIGIN item answers the row's key (identifier, then name) — or the
+ * row's own `item` where the key must differ — AND its name is one the row names: a Paralyzed from a
+ * ghoul's claw is not Hold Person's. `listed` is the membership reader's set (every row by default);
+ * `answers` the registry's row matcher.
  * @param {{table: Readonly<Record<string, any>>, item: any, effectName: string|null|undefined, listed?: Set<string>|null,
  *          answers: (key: string, item: any) => boolean}} facts
  * @returns {any|null}   the row spread over `{ key, effectName }`
@@ -23,7 +24,7 @@ export function repeatRowFor({ table, item, effectName, listed = null, answers }
   const name = lower(effectName);
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     if ( listed && !listed.has(key.toLowerCase()) ) continue;
-    if ( !answers(key, item) ) continue;
+    if ( !answers(row.item ?? key, item) ) continue;
     const named = effectNamesOf(row).find(n => n === name);
     if ( !named ) continue;
     const canonical = (Array.isArray(row.effect) ? row.effect : [row.effect]).find(n => lower(n) === name) ?? effectName;

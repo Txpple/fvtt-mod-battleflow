@@ -54,6 +54,9 @@ export const LAYER_OF = {
   "riposte.js": "machines",
   "damage-holds.js": "machines",  // a reduction "when you take damage" held at the applier's claim — Stone's Endurance on any damage
   "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage
+  "damage-shares.js": "machines", // a bond's caster takes what its bearer takes — Warding Bond
+  "heal-on-hit.js": "machines",   // a spell's landed damage heals its caster a share — Vampiric Touch
+  "prismatic.js": "machines",     // a cone's die per creature picks its ray — Prismatic Spray
   "hew.js": "machines",
   "bash-offer.js": "machines",
   "effect-view.js": "machines",   // the effect view — a creature's buffs and debuffs on hover, on a held key, on a bar
@@ -136,6 +139,9 @@ export const LAYER_OF = {
   "decide/wards.js": "decision",          // the wards: which use is gated, what ends one, the words
   "decide/duplicates.js": "decision",     // the duplicates: the dice, the face that redirects, who sees through, the chips
   "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line
+  "decide/damage-shares.js": "decision",  // the damage share: what the caster takes, the reach, the end
+  "decide/heal-on-hit.js": "decision",    // the heal on hit: the share of what landed, by type
+  "decide/prismatic.js": "decision",      // the ray table: the rays a creature's faces pick, the words, the verdict
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it
   "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands
   "decide/hit-menu.js": "decision",

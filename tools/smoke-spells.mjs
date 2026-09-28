@@ -15,7 +15,10 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'turn-grants.js',         // §1 — Heroism's temp HP at the bearer's turn start, once per turn, receipted
-  'repeat-saves.js'         // §2–§5 — the repeat at the turn end, on damage, as the action; the count
+  'repeat-saves.js',        // §2–§5 — the repeat at the turn end, on damage, as the action; the count; §8 the indigo ray's named save
+  'damage-shares.js',       // §6 — Warding Bond's share to the caster, the reach, the end at 0 HP
+  'heal-on-hit.js',         // §7 — Vampiric Touch's heal to the caster from the damage that landed
+  'prismatic.js'            // §8 — Prismatic Spray's die per creature, a demand per ray, the type forced, the indigo effect landed
 ];
 
 const SECTIONS = {
@@ -23,7 +26,10 @@ const SECTIONS = {
   2: 'Hold Person: the Victim\'s turn END raises the repeat (a saves demand pinned to it, Wisdom, the spell\'s DC, effectsHandled "repeat"); a failure keeps Paralyzed and the card says so; a success removes it through the cast card\'s receipt (reverted), the card says it ended, the line renders',
   3: 'Tasha\'s Hideous Laughter: damage landing on the Victim raises the repeat with the demand\'s own Advantage (the auto roll rolls it); healing raises nothing; a second turn end while one is unanswered raises no second',
   4: 'Otto\'s Irresistible Dance: the Victim\'s turn START offers the save as its action (a card with a button, no demand); the button raises the demand; a success ends the dance',
-  5: 'Flesh to Stone: three failures at three turn ends — the tally on the effect (1, 2), the third pressing Petrified and locking (a fourth turn end asks nothing)'
+  5: 'Flesh to Stone: three failures at three turn ends — the tally on the effect (1, 2), the third pressing Petrified and locking (a fourth turn end asks nothing)',
+  6: 'THE HELD SPELLS — Warding Bond: the cast lands Bonded on the Victim; damage landing on it (from a card) is taken by the Cleric too — the same number (the bond\'s resistance already taken), a card, a receipt; 65 ft apart the card says the bond is out of reach and nothing is shared; the Cleric dropped to 0 by a share ends the bond (Bonded gone, the card says why)',
+  7: 'Vampiric Touch: a hit (AC 1) lands its necrotic damage on the Victim; the Cleric regains HALF of what landed — a card, a receipt, the Hit Points up; the dealing card carries the once-latch',
+  8: 'Prismatic Spray: the cast\'s card is born with its demand CLOSED and the ray claim pending (no 12d6 at the cast); the cone placed over the Victim rolls a d8 (a 6: indigo) — a summary card and ONE demand against "Indigo Save (Con)", pinned; the cone region gone; the failed save lands Petrifying (Indigo) by the machine, receipted; the Victim\'s turn end repeats the INDIGO save (1 of 3 failures); a second cast with the d8 a 1 (red): the Cast\'s Dexterity demand with the 12d6 rolled as FIRE'
 };
 const DEPENDS = {};
 
@@ -49,7 +55,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const SETTING_KEYS = ['decisionTimer', 'dramaticBeat', 'saveRolls'];
+  const SETTING_KEYS = ['decisionTimer', 'dramaticBeat', 'saveRolls', 'playerRollDamage'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -103,6 +109,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('decisionTimer', 0);
     await set('dramaticBeat', 0);
     await set('saveRolls', 'auto');   // the demanded saves roll themselves; the bonus steers the verdict
+    await set('playerRollDamage', false);   // §7: the hit's damage rolls itself and lands
 
     const lend = async (name, type) => {
       if (cleric.items.some(i => (i.name === name) && (i.type === type))) return cleric.items.find(i => (i.name === name) && (i.type === type));
@@ -377,6 +384,184 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5e. locked: a fourth turn end asks nothing', repeatCards().length === n0 + 3, `cards=${repeatCards().length}`);
       await endCombat();
       await clearVictim();
+    }
+
+    // ================================================== 6. Warding Bond: the share
+    const priorClericHp = cleric.system._source.attributes.hp.value;
+    const clericHp = () => cleric.system.attributes.hp.value;
+    const victimHp = () => victim.system.attributes.hp.value;
+    if (want(6)) {
+      await healFull();
+      spells['Warding Bond'] = await lend('Warding Bond', 'spell');
+      if (!spells['Warding Bond']) return { fatal: 'the PHB ships no "Warding Bond" this box can find', results, log, skips };
+      const shareCards = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'damageShare'));
+      target();
+      await sleep(120);
+      const use = await actOf('Warding Bond', 'utility').use({ consume: { spellSlot: false } }, { configure: false }, {});
+      const bonded = await waitFor(() => effectNamed('Bonded'), 12000);
+      ok('6a. the cast lands Bonded on the Victim (the cast path), its origin the Cleric\'s spell', !!use?.message && !!bonded && (bonded.system?.origin?.item === cleric.items.get(spells['Warding Bond'].id)?.uuid),
+        `card=${!!use?.message} bonded=${!!bonded} origin=${bonded?.system?.origin?.item}`);
+      // Damage from a CARD (the applier's seam needs an originating message): 10 fire lands as 5 through the bond's resistance.
+      const origin = await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: cleric }), content: '<p>a blow from the dark</p>' });
+      const hp0 = clericHp();
+      const vhp0 = victimHp();
+      const n0 = shareCards().length;
+      await victim.applyDamage([{ value: 10, type: 'fire' }], { originatingMessage: origin });
+      const share = await waitFor(() => shareCards()[n0] ?? null, 10000);
+      const s1 = share?.getFlag(MOD, 'damageShare');
+      const receipt = await waitFor(() => share?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === cleric.uuid) ?? null, 8000);
+      const landed = vhp0 - victimHp();
+      await waitFor(() => (clericHp() === hp0 - landed) ? true : null, 6000);
+      ok('6b. the damage that LANDED on the Victim (5: the bond\'s resistance already taken) is taken by the Cleric too — a card, the same number, a receipt on it, the Hit Points down',
+        !!share && (s1?.shares === true) && (s1?.amount === landed) && (landed === 5) && !!receipt && (clericHp() === hp0 - landed),
+        `card=${!!share} flag=${JSON.stringify(s1 && { shares: s1.shares, amount: s1.amount, landed: s1.landed, why: s1.why, distance: s1.distanceFeet })} landed=${landed} receipt=${!!receipt} cleric=${hp0}→${clericHp()}`);
+      // 65 feet apart: the bond is out of reach.
+      // EVERY token of the Victim (the fixture's home token stands beside the Cleric's): the bond reads the nearest pair.
+      const vicTokens = scene.tokens.filter(t => t.actorId === victim.id);
+      const vHomes = vicTokens.map(t => ({ id: t.id, x: t.x, y: t.y }));
+      for (const t of vicTokens) await t.update({ x: 300, y: 1900 }, { teleport: true, animate: false });   // the range's far corner: 70 ft from the Cleric's HOME token too (the bond reads the nearest pair); east of the spot runs off the scene, refused without a word
+      await sleep(500);
+      const hp1 = clericHp();
+      await victim.applyDamage([{ value: 10, type: 'fire' }], { originatingMessage: origin });
+      const far = await waitFor(() => shareCards()[n0 + 1] ?? null, 8000);
+      const s2 = far?.getFlag(MOD, 'damageShare');
+      await sleep(600);
+      ok('6c. 65 ft apart: the card says the bond is beyond its 60 feet and the Cleric takes nothing', !!far && (s2?.shares === false) && /beyond the bond/.test(s2?.why ?? '') && (clericHp() === hp1) && !!effectNamed('Bonded'),
+        `card=${!!far} flag=${JSON.stringify(s2 && { shares: s2.shares, why: s2.why, distance: s2.distanceFeet })} cleric=${hp1}→${clericHp()}`);
+      for (const h of vHomes) await scene.tokens.get(h.id)?.update({ x: h.x, y: h.y }, { teleport: true, animate: false });
+      await sleep(500);
+      // The caster's drop: 3 HP, a share of 5 → 0 → the bond ends.
+      await cleric.update({ 'system.attributes.hp.value': 3 });
+      await victim.applyDamage([{ value: 10, type: 'fire' }], { originatingMessage: origin });
+      const drop = await waitFor(() => shareCards()[n0 + 2] ?? null, 8000);
+      const gone = await waitFor(() => effectNamed('Bonded') ? null : true, 8000);
+      const s3 = await waitFor(() => drop?.getFlag(MOD, 'damageShare')?.ended ? drop.getFlag(MOD, 'damageShare') : null, 8000);
+      ok('6d. the Cleric dropped to 0 by the share: Bonded gone, the card says the bond ended', !!drop && !!gone && (clericHp() === 0) && /0 Hit Points/.test(s3?.ended ?? ''),
+        `card=${!!drop} bonded=${!!effectNamed('Bonded')} cleric=${clericHp()} ended="${s3?.ended}"`);
+      await cleric.update({ 'system.attributes.hp.value': priorClericHp });
+      await clearVictim();
+      await healFull();
+    }
+
+    // ================================================== 7. Vampiric Touch: the heal on hit
+    if (want(7)) {
+      await healFull();
+      spells['Vampiric Touch'] = await lend('Vampiric Touch', 'spell');
+      if (!spells['Vampiric Touch']) return { fatal: 'the PHB ships no "Vampiric Touch" this box can find', results, log, skips };
+      const priorAc = { 'system.attributes.ac.calc': victim.system._source.attributes.ac.calc, 'system.attributes.ac.flat': victim.system._source.attributes.ac.flat };
+      await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await cleric.update({ 'system.attributes.hp.value': 5 });
+      const healCards = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'healOnHit')?.casterUuid);
+      const t7 = Date.now();
+      clericToken.control({ releaseOthers: true });
+      target();
+      await sleep(120);
+      const rolls = await actOf('Vampiric Touch', 'attack').rollAttack({}, { configure: false }, {});
+      const atk = rolls?.[0]?.parent ?? null;
+      const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= t7) && (m.type === 'damage') && (m._source.system?.origin === atk?.id)) ?? null, 15000);
+      const receipt = await waitFor(() => dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null, 15000);
+      const heal = await waitFor(() => healCards().find(m => m.getFlag(MOD, 'healOnHit')?.originId === dmg?.id) ?? null, 10000);
+      const h = heal?.getFlag(MOD, 'healOnHit');
+      const hreceipt = await waitFor(() => heal?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === cleric.uuid) ?? null, 8000);
+      const half = Math.floor(Number(receipt?.taken ?? 0) / 2);
+      await waitFor(() => (clericHp() === 5 + half) ? true : null, 6000);
+      ok('7a. the hit (AC 1) lands its necrotic damage on the Victim; the Cleric regains HALF of what landed — a card, a receipt on it, the Hit Points up',
+        !!atk && !!dmg && !!receipt && (Number(receipt.taken) > 0) && !!heal && (h?.amount === half) && (half > 0) && !!hreceipt && (clericHp() === 5 + half),
+        `attack=${!!atk} damage=${!!dmg} taken=${receipt?.taken} heal=${!!heal} flag=${JSON.stringify(h && { amount: h.amount, why: h.why, target: h.targetName })} receipt=${!!hreceipt} cleric=5→${clericHp()}`);
+      ok('7b. the dealing card carries the once-latch for the Victim', (dmg?.getFlag(MOD, 'healOnHit')?.done ?? []).includes(victim.uuid), `done=${JSON.stringify(dmg?.getFlag(MOD, 'healOnHit')?.done)}`);
+      clericToken.release();
+      await victim.update(priorAc);
+      await cleric.update({ 'system.attributes.hp.value': priorClericHp });
+      await clearVictim();
+      await healFull();
+    }
+
+    // ================================================== 8. Prismatic Spray: the rays
+    if (want(8)) {
+      await healFull();
+      spells['Prismatic Spray'] = await lend('Prismatic Spray', 'spell');
+      if (!spells['Prismatic Spray']) return { fatal: 'the PHB ships no "Prismatic Spray" this box can find', results, log, skips };
+      const spray = cleric.items.get(spells['Prismatic Spray'].id);
+      const castAct = spray.system.activities.find(a => a.name === 'Cast');
+      const indigoAct = spray.system.activities.find(a => a.name === 'Indigo Save (Con)');
+      const rayCards = since => game.messages.contents.filter(m => (m.timestamp >= since) && (m.getFlag(MOD, 'prismaticRay')?.targetUuid === victim.uuid));   // the Victim's rays (a fixture may share the cone)
+      const summaryCards = since => game.messages.contents.filter(m => (m.timestamp >= since) && m.getFlag(MOD, 'prismaticRays'));
+      const px = scene.dimensions?.distancePixels ?? (g / scene.grid.distance);
+      /** The cone as the placement would write it, apex on the Cleric, pointing WEST at the Victim (10 ft, wide). */
+      const placeCone = async () => (await scene.createEmbeddedDocuments('Region', [{
+        name: 'Prismatic Spray [test]', color: game.user.color,
+        shapes: [{ type: 'cone', x: clericToken.document.x + g / 2, y: clericToken.document.y + g / 2, radius: 10 * px, angle: 30, rotation: 180, curvature: 'round' }],
+        flags: { dnd5e: { activity: castAct.uuid, item: spray.uuid, origin: clericToken.document.uuid, spellLevel: 1 } } }], { dnd5e: { createActivityBehaviors: false } }))[0];
+      const castSpray = async () => {
+        target();
+        await sleep(120);
+        const use = await castAct.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
+        return use?.message instanceof ChatMessage ? use.message : null;
+      };
+      // Every d8 a 6 (indigo); the d20 a 14 — the saves are steered by ±30 anyway.
+      CONFIG.Dice.randomUniform = () => 0.3;
+      await saveBonusFor('Prismatic Spray', '-30');   // the FIRST save activity is the Cast (Dexterity)
+      await victim.update({ 'system.abilities.con.save.roll.bonus': '-30' });
+      const t8 = Date.now();
+      const card = await castSpray();
+      const sv = card?.getFlag(MOD, 'saves');
+      const pf = card?.getFlag(MOD, 'prismatic');
+      await sleep(600);
+      const castDamage = game.messages.find(m => (m.timestamp >= t8) && (m.type === 'damage') && (m._source.system?.origin === card?.id)) ?? null;
+      ok('8a. the cast\'s card is born with its demand CLOSED (done, no targets, effectsHandled "prismatic") and the ray claim pending; no 12d6 rolled at the cast',
+        !!card && (sv?.status === 'done') && (sv?.targets?.length === 0) && (sv?.effectsHandled === 'prismatic') && (pf?.status === 'pending') && !castDamage,
+        `card=${!!card} saves=${JSON.stringify(sv && { status: sv.status, targets: sv.targets.length, handled: sv.effectsHandled })} prismatic=${JSON.stringify(pf)} castDamage=${!!castDamage}`);
+      const region = await placeCone();
+      const rays = await waitFor(() => { const r = rayCards(t8); return r.length ? r : null; }, 12000) ?? [];
+      const summary = summaryCards(t8)[0] ?? null;
+      const r1 = rays[0]?.getFlag(MOD, 'prismaticRay');
+      const rs = rays[0]?.getFlag(MOD, 'saves');
+      ok('8b. the cone stands: a summary card (the d8 a 6 — indigo) and ONE ray demand for the Victim against "Indigo Save (Con)" — Constitution, pinned, effectsHandled "prismatic", no damage',
+        !!summary && (rays.length === 1) && (r1?.colour === 'indigo') && (r1?.face === 6) && (rs?.activityUuid === indigoAct?.uuid) && (rs?.abilities?.[0] === 'con') && (rs?.pinnedTargets === true) && (rs?.effectsHandled === 'prismatic') && (rs?.hasDamage === false) && (rs?.targets?.[0]?.uuid === victim.uuid),
+        `summary=${!!summary} rays=${rays.length} ray=${JSON.stringify(r1 && { colour: r1.colour, face: r1.face, save: r1.save, effect: r1.effect })} saves=${JSON.stringify(rs && { activity: rs.activityUuid === indigoAct?.uuid, abilities: rs.abilities, pinned: rs.pinnedTargets, handled: rs.effectsHandled, hasDamage: rs.hasDamage })} entries=${JSON.stringify(summary?.getFlag(MOD, 'prismaticRays')?.entries)}`);
+      const claimed = await waitFor(() => (card?.getFlag(MOD, 'prismatic')?.status === 'rolled') ? true : null, 6000);
+      const swept = await waitFor(() => scene.regions.get(region.id) ? null : true, 8000);
+      ok('8c. the claim is spent (rolled) and the cone region is gone — instantaneous', !!claimed && !!swept, `status=${card?.getFlag(MOD, 'prismatic')?.status} region=${!!scene.regions.get(region.id)}`);
+      const settled = await waitFor(() => rays[0]?.getFlag(MOD, 'prismaticRay')?.says ? rays[0].getFlag(MOD, 'prismaticRay') : null, 15000);
+      const restrained = await waitFor(() => effectNamed('Petrifying (Indigo)'), 8000);
+      const er = rays[0]?.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null;
+      ok('8d. the save FAILS (−30): Petrifying (Indigo) lands on the Victim by the machine, receipted on the ray card; the line says so',
+        (settled?.outcome === 'failed') && !!restrained && restrained.statuses?.has?.('restrained') && !!er && /lands/.test(settled?.says ?? ''),
+        `settled=${JSON.stringify(settled && { outcome: settled.outcome, says: settled.says })} effect=${!!restrained} receipt=${!!er}`);
+      const el = await waitFor(() => document.querySelector(`[data-message-id="${rays[0]?.id}"] .bf-ray-line`) ?? null, 4000);
+      ok('8e. the ray card renders its line', /lands/.test(el?.textContent ?? ''), `line="${el?.textContent?.trim()}"`);
+      // The repeat, at the Victim's turn end, against the row's NAMED save.
+      await startCombat();
+      const n0 = repeatCards().length;
+      await combat.nextTurn();
+      await sleep(300);
+      await combat.nextTurn();
+      const rep = await settledRepeat(n0 + 1);
+      const rf = rep?.getFlag(MOD, 'saves');
+      const rr = rep?.getFlag(MOD, 'repeatSave');
+      ok('8f. the Victim\'s turn end repeats the INDIGO save — the row\'s named activity (Constitution), keyed "Prismatic Spray (Indigo)"; the first failure tallies 1 of 3',
+        !!rep && (rf?.activityUuid === indigoAct?.uuid) && (rf?.abilities?.[0] === 'con') && (rr?.key === 'Prismatic Spray (Indigo)') && /1 of 3 failures/.test(rr?.says ?? ''),
+        `card=${!!rep} activity=${rf?.activityUuid === indigoAct?.uuid} abilities=${JSON.stringify(rf?.abilities)} key=${rr?.key} says="${rr?.says}"`);
+      await endCombat();
+      await clearVictim();
+      // A DAMAGE ray: every d8 a 1 (red — fire, not the part's first type, acid).
+      CONFIG.Dice.randomUniform = () => 0.9;
+      const t8b = Date.now();
+      const card2 = await castSpray();
+      const region2 = await placeCone();
+      const rays2 = await waitFor(() => { const r = rayCards(t8b); return r.length ? r : null; }, 12000) ?? [];
+      const r2 = rays2[0]?.getFlag(MOD, 'prismaticRay');
+      const rs2 = rays2[0]?.getFlag(MOD, 'saves');
+      const dmg2 = await waitFor(() => game.messages.find(m => (m.timestamp >= t8b) && (m.type === 'damage') && (m._source.system?.origin === rays2[0]?.id)) ?? null, 12000);
+      ok('8g. the red ray: the demand is the Cast\'s Dexterity save with damage (half on a success), and the 12d6 rolled against it wears FIRE — the ray\'s type, not the pack\'s first',
+        !!card2 && (rays2.length === 1) && (r2?.colour === 'red') && (r2?.type === 'fire') && (rs2?.activityUuid === castAct.uuid) && (rs2?.abilities?.[0] === 'dex') && (rs2?.hasDamage === true) && !!dmg2 && /12d6/.test(dmg2?.rolls?.[0]?.formula ?? '') && (dmg2?.rolls?.[0]?.options?.type === 'fire'),
+        `rays=${rays2.length} ray=${JSON.stringify(r2 && { colour: r2.colour, type: r2.type })} saves=${JSON.stringify(rs2 && { cast: rs2.activityUuid === castAct.uuid, abilities: rs2.abilities, hasDamage: rs2.hasDamage })} formula=${dmg2?.rolls?.[0]?.formula} type=${dmg2?.rolls?.[0]?.options?.type}`);
+      await waitFor(() => scene.regions.get(region2.id) ? null : true, 8000);
+      await scene.regions.get(region2.id)?.delete().catch(() => {});
+      CONFIG.Dice.randomUniform = () => 1 - ((5 - 0.5) / 20);
+      await victim.update({ 'system.abilities.con.save.roll.bonus': priorCon });
+      await clearVictim();
+      await healFull();
     }
 
     return { log, results, skips };
