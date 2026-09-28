@@ -18,10 +18,10 @@ tables to walk are RULINGS *The walk — Tier 1*, *The walk — Tier 2*, *The wa
 goes on to **the DMG in a separate session** (the user's call; the DMG drawing says "a register, not a
 slice" — that session decides what that means). The release (a full battery, the tag) waits for the walk.
 
-**No PHB spell of the drawing is left unbuilt except the held ones** (§Held below): Counterspell (session
-0), Warding Bond, Vampiric Touch, Prismatic Spray, Magic Circle, Forcecage, plus Tier 3's two — Wall of Fire
-(no area in its data) and Spike Growth (movement). Unbreakable Majesty (a class feature, not a spell) is the
-duplicates' seam with a save for the die — session 0's, with its Bard.
+**The held spells are the NEXT session's** (§The held spells, below): Warding Bond, Vampiric Touch,
+Prismatic Spray, Wall of Fire and Spike Growth are to be BUILT; Counterspell, Magic Circle and Forcecage are
+OUT on the user's word. The slice closes with the PHB spell register. Unbreakable Majesty (a class feature,
+not a spell) is the duplicates' seam with a save for the die — session 0's, with its Bard.
 
 ## Where this comes from
 
@@ -134,6 +134,56 @@ Flesh to Stone's counter, Magic Circle and Forcecage (a region's ban — movemen
 3. The full battery is the release floor; a red row is read, never re-run blind.
 4. Release only on the user's word: bump, an annotated tag, push; CI publishes. Then the docs recut:
    RULINGS gets the slice's section, SWEEP §7 and BACKLOG are updated, this file is retired.
+
+## The held spells and the PHB spell register (commissioned 2026-09-28, evening — the NEXT session's work)
+
+**The user, 2026-09-28 evening:** *"build all three [Warding Bond, Vampiric Touch, Prismatic Spray], work
+autonomously, push when done. counterspell is not in scope. neither is magic circle or forcecage. we need
+to tackle wall of fire / spike growth"* and *"at the end of this exercise then we should have a list of
+every phb spell, if it was in scope y/n, if no why not, if yes then some details like how implemented, any
+'rule of cool' variant, etc other related cols as needed"*. Started in a new session on the user's word;
+this section is its commission. Ground rules as above; the walk of every tier stays deferred.
+
+### Measured on the pack (2026-09-28, the sandbox; `tools/read` scratch — re-measure only if in doubt)
+
+| Spell | The pack's shape | What the module adds |
+| --- | --- | --- |
+| **Warding Bond** (L2, 1 hour, no concentration) | one `utility` activity "Use", `affects: willing`, touch; ONE effect **Bonded** on the target: Resistance to all thirteen types, +1 AC, +1 saves, 3600 s — NATIVE | **the sharing**: "each time it takes damage, you take the same amount of damage" — a `DAMAGE_SHARES` row (new table, not a kind) keyed by the spell, `effect: "Bonded"`, read on `dnd5e.applyDamage` (rebukes.js's seam: `(actor, amount, options)`, the dealer off `options.originatingMessage`): the CASTER (the effect's origin item's actor, `effectSourceOf`) takes `amount` as untyped/the same types, applied with a receipt on the same card, marked so it never re-shares; **within 60 feet only** (`nearestFeet`) — beyond, a card says the bond is out of reach; "ends at 0 HP / beyond 60 ft / re-cast" — the end at 0 HP and the re-cast are cheap (delete Bonded), the distance end is a caveat |
+| **Vampiric Touch** (L3, conc 1 min) | one `attack` activity, 3d6 necrotic, no effect; "the attack again each turn as a Magic action" is the sheet | **`HEAL_ON_HIT`** (new table; Lifedrinker's shape — SWEEP §3 item 4; a second customer is a row): when this spell's DAMAGE lands (the module's applier receipt on the damage card — `auto-apply.js`'s receipt write, or `dnd5e.applyDamage` with the originating card's activity answering the row), heal the caster `floor(taken / 2)` (the row's `share: 0.5`, of the row's `type: necrotic` only — the text says half the Necrotic damage dealt), its own receipt on the same card, once per receipt entry (a done-list on the card) |
+| **Prismatic Spray** (L7, instantaneous, a 60-ft cone) | THREE save activities: "Cast" (Dex, 12d6 of acid/cold/fire/lightning/poison, half, two effects `onSave:false` — Petrifying (Indigo) [restrained], Teleporting (Violet) [blinded, 1 round]); "Indigo Save (Con)"; "Violet Save (Wis)"; the Prismatic Rays RollTable `phbPrismaticRays` embedded | **`RAY_TABLES`**-shaped machine (new; `prismatic.js`): at the cast the module rolls the d8 PER CREATURE in the cone (8 = two rays, roll twice) and raises ONE demand card per (creature, ray) against the Cast activity with the ray's TYPE forced on the damage (the emanation's `damageType` pattern) — rays 1–5; ray 6 (indigo): the Cast's Dex save for… no: the rule says Con save, Restrained, then REPEATED saves at each turn end — three successes end it, three failures Petrify (Flesh to Stone's counter): land Petrifying (Indigo) on the failure and a `REPEAT_SAVES` row keyed "Prismatic Spray" `effect: "Petrifying (Indigo)"`, `count: {saves: 3, fails: 3, press: "petrified"}`, the save "Indigo Save (Con)" — ⚠ the repeat machine finds the save by `activityOfType(item, "save")` (the FIRST save activity = Cast, Dex) — it needs an `activity` name on the row (a small vocabulary add: `activity: "Indigo Save (Con)"`); ray 7 (violet): Wis save, Blinded, the next turn end's repeat: a failure sends it to another plane — the table's (caveat), a success ends Blinded (a `REPEAT_SAVES` row `effect: "Teleporting (Violet)"`, `activity: "Violet Save (Wis)"`, the failure's press is a caveat). The Cast's own pack effects must NOT land from the Cast demand (`effectsHandled`), the ray machine lands them |
+| **Wall of Fire** (L4, conc 1 min) | two save activities "Create Wall" (`wall/60x1` template, Dex, 5d8 fire, half) and "Create Ring" (`cylinder/10x1`); the pack DOES carry templates (the earlier "no area in its data" read was wrong — the walk tool's cut-down read missed `wall`) | **an `area` row** with `trigger enter/turnEnd oncePerTurn` — the region the placement makes IS the burning area; **the bend**: "within 10 feet of the chosen side" cannot be read off a 1-ft wall — the ruling to make: the GM draws/adopts the wall so that its region covers the wall AND the hot side's 10 feet (a bare template the saves machine claims — `saves/areas.js` `claimBareRegion` — needs an `updateRegion` adoption in emanations.js when `flags.dnd5e.activity` lands on a region), OR the module widens the placed wall region by 10 ft on the side the caster picks (an ask, EFFECT_CHOICES-shaped: "which side burns?"). Prototype-free; the register row says which |
+| **Spike Growth** (L2, conc 10 min) | one `damage` activity, `sphere/20`, 2d4 piercing, no save; Difficult Terrain is the table's | **a new trigger on the `area` kind: `on: "move"`** — Foundry raises `tokenMoveIn` / `tokenMoveWithin` / `tokenMoveOut` with the movement's SEGMENTS (measure the event data: `event.data.movement`, `event.data.segments`, the feet inside the region per segment); after the move lands, the feet travelled inside the region ÷ 5 (floor) × the activity's dice, rolled on the caster and applied with a receipt, once per movement id; the mover is never paused (DESIGN §8: no movement pauses — the user, 2026-09-27). ⚠ DESIGN §4 says "movement-triggered anything is judgment, not outcome" with emanations the exception — this is a SECOND exception the user asked for by name: amend DESIGN §4 and add the bend row (the damage lands at the move's END, not per 5 feet as it goes) |
+
+Out on the user's word: **Counterspell, Magic Circle, Forcecage.**
+
+### The register — `audits/spells-register.md` (the deliverable that closes the slice)
+
+A generated audit (the house way: the evidence regenerated, never edited — `tools/audit-spells-register.mjs`,
+run against the corpus JSON `tools/scan-corpus.mjs` already produces, joined with `scripts/decide/registry.js`
+and the drawing), one row per PHB spell (391 in the pack), columns:
+
+| Column | Source |
+| --- | --- |
+| Spell · level · school · concentration | the pack |
+| **In scope** — NATIVE / MODULE / OUT / TEXT | NATIVE when the pack's data resolves it (an attack + damage, a save + damage, effects with changes and no clause the module reads); MODULE when a registry table names it (list the tables and the machine file); TEXT when the pack ships a paragraph only (a roleplay/utility spell — no combat mechanism); OUT when the drawing or a ruling holds it out |
+| **Why not** | for OUT: the drawing's reason (movement, a region ban, UI-shaped and held, no customer); for TEXT: "no mechanism to play" |
+| **How** | for MODULE: the table(s) + one line (the RULINGS section to read) |
+| **Rule of cool / bend** | any RULINGS register row (*Where the table bends the rule*, *Bent by choice*) naming the spell |
+| **Walked** | the tier's walk table it sits in, or "—" |
+
+The hand column (verdicts the data cannot derive) lives in the drawing: extend `audits/drawings/spells.md`
+with a *Register verdicts* table that the generator reads by spell name, so a re-run keeps them. The
+drawing today covers only the spells the audit tripped — the register is for EVERY spell, so the
+generator's default verdict (NATIVE/TEXT by structure) must be right for the ~150 it never listed, and the
+user reads the result.
+
+### The floor
+
+Each spell: a registry row (or table), a unit test in `tests/decide-spells-slice.test.js`, a suite section
+(smoke-spells §6+ for the three; smoke-emanations §20–21 for the two areas), `npm run verify` green,
+`--local` deploy then the changed suites, `verify-settings` CLEAN after; RULINGS *The spells slice — the
+held spells* with a walk table (Tier 4 of the deferred walk); ARCHITECTURE's table words; the register
+generated and linked from audits/README; commit and push. Release still waits on the walk.
 
 ## After this — the next two, already drawn
 
