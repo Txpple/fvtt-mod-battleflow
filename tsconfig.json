@@ -12,7 +12,7 @@
     //
     // ⚠ `checkJs` stays FALSE globally and files opt IN with `// @ts-check`, one at a time.
     // Opted in: `scripts/decide/` (pure, no Foundry, the most consequential arithmetic) and the
-    // damage chain (`auto-damage.js`, `auto-apply.js`, `hold/`). Foundry's and dnd5e's globals
+    // damage chain (`auto-damage.js`, `auto-apply.js`, `hold/`) and `dispatch.js`. Foundry's and dnd5e's globals
     // are `any` (types/foundry.d.ts): an opted-in file gets its own logic and its calls into the
     // tree checked — the JSDoc on a helper it calls is part of the contract.
     "allowJs": true,

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — THE HOOK DISPATCHER: one platform listener per hook name, and the module's own
  * handlers behind it in ORDER. A file registers with `listen(hook, key, fn)` where `key` is its own
