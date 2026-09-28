@@ -50,9 +50,18 @@ const failures = [];
 const fail = (file, line, what) => failures.push(`${relative(REPO, file)}:${line}: ${what}`);
 const lineOf = (src, idx) => src.slice(0, idx).split("\n").length;
 
+// A path `.gitignore` names is a generated artifact: it exists only on the machine that made it, so
+// it resolves by being listed, never by being on disk (CI's checkout would disagree with this one).
+const IGNORED = existsSync(join(REPO, ".gitignore"))
+  ? readFileSync(join(REPO, ".gitignore"), "utf8").split("\n").map(l => l.trim().replace(/^\//, ""))
+    .filter(l => l && !l.startsWith("#"))
+  : [];
+const ignored = path => IGNORED.some(entry => entry.endsWith("/") ? path.startsWith(entry) : (path === entry));
+
 function checkFileRef(file, line, target) {
   const clean = target.split("#")[0].split("?")[0];
   if (!clean || /^[a-z]+:/.test(clean)) return;
+  if (ignored(clean)) return;
   if (!existsSync(join(REPO, clean)) && !existsSync(join(dirname(file), clean))) fail(file, line, `file not found: ${clean}`);
 }
 
