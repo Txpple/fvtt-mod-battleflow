@@ -1272,7 +1272,7 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
 ## The settings (2026-09-27)
 
 The user, 2026-09-27, ruling the draft list: *"this is fine for now"*, and agreeing with its three
-calls. The vision behind it (HANDOFF *The rulings*): batteries included, a few configs for DMs;
+calls. The vision behind it (DESIGN, the refactor's rulings of 2026-09-27): batteries included, a few configs for DMs;
 midi is the alternative for a table that wants to configure everything.
 
 - **Ten settings.** For the DM: Decision Timer, Dramatic Beat, Players Roll Their Own Saves,
@@ -1292,7 +1292,7 @@ midi is the alternative for a table that wants to configure everything.
 - **Waiting for the dice is automatic**: a verdict waits up to 4 seconds for Dice So Nice's dice to
   come to rest. **Skip Hopeless Holds** follows Hold Shows the Math. A cast reaction's AC change is
   given 8 seconds to land.
-- **The content tables are the only list** (HANDOFF *The rulings*, *Code-only content tables*): no
+- **The content tables are the only list** (the refactor's rulings, 2026-09-27): no
   per-world list and no per-row switch. Prod's saved lists all equalled the shipped defaults, so no
   house row was lost.
 

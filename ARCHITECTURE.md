@@ -1150,8 +1150,12 @@ surprise came from elsewhere.
   fix is an index by flag when a world's age makes it visible, never a tail window.
 - **An architecture pass before the sweep — not taken (user, 2026-09-24, the long-term order;
   BACKLOG *The long-term order*); TAKEN 2026-09-27, once the PHB feats were done** — the refactor
-  and recalibration, [HANDOFF.md](HANDOFF.md), measured against the peers' repos. What follows is
-  the 2026-09-24 reasoning. The machine-tier pass already did it, and the registry model
+  and recalibration, measured against the peers' repos, DELIVERED 2026-09-28 (its commission's
+  record is git history). Comment lines in `scripts/` 39% to under 18%, none dated; settings 65 to
+  10; content found by `system.identifier`, not English names; 258 copied rule strings to 0 (read
+  from the book); 310 `Hooks.on` sites to one dispatcher with an `ORDER` table; the one-client
+  writer and HTML-escape checks; a release published only by CI from a green tagged commit
+  (NOTES §5 *Release*). What follows is the 2026-09-24 reasoning. The machine-tier pass already did it, and the registry model
   exists so a sweep row costs minutes. The structural work worth doing is the sweep's own, each
   piece built by the feature that proves its shape (Slice A built the `roll` interrupt kind and
   the damage-dice fold that way). [decide/registry.js](scripts/decide/registry.js) is split when
