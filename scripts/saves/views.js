@@ -27,12 +27,11 @@ listen("createChatMessage", "saves/views", message => {
     if ( found && drivesMomentFor(found.card.getFlag(MODULE_ID, "saves")?.sourceUuid ?? null) )
       void foldSaveAnswer(found.card, found.uuid, message);
   }
-  // The damage roll: existing verdicts apply now; the rest as they fold.
+  // The damage roll: existing verdicts apply now, on the demand's driver; the rest as they fold.
   if ( isCard(message, CARD.damage) ) {
     const origin = message.getOriginatingMessage?.();
-    if ( origin && (origin !== message) && origin.getFlag(MODULE_ID, "saves") ) {
-      void reconcileSaveDamage(origin);
-    }
+    const demand = (origin && (origin !== message)) ? origin.getFlag(MODULE_ID, "saves") : null;
+    if ( demand && drivesMomentFor(demand.sourceUuid ?? null) ) void reconcileSaveDamage(origin);
   }
 });
 

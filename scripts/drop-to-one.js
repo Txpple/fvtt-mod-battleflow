@@ -8,7 +8,7 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
@@ -101,11 +101,10 @@ async function stampAsk(actor, found, { amount, source }) {
 
 // The keeper.
 
-const keeps = message => message.isAuthor || (!message.author?.active && isActiveGM());
 
 function armTimer(message) {
   const flag = message?.getFlag(MODULE_ID, DROP_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keeps(message) ) return;
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
     if ( !live ) return;
@@ -124,7 +123,7 @@ async function answer(message, choice) {
   try {
     const flag = message.getFlag(MODULE_ID, DROP_FLAG);
     if ( flag?.status !== "pending" ) return;
-    if ( keeps(message) ) {
+    if ( keepsMessage(message) ) {
       await queueFlagWrite(message, DROP_FLAG, current => {
         if ( current.status !== "pending" ) return false;
         Object.assign(current, { status: "resolved", answer: choice, answeredAt: Date.now() });
@@ -145,7 +144,7 @@ async function answer(message, choice) {
 registerRelay("dropToOneAnswer", {
   flagKey: DROP_FLAG,
   targetOf: a => a.messageId,
-  owns: (_flag, target) => keeps(target),
+  owns: (_flag, target) => keepsMessage(target),
   fold: (current, a) => {
     if ( current.status !== "pending" ) return false;
     Object.assign(current, { status: "resolved", answer: a.answer, answeredAt: Date.now() });
@@ -181,7 +180,7 @@ async function land(message) {
 
 registerResumable(DROP_FLAG, {
   pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
-  drives: (_flag, message) => keeps(message),
+  drives: (_flag, message) => keepsMessage(message),
   drive: land
 });
 

@@ -110,7 +110,13 @@ that exists, and it is not a channel — it is a document.
 **Single-writer discipline:** every world-visible write runs on one client — the elect, or with
 no GM the subject's own player, and only where that player owns the document (§4 *The flow
 elect*). A write nobody present may make is skipped and said, never applied partially
-(DESIGN §4).
+(DESIGN §4). **The static proof is `npm run writers`** ([tools/check-writers.mjs](tools/check-writers.mjs)):
+every world write reachable from a handler on a hook every client receives (a document's create,
+update or delete, the card's render, `ready`, the combat hooks) sits behind a gate that elects a
+client — `isActiveGM`, `drivesMomentFor`, `keepsMessage` (a card's author while connected, else
+the active GM), `isContinuingClient`, `canAnswerFor`, or a keeper predicate built from them —
+and the gate dominates the write: an `if`, an `&&`, an early return. A relay's `owns` and a
+resumable's `drives` are gates, and are checked to be. `isOwner` is not one: a GM owns everything.
 
 ---
 

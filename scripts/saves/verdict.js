@@ -3,7 +3,7 @@
  * the stored DC, the die-less folds, the demand's registration, and the legendary-resistance flip.
  * index.js is the directory's only public face.
  */
-import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
+import { MODULE_ID, TITLE, drivesMomentFor, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
@@ -176,10 +176,12 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
 export async function flipForcedSave(rollMessage) {
   try {
     for ( const card of game.messages.contents ) {
-      const found = card.getFlag(MODULE_ID, "saves")?.targets?.find(
-        t => t.rollMessageId === rollMessage.id);
+      const flag = card.getFlag(MODULE_ID, "saves");
+      const found = flag?.targets?.find(t => t.rollMessageId === rollMessage.id);
       if ( !found ) continue;
       if ( found.outcome !== "failed" ) return;
+      // ⚠ The demand's driver flips it, once: every client sees the update.
+      if ( !drivesMomentFor(flag.sourceUuid ?? null) ) return;
       // ⚠ The failed-check repeats INSIDE the serializer so two racing flips cannot both claim it.
       let flipped = null;
       await queueFlagWrite(card, "saves", current => {

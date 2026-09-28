@@ -4,7 +4,7 @@
  * answering client. The trigger is `dnd5e.applyDamage`, the one seam that knows the ORIGINATING
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
@@ -154,11 +154,10 @@ async function stampWards(hurt, source, amount, origin) {
 
 /* --- who folds and who keeps the clock: the author, or the GM when the author has gone --------- */
 
-const keeps = message => message.isAuthor || (!message.author?.active && isActiveGM());
 
 function armTimer(message) {
   const flag = message?.getFlag(MODULE_ID, REBUKE_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keeps(message) ) return;
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
     if ( !live ) return;
@@ -177,7 +176,7 @@ async function answerRebuke(message, answer, index = null) {
   if ( flag?.status !== "pending" ) return;
   const option = (answer === "use") ? flag.options?.[index] : null;
   if ( (answer === "use") && !option ) return;
-  if ( keeps(message) ) {
+  if ( keepsMessage(message) ) {
     let claimed = false;
     await queueFlagWrite(message, REBUKE_FLAG, current => {
       if ( current.status !== "pending" ) return false;
@@ -201,7 +200,7 @@ async function answerRebuke(message, answer, index = null) {
 registerRelay("rebukeAnswer", {
   flagKey: REBUKE_FLAG,
   targetOf: a => a.messageId,
-  owns: (_flag, target) => keeps(target),
+  owns: (_flag, target) => keepsMessage(target),
   fold: (current, a) => {
     if ( current.status !== "pending" ) return false;
     current.status = "resolved"; current.answer = a.answer; current.choice = a.choice ?? null; current.answeredAt = Date.now();

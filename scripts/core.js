@@ -89,6 +89,10 @@ export function isContinuingClient(hold) {
   return owner?.active ? owner.isSelf : isActiveGM();
 }
 
+/** Does THIS client keep a card — its author while connected, else the active GM? ONE client answers yes. */
+export const keepsMessage = message =>
+  !!message && (message.isAuthor || (!message.author?.active && isActiveGM()));
+
 /** Is this actor a combatant in any started combat? ⚠ Matched the platform's way (see `activeCombatFor`). */
 export function inRunningCombat(actor) {
   if ( !actor ) return false;

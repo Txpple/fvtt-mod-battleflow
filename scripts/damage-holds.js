@@ -5,7 +5,7 @@
  * it short by the roll (`held`, never claimed twice). ⚠ Card buttons and sheet edits are never
  * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
 import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
@@ -143,11 +143,10 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
 
 /* --- the keeper: the author, or the GM when the author has gone -------------------------------- */
 
-const keeps = message => message.isAuthor || (!message.author?.active && isActiveGM());
 
 function armTimer(message) {
   const flag = message?.getFlag(MODULE_ID, HOLD_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keeps(message) ) return;
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(timers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
     if ( !live ) return;
@@ -218,7 +217,7 @@ async function answerHold(message, answer, who = null) {
         await spendReaction(actor, { origin: item?.uuid ?? null, what: flag.reaction });
       }
     }
-    if ( keeps(message) ) {
+    if ( keepsMessage(message) ) {
       await queueFlagWrite(message, HOLD_FLAG, current => foldAnswer(current, { answer, reduceBy, poolSpend, who }));
       return;
     }
@@ -239,7 +238,7 @@ async function answerHold(message, answer, who = null) {
 registerRelay("damageHoldAnswer", {
   flagKey: HOLD_FLAG,
   targetOf: a => a.messageId,
-  owns: (_flag, target) => keeps(target),
+  owns: (_flag, target) => keepsMessage(target),
   fold: (current, a) => foldAnswer(current, { answer: a.answer, reduceBy: a.reduceBy, poolSpend: a.poolSpend ?? null, who: a.who ?? null })
 });
 
@@ -276,7 +275,7 @@ async function landHeld(message) {
 
 registerResumable(HOLD_FLAG, {
   pending: flag => (flag?.status === "resolved") && !flag.applied && !flag.applying,
-  drives: (_flag, message) => keeps(message),
+  drives: (_flag, message) => keepsMessage(message),
   drive: landHeld
 });
 

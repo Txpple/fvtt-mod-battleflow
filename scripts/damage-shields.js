@@ -118,13 +118,14 @@ registerResumable("damageShields", {
 async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
   judged.add(damageMessage.id);
   try {
-    // A released roll's judgement is stamped first, so a reload never judges it again.
-    if ( wasHeld ) {
+    const attacker = attackMessage.getAssociatedActor();
+    if ( !attacker ) return;
+    // A released roll's judgement is stamped first, so a reload never judges it again — by the
+    // attacker's elect, once; every client's own memory is `judged`.
+    if ( wasHeld && drivesMomentFor(attacker.uuid) ) {
       try { await queueFlagWrite(damageMessage, "damageShields", current => { current.judged = true; }); }
       catch(err) { console.warn(`${TITLE} | Could not stamp the shield judgement on the damage card.`, err); }
     }
-    const attacker = attackMessage.getAssociatedActor();
-    if ( !attacker ) return;
     const hits = hitTargets(attackMessage);
     const attackerToken = tokenOfActor(attacker);
     for ( const t of hits ) {

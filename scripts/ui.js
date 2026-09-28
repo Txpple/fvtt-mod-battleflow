@@ -3,7 +3,7 @@
  * moment clocks, and the relay / rescue / demand / resumable / withhold registries.
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
-import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
+import { MODULE_ID, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -419,7 +419,8 @@ listen("createChatMessage", "ui", message => {
 registerRelay("momentAck", {
   flagKey: envelope => envelope.flagKey,
   targetOf: envelope => envelope.cardId,
-  owns: (_flag, target) => !!target?.isOwner,
+  // ⚠ One client folds: the card's author, or the active GM once the author is gone.
+  owns: (_flag, target) => keepsMessage(target),
   cleanup: true,
   fold: current => {
     if ( current.acknowledged ) return false;

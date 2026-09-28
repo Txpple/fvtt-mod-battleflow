@@ -143,9 +143,12 @@ async function repairTransferEffects(actor) {
   }
 }
 
+// The elect repairs each sheet once: the active GM, or with none the actor's own player.
 listenOnce("ready", "hit-menu", () => {
   if ( !hitMenuEntries().length ) return;
-  for ( const actor of game.actors.filter(a => a.isOwner) ) void repairTransferEffects(actor);
+  for ( const actor of game.actors ) {
+    if ( drivesMomentFor(actor.uuid) ) void repairTransferEffects(actor);
+  }
 });
 listen("createItem", "hit-menu", (item, _options, userId) => {
   if ( (userId !== game.user.id) || !(item.parent instanceof Actor) || (item.type !== "feat") ) return;

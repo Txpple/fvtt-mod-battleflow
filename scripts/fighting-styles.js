@@ -4,7 +4,7 @@
  * listed style, live or disabled off the EQUIPPED boxes; an ungated pack effect is off while the face
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
-import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, fightingStyleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
@@ -597,12 +597,10 @@ async function stampGrapple(actor, feature, activity, candidates) {
   if ( message ) armGrappleTimer(message);
 }
 
-/** The keeper: the card's author, or the GM when the author has gone. */
-const keepsGrapple = message => message.isAuthor || (!message.author?.active && isActiveGM());
 
 function armGrappleTimer(message) {
   const flag = message?.getFlag(MODULE_ID, GRAPPLE_FLAG);
-  if ( (flag?.status !== "pending") || !flag.deadline || !keepsGrapple(message) ) return;
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
   armDeadline(grappleTimers, message.id, flag.deadline, async () => {
     const live = game.messages.get(message.id);
     const now = live?.getFlag(MODULE_ID, GRAPPLE_FLAG);
@@ -629,7 +627,7 @@ async function dealGrapple(message, pickUuid, { timedOut = false } = {}) {
 
 /** Record an answer: the keeper writes it, anyone else sends it (the relay folds it). */
 async function recordGrapple(message, { answer, pick, timedOut = false }) {
-  if ( keepsGrapple(message) || message.isOwner ) {
+  if ( keepsMessage(message) || message.isOwner ) {
     await queueFlagWrite(message, GRAPPLE_FLAG, current => foldGrapple(current, { answer, pick, timedOut }));
     return;
   }
@@ -648,7 +646,7 @@ function foldGrapple(current, { answer, pick, timedOut = false }) {
 registerRelay("grappleDamageAnswer", {
   flagKey: GRAPPLE_FLAG,
   targetOf: a => a.messageId,
-  owns: (_flag, target) => keepsGrapple(target),
+  owns: (_flag, target) => keepsMessage(target),
   fold: (current, a) => foldGrapple(current, { answer: a.answer, pick: a.pick ?? null }),
   cleanup: true
 });
@@ -850,7 +848,8 @@ listen("updateItem", "fighting-styles", (item, changes) => {
       if ( !f || f.chosen || (f.itemUuid !== item.uuid) ) continue;
       const [type] = typesInNames([item.name], f.row, damageTypeKeys());
       if ( !type ) continue;
-      if ( message.canUserModify?.(game.user, "update") ) void message.setFlag(MODULE_ID, PICK_FLAG, { ...f, chosen: type }).catch(() => {});
+      // The card's keeper settles it, once: every client sees the rename.
+      if ( keepsMessage(message) ) void message.setFlag(MODULE_ID, PICK_FLAG, { ...f, chosen: type }).catch(() => {});
       const open = livePopups.get(popupKey(message.id, PICK_FLAG));
       if ( open ) { try { void open.close(); } catch { /* gone */ } }
     }

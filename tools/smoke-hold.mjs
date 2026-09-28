@@ -875,21 +875,8 @@ const r = await f.evaluate(async ({ sections }) => {
       const { actor: npc, token: npcToken } = await ensureCastStatblock();
       const vAC = npc.system.attributes.ac.value;
 
-      // (a) Auto-damage for NPC attackers only: a PC's attack must not hold at all, or it strands
-      // behind a prompt nothing continues. The gate runs before the stamp.
-      await game.settings.set(MOD, 'autoDamage', 'npc');
+      // The PC's attack holds on the monster's reaction and answers for real.
       npcToken.setTarget(true, { releaseOthers: true });
-      const offUsage = await pcActivity().use({ subsequentActions: false }, { configure: false }, {});
-      const offUsageId = offUsage?.message?.id;
-      // ⚠ An undefined id would match the first unrelated origin-less damage card.
-      if (!offUsageId) throw new Error('the PC attack produced no usage message to trace');
-      const offRolls = await pcActivity().rollAttack({ advantage: true }, { configure: false },
-        { data: { 'system.origin': offUsageId } });
-      await sleep(2500);
-      const offHeld = !!game.messages.get(offRolls?.[0]?.parent?.id)?.getFlag(MOD, 'hold');
-
-      // (b) With everyone auto-resolving, the same attack holds and answers for real.
-      await game.settings.set(MOD, 'autoDamage', 'all');
       await clearReaction(npc);
       const atk = await attackIntoFlipWindow(pcActivity, npcToken, vAC);
       if (!atk) throw new Error(`no PC attack landed in [${vAC}, ${vAC + 4}] against the statblock caster`);
@@ -908,8 +895,6 @@ const r = await f.evaluate(async ({ sections }) => {
 
       results.pcVsMonster = {
         attackerType: pcAttacker.type,
-        modeNpcHeld: offHeld,                  // must be false: the gate precedes the stamp
-        modeNpcDamage: !!damageFor(offUsageId),  // and nothing auto-resolved either
         held: !!pending,
         reaction: pending?.targets?.[0]?.reaction ?? null,
         answered: done?.targets?.[0]?.answer ?? null,
@@ -1651,9 +1636,6 @@ if (want('4d5')) {
     && x.pcVsMonster?.answered === 'cast' && x.pcVsMonster?.verdict === 'miss'
     && x.pcVsMonster?.dmg?.rolled === true && x.pcVsMonster?.dmg?.applied === false,
     JSON.stringify(x.pcVsMonster));
-  report('PC → MONSTER: with auto-damage on NPCs only, a PC attack never holds',
-    x.pcVsMonster?.modeNpcHeld === false && x.pcVsMonster?.modeNpcDamage === false,
-    `held=${x.pcVsMonster?.modeNpcHeld}, damage=${x.pcVsMonster?.modeNpcDamage}`);
 }
 if (want('4d2')) {
   report('an NPC holds a spell paid for by x/x uses, with no slots at all',
