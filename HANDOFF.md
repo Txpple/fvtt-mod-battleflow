@@ -115,7 +115,7 @@ The plan as written:
   lead) or dnd5e's rules page; pointers name the house's books first.
 - **The proof:** `npm run identifiers` in verify; the full battery green on the committed code
   (2026-09-28, 43 rows, 76 min; `858b4af` adapted the suites, no module bug among 27 failing
-  ones); the user's walk is owed. Nothing released: prod stays v2.5.0.
+  ones); WALKED by the user 2026-09-28, all good. Nothing released: prod stays v2.5.0.
 - **The walk** (the user's): the settings page shows ten; a popup's "the rule ▸" opens the book's
   own paragraph (Guarded Mind, a Battle Master maneuver, Prone in the attack gate); a monster
   casting a renamed spell ("Heat Metal - Spellcasting") is recognised.
