@@ -209,3 +209,26 @@ export function oneDieOdds(faces, value) {
   const round = (x, k) => Math.round(x * k) / k;
   return { min: 1, max: f, avg: round(avg, 100), beat: round(beat, 1000), gain: round(avg - cur, 100), low: cur < avg };
 }
+
+/**
+ * THE ROLL AT ITS MAXIMUM (Beacon of Hope, HEAL_REROLLS `max`): every die at its faces, times its count,
+ * every number as written, the operators honoured; a term the walk cannot read (a pool, a parenthetical)
+ * counts what it rolled. Never below the rolled total.
+ * @param {any} rollData   `Roll#toJSON`
+ * @returns {number}
+ */
+export function rollMaximum(rollData) {
+  const terms = rollData?.terms ?? [];
+  let total = 0;
+  let sign = 1;
+  for ( const term of terms ) {
+    if ( typeof term?.operator === "string" ) { sign = (term.operator === "-") ? -1 : 1; continue; }
+    let value;
+    if ( Number.isFinite(term?.faces) && Number.isFinite(term?.number) ) value = Number(term.number) * Number(term.faces);
+    else if ( Number.isFinite(term?.number) ) value = Number(term.number);
+    else value = Number(term?.total) || 0;
+    total += sign * value;
+    sign = 1;
+  }
+  return Math.max(total, Number(rollData?.total) || 0);
+}

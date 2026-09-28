@@ -557,6 +557,19 @@ documented at its table's head in [decide/registry.js](scripts/decide/registry.j
 | `CLOCK_RIDERS` | `when: "any"` · `uses` off the ITEM · `effects` · `clock` · `label` | every hit, uses permitting; the uses read off the activity, else the item its consumption names, spent where they live (`decide/clock.js` `riderUsesFrom`); the activity's own effects on the hit, clocked to the attacker; the name the offer and card use |
 | `DAMAGE_EITHER` (new) | `key` · `weapon` | Savage Attacker's once-per-turn chit key and its weapon-only clause. Not a kind: one machine, rows of data |
 
+### The table words the spells slice added (2026-09-28)
+
+One kind moved (`repeatSave`, three triggers — §6's tripwire 35 → 38); the rest is vocabulary on
+tables that existed, plus one new table that is not a kind.
+
+| Table | Word | What it says |
+| --- | --- | --- |
+| `EFFECT_BENDS` | `saves.abilities` | the facet scoped by the save's own ability (Irresistible Dance's Dexterity); the demand carries `abilities` since this slice (`saves/demand.js`), and a repeat's demand carries its own `bend` (`decide/reminders.js` `demandBendSources`) |
+| `HEAL_REROLLS` | `effect` · `max` | a row on the HEALED creature: healing the cast path lands is the roll's maximum while the effect stands (Beacon of Hope; `decide/damage-dice.js` `rollMaximum`) |
+| `SAVE_PRESSES` | `word` | a press behind the caster's word — the options, the one that presses, the clock's default; a third save-choice kind, `word` (`saves/choices.js`) |
+| `REPEAT_SAVES` (new, the `repeatSave` kind's rows) | `effect` · `on` · `advantage` · `onSave` · `count` · `caveat` | a landed effect's repeated save: which effect(s), what raises it, the trigger with Advantage, the repeat's own damage-on-save, the tally that ends or locks or presses, the clause the table plays |
+| `TURN_GRANTS` (new) | `effect` · `activity` · `on` | a landed effect's turn-start grant rolled again on the caster (Heroism). Not a kind: one machine, rows of data |
+
 ### How a row names its content
 
 A row is keyed by its content's English name, and it FINDS the content by dnd5e's
@@ -602,6 +615,8 @@ there needs `game` or `canvas`, it is EDGE and belongs one layer up (§2 rule 1)
 | [decide/sneak.js](scripts/decide/sneak.js) | `parseDice`, `sneakWeaponQualifies`, `sneakConditionsHold` (the box's default tick: Advantage, or the map's ally and no Disadvantage), `cunningMenu` (the options read off the sheet, up to two with Improved Cunning Strike), `cunningPick`, `sneakFormula` — the Sneak Attack dice, and what Cunning Strike does to them before the roll |
 | [decide/clock.js](scripts/decide/clock.js) | `riderDue` (is a clock rider due on this hit, and why not — `any` since 2026-09-24), `riderPartFormula` (a pack's damage part as a formula, a bonus-only part included), `riderUsesFrom` (where a rider's uses live: the activity's, else the item's) |
 | [decide/emanations.js](scripts/decide/emanations.js) | `reachAdmits` (who an aura reaches, by disposition — helpful: allies and neutrals; harmful: enemies), `emanationRange` (the activity's size, else the row's content formula over the source's roll data — `@scale.paladin.aura`), `resolveChanges` / `resolveFormula` / `foldArithmetic` (the pack's effect with the SOURCE's numbers read in), `triggerDue` (once per turn in combat), `healTriggerDue` (Aura of Life's 0-HP ally), `liveScenes` / `appliesOnScene` (the active scene and every scene a connected player views, a GM's while no player is connected), `emanationGroup` / `groupMembers` (one aura across every scene it stands on, one copy per creature), `memberEffectData` (the effect a member receives, fingerprinted with its aura for the floor) |
+| [decide/repeat-saves.js](scripts/decide/repeat-saves.js) | the repeating save (the spells slice, 2026-09-28): `repeatRowFor` (the row an effect answers — its origin item and its name together, over the table and the registry's matcher handed in), `repeatDue`, `repeatBend` (the demand's own Advantage on one trigger), `repeatVerdict` (ends, holds, or tallies to an end, a lock or a press), `needsFloat` (the platform floats an effect with a status or a change), `repeatTitle` |
+| [decide/turn-grants.js](scripts/decide/turn-grants.js) | the turn-start grant: `grantRowFor`, `grantDue` (once per turn by place), `grantTitle` |
 | [decide/hit-menu.js](scripts/decide/hit-menu.js) | `hitMenu` (the groups and rows a hit offers, read off the sheet and the list; a per-option pool, a press with no die, the size judge's greyed row), `hitPick` (one per group, affordable — and one on the whole hit since 2026-09-24: a two-group pick picks nothing), `sweepVerdict` (would the original attack roll hit a second creature) |
 | [decide/sequence.js](scripts/decide/sequence.js) | `hitOfferStep` (what a hit's queued offer does next — §5 law 7, the hit's sequence), `withinBashReach` |
 | [decide/choices.js](scripts/decide/choices.js) | `effectChoiceFor` (which of a cast's effects are the alternatives a listed row names — fewer than two present asks nothing), `effectsAfterChoice` (what lands once the pick is made: the non-alternatives plus the pick; pending is null and the caller waits; a pick outside the options is pending too) |

@@ -37,7 +37,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Powerful Build**: Advantage on "any ability check you make to end the Grappled condition" | while the Goliath IS Grappled, its Athletics and Acrobatics checks have Advantage, whatever they are for | nothing tells an escape check from any other check the module meets (`EFFECT_BENDS` `checksWhen`); the bearer's status and the escape's two skills are the facts it can read | 2026-09-25 |
 | **Storm's Thunder, Hellish Rebuke, Fount of Moonlight, Retaliation, Sword of Answering** — a Reaction when a creature damages you | offered only when the damage names its dealer: the card it came from (any application with an originating card — the module's, or the card's own buttons); an HP typed on a sheet offers nothing | `dnd5e.applyDamage` knows the dealer only through `originatingMessage`; a sheet edit carries none (`rebukes.js`) | 2026-09-25 |
 | **Trip Attack and Hill's Tumble on one hit** (the rules allow a maneuver and the boon together) | one hit-menu pick per hit; a clock rider (Fire's Burn, Frost's Chill) still rides beside any pick | the pick is ONE record (`hitPick` → `hitManeuver`), so a second pick would be dropped in silence (`decide/hit-menu.js` `hitPick`); the array shape is BACKLOG's | 2026-09-24 |
-| **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted | an end-of-turn repeat save is a bare sheet roll with no demand to read what it is against (R1: never guessed) | 2026-09-24 |
+| **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted — except on a repeat the module raises itself (`REPEAT_SAVES`, 2026-09-28), whose demand says what it is against: there the row COUNTS | an end-of-turn repeat rolled from the sheet is a bare roll with no demand to read what it is against (R1: never guessed) | 2026-09-24; narrowed 2026-09-28 |
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
 | **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
 | **Heroic Inspiration, Precision Attack, Graze** once a defender's Lucky (or any `roll` row) turned the hit into a miss | not offered to the attacker | the attacker's rescues are offered at `dnd5e.rollAttack`, where the roll was a hit; nothing re-offers them after the hold's verdict — a known gap, DESIGN §8 (Graze already had it for Shield, `mastery.js`) | 2026-09-24 |
@@ -51,6 +51,9 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Sentinel**'s Halt: "When you hit a creature with an Opportunity Attack" | due on the Opportunity Attack the module drove (its cards say so) AND on any melee hit the Sentinel makes off its own turn in a running combat — ticked on the damage offer, with the caveat "only on an Opportunity Attack" | an Opportunity Attack made from the sheet is an ordinary attack roll: nothing marks it; off-turn melee is the fact the module can read (`clock-riders.js`, `judge: "opportunity"`) | 2026-09-27 |
 | **Polearm Master**'s Reactive Strike: "a creature that enters the reach you have with that weapon" — the attack happens as it enters | a REMINDER as the hostile's move crosses into the reach ring (Foundry splits the move there, so a pass-through is caught), while the move itself carries on; the attack is made from the sheet after | holding the mover at the edge for the answer would need Foundry's `pauseMovement`, callable only on the MOVING user's client — movement pauses are out of scope (DESIGN §8) (`emanations.js` `maybeAlert`) | 2026-09-27 |
 | **Chef**'s Replenishing Meal: food cooked "as part of a Short Rest"; "At the end of the Short Rest, any creature who eats the food and spends one or more Hit Dice" regains 1d8 | the Chef picks the eaters AFTER its own Short Rest; an eater whose Short Rest already ended in the same sitting (the same Rest request, else within two hours) is healed then if it spent a Hit Die; one still resting is healed as its own rest ends | every creature rests on its own client, in any order, and dnd5e's rest card states the Hit Dice spent only in words — the module stamps its own record on each Short Rest card (`rest-grants.js` `restSpent`, `decide/rest-grants.js` `mealStanding`) | 2026-09-27 |
+| **Command**: the word is spoken as the spell is cast | asked of the caster when the target's save FAILS (a success asks nothing): Approach / Flee / Grovel / Halt in one popup; Grovel presses Prone (receipted), the other three are the table's to play; the clock defaults to Halt | the verdict pass is the one seam that can hold a consequence for an answer (`saves/choices.js`, the bash's shape), and the word changes nothing the save reads | 2026-09-28 |
+| **Fear**: the target repeats the save "if it doesn't have line of sight to you" | demanded at every turn end, the clause said on the card; a success the creature should not have had is reverted from the cast card by hand | sight is nothing the module reads (`REPEAT_SAVES` `caveat`) | 2026-09-28 |
+| **Beacon of Hope**: "regains the maximum number of Hit Points possible from any healing" | healing the MODULE lands through the cast path (a healing spell aimed at the creature) is raised to the roll's maximum, the receipt saying so; healing applied with a card's own buttons, by a kit, an aura or a sheet edit is not | only the module's own applier can change a number as it lands (`cast.js`, `HEAL_REROLLS` `max`) | 2026-09-28 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -1325,6 +1328,65 @@ classes wait for the party). The commission is HANDOFF.md.
 - **Relentless is not in the 2025 Monster Manual**; the kill moment's monster row is Undead
   Fortitude. Slice B is redrawn to five shapes in its drawing.
 - **The drawings are the map, never a commission**: nothing in them is owed until the user sets it.
+
+## The spells slice — Tiers 1 and 2 (2026-09-28, HANDOFF.md)
+
+**Measured before a row was written** (`tools/probe-pack-shapes.mjs`, the sandbox on dnd5e 6.0.5): four of
+the drawing's eight Tier 1 rows are the pack's already and got no row — **Haste** (Hasted carries the
+Dexterity save mode), **Synaptic Static** (Muddled Thoughts carries the −1d6 on attacks, checks and
+concentration), **Sorcerous Burst** (its damage is `1d8x@mod=8`: Foundry's own explode modifier with a
+cap, the modifier's worth of extra d8s on an 8), and **Beacon of Hope's saves** (Hopeful carries the
+Wisdom and death save modes). The rows that stayed:
+
+| Spell | Table | What the module adds |
+| --- | --- | --- |
+| **Protection from Poison** | `EFFECT_BENDS` "Poison Protection" `saves` | Advantage against a demand that would poison — Dwarven Resilience's facet on an effect (the pack carries the resistance) |
+| **Otto's Irresistible Dance** | `EFFECT_BENDS` "Irresistible Dance" + `REPEAT_SAVES` | attacks at Disadvantage, attacks against it at Advantage, Dexterity saves at Disadvantage — the facet's new `abilities` scope, the demand naming its ability; the repeat is the dancer's ACTION, offered on a card at its turn start, never demanded by the clock |
+| **Beacon of Hope** | `HEAL_REROLLS` "Beacon of Hope" `max` | a creature wearing Hopeful is healed the roll's MAXIMUM by the cast path, the receipt saying so (the register above says what is not raised) |
+| **Command** | `SAVE_PRESSES` "Command" `word` | the caster's word asked on the failure (the bash's shape, `saves/choices.js` kind `word`); Grovel presses Prone; the register row above |
+| **Heroism** | `TURN_GRANTS` "Heroism" (new table, `turn-grants.js`) | the pack rolls the Temporary Hit Points once, at the cast; the machine rolls the spell's Heal activity again on the CASTER's numbers at each of the bearer's turn starts while Bravery stands, receipted. ⚠ The commission said a `CLOCK_RIDERS` facet; a table of its own because that one is keyed by the ATTACKER's feature and read at a hit, and this is keyed by an effect on the BEARER and read by the clock |
+
+**Tier 2 — the repeating save, a KIND** (`REPEAT_SAVES`, the R4 tripwire 35 → 38: `turnEnd`, `damaged`,
+`action`; `repeat-saves.js`). A row is keyed by the SPELL and names the pack's effect(s); the effect is
+found on the bearer by its name AND its origin item together (a ghoul's Paralyzed is not Hold
+Person's), the origin read through `effectSourceOf` (a tray-applied copy's `item` names the pack). The
+save is the item's own save activity, demanded on a card of the machine's through the saves machine
+(`effectsHandled: "repeat"`); **a success removes the effect through the cast card's receipt** (the
+entry reverted — the same revert button the receipt carries), no choice (R1), and the card says
+*"Paralyzed ended — the save succeeded"*; a failure says it holds. **The float:** Foundry v14 floats
+`−(name)` off the token itself for any effect with a status or a change (NOTES §1), so the module
+draws it only for a bare one (Confused). Tasha's damaged save has Advantage as the demand's OWN
+bend (the gate lists it, the automatic roll rolls it). Phantasmal Killer's repeat takes none on a
+success (the pack's "half" is the cast's). **The counters** (`count`): Contagion — three successes end
+it, three failures lock the asking; Flesh to Stone — three failures press Petrified and lock, the
+effect standing under it. Rows: Hold Person, Hold Monster, Tasha's Hideous Laughter, Blindness/Deafness,
+Crown of Madness, Slow, Fear, Confusion, Phantasmal Killer, Eyebite (Panicked, Sickened), Contagion,
+Flesh to Stone, the three Dominates, Otto's. Out on purpose: Eyebite's Asleep (ends on damage with no
+save — the table's). ⚠ Contagion's pack lands all six Infected effects on a failure (the data; the
+disease is the caster's pick — fix at the data, never a carve-out).
+
+**The walk — Tier 1** (`tools/content/place-spells-walk.mjs` puts BF Walk Cleric with the slice's spells
+and two targets on Party Camp):
+
+| Spell | What you should see |
+| --- | --- |
+| **Protection from Poison** on a target, then a poisoning save at it | the save dialog's section: "Poison Protection — against Poisoned", Net Advantage |
+| **Otto's Irresistible Dance** landed, then a Dexterity save at the dancer | "Irresistible Dance — a Dexterity save", Net Disadvantage; an attack at it shows Advantage, its own attacks Disadvantage |
+| **Beacon of Hope** on a target, then Cure Wounds at it | the receipt line says "Healing — Beacon of Hope — the maximum"; the Hit Points move by the dice's maximum |
+| **Command** at a target that fails | the caster's popup: Approach / Flee / Grovel / Halt; Grovel → Prone lands, a card says who falls; any other word → a card says the table moves the token |
+| **Heroism** on a target, then its turn starts | a "Turn start" card: "Heroism — <name> gains N Temporary Hit Points", N the caster's spellcasting modifier; once per turn |
+| **Haste**, **Synaptic Static**, **Sorcerous Burst** | nothing of the module's: the pack does it (Hasted's Dexterity Advantage in the save dialog; Muddled Thoughts' −1d6 on the attack; an 8 on the Burst's d8 rolls another) |
+
+**The walk — Tier 2:**
+
+| Spell | What you should see |
+| --- | --- |
+| **Hold Person** landed, the target's turn ends | a "Repeated save" card; the save rolls (or asks); a failure: "Paralyzed holds — the save failed"; a success: "Paralyzed ended — the save succeeded", the effect gone, "−(Paralyzed)" floating off the token, the cast card's receipt row struck |
+| **Tasha's Hideous Laughter** landed, damage the target | the repeat raised at once, "with Advantage" on the card and in the dialog's section; the turn end raises it too |
+| **Otto's Irresistible Dance** landed, the dancer's turn starts | a card with a button "Repeat the save — your action"; the turn END raises nothing; the button raises the demand |
+| **Flesh to Stone** landed, three failed turn ends | "1 of 3 failures", "2 of 3", then "the third failure: Petrified" — Petrified on the token, no fourth ask |
+| **Dominate Person** landed, damage the target | the repeat raised on the damage, none at the turn end |
+| **Confusion** landed, a successful turn end | the effect ends and the module's own "−(Confused)" floats (the platform draws none for a bare effect) |
 
 ## Rulings the code carried
 

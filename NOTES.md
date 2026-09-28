@@ -305,6 +305,23 @@ the sender `isGM` on the SERVER, which a role-3 user is not (dist/database/docum
 needs a player on a scene makes the PLAYER navigate. `pullUsers` also skips a user the GM does not
 yet see as `active`.
 
+### v14 floats "−(name)" off the token for ANY effect with a status or a change (2026-09-28, `client/documents/active-effect.mjs`)
+
+`ActiveEffect#_displayScrollingStatus` runs on create, on an enable/disable update and on delete
+(`modifiesActor`: embedded, active, on an Actor; `options.animate !== false`), and draws only when
+`this.statuses.size || this.system.changes.length`. So a status-only effect (Hold Person's Paralyzed)
+and a changes-only one (Slowed) float on their own; a BARE effect (Confusion's Confused: no status, no
+change) never does. The module's own floats (the use chips, the fighting styles' faces, the repeating
+save's end) are for the bare ones only — a second float on the others would double the platform's.
+⚠ v14 keeps an effect's changes under `system.changes`.
+
+### A Die's explode modifier takes a CAP: `x{max}={target}` (2026-09-28, Sorcerous Burst)
+
+`Die#explode` reads `/xo?([0-9]+)?([<>=]+)?([0-9]+)?/`: with both numbers present the first is the
+most explosions, the second the face. dnd5e's Sorcerous Burst ships its damage as `1d8x@mod=8` —
+the modifier's worth of extra d8s on an 8 — and the platform rolls it with no help. Measured the
+spell native on that; the walk proves the roll.
+
 ## 2. dnd5e — the 6.x knowledge, with the pre-6.0 survivors marked
 
 > Battle Flow runs on dnd5e 6.x only since v2.0.0. **The 6.0 pass** (first below) is the seam
@@ -659,6 +676,15 @@ So `rerolled` alone does not mean *a second result follows*: `changedDice` pairs
 - **Nothing records a Disengage**: no status, no activity on a monster's statblock or the PHB's
   actions (dnd5e 6.0.5's `CONFIG.statusEffects` lists none), so Sentinel's Disengage half is the
   table's.
+
+### `dnd5e.damageActor` carries the DELTA, healing included (2026-09-28, the repeating save)
+
+The hook fires after every `Actor#applyDamage` — damage and healing alike — with `changes`
+`{ hp, temp, total }`, the signed movement of the Hit Points. Damage is `total < 0`; a heal is
+positive; a change that took nothing (immunity, a 0) is 0. A `damaged` trigger reads the sign, never
+the hook's firing (`repeat-saves.js`); the concentration seam reads the same hook. ⚠ In
+`applyDamage`'s input a `healing`-typed part heals on a POSITIVE value (the type flips the sign);
+`-5 healing` is 5 damage.
 
 ### Carried over from 5.3.x
 

@@ -1,25 +1,29 @@
 /**
  * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the CHOICES a verdict opens,
- * Interpose on a listed shield-bearer's success and the bash's Prone-or-push on the listed feat's
- * failure, on the same `saves` flag.
+ * Interpose on a listed shield-bearer's success, the bash's Prone-or-push on the listed feat's
+ * failure, and the caster's WORD behind a press (Command), on the same `saves` flag.
  */
 import { MODULE_ID, TITLE, queueFlagWrite, drivesMomentFor, decisionWindow } from "../core.js";
 import { applicableProfiles, cardActivity, equippedShield, foldEntryFor, resolveUuid } from "../lookup.js";
 import { forceStatus, reactionSpent, spendReaction } from "../shared.js";
-import { bfCard, momentBarHTML, ruleLine } from "../decide/present.js";
+import { bfCard, esc, momentBarHTML, ruleLine } from "../decide/present.js";
 import { openMomentPopup, armDeadline, disarmDeadline, registerRelay } from "../ui.js";
-import { RULE_TEXT } from "../decide/registry.js";
+import { RULE_TEXT, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { maneuverFoldEntries } from "../decide/registry.js";
 
 /* A choice holds one target's consequence pass between the verdict's announce and its application;
  * the maneuver-folds list is the switch. INTERPOSE expires to pass (a timer never spends a Reaction);
- * BASH expires to Prone. A non-owner's answer rides its own message; the elect folds it in. */
+ * BASH expires to Prone; a WORD expires to its row's default. A non-owner's answer rides its own
+ * message; the elect folds it in. */
 
 const saveChoiceTimers = new Map();
+const SAVE_PRESS_INDEX = tableIndex(SAVE_PRESSES);
 
-/** What choice, if any, this VERDICT opens — bash on the listed feat's own failure, interpose on a
- * listed shield-bearer's SUCCESS. Null for almost every save. */
+/** What choice, if any, this VERDICT opens — bash on the listed feat's own failure, the caster's word
+ * behind a press on a failure, interpose on a listed shield-bearer's SUCCESS. Null for almost every save. */
 async function saveChoiceSpec(card, flag, entry) {
+  const word = await wordChoiceSpec(card, flag, entry);
+  if ( word ) return word;
   if ( entry.outcome === "saved" ) {
     // Interpose eligibility, read at VERDICT time: half-on-success DEX damage, the listed
     // feat on the saver, a shield in hand, the Reaction free — and the save already held.
@@ -45,6 +49,23 @@ async function saveChoiceSpec(card, flag, entry) {
   if ( !presses ) return null;   // nothing to choose between — the push against no press is no choice
   return { kind: "bash", itemName: found.item.name, itemImg: found.item.img,
     subjectUuid: attacker.uuid, attackerName: attacker.name };
+}
+
+/** THE WORD (SAVE_PRESSES `word`, Command): a failure behind a press whose status waits on the caster's
+ * word opens the caster's choice — the options the row's, the press behind one of them. The activity
+ * must have brought no effect (the press's own gate). RULINGS *Where the table bends the rule*: asked at
+ * the failure, not at the cast. */
+async function wordChoiceSpec(card, flag, entry) {
+  if ( entry.outcome !== "failed" ) return null;
+  const activity = cardActivity(card, flag.activityUuid);
+  const press = activity ? SAVE_PRESS_INDEX.rowFor(activity.item) : null;
+  if ( !press?.onFail || !press.word ) return null;
+  if ( (await applicableProfiles(activity)).some(({ profile }) => !profile.onSave) ) return null;
+  const caster = card.getAssociatedActor?.() ?? null;
+  return { kind: "word", itemName: flag.item?.name ?? press.key, itemImg: flag.item?.img ?? null,
+    subjectUuid: caster?.uuid ?? flag.sourceUuid ?? null, casterName: caster?.name ?? flag.casterName ?? null,
+    ask: press.word.ask, options: [...press.word.options], presses: press.word.presses, default: press.word.default,
+    rule: press.rule ?? null };
 }
 
 /** True while a choice HOLDS this target's pass — stamps it on first sight. */
@@ -137,7 +158,7 @@ async function fireSaveChoiceTimer(cardId) {
       for ( const t of current.targets ?? [] ) {
         const c = t.choice;
         if ( !c || c.answer || !c.deadline || (c.deadline > now) ) continue;
-        c.answer = (c.kind === "bash") ? "prone" : "pass";
+        c.answer = (c.kind === "bash") ? "prone" : (c.kind === "word") ? (c.default ?? c.options?.[0] ?? "pass") : "pass";
         c.timedOut = true;
         c.answeredAt = now;
       }
@@ -155,6 +176,7 @@ export async function showSaveChoicePopup(card, uuid) {
   const c = entry?.choice;
   if ( !c || c.answer ) return;
   const subject = resolveUuid(c.subjectUuid);
+  if ( c.kind === "word" ) return showWordPopup(card, uuid, c, entry, subject);
   const interpose = c.kind === "interpose";
   await openMomentPopup(card, `choice:${uuid}`, subject, {
     title: `${c.itemName} — ${subject?.name ?? ""}`,
@@ -189,6 +211,50 @@ export async function showSaveChoicePopup(card, uuid) {
         { action: "push", label: "Push 5 feet",
           callback: () => answerSaveChoice(card, uuid, "push") }
       ]
+  });
+}
+
+/** The word's popup: one button per option, the pressing one said so, the row's default the default. */
+async function showWordPopup(card, uuid, c, entry, subject) {
+  const flag = card.getFlag(MODULE_ID, "saves");
+  await openMomentPopup(card, `choice:${uuid}`, subject, {
+    title: `${c.itemName} — ${subject?.name ?? ""}`,
+    icon: "fa-solid fa-comment",
+    content: bfCard({
+      img: c.itemImg, eyebrow: `Cast — ${c.itemName}`, tone: "pending",
+      title: `${c.itemName} — ${entry.name} failed: ${c.ask ?? "which word?"}`,
+      subtitle: `${flag?.item?.name ?? c.itemName} — the save failed; ${c.presses} lands ${entry.name} Prone, the other words move the token by hand.`,
+      lines: [ruleLine(c.rule)]
+    }) + momentBarHTML(c, "to answer"),
+    buttons: (c.options ?? []).map(word => ({
+      action: `word-${word.toLowerCase()}`, label: word, default: word === c.default,
+      callback: () => answerSaveChoice(card, uuid, word)
+    }))
+  });
+}
+
+/** The word's outcome, announced once: the word spoken, what the module landed, what the table moves. */
+export async function announceWordOutcome(card, _flag, entry) {
+  const c = entry.choice;
+  if ( (c?.kind !== "word") || !c.answer || c.announced ) return;
+  let claimed = false;
+  await queueFlagWrite(card, "saves", current => {
+    const t = current.targets?.find(x => x.uuid === entry.uuid);
+    if ( t?.choice && !t.choice.announced ) { t.choice.announced = true; claimed = true; }
+  });
+  if ( !claimed ) return;
+  const caster = card.getAssociatedActor?.() ?? null;
+  const presses = c.answer === c.presses;
+  await ChatMessage.create({
+    speaker: caster ? ChatMessage.getSpeaker({ actor: caster }) : card.speaker,
+    content: bfCard({
+      img: c.itemImg, eyebrow: `Cast — ${c.itemName}`, tone: "good",
+      title: presses
+        ? `${c.itemName} — "${c.answer}": ${entry.name} falls Prone`
+        : `${c.itemName} — "${c.answer}": ${entry.name} obeys on its next turn`,
+      subtitle: c.timedOut ? "the word defaulted by the timer" : `${c.casterName ?? "the caster"}'s word`,
+      lines: presses ? [] : [`${esc(c.answer)} moves or holds the creature — the table plays it; nothing moves the token for you.`]
+    })
   });
 }
 

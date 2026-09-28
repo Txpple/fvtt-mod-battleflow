@@ -69,6 +69,8 @@ export const ORDER = Object.freeze([
   "saves/ask",
   "saves/views",        // the verdict rows above the receipts
   "emanations",         // its trigger card carries a saves demand
+  "repeat-saves",       // its demand card carries a saves demand too; its line beneath the verdicts
+  "turn-grants",
   "token-lights",       // its row beneath the use's own rows
   "receipts",           // the receipt rows below every workflow row
   "resources",          // the spend line, the usage card's footer

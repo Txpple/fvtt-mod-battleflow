@@ -5,6 +5,13 @@
 > history. The order after it is set (BACKLOG *The long-term order*): **Slice B, then session 0 of the
 > next campaign sets the class slices.** Nothing starts until the user says go; a handoff is not a go.
 
+## State (2026-09-28, later the same day)
+
+**Tiers 1 and 2 are BUILT, suites green, unwalked, unreleased** — RULINGS *The spells slice — Tiers 1
+and 2* is the record (what measured native, the rows, the kind, the walk tables). The walk tool is
+`tools/content/place-spells-walk.mjs`. **Next: the user walks Tiers 1 and 2**, then Tier 3's prototype
+page (the spells slice's, under prototypes/ — not yet drawn) for the three rulings.
+
 ## Where this comes from
 
 The 2024 corpus was measured on 2026-09-28 and drawn, book by book, in [audits/](audits/README.md):

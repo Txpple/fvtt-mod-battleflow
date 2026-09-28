@@ -207,6 +207,7 @@ async function stampSaveDemand(activity, message, results) {
       effectNames,
       // WHAT THE SAVE IS AGAINST, read by save-side auras when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
+        abilities,
         statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))],
         sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },

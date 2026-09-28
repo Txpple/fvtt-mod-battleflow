@@ -770,6 +770,10 @@ export const STATE_KEYS = Object.freeze({
   // region and template fingerprints (emanations.js), never on a message
   emanation: "a Region's or template's fingerprint — the aura's kind, key, source token and who stood inside at the cast",
   emanationTrigger: "the demand card an emanation's region raised on a creature — beside the saves record, which is the resolve",
+  repeatSave: "the demand card a landed effect's repeated save raised (repeat-saves.js) — beside the saves record, which is the resolve; `settled` and `says` what the verdict did to the effect (the cast card's effectReceipt carries the removal)",
+  repeatOffer: "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",
+  repeatCount: "an ActiveEffect field — a counted repeat's tally and lock (Contagion, Flesh to Stone)",
+  turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP) — the receipt on the same card is the resolve",
   areas: "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
   saveFor: "an envelope field beside respondsTo — the saves channel's target uuid"
 });

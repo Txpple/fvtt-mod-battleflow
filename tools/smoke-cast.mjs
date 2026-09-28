@@ -22,7 +22,8 @@ const SECTIONS = {
   4: 'damage activities: the card posts, the cast slice keeps its hands off',
   5: 'no targets, no feature',
   6: 'SELF-tagged activities self-aim (v1.11.0)',
-  7: 'a used-up item still applies (2026-09-22): the last potion, and both drinks of a stack of two'
+  7: 'a used-up item still applies (2026-09-22): the last potion, and both drinks of a stack of two',
+  8: 'Beacon of Hope (the spells slice, 2026-09-28): a target wearing Hopeful is healed the roll\'s MAXIMUM — the dice pinned low, the receipt says the maximum and names the spell; a bare target beside it gets the rolled total'
 };
 // §2 is the RE-cast: it asserts a second Bless refreshes the chips §1 landed, so it needs §1.
 const DEPENDS = { 2: ['1'] };
@@ -589,6 +590,41 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // The teardown's item sweep reads world actors; a potion left on the token's own actor goes here.
         const left = drinker.items.filter(i => i.name === 'BF Test Potion').map(i => i.id);
         if (left.length) await drinker.deleteEmbeddedDocuments('Item', left).catch(() => {});
+      }
+    }
+
+    // ================================================== 8. Beacon of Hope: healing at its maximum
+    if (want(8)) {
+      const realPRNG = CONFIG.Dice.randomUniform;
+      let hopeful = null;
+      try {
+        const hpMax = victim.system.attributes.hp.max;
+        await victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 1 });
+        [hopeful] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name: 'Hopeful', img: 'icons/svg/aura.svg', transfer: false, disabled: false }]);
+        target(victimToken);
+        await sleep(120);
+        CONFIG.Dice.randomUniform = () => 1 - (0.5 / 8);   // every die a 1
+        before = snap();
+        use = await activityOf(cureItem, 'heal').use({ subsequentActions: false }, { configure: false }, {});
+        await activityOf(cureItem, 'heal').rollDamage({}, { configure: false },
+          use?.message?.id ? { data: { 'system.origin': use.message.id } } : {});
+        CONFIG.Dice.randomUniform = realPRNG;
+        await until(() => fresh(before).some(m => m.getFlag(MOD, 'receipt')), 12000);
+        msgs = fresh(before);
+        const healRoll = msgs.find(m => m.type === 'healing');
+        const rolled = healRoll?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
+        const maxOf = roll => { let t = 0; let sign = 1; for (const term of roll.terms) { if (term.operator) { sign = term.operator === '-' ? -1 : 1; continue; } t += sign * (Number.isFinite(term.faces) ? term.number * term.faces : (term.number ?? term.total ?? 0)); sign = 1; } return t; };
+        const maximum = healRoll?.rolls?.reduce((n, r) => n + maxOf(r), 0) ?? 0;
+        const entry = healRoll?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
+        const hpAfter = victim.system.attributes.hp.value;
+        ok('8a. the dice pinned low: the rolled total is below the maximum (a number that cannot move proves nothing)', rolled < maximum, `rolled=${rolled} max=${maximum}`);
+        ok('8b. the Hopeful target is healed the MAXIMUM, the receipt saying so and naming Beacon of Hope',
+          (hpAfter === 1 + maximum) && /Beacon of Hope/.test(entry?.note ?? '') && /maximum/.test(entry?.note ?? ''),
+          `hp 1→${hpAfter} max=${maximum} note="${entry?.note}"`);
+        await victim.update({ 'system.attributes.hp.max': hpMax, 'system.attributes.hp.value': hpMax });
+      } finally {
+        CONFIG.Dice.randomUniform = realPRNG;
+        if (hopeful) await hopeful.delete().catch(() => {});
       }
     }
 

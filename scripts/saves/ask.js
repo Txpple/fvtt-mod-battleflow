@@ -170,14 +170,14 @@ function autoSucceedSources(actor, flag) {
 }
 
 /** One owed save rolled with no dialog: a save the rules decide before the dice is recorded, not rolled;
- * Heightened Spell's mark rolls at Disadvantage. */
+ * Heightened Spell's mark rolls at Disadvantage; the demand's own bend (a repeat raised by damage) rides. */
 async function rollWithoutAsking(card, flag, actor, uuid, { timedOut = false } = {}) {
   const failing = autoFailSources(actor, flag.abilities[0]);
   if ( failing.length ) return foldSaveAutoFail(card, uuid, { sources: failing, timedOut });
   const passing = autoSucceedSources(actor, flag);
   if ( passing.length ) return foldSaveAutoSucceed(card, uuid, { sources: passing, timedOut });
   const heightened = flag.demand?.heightened?.uuid === uuid;
-  return rollSaveAnswer(card, uuid, { timedOut, mode: heightened ? "disadvantage" : null });
+  return rollSaveAnswer(card, uuid, { timedOut, mode: heightened ? "disadvantage" : (flag.demand?.bend?.mode ?? null) });
 }
 
 /** Players Roll Their Own Saves, off: the owed save rolls at once on the roller's client, no popup. */

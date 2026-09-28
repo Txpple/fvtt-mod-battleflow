@@ -181,7 +181,7 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
  * demand (a bare sheet roll) every row is LISTED — never guess what a roll is against.
  * @param {{effects?: {id: string, name: string}[], features?: string[], enabled: Iterable<string>,
  *          table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null}|null, name?: string}} facts */
+ *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null}|null, name?: string}} facts */
 export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   const out = [];
@@ -193,7 +193,8 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     const scope = facet.statuses?.length
       ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
       : facet.sleep ? "a save against magic that would put you to sleep"
-        : facet.spells ? "a save against a spell or other magical effect" : "this save";
+        : facet.spells ? "a save against a spell or other magical effect"
+          : facet.abilities?.length ? `a ${facet.abilities.map(abilityName).join(" or ")} save` : "this save";
     let bend = null;
     let caveat = "";
     let succeeds = false;
@@ -214,6 +215,12 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       if ( !demand.spell ) continue;
       bend = facet.bend;
       caveat = " — against a spell";
+    } else if ( facet.abilities?.length ) {
+      // The save's own ability (Irresistible Dance's Dexterity); a demand naming none is not this one.
+      const hits = (demand.abilities ?? []).filter(a => facet.abilities.includes(String(a).toLowerCase()));
+      if ( !hits.length ) continue;
+      bend = facet.bend;
+      caveat = ` — a ${hits.map(abilityName).join(" or ")} save`;
     } else {
       bend = facet.bend;
     }
@@ -223,6 +230,19 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     }
   }
   return out;
+}
+
+/** The 2024 ability names, for a row's words. */
+const abilityName = key => ({ str: "Strength", dex: "Dexterity", con: "Constitution", int: "Intelligence", wis: "Wisdom", cha: "Charisma" })[String(key ?? "").toLowerCase()] ?? String(key ?? "");
+
+/** The demand's OWN bend (a repeated save raised by damage has Advantage — Tasha's Hideous Laughter):
+ * one counted source, its label the spell's, its rule the row's.
+ * @param {{bend?: {mode: "advantage"|"disadvantage", label: string, rule?: object|string|null}|null}|null} demand
+ * @param {string} [name] */
+export function demandBendSources(demand, name = "You") {
+  const b = demand?.bend;
+  if ( !b?.mode || !b.label ) return [];
+  return [reminderSource("effect", b.mode, `${name} — ${b.label}`, b.rule ?? null)];
 }
 
 /** The key of a row that turns a half-on-save SUCCESS into none (`halfToNone`, Circle of Power).

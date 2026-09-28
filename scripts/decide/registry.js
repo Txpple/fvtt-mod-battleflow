@@ -349,9 +349,15 @@ export const CARD_CHIPS = Object.freeze({
  * A save activity whose FAILURE lands a condition the pack has no effect for (the 2024 Web ships none): the
  * status is pressed via `forceStatus`, the caster as origin, as Topple presses Prone — only when the
  * activity brought no effect. ⚠ tools/audit-presses.mjs's output: re-run it after a content update. Left
- * out: Command (a choice), Sleep and Flesh to Stone (carried), Elemental Attunement and Mind Spike.
+ * out: Sleep and Flesh to Stone (carried), Elemental Attunement and Mind Spike.
+ *   word   a press behind the CASTER's word (Command): `ask` and `options` the choice, `presses` the one
+ *          option that lands `status`, `default` what the clock chooses (saves/choices.js, kind `word`)
  */
 export const SAVE_PRESSES = Object.freeze({
+  // Grovel alone lands a condition; Approach, Flee and Halt move or hold the token, the table's.
+  "Command": Object.freeze({ status: "prone", onFail: true,
+    word: Object.freeze({ ask: "Which word did you speak?", options: Object.freeze(["Approach", "Flee", "Grovel", "Halt"]), presses: "Grovel", default: "Halt" }),
+    rule: Object.freeze({ item: "Command", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCommand000" }) }),
   "Web": Object.freeze({ status: "restrained", onFail: true,
     rule: Object.freeze({ item: "Web", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplWeb0000000" }) }),
   "Grease": Object.freeze({ status: "prone", onFail: true,
@@ -980,8 +986,9 @@ export const CHECK_BENDS = Object.freeze({
  *   only / except  "source" — the bend is for / against all but the creature that placed it (the module's
  *             stamp, else the origin); with no source `only` skips the row and `except` counts it
  *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }
- *   saves     { bend, statuses?, spells?, halfToNone? } scoped by the demand, or { succeeds, sleep } — the
- *             save cannot fail against magical sleep (a fourth button)
+ *   saves     { bend, statuses?, spells?, abilities?, halfToNone? } scoped by the demand (`abilities`: the
+ *             save's own ability, Irresistible Dance's Dexterity), or { succeeds, sleep } — the save
+ *             cannot fail against magical sleep (a fourth button)
  * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
@@ -1061,6 +1068,14 @@ export const EFFECT_BENDS = Object.freeze({
   "Circle's Power": Object.freeze({ attacker: null, target: null, scope: "any", from: "Circle of Power",
     saves: Object.freeze({ bend: "advantage", spells: true, halfToNone: true }),
     rule: Object.freeze({ item: "Circle of Power", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCircleofPo" }) }),
+  // The pack's effect carries the Poison Resistance; the Advantage against Poisoned is this row's.
+  "Poison Protection": Object.freeze({ attacker: null, target: null, scope: "any", from: "Protection from Poison",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["poisoned"]) }),
+    rule: Object.freeze({ item: "Protection from Poison", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplProtection" }) }),
+  // The pack's effect carries Charmed alone; the dance's bends are this row's (the repeat, REPEAT_SAVES).
+  "Irresistible Dance": Object.freeze({ attacker: "disadvantage", target: "advantage", scope: "any", from: "Otto's Irresistible Dance",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["dex"]) }),
+    rule: Object.freeze({ item: "Otto's Irresistible Dance", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplOttosIrres" }) }),
   "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
     caveat: "counted — press Normal if this attack is not at the caster",
     rule: Object.freeze({ item: "Bestow Curse", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBestowCurs" }) }),
@@ -1280,12 +1295,18 @@ export const DAMAGE_EITHER = Object.freeze({
  * A feature that rerolls a healing die on the `reroll` face, automatically, before the healing lands once
  * (heal-rerolls.js). `spells`: the owner's healing spells qualify; `own`: the feature's own healing — the
  * pack's `r1` is stripped from those formulas so the machine does the reroll.
+ *   effect / max   a row on the HEALED creature: while `effect` stands on it, healing the module lands
+ *                  (cast.js) is the roll's MAXIMUM — Beacon of Hope; the pack's effect carries the save modes
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
   "Healer": Object.freeze({ reroll: 1, spells: true, own: true,
     rule: Object.freeze({ item: "Healer", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftHealer00000", benefit: "Healing Rerolls" }),
-    from: "Origin feat (Hermit)" })
+    from: "Origin feat (Hermit)" }),
+  "Beacon of Hope": Object.freeze({ effect: "Hopeful", max: true,
+    caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised",
+    rule: Object.freeze({ item: "Beacon of Hope", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBeaconofHo" }),
+    from: "Cleric spell, level 3 (Concentration, 1 minute)" })
 });
 
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
@@ -1379,6 +1400,96 @@ export const FIGHTING_STYLES = Object.freeze({
     from: "General feat" })
 });
 
+/** What raises a repeated save — the closed set the R4 tripwire counts (repeat-saves.js). */
+export const REPEAT_TRIGGERS = new Set(["turnEnd", "damaged", "action"]);
+
+/**
+ * A SPELL whose landed effect lets the target repeat the save, ending the effect on a success (RULINGS *The
+ * spells slice*). Keyed by the spell; the effect is found on the bearer by the pack's effect name AND its
+ * origin item (a Paralyzed from a ghoul's claw is not Hold Person's). The save is the item's own save
+ * activity — never a DC or an ability copied. A success removes the effect through the cast card's receipt,
+ * no choice (R1); the card says so and the name floats off the token (repeat-saves.js).
+ *   effect     the pack's effect name, or a list of them (Blindness/Deafness, Eyebite, Contagion)
+ *   on         REPEAT_TRIGGERS: "turnEnd" the bearer's turn end · "damaged" damage landing on it ·
+ *              "action" offered on a card at the bearer's turn start (Otto's: its own action)
+ *   advantage  "damaged" — the save has Advantage when damage raised it (Tasha's Hideous Laughter)
+ *   onSave     overrides the activity's damage-on-save for the repeat (Phantasmal Killer: the pack's "half"
+ *              is the cast's; the repeat's success takes none)
+ *   count      { saves, fails?, press? } — the tally on the effect: `saves` successes end it, `fails` failures
+ *              stop the asking (Contagion) or press `press` (Flesh to Stone's Petrified)
+ *   caveat     what the rule leaves to the table, said on the card
+ * Membership: every row. Left out on purpose: Eyebite's Asleep (ends on damage, no save — the table's).
+ */
+export const REPEAT_SAVES = Object.freeze({
+  "Hold Person": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Hold Person", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHoldPerson" }),
+    from: "Bard / Cleric / Druid / Sorcerer / Warlock / Wizard spell, level 2 (Concentration, 1 minute)" }),
+  "Hold Monster": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Hold Monster", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHoldMonste" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 5 (Concentration, 1 minute)" }),
+  "Tasha's Hideous Laughter": Object.freeze({ effect: "Uncontrollable Laughter", on: Object.freeze(["turnEnd", "damaged"]), advantage: "damaged",
+    rule: Object.freeze({ item: "Tasha's Hideous Laughter", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplTashasHide" }),
+    from: "Bard / Warlock / Wizard spell, level 1 (Concentration, 1 minute)" }),
+  "Blindness/Deafness": Object.freeze({ effect: Object.freeze(["Blindness", "Deafness"]), on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Blindness/Deafness", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBlindnessD" }),
+    from: "Bard / Cleric / Sorcerer / Wizard spell, level 2 (1 minute)" }),
+  "Crown of Madness": Object.freeze({ effect: "Spectral Crown", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Crown of Madness", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCrownofMad" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 2 (Concentration, 1 minute)" }),
+  "Slow": Object.freeze({ effect: "Slowed", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Slow", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSlow000000" }),
+    from: "Sorcerer / Wizard spell, level 3 (Concentration, 1 minute)" }),
+  "Fear": Object.freeze({ effect: "Fear", on: Object.freeze(["turnEnd"]),
+    caveat: "only while it has no line of sight to the caster — the table's call; a success it should not have had is reverted from the card",
+    rule: Object.freeze({ item: "Fear", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFear000000" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 3 (Concentration, 1 minute)" }),
+  "Confusion": Object.freeze({ effect: "Confused", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Confusion", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplConfusion0" }),
+    from: "Bard / Druid / Sorcerer / Wizard spell, level 4 (Concentration, 1 minute)" }),
+  "Phantasmal Killer": Object.freeze({ effect: "Fears Manifested", on: Object.freeze(["turnEnd"]), onSave: "none",
+    rule: Object.freeze({ item: "Phantasmal Killer", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPhantasmal" }),
+    from: "Wizard spell, level 4 (Concentration, 1 minute)" }),
+  "Eyebite": Object.freeze({ effect: Object.freeze(["Panicked", "Sickened"]), on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Eyebite", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplEyebite000" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 6 (Concentration, 1 minute)" }),
+  "Contagion": Object.freeze({
+    effect: Object.freeze(["Infected (Strength)", "Infected (Dexterity)", "Infected (Constitution)", "Infected (Intelligence)", "Infected (Wisdom)", "Infected (Charisma)"]),
+    on: Object.freeze(["turnEnd"]), count: Object.freeze({ saves: 3, fails: 3 }),
+    caveat: "three failures lock the disease in for its seven days; the ability's Disadvantage is the effect's",
+    rule: Object.freeze({ item: "Contagion", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplContagion0" }),
+    from: "Cleric / Druid spell, level 5 (7 days)" }),
+  "Flesh to Stone": Object.freeze({ effect: "Turning to Stone", on: Object.freeze(["turnEnd"]), count: Object.freeze({ saves: 3, fails: 3, press: "petrified" }),
+    caveat: "three failures press Petrified, the spell's effect standing under it; a Petrified that outlasts the concentration is the table's",
+    rule: Object.freeze({ item: "Flesh to Stone", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFleshtoSto" }),
+    from: "Sorcerer / Wizard spell, level 6 (Concentration, 1 minute)" }),
+  "Dominate Beast": Object.freeze({ effect: "Dominated", on: Object.freeze(["damaged"]),
+    rule: Object.freeze({ item: "Dominate Beast", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDominateBe" }),
+    from: "Druid / Ranger / Sorcerer spell, level 4 (Concentration, 1 minute)" }),
+  "Dominate Person": Object.freeze({ effect: "Dominated", on: Object.freeze(["damaged"]),
+    rule: Object.freeze({ item: "Dominate Person", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDominatePe" }),
+    from: "Bard / Sorcerer / Wizard spell, level 5 (Concentration, 1 minute)" }),
+  "Dominate Monster": Object.freeze({ effect: "Dominated", on: Object.freeze(["damaged"]),
+    rule: Object.freeze({ item: "Dominate Monster", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDominateMo" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 8 (Concentration, 1 hour)" }),
+  // The save is the dancer's ACTION: offered at its turn start, never demanded by the clock.
+  "Otto's Irresistible Dance": Object.freeze({ effect: "Irresistible Dance", on: Object.freeze(["action"]),
+    rule: Object.freeze({ item: "Otto's Irresistible Dance", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplOttosIrres" }),
+    from: "Bard / Wizard spell, level 6 (Concentration, 1 minute)" })
+});
+
+/**
+ * A SPELL whose landed effect pays the bearer something at the start of each of its turns that the pack
+ * rolls once, at the cast (turn-grants.js): the origin item's `activity` is rolled again on the CASTER's
+ * numbers and landed on the bearer, receipted, no choice (R1). Keyed by the spell; `effect` the pack's
+ * effect name on the bearer. Precedent: the emanation's `heal on "turnStart"` (EMANATIONS, Aura of Life).
+ * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
+ */
+export const TURN_GRANTS = Object.freeze({
+  "Heroism": Object.freeze({ effect: "Bravery", activity: "Heal", on: "turnStart",
+    rule: Object.freeze({ item: "Heroism", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHeroism000" }),
+    from: "Bard / Paladin spell, level 1 (Concentration, 1 minute)" })
+});
+
 /**
  * THE R4 TRIPWIRE (DESIGN.md R4, ARCHITECTURE §6): every closed kind set, with the size of the dnd5e enum it
  * mirrors (`system`; null for the module's own). tools/check-registry.mjs pins the total, so ADDING A KIND
@@ -1406,7 +1517,10 @@ export const KIND_SETS = [
       + "the condition table, and a ranged attack's own range (2026-09-02)" },
   { name: "emanation", owner: "emanations.js", kinds: EMANATION_KINDS, system: null,
     note: "how an emanation lives: always on with a feature's source token, or cast and adopted from "
-      + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock" }
+      + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock" },
+  { name: "repeatSave", owner: "repeat-saves.js", kinds: REPEAT_TRIGGERS, system: null,
+    note: "what raises a landed effect's repeated save (the spells slice, 2026-09-28): the bearer's turn "
+      + "end, damage landing on it, or the bearer's own action offered at its turn start" }
 ];
 
 /**
@@ -1476,6 +1590,8 @@ export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));
 export const healRerollEntries = () => everyRow(Object.keys(HEAL_REROLLS));
+export const repeatSaveEntries = () => everyRow(Object.keys(REPEAT_SAVES));
+export const turnGrantEntries = () => everyRow(Object.keys(TURN_GRANTS));
 export const damageEitherEntries = () => everyRow(Object.keys(DAMAGE_EITHER));
 export const cardChipEntries = () => everyRow(Object.keys(CARD_CHIPS));
 export const rebukeEntries = () => everyRow(Object.keys(REBUKES));

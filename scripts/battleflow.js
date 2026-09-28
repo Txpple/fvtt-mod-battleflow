@@ -57,6 +57,8 @@ import "./cast.js";
 import "./volleys.js";
 import "./saves/index.js";
 import "./emanations.js";
+import "./repeat-saves.js";
+import "./turn-grants.js";
 import "./token-lights.js";
 import "./receipts.js";
 import "./resources.js";

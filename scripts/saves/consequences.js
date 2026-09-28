@@ -16,7 +16,7 @@ import { effectEntries, reminderEntries } from "../decide/registry.js";
 import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
 
-import { gateSaveChoice, announceBashOutcome, settleInterpose } from "./choices.js";
+import { gateSaveChoice, announceBashOutcome, announceWordOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
 
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
@@ -57,6 +57,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
 
     await applySaveEffects(card, flag, entry);
     if ( (entry.choice?.kind === "bash") && entry.choice.answer ) await announceBashOutcome(card, flag, entry);
+    if ( (entry.choice?.kind === "word") && entry.choice.answer ) await announceWordOutcome(card, flag, entry);
     if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
     await reconcileSaveDamage(card, uuid);
 
@@ -86,10 +87,12 @@ async function applySaveEffects(card, flag, entry) {
   const toApply = (await applicableProfiles(activity))
     .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)
     .map(({ effect }) => effect);
-  // No pack effect for a failure the text names (Web's Restrained): press the standard status.
+  // No pack effect for a failure the text names (Web's Restrained): press the standard status. A press
+  // behind the caster's WORD (Command) lands only when the word answered is the pressing one.
   if ( !toApply.length && (entry.outcome === "failed") ) {
     const press = SAVE_PRESS_INDEX.rowFor(activity.item);
-    if ( press?.onFail ) await pressSaveStatus(card, flag, entry, press);
+    const spoken = !press?.word || ((entry.choice?.kind === "word") && (entry.choice.answer === press.word.presses));
+    if ( press?.onFail && spoken ) await pressSaveStatus(card, flag, entry, press);
     return;
   }
   if ( !toApply.length ) return;

@@ -19,6 +19,8 @@ asking for that nothing has: **the save that repeats**.
 
 ## The one kind — the repeating save (`REPEAT_SAVES`)
 
+**BUILT 2026-09-28** (`repeat-saves.js`, three triggers; RULINGS *The spells slice — Tiers 1 and 2*): the rows below, the counters for Contagion and Flesh to Stone with it. The drawing below is as measured before the build.
+
 Twenty-odd PHB spells land an effect and then say *"at the end of each of its turns, the target
 repeats the save, ending the effect on a success"* (Hold Person, Hold Monster, Tasha's Hideous
 Laughter, Blindness/Deafness, Crown of Madness, Confusion, Slow, Fear, Phantasmal Killer, Eyebite,
@@ -37,19 +39,19 @@ and waits for a customer. ⚠ The chosen-area spells (Slow, Fear, Confusion) alr
 
 | Spell | What the pack carries | Verdict → where |
 | --- | --- | --- |
-| **Otto's Irresistible Dance** | effect [charmed], save | ROW → `EFFECT_BENDS` (attacks Disadvantage, `saves` facet dex Disadvantage) + a `REPEAT_SAVES` row (the save is an action, `onAction`: the bearer's, offered) |
-| **Haste** | effects [incapacitated] | ROW → `EFFECT_BENDS` `saves` facet (Advantage on Dex saves); the AC and the action are the pack's; the lethargy is the effect's end |
-| **Beacon of Hope** | effect | ROW → `EFFECT_BENDS` `saves` facet (Advantage on Wis and death saves) + a `HEAL_REROLLS`-shaped facet `max: true` (healing dice at maximum; one table, one machine) |
-| **Protection from Poison** | effect | ROW → `EFFECT_BENDS` `saves` `{bend: advantage, statuses: [poisoned]}` — Dwarven Resilience's exact row (§6) |
-| **Synaptic Static** | effect, save, damage | measure: if the pack's effect writes a `-1d6` bonus, NATIVE; else ROW → `EFFECT_BENDS` with a `fold` (Bane's shape) |
+| **Otto's Irresistible Dance** | effect [charmed], save | **BUILT 2026-09-28** — ROW → `EFFECT_BENDS` (attacks Disadvantage, `saves` facet dex Disadvantage) + a `REPEAT_SAVES` row (the save is an action, `onAction`: the bearer's, offered) |
+| **Haste** | effects [incapacitated] | **NATIVE (measured 2026-09-28: Hasted carries the Dexterity save mode)** — was: ROW → `EFFECT_BENDS` `saves` facet (Advantage on Dex saves); the AC and the action are the pack's; the lethargy is the effect's end |
+| **Beacon of Hope** | effect | **BUILT 2026-09-28: the saves NATIVE (Hopeful carries both modes); the `max` row on `HEAL_REROLLS`** — was: ROW → `EFFECT_BENDS` `saves` facet (Advantage on Wis and death saves) + a `HEAL_REROLLS`-shaped facet `max: true` (healing dice at maximum; one table, one machine) |
+| **Protection from Poison** | effect | **BUILT 2026-09-28** — ROW → `EFFECT_BENDS` `saves` `{bend: advantage, statuses: [poisoned]}` — Dwarven Resilience's exact row (§6) |
+| **Synaptic Static** | effect, save, damage | **NATIVE (measured 2026-09-28: Muddled Thoughts carries the −1d6)** — was: measure: if the pack's effect writes a `-1d6` bonus, NATIVE; else ROW → `EFFECT_BENDS` with a `fold` (Bane's shape) |
 | **Sanctuary** | effect | ROW+VOCAB → the gate before the roll: a hostile aiming at the warded creature is demanded a Wis save first, a fail cancels the attack. New trigger on `gate.js` (the buy box's shape, `ADVANTAGE_BUYS`); the effect's end on the bearer's own attack is the pack's? measure |
 | **Mirror Image** | effect | ROW+VOCAB → an automatic interrupt on the DEFENDER after the verdict: a d20 against the image count (6/8/11), a hit redirected to an image; an `INTERRUPT_ROLLS`-shaped row with no Reaction cost and a counter on the effect. Prototype: the redirect is a card line, no popup |
 | **Counterspell** | save, reaction | KIND → a reaction hold raised at a HOSTILE's cast (the hit's hold at a new moment, `hold/`); the Con save is the spell's own activity. Frequent, wanted, **UI-shaped: prototype first**. *Cost 2.* Waits for a player with it (session 0) unless the user pulls it forward |
 | **Warding Bond** | effect | ROW+VOCAB → damage landed on the warded creature is dealt to the caster too (the `DAMAGE_SHIELDS` seam on the applier, reversed: not retaliation, sharing). Measure the pack's effect for the +1 AC/saves and resistance (NATIVE) |
 | **Vampiric Touch** | attack, damage | ROW+VOCAB → heal the caster half the damage dealt (Lifedrinker's shape, §3 item 4: a rider that heals). One table: `HEAL_ON_HIT`, a second customer is a row |
-| **Heroism** | effect | measure: temp HP at the bearer's turn start — a `CLOCK_RIDERS`-shaped `turnStart` grant if the pack's effect does not roll it; else NATIVE |
-| **Command** | save, no effect | ROW → `SAVE_PRESSES` for Grovel (Prone) with an `EFFECT_CHOICES`-shaped ask (Approach / Flee / Grovel / Halt) — the audit's one PHB bare press not already carried (Grease, Web, Sleet Storm are rows) |
-| **Sorcerous Burst** | attack, damage | ROW+VOCAB → an exploding die (a 6 on a d6 rolls another, up to the modifier): the dice-changer machine (`DAMAGE_EITHER`'s popup-less shape), automatic |
+| **Heroism** | effect | **BUILT 2026-09-28 as `TURN_GRANTS`, a table of its own (RULINGS *The spells slice*)** — was: measure: temp HP at the bearer's turn start — a `CLOCK_RIDERS`-shaped `turnStart` grant if the pack's effect does not roll it; else NATIVE |
+| **Command** | save, no effect | **BUILT 2026-09-28: `SAVE_PRESSES` `word`, asked on the failure (the register)** — was: ROW → `SAVE_PRESSES` for Grovel (Prone) with an `EFFECT_CHOICES`-shaped ask (Approach / Flee / Grovel / Halt) — the audit's one PHB bare press not already carried (Grease, Web, Sleet Storm are rows) |
+| **Sorcerous Burst** | attack, damage | **NATIVE (measured 2026-09-28: the pack's `1d8x@mod=8` is Foundry's capped explode)** — was: ROW+VOCAB → an exploding die (a 6 on a d6 rolls another, up to the modifier): the dice-changer machine (`DAMAGE_EITHER`'s popup-less shape), automatic |
 | **Placed areas that pulse** — Moonbeam, Cloud of Daggers, Wall of Fire, Cloudkill, Insect Plague, Spike Growth, Flaming Sphere | template, save, damage | VOCAB → `EMANATIONS` kind `"area"`: the system's template NOT attached to the caster, the same region, `trigger on "enter" / "turnStart"`. The region machinery raises both events already (NOTES *v14 models an emanation end to end*). Movement-triggered damage (Spike Growth per 5 feet) stays out (DESIGN §4) |
 
 **NATIVE (the pack + the platform, nothing owed):** Bless, Bane, Guidance, Resistance, Shield

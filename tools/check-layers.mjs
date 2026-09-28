@@ -79,6 +79,8 @@ export const LAYER_OF = {
   "metamagic.js": "machines",   // the Sorcerer's options in the cast dialog, the points on the card
   "dice-changers.js": "machines",   // the dice changers' one popup per damage roll — Empowered Spell, Savage Attacker, Piercer
   "emanations.js": "machines",
+  "repeat-saves.js": "machines",   // a landed effect's save repeated — the bearer's turn end, damage, its own action
+  "turn-grants.js": "machines",    // a landed effect's turn-start grant rolled again — Heroism's temp HP
   "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",
@@ -128,6 +130,8 @@ export const LAYER_OF = {
   "decide/sneak.js": "decision",
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
+  "decide/repeat-saves.js": "decision",   // the repeating save: the row an effect answers, the verdict's tally, the words
+  "decide/turn-grants.js": "decision",    // the turn-start grant: the row, once per turn, the words
   "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it
   "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands

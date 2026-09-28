@@ -166,7 +166,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // on an Unarmed Strike with no save behind it; the origin feats).
     // 2026-09-27: 34 → 35 — `succeed` joins the d20 folds (Mage Slayer's Guarded Mind: a failed save
     // made a success — the verdict itself, no die; the PHB feats, group 4).
-    expect(total).toBe(35);
+    // 2026-09-28: 35 → 38 — `repeatSave` joins with three kinds (the spells slice): what raises a landed
+    // effect's repeated save — the bearer's turn end, damage landing, its own action offered.
+    expect(total).toBe(38);
   });
 
   it("counts every kind list's set in the tripwire", () => {
@@ -289,13 +291,24 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
 });
 
 describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03)", () => {
-  it("is the three rows the audit found bare and single-save — Web, Grease, Sleet Storm — and the Poisoner's coating", () => {
+  it("is the three rows the audit found bare and single-save — Web, Grease, Sleet Storm — the Poisoner's coating, and Command behind its word", () => {
     expect(Object.keys(reg.SAVE_PRESSES).sort()).toEqual([
+      "Command",
       "Grease",
       "Poisoner",
       "Sleet Storm",
       "Web"
     ]);
+  });
+  it("Command (the spells slice, 2026-09-28): Prone behind the caster's word — four options, Grovel the one that presses, Halt what the clock chooses", () => {
+    const row = reg.SAVE_PRESSES.Command;
+    expect(row).toMatchObject({ status: "prone", onFail: true });
+    expect(Object.isFrozen(row.word)).toBe(true);
+    expect([...row.word.options]).toEqual(["Approach", "Flee", "Grovel", "Halt"]);
+    expect(row.word.presses).toBe("Grovel");
+    expect(row.word.options).toContain(row.word.default);
+    expect(row.word.default).not.toBe(row.word.presses);
+    expectPointer(row.rule);
   });
   it("the Poisoner's Poisoned lasts until the end of the Poisoner's next turn — the platform's sourceEnd; the spells' presses carry no clock", () => {
     expect(reg.SAVE_PRESSES.Poisoner.status).toBe("poisoned");

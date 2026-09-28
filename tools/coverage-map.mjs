@@ -103,6 +103,11 @@ export const ORDER = [
     name: "smoke-alert", note: "the Initiative swap — Alert asked once every combatant has an Initiative, the non-Incapacitated allies listed with theirs, Swap exchanging the two in the tracker; once per combat, No, the clock, the list",
     needs: ["fixture-suite"]
   },
+  // BF Test Cleric is lent the PHB's Heroism and Hold Person; BF Test Victim wears their effects.
+  {
+    name: "smoke-spells", note: "the spells slice — Heroism's temp HP at the bearer's turn start; the repeating save: Hold Person's Paralyzed demanded at the bearer's turn end, a success removing it through the cast's receipt with the card line, a failure keeping it; a damaged trigger; the action offer",
+    needs: ["fixture-suite"]
+  },
   // BF Test Cleric is lent the PHB's Healer and Cure Wounds.
   {
     name: "smoke-heal", note: "the healing rerolls — Healer's 1s on a healing spell and on Battle Medic (its own r1 taken off): rerolled automatically as the dice land (since 2026-09-26), the healing waiting for the new dice and landing once; none, the list, the kit's tending",

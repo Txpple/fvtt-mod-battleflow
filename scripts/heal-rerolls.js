@@ -24,7 +24,7 @@ const resolving = new Set();
 function rowFor(actor) {
   const listed = listedNames(healRerollEntries());
   for ( const [name, row] of Object.entries(HEAL_REROLLS) ) {
-    if ( !listed.has(lower(name)) ) continue;
+    if ( !row.reroll || !listed.has(lower(name)) ) continue;   // a `max` row (Beacon of Hope) is cast.js's
     const feature = featureNamed(actor, name);
     if ( feature ) return { name, row, feature };
   }

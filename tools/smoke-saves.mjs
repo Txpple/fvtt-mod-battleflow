@@ -49,6 +49,8 @@ const SECTIONS = {
   25: 'a used-up item\'s failed save (2026-09-22): the vial is gone before its card exists, and its effect still lands — read off the card',
   26: 'a FEATURE row\'s saves facet (Slice A, 2026-09-24): Brave, a text-only trait on the sheet, counts Advantage against a demand that would frighten, and nothing against one that would poison',
   28: 'Trance (the Elf, 2026-09-27): against a SPELL whose failed-save effect puts the target to sleep ("Asleep"), a text-only Trance on the sheet says the save cannot fail — Net Succeeds, a Succeeds button the default; pressed, the verdict is SAVED with no die ("cannot fail (Trance)"), the sleep never lands; against a demand that does not sleep, Trance is nowhere in the section',
+  29: 'Command (the spells slice, 2026-09-28): a failed save behind a press with a WORD asks the caster — Approach / Flee / Grovel / Halt; Grovel presses Prone (receipted, the announce card says who falls); Halt presses nothing and the card says the table moves the token',
+  30: 'the saves facet\'s two new effect rows (the spells slice, 2026-09-28): Poison Protection counts Advantage against a demand that would poison; Irresistible Dance counts Disadvantage against a DEXTERITY demand (the `abilities` scope) and nothing against a Wisdom one',
   27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never'
 };
 // §2 rolls §1's demand damage (`card1`); §13 rides §12's lifecycle (`card12`, its area, its scene).
@@ -2301,6 +2303,134 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await saveBonus(victim, priorActor[victim.id]['system.abilities.con.save.roll.bonus']);
         await game.settings.set(MOD, 'd20FoldAsk', priorAsk);
         await set('autoDamage', 'off');
+        await clearChips();
+      }
+    }
+
+    // ================================================== 29. Command's word
+    if (want(29)) {
+      let commandItem = null;
+      try {
+        await clearChips();
+        await healFull(victim);
+        await victim.update({ 'system.abilities.wis.save.roll.bonus': '-30' });
+        // §27's Mage Slayer would WITHHOLD a failed Wisdom save and offer Guarded Mind: the feat goes first.
+        const slayer = victim.items.filter(i => i.name === 'Mage Slayer').map(i => i.id);
+        if (slayer.length) await victim.deleteEmbeddedDocuments('Item', slayer);
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex()).find(e => (e.name === 'Command') && (e.type === 'spell'));
+          if (!hit) continue;
+          const data = (await pack.getDocument(hit._id)).toObject();
+          data.system.prepared = 1;
+          data.system.method = 'atwill';   // the statblock has no slot to spend
+          [commandItem] = await npc.createEmbeddedDocuments('Item', [data]);
+          created.items.push({ actorId: npc.id, id: commandItem.id });
+          break;
+        }
+        if (!commandItem) { ok('29. the PHB ships Command', false, 'no Command in the PHB packs'); }
+        else {
+          const wordPopup = () => [...foundry.applications.instances.values()]
+            .find(app => app.rendered && [...(app.element?.querySelectorAll?.('button') ?? [])].some(b => b.textContent?.trim() === 'Grovel')) ?? null;
+          const speak = async word => {
+            const stray = victim.effects.filter(e => e.statuses?.has?.('prone'));
+            if (stray.length) await victim.deleteEmbeddedDocuments('ActiveEffect', stray.map(e => e.id));
+            target(victimToken);
+            await sleep(120);
+            const act = npc.items.get(commandItem.id).system.activities.find(a => a.type === 'save');
+            const use = await act.use({}, { configure: false }, {});
+            const card = use?.message instanceof ChatMessage ? use.message : null;
+            if (!card) return { card: null };
+            await until(() => card.getFlag(MOD, 'saves'));
+            const dlg = await until(() => savePopups().find(p => demandText(p).includes(card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+            dlg?.querySelector('button[data-action="normal"]')?.click();
+            const choice = await until(() => entryOf(card, victim)?.choice ?? null, 12000);
+            const popup = await until(wordPopup, 8000);
+            const button = [...(popup?.element?.querySelectorAll?.('button') ?? [])].find(b => b.textContent?.trim() === word) ?? null;
+            button?.click();
+            const applied = await until(() => entryOf(card, victim)?.applied ? entryOf(card, victim) : null, 15000);
+            const announce = await until(() => game.messages.contents.find(m => (m.timestamp >= card.timestamp) && new RegExp(`Command — "${word}"`).test(m.content ?? '')) ?? null, 8000);
+            await sleep(300);
+            return { card, choice, popup: !!popup, button: !!button, applied, announce,
+              prone: victim.effects.find(e => e.statuses?.has?.('prone')) ?? null,
+              receipt: card.getFlag(MOD, 'effectReceipt')?.targets?.find(t => t.uuid === victim.uuid) ?? null };
+          };
+          const g = await speak('Grovel');
+          ok('29a. the failed save opens the caster\'s WORD: a choice of kind word on the entry, the four options, Grovel the presser, the popup on the caster\'s client',
+            !!g.card && (g.choice?.kind === 'word') && (g.choice?.options?.join() === 'Approach,Flee,Grovel,Halt') && (g.choice?.presses === 'Grovel') && g.popup && g.button,
+            `choice=${JSON.stringify(g.choice && { kind: g.choice.kind, options: g.choice.options, presses: g.choice.presses })} popup=${g.popup} button=${g.button} entry=${JSON.stringify(g.card ? entryOf(g.card, victim) : null)} saveRolls=${game.settings.get(MOD, 'saveRolls')} timer=${game.settings.get(MOD, 'decisionTimer')}`);
+          ok('29b. "Grovel": Prone is pressed on the Victim, the caster as origin, receipted on the demand card; the announce names who falls',
+            (g.applied?.choice?.answer === 'Grovel') && !!g.prone && (g.prone.origin === npc.uuid) && !!g.receipt?.effects?.some(e => e.id === g.prone.id)
+              && /falls Prone/.test(g.announce?.content ?? ''),
+            `answer=${g.applied?.choice?.answer} prone=${!!g.prone} origin=${g.prone?.origin} receipt=${JSON.stringify(g.receipt?.effects?.map(e => e.name))} announce=${!!g.announce}`);
+          const h = await speak('Halt');
+          ok('29c. "Halt": nothing is pressed, and the announce says the table plays the word',
+            (h.applied?.choice?.answer === 'Halt') && !h.prone && !h.receipt?.effects?.length && /obeys/.test(h.announce?.content ?? ''),
+            `answer=${h.applied?.choice?.answer} prone=${!!h.prone} receipt=${JSON.stringify(h.receipt?.effects?.map(e => e.name) ?? null)} announce=${!!h.announce}`);
+        }
+      } finally {
+        const stray = victim.effects.filter(e => e.statuses?.has?.('prone'));
+        if (stray.length) await victim.deleteEmbeddedDocuments('ActiveEffect', stray.map(e => e.id)).catch(() => {});
+        await victim.update({ 'system.abilities.wis.save.roll.bonus': priorActor[victim.id]['system.abilities.wis.save.roll.bonus'] ?? '' });
+        await clearChips();
+      }
+    }
+
+    // ================================================== 30. the two new saves-facet effect rows
+    if (want(30)) {
+      const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
+      const priorStatuses = [...(failEff?.statuses ?? [])];
+      const wards = [];
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const ward = async name => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false }]); wards.push(e); return e; };
+        const castAt = async activity => {
+          target(victimToken);
+          await sleep(120);
+          const use = await activity.use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+        const settle = async (card, dlg) => {
+          dlg?.querySelector('button[autofocus]')?.click();
+          await until(() => card?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+          await sleep(400);
+          for (const w of wards.splice(0)) await w.delete().catch(() => {});
+          await healFull(victim);
+        };
+        // Poison Protection against a demand whose failed effect imposes Poisoned.
+        await failEff.update({ statuses: ['poisoned'] });
+        await ward('Poison Protection');
+        const cardA = await castAt(dexActivity());
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        ok('30a. Poison Protection on the Victim: "Poison Protection — against Poisoned", Net Advantage',
+          !!dlgA && /Poison Protection — against Poisoned/.test(textA) && /Net Advantage/.test(textA), `text="${textA.slice(0, 220)}"`);
+        await settle(cardA, dlgA);
+        await failEff.update({ statuses: priorStatuses });
+        // Irresistible Dance against a DEXTERITY demand: Disadvantage; against a Wisdom one, nothing.
+        await ward('Irresistible Dance');
+        const cardB = await castAt(dexActivity());
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        ok('30b. Irresistible Dance on the Victim against a Dexterity demand: "Irresistible Dance — a Dexterity save", Net Disadvantage',
+          !!dlgB && /Irresistible Dance — a Dexterity save/.test(textB) && /Net Disadvantage/.test(textB), `text="${textB.slice(0, 220)}"`);
+        dlgB?.querySelector('button[autofocus]')?.click();
+        await until(() => cardB?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+        await sleep(400);
+        await healFull(victim);
+        const cardC = await castAt(wisActivity());
+        const dlgC = await dialogFor(cardC);
+        const textC = sectionText(dlgC);
+        ok('30c. …and nowhere in the section of a Wisdom demand', !!dlgC && !/Irresistible Dance/.test(textC), `text="${textC.slice(0, 220)}"`);
+        await settle(cardC, dlgC);
+      } finally {
+        for (const w of wards.splice(0)) await w.delete().catch(() => {});
+        await failEff.update({ statuses: priorStatuses }).catch(() => {});
         await clearChips();
       }
     }

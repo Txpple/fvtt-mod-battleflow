@@ -17,7 +17,7 @@ import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.
 import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
-import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
+import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, demandBendSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
 import { listen } from "./dispatch.js";
 
@@ -636,6 +636,8 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
     sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
       features: featuresOf(actor),
       enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
+    // The demand's own bend (a repeated save raised by damage — Tasha's Hideous Laughter).
+    sources.push(...demandBendSources(demand, actor.name));
     // Heightened Spell's mark on the demand: THIS roller's saves against the spell at Disadvantage.
     const mark = demand?.heightened ?? null;
     if ( mark && (mark.uuid === actor.uuid) ) {

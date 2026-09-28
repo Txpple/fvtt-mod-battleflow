@@ -50,7 +50,10 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   reactions pause the chain and ask the player. The popup shows the rule from the book and a
   timer. No answer means the default happens and the fight moves on.
 - **Saves happen at once.** A save spell rolls for every target on the owning player's client,
-  half damage on a success, and the buzzer rolls for anyone who walks away.
+  half damage on a success, and the buzzer rolls for anyone who walks away. A spell that lets the
+  target repeat the save (Hold Person, Tasha's Hideous Laughter, Slow, Fear, Flesh to Stone and
+  their kin) asks again at the end of its turn, or when it takes damage, and ends the effect on a
+  success with a line on the card.
 - **Your abilities are already accounted for.** Before a roll, the dialog lists everything the
   module can read that changes it: a condition, a feat, a fighting style, cover, an ally beside
   the target. Riders like Sneak Attack, Hunter's Mark and weapon masteries ride the damage as

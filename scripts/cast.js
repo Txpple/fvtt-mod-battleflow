@@ -3,10 +3,12 @@
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
-import { cardActivity, cardItem } from "./lookup.js";
+import { cardActivity, cardItem, lower, resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
 import { bfCard, popupKey, ruleLine } from "./decide/present.js";
 import { effectsAfterChoice } from "./decide/choices.js";
+import { HEAL_REROLLS, healRerollEntries, listedNames } from "./decide/registry.js";
+import { rollMaximum } from "./decide/damage-dice.js";
 import { momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
@@ -75,10 +77,35 @@ async function applyCastHealing(message) {
     if ( !targets.length ) return;
     const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
-    await applyDamagesWithReceipt(message, targets, damages, { note: "Healing" });
+    // A target wearing a `max` row's effect (Beacon of Hope's Hopeful) is healed the roll's maximum.
+    const raised = targets.filter(t => maxRowOn(t.uuid));
+    const plain = targets.filter(t => !raised.includes(t));
+    if ( plain.length ) await applyDamagesWithReceipt(message, plain, damages, { note: "Healing" });
+    if ( raised.length ) {
+      const maxed = (message.rolls ?? []).map(r => {
+        const json = r.toJSON();
+        return { value: rollMaximum(json), type: r.options?.type ?? "healing", properties: new Set(r.options?.properties ?? []) };
+      }).filter(p => p.value > 0);
+      for ( const t of raised ) {
+        await applyDamagesWithReceipt(message, [t], maxed, { note: `Healing — ${maxRowOn(t.uuid)} — the maximum` });
+      }
+    }
   } catch(err) {
     console.error(`${TITLE} | Healing auto-apply failed.`, err);
   }
+}
+
+/** The listed `max` row whose effect stands on this creature (HEAL_REROLLS — Beacon of Hope), by key, or null. */
+function maxRowOn(uuid) {
+  const subject = resolveUuid(uuid);
+  const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
+  if ( !(actor instanceof Actor) ) return null;
+  const listed = listedNames(healRerollEntries());
+  for ( const [key, row] of Object.entries(HEAL_REROLLS) ) {
+    if ( !row.max || !row.effect || !listed.has(lower(key)) ) continue;
+    if ( actor.effects.some(e => !e.disabled && (lower(e.name) === lower(row.effect))) ) return key;
+  }
+  return null;
 }
 
 // The CASTER's flow elect drives these (ARCHITECTURE §3, the driver table); the answered choice is the
