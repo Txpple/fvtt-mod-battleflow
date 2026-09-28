@@ -24,7 +24,9 @@ outcomes are already determined**, while:
 - **pausing** where a human genuinely gets a say (the reaction window, the choice),
 - **announcing** what matters (hits, spends, breaks, expirations),
 - **leaving receipts** everywhere it acts (every application is revertible),
-- **never removing the native buttons** — vanilla stays the substrate and the fallback.
+- **leaving the system underneath** — vanilla stays the substrate and the fallback. The card
+  buttons a machine takes over are hidden so there is one path (`polish.js`, Refund Resource
+  stays); the tray, the refund and the revert are never removed.
 
 ## 2. The four north stars
 
@@ -104,8 +106,8 @@ Combat should move. Every design choice is weighed against whether it makes the 
 It is deliberately not midi-qol. midi solves automation with a ~50,000-line workflow engine, a
 flags platform, three hard dependencies, wholesale replacement of eight document classes, and a
 serial in-memory workflow that blocks on cross-client prompts — the source of its race conditions
-and its undo system. Battle Flow solves the same chain with a few thousand lines, curated lists
-instead of platforms, and zero dependencies. The trade is safe because midi's own current code
+and its undo system. Battle Flow solves the same chain with about thirty thousand lines of plain ES modules,
+curated lists instead of platforms, and zero dependencies. The trade is safe because midi's own current code
 mostly *orchestrates native dnd5e machinery* — so a small module can orchestrate the same public
 hooks directly. (The source-level evaluation that established this is `RESEARCH.md` in git
 history; its conclusions are this paragraph and §4.)

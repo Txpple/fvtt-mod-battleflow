@@ -1,220 +1,136 @@
 # Battle Flow
 
-**Battles, flowing.** A combat-resolution module for Foundry VTT (v14) and the dnd5e system
-(6.x, 2024 rules — v2.0.0 onward; v1.42.0 is the last release for dnd5e 5.3.x). When an attack hits, the damage rolls, applies, and the effects that ride
-it land. When a spell demands a save, everyone rolls. When an aura moves, the creatures inside
-it feel it. The table only touches the moments that are genuinely theirs.
+**All-in-one combat automation for D&D 5e (2024 rules) on Foundry VTT. Install it and fights run themselves.**
 
-## The idea
+When an attack hits, the damage rolls and applies. When a spell demands a save, everyone rolls.
+When a reaction could change the outcome, the player gets a popup with a timer. Every automatic
+action leaves a receipt with a one-click revert. No other modules needed.
 
-The dnd5e system already knows how to do everything hard about a fight. It works out whether
-an attack hits, applies damage through the right resistances, rolls real saving throws,
-applies effects, and tracks concentration. The trouble is that every one of those steps ends at
-a button, and somebody has to find that button in the chat log and press it. Combat slows to
-the pace of the person hunting for the right card.
+## Status
 
-Battle Flow presses the buttons whose outcomes are already decided. Where a human genuinely
-gets a say, it pauses and asks. Where something worth knowing happens, it says so. Everywhere
-it acts, it leaves a receipt with a one-click revert. And it never removes the native buttons,
-so vanilla dnd5e is always underneath and always the fallback.
+**Usable now, and in nightly use at our own table.** It is not finished. The plan is core rules
+first, supplemental books later.
 
-**Automate outcomes, never decisions.** That is the whole rule. If the rules already determine
-the result, the module does it. If judgement is involved, a person is asked.
+| Done | Next |
+| --- | --- |
+| The combat chain: hit, damage, apply, reactions, saves, concentration, auras, cover | Spells (the PHB spell list, beyond the ones already in) |
+| Every Player's Handbook species and origin feat | More classes and subclasses |
+| Every Player's Handbook general feat that touches a fight | The Monster Manual (traits like Magic Resistance, Undead Fortitude, Regeneration) |
+| Fighting styles, weapon masteries, Battle Master maneuvers, Sorcerer metamagic | Supplemental books, after the core three |
+| Ten settings; every feature always on | |
 
-## What it does for your table
+Nothing ships until it has been played. What is in works; what is not in yet is simply left to
+the table, the way vanilla dnd5e does.
 
-**Attacks resolve themselves.** A hit rolls its damage and applies it to the targets it hit,
-through the system's own resistance math. A miss rolls nothing. Every application is stamped on
-the damage card with a per-target receipt and a revert button, so nothing is ever lost to a
-misclick.
+## Requirements
 
-**Reactions get their window.** When a target holds Shield, Uncanny Dodge, a riposte or another
-listed reaction, the chain pauses instead of applying. The reactor gets a popup with a clock.
-If they do nothing, the default happens and the fight moves on. The Reaction is a chip on the
-character, spent when used and back at the start of their next turn, so the window is only
-offered when it is real.
+- Foundry VTT 14
+- dnd5e 6.x (2024 rules). v1.42.0 is the last release for dnd5e 5.3.x.
+- No other modules. No libWrapper, no socketlib, no DAE.
+- The free 2024 rules that ship with dnd5e are enough. The premium Player's Handbook, Monster
+  Manual and Dungeon Master's Guide unlock everything the free rules leave out.
+- A GM must be logged in. The GM's client is the one that applies damage and effects.
 
-**Your abilities are already accounted for.** Before an attack roll, if anything the module can
-read bends it, the system's own roll dialog opens with a Battle Flow section listing every
-source with its rule quoted: a condition on either side, the target being within five feet of a
-prone creature, the range of a ranged attack, or a feature on either sheet by name. Innate
-Sorcery, Reckless Attack, Vow of Enmity, Pack Tactics, Blur and seventy more were swept from
-the official 2024 packs (the Player's Handbook, the Monster Manual, the Dungeon Master's Guide
-and Heroes of Faerûn; Arcana Unleashed is next). The net result is the highlighted button. You
-still press it.
+Install with the manifest URL:
 
-**Riders pay out with the hit.** Hunter's Mark, weapon masteries, Sneak Attack with the full
-Cunning Strike menu, Divine Strike, Dreadful Strike, the Assassin's first-round dice, and other
-listed features ride the damage roll when the round and the turn say they should. Each one is a
-ticked checkbox on the damage offer. Untick it to keep the use. The card says what rode and why.
+```
+https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json
+```
 
-**Maneuvers are a choice on the hit.** A Battle Master who hits sees their maneuvers on the
-damage offer, one pick per attack: Trip, Goading, Menacing, Pushing, Disarming, Distracting,
-Maneuvering and Sweeping. The Superiority Die is read off the sheet and rides the roll, the pool
-is spent, and the maneuver's own save goes to the target through the save gate. A Sweeping
-Attack lists the creatures within five feet and rolls its die at the one you pick.
+## What it does
 
-**Metamagic is a tick in the casting window.** A Sorcerer casting a spell sees the options they
-know as rows in the spell's own casting window — the name, the cost in Sorcery Points, the rule
-folded under — and one tick does the arithmetic the option names: Careful's protected allies never
-see the save prompt, Heightened marks one target for Disadvantage, Distant doubles the range the
-reminder reads, Extended doubles the clock on what the cast lands, Transmuted retypes every roll of
-the cast, Twinned fits only the spells whose target count grows with the slot. Empowered is offered
-after the damage dice and rerolls the ones you pick; Seeking is offered on a spell attack's miss
-beside Heroic Inspiration. The points are spent on the spell's card, with the same floating text
-and the same card line every other pool gets.
+- **Attacks resolve.** A hit rolls damage and applies it through the system's own resistance
+  math. A miss rolls nothing. Every application is stamped on the card with a revert button.
+- **Reactions get a window.** Shield, Uncanny Dodge, Parry, Warding Flare and other listed
+  reactions pause the chain and ask the player. The popup shows the rule from the book and a
+  timer. No answer means the default happens and the fight moves on.
+- **Saves happen at once.** A save spell rolls for every target on the owning player's client,
+  half damage on a success, and the buzzer rolls for anyone who walks away.
+- **Your abilities are already accounted for.** Before a roll, the dialog lists everything the
+  module can read that changes it: a condition, a feat, a fighting style, cover, an ally beside
+  the target. Riders like Sneak Attack, Hunter's Mark and weapon masteries ride the damage as
+  ticked boxes.
+- **Auras work.** A Paladin's Aura of Protection follows the token; allies get the bonus
+  walking in and lose it walking out. Spirit Guardians and friends do the same with their saves.
+- **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
+- **Everything announces itself.** Spent slots, used reactions, effects landing and expiring, a
+  crit against a paralyzed creature. Each is a line on a card so nothing is a mystery.
+- **Players can see their buffs.** An effect bar above the hotbar, hover cards on any token, and
+  Alt to see everyone's.
 
-**The rest of the Battle Master's maneuvers land too.** Parry reduces the damage taken by the
-die and modifier the pack's own formula rolls, spent from the pool at the reaction. Evasive
-Footwork rolls the die and puts the number on your AC until your next turn. Bait and Switch
-rolls the die and asks who wears it. Lunging Attack's die is a ticked checkbox on the next melee
-hit's damage offer, since the straight-line move is yours to judge. Feinting Attack marks the
-target: the attack gate reads it as Advantage for you alone, your next attack roll at that
-target spends it, and the die rides the hit. Ambush and Tactical Assessment are offered on the
-checks their text names (and Ambush on initiative); used from the sheet first, they roll the
-die, tell you which check to make, and add it when you do. Commander's Strike tells the ally's
-player they may make a Reaction attack from their sheet; your die rides its damage. Rally works
-as the pack ships it. Every maneuver's card and popup wear the same shape, and a spent die
-says the same thing everywhere: the pool and how many remain.
+## The trade
 
-**Wards strike back.** Fire Shield, Death Armor and Armor of Agathys pay out against whoever
-hits their bearer with a melee attack roll, from within the ward's own reach: the pack's own
-dice, rolled in the open as the defender's and applied to the attacker with a receipt. Fire
-Shield's type follows the shield that stands; Death Armor strikes once per turn; Armor of
-Agathys strikes while its Temporary Hit Points last and ends with them.
+Battle Flow is built to be **easy to run**, not to be configured. That is a deliberate trade
+against midi-qol.
 
-**A cast that offers a choice asks.** Fire Shield's warm or chill shield: a popup at the cast
-asks the caster which, the cast waits on the card until answered, and only the pick lands with
-its resistance. The Effect Choices list says which spells ask.
+| | Battle Flow | midi-qol stack |
+| --- | --- | --- |
+| Install | one module | midi + DAE + premades + their dependencies |
+| Settings | ten | hundreds |
+| Homebrew hooks, macros, custom flags | none | extensive |
+| Coverage | the official 2024 books, growing | nearly everything, if you set it up |
+| Surviving a dnd5e update | public hooks only, nothing patched | waits for each module to catch up |
 
-**Bare damage spells roll their dice.** A spell like Heat Metal, whose damage has no attack
-roll and no save, rolls at the cast (or is offered to you) and lands on the target, and the
-save its text ties to the damage follows through the save gate — Heated Metal on a failure,
-the drop yours to play. Reheating on a later turn does the same again.
+If you want to shape every part of your automation, midi-qol is built for that. If you want to
+install one thing and play, this is for you.
 
-**Auras, the second slice.** Aura of Life, Aura of Purity, Circle of Power, Crusader's Mantle
-and Holy Aura apply the pack's own effect to allies inside their ring; Aura of Vitality reminds
-you at the start of your turn that the heal is yours to aim; Antilife Shell draws its ring.
-The save clauses the packs leave out are the save gate's: inside Aura of Purity a save against
-Hold Person or Hypnotic Pattern opens with Advantage and says why; inside Circle of Power every
-save against a spell does, and a success against half-damage spell takes none.
+**What it will not do, on purpose:** auto-cast reactions, detect opportunity attacks, pick
+targets for area spells, run macros, or offer an extension point for homebrew. Those are
+judgement calls or platforms. The answer to both is the same: ask a person, or add a row to a
+list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 
-**Saves happen at once.** A spell that forces a save rolls it for every target, opens the
-system's own Saving Throw dialog for each player with the demand and the stakes above it, and
-resolves half damage on a success. Anyone who does not press in time is rolled by the buzzer.
-Restrained, the Dodge action, Evasion and the conditions that fail a save outright are all read
-and offered.
+## Settings
 
-**Auras apply themselves.** A Paladin's Aura of Protection stands around the token wherever it
-goes, and allies walking in receive the bonus with the Paladin's Charisma and lose it walking
-out. Spirit Guardians halves enemy speed inside its area and demands the save when a creature
-enters or ends its turn there. Foundry keeps the geometry and the clock.
+| Setting | Scope | What it does |
+| --- | --- | --- |
+| Decision Timer Seconds | world | How long every question waits. 0 waits forever. A required roll rolls itself when time is up; an optional offer passes. |
+| Dramatic Beat Before Damage | world | Seconds between the hit and the damage dice. |
+| Players Roll Their Own Saves | world | Prompt the owning player, or roll automatically. |
+| Concentration Checks Are Public | world | Open, or whispered to the owner and GM. |
+| Hold Shows the Math | world | A held reaction shows the attack total against AC, or (rules as written) only that you were hit. |
+| Optional Masteries | world | Ask before Slow, Topple, Push and Graze, or take them automatically. |
+| Resource Use Notices | world | Flash a notice when a player spends a limited-use ability. |
+| Roll Your Own Damage | client | Ask before rolling your damage instead of rolling it for you. |
+| Effect Bar | client | The buff and debuff strip above the hotbar. |
+| Effect Cards on Hover and Alt | client | Effect cards beside any token you point at. |
 
-**Concentration gets kept honest.** A concentration prompt cannot be buried, a failed check
-actually ends the spell, and the moment a concentrator is Incapacitated the spell drops. The
-system does none of these on its own.
+Every feature is always on. There is no per-feature switch. A table that wants one wants midi.
 
-**Everything announces itself.** A spent slot, a used reaction, an effect landing or expiring,
-an automatic critical hit against a Paralyzed creature. Each one is a durable line on a card,
-on every client, so an icon appearing or vanishing is never a mystery.
+## How it is built
 
-**And the small things.** Magic Missile, Scorching Ray and Eldritch Blast are aimed dart by dart
-in one popup. No-save effects and healing apply on cast. Web's Restrained presses the standard
-condition even though the pack does not carry it as an effect. Steady Aim becomes a real chip on
-use.
-
-## Why it is built this way
-
-**New players first.** Someone who has never played 5e can take their turn. The thing they must
-answer comes to them, centred, with the rule quoted from the feature's own text. They never
-need to know which chat card to hunt for.
-
-**The GM does almost nothing.** In steady state the GM answers no prompts. Every feature that
-would add a recurring mandatory GM click is treated as a design mistake.
-
-**Nothing blocks the table.** Every pause has a default outcome and a timer. A player who
-stepped away does not stop the fight unless the table chooses that.
-
-**Canon only.** The module reads amounts, dice and DCs from the content the compendia already
-ship. It never stores a number of its own, never transcribes a rule, and never homebrews. When
-content is wrong, the content is fixed, not the module.
-
-**Zero dependencies, no sockets, no patching.** Clients coordinate by reading the same chat log.
-Only public hooks are used. The only relationship in the manifest is a version pin on dnd5e, so
-a system update can never take the module down with it silently.
-
-**Every feature has its own switch.** There are 43 world settings and 2 client settings. All of
-them ship on, and any one can be turned off mid-session without touching the others.
+- **Zero dependencies, no patching.** Public hooks and document writes only. The chat log is the
+  state: every client reads the same one, so there is nothing in memory to fall out of sync and
+  a reload loses nothing.
+- **Canon only.** Every number, die and DC is read from the content the compendia ship. The
+  module never stores an amount and never homebrews. When content is wrong, fix the content.
+- **Automate outcomes, never decisions.** If the rules settle it, the module does it. If a
+  person gets a say, a person is asked, with a default and a clock.
+- **The system stays underneath.** The card buttons the module takes over are hidden so there
+  is one path; the system's damage tray, refund and revert stay.
 
 ## Documentation
 
-Five documents, plus **[SWEEP.md](SWEEP.md)** for the length of the abilities sweep it surveys:
-the 2024 corpus sorted into the module's mechanism families, kind by kind.
+- [DESIGN.md](DESIGN.md): what the module is for and what it refuses. Start here.
+- [RULINGS.md](RULINGS.md): what each feature does, as decided at the table.
+- [ARCHITECTURE.md](ARCHITECTURE.md): how the code is shaped and why.
+- [NOTES.md](NOTES.md): Foundry and dnd5e facts that cost a debugging session.
+- [BACKLOG.md](BACKLOG.md): known and deliberately not scheduled.
+- [SWEEP.md](SWEEP.md): the 2024 content sorted by mechanism.
 
-- **[DESIGN.md](DESIGN.md)** is the north star. What the module is for, the four goals it exists
-  to serve, what is permanently out of scope, and what is settled. Read it before proposing
-  anything.
-- **[RULINGS.md](RULINGS.md)** is what each feature does as the user ruled it: the ruling, its
-  date, the mechanism it settled and the suite that pins it.
-- **[ARCHITECTURE.md](ARCHITECTURE.md)** is how the code is required to be shaped so it stays
-  that way. Layers, the volunteer model, the state model, the moment spine, the registry model,
-  and the checklist for adding anything.
-- **[NOTES.md](NOTES.md)** is working knowledge. Every Foundry and dnd5e fact that cost a
-  debugging session, plus deploy, release and test protocol.
-- **[BACKLOG.md](BACKLOG.md)** is what is known and deliberately not scheduled, each with the
-  reason and the thing that would change it. Nothing in it is owed.
-
-Development tooling lives in [tools/](tools/README.md) and ships in nothing. `npm run verify`
-is the offline gate: static checks plus the unit tests, in seconds. `node tools/battery.mjs` is
-the live one, every suite in the order that works, each captured to a file — and
-`node tools/battery.mjs --changed --list` is what a change actually has to re-run, read off the
-suites' own claims (2026-09-23); the full battery is the floor before a release.
+Dev tooling is in [tools/](tools/README.md) and ships in nothing. `npm run verify` runs the
+static checks and unit tests in seconds; the live battery runs against a real Foundry world.
 
 ## Family
 
-Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus). Combat Plus is combat
-*UX* (music, gates, cues). Battle Flow is combat *resolution* (dice consequences). They are
-separate so that dnd5e churn can never take down the initiative gate mid-campaign.
-
-Curated content lists are swept from the official compendia, and nothing ships that has not
-been played. What stays a permanent non-goal is a *platform*: no flags engine, no macro hooks,
-no extension points ([DESIGN.md §4](DESIGN.md)).
-
-## Why it is not midi-qol
-
-If you have used Foundry for dnd5e, you know midi-qol. It is the module that automates combat,
-and it is very good at it. Battle Flow exists because we wanted the same flowing fight without
-the shape midi has to take to deliver it.
-
-midi is a workflow engine. Around fifty thousand lines, its own flags platform, three hard
-dependencies, and wholesale replacement of the system's document classes, pinned to each dnd5e
-minor version. Its workflow runs in memory and blocks on prompts to other clients with timeouts,
-which is where its race conditions come from and why it needs a large undo system. When the
-system updates, midi has to move with it, and until it does the table waits.
-
-Battle Flow takes a different bet. The system has become good enough that a small module can
-orchestrate its public hooks directly, without patching anything. There is no in-memory
-workflow to fall out of sync, because the chat log is the state and every client reads the same
-one. There is no undo system, because each application carries its own revert receipt. There is
-no flags platform or macro hook, because every ability the module knows about is a row in a
-curated list swept from the official packs. A few thousand lines cover the chain that consumes
-table time, and the rest is left to the humans at the table.
-
-That means there are things midi does that Battle Flow will never do, on purpose. It does not
-auto-cast reactions, detect opportunity attacks, measure cover or line of sight, manage
-template targets, run macros, or offer an extension point for homebrew. Those are judgement
-calls or platforms, and the module's answer to both is the same: ask a person, or add a row to
-a list. The full list of what is refused and why is in [DESIGN.md §4](DESIGN.md).
-
-The trade is fewer features for a module that is small enough to read, cannot be taken down by
-a system update it did not see coming, and never plays a decision for you.
+Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus), which does combat UX
+(music, gates, cues). Battle Flow does combat resolution. They are separate so a dnd5e update can
+never take both down.
 
 ## Contributing
 
-Battle Flow is one author's design for how a 2024 fight should run on stock dnd5e: batteries
-included, a few switches for the DM, nothing else to configure. It is public so you can read it
-and use it. Issues and pull requests are not accepted. If you want to shape every part of the
-automation yourself, midi-qol is built for exactly that.
+This is one author's design for how a 2024 fight should run, built for one table and shared
+because it might suit yours. It is public so you can read it and use it. Issues and pull
+requests are not accepted.
 
 ## License
 
