@@ -577,7 +577,10 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *              a class-scaled feature (N1) · "weaponReach": the held weapon's (10 with Reach, else 5)
  *   effect     the pack's effect by name, its changes RESOLVED against the source (else each member adds
  *              its own Charisma); null: a ring and a card only
- *   trigger    a save demanded `on` "enter" and/or "turnEnd", `oncePerTurn`; the activity's save judges.
+ *   trigger    a save demanded `on` "enter", "turnEnd" and/or "turnStart" (a monster's aura: "any creature
+ *              that starts its turn in"), `oncePerTurn`; the activity's save judges; `types` narrows who is
+ *              asked to those creature types (Vile Appearance's Beasts and Humanoids). A row with no standing
+ *              `effect` lets the verdict land the activity's own failure effect (Frightened, Poisoned).
  *              `on: "move"` (Spike Growth): the activity's plain damage per `per` feet a creature MOVES
  *              inside the area, paid once per movement when the move lands — never a pause (DESIGN §8)
  *   band       an `area` whose burning side is `feet` wide on ONE side of the wall it was placed as (Wall of
@@ -723,7 +726,43 @@ export const EMANATIONS = Object.freeze({
       says: "leaves the cage — the walls hold it; a teleport out needs a Charisma save (the spell's own), and a failure wastes the action" }),
     caveat: "the bars' cover, spells cast through the bars, and the solid box blocking spells are the table's; the cage stands its hour with the concentration",
     rule: Object.freeze({ item: "Forcecage", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplForcecage0" }),
-    from: "Bard / Warlock / Wizard spell, level 7 (Concentration, 1 hour)" })
+    from: "Bard / Warlock / Wizard spell, level 7 (Concentration, 1 hour)" }),
+  // THE GM'S SIDE — a monster's aura, "any creature that starts its turn in the Emanation" (RULINGS *The GM's
+  // side — the aura rows*): the pack's save activity carries the Emanation and the failure's condition; nothing
+  // stands on a member (`effect: null`), the verdict lands the failure. A success's "immune for 24 hours / 1
+  // hour" is the table's. `incapacitated` where the text says so.
+  "Fear Aura": Object.freeze({ kind: "feature", reach: "harmful", range: null, effect: null, incapacitated: true,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "a success's 24-hour immunity to this aura is the table's",
+    rule: Object.freeze({ item: "Fear Aura", uuid: "Compendium.dnd-monster-manual.features.Item.mmFearAura000000" }),
+    from: "monsters" }),
+  "Fetid Aura": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "\"an action or a Bonus Action, not both\" while Poisoned is the table's",
+    rule: Object.freeze({ item: "Fetid Aura", uuid: "Compendium.dnd-monster-manual.features.Item.mmFetidAura00000" }),
+    from: "monsters (swarms)" }),
+  "Stench": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "\"other than a troglodyte\", and a success's 1-hour immunity to every troglodyte's Stench, are the table's",
+    rule: Object.freeze({ item: "Stench", uuid: "Compendium.dnd-monster-manual.features.Item.mmStench00000000" }),
+    from: "monsters (troglodytes)" }),
+  // No Emanation on the activity — "within 30 feet" is its range; only Beasts and Humanoids are asked.
+  "Vile Appearance": Object.freeze({ kind: "feature", reach: "all", range: 30, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true, types: Object.freeze(["beast", "humanoid"]) }),
+    caveat: "\"can see its true form\" and a success's 24-hour immunity are the table's",
+    rule: Object.freeze({ item: "Vile Appearance", uuid: "Compendium.dnd-monster-manual.features.Item.mmVileAppearance" }),
+    from: "monsters (hags)" }),
+  // "Initial Save" carries the Emanation; the failure's pick (Captivated, Fearful, Mired) is the GM's from the sheet.
+  "Lordly Presence": Object.freeze({ kind: "feature", activity: "Initial Save", reach: "harmful", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "the failure's pick — Captivated, Fearful or Mired — is used from the sheet; a success's 24-hour immunity is the table's",
+    rule: Object.freeze({ item: "Lordly Presence", uuid: "Compendium.dnd-monster-manual.features.Item.mmLordlyPresence" }),
+    from: "monsters" }),
+  // A ring and a card: the pack's utility activity carries the Emanation and no effect.
+  "Aura of Authority": Object.freeze({ kind: "feature", activity: "Expend Use", reach: "helpful", range: null, effect: null, incapacitated: true,
+    caveat: "the Advantage on attack rolls and saving throws of the bearer and its allies inside is the table's",
+    rule: Object.freeze({ item: "Aura of Authority", uuid: "Compendium.dnd-monster-manual.features.Item.mmAuraOfAuthorit" }),
+    from: "monsters" })
 });
 
 /**
@@ -1094,7 +1133,7 @@ export const CHECK_BENDS = Object.freeze({
  * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget", spend?: "attack",
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated", spend?: "attack",
  *   only?: "source", except?: "source", rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -1344,6 +1383,11 @@ export const EFFECT_BENDS = Object.freeze({
     saves: Object.freeze({ succeeds: true, spells: true }),
     caveat: "counted — the spell attacks that automatically miss are the table's",
     rule: Object.freeze({ item: "Greater Magic Resistance", uuid: "Compendium.dnd-monster-manual.features.Item.mmGreaterMagicRe" }) }),
+  // Disadvantage on attacks AGAINST the bearer, off while it is Incapacitated — the `notIncapacitated` judge.
+  "Displacement": Object.freeze({ match: "feature", attacker: null, target: "disadvantage", scope: "any", judge: "notIncapacitated", from: "monsters (the displacer beast)",
+    rule: Object.freeze({ item: "Displacement", uuid: "Compendium.dnd-monster-manual.features.Item.mmDisplacement00" }) }),
+  "Blurred Form": Object.freeze({ match: "feature", attacker: null, target: "disadvantage", scope: "any", judge: "notIncapacitated", from: "monsters",
+    rule: Object.freeze({ item: "Blurred Form", uuid: "Compendium.dnd-monster-manual.features.Item.mmBlurredForm000" }) }),
   // While Grappled, its Athletics and Acrobatics checks count as the escape
   // (RULINGS *Where the table bends the rule*); the pack's effect carries only the carrying capacity.
   "Powerful Build": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Goliath",

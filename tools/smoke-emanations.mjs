@@ -36,6 +36,8 @@ const SECTIONS = {
   14: 'Aura of Vitality: a NOTICE — nothing applied; at the caster\'s turn start a card offers Start of Turn Heal with a button, never played',
   15: 'Antilife Shell: a ring and a card, nothing applied; ends with concentration',
   16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
+  24: 'THE GM\'S SIDE — Fear Aura (2026-09-28): the Monster lent the trait raises a harmful ring off its save activity\'s Emanation; the Victim STARTING its turn inside is demanded the Wisdom save (cause turnStart, the failure\'s Frightened named), a failure lands Frightened by the verdict; the Monster Incapacitated, the next turn start asks nothing',
+  25: 'Displacement (2026-09-28): the Victim attacking the Monster wearing the text-only trait sees "BF Test Monster is — Displacement", net Disadvantage; the Monster Incapacitated, the row is gone',
   17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 11: [1] };
@@ -67,7 +69,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (restart the box)' };
 
-  const SETTING_KEYS = ['emanations', 'emanationList', 'saves', 'saveTimer', 'playerRollDamage', 'autoApply', 'requireTarget'];
+  const SETTING_KEYS = ['emanations', 'emanationList', 'saves', 'saveTimer', 'playerRollDamage', 'autoApply', 'requireTarget', 'saveRolls'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -1017,6 +1019,136 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(800);
         ok('23c. walking back IN raises nothing', noticesSince(t23).length === n, `notices=${noticesSince(t23).length} (was ${n})`);
         await scene.regions.get(region.id)?.delete().catch(() => {});
+        await homeAll();
+      }
+    }
+
+    // ================================================== 24 / 25. the GM's side — the Monster
+    const monster = game.actors.getName('BF Test Monster');
+    const monTok = monster ? tok(monster) : null;
+    const lendTrait = async name => {
+      const pack = game.packs.get('dnd-monster-manual.features');
+      const hit = (await pack?.getIndex())?.find(e => e.name === name);
+      if (!hit) throw new Error(`the Monster Manual ships no "${name}" this box can find`);
+      const [item] = await monster.createEmbeddedDocuments('Item', [(await pack.getDocument(hit._id)).toObject()]);
+      return item;
+    };
+    const setIncapacitated = async (actor, on) => {
+      const carriers = actor.effects.filter(e => e.statuses?.has?.('incapacitated'));
+      if (on && !carriers.length) { const eff = await ActiveEffect.implementation.fromStatusEffect('incapacitated'); await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true }); }
+      else if (!on && carriers.length) await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+      await sleep(300);
+    };
+    if ((want(24) || want(25)) && (!monster || !monTok)) { ok('24/25-. BF Test Monster on the range', false, 'missing fixture: BF Test Monster or its token — run tools/fixture-suite.mjs'); }
+
+    if (want(24) && monster && monTok) {
+      let aura = null;
+      const priorWis = vicActor().system._source.abilities?.wis?.save?.roll?.bonus ?? '';
+      const priorDisposition = vicTok.disposition;
+      try {
+        await parkAll();
+        // The Victim turned FRIENDLY for the section: the Monster's enemy (a harmful reach), an NPC roller.
+        await vicTok.update({ disposition: 1 });
+        await sleep(200);
+        await vicTok.update({ x: monTok.x + 2 * grid, y: monTok.y }, mv());   // 10 ft away, inside the ring
+        await sleep(300);
+        await set('saveRolls', 'auto');
+        await vicActor().update({ 'system.abilities.wis.save.roll.bonus': '-30' });
+        const t24 = Date.now();
+        aura = await lendTrait('Fear Aura');
+        const ring = await waitFor(() => { const r = featureRegion(monTok, 'Fear Aura'); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 12000);
+        const beh = ring?.behaviors?.find(b => b.type === TYPE);
+        log.push(`Fear Aura ring: radius ${ring?.shapes?.[0]?.radius} px (${(ring?.shapes?.[0]?.radius ?? 0) / px} ft)`);
+        ok('24a. Fear Aura lent: a harmful ring rises on the Monster’s token — the save activity’s own Emanation, no member effect',
+          !!ring && (ring.attachment?.token?.id === monTok.id) && (ring.shapes?.[0]?.radius > 0) && (beh?.system?.reach === 'harmful') && (beh?.system?.effect === null),
+          `ring=${ring?.id} radius=${ring?.shapes?.[0]?.radius} reach=${beh?.system?.reach} effect=${JSON.stringify(beh?.system?.effect)}`);
+        for (const c of game.combats.filter(c => c.active)) { priorActiveCombats.push(c.id); await c.update({ active: false }); }
+        combat = await Combat.create({ scene: scene.id, active: true });
+        await combat.createEmbeddedDocuments('Combatant', [{ tokenId: monTok.id, actorId: monster.id, initiative: 20 }, { tokenId: vicTok.id, actorId: victim.id, initiative: 10 }]);
+        await combat.startCombat();   // the Monster's turn
+        if (game.combat?.id !== combat.id) { try { ui.combat.viewed = combat; } catch { /* the tracker */ } }
+        await sleep(400);
+        const n0 = triggerCards().length;
+        await combat.nextTurn();      // the Victim's turn STARTS inside
+        const card = await waitFor(() => triggerCards().find(m => (m.timestamp >= t24) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnStart') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Fear Aura')) ?? null, 10000);
+        const sv = card?.getFlag(MOD, 'saves');
+        ok('24b. the Victim (the Monster’s enemy) starting its turn inside is demanded the Wisdom save — cause turnStart, the trait’s DC, the failure’s Frightened named, nothing handled by a standing effect',
+          !!card && (sv?.abilities?.[0] === 'wis') && (sv?.targets?.length === 1) && (sv.targets[0].uuid === vicActor().uuid) && ((sv?.effectNames?.fail ?? []).includes('Frightened')) && !sv?.effectsHandled && /started its turn inside/.test(card?.content ?? ''),
+          `card=${!!card} saves=${JSON.stringify(sv && { abilities: sv.abilities, dc: sv.dc, targets: sv.targets.map(t => t.name), effectNames: sv.effectNames, effectsHandled: sv.effectsHandled })}`);
+        await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, 15000);
+        const frightened = await waitFor(() => vicActor().effects.find(e => e.name === 'Frightened') ?? null, 8000);
+        ok('24c. the failed save (−30) lands Frightened on the Victim by the verdict, receipted on the card',
+          !!frightened && (game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome === 'failed') && !!game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt'),
+          `frightened=${!!frightened} outcome=${game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.outcome} receipt=${!!game.messages.get(card?.id)?.getFlag(MOD, 'effectReceipt')}`);
+        await closeDialogs();
+        // The Monster Incapacitated: the ring is disabled, the next turn start asks nothing.
+        await setIncapacitated(monster, true);
+        await waitFor(() => featureRegion(monTok, 'Fear Aura')?.behaviors?.find(b => b.type === TYPE)?.disabled ? true : null, 8000);
+        const n1 = triggerCards().length;
+        await combat.nextTurn();      // the Monster
+        await sleep(300);
+        await combat.nextTurn();      // the Victim's turn starts inside again — the aura is off
+        await sleep(1500);
+        ok('24d. the Monster Incapacitated: the ring stands disabled and the Victim’s next turn start asks nothing', (triggerCards().length === n1) && !!featureRegion(monTok, 'Fear Aura')?.behaviors?.find(b => b.type === TYPE)?.disabled,
+          `cards=${triggerCards().length} (was ${n1}, before combat ${n0}) disabled=${featureRegion(monTok, 'Fear Aura')?.behaviors?.find(b => b.type === TYPE)?.disabled}`);
+      } finally {
+        await closeDialogs();
+        try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
+        combat = null;
+        await setIncapacitated(monster, false);
+        await vicActor().update({ 'system.abilities.wis.save.roll.bonus': priorWis });
+        const fr = vicActor().effects.filter(e => e.name === 'Frightened').map(e => e.id);
+        if (fr.length) await vicActor().deleteEmbeddedDocuments('ActiveEffect', fr).catch(() => {});
+        await aura?.delete().catch(() => {});
+        await waitFor(() => featureRegion(monTok, 'Fear Aura') ? null : true, 8000);
+        await vicTok.update({ disposition: priorDisposition }, mv());
+        await homeAll();
+      }
+    }
+
+    if (want(25) && monster && monTok) {
+      let trait = null;
+      let club = null;
+      try {
+        await parkAll();
+        await vicTok.update({ x: monTok.x - 2 * grid, y: monTok.y }, mv());
+        await sleep(300);
+        trait = await lendTrait('Displacement');
+        for (const id of ['dnd-players-handbook.equipment', 'dnd5e.items24']) {
+          const pack = game.packs.get(id);
+          const hit = pack ? (await pack.getIndex()).find(e => e.name === 'Club') : null;
+          if (!hit) continue;
+          const data = (await pack.getDocument(hit._id)).toObject(); delete data._id; data.system.equipped = true;
+          [club] = await vicActor().createEmbeddedDocuments('Item', [data]);
+          break;
+        }
+        const clubAct = () => vicActor().items.get(club?.id)?.system.activities.find(a => a.type === 'attack') ?? null;
+        const gateAt = async () => {
+          canvas.tokens.get(vicTok.id)?.control({ releaseOthers: true });
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+          canvas.tokens.get(monTok.id)?.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          const p = clubAct()?.rollAttack({}, {}, {});
+          const app = await waitFor(() => [...foundry.applications.instances.values()].find(a => /RollConfigurationDialog/.test(a.constructor?.name ?? '')) ?? null, 6000);
+          await sleep(400);
+          const text = app?.element?.querySelector('[data-bf-reminder]')?.textContent?.replace(/\s+/g, ' ') ?? '';
+          const net = app?.options?.bfReminder?.net ?? null;
+          try { await app?.close(); } catch { /* gone */ }
+          await Promise.resolve(p).catch(() => {});
+          return { text, net };
+        };
+        const up = club ? await gateAt() : null;
+        ok('25a. the Victim attacking the Monster with Displacement on its sheet: the gate lists "BF Test Monster is — Displacement", net Disadvantage',
+          !!club && !!up && /BF Test Monster is — Displacement/.test(up.text) && (up.net === 'disadvantage'), `club=${!!club} net=${up?.net} text=${up?.text?.slice(0, 200)}`);
+        await setIncapacitated(monster, true);
+        const off = club ? await gateAt() : null;
+        ok('25b. the Monster Incapacitated: no Displacement row', !!off && !/Displacement/.test(off.text), `net=${off?.net} text=${off?.text?.slice(0, 200)}`);
+      } finally {
+        await closeDialogs();
+        await setIncapacitated(monster, false);
+        await club?.delete().catch(() => {});
+        await trait?.delete().catch(() => {});
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         await homeAll();
       }
     }

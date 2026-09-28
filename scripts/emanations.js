@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
@@ -73,7 +73,12 @@ listenOnce("init", "emanations", () => {
     static async #onEnter(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); await maybeTrigger(this, event.data?.token ?? null, "enter"); }
     static async #onExit(event) { if ( !gmHandles(event) ) return; await forgetInitial(this.region, event.data?.token ?? null); await reconcileMembers(this.region); }
     static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
-    static async #onTurnStart(event) { if ( !gmHandles(event) ) return; await maybeHeal(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnStart"); }
+    static async #onTurnStart(event) {
+      if ( !gmHandles(event) ) return;
+      const token = event.data?.token ?? event.data?.combatant?.token ?? null;
+      await maybeHeal(this, token, "turnStart");
+      await maybeTrigger(this, token, "turnStart");
+    }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
     static async #onMoveIn(event) {
       if ( !gmHandles(event) ) return;
@@ -235,7 +240,9 @@ async function maybeTrigger(behType, token, cause) {
       const f = flagOf(region);
       if ( f?.initial?.includes(token.id) ) { await forgetInitial(region, token); return; }
     }
-    if ( !(region.tokens?.has?.(token) ?? true) && (cause === "turnEnd") ) return;   // ended its turn OUTSIDE
+    if ( !(region.tokens?.has?.(token) ?? true) && ((cause === "turnEnd") || (cause === "turnStart")) ) return;   // its turn began or ended OUTSIDE
+    // A trigger narrowed to creature types (Vile Appearance's Beasts and Humanoids): the type is a fact the sheet holds.
+    if ( row.trigger.types?.length && !row.trigger.types.includes(lower(token.actor.system?.details?.type?.value ?? "")) ) return;
     const item = resolveUuid(sys.item);
     // The save activity judges; an `area` row whose activity is plain damage (Cloud of Daggers) rolls it instead.
     const activity = activityOfType(item, "save");
@@ -256,10 +263,18 @@ async function maybeTrigger(behType, token, cause) {
     const casterActor = item.actor ?? null;
     // An `area` names its caster (nothing is attached); a ring names its source token.
     const whose = (row.kind === "area") ? (casterActor?.name ?? source?.name ?? "the caster") : (source?.name ?? casterActor?.name ?? "the caster");
-    const why = (cause === "enter") ? `entered ${whose}'s ${row.key}` : `ended its turn inside ${whose}'s ${row.key}`;
-    if ( damage ) return triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due });
+    const why = (cause === "enter") ? `entered ${whose}'s ${row.key}`
+      : (cause === "turnStart") ? `started its turn inside ${whose}'s ${row.key}` : `ended its turn inside ${whose}'s ${row.key}`;
+    if ( damage ) return triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due, cause });
     const onSave = activity.damage?.onSave ?? "half";
     const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
+    // A STANDING effect is the region's (the verdict never applies it), and so is a placed area's (its cast asked
+    // once); a FEATURE ring with none lets the verdict land the activity's own failure effect — a monster
+    // aura's Frightened or Poisoned.
+    const standing = !!row.effect || (row.kind !== "feature");
+    const profiles = standing ? [] : (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
+    const effectNames = standing ? { fail: [], always: [] }
+      : { fail: profiles.filter(e => !e.onSave).map(e => e.effect.name), always: profiles.filter(e => e.onSave).map(e => e.effect.name) };
     const window = decisionWindow();
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
     const card = await ChatMessage.create({
@@ -274,7 +289,9 @@ async function maybeTrigger(behType, token, cause) {
         saves: saveDemandData({
           stat: statContext(casterActor?.uuid ?? null),
           abilities, dc, damageOnSave: onSave, hasDamage,
-          effectNames: { fail: [], always: [] }, effectsHandled: "emanation",
+          effectNames, effectsHandled: standing ? "emanation" : null,
+          ...(standing ? {} : { demand: { spell: (item.type === "spell") || !!item.system?.properties?.has?.("mgc"), abilities,
+            statuses: [...new Set(profiles.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))], sleep: false } }),
           // ⚠ Pinned: the area adoption keys on the activity this card shares with the cast and would rewrite the targets.
           pinnedTargets: true,
           activityUuid: activity.uuid, templateType: null, templated: false,
@@ -297,7 +314,7 @@ async function maybeTrigger(behType, token, cause) {
  * An `area` whose activity is PLAIN DAMAGE (Cloud of Daggers): no save to decide it, so the rule leaves no
  * choice (R1) — the activity's damage is rolled on the caster at the cast's level and applied, receipted.
  */
-async function triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due }) {
+async function triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due, cause = "turnEnd" }) {
   try {
     const rolls = await damage.rollDamage({ scaling: Number(sys.scaling ?? 0) }, { configure: false }, { create: false });
     const list = (rolls ?? []).filter(r => r && Number.isFinite(r.total));
@@ -313,7 +330,7 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
         title: `${row.key} — ${actor.name} ${why}: ${total} ${type ?? ""} damage`.replace(/\s+/g, " "),
         subtitle: `no save · ${due.why}`,
         lines: [ruleLine(row.rule)] }),
-      flags: { [MODULE_ID]: { emanationTrigger: { ...statContext(casterActor?.uuid ?? null), key: row.key, cause: (/entered/.test(why) ? "enter" : "turnEnd"),
+      flags: { [MODULE_ID]: { emanationTrigger: { ...statContext(casterActor?.uuid ?? null), key: row.key, cause,
         regionId: region.id, targetUuid: actor.uuid, why: due.why, total, type, damage: true } } }
     });
     if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], damages, { note: row.key });
@@ -1321,6 +1338,14 @@ for ( const hook of ["createItem", "deleteItem", "updateItem"] ) {
 listen("updateActor", "emanations", (actor, changes) => {
   if ( ("system" in changes) || ("items" in changes) ) for ( const s of scenesWith(actor) ) scheduleScene(s);
 });
+// A trait lent or taken mid-session (a monster's aura): its ring rises or falls with the item.
+for ( const hook of ["createItem", "deleteItem"] ) {
+  listen(hook, "emanations", item => {
+    const actor = item?.parent;
+    if ( !(actor instanceof Actor) ) return;
+    for ( const s of scenesWith(actor) ) scheduleScene(s);
+  });
+}
 for ( const hook of ["createActiveEffect", "deleteActiveEffect", "updateActiveEffect"] ) {
   listen(hook, "emanations", effect => {
     const actor = (effect?.parent instanceof Actor) ? effect.parent : effect?.parent?.parent;

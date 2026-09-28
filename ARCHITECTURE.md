@@ -579,6 +579,8 @@ The GM's side (RULINGS *The GM's side — the five shapes*, 2026-09-28 night) ad
 | `EVASIONS` (was `EVASION`) | `ability` | Evasion's shape as a table: a row per feature, `ability` null reaching every save (Avoidance); the entry stamps `evasionBy` |
 | `TURN_GRANTS` | `match: "feature"` · `while` · `unless.damagedBy` | the bearer's own trait's heal at its turn start, rolled on its numbers (Regeneration); the block read off the bearer's copy against the receipts since its last turn |
 | — | Legendary Resistance | NOT a row: the platform's `resistSave` and the saves machine's `forced` flip already are it |
+| `EMANATIONS` | `trigger.on: "turnStart"` · `trigger.types` | the third trigger word (a monster's "any creature that starts its turn in"), on the region behaviour's `tokenTurnStart`; a row with no standing effect lets the verdict land the activity's failure effect; `types` narrows the asked to creature types (Vile Appearance). Five aura rows and Aura of Authority (RULINGS *The GM's side — the aura rows and the attack bends*) |
+| `EFFECT_BENDS` | `judge: "notIncapacitated"` | the bearer's Incapacitated status turns the row off (Displacement, Blurred Form) |
 
 Tier 3 (the same day, ruled off `prototypes/spells-slice.html`) moved one more kind — `area` on the
 emanations (§6's tripwire 38 → 39) — and added two tables that are not kinds:

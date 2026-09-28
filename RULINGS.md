@@ -1589,6 +1589,43 @@ list, so a new row is on. The HANDOFF's "verify-settings must carry the default"
 | Legendary Resistance | a dragon failing a demanded save | dnd5e's own "Use Legendary Resistance" button on the roll; pressed, the verdict flips to saved "(legendary resistance)", the resource spent — nothing of the module's to see |
 | Regeneration | a troll at 30/84 in combat | its turn start: "Regeneration — Troll regains 10 Hit Points", a receipt; after 8 fire dealt to it, the next turn start: "regains nothing this turn · it took Fire damage since its last turn"; the turn after pays again |
 
+## The GM's side — the aura rows and the attack bends (2026-09-28, night; HANDOFF.md Stage 2)
+
+**The shape.** The Monster Manual writes one aura sentence over and over: *"Constitution Saving Throw:
+DC N, any creature that starts its turn in a 10-foot Emanation originating from the swarm"*. The
+pack ships each as a save activity carrying the Emanation and the failure's condition. That is an
+`EMANATIONS` feature row on a NEW trigger word, **`turnStart`** — the third beside `enter` and
+`turnEnd` (the region behaviour's `tokenTurnStart`, the same path as the turn-end trigger, "started
+its turn inside"). Nothing stands on a member (`effect: null`): the row lets the verdict land the
+activity's own failure effect, where a standing aura's verdict never applies anything (Spirit
+Guardians' Half Speed is the region's). A trait lent or taken mid-session raises or lowers its ring
+(`createItem` / `deleteItem` sweep).
+
+| Row | Reach | Note |
+| --- | --- | --- |
+| Fear Aura | harmful (`target: enemy`), off while Incapacitated | a success's 24-hour immunity is the table's |
+| Fetid Aura · Stench | all ("any creature") | "an action or a Bonus Action, not both" / "other than a troglodyte" and the 1-hour immunity are the table's |
+| Vile Appearance | all, `range: 30` (no Emanation on the activity — "within 30 feet"), `trigger.types: beast, humanoid` — the creature type is a fact the sheet holds, so the trigger narrows itself (DESIGN R1: the data settles it) | "can see its true form" is the table's |
+| Lordly Presence | harmful, `activity: "Initial Save"` | the failure's pick (Captivated, Fearful, Mired) is used from the sheet |
+| Aura of Authority | helpful, `activity: "Expend Use"`, a ring and a card | the Advantage on the members' attacks and saves is the table's (a bare ring is nothing the attack gate reads) |
+
+**Measured and left NATIVE:** Sickening Vapors (the bearer's turn END), Horror Nimbus (a Bonus
+Action), Horrific Visage (an action, a cone) — a save the BEARER uses; the drawing's "eight" is five.
+
+**The attack bends.** Displacement and Blurred Form: `EFFECT_BENDS` feature rows, Disadvantage on
+attacks against the bearer, on the new **`notIncapacitated`** judge (the bearer's status is a fact the
+gate holds; the judge hinges on the target, so the target pass reads it).
+
+### The walk table (deferred — rapid mode)
+
+| Trait | Setup | What you should see |
+| --- | --- | --- |
+| Fear Aura | a monster with it in combat, a PC starting its turn within 30 ft | the PC's turn start: "Fear Aura — Pip started its turn inside the Balor's Fear Aura", a Wisdom save; a failure lands Frightened; the same PC entering later in the turn is not asked again |
+| Stench | a troglodyte, an ally of it inside | the ally is asked too (reach all) |
+| Vile Appearance | a hag, a Beast and a Construct within 30 ft | the Beast's turn start asks; the Construct's does not |
+| Aura of Authority | a hobgoblin captain | a ring and a card; nothing lands on the allies |
+| Displacement | a displacer beast attacked | the gate: "Displacer Beast is — Displacement", Disadvantage; Incapacitated, the row is gone |
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code

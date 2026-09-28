@@ -397,6 +397,97 @@ describe("TURN_GRANTS — Regeneration, the bearer's own trait at its turn start
   });
 });
 
+describe("EMANATIONS — the aura rows on the `turnStart` trigger, and Aura of Authority", () => {
+  it("five turnStart rows: feature rings, nothing standing, the failure the verdict's; Vile Appearance narrowed to Beasts and Humanoids", () => {
+    for (const n of ["Fear Aura", "Fetid Aura", "Stench", "Vile Appearance", "Lordly Presence"]) {
+      const row = reg.EMANATIONS[n];
+      expect(row, n).toMatchObject({
+        kind: "feature",
+        effect: null,
+        trigger: { on: ["turnStart"], oncePerTurn: true }
+      });
+      expect(typeof row.caveat, n).toBe("string");
+      expectPointer(row.rule, n);
+    }
+    expect(reg.EMANATIONS["Fear Aura"]).toMatchObject({ reach: "harmful", incapacitated: true });
+    expect(reg.EMANATIONS["Vile Appearance"]).toMatchObject({
+      reach: "all",
+      range: 30,
+      trigger: { types: ["beast", "humanoid"] }
+    });
+    expect(reg.EMANATIONS["Lordly Presence"].activity).toBe("Initial Save");
+  });
+  it("Aura of Authority is a helpful ring and a card — no trigger, no effect, off while Incapacitated", () => {
+    const row = reg.EMANATIONS["Aura of Authority"];
+    expect(row).toMatchObject({
+      kind: "feature",
+      reach: "helpful",
+      activity: "Expend Use",
+      effect: null,
+      incapacitated: true
+    });
+    expect(row.trigger).toBeUndefined();
+    expectPointer(row.rule);
+  });
+});
+
+describe("EFFECT_BENDS — Displacement and Blurred Form: Disadvantage against the bearer, off while Incapacitated", () => {
+  const facts = () => ({
+    enabled: ["Displacement", "Blurred Form"],
+    table: reg.EFFECT_BENDS,
+    attackerName: "Gren",
+    targetName: "the beast"
+  });
+  it("the rows: target-side feature rows on the `notIncapacitated` judge", () => {
+    for (const n of ["Displacement", "Blurred Form"]) {
+      expect(reg.EFFECT_BENDS[n], n).toMatchObject({
+        match: "feature",
+        attacker: null,
+        target: "disadvantage",
+        scope: "any",
+        judge: "notIncapacitated"
+      });
+      expectPointer(reg.EFFECT_BENDS[n].rule, n);
+    }
+  });
+  it("the bearer's Displacement counts Disadvantage on the attacker; Incapacitated, nothing", () => {
+    const up = r.effectSources({
+      ...facts(),
+      attacker: {},
+      target: { features: ["Displacement"], incapacitated: false }
+    });
+    expect(up.map(s => [s.bend, s.label])).toEqual([
+      ["disadvantage", "the beast is — Displacement"]
+    ]);
+    expect(
+      r.effectSources({
+        ...facts(),
+        attacker: {},
+        target: { features: ["Displacement"], incapacitated: true }
+      })
+    ).toEqual([]);
+    // The judge hinges on the target: the attacker pass never lists it.
+    expect(
+      r.effectSources({
+        ...facts(),
+        attacker: {},
+        target: { features: ["Blurred Form"] },
+        pass: "attacker"
+      })
+    ).toEqual([]);
+    expect(
+      r
+        .effectSources({
+          ...facts(),
+          attacker: {},
+          target: { features: ["Blurred Form"] },
+          pass: "target"
+        })
+        .map(s => s.bend)
+    ).toEqual(["disadvantage"]);
+  });
+});
+
 describe("SAVE_SUCCEEDS — Legendary Resistance is NOT a row: the platform ships it", () => {
   it("the table still holds Mage Slayer alone; the saves machine honours the native flip (`forced`)", () => {
     expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual(["Mage Slayer"]);

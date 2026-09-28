@@ -22,8 +22,9 @@ tag). Rapid means no hand-walk between builds, not less proof. The user is not w
   table, the register rows). What Stage 1 found: **Legendary Resistance is NATIVE** (dnd5e's `resistSave`
   button, the saves machine's `forced` flip — no row built); the "verify-settings default" line below is
   stale (the lists were retired 2026-09-27 — a new row is simply on); `EVASION` is now the table
-  `EVASIONS`. **Next: Stage 2** (the aura rows — the `turnStart` trigger is new vocabulary — and the attack
-  bends), then Stage 3.
+  `EVASIONS`. **Stage 2 BUILT** the same night (RULINGS *The GM's side — the aura rows and the attack bends*: the
+  `turnStart` trigger, five aura rows, Aura of Authority, Displacement and Blurred Form on the
+  `notIncapacitated` judge; smoke-emanations §24–§25). **Next: Stage 3** (the reaction rows).
 - **The DMG is RULED OUT** (the user, 2026-09-28: "high impact limited value"): nothing in it is built —
   not `CRIT_RIDERS`, not the injury-poison coatings, not the 29 WAITS rows. Never owed; never re-ask.
 - The Monster Manual corpus scan of this session is at `dist/corpus-mm.json` (git-ignored; if it is

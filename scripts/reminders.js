@@ -454,6 +454,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     features: featuresOf(actor),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),
+    incapacitated: !!actor.statuses?.has?.("incapacitated"),
     notActed: targetNotActed(attacker, actor)
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
