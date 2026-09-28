@@ -7,7 +7,7 @@
 // can READ, a text-only one needs a row. Class/subclass/race documents are read for their ItemGrant
 // advancements, the only way a feature knows its class or subclass.
 //
-// Usage: node tools/scan-corpus.mjs [outfile.json]
+// Usage: node tools/scan-corpus.mjs [outfile.json] [--only <packId,packId,…>]   (--only: read those packs alone; merge the JSONs after)
 import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,14 +16,15 @@ import { foundryConfig } from './target.mjs';
 import { disposeSafely } from './harness.mjs';
 
 const env = loadEnv();
-setTimeout(() => { console.error('[scan] WATCHDOG 900s'); process.exit(3); }, 900_000);
+setTimeout(() => { console.error('[scan] WATCHDOG 1800s'); process.exit(3); }, 1_800_000);
+const ONLY = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null;
 
 const f = new Foundry(foundryConfig(env));
 console.log('[scan] connecting…');
 await f.connect();
 console.log('[scan] connected');
 
-const result = await f.evaluate(async () => {
+const result = await f.evaluate(async (ONLY) => {
   const strip = html => (html ?? '').replace(/<[^>]*>/g, ' ').replace(/&[a-z]+;/gi, ' ')
     .replace(/\s+/g, ' ').trim();
   const rows = [];
@@ -31,6 +32,8 @@ const result = await f.evaluate(async () => {
   const errors = [];
   const packStats = [];
   const KEEP_FEAT = new Set(['race', 'class', 'feat', 'origin', 'supernaturalGift']);
+  // Packs kept WHOLE, whatever the item type: the monster traits and the DMG's own (SWEEP §7, the audits of 2026-09-28).
+  const KEEP_PACK_ALL = new Set(['dnd-monster-manual.features', 'dnd5e.monsterfeatures24', 'dnd-dungeon-masters-guide.features', 'dnd-dungeon-masters-guide.equipment']);
 
   const activityOf = a => ({
     type: a?.type,
@@ -53,6 +56,7 @@ const result = await f.evaluate(async () => {
 
   for (const pack of game.packs) {
     if (pack.documentName !== 'Item') continue;
+    if (ONLY && !ONLY.includes(pack.metadata.id)) continue;
     if (pack.metadata.id.startsWith('JB2A') || pack.metadata.id.startsWith('dnd5e-animations')) continue;
     try {
       const index = await pack.getIndex({
@@ -84,8 +88,9 @@ const result = await f.evaluate(async () => {
           kept++;
           continue;
         }
-        if (t !== 'feat' && t !== 'spell') continue;
-        if (t === 'feat' && !KEEP_FEAT.has(sys.type?.value ?? '')) continue;
+        const keepAll = KEEP_PACK_ALL.has(pack.metadata.id);
+        if (!keepAll && t !== 'feat' && t !== 'spell') continue;
+        if (!keepAll && t === 'feat' && !KEEP_FEAT.has(sys.type?.value ?? '')) continue;
         const activities = sys.activities ?? {};
         const list = Array.isArray(activities) ? activities : Object.values(activities);
         let doc = null;
@@ -129,7 +134,7 @@ const result = await f.evaluate(async () => {
     }
   }
   return { rows, owners, errors, packStats, foundry: game.version, dnd5e: game.system.version };
-}, null);
+}, ONLY);
 
 const out = process.argv[2] || join(tmpdir(), 'battleflow-corpus-raw.json');
 writeFileSync(out, JSON.stringify(result, null, 2));

@@ -20,6 +20,8 @@ const PACK_RANK = {
   'dnd-arcana-unleashed.subclasses': 1, 'dnd-arcana-unleashed.feats': 1, 'dnd-arcana-unleashed.spells': 1,
   'dnd-arcana-unleashed.items': 1,
   'dnd5e.classes24': 2, 'dnd5e.feats24': 2, 'dnd5e.origins24': 2, 'dnd5e.spells24': 2,
+  // the GM's side (the audits of 2026-09-28): the Monster Manual's traits, the SRD 2024 subset, the DMG's own features
+  'dnd-monster-manual.features': 1, 'dnd5e.monsterfeatures24': 2, 'dnd-dungeon-masters-guide.features': 1,
 };
 const rows2024 = raw.rows.filter(r => PACK_RANK[r.pack]);
 // dedupe by (kind, name): keep the best-ranked pack's copy
@@ -49,6 +51,8 @@ function ownerOf(r) {
 
 // ---- the sweep's kinds: (a) race (b) class (c) subclass (d) feat (e) spell
 function kindOf(r) {
+  if (r.pack.startsWith('dnd-dungeon-masters-guide.')) return 'dm';   // before the monster test: the DMG's features are featType monster
+  if (r.pack.startsWith('dnd-monster-manual.') || r.pack === 'dnd5e.monsterfeatures24' || r.featType === 'monster') return 'monster';
   if (r.itemType === 'spell') return 'spell';
   if (r.featType === 'race') return 'race';
   if (r.featType === 'feat' || r.featType === 'origin') return 'feat';
@@ -133,6 +137,16 @@ for (const [list, { rows }] of Object.entries(R.KIND_LISTS)) for (const r of row
 for (const n of ['Magic Missile', 'Scorching Ray', 'Eldritch Blast', 'Steel Wind Strike']) add(n, 'VOLLEY');
 for (const n of ['Hunter\'s Mark', 'Hex']) add(n, 'RIDER');
 for (const n of ['Vex', 'Sap', 'Cleave', 'Slow', 'Topple', 'Push', 'Graze', 'Nick']) add(n, 'MASTERY');
+// the tables the map missed until 2026-09-28 (SWEEP §7): keyed by the spell or feature's name
+for (const [rows, name] of [[R.REBUKES, 'REBUKES'], [R.DAMAGE_SHIELDS, 'DAMAGE_SHIELDS'], [R.EMANATIONS, 'EMANATIONS'], [R.SPENT_AREAS, 'SPENT_AREAS'],
+  [R.CHOSEN_AREAS, 'CHOSEN_AREAS'], [R.DAMAGE_SAVES, 'DAMAGE_SAVES'], [R.EFFECT_CHOICES, 'EFFECT_CHOICES'], [R.HEAL_REROLLS, 'HEAL_REROLLS'],
+  [R.SAVE_SUCCEEDS, 'SAVE_SUCCEEDS'], [R.DROP_TO_ONE, 'DROP_TO_ONE'], [R.TOKEN_LIGHTS, 'TOKEN_LIGHTS'], [R.DAMAGE_EITHER, 'DAMAGE_EITHER'],
+  [R.REST_GRANTS, 'REST_GRANTS'], [R.INITIATIVE_SWAPS, 'INITIATIVE_SWAPS'], [R.UNARMED_DICE, 'UNARMED_DICE'], [R.KIT_TENDS, 'KIT_TENDS'],
+  [R.FIGHTING_STYLES, 'FIGHTING_STYLES'], [R.ADVANTAGE_BUYS, 'ADVANTAGE_BUYS'], [R.RANGE_FEATS, 'RANGE_FEATS'], [R.METAMAGIC, 'METAMAGIC']]) {
+  for (const k of Object.keys(rows ?? {})) add(k, name);
+}
+for (const o of Object.values(R.HIT_OPTIONS ?? {})) if (o.feature) add(o.feature, 'HIT_OPTIONS');
+for (const b of R.BLOCKS ?? []) add(b.reaction, 'BLOCKS');
 function knownWhere(r) {
   const hits = known.get(r.name.toLowerCase()) ?? [];
   return hits.length ? [...new Set(hits)] : null;
@@ -144,14 +158,15 @@ const out = rows.map(r => {
   const o = ownerOf(r);
   return {
     kind: kindOf(r), name: r.name, pack: r.pack, level: r.itemType === 'spell' ? r.level : (o?.level ?? r.prereqLevel ?? null),
-    owner: o ? o.owner.name : null, school: r.school, fams, struct, known: knownWhere(r),
+    owner: o ? o.owner.name : null, ownerType: o?.owner.type ?? null, ownerClass: o ? (o.owner.type === 'class' ? o.owner.identifier : o.owner.classIdentifier) : null,
+    itemType: r.itemType, featType: r.featType, uses: r.uses ?? null, school: r.school, fams, struct, known: knownWhere(r),
     text: r.text.slice(0, 300),
   };
 });
 writeFileSync(file.replace(/\.json$/, '-classified.json'), JSON.stringify(out, null, 2));
 
 // ---- the report
-const KINDS = ['race', 'class', 'subclass', 'class?', 'feat', 'gift', 'spell'];
+const KINDS = ['race', 'class', 'subclass', 'class?', 'feat', 'gift', 'spell', 'dm', 'monster'];
 const pick = onlyKind ? out.filter(x => x.kind === onlyKind) : out;
 const combatish = x => x.fams.length > 0;
 console.log(`# corpus (2024 packs, deduped): ${out.length} rows — ${KINDS.map(k => `${k} ${out.filter(x => x.kind === k).length}`).join(', ')}`);
