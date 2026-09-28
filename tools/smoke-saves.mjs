@@ -2597,8 +2597,12 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
     }
 
     /* 11 — the order claim with real HP: verdicts land first, the button is pressed after, and
-     * reconcileSaveDamage still applies each target's multiplier on arrival. --------------- */
+     * reconcileSaveDamage still applies each target's multiplier on arrival. The saves roll
+     * themselves, so the verdicts land in a second while the offer's window runs: with one
+     * Decision Timer, two buzzers armed together would race. ------------------------------ */
     {
+      const priorSaveRolls = game.settings.get(MOD, 'saveRolls');
+      await game.settings.set(MOD, 'saveRolls', 'auto');
       await set('autoApply', true);
       await saveBonus(tgtC, '-30');        // forced FAILURE vs DC 15 → full 10
       await saveBonus(tgtD, '+30');        // forced SUCCESS vs DC 15 → half, 5
@@ -2612,7 +2616,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
       await sleep(1200);
       const popups = popupEls();
 
-      // The buzzer resolves both verdicts while the damage popup still sits open.
+      // Both verdicts land while the damage popup still sits open.
       const bothDone = await until(() =>
         (card.getFlag(MOD, 'saves')?.targets ?? []).every(t => t.done) ? true : null, 20000);
       const stillOpen = popupEls().length === 1;
@@ -2663,6 +2667,7 @@ if (!out.fatal && (!plan || plan.includes('18'))) {
           + `C.taken=${ra?.taken} D.taken=${rb?.taken} D.mult=${rb?.multiplier} `
           + `hp ${aMax}→${tgtC.system.attributes.hp.value} / ${bMax}→${tgtD.system.attributes.hp.value}`);
       await closeEverything();
+      await game.settings.set(MOD, 'saveRolls', priorSaveRolls);
     }
 
     /* 13 — the control: 11's ordering with the popup OFF (auto-roll, delete it, wait out the
