@@ -4,6 +4,7 @@
  * spent, a save goes through the saves machine.
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
 import { featureNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./decide/registry.js";
@@ -385,9 +386,10 @@ async function pressOnHit(message, hm, hits, item, index = null) {
     const effect = landed ? actor.effects.find(e => e.statuses?.has?.(hm.press)) : null;
     if ( !effect ) { skipped.push(h.name); continue; }
     pressed.push(h.name);
+    const description = await ruleHTML(hm.rule);
     await queueFlagWrite(message, "effectReceipt", current => {
       joinEffectReceipt(current, { uuid: h.uuid, name: h.name, img: actor.img ?? null,
-        effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description: hm.rule }, statContext(hm.sourceUuid ?? null))] });
+        effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description }, statContext(hm.sourceUuid ?? null))] });
     });
   }
   await queueFlagWrite(message, "hitManeuver", current => {

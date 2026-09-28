@@ -37,8 +37,8 @@ export function askCandidates(contained) {
 
 /**
  * A pending ask's flag, the one shape every raiser writes (a Hold Timer of 0 means clockless).
- * @param {{kind: string, feature: string, spell?: string|null, cap?: number|null, rule?: string|null, itemImg?: string|null,
- *          heightened?: {feature: string, rule?: string|null}|null, candidates: object[],
+ * @param {{kind: string, feature: string, spell?: string|null, cap?: number|null, rule?: object|string|null, itemImg?: string|null,
+ *          heightened?: {feature: string, rule?: object|string|null}|null, candidates: object[],
  *          caster: {uuid: string|null, disposition: number|null, name?: string|null}}} args
  */
 export function newAsk({ kind, feature, spell = null, cap = null, rule = null, itemImg = null, heightened = null, candidates, caster }) {

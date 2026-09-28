@@ -3,6 +3,7 @@
  * fighter's die on an ally's Reaction attack.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
@@ -69,7 +70,7 @@ async function ensureCommandChip(message) {
     const clock = chipClock("steadyAim", placeOf(fighter ?? ally));
     chip = await ActiveEffect.implementation.create({
       name: flag.itemName, img: flag.itemImg ?? "icons/svg/aura.svg",
-      description: `<p><em>“${RULE_TEXT.command}”</em></p><p>Written by Battle Flow when ${flag.attackerName} used ${flag.itemName}: ${ally.name} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
+      description: `${await ruleHTML(RULE_TEXT.command)}<p>Written by Battle Flow when ${flag.attackerName} used ${flag.itemName}: ${ally.name} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
       origin: flag.itemUuid ?? null, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: "command", die: flag.dieFormula ?? null, sourceUuid: flag.attackerUuid, sourceName: flag.attackerName, cardId: message.id } }

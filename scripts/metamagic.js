@@ -456,7 +456,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 /**
  * Empowered Spell's row for a caster, or null: known, listed and affordable now; cap = CHA mod, min 1.
  * @param {Actor} actor
- * @returns {{cost: number, cap: number, poolId: string, rule: string}|null}
+ * @returns {{cost: number, cap: number, poolId: string, rule: object|string|null}|null}
  */
 export function empoweredOffer(actor) {
   const item = knownOptions(actor).get("Empowered Spell");

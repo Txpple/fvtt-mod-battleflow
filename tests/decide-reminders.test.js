@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer reminder arithmetic (ARCHITECTURE.md §2). No Foundry stub on purpose.
@@ -315,11 +316,10 @@ describe("rangeSources — a ranged attack's own geometry, both glossary rules",
     expect(sources.map(s => s.bend)).toEqual(["disadvantage", "disadvantage"]);
     expect(r.netMode(sources)).toBe("disadvantage");
   });
-  it("the glossary sentences are the registry's, verbatim, and no rules means no boxes", () => {
-    expect(reg.RANGE_RULES.long).toMatch(
-      /^Your attack roll has Disadvantage when your target is beyond normal range/
-    );
-    expect(reg.RANGE_RULES.close).toMatch(/within 5 feet of an enemy who can see you/);
+  it("the glossary rules point at dnd5e's range pages, and no rules means no boxes", () => {
+    expect(reg.RANGE_RULES.long).toEqual({ page: "rule", key: "range" });
+    expect(reg.RANGE_RULES.single).toEqual({ page: "rule", key: "range" });
+    expect(reg.RANGE_RULES.close).toEqual({ page: "rule", key: "rangedattacksinclosecombat" });
     expect(
       r.rangeSources({ ranged: true, distanceFeet: 99, normalFeet: 20, longFeet: 60 })
     ).toEqual([]);
@@ -377,7 +377,8 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
       label: "Ilyra — Innate Sorcery",
       effectId: "e1"
     });
-    expect(spell[0].detail).toContain("Sorcerer spells");
+    expect(spell[0].detail).toBe(T()["Innate Sorcery"].rule);
+    expect(spell[0].detail).toMatchObject({ item: "Innate Sorcery" });
     expect(
       r.effectSources({
         attacker: me,
@@ -554,7 +555,9 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
       // A row bends an attack side, or a check, or a save (the `saves` facet, 2026-09-05).
       expect(row.attacker || row.target || row.checks || row.saves, key).toBeTruthy();
       expect(["any", "spell", "weapon", "melee", "ranged"], key).toContain(row.scope);
-      expect(row.rule.length, key).toBeGreaterThan(20);
+      // A row whose content the packs do not carry points at nothing.
+      if (row.rule === null) expect(key).toBe("Cursed (Path to the Grave)");
+      else expectPointer(row.rule, key);
       expect(row.from, key).toBeTruthy();
       if (row.counted === false) expect(row.caveat, key).toMatch(/^listed — /);
       if (row.caveat && row.counted !== false) expect(row.caveat, key).toMatch(/^counted — /);
@@ -564,7 +567,7 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
 });
 
 describe("autoCritSources — the 5-foot Critical Hit on Paralyzed and Unconscious (user, 2026-09-02)", () => {
-  it("a hit within 5 feet of a Paralyzed target is a Critical Hit, with the glossary clause", () => {
+  it("a hit within 5 feet of a Paralyzed target is a Critical Hit, pointing at the glossary entry", () => {
     const out = r.autoCritSources({
       targetStatuses: ["paralyzed"],
       distanceFeet: 5,
@@ -574,7 +577,12 @@ describe("autoCritSources — the 5-foot Critical Hit on Paralyzed and Unconscio
     expect(out).toHaveLength(1);
     expect(out[0].status).toBe("paralyzed");
     expect(out[0].label).toBe("Hobgoblin is Paralyzed — within 5 feet, a hit is a Critical Hit");
-    expect(out[0].rule).toContain("Critical Hit if the attacker is within 5 feet");
+    expect(out[0].rule).toBe(reg.CONDITION_BENDS.paralyzed.rule);
+    expect(out[0].rule).toEqual({
+      page: "condition",
+      key: "paralyzed",
+      benefit: "Automatic Critical Hits"
+    });
   });
   it("Unconscious too, both when both; nothing from 10 feet, nothing at an unknown distance, nothing for Stunned", () => {
     expect(
@@ -960,7 +968,8 @@ describe("effectCheckSources — an effect that bends ability checks by its text
       label: "Jetten — Heated Metal",
       effectId: "h1"
     });
-    expect(on[0].detail).toMatch(/ability checks/);
+    expect(on[0].detail).toBe(reg.EFFECT_BENDS["Heated Metal"].rule);
+    expect(on[0].detail).toMatchObject({ item: "Heat Metal" });
     expect(
       r.effectCheckSources({ ...facts, effects: [{ id: "h1", name: "Heated Metal" }], enabled: [] })
     ).toHaveLength(0);
@@ -1037,7 +1046,7 @@ describe("effectSources — the combat clock as a judge (Assassinate, 2026-09-02
 
 describe("checkSources + checkGate — the check gate's table (user go 2026-09-03)", () => {
   const all = () => Object.keys(reg.CHECK_BENDS);
-  it("Poisoned is Disadvantage on a check, the label the fact alone, the rule quoted", () => {
+  it("Poisoned is Disadvantage on a check, the label the fact alone, the rule the book's", () => {
     const out = r.checkSources({
       statuses: ["poisoned"],
       enabled: all(),
@@ -1048,10 +1057,11 @@ describe("checkSources + checkGate — the check gate's table (user go 2026-09-0
     expect(out[0].bend).toBe("disadvantage");
     expect(out[0].status).toBe("poisoned");
     expect(out[0].label).toBe("Gob — Poisoned");
-    expect(out[0].detail).toMatch(/ability checks/);
+    expect(out[0].detail).toBe(reg.CHECK_BENDS.poisoned.rule);
+    expect(out[0].detail).toMatchObject({ page: "condition", key: "poisoned" });
     expect(out[0].label).not.toMatch(/press Normal/);
   });
-  it("Frightened is Disadvantage too; the line-of-sight caveat lives in the quoted rule, not the label", () => {
+  it("Frightened is Disadvantage too; the line-of-sight caveat lives in the book's rule, not the label", () => {
     const [s] = r.checkSources({
       statuses: ["frightened"],
       enabled: all(),
@@ -1059,7 +1069,8 @@ describe("checkSources + checkGate — the check gate's table (user go 2026-09-0
     });
     expect(s.bend).toBe("disadvantage");
     expect(s.label).toBe("You — Frightened");
-    expect(s.detail).toMatch(/line of sight/);
+    expect(s.detail).toBe(reg.CHECK_BENDS.frightened.rule);
+    expect(s.detail).toMatchObject({ page: "condition", key: "frightened" });
   });
   it("a status with no check clause is not a source — Restrained and Prone bend no check", () => {
     expect(

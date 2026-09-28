@@ -292,7 +292,7 @@ async function showGuardPopup(message, guard) {
     content: bfCard({ img: actor?.items.get(guard.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`, tone: "pending",
       title: `${flag.sourceName ?? "An attacker"} hits ${flag.target?.name} for ${flag.amount} — intercept?`,
       subtitle: `${flag.target?.name} is beside you · a Reaction`,
-      lines: [ruleLine(esc(row?.rule ?? "")), `Reduce by ${esc(row?.by ?? guard.formula)}.`] })
+      lines: [ruleLine(row?.rule ?? ""), `Reduce by ${esc(row?.by ?? guard.formula)}.`] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "cast", label: "Intercept", default: true, callback: () => { void answerHold(message, "cast", guard.actorUuid); } },
@@ -317,7 +317,7 @@ async function showPopup(message) {
     content: bfCard({ img: pool?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`, tone: "pending",
       title: `${flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage`,
       subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}a Reaction${max > 0 ? ` · ${left} of ${max} uses left` : ""}`,
-      lines: [ruleLine(esc(row?.rule ?? "")), `Reduce by ${esc(row?.by ?? flag.formula)}.`] })
+      lines: [ruleLine(row?.rule ?? ""), `Reduce by ${esc(row?.by ?? flag.formula)}.`] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "cast", label: flag.reaction, default: true, callback: () => { void answerHold(message, "cast"); } },

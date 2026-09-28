@@ -103,6 +103,7 @@ export const LAYER_OF = {
   "dice-rise.js": "spine", // the dice that rise over a token — one renderer, every rule that changes dice
   "events.js": "spine",    // the moment events — what the module publishes at a resolve
   "lookup.js": "spine",      // the sheet and document readers
+  "rule-text.js": "spine",   // the rule text, read from the book (RULINGS *The rule fold reads the book*)
 
   // REGISTRY — which content participates, in what way
   "volley-registry.js": "registry",

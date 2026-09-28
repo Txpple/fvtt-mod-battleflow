@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer Sneak Attack arithmetic (ARCHITECTURE.md §2). No Foundry stub on purpose.
@@ -133,7 +134,8 @@ describe("the registry's Sneak Attack data", () => {
     for (const [key, row] of Object.entries(reg.CUNNING_OPTIONS)) {
       expect(row.feature, key).toBeTruthy();
       expect(typeof row.cost, key).toBe("number");
-      expect(row.rule.length, key).toBeGreaterThan(20);
+      expectPointer(row.rule, key);
+      expect(row.rule.item, key).toBe(row.feature);
     }
     expect(reg.SNEAK_ATTACK.feature).toBe("Sneak Attack");
     expect(reg.DEATH_STRIKE.when).toBe("firstRound");

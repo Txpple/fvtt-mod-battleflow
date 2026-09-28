@@ -29,7 +29,7 @@ function casterFactsOf(activity) {
 /**
  * The cast's metamagic on THIS demand: Careful's protected leave, Heightened's mark rides along.
  * A player's own pick (`chosen: true`) is honoured, never recomputed.
- * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: string}|null}>}
+ * @returns {Promise<{protectedUuids: Set<string>, heightened: {uuid: string, name: string, caster: string|null, rule: object|string|null}|null}>}
  */
 export async function metamagicForDemand(card, activity, contained) {
   const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);

@@ -10,6 +10,11 @@ const outFile = process.argv[3] ?? "tools/content/identifiers.json";
 const snap = JSON.parse(readFileSync(inFile, "utf8"));
 
 const byType = {};
+const ids = {};   // pack → item ids, what a rule pointer's uuid is checked against
+for ( const row of snap.items ) {
+  const m = /^Compendium\.(.+)\.Item\.([^.]+)$/.exec(row.uuid ?? "");
+  if ( m ) (ids[m[1]] ??= []).push(m[2]);
+}
 const effects = new Set();
 for ( const row of [...snap.items, ...snap.actors] ) {
   if ( row.identifier ) (byType[row.type] ??= new Set()).add(row.identifier);
@@ -20,7 +25,8 @@ const out = {
   foundry: snap.foundry,
   packs: snap.packs.map(p => p.id),
   identifiers: Object.fromEntries(Object.entries(byType).sort().map(([t, s]) => [t, [...s].sort()])),
-  effects: [...effects].sort()
+  effects: [...effects].sort(),
+  items: Object.fromEntries(Object.entries(ids).sort().map(([pack, list]) => [pack, list.sort()]))
 };
 writeFileSync(outFile, `${JSON.stringify(out, null, 1)}\n`);
 console.log(`[compact] dnd5e ${out.system}: ${Object.values(out.identifiers).reduce((n, a) => n + a.length, 0)} identifiers, `

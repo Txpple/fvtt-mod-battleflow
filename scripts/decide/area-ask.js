@@ -15,8 +15,8 @@ export const AREA_CHOICE_FLAG = "areaChoice";
 
 /**
  * @typedef {{uuid: string, name: string, disposition?: number|null, tokenId?: string|null, party?: boolean}} Candidate
- * @typedef {{kind: string, feature: string, spell?: string|null, cap?: number|null, rule?: string|null,
- *            itemImg?: string|null, heightened?: {feature: string, rule?: string|null}|null,
+ * @typedef {{kind: string, feature: string, spell?: string|null, cap?: number|null, rule?: object|string|null,
+ *            itemImg?: string|null, heightened?: {feature: string, rule?: object|string|null}|null,
  *            candidates: Candidate[], casterUuid: string|null, casterDisposition: number|null,
  *            casterName?: string|null, window?: number, deadline?: number}} Ask
  *

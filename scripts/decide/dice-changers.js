@@ -18,7 +18,7 @@ export const DICE_CHANGE_WAITS = Object.freeze(["due", "pending", "answering"]);
 /**
  * The rows in the order they run (stable).
  * @typedef {{key: string, feature: string, kind: "pick"|"set"|"one", status: string,
- *   cap?: number, cost?: number, poolId?: string, rule?: string|null,
+ *   cap?: number, cost?: number, poolId?: string, rule?: object|string|null,
  *   formula?: string, first?: number, faces?: number, odds?: object|null,
  *   second?: number, stands?: string, delta?: number, before?: number, after?: number,
  *   picks?: {key: string, old: number, new: number}[]}} ChangerRow

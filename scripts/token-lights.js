@@ -2,6 +2,7 @@
  * Battle Flow — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { lower, resolveUuid, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
 import { registerResumable } from "./ui.js";
@@ -75,12 +76,12 @@ function standingLights(key, sourceUuid) {
 }
 
 /** The effect data this row lands on one creature: the pack's own effect or the module's, the light added. */
-function lightEffectData(row, item, activity, target, sourceUuid) {
+function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "") {
   const base = row.effect ? item?.effects?.find(e => lower(e.name) === lower(row.effect)) ?? null : null;
   if ( row.effect && !base ) return null;
   const data = base ? base.toObject() : {
     name: item?.name ?? row.key, img: item?.img ?? "icons/magic/light/explosion-star-glow-silhouette.webp",
-    type: "base", description: `<p><em>“${row.rule}”</em></p>`,
+    type: "base", description: ruleHtml,
     duration: activity?.duration?.getEffectData?.() ?? {}
   };
   delete data._id;
@@ -120,7 +121,7 @@ async function applyLight(payload) {
     if ( !canApplyTo(actor) ) { skipped.push(t.name); continue; }
     const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, LIGHT_FLAG)?.key === row.key);
     if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
-    const data = lightEffectData(row, item, activity, actor, payload.sourceUuid);
+    const data = lightEffectData(row, item, activity, actor, payload.sourceUuid, await ruleHTML(row.rule));
     if ( !data ) { skipped.push(t.name); continue; }
     const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [data]);
     if ( effect ) landed.push({ uuid: actor.uuid, name: t.name, img: actor.img ?? null, effectId: effect.id, effectName: effect.name, effectImg: effect.img ?? null });
@@ -141,9 +142,10 @@ async function driveLight(message) {
   await queueFlagWrite(message, LIGHT_FLAG, current => { current.landed = landed; current.skipped = skipped; });
   // The effect receipt: its revert takes the light off with the effect.
   const row = TOKEN_LIGHTS[payload.key];
+  const description = await ruleHTML(row?.rule);
   if ( landed.length ) await queueFlagWrite(message, "effectReceipt", current => {
     for ( const l of landed ) joinEffectReceipt(current, { uuid: l.uuid, name: l.name, img: l.img,
-      effects: [effectRecord({ id: l.effectId, name: l.effectName, img: l.effectImg, description: row?.rule ?? "" }, statContext(payload.sourceUuid ?? null))] });
+      effects: [effectRecord({ id: l.effectId, name: l.effectName, img: l.effectImg, description }, statContext(payload.sourceUuid ?? null))] });
   });
 }
 

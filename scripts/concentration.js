@@ -53,7 +53,7 @@ function takeRecentCause(actorUuid) {
  * listed row that `breaks` concentration puts every roll of the ask at Disadvantage.
  * @param {Actor|null} concentrator
  * @param {string|null} dealerUuid
- * @returns {{feat: string, by: string, uuid: string, rule: string}|null}
+ * @returns {{feat: string, by: string, uuid: string, rule: object|string|null}|null}
  */
 function breakerFor(concentrator, dealerUuid) {
   if ( !dealerUuid || (dealerUuid === concentrator?.uuid) ) return null;

@@ -7,6 +7,7 @@
 import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering } from "./lookup.js";
+import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -191,7 +192,8 @@ async function reconcileAuraNow(group, gone) {
         continue;
       }
       await actor.createEmbeddedDocuments("ActiveEffect", [memberEffectData(row, sys.effect,
-        { sourceName: source?.name ?? "the source", itemUuid: sys.item, regionId, group, moduleId: MODULE_ID, flagKey: FLAG, status: STATUS })]);
+        { sourceName: source?.name ?? "the source", itemUuid: sys.item, regionId, group, moduleId: MODULE_ID, flagKey: FLAG, status: STATUS,
+          ruleHtml: await ruleHTML(row.rule) })]);
     }
     for ( const actor of holdersOf(gone?.parent ? [...regions, gone] : regions) ) {
       if ( members.has(actor.uuid) ) continue;
@@ -578,7 +580,7 @@ function featureSpec(tok, row) {
   const { changes, unresolved } = resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData);
   if ( unresolved.length ) { console.warn(`${TITLE} | ${row.key} on ${actor.name}: could not resolve ${unresolved.join(", ")} — the aura does not stand.`); return null; }
   return { tok, actor, item, row, range,
-    effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes },
+    effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes },
     disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
 }
 
@@ -685,7 +687,7 @@ async function adoptSpellRegion(region) {
     const spellLevel = Number(region.getFlag("dnd5e", "spellLevel") ?? item.system?.level ?? 0);
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
     await adoptRegion(region, { kind: "spell", key: row.key, tok, itemUuid, reach: row.reach, scaling,
-      effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: row.rule, changes: resolved.changes } : null });
+      effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
     const drawn = region.shapes?.[0]?.radius;
     await announce(row, actor, item, size ?? (Number.isFinite(drawn) ? drawn / pxPerUnit(region.parent) : null), effect ? { name: effect.name, changes: resolved.changes } : null, "is cast",

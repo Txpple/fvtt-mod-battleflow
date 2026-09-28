@@ -4,6 +4,7 @@
  * EDGE layer (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./decide/registry.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
@@ -43,7 +44,7 @@ async function writeUseChip(actor, item, row, message) {
   const clock = chipClock(row.window, placeOf(actor));
   const effect = await ActiveEffect.implementation.create({
     name: item.name, img: item.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${item.name} was used; the next attack roll spends it.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${item.name} was used; the next attack roll spends it.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
     // ⚠ A COPY: the registry row is frozen and the document migration writes into its changes.
     changes: (row.changes ?? []).map(c => ({ ...c })),
@@ -142,7 +143,7 @@ async function buildCardChip(message) {
   const feature = itemNamed(actor, row.feature);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: feature?.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
     origin: feature?.uuid ?? null, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false }, start: { time: game.time.worldTime },
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "card", cardKey: flag.key, stacks: true } }
@@ -233,7 +234,7 @@ async function writeCoat(actor, activity, name, row) {
   const place = placeOf(actor);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: row.img || feature.img || "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${name}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${name}'s ${row.activity} was used (a Bonus Action): the next weapon hit spends it.</p>`,
     origin: feature.uuid, disabled: false, transfer: false,
     duration: { value: row.seconds, units: "seconds", expired: false },
     start: place ? { combat: place.combat, combatant: place.combatant, initiative: place.initiative, round: place.round, turn: place.turn, time: place.time }

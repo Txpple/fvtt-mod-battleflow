@@ -202,7 +202,7 @@ export async function rescueStateOf(actor, roll, { found = null, hidePrimary = f
 }
 
 /**
- * The stamped rows with `roll` costs re-read live, each with its rule verbatim.
+ * The stamped rows with `roll` costs re-read live, each with its rule pointer.
  * @param {Actor} actor
  * @param {{rows?: object[], reaction?: string, itemId?: string, activityId?: string|null}} target
  * @param {object} roll

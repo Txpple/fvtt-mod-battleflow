@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer emanations (ARCHITECTURE.md §2): reach by disposition, range from the content,
@@ -232,7 +233,7 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
       // `all` (the Aasimar walk, 2026-09-25): Inner Radiance's "each creature within 10 feet".
       expect(["helpful", "harmful", "all"], name).toContain(row.reach);
       if (row.pulse) expect(row.effect, name).toBeNull();
-      expect(typeof row.rule, name).toBe("string");
+      expectPointer(row.rule, name);
       // The second slice (2026-09-05) admits rows that apply NOTHING — a barrier, a notice.
       expect(["string", "object"], name).toContain(typeof row.effect);
     }

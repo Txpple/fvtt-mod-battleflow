@@ -40,7 +40,7 @@ const labelCaveat = row => (row?.caveat && !/^counted — /.test(row.caveat)) ? 
  * ⚠ `enabled` and `table` never default: a caller that forgets the list reads nothing, not everything.
  * @param {{attackerStatuses?: Iterable<string>, targetStatuses?: Iterable<string>,
  *          enabled: Iterable<string>,
- *          table: Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: string, caveat?: string, note?: string}>>>,
+ *          table: Readonly<Record<string, Readonly<{attacker: "advantage"|"disadvantage"|null, target: "advantage"|"disadvantage"|null, rule: object|string|null, caveat?: string, note?: string}>>>,
  *          attackerName?: string, targetName?: string,
  *          attackerSeenBy?: {sense: string, range: number, sees: string[]}|null,
  *          targetSeenBy?: {sense: string, range: number, sees: string[]}|null}} facts */
@@ -93,7 +93,7 @@ export function sightOf(senses, feet) {
 /** The save gate's sources for THIS ability. An `autoFail` row is listed and marks the save
  * "cannot succeed" (the dialog's fourth button).
  * @param {{statuses?: Iterable<string>, ability: string, enabled: Iterable<string>,
- *          table: Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: string, caveat?: string}>>>,
+ *          table: Readonly<Record<string, Readonly<{abilities: readonly string[], bend?: "advantage"|"disadvantage", autoFail?: boolean, rule: object|string|null, caveat?: string}>>>,
  *          name?: string}} facts
  * @returns {{kind: string, bend: "advantage"|"disadvantage"|null, label: string, detail: string, autoFail?: boolean}[]} */
 export function saveSources({ statuses = [], ability, enabled, table, name = "You" }) {
@@ -369,8 +369,8 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
 /** The automatic Critical Hit from within `critWithinFeet` (Paralyzed, Unconscious) — an outcome,
  * not a reminder. The Condition Sources list is NOT consulted: a rule that changes dice always applies.
  * @param {{targetStatuses?: Iterable<string>, distanceFeet?: number|null, targetName?: string,
- *          table: Readonly<Record<string, Readonly<{rule: string, critWithinFeet?: number}>>>}} facts
- * @returns {{status: string, label: string, rule: string}[]} */
+ *          table: Readonly<Record<string, Readonly<{rule: object|string|null, critWithinFeet?: number}>>>}} facts
+ * @returns {{status: string, label: string, rule: object|string|null}[]} */
 export function autoCritSources({ targetStatuses = [], distanceFeet = null, targetName = "the target", table }) {
   // null is "could not measure"; Number(null) is 0 — never a crit.
   if ( (distanceFeet === null) || (distanceFeet === undefined) ) return [];
@@ -462,9 +462,9 @@ export function proneSources({ attackerProne = false, targetProne = false, dista
  * an enemy within 5 feet → Disadvantage. A cancelling feat or ignored cover is listed, named. FEET.
  * @param {{ranged?: boolean, distanceFeet?: number|null, normalFeet?: number|null, longFeet?: number|null,
  *          closeEnemies?: string[], targetName?: string,
- *          cancels?: {feature: string, rows: string[], rule: string}[],
- *          coverBonus?: number, coverFeat?: {feature: string, rule: string}|null,
- *          rules: {long: string, single: string, close: string}}} facts  `rules` = `RANGE_RULES` */
+ *          cancels?: {feature: string, rows: string[], rule: object|string|null}[],
+ *          coverBonus?: number, coverFeat?: {feature: string, rule: object|string|null}|null,
+ *          rules: {long: object|string, single: object|string, close: object|string}}} facts  `rules` = `RANGE_RULES` */
 export function rangeSources({ ranged = false, distanceFeet = null, normalFeet = null, longFeet = null,
   closeEnemies = [], targetName = "the target", cancels = [], coverBonus = 0, coverFeat = null, rules }) {
   const out = [];
@@ -498,14 +498,14 @@ export function rangeSources({ ranged = false, distanceFeet = null, normalFeet =
 /** The attacker's RANGE_FEATS rows that fit this attack: what they cancel, cover ignored, spell reach.
  * @param {string[]} features
  * @param {{rangedWeapon?: boolean, spell?: boolean, crossbow?: boolean}} attack
- * @param {Readonly<Record<string, {scope: string, cancels?: readonly string[], cover?: boolean, reach?: number, rule: string}>>} table
- * @returns {{cancels: {feature: string, rows: string[], rule: string}[], cover: {feature: string, rule: string}|null,
+ * @param {Readonly<Record<string, {scope: string, cancels?: readonly string[], cover?: boolean, reach?: number, rule: object|string|null}>>} table
+ * @returns {{cancels: {feature: string, rows: string[], rule: object|string|null}[], cover: {feature: string, rule: object|string|null}|null,
  *            reach: {feature: string, feet: number}|null}} */
 export function rangeFeatsFor(features, attack, table) {
   const have = new Set((features ?? []).map(n => String(n).toLowerCase()));
   const fits = scope => ((scope === "rangedWeapon") && !!attack?.rangedWeapon) || ((scope === "spell") && !!attack?.spell)
     || ((scope === "crossbow") && !!attack?.crossbow);
-  /** @type {{cancels: {feature: string, rows: string[], rule: string}[], cover: {feature: string, rule: string}|null, reach: {feature: string, feet: number}|null}} */
+  /** @type {{cancels: {feature: string, rows: string[], rule: object|string|null}[], cover: {feature: string, rule: object|string|null}|null, reach: {feature: string, feet: number}|null}} */
   const out = { cancels: [], cover: null, reach: null };
   for ( const [feature, row] of Object.entries(table ?? {}) ) {
     if ( !have.has(feature.toLowerCase()) || !fits(row.scope) ) continue;

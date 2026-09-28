@@ -665,7 +665,7 @@ async function showGrapplePopup(message) {
     content: bfCard({ img: feature?.img ?? null, eyebrow: "Your turn — Unarmed Fighting", tone: "pending",
       title: `Deal 1d4 to ${flag.candidates.length === 1 ? `the ${flag.candidates[0].name}` : "a creature"} you're grappling?`,
       subtitle: "1d4 bludgeoning · the start of your turn",
-      lines: [ruleLine(esc(FIGHTING_STYLES["Unarmed Fighting"].rule))] }) + radios + holdBarHTML(flag, "to answer"),
+      lines: [ruleLine(FIGHTING_STYLES["Unarmed Fighting"].rule)] }) + radios + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "deal", label: "Deal it", default: true, callback: (_event, button) => {
         const picked = button?.form?.querySelector?.('input[name="bf-grapple"]:checked')?.value ?? flag.pick ?? flag.candidates[0]?.uuid;

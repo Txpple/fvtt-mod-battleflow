@@ -36,8 +36,8 @@ export function sneakConditionsHold({ net, allyNear = null }) {
  * @param {{options: Readonly<Record<string, any>>, features?: Iterable<string>, weaponName?: string,
  *          dice: number, improved?: string}} facts
  * @returns {{rows: {key: string, label: string, feature: string, activity: string|string[]|null, cost: number,
- *            rule: string, caveat?: string, line: boolean, affordable: boolean,
- *            upgrade?: {feature: string, activity: string, onFail?: string, effectFrom?: string, rule: string}}[], max: number}} */
+ *            rule: object|string|null, caveat?: string, line: boolean, affordable: boolean,
+ *            upgrade?: {feature: string, activity: string, onFail?: string, effectFrom?: string, rule: object|string|null}}[], max: number}} */
 export function cunningMenu({ options, features = [], weaponName = "", dice, improved = "Improved Cunning Strike" }) {
   const have = new Set([...features].map(f => String(f).toLowerCase()));
   const rows = [];
@@ -47,7 +47,7 @@ export function cunningMenu({ options, features = [], weaponName = "", dice, imp
     const upgraded = row.upgrade && have.has(String(row.upgrade.feature).toLowerCase()) ? row.upgrade : null;
     rows.push({
       key, feature: row.feature, activity: upgraded ? upgraded.activity : row.activity, cost: row.cost,
-      label: `${row.activity ?? row.rule.split(" (")[0]}${upgraded ? ` (${upgraded.feature})` : ""}`,
+      label: `${row.activity ?? row.rule?.benefit ?? String(row.rule).split(" (")[0]}${upgraded ? ` (${upgraded.feature})` : ""}`,
       rule: row.rule, ...(row.caveat ? { caveat: row.caveat } : {}),
       line: !row.activity, affordable: row.cost <= dice,
       ...(upgraded ? { upgrade: upgraded } : {})

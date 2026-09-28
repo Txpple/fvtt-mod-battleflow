@@ -8,6 +8,7 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
   from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, itemNamed, itemsNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
@@ -1028,7 +1029,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
     const what = checkPhrase(scope.skills ?? [], !!scope.initiative);
     const chip = await ActiveEffect.implementation.create({
       name: activity.item.name, img: activity.item.img ?? "icons/svg/dice-target.svg",
-      description: `<p><em>“${scope.rule}”</em></p><p>Written by Battle Flow when ${entry.name} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
+      description: `${await ruleHTML(scope.rule)}<p>Written by Battle Flow when ${entry.name} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
       origin: activity.item.uuid, disabled: false, transfer: false,
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
     }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });

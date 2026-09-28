@@ -263,7 +263,7 @@ async function showPopup(message) {
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   const lines = flag.options.flatMap(o => [`<strong>${esc(o.name)}</strong> · ${esc(o.cost)} · reach ${o.reach} ft`,
-    ruleLine(esc(REBUKES[o.name]?.rule ?? "")), ...(REBUKES[o.name]?.caveat ? [`<em>${esc(REBUKES[o.name].caveat)} — the table's call</em>`] : [])]);
+    ruleLine(REBUKES[o.name]?.rule ?? ""), ...(REBUKES[o.name]?.caveat ? [`<em>${esc(REBUKES[o.name].caveat)} — the table's call</em>`] : [])]);
   await openMomentPopup(message, REBUKE_FLAG, actor, {
     title: `Reaction — ${flag.actorName}`, icon: "fa-solid fa-bolt",
     content: bfCard({ img: flag.options[0]?.img ?? null, eyebrow: `Reaction — ${flag.options.map(o => o.name).join(" / ")}`, tone: "pending",

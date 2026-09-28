@@ -3,6 +3,7 @@
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
+import { ruleHTML } from "../rule-text.js";
 import { applicableProfiles, cardActivity, featureNamed, namesAnswering, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
@@ -128,9 +129,10 @@ async function pressSaveStatus(card, flag, entry, press) {
   if ( !landed ) return;
   const effect = saver.effects.find(e => e.statuses?.has?.(press.status));
   if ( !effect ) return;
+  const description = await ruleHTML(press.rule);
   await queueFlagWrite(card, "effectReceipt", current => {
     joinEffectReceipt(current, { uuid: entry.uuid, name: entry.name, img: saver.img ?? null,
-      effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description: press.rule }, statContext(flag.sourceUuid ?? null))] });
+      effects: [effectRecord({ id: effect.id, name: effect.name, img: effect.img, description }, statContext(flag.sourceUuid ?? null))] });
   });
 }
 

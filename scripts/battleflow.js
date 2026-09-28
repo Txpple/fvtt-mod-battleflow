@@ -10,6 +10,7 @@
 
 import "./core.js";
 import "./settings.js";
+import "./rule-text.js";
 import "./shared.js";
 import "./holds.js";
 import "./events.js";

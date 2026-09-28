@@ -314,7 +314,7 @@ async function showRipostePopup(message, flag, reactor) {
     content: bfCard({
       img: reactor.itemImg, eyebrow: `Maneuver — ${reactor.itemName}`, tone: "pending",
       title: `${flag.attackerName} missed you`,
-      // The rule line is the maneuver's own sentence, verbatim; the one-weapon note is the module's hint.
+      // The rule line is the maneuver's own text; the one-weapon note is the module's hint.
       lines: [ruleLine(RULE_TEXT.riposte),
         ...((options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one melee weapon.`] : [])]
     }) + selectHTML + holdBarHTML(flag, "to answer"),

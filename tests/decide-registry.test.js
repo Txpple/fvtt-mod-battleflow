@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer tables (ARCHITECTURE.md §2, §6). No Foundry stub on purpose: if any of this ever
@@ -63,7 +64,8 @@ describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Sto
       expect(row.spend, key).toBeTruthy();
       expect(row.hit, key).toMatch(/attack$/);
       expect(row.by, key).toBeTruthy();
-      expect(row.rule.length, key).toBeGreaterThan(20);
+      expectPointer(row.rule, key);
+      expect(row.rule.item, key).toBe(key);
       expect(row.from, key).toBeTruthy();
     }
   });
@@ -181,7 +183,7 @@ describe("the R4 tripwire — the kinds the code knows", () => {
 });
 
 describe("CONDITION_BENDS — the table, and the set and the default DERIVED from it", () => {
-  it("is the thirteen conditions and Hiding, frozen, in the order the table reads them, each with its glossary clause", () => {
+  it("is the thirteen conditions and Hiding, frozen, in the order the table reads them, each pointing at its glossary entry", () => {
     expect(reg.CONDITION_KEYS).toEqual([
       "blinded",
       "invisible",
@@ -202,8 +204,12 @@ describe("CONDITION_BENDS — the table, and the set and the default DERIVED fro
     expect(Object.isFrozen(reg.CONDITION_KEYS)).toBe(true);
     for (const key of reg.CONDITION_KEYS) {
       expect(Object.isFrozen(reg.CONDITION_BENDS[key])).toBe(true);
-      expect(reg.CONDITION_BENDS[key].rule.length).toBeGreaterThan(20);
+      const { rule } = reg.CONDITION_BENDS[key];
+      expectPointer(rule, key);
+      if (rule.page === "condition") expect(rule.key, key).toBe(key);
     }
+    expect(reg.CONDITION_BENDS.hiding.rule).toEqual({ page: "condition", key: "hiding" });
+    expect(reg.CONDITION_BENDS.dodging.rule).toEqual({ page: "rule", key: "dodge" });
   });
   it("every row bends at least one side or carries a note — a row that does neither is dead data", () => {
     for (const key of reg.CONDITION_KEYS) {
@@ -214,7 +220,7 @@ describe("CONDITION_BENDS — the table, and the set and the default DERIVED fro
 });
 
 describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
-  it("six rows: two bends, four automatic failures, all on Strength or Dexterity, each quoting its clause", () => {
+  it("six rows: two bends, four automatic failures, all on Strength or Dexterity, each pointing at its clause", () => {
     expect(Object.keys(reg.SAVE_BENDS)).toEqual([
       "restrained",
       "dodging",
@@ -227,7 +233,12 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
     for (const key of Object.keys(reg.SAVE_BENDS)) {
       const row = reg.SAVE_BENDS[key];
       expect(Object.isFrozen(row)).toBe(true);
-      expect(row.rule.length).toBeGreaterThan(20);
+      expectPointer(row.rule, key);
+      expect(row.rule, key).toEqual(
+        key === "dodging"
+          ? { page: "rule", key: "dodge" }
+          : { page: "condition", key, benefit: "Saving Throws Affected" }
+      );
       expect(
         row.abilities.every(a => ["str", "dex"].includes(a)),
         key
@@ -250,13 +261,14 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
 });
 
 describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4, 2026-09-27)", () => {
-  it("Mage Slayer's Guarded Mind: its activity, its label, the three mental saves, the rule verbatim", () => {
+  it("Mage Slayer's Guarded Mind: its activity, its label, the three mental saves, the rule the feat's", () => {
     expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual(["Mage Slayer"]);
     const row = reg.SAVE_SUCCEEDS["Mage Slayer"];
     expect(Object.isFrozen(row)).toBe(true);
     expect(row).toMatchObject({ activity: "Guard Mind", label: "Guarded Mind" });
     expect([...row.abilities]).toEqual(["int", "wis", "cha"]);
-    expect(row.rule.startsWith("Guarded Mind. If you fail an Intelligence")).toBe(true);
+    expectPointer(row.rule);
+    expect(row.rule).toMatchObject({ item: "Mage Slayer", benefit: "Guarded Mind" });
   });
   it("is the `succeed` kind's table, and the d20 folds ship its row", () => {
     expect(reg.D20_FOLD_KINDS.has("succeed")).toBe(true);
@@ -291,7 +303,7 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
     for (const k of ["Web", "Grease", "Sleet Storm"])
       expect(reg.SAVE_PRESSES[k].expiry, k).toBeUndefined();
   });
-  it("every row presses a standard 2024 status on the failure and quotes its clause", () => {
+  it("every row presses a standard 2024 status on the failure and points at its own text", () => {
     const STANDARD = new Set([
       "blinded",
       "charmed",
@@ -311,7 +323,8 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
     for (const [name, row] of Object.entries(reg.SAVE_PRESSES)) {
       expect(STANDARD.has(row.status), name).toBe(true);
       expect(row.onFail, name).toBe(true);
-      expect(row.rule, name).toMatch(/saving throw/);
+      expectPointer(row.rule, name);
+      expect(row.rule.item, name).toBe(name);
       expect(Object.isFrozen(row), name).toBe(true);
     }
   });
@@ -323,11 +336,16 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
 });
 
 describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
-  it("is Poisoned and Frightened, both Disadvantage, each quoting its glossary clause", () => {
+  it("is Poisoned and Frightened, both Disadvantage, each pointing at its glossary entry", () => {
     expect(Object.keys(reg.CHECK_BENDS)).toEqual(["poisoned", "frightened"]);
     for (const [key, row] of Object.entries(reg.CHECK_BENDS)) {
       expect(row.bend, key).toBe("disadvantage");
-      expect(row.rule, key).toMatch(/ability checks/);
+      expectPointer(row.rule, key);
+      expect(row.rule, key).toEqual({
+        page: "condition",
+        key,
+        benefit: "Ability Checks and Attacks Affected"
+      });
       expect(Object.isFrozen(row), key).toBe(true);
     }
   });
@@ -366,7 +384,8 @@ describe("Polearm Master (2026-09-27, the user's P1 and the reach ring)", () => 
     expect(pole).toMatchObject({ when: "attack", label: "Pole Strike" });
     expect([...pole.weapons.base]).toEqual(["quarterstaff", "spear"]);
     expect([...pole.weapons.properties]).toEqual(["hvy", "rch"]);
-    expect(pole.rule.startsWith("Pole Strike. Immediately after")).toBe(true);
+    expectPointer(pole.rule);
+    expect(pole.rule).toMatchObject({ item: "Polearm Master", benefit: "Pole Strike" });
     expect(reg.MANEUVER_FOLDS).toContainEqual({ name: "Polearm Master", kind: "hew" });
   });
   it("Reactive Strike is an invisible, quiet feature ring of the held weapon's reach that alerts on a hostile moving in", () => {
@@ -380,7 +399,8 @@ describe("Polearm Master (2026-09-27, the user's P1 and the reach ring)", () => 
     });
     expect(row.alert).toMatchObject({ on: "moveIn", label: "Reactive Strike" });
     expect([...row.holding.properties]).toEqual(["hvy", "rch"]);
-    expect(row.rule.startsWith("Reactive Strike.")).toBe(true);
+    expectPointer(row.rule);
+    expect(row.rule).toMatchObject({ item: "Polearm Master", benefit: "Reactive Strike" });
   });
 });
 

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer effect choices (ARCHITECTURE.md §2). No Foundry stub on purpose. The shape
@@ -21,7 +22,8 @@ describe("the table", () => {
     const row = reg.EFFECT_CHOICES["Fire Shield"];
     expect(row.effects).toEqual(["Warm Shield", "Chill Shield"]);
     expect(row.ask).toMatch(/warm/i);
-    expect(row.rule).toMatch(/as you choose/);
+    expectPointer(row.rule);
+    expect(row.rule.item).toBe("Fire Shield");
     expect(JSON.stringify({ ...row, rule: "" })).not.toMatch(/\d+d\d+/);
   });
 });

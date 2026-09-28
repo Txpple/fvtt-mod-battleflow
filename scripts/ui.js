@@ -26,7 +26,7 @@ export async function openManagedPopup(key, message, dialog) {
     livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
+    void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
     return close(...args);
   };
   // ARCHITECTURE.md §5 law 7: z-order is rank, then causal order.
@@ -51,7 +51,7 @@ export async function openManagedPopup(key, message, dialog) {
     }
     scheduleBarSync(dialog.element);
     // The row redraws to defer to the popup.
-    ui.chat?.updateMessage?.(message);
+    void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
   } catch(err) {
     livePopups.delete(key);
     popupSlots.delete(key);
@@ -157,7 +157,7 @@ export function adoptManagedPopup(key, message, dialog) {
     if ( livePopups.get(key) === dialog ) livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
+    void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
     return close(...args);
   };
   const slot = nextCascadeSlot(popupSlots.values());
@@ -171,7 +171,7 @@ export function adoptManagedPopup(key, message, dialog) {
       if ( (want.left !== left) || (want.top !== top) ) dialog.setPosition(want);
     }
   } catch { /* the platform's own position stands */ }
-  try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
+  void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
 }
 
 /** Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted). */
@@ -214,7 +214,7 @@ export async function acknowledgeMoment(message, flagKey) {
   }
   // ⚠ The ack must TRAVEL, or the elect's card drains to timeout.
   localAcks.add(`${message.id}|${flagKey}`);
-  try { ui.chat?.updateMessage?.(message); } catch { /* row refreshes next render */ }
+  void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
   try {
     await ChatMessage.create({
       whisper: [game.user.id],           // the fold deletes it; this only limits a brief flash

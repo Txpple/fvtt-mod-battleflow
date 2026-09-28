@@ -234,7 +234,7 @@ async function showSwapPopup(message) {
       eyebrow: `Feat — ${flag.row}`, tone: "pending",
       title: `${flag.row} — swap your Initiative (${flag.initiative})?`,
       subtitle: "pick one ally",
-      lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
+      lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
       + `<div data-bf-initiative-swap style="margin:0.4rem 0;">${rows}</div>` + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "swap", label: "Swap", default: true, callback: (_event, button) => {

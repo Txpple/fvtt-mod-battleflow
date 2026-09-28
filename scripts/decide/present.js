@@ -76,8 +76,20 @@ export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neut
   </div>`;
 }
 
-/** The verbatim rule quote as a card line; the words come from the caller, this is the dress. */
-export const ruleLine = text => `<em>“${text}”</em>`;
+/**
+ * The rule as a card line. A pointer (`{ item, uuid?, benefit? }` or `{ page, key, benefit? }`) is
+ * markup rule-text.js fills from the book; a string (a record written before pointers) is quoted.
+ * @param {object|string|null|undefined} rule
+ */
+export function ruleLine(rule) {
+  if ( rule && (typeof rule === "object") ) {
+    return `<div data-bf-rule="${refAttr(rule)}" style="font-style:italic;"></div>`;
+  }
+  return rule ? `<em>“${rule}”</em>` : "";
+}
+
+/** A pointer as an attribute value. @param {object} rule */
+const refAttr = rule => JSON.stringify(rule).replace(/&/g, "&amp;").replace(/"/g, "&quot;");
 
 /**
  * The one wording for a spent die, so the popup, the card and the floating text agree.
@@ -102,7 +114,7 @@ export function situationalBonusHTML(name) {
  * THE GATE'S SECTION: the header line, then a box per source with its bend and quoted rule
  * (RULINGS *The gate before the roll*).
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
- *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: object|string|null}[]}} view
  */
 export function reminderSectionHTML({ head, boxes }) {
   const rows = boxes.map(b => `
@@ -123,7 +135,7 @@ export function reminderSectionHTML({ head, boxes }) {
 /**
  * The section folded to its header line (a native `<details>`).
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
- *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[]}} view
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: object|string|null}[]}} view
  * @param {{open?: boolean}} [opts]
  */
 export function reminderDetailsHTML({ head, boxes }, { open = false } = {}) {
@@ -140,7 +152,7 @@ export function reminderDetailsHTML({ head, boxes }, { open = false } = {}) {
  * The section inside dnd5e's roll dialog, shaped like its CONFIGURATION fieldset so the dialog's
  * styling dresses it.
  * @param {{head: {title: string, net: "advantage"|"disadvantage"|"normal", why?: string},
- *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: string}[], legend?: string}} view
+ *          boxes: {label: string, bend: "advantage"|"disadvantage"|null, rule?: object|string|null}[], legend?: string}} view
  */
 export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }, { open = false } = {}) {
   return `
@@ -152,7 +164,7 @@ export function reminderFieldsetHTML({ head, boxes, legend = "Before you roll" }
 /**
  * THE SNEAK ATTACK BOX: a checkbox, never a fourth button (the roll still needs its mode press).
  * Used this turn: greyed, the reason on its own line, no tick.
- * @param {{dice: string, rule: string, checked?: boolean, used?: string|null}} view
+ * @param {{dice: string, rule: object|string|null, checked?: boolean, used?: string|null}} view
  */
 export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
   const control = used ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
@@ -172,7 +184,7 @@ export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
 /**
  * THE BUY BOX: the Sneak Attack box's shape for Advantage bought with an item's use
  * (`ADVANTAGE_BUYS`). No uses left: greyed, no tick.
- * @param {{name: string, point: string, left: number, rule: string, checked?: boolean}} view
+ * @param {{name: string, point: string, left: number, rule: object|string|null, checked?: boolean}} view
  */
 export function buyBoxHTML({ name, point, left, rule, checked = false }) {
   const out = !(Number(left) > 0);
@@ -190,16 +202,16 @@ export function buyBoxHTML({ name, point, left, rule, checked = false }) {
       </div>`;
 }
 
-/** A rule quoted under a closed fold. @param {string} rule */
+/** A rule under a closed fold; a fold whose pointer reads as no text goes. @param {object|string|null|undefined} rule */
 export function foldedRuleHTML(rule) {
   if ( !rule ) return "";
-  return `<details data-bf-rule style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">
+  return `<details data-bf-rule-fold style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">
           <summary style="cursor:pointer;list-style:none;opacity:0.75;font-size:var(--font-size-11,11px);">the rule ▸</summary>${ruleLine(rule)}</details>`;
 }
 
 /**
  * THE CUNNING STRIKE MENU on the damage offer; unaffordable rows show disabled.
- * @param {{rows: {key: string, label: string, cost: number, rule: string, caveat?: string, line: boolean, affordable: boolean}[],
+ * @param {{rows: {key: string, label: string, cost: number, rule: object|string|null, caveat?: string, line: boolean, affordable: boolean}[],
  *          max: number, dc: number|null, dice: string, chosen?: Iterable<string>}} view
  */
 export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
@@ -227,7 +239,7 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
 /**
  * THE CLOCK RIDERS on the damage offer, TICKED by default (RULINGS *The gate before the roll*).
  * ⚠ `caveat` is accepted and IGNORED: no caveat line on the row. An effect-only rider shows `says`.
- * @param {{key: string, label: string, formula: string|null, says?: string|null, type: string|null, why: string, rule: string,
+ * @param {{key: string, label: string, formula: string|null, says?: string|null, type: string|null, why: string, rule: object|string|null,
  *          usesLeft?: number|null, caveat?: string}[]} riders
  */
 export function riderMenuHTML(riders) {
@@ -254,7 +266,7 @@ export function riderMenuHTML(riders) {
  * THE HIT MENU on the damage offer (RULINGS *The hit menu*): a group per paying feature, one
  * pick per group (the EDGE unticks the sibling); a spent group greys, its tag saying why.
  * @param {{groups: {key: string, label: string, tag: string, off: boolean,
- *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: string, affordable: boolean}[]}[]}} view
+ *          rows: {key: string, label: string, cost: string, caveat?: string|null, rule: object|string|null, affordable: boolean}[]}[]}} view
  */
 export function hitMenuHTML({ groups }) {
   if ( !groups?.length ) return "";
@@ -383,25 +395,25 @@ export const RESCUE_KINDS = {
     label: "Heroic Inspiration",
     icon: "fa-solid fa-wand-sparkles",
     cost: "spent either way, and the new roll stands",
-    rule: "If you have Heroic Inspiration, you can expend it to reroll any die immediately after rolling it, and you must use the new roll."
+    rule: Object.freeze({ page: "rule", key: "inspiration" })
   },
   tactical: {
     label: "Tactical Mind",
     icon: "fa-solid fa-brain",
     cost: "not expended if the check still fails",
-    rule: "When you fail an ability check, you can expend a use of your Second Wind to push yourself toward success. Rather than regaining Hit Points, you roll 1d10 and add the number rolled to the ability check, potentially turning it into a success."
+    rule: Object.freeze({ item: "Tactical Mind", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrTacticalMi" })
   },
   bardic: {
     label: "Bardic Inspiration",
     icon: "fa-solid fa-music",
     cost: "expended when rolled, whether or not it helps",
-    rule: "Once within the next hour when the creature fails a D20 Test, the creature can roll the Bardic Inspiration die and add the number rolled to the d20, potentially turning the failure into a success. A Bardic Inspiration die is expended when it's rolled."
+    rule: Object.freeze({ item: "Bardic Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdBardicInsp" })
   },
   seeking: {
     label: "Seeking Spell",
     icon: "fa-solid fa-compass",
     cost: "1 Sorcery Point, spent either way, and the new roll stands",
-    rule: "If you make an attack roll for a spell and miss, you can spend 1 Sorcery Point to reroll the d20, and you must use the new roll. You can use Seeking Spell even if you’ve already used a different Metamagic option during the casting of the spell."
+    rule: Object.freeze({ item: "Seeking Spell", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmmoSeekingSpe" })
   },
   // Advantage bought on an initiative rolled with no dialog; the offer carries its row's name and rule.
   advantage: {
@@ -417,7 +429,7 @@ export const RESCUE_KINDS = {
     label: "Precision Attack",
     icon: "fa-solid fa-crosshairs",
     cost: "the superiority die is spent either way it lands",
-    rule: "When you miss with an attack roll, you can expend one Superiority Die, roll that die, and add it to the attack roll, potentially causing the attack to hit."
+    rule: Object.freeze({ item: "Precision Attack", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvPrecisionA" })
   }
 };
 
@@ -626,7 +638,7 @@ export function rescuePaneHTML(quotes = []) {
   const panes = quotes.map((q, i) => `
     <div data-bf-rescue-quote="${attr(q.key)}"
          style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
-      <strong>${q.label}</strong> <em>“${q.text}”</em>
+      <strong>${q.label}</strong> ${ruleLine(q.text)}
       ${q.detail ? `<div style="margin-top:0.25rem;opacity:0.75;">${q.detail}</div>` : ""}
     </div>`).join("");
   return `
@@ -683,7 +695,7 @@ export function dieMeterHTML({ value, min, max, avg, beat, gain, low }) {
  * THE OFFER ROW, TICKED (RULINGS *Rescuing the hit*): name and dice, a fact as the tag, the rule
  * folded. ⚠ Never a caveat line. One tick at a time (the EDGE unticks the sibling).
  * @param {{name: string, rows: {key: string, name: string, dice?: string|null, tag?: string|null,
- *          off?: string|null, rule?: string|null}[]}} view
+ *          off?: string|null, rule?: object|string|null}[]}} view
  */
 export function tickRowsHTML({ name, rows }) {
   const items = (rows ?? []).map(r => `

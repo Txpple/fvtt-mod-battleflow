@@ -197,7 +197,7 @@ async function showTendPopup(message) {
     content: bfCard({ img: feature?.img ?? null, eyebrow: `Battle Medic — ${flag.row}`, tone: "pending",
       title: `Tend ${flag.targetName}?`,
       subtitle: `spend one of ${flag.targetName}'s Hit Point Dice · you roll it + ${prof}`,
-      lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
+      lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
       + tickRowsHTML({ name: "bf-kit-tend", rows }) + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "tend", label: "Tend", callback: (_event, button) => {

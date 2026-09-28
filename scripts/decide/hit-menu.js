@@ -13,10 +13,10 @@
  *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
  *          fits?: Record<string, boolean|null|undefined>}} facts
  *        `pools` keyed by group (by option for an option-pool group); null when unreadable
- * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number, rule: string,
+ * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number, rule: object|string|null,
  *            perOption: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
  *            rows: {key: string, feature: string, label: string, cost: string, mode: string, save: boolean,
- *                   line: string|null, caveat: string|null, rule: string, affordable: boolean}[]}[]}}
+ *                   line: string|null, caveat: string|null, rule: object|string|null, affordable: boolean}[]}[]}}
  */
 export function hitMenu({ groups, options, listed, features, melee = true, pools, fits = {} }) {
   const lower = (s) => String(s ?? "").toLowerCase();

@@ -161,7 +161,7 @@ export async function showSaveChoicePopup(card, uuid) {
     icon: interpose ? "fa-solid fa-shield" : "fa-solid fa-hand-fist",
     content: bfCard({
       img: c.itemImg, eyebrow: `Maneuver — ${c.itemName}`, tone: "pending",
-      // The rule line is the feature's own sentence, verbatim; the module's read is the hint.
+      // The rule line is the feature's own text; the module's read is the hint.
       title: interpose ? `${c.itemName} — take no damage?`
                        : `${c.itemName} — ${entry.name} failed: choose`,
       subtitle: interpose

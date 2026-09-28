@@ -48,7 +48,6 @@ number this repo has typed into prose twice has gone stale at least once.
 
 | Tool | What it asserts |
 | --- | --- |
-| `check-mastery-rules.mjs` | the verbatim rule text still matches the system's own rules journal (ARCHITECTURE §5 law 8). Run after any dnd5e upgrade. |
 | `check-popup-routing.mjs` | popups route to whoever owns the decision, across **two** clients — asserted on BOTH sides ("the GM got it" only means something beside "and the player did not"), with the diagnostic ledger still printed in full. |
 
 ## Smoke suites — drive real chains, MUTATE the world

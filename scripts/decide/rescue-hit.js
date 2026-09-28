@@ -145,8 +145,8 @@ export function rescueRows({ primary, rolls, facts }) {
 
 /**
  * A GUARD's row (Disadvantage for another); greyed and `futile` against a roll already at Disadvantage.
- * @param {{name: string, rule?: string, mode: string}} args
- * @returns {{row: {key: string, name: string, dice: string, tag: string, off: string|null, rule: string}, futile: boolean}}
+ * @param {{name: string, rule?: object|string|null, mode: string}} args
+ * @returns {{row: {key: string, name: string, dice: string, tag: string, off: string|null, rule: object|string|null}, futile: boolean}}
  */
 export function guardRow({ name, rule = "", mode }) {
   const futile = mode === "disadvantage";

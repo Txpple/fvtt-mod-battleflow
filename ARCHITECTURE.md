@@ -399,9 +399,12 @@ Each was a user ruling, and each has a table finding behind it.
      the flags stay separate (R2), so it costs no wire format. Moments about different rolls, or
      different questions about one roll, still staircase: the test is whether one answer could
      serve them — a rescue window has one Pass, and it answers every source.
-8. **The rule line is verbatim.** A popup describing a feature quotes that feature's own 2024
-   text, read from the world's own compendium (N1). The module's operational hints ride as
-   separate lines, never blended into the quote.
+8. **The rule line is the book's.** A popup describing a feature shows that feature's own 2024
+   text, read from the compendium at render time (N1; RULINGS *The rule fold reads the book*): a
+   row's `rule` is a pointer (`{ item, uuid, benefit? }` or `{ page, key, benefit? }`), and
+   [rule-text.js](scripts/rule-text.js) fills it with the paragraph the row names, else the whole
+   text. No rule is copied into the code; `tools/check-identifiers.mjs` proves every pointer. The
+   module's operational hints ride as separate lines, never blended into the quote.
 9. **Every icon names itself.** Any icon in a card or popup carries a tooltip naming what it
    depicts (N3).
 10. **The moment celebrates.** An attack-damage prompt leads with the hit — "You hit! — roll
@@ -476,8 +479,8 @@ differs between features — for the d20 folds, **the spend** (a boolean write, 
 `activity.use()`, an effect delete). The arithmetic they share lives in
 `ATTACK_FOLDS`/`SAVE_FOLDS` and needs no kind.
 
-**Only masteries are checkable against a system enum** (`CONFIG.DND5E.weaponMasteries`, live, by
-[check-mastery-rules.mjs](tools/check-mastery-rules.mjs)); the other sets are the module's own
+**Only masteries are checkable against a system enum** (`CONFIG.DND5E.weaponMasteries`, whose
+rules pages the mastery rows point at); the other sets are the module's own
 inventions. The static gate proves each set is **closed, declared in one place, and that every
 registry entry names a kind from it**.
 

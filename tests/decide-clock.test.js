@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer clock arithmetic (ARCHITECTURE.md §2). No Foundry stub on purpose. The ruling
@@ -207,7 +208,8 @@ describe("the registry's clock-rider data", () => {
         );
       if (row.effects || row.lands)
         expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
-      expect(row.rule.length, key).toBeGreaterThan(20);
+      expectPointer(row.rule, key);
+      expect(row.rule.item, key).toBe(row.feature);
     }
     expect(reg.clockRiderEntries().map(e => e.kind)).toContain("dread ambusher");
   });

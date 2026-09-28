@@ -1,5 +1,7 @@
 # tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.
 init	settings.js
+ready	rule-text.js
+init	rule-text.js
 init	holds.js
 createChatMessage	events.js
 updateChatMessage	events.js

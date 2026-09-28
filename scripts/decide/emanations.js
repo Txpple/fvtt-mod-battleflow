@@ -247,16 +247,18 @@ export function damageTypeFor(types, alignment = null, chosen = null) {
 
 /**
  * The ActiveEffect a member receives: the pack's effect named for its source, with the floor's fingerprint.
- * @param {{ key: string, rule?: string }} row   ⚠ rows carry no `name`; `key` is it
+ * @param {{ key: string, rule?: object|string|null }} row   ⚠ rows carry no `name`; `key` is it
  * @param {{ name: string, img?: string|null, description?: string|null, changes: any[] }} effect   changes already resolved
- * @param {{ sourceName: string, itemUuid: string|null, regionId: string, group?: string|null, moduleId: string, flagKey: string, status?: string|null }} ids
+ * @param {{ sourceName: string, itemUuid: string|null, regionId: string, group?: string|null, moduleId: string, flagKey: string, status?: string|null, ruleHtml?: string|null }} ids
+ *        `ruleHtml` the row's rule read from the book (rule-text.js), else a quoted string rule.
  *        `status` makes the token SHOW it (Foundry draws only temporary effects; an aura has no clock).
  */
-export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, group = null, moduleId, flagKey, status = null }) {
+export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, group = null, moduleId, flagKey, status = null, ruleHtml = null }) {
+  const rule = ruleHtml ?? ((typeof row.rule === "string") && row.rule ? `<p><em>“${row.rule}”</em></p>` : "");
   return {
     name: `${effect.name} — ${sourceName}`,
     img: effect.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule ?? ""}”</em></p><p>${row.key}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
+    description: `${rule}<p>${row.key}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
     origin: itemUuid ?? null,
     disabled: false, transfer: false,
     ...(status ? { statuses: [status] } : {}),

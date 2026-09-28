@@ -143,7 +143,7 @@ export function foldedSave({ total, dc, forced = false, folds = [] }) {
 /**
  * A HELD ATTACK's multiplier for a `damage` reaction answered CAST and in the table; null = full damage.
  * @param {{answer?: string|null, kind?: string, reaction?: string}|null|undefined} target
- * @param {Readonly<Record<string, {multiplier: number, rule?: string}>>} table
+ * @param {Readonly<Record<string, {multiplier: number, rule?: object|string|null}>>} table
  * @returns {{multiplier: number, reaction: string, note: string}|null}
  */
 export function interruptMultiplier(target, table) {

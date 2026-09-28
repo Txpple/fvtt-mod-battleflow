@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer damage shields (ARCHITECTURE.md §2). No Foundry stub on purpose. The shape
@@ -18,11 +19,12 @@ describe("the table", () => {
   it("names three shields, each with a rule and the pack's damage activity, no dice anywhere", () => {
     const rows = Object.entries(reg.DAMAGE_SHIELDS);
     expect(rows.map(([k]) => k)).toEqual(["Death Armor", "Fire Shield", "Armor of Agathys"]);
-    for (const [, row] of rows) {
+    for (const [key, row] of rows) {
       expect(row.activity).toBeTruthy();
-      expect(row.rule.length).toBeGreaterThan(40);
+      expectPointer(row.rule, key);
+      expect(row.rule.item, key).toBe(key);
       expect(row.melee).toBe(true);
-      // The rule quotes the text (dice and all); the row itself carries no amount.
+      // The book carries the dice; the row itself carries no amount.
       const { rule, ...rest } = row;
       expect(JSON.stringify(rest)).not.toMatch(/\d+d\d+/);
     }

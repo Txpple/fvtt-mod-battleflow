@@ -2,6 +2,7 @@
  * Battle Flow — damage riders on the combat clock: a feature's extra damage rides the hit when the round or the turn says so.
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
@@ -280,7 +281,7 @@ async function writeFormChip(actor, activity, key, row, form) {
   if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
   await ActiveEffect.implementation.create({
     name: `${row.feature}: ${form.form}`, img: activity.item.img ?? "icons/svg/aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${form.form} was used: the transformation stands while this does. Delete it to end the transformation early.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${form.form} was used: the transformation stands while this does. Delete it to end the transformation early.</p>`,
     origin: activity.item.uuid, disabled: false, transfer: false,
     duration: activity.duration?.getEffectData?.() ?? {},
     flags: { [MODULE_ID]: { [FORM_FLAG]: { riderKey: key, form: lower(form.form) } } }

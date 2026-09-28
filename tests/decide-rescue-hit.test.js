@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer: the `roll` interrupt (Slice A, ruled 2026-09-24 off prototypes/slice-a.html) —
@@ -343,11 +344,12 @@ describe("plainRule — a reaction's own text as its folded rule", () => {
 });
 
 describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
-  it("each row carries a cost shape and its rule verbatim", () => {
+  it("each row carries a cost shape and a pointer to its own text", () => {
     for (const [name, row] of Object.entries(reg.INTERRUPT_ROLLS)) {
       expect(typeof row.reaction, name).toBe("boolean");
       expect(typeof row.uses, name).toBe("boolean");
-      expect(row.rule.length, name).toBeGreaterThan(40);
+      expectPointer(row.rule, name);
+      expect(row.rule.item, name).toBe(name);
       expect(row.activity, name).toBeTruthy();
     }
     expect(reg.INTERRUPT_ROLLS.Lucky).toMatchObject({

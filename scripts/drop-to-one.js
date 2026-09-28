@@ -75,7 +75,7 @@ async function settle(actor, found, { amount, source }) {
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: found.effect?.img ?? null, eyebrow: found.name, tone: "good",
       title: `${actor.name} drops to 1 Hit Point instead`, subtitle: found.row.ends ? "the spell ends" : "",
-      lines: [ruleLine(esc(found.row.rule))] }),
+      lines: [ruleLine(found.row.rule)] }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "auto", row: found.name, actorUuid: actor.uuid,
       actorName: actor.name, amount, applied: true, ...statContext(source?.uuid ?? null) } } }
   });
@@ -198,7 +198,7 @@ async function showPopup(message) {
     content: bfCard({ img: item?.img ?? null, eyebrow: flag.row, tone: "pending",
       title: `${flag.actorName} drops to 0 Hit Points — drop to 1 instead?`,
       subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}${max > 0 ? `${left} of ${max} ${(max === 1) ? "use" : "uses"} left` : ""}`,
-      lines: [ruleLine(esc(row?.rule ?? ""))] })
+      lines: [ruleLine(row?.rule ?? "")] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "use", label: "Drop to 1 HP", default: true, callback: () => { void answer(message, "use"); } },

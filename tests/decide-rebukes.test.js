@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 import * as rb from "../scripts/decide/rebukes.js";
 import * as reg from "../scripts/decide/registry.js";
 
@@ -63,7 +64,8 @@ describe("rebukes — a Reaction to damage, aimed at its dealer (the Goliath wal
 
   it("the table: every row has its rule and source; the list default is the table", () => {
     for (const [name, row] of Object.entries(reg.REBUKES)) {
-      expect(row.rule.length, name).toBeGreaterThan(40);
+      expectPointer(row.rule, name);
+      expect(row.rule.item, name).toBe(name);
       expect(row.from, name).toBeTruthy();
     }
   });
@@ -97,7 +99,7 @@ describe("Sentinel's Guardian — a ward, asked of a bystander (the PHB feats, g
       hit: true,
       opportunity: true
     });
-    expect(reg.REBUKES.Sentinel.rule.startsWith("Guardian.")).toBe(true);
+    expect(reg.REBUKES.Sentinel.rule).toMatchObject({ item: "Sentinel", benefit: "Guardian" });
     expect(Object.keys(reg.REBUKES)).toContain("Sentinel");
   });
   it("the card line names the one it hit", () => {

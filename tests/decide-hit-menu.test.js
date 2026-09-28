@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer hit menu (ARCHITECTURE.md §2). No Foundry stub on purpose. The flow is the
@@ -36,7 +37,8 @@ describe("the table", () => {
     expect(rows).toHaveLength(9);
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
-      expect(row.rule.length).toBeGreaterThan(40);
+      expectPointer(row.rule, row.feature);
+      expect(row.rule.item).toBe(row.feature);
     }
     for (const [key, g] of Object.entries(reg.HIT_GROUPS)) {
       expect(["feature", "option"], key).toContain(g.pool);

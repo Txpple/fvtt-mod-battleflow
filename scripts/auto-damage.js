@@ -78,7 +78,7 @@ export async function damageAfterHold(attackMessage) {
  * (RULINGS *The gate before the roll*). ⚠ One roll serves every hit target: the crit needs ALL of them.
  * @param {ChatMessage} attackMessage
  * @returns {{isCritical: boolean, rolled: boolean, auto: boolean,
- *            sources: {status: string, label: string, rule: string}[], dropped: string[]}}
+ *            sources: {status: string, label: string, rule: object|string|null}[], dropped: string[]}}
  */
 function critFor(attackMessage) {
   const d20Crit = attackMessage?.rolls?.[0]?.isCritical ?? false;

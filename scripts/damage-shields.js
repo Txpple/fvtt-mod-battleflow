@@ -4,6 +4,7 @@
  * decide/registry.js DAMAGE_SHIELDS; membership is the Damage Shields list.
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
+import { ruleHTML } from "./rule-text.js";
 import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
 import { registerResumable } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
@@ -241,7 +242,7 @@ async function writeMark(actor, item, row, { spellLevel, scaling, message }) {
   const seconds = durationSeconds(item.system?.duration);
   const effect = await ActiveEffect.implementation.create({
     name: item.name, img: item.img ?? "icons/svg/ice-aura.svg",
-    description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${item.name} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${item.name} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
     ...(seconds ? { duration: { seconds } } : {}),
     flags: { [MODULE_ID]: { shield: { key: row.key, itemUuid: item.uuid, spellLevel, scaling } } }

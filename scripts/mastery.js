@@ -539,7 +539,7 @@ async function showMasteryPopup(message, m) {
       img: m.weapon?.img, eyebrow: "Weapon Mastery", tone: "neutral",
       title: `${label}: use it?`,
       subtitle: `${attacker?.name ?? "The attacker"} — ${m.weapon?.name ?? "weapon"}`,
-      lines: [MASTERY_RULES[m.key] ?? "", `Against: ${(m.targets ?? []).map(t => t.name).join(", ")}`]
+      lines: [ruleLine(MASTERY_RULES[m.key]), `Against: ${(m.targets ?? []).map(t => t.name).join(", ")}`]
     }) + holdBarHTML(m),
     buttons: [
       { action: "use", label: `Use ${label}`, default: true,
@@ -564,7 +564,8 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
       img: m.weapon?.img, eyebrow: "Weapon Mastery",
       tone: pending ? "neutral" : (m.outcome === "used" ? "good" : "neutral"),
       title: pending ? `${label} — ${(m.targets ?? []).map(t => t.name).join(", ")}` : outcome,
-      subtitle: pending ? (MASTERY_RULES[m.key] ?? "") : `${label} — ${m.weapon?.name ?? ""}`
+      subtitle: `${label} — ${m.weapon?.name ?? ""}`,
+      lines: pending ? [ruleLine(MASTERY_RULES[m.key])] : []
     }) + (pending ? holdBarHTML(m) : "");
     html.querySelector(SURFACES.messageContent)?.appendChild(row);
     // ⚠ The bar only drains once synced.

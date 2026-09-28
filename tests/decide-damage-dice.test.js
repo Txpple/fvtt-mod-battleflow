@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { expectPointer } from "./rule-pointer.js";
 
 /**
  * DECISION-layer: the damage-dice folds' patch (decide/damage-dice.js) — Empowered Spell's per-die
@@ -307,14 +308,14 @@ describe("rerollFaces — Empowered Spell's per-die patch, lifted", () => {
 });
 
 describe("DAMAGE_EITHER — the table and its list", () => {
-  it("Savage Attacker: a weapon, a riderKey, its rule verbatim", () => {
+  it("Savage Attacker: a weapon, a riderKey, a pointer to the feat", () => {
     expect(reg.DAMAGE_EITHER["Savage Attacker"]).toMatchObject({
       key: "savage-attacker",
       weapon: true
     });
-    expect(reg.DAMAGE_EITHER["Savage Attacker"].rule).toContain(
-      "roll the weapon’s damage dice twice and use either roll"
-    );
+    const { rule } = reg.DAMAGE_EITHER["Savage Attacker"];
+    expectPointer(rule);
+    expect(rule.item).toBe("Savage Attacker");
   });
 });
 

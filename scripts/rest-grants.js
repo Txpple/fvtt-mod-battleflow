@@ -444,7 +444,7 @@ async function showSongPopup(message) {
     content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
       title: `Who gets ${what}?`,
       subtitle: `allies ${reach} · ${cap}`,
-      lines: [row?.rule ? foldedRuleHTML(esc(row.rule)) : ""] })
+      lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
       + `<div data-bf-rest-song data-cap="${flag.cap}" style="margin:0.4rem 0;">${group("Party", party)}${group("Non-Party", others)}</div>`,
     buttons: [
       { action: "ok", label: "OK", default: true, callback: (_event, button) => {

@@ -728,7 +728,7 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
     expect(html).toContain(p.modeTagHTML("advantage"));
     expect(html).toContain(p.modeTagHTML("listed"));
     expect(html).toContain(p.ruleLine("sap rule"));
-    expect(html).not.toContain(p.ruleLine(""));
+    expect(html).not.toContain("<em>“”</em>");
   });
   it("escapes the header and the legend — they land in markup from the table's own words", () => {
     const html = p.reminderFieldsetHTML({
@@ -832,5 +832,29 @@ describe("modeTagHTML — the save gate's fourth answer", () => {
     expect(html).toContain("#fff");
     expect(html).toContain(">Fails<");
     expect(p.modeTone("fails")).toBe(p.TONE.bad);
+  });
+});
+
+describe("the rule from the book — a pointer in the markup", () => {
+  it("ruleLine carries a pointer for rule-text.js to fill, and quotes a string", async () => {
+    const p = await import("../scripts/decide/present.js");
+    const html = p.ruleLine({
+      item: "Mage Slayer",
+      uuid: "Compendium.x.y.Item.z",
+      benefit: "Guarded Mind"
+    });
+    expect(html).toContain('data-bf-rule="');
+    expect(html).toContain("&quot;benefit&quot;:&quot;Guarded Mind&quot;");
+    expect(html).not.toContain("“");
+    expect(p.ruleLine("Written before pointers.")).toBe("<em>“Written before pointers.”</em>");
+    expect(p.ruleLine(null)).toBe("");
+  });
+
+  it("a fold around a pointer is marked, so a pointer that reads as nothing takes the fold with it", async () => {
+    const p = await import("../scripts/decide/present.js");
+    const html = p.foldedRuleHTML({ page: "condition", key: "prone", benefit: "Attacks Affected" });
+    expect(html).toContain("<details data-bf-rule-fold");
+    expect(html).toContain("data-bf-rule=");
+    expect(html).toContain("the rule ▸");
   });
 });
