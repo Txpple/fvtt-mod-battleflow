@@ -79,8 +79,7 @@ try {
       isGM: game.user.isGM,
       activeGM: game.users.activeGM?.name ?? null,
       moduleActive: !!mod?.active,
-      hasFlowSetting: game.settings.settings.has(`${modId}.noticeTimer`),
-      masteryRiders: game.settings.get(modId, 'masteryRiders'),
+      hasFlowSetting: game.settings.settings.has(`${modId}.decisionTimer`),
       pc: game.actors.getName('BF Test PC Attacker')?.id ?? null,
       victim: game.actors.getName('BF Test Victim')?.id ?? null
     };
@@ -94,14 +93,13 @@ try {
   if (pre.isGM) { console.error('[nogm] FATAL: the test user is GM-capable.'); process.exit(1); }
   if (!pre.moduleActive) { console.error('[nogm] FATAL: the module is not active.'); process.exit(1); }
   if (!pre.hasFlowSetting) {
-    console.error('[nogm] FATAL: this client is running OLD code (noticeTimer unregistered) — F5.');
+    console.error('[nogm] FATAL: this client is running OLD code (decisionTimer unregistered) — F5.');
     process.exit(1);
   }
   if (!pre.pc || !pre.victim) {
     console.error('[nogm] FATAL: missing fixture — run tools/fixture-suite.mjs first.');
     process.exit(1);
   }
-  if (!pre.masteryRiders) { console.error('[nogm] FATAL: masteryRiders is off.'); process.exit(1); }
 
   // ------------------------------------------------------------------------ drive one hit
   // ⚠ EVERYTHING HERE RUNS ON THE PLAYER'S CLIENT, fixture prep included: a player may grant an
@@ -263,13 +261,10 @@ try {
       };
       const pc = game.actors.getName('BF Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
-      const priorMode = game.settings.get(modId, 'concMode');
-      const priorBreak = game.settings.get(modId, 'concBreak');
+      // ⚠ This page has no retired-key shim (no connectSuite): read only the ten real settings.
+      // "Roll automatically" rolls the check at once, so the ask is pending only under "prompt".
+      const saveRolls = game.settings.get(modId, 'saveRolls');
       try {
-        // ⚠ Settings are WORLD-scoped and a player cannot write them: skip rather than report a false red.
-        if (priorMode === 'off') {
-          return { skipped: 'concMode is off and a player cannot change a world setting' };
-        }
         // A real concentration effect on the PC's own sheet — a write the player owns.
         const spell = pc.items.find(i => i.type === 'spell') ?? null;
         await pc.createEmbeddedDocuments('ActiveEffect', [{
@@ -296,7 +291,7 @@ try {
           askPosted: !!ask,
           askAuthorIsMe: ask ? (ask.author?.id === game.user.id) : null,
           askStatus: ask?.getFlag(modId, 'concentration')?.status ?? null,
-          priorMode, priorBreak
+          saveRolls
         };
       } finally {
         const strays = pc.effects.filter(e => e.name === 'BF NoGM Concentration');
@@ -316,8 +311,10 @@ try {
         conc.askPosted === true, JSON.stringify(conc));
       ok('§conc …and the PLAYER\'S OWN client authored it, not a GM',
         conc.askAuthorIsMe === true, `author is me=${conc.askAuthorIsMe}`);
-      ok('§conc …and it is pending, so the save can still be rolled',
-        conc.askStatus === 'pending', `status=${conc.askStatus}`);
+      if (conc.saveRolls === 'prompt') {
+        ok('§conc …and it is pending, so the save can still be rolled',
+          conc.askStatus === 'pending', `status=${conc.askStatus}`);
+      } else out.skips.push(`§conc pending ask — Players Roll Their Own Saves is "${conc.saveRolls}", the check rolls itself`);
     }
   }
 
@@ -341,9 +338,7 @@ try {
         duration: { value: 1, units: 'rounds', expiry: 'turnEnd', expired: false },
         flags: { [modId]: { mastery: 'vex' } }
       }, { parent: actor });
-      const priorList = game.settings.get(modId, 'reminderList');
-      if (!/\bvex\b/.test(priorList)) await game.settings.set(modId, 'reminderList', 'vex, sap, prone, condition');
-      return { chipId: chip.id, actorUuid: actor.uuid, tokenId: tok.id, priorList };
+      return { chipId: chip.id, actorUuid: actor.uuid, tokenId: tok.id };
     }, { modId: MOD, weaponUuid: hit.weaponUuid });
     await disposeSafely(planter, 'nogm-planter');
     if (planted.error) {
@@ -431,12 +426,11 @@ try {
       // The planted chip is the GM's to remove — reconnect just long enough to take it back.
       const sweeper = new Foundry(foundryConfig(env));
       await sweeper.connect();
-      await sweeper.evaluate(async ({ modId, actorUuid, priorList }) => {
+      await sweeper.evaluate(async ({ modId, actorUuid }) => {
         const actor = await fromUuid(actorUuid);
         const ids = (actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'vex').map(e => e.id);
         if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids);
-        if (game.settings.get(modId, 'reminderList') !== priorList) await game.settings.set(modId, 'reminderList', priorList);
-      }, { modId: MOD, actorUuid: planted.actorUuid, priorList: planted.priorList });
+      }, { modId: MOD, actorUuid: planted.actorUuid });
       await disposeSafely(sweeper, 'nogm-sweeper');
 
       if (pageErrors.length > errorsBefore) out.log.push(...pageErrors.slice(errorsBefore, errorsBefore + 12).map(e => `  · player page (during §spent): ${e}`));
@@ -470,7 +464,6 @@ try {
       };
       const pc = game.actors.getName('BF Test PC Attacker');
       if (!pc) return { error: 'no PC fixture' };
-      if (!game.settings.get(modId, 'castApply')) return { skipped: 'castApply is off and a player cannot change a world setting' };
       const EFF = 'bfnogmfavor00000';
       const before = new Set(game.messages.contents.map(m => m.id));
       let item = null;

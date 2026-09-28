@@ -809,17 +809,13 @@ if (want('5b')) {
     r.ok ? `refused=${r.gateRefused}, messages created: ${r.gateMessagesCreated}` : r.why);
 }
 
-// ---- 5c. the attacker-side mode gate: each one-sided mode excludes the other side. Both
-// attacks roll on the GM client, so this tests the ACTOR-TYPE gate, not a player client.
+// ---- 5c. the resolver is always on: an NPC attack and a PC attack both resolve. Both roll on the
+// GM client, so this tests that no ACTOR-TYPE gate remains, not a player client.
 if (want('5c')) {
   const r = await f.evaluate(async ({ victimId, victimToken, attackerId, itemName, playerName }) => {
-    const MOD = 'fvtt-mod-battleflow';
-    const priorMode = game.settings.get(MOD, 'autoDamage');
-    const priorApply = game.settings.get(MOD, 'autoApply');
+    const base = game.actors.get(victimId);
+    const priorHp = base.system.attributes.hp.value;
     try {
-      // Roll but never apply: four forced hits would kill the victim mid-matrix.
-      await game.settings.set(MOD, 'autoApply', false);
-      const base = game.actors.get(victimId);
       await base.update({ 'system.attributes.ac.override': 1 });
 
       // A character-type attacker with the NPC's own attack item: the sides differ only in actor.type.
@@ -870,30 +866,24 @@ if (want('5c')) {
         return { rolled: !!dmg, total: rolls?.[0]?.total, fumble: rolls?.[0]?.isFumble ?? false };
       };
 
-      const out = {};
-      await game.settings.set(MOD, 'autoDamage', 'npc');
-      out.npcMode = { npc: await attackOnce(npcAttacker), pc: await attackOnce(pcAttacker) };
-      await game.settings.set(MOD, 'autoDamage', 'pc');
-      out.pcMode = { npc: await attackOnce(npcAttacker), pc: await attackOnce(pcAttacker) };
-      return { ok: true, ...out };
+      return { ok: true, npc: await attackOnce(npcAttacker), pc: await attackOnce(pcAttacker) };
     } catch (err) {
       return { ok: false, why: `${err.message}\n${err.stack}` };
     } finally {
-      await game.settings.set(MOD, 'autoDamage', priorMode);
-      await game.settings.set(MOD, 'autoApply', priorApply);
+      // The two hits applied: the victim's HP comes back for the sections below.
+      await new Promise(r => setTimeout(r, 1500));
+      await base.update({ 'system.attributes.hp.value': priorHp }).catch(() => {});
     }
   }, fx);
 
   if (!r.ok) {
-    report('attacker-side mode gate', false, r.why);
+    report('the resolver on both sides', false, r.why);
   } else {
     const cell = c => `${c.rolled}${c.fumble ? ' (FUMBLE — flake)' : ''}${c.why ? ` [${c.why}]` : ''}`;
     // A fumble legitimately produces no damage, so it can only mask a should-roll case.
     const rolledOrFlake = c => (c.rolled === true) || (c.fumble === true);
-    report('mode "npc": an NPC attack still resolves', rolledOrFlake(r.npcMode.npc), cell(r.npcMode.npc));
-    report('mode "npc": a PC attack rolls nothing', r.npcMode.pc.rolled === false, cell(r.npcMode.pc));
-    report('mode "pc": a PC attack resolves', rolledOrFlake(r.pcMode.pc), cell(r.pcMode.pc));
-    report('mode "pc": an NPC attack rolls nothing', r.pcMode.npc.rolled === false, cell(r.pcMode.npc));
+    report('an NPC attack resolves', rolledOrFlake(r.npc), cell(r.npc));
+    report('a PC attack resolves', rolledOrFlake(r.pc), cell(r.pc));
   }
 }
 

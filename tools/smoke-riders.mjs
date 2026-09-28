@@ -1,5 +1,5 @@
-// Live suite: hit riders. A mark pays out ONLY for the creature that placed it, only when the
-// table lists it, and for exactly what its own content says.
+// Live suite: hit riders. A mark pays out ONLY for the creature that placed it, and for exactly
+// what its own content says. The rider table is code and always on (no list, no switch).
 //
 // Damage rolls use create:false, so nothing reaches the log and no HP moves. Fixtures are LINKED
 // tokens created here and deleted on the way out: an unlinked token's synthetic actor has a
@@ -11,14 +11,12 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // The machines this suite drives (tools/coverage-map.mjs parses this). ⚠ NEVER import a suite:
 // it connects on evaluation.
 export const COVERS = [
-  'hit-riders.js'           // the mark pays out — ownership, crit, the list, the toggle, Foe Slayer
+  'hit-riders.js'           // the mark pays out — ownership, crit, Foe Slayer
 ];
 
 const SECTIONS = {
   1: 'the rider rides',
   2: 'crit doubles it',
-  3: 'the list gates it',
-  4: 'the toggle gates it',
   5: "SOMEONE ELSE'S mark",
   6: 'no mark at all',
   7: 'concentration origin',
@@ -26,8 +24,8 @@ const SECTIONS = {
   9: "the tray's shape: a stale compendium item beside a fresh activity",
   10: 'through the cast: the applier names the caster'
 };
-// §§2-4 re-roll against the mark §1 placed.
-const DEPENDS = { 2: ['1'], 3: ['1'], 4: ['1'] };
+// §2 re-rolls against the mark §1 placed.
+const DEPENDS = { 2: ['1'] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'riders', watchdogMs: 300_000 });
@@ -49,16 +47,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  for (const key of ['riders', 'riderList', 'riderUpgrades']) {
+  for (const key of ['decisionTimer']) {
     if (!game.settings.settings.has(`${MOD}.${key}`)) {
       return { fatal: `setting ${key} not registered — this client is running OLD code (F5)` };
     }
   }
 
   const prior = {
-    riders: game.settings.get(MOD, 'riders'),
-    riderList: game.settings.get(MOD, 'riderList'),
-    riderUpgrades: game.settings.get(MOD, 'riderUpgrades'),
     // §10 casts; the settings it pins come back with the rest.
     castApply: game.settings.get(MOD, 'castApply'),
     dramaticBeat: game.settings.get(MOD, 'dramaticBeat'),
@@ -109,10 +104,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await game.settings.set(MOD, 'riders', true);
-    await game.settings.set(MOD, 'riderList', 'hunters-mark, hex, great-old-one-hex');
-    await game.settings.set(MOD, 'riderUpgrades', 'foe-slayer:hunters-mark');
-
     // ---- fixtures: Hunter's Mark on the attacker, and on the bystander for the ownership test
     // ⚠ An identifier is NOT unique across rule versions: the 2014 Hunter's Mark shares it and has no
     // bonus-damage activity. Select on the rider SHAPE.
@@ -211,23 +202,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       rolls = await rollAt(true);
       ok('2. crit doubles the rider (no code does this)', forceParts(rolls)[0]?.formula === '2d6',
         JSON.stringify(rolls));
-    }
-
-    // ---------------------------------------------------------------- 3. the list gates it
-    if (want(3)) {
-      await game.settings.set(MOD, 'riderList', 'hex');
-      rolls = await rollAt();
-      ok('3. a mark the table does not list pays nothing', forceParts(rolls).length === 0,
-        JSON.stringify(rolls));
-      await game.settings.set(MOD, 'riderList', 'hunters-mark, hex, great-old-one-hex');
-    }
-
-    // ---------------------------------------------------------------- 4. the toggle gates it
-    if (want(4)) {
-      await game.settings.set(MOD, 'riders', false);
-      rolls = await rollAt();
-      ok('4. feature off pays nothing', forceParts(rolls).length === 0, JSON.stringify(rolls));
-      await game.settings.set(MOD, 'riders', true);
     }
 
     // ---------------------------------------------------------------- 5. SOMEONE ELSE'S mark

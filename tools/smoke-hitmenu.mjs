@@ -158,7 +158,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('holdTimer', 0);              // the sweep popup waits for a press (the hold family's clock)
     await set('reminderList', '');          // no gate: the swing rolls straight
     await set('maneuverFolds', '');         // no Precision offer on a miss that should not happen
-    // The fighter's own Great Weapon Fighting floors every die at 3; this suite's formulas are pinned.
+    // The fighter's own Great Weapon Fighting is always on now (no list to empty): every die floors at 3,
+    // so a pinned formula reads "1d8min3" — the patterns below allow the floor.
     await set('fightingStyleList', '');
     await set('clockRiderList', '');
     await set('hitMenuList', 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack');
@@ -240,8 +241,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
     const target = token => token.setTarget(true, { releaseOthers: true });
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
-    const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
-      .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+    // The NEWEST open offer: a stale one left open (a 0 s Decision Timer waits for a press) must never stand in.
+    const offerEl = () => [...foundry.applications.instances.values()].filter(a => a.rendered).map(a => a.element)
+      .filter(el => (el?.innerHTML ?? '').includes('Damage — your roll')).pop() ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
     /** The hit menu's first pick on a damage roll (`picks`), as a one-record shape. */
@@ -340,7 +342,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await refill();
       const { msg, dmg, hm } = await swingWith('trip-attack');
       const formulas = (dmg?.rolls ?? []).map(r => r.formula);
-      const part = (dmg?.rolls ?? []).find(r => /^1d8$/.test(r.formula));
+      const part = (dmg?.rolls ?? []).find(r => /^1d8(min3)?$/.test(r.formula));
       ok('3a. the die rides the weapon\'s damage roll as its own part — 1d8 slashing',
         !!dmg && !!part && (part.options?.type === 'slashing'), `formulas=[${formulas.join(' | ')}] type=${part?.options?.type}`);
       ok('3b. the damage message records it: Trip Attack, 1d8, one Superiority Die spent, 3 left — and the attack message is marked rolled',
@@ -477,24 +479,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await settle();
     }
 
-    // ================================================== 8. the list is the switch
-    if (want(8)) {
-      await refill();
-      await set('hitMenuList', '');
-      const { originId } = await swing();
-      const offer = await waitFor(offerEl, 2500);
-      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      ok('8. an empty Hit Menu list: no offer opens for it, nothing rides', !offer && !!dmg && !dmg.getFlag(MOD, 'hitManeuver'), `offer=${!!offer} hm=${!!dmg?.getFlag(MOD, 'hitManeuver')}`);
-      await set('hitMenuList', 'Trip Attack, Goading Attack, Menacing Attack, Pushing Attack, Disarming Attack, Distracting Strike, Maneuvering Attack, Sweeping Attack');
-      await settle();
-    }
+    // ================================================== 8. RETIRED
+    // The Hit Menu list is gone (the table is the only list). Its swing also left an unanswered offer
+    // open under a 0 s Decision Timer, which §9 onward then pressed in place of their own.
 
     // ================================================== 9. the crit
     if (want(9)) {
       await refill();
       const { dmg, hm } = await swingWith('goading-attack', { d20: 20 });
       // The crit rewrites the part's formula (1d8 → 2d8) rather than adding a die.
-      const part = (dmg?.rolls ?? []).find(r => /^[12]d8$/.test(r.formula));
+      const part = (dmg?.rolls ?? []).find(r => /^[12]d8(min3)?$/.test(r.formula));
       const eights = part?.dice?.filter(d => d.faces === 8).reduce((n, d) => n + d.number, 0) ?? 0;
       ok('9. a forced 20: the die is crit-doubled by the same stamp — the maneuver part rolls 2d8',
         !!hm && dmg?.rolls?.[0]?.isCritical && (eights === 2), `crit=${dmg?.rolls?.[0]?.isCritical} eights=${eights} formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
@@ -551,6 +545,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else {
         const gItems = [];
         const fItems = [];
+        const riderSpent = {};
         const priorSize = victim.system._source.traits?.size ?? 'med';
         const boonData = async name => {
           const idx = await origins.getIndex();
@@ -573,6 +568,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const boon = n => goliath.items.find(i => (i.type === 'feat') && (i.name === n));
           const usesOf = n => Number(boon(n)?.system.uses?.value ?? -1);
           const refillBoons = async () => { for (const n of ["Hill's Tumble"]) await boon(n)?.update({ 'system.uses.spent': 0 }); };
+          // Fire's Burn / Frost's Chill are clock riders, always on now (no Clock Riders list to empty): a due
+          // one opens the offer under auto damage and rides the hit. Spent out for these sections, restored after.
+          for (const n of ["Fire's Burn", "Frost's Chill"]) {
+            const b = boon(n);
+            if (!b?.system.uses?.max) continue;
+            riderSpent[n] = b.system._source.uses?.spent ?? 0;
+            await b.update({ 'system.uses.spent': Number(b.system.uses.max) });
+          }
           const goliathToken = canvas.tokens.placeables.find(t => t.actor?.id === goliath.id) ?? (await placeToken(goliath, 1400, 1500)).token;
           const gAttack = axe.system.activities.find(a => a.type === 'attack');
           const swingGoliath = async () => {
@@ -652,7 +655,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const picks13 = (dmg?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key);
             const formulas13 = (dmg?.rolls ?? []).map(r => r.formula);
             ok('13b. both picks ride the one hit: Trip Attack\'s 1d8 on the roll and a Superiority Die spent, Hill\'s Tumble\'s Prone on the victim',
-              (picks13.join() === 'trip-attack,hills-tumble') && formulas13.some(f => /^1d8$/.test(f)) && victim.statuses?.has?.('prone') && (poolLeft() === 3),
+              (picks13.join() === 'trip-attack,hills-tumble') && formulas13.some(f => /^1d8(min3)?$/.test(f)) && victim.statuses?.has?.('prone') && (poolLeft() === 3),
               `picks=${picks13.join()} formulas=${formulas13.join(' | ')} prone=${victim.statuses?.has?.('prone')} pool=${poolLeft()}`);
             const pub13 = moments.filter(p => (p.at >= since13) && (p.kind === 'hitManeuver') && (p.messageId === dmg?.id)).map(p => `${p.event}:${p.marker}`).sort();
             ok('13c. one resolve per pick: maneuver for Trip Attack, rider for Hill\'s Tumble',
@@ -661,6 +664,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
         } finally {
           await victim.update({ 'system.traits.size': priorSize }).catch(() => {});
+          for (const [n, spent] of Object.entries(riderSpent)) await goliath.items.find(i => (i.type === 'feat') && (i.name === n))?.update({ 'system.uses.spent': spent }).catch(() => {});
           const gl = gItems.filter(id => goliath.items.get(id));
           if (gl.length) await goliath.deleteEmbeddedDocuments('Item', gl).catch(() => {});
           const fl = fItems.filter(id => fighter.items.get(id));

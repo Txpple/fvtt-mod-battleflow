@@ -70,6 +70,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const priorActor = {};
   let combat = null;
   let restored = false;
+  /** Savage Attacker's data while §11 has it off the sheet; restored in §11's finally and by the teardown. */
+  let savageSaved = null;
+  const restoreSavage = async () => {
+    if (!savageSaved) return;
+    const data = savageSaved;
+    savageSaved = null;
+    if (!halfling.items.find(i => i.name === 'Savage Attacker')) await halfling.createEmbeddedDocuments('Item', [data], { keepId: true });
+  };
   const realPRNG = CONFIG.Dice.randomUniform;
   /** The PRNG as a queue of faces: `[20, 19]` then `[6, 6]` → each die takes the next face; past the end, the last. */
   const faces = spec => {
@@ -100,6 +108,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       await closeDialogs();
+      await restoreSavage();
       await clearChips();
       try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
       for (const [actorId, ids] of Object.entries(created.items.reduce((m, [a, id]) => { (m[a] ??= []).push(id); return m; }, {}))) {
@@ -364,8 +373,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `either=${either(game.messages.get(s.dmg.id))?.status}`);
       press(popup, 'keep');
       await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
-      await set('reactionHold', false);
-      await set('interruptList', prior.interruptList);
+      // The reaction hold is always on now: the stand-in Uncanny Dodge must LEAVE the victim, or every later
+      // hit holds for it (a 0 s Decision Timer waits for ever) and the dice popup never asks.
+      if (victim.items.get(ud.id)) await victim.deleteEmbeddedDocuments('Item', [ud.id]);
     }
 
     // ---- 7. a crit's doubled set
@@ -395,16 +405,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('holdTimer', 0);
     }
 
-    // ---- 9. the list is the switch
-    if (want(9)) {
-      await clearChips();
-      await set('damageEitherList', '');
-      const s = await swing({ d20: 15, die: 3 });
-      const receipt = await waitFor(() => receiptOf(game.messages.get(s.dmg.id)), 8000);
-      ok('9a. an empty Damage Rolled Twice list offers nothing — no record, no popup, the damage lands', !either(s.dmg) && !eitherPopup() && !!receipt,
-        `either=${JSON.stringify(either(s.dmg))}`);
-      await set('damageEitherList', prior.damageEitherList);
-    }
+    // ---- 9. RETIRED: the Damage Rolled Twice list is gone (the table is the only list).
 
     // ---- 11. Piercer's Puncture
     if (want(11)) {
@@ -419,7 +420,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else {
         const [lent] = await halfling.createEmbeddedDocuments('Item', [piercer.toObject()]);
         created.items.push([halfling.id, lent.id]);
-        await set('damageEitherList', 'Piercer');
+        // Piercer ALONE: with no list to narrow, Savage Attacker leaves the sheet for the section (restored after).
+        const savage = halfling.items.find(i => i.name === 'Savage Attacker');
+        savageSaved = savage?.toObject() ?? null;
+        if (savage) await halfling.deleteEmbeddedDocuments('Item', [savage.id]);
         try {
           const s = await swing({ d20: 15, die: 1 });
           const popup = await waitFor(eitherPopup, 6000);
@@ -446,7 +450,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `flag=${JSON.stringify(either(used2))} total=${total2}`);
         } finally {
           await closeDialogs();
-          await set('damageEitherList', prior.damageEitherList);
+          await restoreSavage();
         }
       }
     }

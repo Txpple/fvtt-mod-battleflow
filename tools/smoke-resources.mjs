@@ -57,8 +57,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return { fatal: 'setting resourceNotices not registered — this client is running OLD code (F5)' };
   }
 
-  const SETTING_KEYS = ['resourceNotices', 'volleys', 'castApply', 'autoDamage', 'autoApply',
-    'requireTarget', 'reactionHold', 'saves', 'concMode', 'hideCardButtons'];
+  const SETTING_KEYS = ['resourceNotices'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -113,14 +112,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   try {
     await set('resourceNotices', true);
-    await set('volleys', false);      // no volley machinery in this suite
-    await set('castApply', false);
-    await set('autoDamage', 'off');
-    await set('autoApply', false);
-    await set('requireTarget', false);
-    await set('reactionHold', false);
-    await set('saves', false);
-    await set('concMode', 'off');
 
     await victim.update({ ownership: { ...priorOwnership, [player.id]: 3 } });
     if (!victim.hasPlayerOwner) return { fatal: 'ownership grant did not take' };
@@ -234,9 +225,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ============================================================ §5 (cc) the flash waits for the dice
     if (want(5)) {
       log.push('§5 deferred flash');
-      // The hide filters the card's data at birth (polish.js), so the button this section presses
-      // exists only with the hide OFF (restored in teardown).
-      await set('hideCardButtons', false);
       [healFeat] = await victim.createEmbeddedDocuments('Item', [{
         name: 'BF Notice Heal', type: 'feat',
         system: {
@@ -253,11 +241,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!card5 && !bannerNow(), bannerNow()?.textContent?.slice(0, 60) ?? 'quiet');
       ok('5b the durable card line does NOT wait (the ledger is immediate)',
         !!card5 && !!lineFor(card5.id) && lineFor(card5.id).textContent.includes('2 of 3'));
-      // The card button is the player's real path: click it, submit the native dialog, the flash releases.
-      const healBtn = document.querySelector(`[data-message-id="${card5?.id}"] button[data-action="rollHealing"]`);
-      ok('5c the heal button exists on the card', !!healBtn);
+      // The card's buttons are hidden at birth (polish.js): the roll is the use's own follow-up, whose
+      // native dialog is already open. Submit it and the flash releases.
       const beforeRoll = new Set(game.messages.contents.map(m => m.id));
-      healBtn?.click();
       const cfgDlg = await until(() => [...foundry.applications.instances.values()]
         .find(a => a.constructor?.name?.includes('RollConfiguration') && a.rendered), 5000);
       cfgDlg?.element.querySelector('button[type="submit"]')?.click();
@@ -265,7 +251,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const rollNow = () => game.messages.contents.find(m => !beforeRoll.has(m.id) && m.rolls?.length);
       await until(() => rollNow() && bannerNow(), 8000);
       const healRoll = rollNow();
-      ok('5d the roll links to the card (the (cc) linkage pin, card-button path)',
+      ok('5d the roll links to the card (the (cc) linkage pin, the use’s follow-up roll)',
         !!healRoll && (healRoll._source.system?.origin === card5?.id),
         JSON.stringify({ link: healRoll?._source.system?.origin ?? null, card: card5?.id }));
       const b5 = bannerNow();

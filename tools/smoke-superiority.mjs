@@ -70,10 +70,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, reload)' };
 
+  // The list settings are gone (the tables are the only list): every row is live for the run.
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'interruptList', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',
-    'saves', 'castApply', 'concMode', 'reminderList', 'conditionList', 'effectList', 'maneuverFolds', 'd20Folds', 'd20FoldAsk',
-    'clockRiderList', 'hitMenuList', 'superiorityUseList', 'damageShieldList', 'damageSaveList', 'emanations', 'fightingStyleList'];
+    'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk',
+    'saves', 'castApply', 'concMode', 'd20FoldAsk', 'emanations'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -150,7 +150,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('holdTimer', 0);
     await set('holdReveal', true);
     await set('holdSkipFutile', false);
-    await set('interruptList', game.settings.settings.get(`${MOD}.interruptList`)?.default ?? prior.interruptList);
     await set('riders', false);
     await set('effectRiders', false);
     await set('masteryRiders', true);          // the chip spend (Feinting's marker) lives in the mastery machine
@@ -158,20 +157,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saves', false);
     await set('castApply', true);              // Rally
     await set('concMode', 'off');
-    await set('reminderList', 'effect');       // the gate reads the effect table only
-    await set('conditionList', prior.conditionList);
-    await set('effectList', game.settings.settings.get(`${MOD}.effectList`)?.default ?? prior.effectList);
-    await set('maneuverFolds', "Commander's Strike:command");
-    await set('d20Folds', 'Ambush:tactical, Tactical Assessment:tactical');
     await set('d20FoldAsk', true);
-    // The fighter's Great Weapon Fighting floors every die at 3; its formulas here are pinned.
-    await set('fightingStyleList', '');
-    await set('clockRiderList', '');
-    await set('hitMenuList', '');
-    await set('superiorityUseList', 'Evasive Footwork, Bait and Switch, Lunging Attack, Feinting Attack');
-    await set('damageShieldList', '');
-    await set('damageSaveList', '');
     await set('emanations', false);
+    // ⚠ Every table row is live: the fighter's Great Weapon Fighting floors every die at 3 (a rider
+    // die reads 1d8min3), the fighter's other d20 resources ride the checks' offers beside the
+    // maneuvers, and the Ranger's Dreadful Strike opens the damage offer on its hit.
+    const SUP_DIE = /^1d8(min3)?$/;
 
     // ---- fixtures
     const MANEUVERS = ['Parry', 'Feinting Attack', 'Lunging Attack', 'Evasive Footwork', 'Bait and Switch', 'Rally', 'Ambush', 'Tactical Assessment', "Commander's Strike"];
@@ -346,7 +337,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       const sr = dmg?.getFlag(MOD, 'superiorityRide');
       ok('2c. the die rides the hit\'s damage as its own part in the weapon\'s type, the card says so, and the marker is spent',
-        !!riderPart(dmg, /^1d8$/) && (sr?.rode?.[0]?.key === 'Feinting Attack') && !goblin.effects.some(e => e.name === 'Feinting Attack'),
+        !!riderPart(dmg, SUP_DIE) && (sr?.rode?.[0]?.key === 'Feinting Attack') && !goblin.effects.some(e => e.name === 'Feinting Attack'),
         `formulas=[${(dmg?.rolls ?? []).map(r => r.formula + ':' + r.options?.type).join(' | ')}] ride=${JSON.stringify(sr?.rode)} markerLeft=${goblin.effects.some(e => e.name === 'Feinting Attack')}`);
       // Another creature's attack never reads the fighter's feint: a fresh marker, the RANGER's dialog.
       await useAt(feat('Feinting Attack'), 'Damage', goblinToken);
@@ -380,7 +371,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       offer?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       await sleep(400);
-      ok('3c. ticked, the die rides and the chip goes', !!riderPart(dmg, /^1d8$/) && (msg?.getFlag(MOD, 'lungePick') === true) && !fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
+      ok('3c. ticked, the die rides and the chip goes', !!riderPart(dmg, SUP_DIE) && (msg?.getFlag(MOD, 'lungePick') === true) && !fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
         `formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}] pick=${msg?.getFlag(MOD, 'lungePick')} chipLeft=${fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack')}`);
       // Unticked: nothing rides, the chip stays for a later hit this turn.
       await refill(); await healFull();
@@ -392,7 +383,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(60);
       offer2?.querySelector('button[data-action="roll"]')?.click();
       const dmg2 = await waitFor(() => { const d = damageFor(o2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      ok('3d. unticked, nothing rides and the chip stands', !!dmg2 && !riderPart(dmg2, /^1d8$/) && (m2?.getFlag(MOD, 'lungePick') === false) && fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
+      ok('3d. unticked, nothing rides and the chip stands', !!dmg2 && !riderPart(dmg2, SUP_DIE) && (m2?.getFlag(MOD, 'lungePick') === false) && fighter.effects.some(e => e.getFlag(MOD, 'useKey') === 'Lunging Attack'),
         `formulas=[${(dmg2?.rolls ?? []).map(r => r.formula).join(' | ')}] pick=${m2?.getFlag(MOD, 'lungePick')}`);
       await clearChips();
     }
@@ -461,24 +452,30 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(600);
         return { m, flag: m?.getFlag(MOD, 'd20fold') ?? null, grew: game.messages.size - before };
       };
+      // Every d20 fold row is live: the fighter's other resources (Heroic Inspiration, Tactical
+      // Mind, a Bardic die) ride beside the maneuvers — the scope is what these checks read.
+      const labels = fl => (fl?.offers ?? []).map(o => o.label);
       const ste = await foldOf('ste');
-      ok('7a. a Stealth check offers Ambush — the d20 fold\'s tactical spend with the feature\'s own scope — and not Tactical Assessment', (ste.flag?.offers?.map(o => o.label).join(',') === 'Ambush') && (ste.flag?.offers?.[0]?.dieFormula === '1d8') && (ste.flag?.skill === 'ste'),
-        `offers=${JSON.stringify(ste.flag?.offers)} skill=${ste.flag?.skill}`);
+      const ambushOffer = (ste.flag?.offers ?? []).find(o => o.label === 'Ambush');
+      ok('7a. a Stealth check offers Ambush — the d20 fold\'s tactical spend with the feature\'s own scope — and not Tactical Assessment', !!ambushOffer && (ambushOffer.dieFormula === '1d8') && !labels(ste.flag).includes('Tactical Assessment') && (ste.flag?.skill === 'ste'),
+        `offers=${JSON.stringify(labels(ste.flag))} skill=${ste.flag?.skill}`);
       await closeDialogs();
       const his = await foldOf('his');
-      ok('7b. a History check offers Tactical Assessment and not Ambush', his.flag?.offers?.map(o => o.label).join(',') === 'Tactical Assessment', `offers=${JSON.stringify(his.flag?.offers?.map(o => o.label))}`);
+      ok('7b. a History check offers Tactical Assessment and not Ambush', labels(his.flag).includes('Tactical Assessment') && !labels(his.flag).includes('Ambush'), `offers=${JSON.stringify(labels(his.flag))}`);
       await closeDialogs();
       const ath = await foldOf('ath');
-      ok('7c. an Athletics check offers neither', !ath.flag, `flag=${JSON.stringify(ath.flag?.offers?.map(o => o.label))}`);
+      ok('7c. an Athletics check offers neither', !labels(ath.flag).includes('Ambush') && !labels(ath.flag).includes('Tactical Assessment'), `offers=${JSON.stringify(labels(ath.flag))}`);
       // Accept Ambush on a fresh Stealth check: the rescue window's row.
       const ste2 = await foldOf('ste');
       const win = await waitFor(() => rescueWindow('Ambush'), 6000);
       win?.querySelector('[data-bf-rescue-action="tactical:Ambush"]')?.click();   // keyed by NAME: two tactical rows can stand
-      const done = await waitFor(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.status === 'resolved') ? fl : null; }, 10000);
+      // The other resources stay offered after the spend (a check with no DC is never "passed"), so
+      // the fold may stand re-offered: the settled spend and the patched total are the witness.
+      const done = await waitFor(() => { const fl = ste2.m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Ambush') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, 10000);
       ok('7d. accepting Ambush spends a Superiority Die, rolls the die in the open and patches the check\'s total; the card names Ambush, not Tactical Mind',
-        (done?.outcome === 'used') && (done?.spends?.[0]?.name === 'Ambush') && (done?.spends?.[0]?.label === 'Ambush') && (done?.foldedTotal === done?.baseTotal + done?.spends?.[0]?.die) && (poolLeft() === 3)
+        ((done?.status === 'pending') || (done?.outcome === 'used')) && (done?.spends?.length === 1) && (done?.spends?.[0]?.name === 'Ambush') && (done?.spends?.[0]?.label === 'Ambush') && (done?.foldedTotal === done?.baseTotal + done?.spends?.[0]?.die) && (poolLeft() === 3)
           && !game.messages.contents.some(m => (m.timestamp >= suiteStart) && /Second Wind isn't expended/.test(m.content ?? '')),
-        `flag=${JSON.stringify(done && { outcome: done.outcome, spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} pool=${poolLeft()}`);
+        `flag=${JSON.stringify(done && { status: done.status, outcome: done.outcome, spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} pool=${poolLeft()}`);
       await sleep(600);
       // The rescue's spend USES the Ambush activity; it must not ARM a second die.
       ok('7e. the rescue\'s spend arms nothing — no chip on the fighter, no "which check" card', !fighter.effects.some(e => (e.getFlag(MOD, 'useKey') === 'tactical') && e.getFlag(MOD, 'armed'))
@@ -540,6 +537,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(300);
       // The Ranger attacks the goblin from its own sheet: the chip's die rides the damage.
       const { msg: attackMsg, originId } = await swing(ranger, rangerToken, rangerSword, goblinToken);
+      // The Gloom Stalker's Dreadful Strike (a live clock-rider row) opens the damage offer on the
+      // hit, and with Decision Timer 0 it waits for a click: roll with the rider UNticked (the
+      // fixture's uses untouched) — the chip's die rides the base roll either way.
+      const rangerOffer = await waitFor(offerEl, 4000);
+      if (rangerOffer) {
+        for (const box of rangerOffer.querySelectorAll('input[name="bf-rider"]')) if (box.checked) box.click();
+        await sleep(60);
+        rangerOffer.querySelector('button[data-action="roll"]')?.click();
+      }
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       const base = dmg?.rolls?.[0]?.formula ?? '';
       const ride = dmg?.getFlag(MOD, 'commandRide');

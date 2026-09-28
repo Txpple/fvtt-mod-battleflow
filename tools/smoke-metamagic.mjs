@@ -29,7 +29,6 @@ const SECTIONS = {
   4: 'Quickened Spell costs 2: Fireball again, the pool 4 → 2, the card says Bonus Action',
   5: 'Distant Spell on Chromatic Orb: the card carries 180 ft; the attack gate\'s range reminder reads the doubled range for a target at 120 ft (in normal range with Distant, beyond it without)',
   6: 'no points: with Font of Magic spent out every row stays, greyed, "1 SP — 0 left"; the pool line says 0 of 5',
-  7: 'the list is the switch: an empty Metamagic list draws no group; a list of one draws one row',
   8: 'the registration FIRED (§11): renderActivityUsageDialog and dnd5e.postUseActivity moved',
   9: 'Careful Spell (Stage 2, the third look): a bare Fireball cast with Careful, the area placed over the Sorcerer, the Ranger and the two goblins — the ASK opens at the area listing the four with the two non-hostiles ticked while the demand waits empty; OK → the two leave the demand, the goblins owe the save, the card names the protected',
   10: 'Heightened Spell (Stage 2): the same area — the first goblin is marked on the demand; its save gate opens with "Heightened Spell" as a Disadvantage source and Disadvantage as the default; the other goblin\'s gate carries no such source',
@@ -79,7 +78,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, wait out the cache, or restart the box)' };
 
-  const SETTING_KEYS = ['metamagicList', 'reminderList', 'requireTarget', 'saves', 'autoApply', 'saveTimer', 'd20Folds', 'd20FoldAsk', 'holdTimer', 'fightingStyleList'];
+  const SETTING_KEYS = ['saveTimer', 'holdTimer'];   // both the one decisionTimer (the harness translates)
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -131,7 +130,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const rowsOf = fs => [...(fs?.querySelectorAll('[data-bf-metamagic-row]') ?? [])].map(r => ({
     key: r.dataset.bfMetamagicRow, off: r.dataset.bfOff === '1', tag: r.querySelector('span')?.textContent?.trim() ?? '',
-    box: r.querySelector('input[name="bf-metamagic"]'), rule: r.querySelector('details[data-bf-rule]')
+    box: r.querySelector('input[name="bf-metamagic"]'), rule: r.querySelector('details[data-bf-rule-fold]')
   }));
   /** Tick a row and press the window's own Use button; wait for the usage card. */
   const castWith = async (name, key, usage = {}, tweak = null) => {
@@ -174,9 +173,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await set('metamagicList', game.settings.settings.get(`${MOD}.metamagicList`).default);
-    await set('requireTarget', false);
-    await set('reminderList', game.settings.settings.get(`${MOD}.reminderList`).default);
+    // An attack spell needs a target (the no-target gate is always on): the attack casts aim at the attacker.
+    const aimAtAttacker = () => canvas.tokens.get(attTok.id)?.setTarget(true, { releaseOthers: true });
     const p0 = pool();
     if (p0.system.uses.spent) await p0.update({ 'system.uses.spent': 0 });
     // Full HP: a dead caster is filtered from every list and demand.
@@ -255,6 +253,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sorcTok.update({ x: g, y: g }, { teleport: true, animate: false });
       await attTok.update({ x: g + span, y: g + span }, { teleport: true, animate: false });
       await sleep(400);
+      aimAtAttacker();
       const geo = await import(`/modules/${MOD}/scripts/geometry.js`);
       log.push(`§5: sorcerer to (${sorcTok.x},${sorcTok.y}), attacker to (${attTok.x},${attTok.y}); ${geo.nearestFeet(canvas.tokens.get(sorcTok.id), canvas.tokens.get(attTok.id))} ft apart`);
       const { card, why } = await castWith('Chromatic Orb', 'distant', { consume: { spellSlot: false } });
@@ -275,6 +274,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await orbItem.update({ 'system.range.value': orbRange0 });
       await attTok.update(attHome, { teleport: true, animate: false });
       await sorcTok.update(sorcHome, { teleport: true, animate: false });
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     }
 
     if (want(6)) {
@@ -289,19 +289,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6c. the pool line says 0 of 5', /Sorcery Points: 0 of 5/.test(poolLine), poolLine.trim());
       await app?.close();
       await p.update({ 'system.uses.spent': spentBefore });
-    }
-
-    if (want(7)) {
-      await set('metamagicList', '');
-      const empty = await openWindow('Fireball');
-      ok('7a. an empty Metamagic list draws no group', !empty.fs, empty.fs ? 'fieldset present' : '');
-      await closeDialogs();
-      await set('metamagicList', 'Subtle Spell');
-      const one = await openWindow('Fireball');
-      const rows = rowsOf(one.fs);
-      ok('7b. a list of one draws one row', rows.length === 1 && rows[0].key === 'subtle', rows.map(r => r.key).join(','));
-      await one.app?.close();
-      await set('metamagicList', prior.metamagicList);
     }
 
     // ---- Stage 2: the save demand
@@ -520,8 +507,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- Stage 4: Seeking and Empowered
     if (want(15)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
-      await set('d20Folds', game.settings.settings.get(`${MOD}.d20Folds`).default);
-      await set('d20FoldAsk', true);
       await set('holdTimer', 0);
       const foe = attTok.actor;
       const priorAC = { override: foe.system._source.attributes.ac.override ?? null };
@@ -721,7 +706,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(19)) {
       const p19 = pool(); if (p19.system.uses.spent) await p19.update({ 'system.uses.spent': 0 });
-      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
+      aimAtAttacker();
       // The real path: the default dialog config (configure undecided) must still open a cantrip's window.
       const act19 = spellAct('Fire Bolt');
       const pending19 = act19?.use({ consume: { spellSlot: false } }, {}, { create: true });
@@ -746,6 +731,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('19d. the Transmuted type radios are greyed until Transmuted is ticked, live once it is, greyed again when it is not', inert0 && live1 && inert2, JSON.stringify({ radios: types19().length, inert0, live1, inert2 }));
       await app19?.close();
       await closeDialogs();
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
     }
 
     // ---- A SPELL THAT CHOOSES ITS TARGETS (RULINGS *Spells that choose their targets*): the PHB's
@@ -917,11 +903,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const realPRNG23 = CONFIG.Dice.randomUniform;
         const pin = (values, faces) => { let i = 0; CONFIG.Dice.randomUniform = () => 1 - ((values[Math.min(i++, values.length - 1)] - 0.5) / faces); };
         try {
-          await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? prior.fightingStyleList);
           await set('holdTimer', 0);
           const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
           await sleep(600);
-          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
+          aimAtAttacker();
           const before = new Set(game.messages.map(m => m.id));
           await spellAct('Fire Bolt').use({ create: { measuredTemplate: false } }, { configure: false }, {});
           const card = await waitFor(() => game.messages.find(m => !before.has(m.id) && (m.type === 'usage')) ?? null, 6000);
@@ -951,6 +936,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         } finally {
           CONFIG.Dice.randomUniform = realPRNG23;
           await closeDialogs();
+          game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
           await sorc.deleteEmbeddedDocuments('Item', [adept.id]).catch(() => {});
         }
       }

@@ -42,6 +42,23 @@ feats were done: ARCHITECTURE's appendix *Decided against*, and [HANDOFF.md](HAN
 
 ## Architecture
 
+### Phase 2's residue (2026-09-27)
+
+- **The membership plumbing.** Every membership reader (`effectEntries()`, `emanationEntries()`…)
+  now returns every row of its table, so the `listed` sets and the decide/ functions' `listed`
+  parameters are always true. Removing them is a cleanup that touches decide/ signatures and
+  their tests; nothing behaves differently until then.
+- **The suites' retired keys.** The suites still write retired setting keys, translated in the
+  page by `tools/harness.mjs` `retireSettings`. Strip those writes suite by suite, then retire the
+  translation.
+- **Effects are still found by name.** ActiveEffects carry no identifier: the effect table's 48
+  effect-keyed rows and the `effect` fields match the effect's name. The effect's origin item has
+  one, a candidate key when a renamed effect bites.
+- **Rule pointers name the Player's Handbook pack.** An item pointer falls back to the system's
+  2024 packs by identifier when its `uuid` does not resolve (a table without the PHB module); a
+  rules-page pointer reads `CONFIG.DND5E`.
+
+
 ### The two sideways edges (2026-09-05)
 
 The tree is layered and the rule is *depend downward only*. Seven sideways edges were found;

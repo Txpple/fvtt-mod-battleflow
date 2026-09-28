@@ -20,7 +20,6 @@ const SECTIONS = {
   5: 'Thrown Weapon Fighting: the Javelin thrown rolls +2; swung in melee it does not',
   6: 'Two-Weapon Fighting: the Dagger off-hand adds the modifier back',
   7: 'Unarmed Fighting: the sheet\'s Unarmed Strike rolls the d8 with the hands empty, the d6 with a Shield held, and says so',
-  8: 'off the list: the faces go and the pack\'s own Defense and Dueling effects come back on',
   9: 'Blind Fighting: an Invisible victim 5 ft away is seen (listed, net Normal); 15 ft away it is not (Disadvantage); the Invisible victim attacking the fighter loses its Advantage',
   11: `Great Weapon Master (the PHB feats, 2026-09-26): its face live off the Greatsword; the Greatsword's damage rolls +PB with "Great Weapon Master — +N"; the Longsword adds nothing; on someone else's turn, "Great Weapon Master off — not your turn"`,
   12: `Heavy Armor Master: its face live in Chain Mail and the pack's own reduction switched off; an attack's 9 slashing lands 9 − PB (the calculation says "blocked", the actor's update carries the pop); a bare 9 (no attack card) lands whole; out of the armor the attack's 9 lands whole`,
@@ -53,11 +52,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const SETTING_KEYS = ['fightingStyleList', 'unarmedDiceList', 'autoDamage', 'autoApply', 'riders', 'effectRiders', 'masteryRiders',
-    'clockRiderList', 'damageEitherList', 'reminderList', 'holdTimer'];
+  const SETTING_KEYS = ['autoDamage', 'autoApply', 'riders', 'effectRiders', 'masteryRiders', 'holdTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
-  const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('Battle Flow Test Range');
   const actor = game.actors.getName('BF Test Fighter');
@@ -105,16 +102,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await set('fightingStyleList', def('fightingStyleList'));
-    await set('unarmedDiceList', def('unarmedDiceList'));
     await set('autoDamage', 'off');
     await set('autoApply', false);
     await set('riders', false);
     await set('effectRiders', false);
     await set('masteryRiders', false);
-    await set('clockRiderList', '');
-    await set('damageEitherList', '');   // Savage Attacker's popup is not this suite's
-    await set('reminderList', '');
 
     // ---- fixtures
     // By name AND type: the PHB has a Shield SPELL beside the Shield.
@@ -306,26 +298,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('7c. the face says which die', /d6 — a weapon or Shield held/.test(faceLine('Unarmed Fighting')), `line="${faceLine('Unarmed Fighting')}"`);
     }
 
-    // ---- 8. off the list
-    if (want(8)) {
-      await equip(['Chain Mail', 'Longsword', 'Shield']);
-      await set('fightingStyleList', 'Great Weapon Fighting');
-      // The takeovers come back one feat at a time: poll, don't guess.
-      for (let i = 0; i < 25 && !((packEffect('Defense')?.disabled === false) && (packEffect('Dueling')?.disabled === false)); i++) await sleep(200);
-      await sleep(400);
-      ok('8a. unlisted styles lose their face; the listed one keeps it', !face('Defense') && !face('Dueling') && !!face('Great Weapon Fighting'),
-        `faces=${actor.effects.filter(e => e.getFlag(MOD, 'fightingStyle')).map(e => e.name).join(', ')}`);
-      ok('8b. the pack\'s own Defense and Dueling effects come back on, unflagged',
-        packEffect('Defense')?.disabled === false && packEffect('Dueling')?.disabled === false
-          && !packEffect('Defense')?.getFlag(MOD, 'fightingStyleTakenOver'),
-        `defense=${packEffect('Defense')?.disabled} dueling=${packEffect('Dueling')?.disabled}`);
-      await set('fightingStyleList', def('fightingStyleList'));
-      await sleep(1200);
-    }
-
     // ---- 9. Blind Fighting
     if (want(9)) {
-      await set('reminderList', def('reminderList'));
       const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
       const [fdoc] = await scene.createEmbeddedDocuments('Token', [
         foundry.utils.mergeObject(actor.prototypeToken.toObject(), { x: 1500, y: 1900, actorId: actor.id, actorLink: true, disposition: 1 }, { inplace: false })]);
@@ -429,7 +403,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const liveTok = placed.filter(id => scene.tokens.get(id)?.actorId === held.id);
         if (liveTok.length) await scene.deleteEmbeddedDocuments('Token', liveTok);
         await held.delete().catch(() => {});
-        for (const app of [...foundry.applications.instances.values()]) if (/Unarmed Fighting/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
+        for (const app of [...foundry.applications.instances.values()]) if ((app instanceof foundry.applications.api.DialogV2) && /Unarmed Fighting/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
       }
     }
 
@@ -655,7 +629,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const el = await game.messages.get(id)?.renderHTML?.().catch(() => null);
         return [...(el?.querySelectorAll?.('.bf-fighting-style-line') ?? [])].map(e => e.dataset.bfStyleLine ?? '').join(' | ');
       };
-      const listBefore = game.settings.get(MOD, 'fightingStyleList');
       const dexBefore = actor.system._source.abilities.dex.value;
       try {
         await actor.update({ 'system.abilities.dex.value': 16 });   // a modifier to give back
@@ -671,23 +644,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           skips.push(`§14b–c the Hand Crossbow offers no off-hand mode on this box (modes: ${modes.join(',')})`);
         } else {
           const mod = Number(actor.system.abilities.dex.mod);
-          // only the feat: Two-Weapon Fighting off the list for this roll
-          await set('fightingStyleList', 'Crossbow Expert');
-          await sleep(600);
+          // only the feat: the lent Two-Weapon Fighting off the sheet for this roll (every style is always read)
+          const twf = actor.items.filter(i => (i.name === 'Two-Weapon Fighting') && lent.includes(i.id));
+          if (twf.length) {
+            await actor.deleteEmbeddedDocuments('Item', twf.map(i => i.id));
+            for (const i of twf) lent.splice(lent.indexOf(i.id), 1);
+          }
+          if (actor.items.some(i => i.name === 'Two-Weapon Fighting')) log.push('§14b ⚠ the fixture owns its own Two-Weapon Fighting — 14b cannot isolate Crossbow Expert');
+          await sleep(900);
           const one = await damage(hand, 'offhand', [[3, 6]]);
           const s1 = style(one, 'crossbow-expert');
           ok(`14b. the Hand Crossbow off-hand: +${mod}, "Crossbow Expert — +${mod} on the off-hand"`, (mod > 0) && (s1?.gain === mod)
             && new RegExp(`Crossbow Expert — \\+${mod} on the off-hand`).test(await cardLines(one?.id)),
             `mod=${mod} style=${JSON.stringify(s1)} lines="${await cardLines(one?.id)}"`);
-          await set('fightingStyleList', 'Two-Weapon Fighting, Crossbow Expert');
-          await sleep(600);
+          await lend('Two-Weapon Fighting', 'feat');
+          await sleep(900);
           const two = await damage(hand, 'offhand', [[3, 6]]);
           const all = two?.getFlag(MOD, 'fightingStyle')?.styles ?? [];
           ok('14c. beside Two-Weapon Fighting the modifier is added ONCE', (all.filter(e => e.gain > 0).length === 1)
             && (all.reduce((n, e) => n + e.gain, 0) === mod), `styles=${JSON.stringify(all)}`);
         }
       } finally {
-        await set('fightingStyleList', listBefore);
         await actor.update({ 'system.abilities.dex.value': dexBefore }).catch(() => {});
         for (const it of [ce, hand]) {
           if (lent.includes(it.id)) { await actor.deleteEmbeddedDocuments('Item', [it.id]).catch(() => {}); lent.splice(lent.indexOf(it.id), 1); }

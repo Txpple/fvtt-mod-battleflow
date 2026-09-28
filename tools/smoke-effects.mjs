@@ -759,6 +759,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('autoApply', true);
       await set('masteryAsk', 'auto');
       await setMastery('topple');
+      // Every machine is always on (autoApply, the dice wait): an earlier section's damage can still be
+      // landing, and a hit that drops the 11-HP Victim is dead-skipped with no Topple card. A deep pool
+      // for §14 alone, the fixture's own put back at its end (and by the teardown).
+      await sleep(1500);
+      const hpMax14 = victim.system._source.attributes.hp.max;
+      priorActor[victim.id]['system.attributes.hp.max'] ??= hpMax14;
+      priorActor[victim.id]['system.attributes.hp.value'] ??= victim.system._source.attributes.hp.value;
+      await victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 200 });
       await healFull();
       await acFlat(1); // fumble-only misses
       // getSpeaker picks the actor's FIRST active token: sweep stray unlinked victim tokens, whose
@@ -843,7 +851,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         let atk14d = null;
         for (let try14d = 0; (try14d < 4) && !topple2; try14d++) {
           await victim.toggleStatusEffect('prone', { active: false });
-          await healFull(); // 11 max HP
+          await healFull();
           before14 = snap14();
           atk14d = await attack(pcAttack());
           await until14(() => fresh14(before14).some(m => m.getFlag(MOD, 'topple')), 12_000);
@@ -1021,6 +1029,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await victim.update({ 'system.abilities.con.save.roll.bonus':
           priorActor[victim.id]['system.abilities.con.save.roll.bonus'] });
       }
+      await victim.update({ 'system.attributes.hp.max': hpMax14 });
+      await healFull();
     }
 
     // ---------------------------------------------------- 15. the reminders (vex / sap / cleave)

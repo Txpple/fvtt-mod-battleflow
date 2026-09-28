@@ -11,7 +11,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'initiative-swap.js'      // the whole machine — the ask, the popup, the relay-free GM fold, the swap, the switches
+  'initiative-swap.js'      // the whole machine — the ask, the popup, the relay-free GM fold, the swap
 ];
 
 const SECTIONS = {
@@ -20,8 +20,7 @@ const SECTIONS = {
   3: 'once per roll: a later Initiative change asks nothing new; a reset and a re-roll asks again',
   4: 'an Incapacitated ally is not listed',
   5: 'No: the order stands; an Incapacitated Alert holder is not asked at all',
-  6: 'the clock answers No (timed out)',
-  7: 'the list is the switch: Alert off the Initiative Swaps list — no card'
+  6: 'the clock answers No (timed out)'
 };
 const DEPENDS = { 2: ['1'], 3: ['1'] };
 
@@ -47,10 +46,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const SETTING_KEYS = ['initiativeSwapList', 'holdTimer'];
+  const SETTING_KEYS = ['decisionTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
-  const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('Battle Flow Test Range');
   const [halfling, cleric, bard, victim] = ['BF Test Halfling', 'BF Test Cleric', 'BF Test Bard', 'BF Test Victim'].map(n => game.actors.getName(n));
@@ -86,8 +84,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await set('initiativeSwapList', def('initiativeSwapList'));
-    await set('holdTimer', 0);   // the popup waits for the suite's click
+    await set('decisionTimer', 0);   // the popup waits for the suite's click
 
     let alertSrc = null;
     for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -231,21 +228,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 6. the clock
     if (want(6)) {
-      await set('holdTimer', 3);
+      await set('decisionTimer', 3);
       const { combat, of } = await fight();
       const card = await waitFor(() => cardFor(combat), 6000);
       const flag = await waitFor(() => (card?.getFlag(MOD, 'initiativeSwap')?.answer === 'no') ? card.getFlag(MOD, 'initiativeSwap') : null, 12000);
       ok('6a. the clock answers No (timed out); the order stands', !!flag?.timedOut && (of(tHalfling).initiative === 11),
         `answer=${card?.getFlag(MOD, 'initiativeSwap')?.answer} timedOut=${!!flag?.timedOut}`);
-      await set('holdTimer', 0);
-    }
-
-    // ================================================== 7. off the list
-    if (want(7)) {
-      await set('initiativeSwapList', '');
-      const { combat } = await fight();
-      await sleep(1500);
-      ok('7a. Alert off the list: no card', !cardFor(combat), `card=${!!cardFor(combat)}`);
+      await set('decisionTimer', 0);
     }
 
     return { log, results, skips };

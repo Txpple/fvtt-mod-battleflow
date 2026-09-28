@@ -463,16 +463,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- §4 negatives — never a volley
     if (want(4)) {
       log.push('§4 negatives');
-      // (a) the switch
-      await set('volleys', false);
-      targetBoth();
-      before = snap();
-      await mmAct.use({}, { configure: false }, {});
-      await castSettled(before);
-      closeStrays();   // the native follow-up parks a damage config dialog — expected, closed
-      ok('4a volleys OFF: no volley flag, the native path untouched',
-        !fresh(before).some(m => m.getFlag(MOD, 'volley')));
-      await set('volleys', true);
+      // (a) retired: volleys are always on (RULINGS *The settings*); there is no switch to test.
       // (b) a single-projectile count — the REGISTRY's count; content counts decide nothing
       registry.set('BF Volley Missile', { kind: 'damage', count: '1' });
       targetBoth();
@@ -547,9 +538,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(6)) {
       // ⚠ VICTIM ONLY: a targeted Shield holder stamps a real spell hold (another machine). This
       // pins the claim wiring on the driven rolls and the release when no hold stamps.
+      // The block list is the code table (BLOCKS: Magic Missile against Shield), matched by identifier
+      // first: the fixture wears Magic Missile's identifier for this section so the table claims it.
       log.push('§6 blocklist claim');
-      await set('reactionHold', true);
-      await set('blockList', 'BF Volley Missile:Shield');
+      await mmItem.update({ 'system.identifier': 'magic-missile' });
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
       victimToken.setTarget(true, { releaseOthers: true });
       before = snap();
@@ -571,8 +563,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('6c with no hold on the card, the volley released its own claim and the roll applied',
         claimed.every(m => (m.getFlag(MOD, 'spellHoldPending') === false) && !!m.getFlag(MOD, 'receipt')),
         JSON.stringify(claimed.map(m => [m.getFlag(MOD, 'spellHoldPending'), !!m.getFlag(MOD, 'receipt')])));
-      await set('reactionHold', false);
-      await set('blockList', prior.blockList);
+      await mmItem.update({ 'system.identifier': 'bf-volley-missile' });
     }
 
     // ---- §7 the registry IS membership

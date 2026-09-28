@@ -207,8 +207,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const waitAttackAfter = async id => waitFor(() => { const m = lastAttack(); return (m && (m.id !== id)) ? m : null; }, 8000);
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
-    const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
-      .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+    // The NEWEST open offer: a stale one left open (a 0 s Decision Timer waits for a press) must never stand in.
+    const offerEl = () => [...foundry.applications.instances.values()].filter(a => a.rendered).map(a => a.element)
+      .filter(el => (el?.innerHTML ?? '').includes('Damage — your roll')).pop() ?? null;
     const saveDialogEl = () => [...foundry.applications.instances.values()]
       .filter(app => app.rendered && app.element?.querySelector?.('[data-bf-save-demand]')).map(app => app.element)[0] ?? null;
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
@@ -310,16 +311,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (d2a) { press(d2a, 'normal'); await waitAttackAfter(b2a); }
       await waitFor(() => cardsWith('receipt').length, 8000);
       await sleep(400);
-      // 2b: the list is the switch — without `sneak` the rapier offers no box either.
-      await set('reminderList', 'vex, sap, prone, condition, range, effect');
-      const vexed = await ensureVexed();
-      const { dialog: d2b, before: b2b } = await openGate(rapier);
-      ok('2b. the Reminder Sources list is the switch: without sneak, the rapier offers no box — the Vex source still shows',
-        !!vexed && !!d2b && !boxOf(d2b) && /Vexed/.test(textOf(d2b?.element?.querySelector('[data-bf-reminder]'))),
-        `dialog=${!!d2b} box=${!!boxOf(d2b)}`);
-      if (d2b) { press(d2b, 'advantage'); await waitAttackAfter(b2b); }
-      await sleep(600);
-      await set('reminderList', 'vex, sap, prone, condition, range, effect, sneak');
+      // (2b retired: the Reminder Sources list is gone — the table is the only list, Sneak Attack always offered.
+      //  Its armed rapier swing left an unanswered offer open under a 0 s Decision Timer, which every later
+      //  section then read and pressed in place of its own.)
     }
 
     // ================================================== 3. the offer and the menu

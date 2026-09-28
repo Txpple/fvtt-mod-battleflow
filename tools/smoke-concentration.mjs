@@ -23,22 +23,20 @@ const SECTIONS = {
   6: 'the timer rolls — expiry is the dice, not a pass',
   7: 'multiple instances queue — RAW, one popup at a time',
   8: 'a sheet-rolled save is the answer',
-  9: 'the native whisper card: ours while on, native while off',
+  9: 'the native whisper card is ours: the request card never leaks',
   10: 'private visibility — and the break that never is',
-  11: 'break-on-failure off: announce, touch nothing',
-  12: 'the cause rides the real chain',
+  12: 'the cause rides the real chain (every machine on: the decision timer lets the reaction hold and the offers pass)',
   13: 'a sheet edit is damage too — then zero HP is not a save',
   14: 'the crash-resume re-drives a dead fold',
   15: 'Incapacitated breaks concentration — no save, the cascade, the card (user, 2026-09-02)',
-  16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); off the list, nothing; the dialog\'s gate lists it',
+  16: 'Mage Slayer (the PHB feats, group 4): damage from its holder asks the save at Disadvantage — the ask records who, the card says it, the roll carries it (netted with the sheet); the dialog\'s gate lists it',
   17: "the check OWNS its DC (the user, 2026-09-27): a passed check offers no rescue; a failed one is WITHHELD — Heroic Inspiration offered, the spell still standing — and Pass lets it break"
 };
-// Concentration is a STATE: §§1, 5, 11, 13, 14 stand up their own; every other section names the
+// Concentration is a STATE: §§1, 5, 12, 13, 14 stand up their own; every other section names the
 // nearest one that does. A section failing only under `--section` means a missing edge here.
 const DEPENDS = {
   2: ['1'], 3: ['1'], 4: ['1'],
-  6: ['5'], 7: ['5'], 8: ['5'], 9: ['5'], 10: ['5'],
-  12: ['11']
+  6: ['5'], 7: ['5'], 8: ['5'], 9: ['5'], 10: ['5']
 };
 // §16 stands up its own concentration (ensureConc) and its own settings.
 
@@ -484,7 +482,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `popups=${concPopups().length}`);
     }
 
-    // ================================================== 9. the native whisper card: ours while on, native while off
+    // ================================================== 9. the native whisper card is ours
     if (want(9)) {
       await set('concMode', 'auto'); // prompt would leave the ask pending and the popup open
       const t0 = marker();
@@ -497,15 +495,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9. the native request card is suppressed while the mode is on',
         !nativeNew(t0),
         'a native concentration request card leaked through');
-      await set('concMode', 'off');
-      const t1 = marker();
-      await smack(9);
-      const native = await waitFor(() => nativeNew(t1), 5000);
-      ok('9b. with the mode off the native card returns (kill-switch discipline)', !!native,
-        native ? '' : 'no native card appeared with the module off');
-      await sleep(800);
-      ok('9c. and the module asks nothing while off', asksNew(t1).length === 0,
-        `asks=${asksNew(t1).length}`);
     }
 
     // ================================================== 10. private visibility — and the break that never is
@@ -542,28 +531,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await set('concVisibility', true);
     }
 
-    // ================================================== 11. break-on-failure off: announce, touch nothing
-    if (want(11)) {
-      await set('concBreak', false);
-      const eff = await ensureConc();
-      if (!eff) return { fatal: 'recast failed (slots?)' };
-      await setTemp(500);
-      const t0 = marker();
-      await smack(70); // still bonus-less: deterministic failure
-      const done = await waitFor(() => doneAskNew(t0));
-      const ask = done?.getFlag(MOD, 'concentration');
-      const card = await waitFor(() => contentNew(t0, 'Breaking is off'));
-      ok('11. with breaking off the failure is announced but nothing is ended',
-        (ask?.outcome?.success === false) && (concEffects().length === 1) && !!card,
-        `success=${ask?.outcome?.success} effects=${concEffects().length} card=${!!card}`);
-      await set('concBreak', true);
-      await saveBonus('+30');
-    }
-
     // ================================================== 12. the cause rides the real chain
     if (want(12)) {
-      await set('autoDamage', 'all');
-      await set('autoApply', true);
+      // Every machine is on: the Shielder's reaction hold and any hit offer wait on the decision
+      // timer, so it is short here (they pass), and the section stands up its own concentration.
+      await set('concMode', 'auto');
+      await set('concTimer', 2);
+      const eff12 = await ensureConc();
+      if (!eff12) return { fatal: 'recast failed for section 12 (slots?)' };
+      await saveBonus('+30');
+      await setTemp(500);
       if (canvas.scene?.id !== scene.id) await scene.view();
       // Use the shielder's linked token when it stands; create one only when missing.
       let tokenDoc = scene.tokens.find(t => (t.actorId === shielder.id) && t.actorLink);
@@ -597,7 +574,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
           usageId ? { data: { 'system.origin': usageId } } : {});
         if (rolls?.[0]?.isFumble) { log.push('12: fumble, retrying'); continue; }
-        ask = (await waitFor(() => doneAskNew(t0), 10_000))?.getFlag(MOD, 'concentration');
+        ask = (await waitFor(() => doneAskNew(t0), 20_000))?.getFlag(MOD, 'concentration');
       }
       ok('12. a real attack chain (auto-roll → auto-apply) raises the ask',
         !!ask, ask ? '' : 'no ask from the attack chain');
@@ -608,8 +585,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('12c. the card tells the table the same story',
         !!askMsg?.content?.includes(expectedAttacker) && !!askMsg?.content?.includes(npcItem.name),
         'card content missing attacker or source');
-      await set('autoDamage', 'off');
-      await set('autoApply', false);
+      await set('concTimer', 0);
     }
 
     // ================================================== 13. a sheet edit is damage too — then zero HP is not a save
@@ -690,8 +666,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(16)) {
       await set('concMode', 'auto');
       await set('concTimer', 0);
-      await set('reminderList', 'vex, sap, prone, condition, range, effect, sneak, buy');
-      await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? '');
       const eff = concEffects()[0] ?? await ensureConc();
       if (!eff) return { fatal: 'recast failed for section 16 (slots?)' };
       await saveBonus('+30');
@@ -725,7 +699,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // holding the lent feat through the base.
       const dealer = ask?.breaker?.uuid ? fromUuidSync(ask.breaker.uuid) : null;
       ok('16b. damage from the holder: the ask records the breaker — the feat and who dealt it',
-        (ask?.breaker?.feat === 'Mage Slayer') && (dealer?.id === npc.id) && /Concentration Breaker/.test(ask?.breaker?.rule ?? ''),
+        (ask?.breaker?.feat === 'Mage Slayer') && (dealer?.id === npc.id) && (ask?.breaker?.rule?.benefit === 'Concentration Breaker'),
         `breaker=${JSON.stringify(ask?.breaker ?? null)} dealer=${dealer?.id} npc=${npc.id}`);
       ok('16c. the ask card says it',
         /Mage Slayer/.test(askMsg?.content ?? '') && /Disadvantage/.test(askMsg?.content ?? ''),
@@ -734,14 +708,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const expected = (m0 > 0) ? 0 : -1;
       ok('16d. the auto roll carries the Disadvantage, netted by dnd5e with the sheet\'s own mode',
         modeOf(ask) === expected, `mode=${modeOf(ask)} expected=${expected} (control ${m0})`);
-      // Off the Fighting Styles list: the switch.
-      await set('fightingStyleList', (game.settings.get(MOD, 'fightingStyleList') ?? '').split(',').map(s => s.trim()).filter(s => s && (s !== 'Mage Slayer')).join(', '));
-      const t2 = marker();
-      await dealt();
-      const off = (await waitFor(() => doneAskNew(t2)))?.getFlag(MOD, 'concentration');
-      ok('16e. Mage Slayer off the Fighting Styles list: no breaker, the control\'s mode',
-        !!off && !off.breaker && (modeOf(off) === m0), `breaker=${JSON.stringify(off?.breaker ?? null)} mode=${modeOf(off)}`);
-      await set('fightingStyleList', game.settings.settings.get(`${MOD}.fightingStyleList`)?.default ?? '');
       // Prompt mode: the system's dialog opens with the gate's box naming the feat.
       await set('concMode', 'prompt');
       const t3 = marker();

@@ -323,37 +323,31 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
     // ---------------------------------------------------- 4. damage activities: the card posts,
     if (want(4)) {
-      // casting keeps its hands off — Magic Missile is the negate hold's seam.
+      // casting keeps its hands off — Magic Missile is the negate hold's seam. The DICE are the
+      // damage-cast machine's (always on since the settings cut): it rolls at the use, chained to the
+      // card, and the spellDamage applier lands it — never a castApply stamp.
+      // Whole HP first, so the hit is measurable (a victim at 3 HP clamps at 0).
+      await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
       const mhpBefore = victim.system.attributes.hp.value;
       target(victimToken);
       await sleep(120);
       before = snap();
       use = await activityOf(missileItem, 'damage').use({ subsequentActions: false }, { configure: false }, {});
       if (use === undefined) return { fatal: 'the Missile fixture cast was refused' };
-      await sleep(2000);
+      await until(() => fresh(before).some(m => (m.type === 'damage') && m.getFlag(MOD, 'receipt')), 6000);
       msgs = fresh(before);
-      ok('4a. an UNLISTED damage spell keeps its card; nothing stamps, nothing applies',
+      const mDmg = msgs.find(m => m.type === 'damage');
+      const mRolled = mDmg ? mDmg.rolls.reduce((a, r) => a + r.total, 0) : null;
+      ok('4a. a damage spell keeps its card and castApply stays out; the damage cast rolls and lands it once',
         (usageCards(msgs).length === 1) && !msgs.some(m => m.getFlag(MOD, 'castApply'))
           && !msgs.some(m => m.getFlag(MOD, 'healPending'))
-          && !msgs.some(m => m.getFlag(MOD, 'receipt'))
-          && (victim.system.attributes.hp.value === mhpBefore),
-        `usageCards=${usageCards(msgs).length} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
-
-      // 4b: the SAME spell, listed, with the hold on: nobody targeted can cast Shield, so the card posts
-      // with NO hold and casting still stays out.
-      await set('reactionHold', true);
-      await set('blockList', 'BF Test Missile:Shield');
-      target(victimToken);
-      await sleep(120);
-      before = snap();
-      use = await activityOf(missileItem, 'damage').use({ subsequentActions: false }, { configure: false }, {});
-      if (use === undefined) return { fatal: 'the listed Missile cast was refused' };
-      await sleep(2500);
-      msgs = fresh(before);
-      ok('4b. a LISTED damage spell keeps its card; nobody can react, so no hold stamps on it',
-        (usageCards(msgs).length === 1) && !msgs.some(m => m.getFlag(MOD, 'hold')),
-        `usageCards=${usageCards(msgs).length} holds=${msgs.filter(m => m.getFlag(MOD, 'hold')).length}`);
-      await set('reactionHold', false);
+          && (msgs.filter(m => m.type === 'damage').length === 1)
+          && (mDmg?.getFlag(MOD, 'spellDamage') === true) && !!mDmg?.getFlag(MOD, 'receipt')
+          && (victim.system.attributes.hp.value === Math.max(0, mhpBefore - mRolled)),
+        `usageCards=${usageCards(msgs).length} damageRolls=${msgs.filter(m => m.type === 'damage').length}`
+          + ` rolled=${mRolled} hp ${mhpBefore}→${victim.system.attributes.hp.value}`);
+      // 4b (a LISTED damage spell with no reactor holds nothing) retired here: the block list is the
+      // code table (Magic Missile only), and smoke-hold §6e / smoke-volleys §6a own that claim.
 
     }
     // ---------------------------------------------------- 5. no targets, no feature
@@ -480,9 +474,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
       // 6d. A LISTED reaction cast FREESTANDING self-aims like any SELF ability (RULINGS *A listed
       // reaction cast freestanding*): the carve-out keys on a PENDING HOLD naming the caster (6e).
-      await set('reactionHold', true);
-      await set('holdApplyEffect', true);
-      await set('interruptList', 'BF Test Favor:ac');
+      // The Interrupt list is the code table: the fixture wears Shield's identifier here so the
+      // table lists it (identifier first, then name); restored after 6e.
+      await favorItem.update({ 'system.identifier': 'shield' });
       const favored = () => npc.effects.filter(e => e.name === 'BF Favored');
       await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id));
       target(victimToken); // an incidental enemy target — the snapshot must not steer a SELF cast
@@ -525,9 +519,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await fakeHold.delete().catch(() => {});
         await npc.deleteEmbeddedDocuments('ActiveEffect', favored().map(e => e.id)).catch(() => {});
       }
-      await set('reactionHold', false);
-      await set('interruptList', prior.interruptList);
-      await set('holdApplyEffect', prior.holdApplyEffect);
+      await favorItem.update({ 'system.identifier': 'bf-test-favor' });
     }
 
     // ---------------------------------------------------- 7. a used-up item still applies

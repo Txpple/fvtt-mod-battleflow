@@ -625,20 +625,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(7)) {
       await clearChips();
 
-      await set('saves', false);
-      target(victimToken);
+      target();
       await sleep(120);
       let use = await saveActivity().use({}, { configure: false }, {});
       let card = use?.message instanceof ChatMessage ? use.message : null;
-      await sleep(1200);
-      ok('7a. with the setting off, a save cast is left entirely native (no stamp)',
-        !!card && !card.getFlag(MOD, 'saves'), `flag=${!!card?.getFlag(MOD, 'saves')}`);
-      await set('saves', true);
-
-      target();
-      await sleep(120);
-      use = await saveActivity().use({}, { configure: false }, {});
-      card = use?.message instanceof ChatMessage ? use.message : null;
       await sleep(1200);
       ok('7b. a targetless cast with NO template shape stays native (a waiting demand needs an area to wait for)',
         !!card && !card.getFlag(MOD, 'saves'), `flag=${!!card?.getFlag(MOD, 'saves')}`);
@@ -866,9 +856,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (npc.items.get(breath.id)) await npc.deleteEmbeddedDocuments('Item', [breath.id]).catch(() => {});
       }
 
-      // 8g: a Spent Areas-listed area is swept at the last verdict whatever its data says (this one
-      // lies: 1-turn, no concentration); unlisted, the same cast stamps WAITING and the area stands.
-      const priorSpent = game.settings.get(MOD, 'spentAreaList');
+      // 8g: a Spent Areas row is swept at the last verdict whatever its data says (this one lies:
+      // 1-turn, no concentration); a name the table does not hold stamps WAITING and the area stands.
       const [miasma] = await npc.createEmbeddedDocuments('Item', [{
         name: 'Noxious Miasma', type: 'feat',
         system: {
@@ -904,18 +893,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (still) await scene.regions.get(tpl.id)?.delete().catch(() => {});
           return { stamped, still };
         };
-        await game.settings.set(MOD, 'spentAreaList', 'Noxious Miasma, Hypnotic Pattern');
         const listed = await castEmpty('listed');
         ok('8g. LISTED, a 1-turn feature area placed on nobody stamps DONE and is swept — the fourth bucket',
           !!listed.stamped && (listed.stamped.status === 'done') && (listed.stamped.durationUnits === 'turn') && !listed.still,
           `status=${listed.stamped?.status} durationUnits=${listed.stamped?.durationUnits} still=${listed.still}`);
-        await game.settings.set(MOD, 'spentAreaList', 'Hypnotic Pattern');
-        const struck = await castEmpty('struck');
-        ok('8g. STRUCK from the list, the same cast waits and the area stands — the GM\'s bucket',
+        // Not a table row: the same cast under a name (and identifier) the Spent Areas table lacks.
+        await npc.items.get(miasma.id).update({ name: 'BF Unlisted Area', 'system.identifier': 'bf-unlisted-area' });
+        const struck = await castEmpty('unlisted');
+        ok('8g. NOT a Spent Areas row, the same cast waits and the area stands — the GM\'s bucket',
           !!struck.stamped && (struck.stamped.status === 'pending') && struck.stamped.awaitingTemplate && struck.still,
           `status=${struck.stamped?.status} awaiting=${struck.stamped?.awaitingTemplate} still=${struck.still}`);
       } finally {
-        await game.settings.set(MOD, 'spentAreaList', priorSpent);
         if (npc.items.get(miasma.id)) await npc.deleteEmbeddedDocuments('Item', [miasma.id]).catch(() => {});
       }
     }
@@ -2269,7 +2257,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const fold = roll ? await until(() => roll.getFlag(MOD, 'd20fold'), 8000) : null;
         const offer = (fold?.offers ?? []).find(o => o.kind === 'succeed');
         ok('27a. a failed demanded Wisdom save is WITHHELD and offered Guarded Mind — the benefit\'s name, its rule, the use left',
-          !!card && !!offer && (offer.label === 'Guarded Mind') && /succeed instead/.test(offer.rule ?? '') && /1 left/.test(offer.cost ?? '')
+          !!card && !!offer && (offer.label === 'Guarded Mind') && (offer.rule?.benefit === 'Guarded Mind') && /1 left/.test(offer.cost ?? '')
             && !entryOf(card, victim)?.done,
           `card=${!!card} roll=${!!roll} offers=${JSON.stringify(fold?.offers ?? null)} done=${entryOf(card, victim)?.done}`);
         const row = await until(() => rescueRow('succeed'), 8000);

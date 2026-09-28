@@ -67,7 +67,7 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   const MODULE = 'fvtt-mod-battleflow';
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const log = [];
-  const KEYS = ['reactionHold', 'interruptList', 'holdTimer', 'holdSkipFutile', 'holdApplyEffect',
+  const KEYS = ['reactionHold', 'holdReveal', 'holdTimer', 'holdSkipFutile', 'holdApplyEffect',
     'autoDamage', 'autoApply', 'requireTarget', 'dramaticBeat', 'riders', 'effectRiders',
     'masteryRiders', 'masteryAsk', 'saves', 'concMode', 'castApply', 'volleys', 'resourceNotices'];
   const prior = Object.fromEntries(KEYS.map(k => [k, game.settings.get(MODULE, k)]));
@@ -80,9 +80,9 @@ const setup = await gm.evaluate(async ({ playerId }) => {
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(800); }
 
   await set('reactionHold', true);
-  // ⚠ holdSkipFutile OFF: with it on a hold stamps only inside a 5-wide band (about one roll in
-  // four); this suite is about where the answer travels, not the futility gate.
-  await set('holdSkipFutile', false);
+  // ⚠ holdReveal OFF: the futility skip follows it (hold/trigger.js holdWouldMatter), and with it on
+  // a hold stamps only inside a 5-wide band; this suite is about where the answer travels.
+  await set('holdReveal', false);
   await set('holdApplyEffect', true);
   // ⚠ 45 s: on a loaded box the round trips to two headless clients can outlast 20 s, and the
   // buzzer then resolves the hold before the player's click lands.
@@ -95,8 +95,10 @@ const setup = await gm.evaluate(async ({ playerId }) => {
     'resourceNotices']) await set(k, false);
   await set('masteryAsk', 'auto');
   await set('concMode', 'off');
-  if (!String(game.settings.get(MODULE, 'interruptList')).includes('Shield:ac')) {
-    return { fatal: 'the interrupt list does not carry Shield:ac — this suite has nothing to hold' };
+  // The Interrupt list is the code table (decide/registry.js INTERRUPTS); no world setting holds it.
+  const { INTERRUPTS } = await import(`/modules/${MODULE}/scripts/decide/registry.js`);
+  if (!INTERRUPTS.some(r => (r.name === 'Shield') && (r.kind === 'ac'))) {
+    return { fatal: 'the interrupt table does not carry Shield:ac — this suite has nothing to hold' };
   }
 
   // The player-owned shielder: Gren's sheet (a real Shield, real slots), the player as OWNER.

@@ -5,7 +5,11 @@
 //   - The fixture Precision die is "1d8 + 20", so a flip is guaranteed against AC 25; a
 //     natural 20 (a hit, no stamp) retries.
 //   - holdSkipFutile OFF for the stamp sections; its own section pins the hopeless gate (AC 60).
-//   - holdTimer 0 (popups wait for the suite's click); the buzzer section pins 2s locally.
+//   - holdTimer 0 (popups wait for the suite's click); the buzzer section pins 2s locally. Every
+//     timer is the ONE Decision Timer now, so the demanded saves roll themselves (saveRolls auto)
+//     rather than wait on a save timer.
+//   - The fold fixtures are found by their dnd5e identifier (the tables are the only list):
+//     "BF Shield Master" carries shield-master, "BF Great Weapon Master" great-weapon-master.
 // ⚠ Run `smoke-battleflow` FIRST (BF Test Attacker / BF Test Victim). Sections are named after
 // their fold; fixtures and teardown always run.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
@@ -28,7 +32,7 @@ const SECTIONS = {
   M1: 'finding ④: two weapons, smart default',
   RP: '(l)+(p): the riposte HIT celebrates',
   B: 'finding ⑤: the bash choice (Prone or push)',
-  T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit, none unlisted; the plain Unarmed Strike rolls the feat 1d4 with a card line, flat again off the Unarmed Strike Dice list',
+  T: 'Tavern Brawler: the shove offer on an Unarmed Strike hit (Push 5 feet / Pass, announced), none on a weapon hit; the plain Unarmed Strike rolls the feat 1d4 with a card line',
   C: 'Crusher (the PHB feats, group 3, 2026-09-26): a Mace hit (Bludgeoning) offers the push — the Crusher rule quoted, Push 5 feet announced; a Dagger hit (Piercing) offers nothing; a Huge target (two sizes larger) offers nothing',
   I: 'finding ⑥: Interpose (save-success reaction)',
   H: '② + (c): the Hew reminder POPS now',
@@ -71,14 +75,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  if (!game.settings.settings.has(`${MOD}.maneuverFolds`)) {
-    return { fatal: 'maneuverFolds not registered — this client is running OLD code (F5)' };
+  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) {
+    return { fatal: 'decisionTimer not registered — this client is running OLD code (F5)' };
   }
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'playerRollDamage',
-    'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'maneuverFolds',
-    'saves', 'saveTimer', 'unarmedDiceList'];
+    'holdTimer', 'holdSkipFutile', 'holdReveal', 'castApply', 'saves', 'saveRolls'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -134,11 +137,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('holdReveal', true);
     await set('castApply', false);
     await set('saves', false);
-    await set('saveTimer', 1);
-    await set('maneuverFolds', 'Precision Attack:precision, Riposte:riposte');
-    // The rows §B, §I and §H drive; each sets them itself because §T rewrites the list.
-    const SUITE_FOLDS = 'Precision Attack:precision, Riposte:riposte, '
-      + 'BF Shield Master:bash, BF Shield Master:interpose, BF Great Weapon Master:hew';
+    // One Decision Timer: a save timer would be the fold's timer too, so the demanded saves roll
+    // themselves and the post-verdict choice is the only clock §B and §I watch.
+    await set('saveRolls', 'auto');
 
     // ---- fixtures
     if (canvas.scene?.id !== scene.id) await scene.view();
@@ -233,6 +234,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const waitDamage = (originId, ms = 10000) => until(() => game.messages.contents.find(x =>
       (x.type === 'damage')
       && (x._source.system?.origin === originId)), ms);
+    // A card's rule text is filled into the rendered message by rule-text.js, never stored in its content.
+    const renderedText = async message => {
+      const el = await until(() => {
+        const node = document.querySelector(`.message[data-message-id="${message?.id}"]`);
+        return (node && !node.querySelector('[data-bf-rule]:not([data-bf-rule-done])')) ? node : null;
+      }, 6000);
+      await new Promise(r => setTimeout(r, 300));
+      return el?.textContent ?? '';
+    };
     const dialogsWith = text => [...document.querySelectorAll('.application')]
       .filter(el => (el.innerHTML ?? '').includes(text));
     /**
@@ -677,12 +687,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* ==== B — the bash choice (Prone or push) */
     if (want('B')) {
       await set('saves', true);
-      await set('maneuverFolds', SUITE_FOLDS);
       // A listed feat whose save presses an effect on failure (DC 30: always fails; the effect
       // wired by its real id after creation).
       const [bashFeat] = await pc.createEmbeddedDocuments('Item', [{
         name: 'BF Shield Master', type: 'feat',
-        system: { type: { value: 'feat' }, activities: {
+        system: { type: { value: 'feat' }, identifier: 'shield-master', activities: {
           bfbash0000000000: {
             _id: 'bfbash0000000000', type: 'save',
             activation: { type: '', override: false },
@@ -719,6 +728,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           !!onCardB1 && (verdictCards.length === 0),
           `cards=${verdictCards.length} text="${(onCardB1 ?? cardTextB1()).slice(0, 160)}"`);
         const popup = await until(() => dialogsWith('Knock Prone')[0], 6000);
+        // The rule line fills from the book a moment after the popup draws.
+        await until(() => (popup?.textContent ?? '').includes('cause it to have the Prone condition'), 4000);
         ok('B1c. the choice popup carries Knock Prone / Push 5 feet, quotes the feat verbatim ((z)) and tooltips its icon ((aa))',
           !!popup && !!popup.querySelector('button[data-action="prone"]')
             && !!popup.querySelector('button[data-action="push"]')
@@ -857,6 +868,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 25);
         await closeDialogs('BF Shield Master');
       }
+      // Off the sheet: every table row is live, so a weapon hit beside the victim in §T would bash.
+      await pc.deleteEmbeddedDocuments('Item', [bashFeat.id]).catch(() => {});
     }
 
     /* ==== T — Tavern Brawler's push (the `shove` kind) */
@@ -872,7 +885,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } else {
         const [brawler] = await pc.createEmbeddedDocuments('Item', [brawlerSrc.toObject()]);
         const unarmedAct = () => pc.items.get(brawler.id)?.system.activities.find(a => a.type === 'attack');
-        await set('maneuverFolds', 'Tavern Brawler:shove');
         priorActor[victim.id]['system.attributes.hp.max'] ??= victim.system._source.attributes.hp.max;
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
@@ -918,14 +930,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
         }
 
-        /* T3 — off the list. */
-        {
-          await set('maneuverFolds', '');
-          const msg = await hitUntil(unarmedAct());
-          await sleep(2500);
-          ok('T3a. Tavern Brawler off the Maneuver Folds list: no offer', !!msg && !msg.getFlag(MOD, 'bashOffer'),
-            `hit=${!!msg} offer=${JSON.stringify(msg?.getFlag(MOD, 'bashOffer') ?? null)}`);
-        }
         /* T4 — the plain Unarmed Strike (the PHB's own weapon) rolls the feat's die, and says so. */
         {
           const usSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbUnarmedStrike');
@@ -934,7 +938,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           } else {
             const [us] = await pc.createEmbeddedDocuments('Item', [usSrc.toObject()]);
             const usAct = () => pc.items.get(us.id)?.system.activities.find(a => a.type === 'attack');
-            await set('unarmedDiceList', 'Tavern Brawler');
             const dmgOf = async () => {
               for (let i = 0; i < 6; i++) {
                 const { usageId, roll } = await attack(usAct(), victimToken);
@@ -952,11 +955,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const line = await until(() => document.querySelector(`[data-message-id="${dmg?.id}"] .bf-unarmed-dice-line`), 4000);
             ok('T4b. the damage card says so: "Tavern Brawler — 1d4r1 + N in place of 1 + N"',
               /Tavern Brawler — 1d4r1 .* in place of 1 \+/.test(line?.textContent ?? ''), `line="${line?.textContent ?? ''}"`);
-            await set('unarmedDiceList', '');
-            const flat = await dmgOf();
-            ok('T4c. off the Unarmed Strike Dice list: the flat damage, no line',
-              !!flat && !/d/.test(flat.rolls?.[0]?.formula ?? 'd') && !flat.getFlag(MOD, 'unarmedDice'),
-              `formula="${flat?.rolls?.[0]?.formula ?? ''}"`);
             await pc.deleteEmbeddedDocuments('Item', [us.id]);
           }
         }
@@ -986,7 +984,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dagger = made.find(i => (i.name === 'Dagger') && (i.type === 'weapon'));
         const actOf = item => () => pc.items.get(item.id)?.system.activities.find(a => a.type === 'attack');
         const sizeBefore = victim.system._source.traits?.size ?? 'med';
-        await set('maneuverFolds', 'Crusher:shove');
         priorActor[victim.id]['system.attributes.hp.max'] ??= victim.system._source.attributes.hp.max;
         await victim.update({ 'system.attributes.hp.max': 1000, 'system.attributes.hp.value': 1000 });
         await acFlat(victim, 1);
@@ -1044,7 +1041,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* ==== I — Interpose (save-success reaction) */
     if (want('I')) {
       // A shield + the listed feat on the VICTIM; a DEX half-damage demand it always saves.
-      await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       priorActor[victim.id]['system.abilities.dex.value'] = victim.system._source.abilities.dex.value;
       await victim.update({ 'system.abilities.dex.value': 16 });
       {
@@ -1054,7 +1050,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }]);
         created.victimItems.push(shield.id);
         const [interposeFeat] = await victim.createEmbeddedDocuments('Item', [{
-          name: 'BF Shield Master', type: 'feat', system: { type: { value: 'feat' } } }]);
+          name: 'BF Shield Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'shield-master' } }]);
         created.victimItems.push(interposeFeat.id);
       }
       const [dexBlast] = await pc.createEmbeddedDocuments('Item', [{
@@ -1073,14 +1069,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       /* I1 — NOTHING stamps with the demand; the SAVED verdict opens the choice; use turns the
        * half into NONE (the 2024 text conditions the Reaction on succeeding). */
       {
-        await set('saveTimer', 1);    // the verdict lands fast — the choice is what we watch
         await set('holdTimer', 15);   // the post-verdict choice window — room to click
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
         const hpBefore = victim.system.attributes.hp.value;
         const card = await castAt(dexAct(), victimToken);
+        // The save rolls itself at once: a choice may already stand, but never before the verdict.
         const early = card?.getFlag(MOD, 'saves')?.targets?.[0];
         ok('I1a. (y) nothing stamps with the demand — the choice is the VERDICT\'s to open',
-          !early?.choice && (early?.done === false),
+          !!early && (!early.choice || (early.done === true)),
           `choice=${JSON.stringify(early?.choice ?? null)} done=${early?.done}`);
         const opened = await until(() => {
           const t = card?.getFlag(MOD, 'saves')?.targets?.[0];
@@ -1090,6 +1086,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           opened?.choice?.kind === 'interpose',
           `outcome=${opened?.outcome} kind=${opened?.choice?.kind ?? null}`);
         const popup = await until(() => dialogsWith('take no damage')[0], 6000);
+        await until(() => (popup?.textContent ?? '').includes('holding a Shield'), 4000);
         ok('I1c. (z)+(aa) the popup quotes the feat verbatim, tooltips its icon, offers Use / Take half',
           !!popup && (popup.textContent ?? '').includes('holding a Shield')
             && !!popup.querySelector('img[data-tooltip]')
@@ -1165,7 +1162,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     /* ==== H — the Hew reminder POPS */
     if (want('H')) {
-      await set('maneuverFolds', SUITE_FOLDS);   // its own row — §T above rewrites the list
       {
         // The bash feat and the blasts leave first (their popups would stack). ⚠ BY NAME: a
         // `--section H` run never made them.
@@ -1173,7 +1169,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pc.deleteEmbeddedDocuments('Item',
           pc.items.filter(i => inTheWay.includes(i.name)).map(i => i.id)).catch(() => {});
         const [gwm] = await pc.createEmbeddedDocuments('Item', [{
-          name: 'BF Great Weapon Master', type: 'feat', system: { type: { value: 'feat' } } }]);
+          name: 'BF Great Weapon Master', type: 'feat', system: { type: { value: 'feat' }, identifier: 'great-weapon-master' } }]);
         await set('holdTimer', 15);   // the notice family pops only inside a live window
         await acFlat(victim, 1);
         let hew = null, dmg = null;
@@ -1216,7 +1212,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     /* ==== PS — Pole Strike's reminder (Hew's shape): after a Quarterstaff, Spear or Heavy + Reach
      * attack, an OK-only reminder of the Bonus Action swing; other weapons say nothing. */
     if (want('PS')) {
-      await set('maneuverFolds', `${SUITE_FOLDS}, Polearm Master:hew`);
       const phb = async (name, type) => {
         for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
           const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
@@ -1241,7 +1236,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const card = await until(() => pole(t0)[0] ?? null, 10000);
         const offerOf = card?.getFlag(MOD, 'hewNotice')?.offer ?? null;
         ok('PS1. an attack with a Spear, held by a Polearm Master, posts Pole Strike\'s OFFER — the rule and the other end',
-          !!card && /Pole Strike\. Immediately after you take the Attack action/.test(card.content ?? '') && /other end/.test(card.content ?? '') && !!offerOf,
+          !!card && /Pole Strike\. Immediately after you take the Attack action/.test(await renderedText(card)) && /other end/.test(card.content ?? '') && !!offerOf,
           `card=${!!card} offer=${JSON.stringify(offerOf)}`);
         const popup = await until(() => dialogsWith('Pole Strike —').find(d => d.querySelector('button[data-action="use"]')), 6000);
         ok('PS2. the offer POPS with Pole Strike / Pass (the walk, 2026-09-27)', !!popup?.querySelector('button[data-action="pass"]'), `popup=${!!popup}`);
@@ -1268,7 +1263,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await acFlat(victim, 25);
         await victim.update({ 'system.attributes.hp.value': victim.system.attributes.hp.max });
         await set('holdTimer', 0);
-        await set('maneuverFolds', SUITE_FOLDS);
       }
     }
 

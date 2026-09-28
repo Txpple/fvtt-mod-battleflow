@@ -20,7 +20,6 @@ const SECTIONS = {
   2: 'two 1s among the dice: both rerolled at once, one card, one landing',
   3: 'no 1 among the dice: the record settles "none", the healing lands at once',
   4: 'Battle Medic (the feat\'s own d8 activity): the formula goes up without its r1, and a 1 is rerolled the same way',
-  5: 'the list is the switch: Healer off the Healing Rerolls list — no record, and Battle Medic keeps its own r1',
   6: 'Battle Medic on the Healer’s Kit: the kit used on a creature within 5 ft asks which Hit Die; Tend spends it on the creature and rolls the feature’s own heal of that size at it; the healing lands'
 };
 const DEPENDS = {};
@@ -47,10 +46,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const SETTING_KEYS = ['healRerollList', 'castApply', 'holdTimer', 'dramaticBeat', 'kitTendList'];
+  const SETTING_KEYS = ['decisionTimer', 'dramaticBeat'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
-  const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('Battle Flow Test Range');
   const cleric = game.actors.getName('BF Test Cleric');
@@ -96,9 +94,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await set('healRerollList', def('healRerollList'));
-    await set('castApply', true);
-    await set('holdTimer', 0);         // the popup waits for the suite's click
+    await set('decisionTimer', 0);        // the popup waits for the suite's click
     await set('dramaticBeat', 0);
 
     // Lend Healer and Cure Wounds from the PHB — found by name in the pack indexes.
@@ -143,17 +139,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const hp = () => Number(victim.system.attributes.hp.value);
     const wound = () => victim.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 1 });
-    /** Roll a heal activity at the victim with the dice pinned; the healing message comes back. */
-    const heal = async (activity, spec) => {
-      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
-      victimToken.setTarget(true, { releaseOthers: true });
-      await sleep(100);
-      faces(spec);
-      const rolls = await activity.rollDamage({}, { configure: false }, {});
-      realDice();
-      await sleep(300);
-      return rolls?.[0]?.parent ?? null;
-    };
     const flagOf = m => m?.getFlag(MOD, 'healReroll') ?? null;
     const healTotal = m => (m?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
 
@@ -222,20 +207,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `formula="${formula}" status=${flagOf(m)?.status} hp=${hp()} total=${healTotal(m)}`);
     }
 
-    // ================================================== 5. off the list
-    if (want(5)) {
-      await set('healRerollList', '');
-      await wound();
-      const m = await heal(medicAct(), [[5, 8]]);
-      const formula = m?.rolls?.[0]?.formula ?? '';
-      ok('5a. Healer off the list: no record, and Battle Medic keeps its own r1', !flagOf(m) && /r1/.test(formula),
-        `record=${JSON.stringify(flagOf(m))} formula="${formula}"`);
-    }
-
     // ================================================== 6. Battle Medic on the kit's use
     if (want(6)) {
-      await set('kitTendList', def('kitTendList'));
-      await set('healRerollList', def('healRerollList'));
       const kitSrc = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbagHealersKit0');
       const [kit] = kitSrc ? await cleric.createEmbeddedDocuments('Item', [kitSrc.toObject()]) : [];
       if (kit) lent.push(kit.id);

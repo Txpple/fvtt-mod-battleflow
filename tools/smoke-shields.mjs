@@ -2,7 +2,7 @@
 // against the ATTACKER when a melee attack roll hits it. Fire Shield (the type follows the effect
 // that stands), Death Armor on ANOTHER creature (walked to its caster; once per turn), Armor of
 // Agathys (the module marks the cast and ends the mark with the temp HP), the reach, a ranged hit
-// striking nothing, the list as the switch.
+// striking nothing.
 //
 // Fixtures (tools/fixture-suite.mjs): BF Test Cleric (warded caster), BF Test Ranger (Death Armor's
 // ally), BF Test Attacker (the goblin). The spells are lent from the packs for the run.
@@ -25,9 +25,8 @@ const SECTIONS = {
   3: 'the reach is the activity\'s: a hit from 10 feet strikes nothing; a RANGED hit from 5 feet strikes nothing',
   4: 'Death Armor cast by the Cleric on the RANGER: the goblin hitting the Ranger takes the Cleric\'s 2d4 necrotic — the ward walked to its caster; once per turn in combat (the chit), the next turn again; out of combat every hit',
   5: 'Armor of Agathys: the cast is MARKED (a chip, the card says so); a hit strikes 5 cold while the temp HP stand; the pool going to zero ends the mark with a card; a hit after strikes nothing',
-  6: 'the Damage Shields list is the switch: an empty list strikes nothing',
   7: 'the registration FIRED (§11): the damage message hooks and postUseActivity moved',
-  8: 'the cast ASKS (2026-09-05): Fire Shield cast through the cast slice waits on the card with a popup — warm or chill — and only the pick lands with its resistance; an empty Effect Choices list lands both'
+  8: 'the cast ASKS (2026-09-05): Fire Shield cast through the cast slice waits on the card with a popup — warm or chill — and only the pick lands with its resistance'
 };
 const DEPENDS = {};
 
@@ -90,11 +89,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, reload)' };
-  if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (deploy --local, reload)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode',
-    'reminderList', 'maneuverFolds', 'clockRiderList', 'hitMenuList', 'emanations', 'damageShieldList', 'effectChoiceList'];
+    'reactionHold', 'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'saves', 'castApply', 'concMode', 'emanations'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -173,12 +170,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saves', false);
     await set('castApply', false);        // the temp HP are set by hand
     await set('concMode', 'off');
-    await set('reminderList', '');        // no gate: the swing rolls straight
-    await set('maneuverFolds', '');
-    await set('clockRiderList', '');
-    await set('hitMenuList', '');
     await set('emanations', false);
-    await set('damageShieldList', 'Death Armor, Fire Shield, Armor of Agathys');
 
     // -------------------------------------------------- fixtures: the spells on the Cleric
     const findPackItem = async (packIds, name) => {
@@ -416,17 +408,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('5d. with the mark gone a hit strikes nothing', !!a2.dmg && !a2.shield, `cards=${a2.cards.length} ${claims(a2.cards, a2.dmg)}`);
     }
 
-    // ================================================== 6. the list is the switch
-    if (want(6)) {
-      await clearWards();
-      await healFull();
-      await ward(fireShield, 'Warm Shield', cleric);
-      await set('damageShieldList', '');
-      const off = await swing(clericToken);
-      ok('6a. an empty Damage Shields list strikes nothing — the ward stays the table\'s by hand', !!off.dmg && !off.shield && !off.dmg.getFlag(MOD, 'damageShields'), `cards=${off.cards.length} ${claims(off.cards, off.dmg)}`);
-      await set('damageShieldList', 'Death Armor, Fire Shield, Armor of Agathys');
-    }
-
     // ================================================== 7. FIRED
     if (want(7)) {
       ok('7a. createChatMessage and dnd5e.renderChatMessage fired (the shield\'s triggers)', (count('createChatMessage') > 0) && (count('dnd5e.renderChatMessage') > 0),
@@ -439,7 +420,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Casting ON for this section: the choice is stamped at the card's birth (polish.js), the popup opens
       // on this page (the sole GM answering for the unowned Cleric), and the elect applies the pick.
       await set('castApply', true);
-      await set('effectChoiceList', 'Fire Shield');
       const shieldsOn = () => cleric.effects.filter(e => ['Warm Shield', 'Chill Shield'].includes(e.name)).map(e => e.name);
       const resistances = () => [...(cleric.system.traits.dr.value ?? [])];
       const castShield = async () => {
@@ -472,14 +452,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('8d. the receipt names the one effect on the Cleric', (card?.getFlag(MOD, 'effectReceipt')?.targets ?? []).some(t => (t.effects ?? []).length === 1 && t.effects[0].name === 'Chill Shield'),
         `receipt=${JSON.stringify(card?.getFlag(MOD, 'effectReceipt') ?? null)?.slice(0, 200)}`);
 
-      // The list is the switch: unlisted, both land.
-      await set('effectChoiceList', '');
-      const card2 = await castShield();
-      const both = await waitFor(() => (shieldsOn().length === 2 ? shieldsOn() : null), 8000);
-      ok('8e. an empty Effect Choices list asks nothing — both shields land, no choice on the card',
-        !card2?.getFlag(MOD, 'castApply')?.choice && (both?.length === 2) && !popupButton('Chill Shield'),
-        `choice=${JSON.stringify(card2?.getFlag(MOD, 'castApply')?.choice ?? null)} shields=${JSON.stringify(shieldsOn())}`);
-      await set('effectChoiceList', 'Fire Shield');
       await set('castApply', false);
       await closeDialogs();
       await clearWards();

@@ -23,7 +23,6 @@ const SECTIONS = {
   6: 'Spirit Guardians: the placed area (a Region, dnd5e 6.0) is adopted — attached to the Cleric, Half Speed on the hostile inside and not on the ally',
   7: 'Spirit Guardians triggers: a save demand card when the hostile enters, another when it ends its turn inside, none for a second entry in the same turn',
   8: 'the area goes (concentration\'s end) — the region goes and Half Speed lifts',
-  9: 'the switch: Emanations off removes the standing aura; on again raises it',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
   11: 'LIVE SCENES ONLY (user, 2026-09-04: the bleed; 2026-09-23: a viewed scene is live): another scene made active and viewed brings the range\'s rings down and lifts the ally\'s effects; a stale ring on a scene nobody is on is brought down by the ready sweep; the range VIEWED (not active) raises them; two live scenes with the ally inside the ring on both give ONE copy per aura; the range active again raises them once, no stack',
   12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
@@ -33,7 +32,7 @@ const SECTIONS = {
   16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
   17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes"
 };
-const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 9: [1], 11: [1] };
+const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 11: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'emanations', watchdogMs: 600_000 });
@@ -416,17 +415,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         for (const r of [r1, r2, r3]) if (r && scene.regions.get(r.id)) await r.delete().catch(() => {});
         for (const e of [e1, e2, e3, e4]) if (e && cleric.effects.get(e.id)) await e.delete().catch(() => {});
       }
-    }
-
-    // ================================================== 9. the switch
-    if (want(9)) {
-      // The setting's own onChange sweeps (no token nudge).
-      await set('emanations', false);
-      const gone = await waitFor(() => !featureRegion(palTok, 'Aura of Protection') ? true : null, 8000);
-      ok('9a. Emanations off: the standing aura\'s region is removed from the scene', !!gone, scene.regions.filter(r => r.getFlag(MOD, 'emanation')).map(r => r.name).join(' | '));
-      await set('emanations', true);
-      const back = await waitFor(() => featureRegion(palTok, 'Aura of Protection'), 8000);
-      ok('9b. on again: the aura is raised again', !!back, '');
     }
 
     // ================================================== 11. live scenes only

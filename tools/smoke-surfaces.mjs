@@ -21,7 +21,7 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: "settings — the config form renders, the dividers land, and the interlock greys its dependents",
+  1: "settings — the ten settings, registered and shown in the ruled order: seven world, then three client",
   2: "usage dialog — a real ActivityUsageDialog renders and carries the target block",
   3: "templates — the pinned platform fact: v14 dispatches Region hooks, never MeasuredTemplate"
 };
@@ -55,93 +55,56 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   try {
     /* --- 1: the settings form ---------------------------------------------------------- */
+    // RULINGS *The settings*: ten plain settings, the seven world configs for the DM then the three
+    // per-client preferences, in that order; no dividers, no interlock (every machine is always on).
     if (has(1)) {
+      const TEN = ["decisionTimer", "dramaticBeat", "saveRolls", "concVisibility", "holdReveal",
+        "masteryAsk", "resourceNotices", "playerRollDamage", "effectBar", "effectHover"];
+      const WORLD = TEN.slice(0, 7);
       // ⚠ The hook FIRED is the first assertion; everything below depends on it.
       let fired = 0;
       const hid = Hooks.on("renderSettingsConfig", () => { fired++; });
       const sheet = game.settings.sheet;
-      // The no-write guard, read BEFORE anything is touched: §1's DOM toggle must never reach the world.
-      const before = {
-        reactionHold: game.settings.get(MODULE_ID, "reactionHold"),
-        autoDamage: game.settings.get(MODULE_ID, "autoDamage"),
-        saves: game.settings.get(MODULE_ID, "saves")
-      };
+      // The no-write guard, read BEFORE the form opens: §1 must never reach the world.
+      const values = () => Object.fromEntries(TEN.map(k => [k, game.settings.get(MODULE_ID, k)]));
+      const before = values();
       try {
+        // Registration: the module's config settings, in the order registered.
+        const registered = [...game.settings.settings.values()]
+          .filter(st => (st.namespace === MODULE_ID) && st.config);
+        ok("exactly the ten settings are registered, in the ruled order",
+          JSON.stringify(registered.map(st => st.key)) === JSON.stringify(TEN),
+          registered.map(st => st.key).join(", "));
+        ok("grouped as registered: the seven DM settings are world, the three preferences client",
+          registered.every(st => (st.scope === (WORLD.includes(st.key) ? "world" : "client"))),
+          registered.map(st => `${st.key}:${st.scope}`).join(", "));
+
         await sheet.render(true);
         const el = await until(() => {
           const node = sheet.element instanceof HTMLElement ? sheet.element : sheet.element?.[0];
-          return node?.querySelector(`[name="${MODULE_ID}.reactionHold"]`) ? node : null;
+          return node?.querySelector(`[name="${MODULE_ID}.decisionTimer"]`) ? node : null;
         });
         ok("renderSettingsConfig fires when the form opens", fired > 0,
           fired ? `${fired}×` : "NEVER DISPATCHED — the name is wrong");
         ok("the module's own pane is in the form", !!el,
-          el ? "found by one of its controls" : "no control with the module prefix");
-        if (!el) throw new Error("settings form never rendered a module control");
-
-        // Nine `addDivider` headers, counted from the DOM rather than typed.
-        const dividers = [...el.querySelectorAll("h4.bf-divider")].map(h => h.textContent.trim());
-        ok("the section dividers are inserted into the form", dividers.length > 0,
-          `${dividers.length}: ${dividers.join(" · ")}`);
-        ok("every divider carries a label, none blank", dividers.every(d => d.length > 0),
-          JSON.stringify(dividers));
-        // ⚠ The form re-renders on tab changes: a second render must not double the dividers.
-        const firstCount = dividers.length;
-        await sheet.render(true);
-        await sleep(600);
-        const el2 = sheet.element instanceof HTMLElement ? sheet.element : sheet.element?.[0];
-        const after = el2 ? el2.querySelectorAll("h4.bf-divider").length : -1;
-        ok("a re-render does not double the dividers", after === firstCount,
-          `first=${firstCount} second=${after}`);
-
-        const node = el2 ?? el;
-        const input = key => node.querySelector(`[name="${MODULE_ID}.${key}"]`);
-        const hold = input("reactionHold");
-        const DEPENDENTS = ["interruptList", "blockList", "holdReveal", "holdTimer",
-          "holdSkipFutile", "holdSettle", "holdApplyEffect"];
-        const disabledNow = () => DEPENDENTS.map(k => [k, !!input(k)?.disabled]);
-        if (!hold) {
-          skips.push("section 1: no reactionHold control in the DOM — interlock unexercised");
-        } else if (hold.checked !== true) {
-          // The reference table has the hold ON; a drifted world is reported, not asserted against.
-          skips.push(`section 1: reactionHold is ${hold.checked} in this world, not the `
-            + "reference true — interlock direction unexercised");
+          el ? "found by its Decision Timer" : "no control with the module prefix");
+        if (!el) {
+          skips.push("section 1: the form never rendered a module control — the pane unexercised");
         } else {
-          ok("with the hold ON, its dependents are live",
-            disabledNow().every(([, d]) => !d), JSON.stringify(disabledNow()));
-          // ⚠ DOM ONLY: `SettingsConfig` saves on its own submit; a `change` runs only `syncAll`.
-          hold.checked = false;
-          hold.dispatchEvent(new Event("change", { bubbles: true }));
-          await sleep(300);
-          ok("switching the hold OFF greys every one of its dependents",
-            disabledNow().every(([, d]) => d), JSON.stringify(disabledNow()));
-          hold.checked = true;
-          hold.dispatchEvent(new Event("change", { bubbles: true }));
-          await sleep(300);
-          ok("…and switching it back restores them", disabledNow().every(([, d]) => !d),
-            JSON.stringify(disabledNow()));
+          // The form's controls, by first appearance: the ten, in registration order.
+          const shown = [...new Set([...el.querySelectorAll(`[name^="${MODULE_ID}."]`)]
+            .map(n => n.getAttribute("name").slice(MODULE_ID.length + 1)))];
+          ok("the pane shows the ten settings and nothing else, in the registered order",
+            JSON.stringify(shown) === JSON.stringify(TEN), shown.join(", "));
+          ok("no section dividers are drawn (ten settings need none)",
+            !el.querySelector("h4.bf-divider"), `${el.querySelectorAll("h4.bf-divider").length} found`);
+          ok("no control of the pane is greyed (no interlock left)",
+            TEN.every(k => !el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled),
+            TEN.filter(k => el.querySelector(`[name="${MODULE_ID}.${k}"]`)?.disabled).join(", ") || "none");
         }
-
-        // ⚠ THE TWO-OWNER CONTROL: `playerRollDamage` serves attacks under the resolver AND save spells
-        // under Saving Throws, so it stays live while EITHER is on.
-        const prd = input("playerRollDamage");
-        const auto = input("autoDamage");
-        const saves = input("saves");
-        if (prd && auto && saves) {
-          const expect = (auto.value !== "off") || !!saves.checked;
-          ok("playerRollDamage is live while EITHER owner is on (the two-owner rule)",
-            prd.disabled === !expect,
-            `autoDamage=${auto.value} saves=${saves.checked} disabled=${prd.disabled}`);
-        } else skips.push("section 1: the two-owner controls are not all in the DOM");
-
-        ok("the form was read, not written — no world setting moved",
-          game.settings.get(MODULE_ID, "reactionHold") === before.reactionHold
-          && game.settings.get(MODULE_ID, "autoDamage") === before.autoDamage
-          && game.settings.get(MODULE_ID, "saves") === before.saves,
-          JSON.stringify({ before, now: {
-            reactionHold: game.settings.get(MODULE_ID, "reactionHold"),
-            autoDamage: game.settings.get(MODULE_ID, "autoDamage"),
-            saves: game.settings.get(MODULE_ID, "saves")
-          } }));
+        ok("the form was read, not written — no setting moved",
+          JSON.stringify(values()) === JSON.stringify(before),
+          JSON.stringify({ before, now: values() }));
       } finally {
         Hooks.off("renderSettingsConfig", hid);
         try { await sheet.close(); } catch { /* already closed */ }

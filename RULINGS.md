@@ -1263,8 +1263,8 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
 - ⓐ **Hex grids are not measured** (the DMG counts six corners there; no table plays on hexes) — no
   section, no change to the attack. A gridless scene measures each space as one square.
 - Always on (*The settings*, below).
-- The suites run with no cover: the harness flags the viewed scene `noCover` and clears it at the
-  teardown, because their fixtures stand creatures in a row on purpose and a measured +2 would move
+- The suites run with no cover: the harness flags every scene `noCover` and clears the flags it set
+  at the teardown, because their fixtures stand creatures in a row on purpose and a measured +2 would move
   hit and miss under sections about something else. `smoke-reminders` §14 clears the flag.
 - `tests/decide-cover.test.js`, `smoke-reminders` §14 (written 2026-09-27 while the sandbox ran the
   release battery; its first live run is owed).

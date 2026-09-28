@@ -274,7 +274,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const box = offer?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
       ok('2a. the damage offer carries Dreadful Strike as a TICKED checkbox — the dice, the type, the uses left after, the rule folded (user: "make like sneak attack")',
         !!box && box.checked && /Dreadful Strike — 2d6 psychic/.test(text) && /use[s]? left after/.test(text)
-          && !!offer.querySelector('[data-bf-rider-row="dread-ambusher"] details[data-bf-rule]') && !offer.querySelector('input[name="bf-cunning"]'),
+          && !!offer.querySelector('[data-bf-rider-row="dread-ambusher"] details[data-bf-rule-fold]') && !offer.querySelector('input[name="bf-cunning"]'),
         `box=${!!box} checked=${box?.checked} text="${text.slice(0, 200)}"`);
       offer?.querySelector('button[data-action="roll"]')?.click();
       const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
@@ -405,17 +405,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearChips();
     }
 
-    // ---- 6. the list is the switch
-    if (want(6)) {
-      await clearChips();
-      await refill();
-      await set('clockRiderList', '');
-      const { dmg } = await swing(ranger, rangerToken, longsword);
-      ok('6a. an empty Clock Riders list rides nothing — the feature stays the table\'s by hand',
-        !!dmg && !riderPart(dmg, /^2d6$/) && !dmg.getFlag(MOD, 'clockRiders'),
-        `formulas=[${(dmg?.rolls ?? []).map(r => r.formula).join(' | ')}]`);
-      await set('clockRiderList', prior.clockRiderList);
-    }
+    // ---- 6. RETIRED: the Clock Riders list is gone (the table is the only list; every row rides).
 
     // ---- 7. FIRED
     // ---- 8-9. the Goliath's boons: clock riders (one boon, use it or not), uses on the ITEM, due on any hit
@@ -448,6 +438,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await clearChips();
             await set('clockRiderList', "Fire's Burn");
             await boon("Fire's Burn")?.update({ 'system.uses.spent': 0 });
+            // Every row rides now (no list to narrow): Frost's Chill spent out, so Fire's Burn rides alone.
+            await boon("Frost's Chill")?.update({ 'system.uses.spent': Number(boon("Frost's Chill")?.system.uses?.max ?? 3) });
             const before = usesOf("Fire's Burn");
             const { dmg } = await swing(goliath, goliathToken, axe);
             const part = riderPart(dmg, /^1d10$/);
@@ -473,6 +465,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             await clearChips();
             await set('clockRiderList', "Frost's Chill");
             await boon("Frost's Chill")?.update({ 'system.uses.spent': 0 });
+            // Every row rides now: Fire's Burn spent out, so Frost's Chill rides alone.
+            await boon("Fire's Burn")?.update({ 'system.uses.spent': Number(boon("Fire's Burn")?.system.uses?.max ?? 3) });
             const { dmg } = await swing(goliath, goliathToken, axe);
             const part = riderPart(dmg, /^1d6$/);
             ok('9a. Frost\'s Chill rides — 1d6 COLD', !!part && (part.options?.type === 'cold'),
@@ -528,6 +522,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
         const offer = await waitFor(offerEl, 1500);
         offer?.querySelector('button[data-action="roll"]')?.click();
+        // Piercer's Puncture (a dice changer, always on — no Damage Rolled Twice list to empty) holds the
+        // damage on its popup under a 0 s Decision Timer: keep the roll, it is smoke-savage's to test.
+        const dicePopup = await waitFor(() => (damageFor(originId)?.getFlag(MOD, 'receipt') ? 'landed' : null)
+          ?? [...foundry.applications.instances.values()].find(app => app.rendered && app.element?.querySelector?.('[data-bf-ticks="bf-dice"]')), 6000);
+        if (dicePopup && (dicePopup !== 'landed')) {
+          for (const box of dicePopup.element.querySelectorAll('input[name="bf-dice"]')) if (box.checked) box.click();
+          dicePopup.element.querySelector('button[data-action="keep"]')?.click();
+        }
         const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
         await waitFor(() => game.messages.get(dmg?.id)?.getFlag(MOD, 'clockRiders')?.effectsApplied, 6000);
         await sleep(300);

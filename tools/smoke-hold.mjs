@@ -142,24 +142,19 @@ const r = await f.evaluate(async ({ sections }) => {
     await game.settings.set(MOD, 'autoApply', true);
     await game.settings.set(MOD, 'dramaticBeat', 0);
     await game.settings.set(MOD, 'reactionHold', true);
-    // Pinned: §6 is the whole second trigger, and an emptied list would read as broken.
-    await game.settings.set(MOD, 'blockList', 'Magic Missile:Shield');
+    // §6's second trigger is the code table (BLOCKS: Magic Missile against Shield); no list to pin.
     await game.settings.set(MOD, 'holdSettle', 6);
     await game.settings.set(MOD, 'holdApplyEffect', true);
-    await game.settings.set(MOD, 'holdReveal', true);
-    // ⚠ OFF: the classic sections assume every hit holds; with it on, a hit 5+ over AC is
-    // skipped as hopeless. §4f owns it.
-    await game.settings.set(MOD, 'holdSkipFutile', false);
+    // ⚠ Reveal OFF: the futility skip follows it (hold/trigger.js holdWouldMatter) and the classic
+    // sections assume every hit holds; with it on, a hit 5+ over AC is skipped as hopeless. §4f owns it.
+    await game.settings.set(MOD, 'holdReveal', false);
     await game.settings.set(MOD, 'holdTimer', 0);
     await game.settings.set(MOD, 'requireTarget', false);
     // ⚠ Pinned ON: Shield is itself a utility-with-effects cast, and castApplyQualifies'
     // affects-self gate must keep it from stacking a second +5 on the reaction's own application.
     await game.settings.set(MOD, 'castApply', true);
-    // ⚠ OFF: a Graze blade pays its ability mod on every windowed miss, breaking the HP guards.
-    await game.settings.set(MOD, 'masteryRiders', false);
-    // ⚠ OFF: Gren's Magic Missile carries a volley count, and its popup beside the hold popup
-    // sends the dialog searches to the wrong window. smoke-volleys §6 owns the compose.
-    await game.settings.set(MOD, 'volleys', false);
+    // Mastery riders and volleys are always on: the weapon's mastery is stripped below (restored in
+    // `finally`), and §6 fires Magic Missile's volley itself.
 
     // Clean fixture first: a leftover cached Shield on BF Test Victim fails §4d for no module reason.
     {
@@ -192,6 +187,11 @@ const r = await f.evaluate(async ({ sections }) => {
 
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
     const activity = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
+    // ⚠ Mastery riders are always on: a Graze blade pays its ability mod on every windowed miss (the
+    // HP guards) and an optional mastery's ask popup rides the attack card. The blade goes BARE for
+    // the run; `finally` puts it back.
+    restore.weaponMastery = { id: weapon.id, mastery: weapon.system._source.mastery ?? '' };
+    if (restore.weaponMastery.mastery) await weapon.update({ 'system.mastery': '' });
 
     const attackGren = async (opts = {}) => {
       grenTokenObj.setTarget(true, { releaseOthers: true });
@@ -369,8 +369,13 @@ const r = await f.evaluate(async ({ sections }) => {
     // Drive the popup's OWN Cast control (the only path using the hold's recorded itemId/activityId),
     // found through the module's livePopups registry, never by scraping dialog text.
     const { livePopups: LP } = await import('/modules/fvtt-mod-battleflow/scripts/ui.js');
+    // ⚠ Only a UUID sub is the hold's (views.js keys it on the target): the volley popup
+    // (`<id>|volley`) shares the card's prefix and has no Cast button.
     const holdPopupFor = messageId => {
-      for (const [k, d] of LP.entries()) if (k.startsWith(`${messageId}|`) || (k === messageId)) return d;
+      for (const [k, d] of LP.entries()) {
+        if (k === messageId) return d;
+        if (k.startsWith(`${messageId}|`) && k.slice(messageId.length + 1).includes('.')) return d;
+      }
       return null;
     };
     const popupButtons = messageId => {
@@ -985,7 +990,6 @@ const r = await f.evaluate(async ({ sections }) => {
     // missing prompt would itself leak the margin
     if (want('4f')) {
       await game.settings.set(MOD, 'holdReveal', true);
-      await game.settings.set(MOD, 'holdSkipFutile', true);
       // Shield adds +5, so AC+5 or more is hopeless.
       let hopeless = null;
       for (let i = 0; i < 40 && !hopeless; i++) {
@@ -1023,7 +1027,7 @@ const r = await f.evaluate(async ({ sections }) => {
           await doc.setFlag(MOD, 'hold', m);
         }
       }
-      await game.settings.set(MOD, 'holdReveal', true);
+      await game.settings.set(MOD, 'holdReveal', false);
       await clearReaction(gren);
     }
 
@@ -1083,20 +1087,44 @@ const r = await f.evaluate(async ({ sections }) => {
         return usage?.message ?? null;
       };
 
-      // Roll the damage. expectApply waits for the receipt; otherwise give a wrong auto-apply
+      // ⚠ THE VOLLEY IS ALWAYS ON: Magic Missile is a volley, so the use opens the aim popup beside the
+      // hold popup (both keyed on the usage card) and the darts are the volley's to roll — the native
+      // follow-up is switched off. Fire it FIRST, while the hold is still pending: the driven dart roll
+      // is born claimed (spellDamage + spellHoldPending, polish.js), so the answer decides it.
+      const volleyPopupFor = usageId => LP.get(`${usageId}|volley`) ?? null;
+      const fireVolleyOn = async usageMsg => {
+        const dlg = await waitFor(() => volleyPopupFor(usageMsg.id)?.element ? volleyPopupFor(usageMsg.id) : null, 8000);
+        if (!dlg) throw new Error('Magic Missile opened no volley popup to fire');
+        const fire = dlg.element.querySelector('button[data-action="fire"]');
+        if (!fire) throw new Error('the volley popup rendered no Fire button');
+        fire.click();
+        const dart = await waitFor(() => game.messages.contents.find(m =>
+          (m.type === 'damage') && (m.getFlag(MOD, 'volleyFor') === usageMsg.id)) ?? null, 12000);
+        if (!dart) throw new Error('the fired volley rolled no dart damage');
+        return dart;
+      };
+      // A section that only needs the card: stand the volley down WITHOUT driving darts (fireVolley
+      // acts on a pending flag only, and the popup's X routes through it).
+      const standDownVolley = async usageMsg => {
+        const v = usageMsg?.getFlag(MOD, 'volley');
+        if (v?.status === 'pending') {
+          await usageMsg.setFlag(MOD, 'volley', { ...v, status: 'resolved', assignment: [], resolvedAt: Date.now() });
+        }
+        await volleyPopupFor(usageMsg?.id)?.close?.();
+      };
+
+      const partsOf = damageMsg => dnd5e.dice.aggregateDamageRolls(damageMsg.rolls, { respectProperties: true })
+        .map(r => ({
+          value: Math.max(0, r.total), type: r.options.type,
+          properties: new Set(r.options.properties ?? []),
+        }));
+
+      // The dart roll's fate. expectApply waits for the receipt; otherwise give a wrong auto-apply
       // every chance, then make the native tray's exact applyDamage call, which the veto must survive.
-      const rollAndAwaitAuto = async (usageMsg, actor, { expectApply }) => {
-        const rolls = await missile().rollDamage({}, { configure: false },
-          { data: { 'system.origin': usageMsg.id } });
-        const damageMsg = rolls?.[0]?.parent;
-        if (!damageMsg) throw new Error('Magic Missile rolled no damage message');
-        const damages = dnd5e.dice.aggregateDamageRolls(damageMsg.rolls, { respectProperties: true })
-          .map(r => ({
-            value: Math.max(0, r.total), type: r.options.type,
-            properties: new Set(r.options.properties ?? []),
-          }));
+      // `hpBefore` is read BEFORE the answer: the claim defers the applier until then.
+      const awaitDartFate = async (damageMsg, actor, hpBefore, { expectApply }) => {
+        const damages = partsOf(damageMsg);
         const rolled = damages.reduce((sum, d) => sum + d.value, 0);
-        const hpBefore = actor.system.attributes.hp.value;
         if (expectApply) {
           await waitFor(() => game.messages.get(damageMsg.id)?.getFlag(MOD, 'receipt') ?? null, 15000);
         } else {
@@ -1124,6 +1152,8 @@ const r = await f.evaluate(async ({ sections }) => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
         });
+        const dart = await fireVolleyOn(usageMsg);
+        const hpBefore = shielder.system.attributes.hp.value;
 
         // The same Cast/Pass pair an attack hold offers.
         await waitFor(() => popupButtons(usageMsg.id).length, 8000);
@@ -1138,7 +1168,7 @@ const r = await f.evaluate(async ({ sections }) => {
         }, 25000);
         await sleep(1200);
 
-        const applied = await rollAndAwaitAuto(usageMsg, shielder, { expectApply: false });
+        const applied = await awaitDartFate(dart, shielder, hpBefore, { expectApply: false });
         results.missileNegated = {
           pending: !!pending,
           trigger: pending?.trigger ?? null,
@@ -1168,6 +1198,8 @@ const r = await f.evaluate(async ({ sections }) => {
           const h = game.messages.get(usageMsg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
         });
+        const dart = await fireVolleyOn(usageMsg);
+        const hpBefore = shielder.system.attributes.hp.value;
         const passButton = await waitFor(() => popupButtons(usageMsg.id)
           .find(b => b.textContent.trim() === 'Pass'), 8000);
         if (!passButton) throw new Error('the spell hold popup rendered no Pass button');
@@ -1179,7 +1211,7 @@ const r = await f.evaluate(async ({ sections }) => {
         }, 25000);
         await sleep(800);
 
-        const applied = await rollAndAwaitAuto(usageMsg, shielder, { expectApply: true });
+        const applied = await awaitDartFate(dart, shielder, hpBefore, { expectApply: true });
         results.missilePassed = {
           pending: !!pending,
           answered: done?.targets?.[0]?.answer ?? null,
@@ -1189,7 +1221,7 @@ const r = await f.evaluate(async ({ sections }) => {
         await clearReaction(shielder);
       }
 
-      // -- 6f: claim → defer → release on the native card: the roll chains to the usage card, the
+      // -- 6f: claim → defer → release on the native card: the dart roll chains to the usage card, the
       //        claim defers the applier while pending, the negate releases with the shielder skipped
       {
         const { actor: shielder, token: shielderToken } = await ensureShielder();
@@ -1201,12 +1233,10 @@ const r = await f.evaluate(async ({ sections }) => {
         const holdMsg = await waitFor(() => freshMsgs().find(m =>
           m.getFlag(MOD, 'hold')?.status === 'pending') ?? null, 10000);
         const heldOnUsage = !!holdMsg && (holdMsg.type === 'usage');
-        const rolls = await missile().rollDamage({}, { configure: false },
-          holdMsg ? { data: { 'system.origin': holdMsg.id } } : {});
-        const damageMsg = rolls?.[0]?.parent;
+        const hpBefore = shielder.system.attributes.hp.value;
+        const damageMsg = holdMsg ? await fireVolleyOn(holdMsg) : null;
         // ⚠ Captured AT THE ROLL: after the answer the flag reads released.
         const pendingAtRoll = damageMsg?.getFlag(MOD, 'spellHoldPending') === true;
-        const hpBefore = shielder.system.attributes.hp.value;
         await sleep(1500);
         const deferredHp = shielder.system.attributes.hp.value;
         const deferredReceipt = !!game.messages.get(damageMsg?.id)?.getFlag(MOD, 'receipt');
@@ -1245,6 +1275,8 @@ const r = await f.evaluate(async ({ sections }) => {
             knowsShieldSpell: victimActor.items.some(i => i.name === 'Shield' && i.type === 'spell'),
             held: !!game.messages.get(usageMsg?.id)?.getFlag(MOD, 'hold'),
           };
+          // The card was the question; no darts at the 11-HP victim.
+          await standDownVolley(usageMsg);
         } else {
           results.missileNoReaction = { skipped: true };
         }
@@ -1258,10 +1290,15 @@ const r = await f.evaluate(async ({ sections }) => {
 
     // ---- 8. a text-only feature (the 2024 Uncanny Dodge: no activities) found by name
     if (want('8')) {
-      const priorList = game.settings.get(MOD, 'interruptList');
+      // The Interrupt list is the code table, and it lists Shield (and Absorb Elements) AHEAD of
+      // Uncanny Dodge: with no slot left, Gren's spells are unusable and the dodge is the reaction found.
       let dodge = null;
       try {
-        await game.settings.set(MOD, 'interruptList', 'Uncanny Dodge:damage');
+        const noSlots = {};
+        for (const [key, slot] of Object.entries(gren.system.spells ?? {})) {
+          if (slot?.max) noSlots[`system.spells.${key}.value`] = 0;
+        }
+        await gren.update(noSlots);
         [dodge] = await gren.createEmbeddedDocuments('Item', [{
           name: 'Uncanny Dodge', type: 'feat',
           system: { type: { value: 'class' }, description: { value: '<p>When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down).</p>' } }
@@ -1293,7 +1330,7 @@ const r = await f.evaluate(async ({ sections }) => {
           resolved: !!resolved, verdict: resolved?.targets?.[0]?.verdict, applied: !!applied,
         };
       } finally {
-        await game.settings.set(MOD, 'interruptList', priorList);
+        await gren.update({ 'system.spells': restore.grenSlots }).catch(() => {});
         if (dodge) await dodge.delete().catch(() => {});
         await clearReaction(gren);
       }
@@ -1361,11 +1398,10 @@ const r = await f.evaluate(async ({ sections }) => {
         }
         const clearedOnTurn = reached && !(await spent());
 
-        // (d) `deleteCombat` clears it for every combatant, with the feature toggle OFF.
+        // (d) `deleteCombat` clears it for every combatant.
         await spendReactionOf(gren);
         await sleep(200);
         const setBeforeDelete = await spent();
-        await game.settings.set(MOD, 'reactionHold', false);
         await combat.delete();
         combat = null;
         await sleep(600);
@@ -1377,7 +1413,6 @@ const r = await f.evaluate(async ({ sections }) => {
         };
       } finally {
         // ⚠ A leftover combat poisons later suites (hold and mastery read inRunningCombat).
-        await game.settings.set(MOD, 'reactionHold', true);
         try { if (combat) await combat.delete(); } catch { /* already gone */ }
         try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
         await clearReaction(gren);
@@ -1461,6 +1496,10 @@ const r = await f.evaluate(async ({ sections }) => {
         });
         await clearReaction(gren);
         for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
+        if (restore.weaponMastery?.mastery) {
+          await game.actors.getName('BF Test Attacker')?.items.get(restore.weaponMastery.id)
+            ?.update({ 'system.mastery': restore.weaponMastery.mastery });
+        }
       }
       // Long rest every fixture (never the live PCs): the suite spends real slots and HP.
       for (const name of ['BF Test Shielder', 'BF Test Attacker', 'BF Test Victim', 'BF Test PC Attacker']) {
@@ -1735,7 +1774,7 @@ if (want('7')) {
   report("updateCombat: the actor's own turn comes round and the flag clears",
     t?.turnReached === true && t?.clearedOnTurn === true,
     `reached=${t?.turnReached} cleared=${t?.clearedOnTurn}`);
-  report('deleteCombat: the fight ends and the flag clears EVEN WITH reactionHold OFF',
+  report('deleteCombat: the fight ends and the flag clears',
     t?.setBeforeDelete === true && t?.clearedOnDelete === true,
     `setBefore=${t?.setBeforeDelete} clearedAfter=${t?.clearedOnDelete}`);
 }

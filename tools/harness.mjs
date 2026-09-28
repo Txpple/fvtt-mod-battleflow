@@ -225,7 +225,11 @@ function retireSettings() {
   const registry = settings.settings;
   const has = registry.has.bind(registry);
   // A suite's "is this the new code" guard names a retired key: report it present.
-  registry.has = key => has(key) || (String(key).startsWith(`${MOD}.`) && RETIRED.has(String(key).slice(MOD.length + 1)));
+  const isRetired = key => String(key).startsWith(`${MOD}.`) && RETIRED.has(String(key).slice(MOD.length + 1)) && !has(key);
+  registry.has = key => has(key) || isRetired(key);
+  // …and a retired key's registration reads as a stub carrying its old default ("" for a list).
+  const registered = registry.get.bind(registry);
+  registry.get = key => registered(key) ?? (isRetired(key) ? { key, default: WAS[String(key).slice(MOD.length + 1)] ?? "" } : undefined);
   const retired = (ns, key) => (ns === MOD) && RETIRED.has(key) && !has(`${MOD}.${key}`);
   settings.set = async (ns, key, value, options) => {
     if ( !retired(ns, key) ) return set(ns, key, value, options);
@@ -278,15 +282,18 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
 
   /**
    * ⚠ Measured cover OFF for the run, restored at teardown: fixtures stand creatures in a row, so
-   * cover would move hit/miss in unrelated sections. The lever is the viewed scene's `noCover`
-   * flag; the section that tests cover clears it itself.
+   * cover would move hit/miss in unrelated sections. The lever is each scene's `noCover` flag, set
+   * on every scene for the run; the section that tests cover clears it itself.
    */
-  const coverScene = await f.evaluate(async () => {
-    const scene = game.scenes.viewed ?? game.scenes.active;
-    if ( !scene || scene.getFlag("fvtt-mod-battleflow", "noCover") ) return null;
-    await scene.setFlag("fvtt-mod-battleflow", "noCover", true);
-    return scene.id;
-  }, null).catch(() => null);
+  const coverScenes = await f.evaluate(async () => {
+    const flagged = [];
+    for ( const scene of game.scenes ) {
+      if ( scene.getFlag("fvtt-mod-battleflow", "noCover") ) continue;
+      await scene.setFlag("fvtt-mod-battleflow", "noCover", true);
+      flagged.push(scene.id);
+    }
+    return flagged;
+  }, null).catch(() => []);
 
   // ⚠ The ledger dump rides the teardown, not `finish()`: several suites never call `finish`.
   const install = await f.evaluate(installLedger, null).catch(e => `failed: ${e.message}`);
@@ -299,9 +306,9 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   const teardown = async () => {
     if (hungUp) return;
     hungUp = true;
-    if ( coverScene ) {
-      await f.evaluate(async id => game.scenes.get(id)?.unsetFlag("fvtt-mod-battleflow", "noCover"), coverScene)
-        .catch(e => console.warn(`[${tag}] the scene's noCover flag not cleared (${e.message}) — run verify-settings --fix`));
+    if ( coverScenes.length ) {
+      await f.evaluate(async ids => { for ( const id of ids ) await game.scenes.get(id)?.unsetFlag("fvtt-mod-battleflow", "noCover"); }, coverScenes)
+        .catch(e => console.warn(`[${tag}] the scenes' noCover flags not cleared (${e.message}) — run verify-settings --fix`));
     }
     await dumpHookLedger(tag, f);
     await disposeSafely(f, tag);

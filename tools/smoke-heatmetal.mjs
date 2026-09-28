@@ -24,7 +24,6 @@ const SECTIONS = {
   3: 'the attack gate reads Heated Metal on the goblin\'s attack — Disadvantage; the CHECK gate reads it on an ability check — Disadvantage',
   4: 'Reheat: a second use rolls and lands again, and demands the save again',
   5: 'the caster wants their dice: the offer opens for the cast and the press rolls it',
-  6: 'the Damage Saves list is the switch for the save half: an empty list still rolls the dice, and demands nothing',
   7: 'the registration FIRED (§11): postUseActivity moved'
 };
 const DEPENDS = { 2: [1], 3: [2] };
@@ -339,20 +338,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(1500);
       await set('playerRollDamage', false);
       await clearFx();
-    }
-
-    // ================================================== 6. the list is the switch for the save half
-    if (want(6)) {
-      await clearFx();
-      await healFull();
-      await set('damageSaveList', '');
-      const { since, card } = await heatUse(castAct);
-      const dmg = await waitFor(() => { const d = card ? damageFor(card.id) : null; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
-      await sleep(2500);   // the window in which a demand would have appeared — the assertion is that none does
-      ok('6a. an empty Damage Saves list: the dice still roll and land (every bare damage cast does), and no save is demanded',
-        !!dmg && !demandsSince(since).length && !card?.getFlag(MOD, 'damageCast')?.save,
-        `dmg=${!!dmg} demands=${demandsSince(since).length} stamp=${JSON.stringify(card?.getFlag(MOD, 'damageCast'))}`);
-      await set('damageSaveList', 'Heat Metal');
     }
 
     // ================================================== 7. FIRED

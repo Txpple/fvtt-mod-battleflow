@@ -55,11 +55,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!INTERRUPT_ROLLS.Protection) return { fatal: 'Protection is not in the loaded code — OLD code (reload the box)' };
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
-    'reactionHold', 'interruptList', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
-    'masteryRiders', 'masteryAsk', 'castApply', 'concMode', 'reminderList', 'damageEitherList', 'fightingStyleList', 'effectList'];
+    'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
+    'masteryRiders', 'masteryAsk', 'castApply', 'concMode'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
-  const def = k => game.settings.settings.get(`${MOD}.${k}`)?.default;
 
   const scene = game.scenes.getName('Battle Flow Test Range');
   const attacker = game.actors.getName('BF Test Attacker');
@@ -130,8 +129,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('dramaticBeat', 0);
     await set('requireTarget', false);
     await set('reactionHold', true);
-    const noIntercept = () => def('interruptList').replace(/,\s*Interception:damage/, '');
-    await set('interruptList', noIntercept());   // §1–§4 are Protection's; §5–§6 set their own
     await set('holdTimer', 0);
     await set('holdReveal', true);
     await set('holdSkipFutile', false);
@@ -142,10 +139,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('masteryAsk', false);
     await set('castApply', false);
     await set('concMode', 'off');
-    await set('reminderList', '');
-    await set('damageEitherList', '');
-    await set('fightingStyleList', '');   // the faces are smoke-styles'; this suite is the reactions
-    await set('effectList', def('effectList'));
     await refillLuck();
 
     // ---- fixtures
@@ -167,8 +160,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const off = fighter.items.filter(i => i.system?.equipped === true).map(i => ({ _id: i.id, 'system.equipped': false }));
     if (off.length) await fighter.updateEmbeddedDocuments('Item', off);
-    await lend('Protection', 'feat');
-    await lend('Interception', 'feat');
+    // Every reaction row is always on: the Fighter holds ONE guard feat at a time, so §1–§4 meet
+    // Protection alone (no Interception claim on the damage) and §5–§6 Interception alone.
+    const guardFeat = {};
+    const onlyGuard = async name => {
+      for (const [n, item] of Object.entries(guardFeat)) {
+        if ((n !== name) && fighter.items.get(item.id)) { await fighter.deleteEmbeddedDocuments('Item', [item.id]); delete guardFeat[n]; }
+      }
+      if (!guardFeat[name] || !fighter.items.get(guardFeat[name].id)) guardFeat[name] = await lend(name, 'feat');
+    };
+    await onlyGuard('Protection');
     const shield = await lend('Shield', 'equipment', true);
     await lend('Longsword', 'weapon', true);
 
@@ -232,6 +233,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 1. Protection turns the hit
     if (want(1)) {
       await closeDialogs(); await dropProtected(); await refillLuck();
+      await onlyGuard('Protection');
       const msg = await swing({ d20: [12] });
       const guard = await waitFor(guardPopup, 6000);
       const own = rescuePopup();
@@ -256,7 +258,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(2)) {
       const eff = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'protectedBy') === fighter.uuid), 6000);
       ok('2a. "Protected — BF Test Fighter" on the Halfling', /Protected — BF Test Fighter/.test(eff?.name ?? ''), `effect=${eff?.name ?? null}`);
-      await set('reminderList', def('reminderList'));
       const { judgeRoll } = await import('/modules/fvtt-mod-battleflow/scripts/reminders.js');
       const near = judgeRoll(attacker, { activity: act(), targets: [halflingToken] });
       const src = (near?.sources ?? []).find(s => /Protected — BF Test Fighter/.test(s.label));
@@ -276,7 +277,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2c. the Fighter 15 ft away: the row stands down', !(far?.sources ?? []).some(s => /Protected — /.test(s.label) && s.bend),
         `net=${far?.net} sources=${JSON.stringify((far?.sources ?? []).map(s => [s.label, s.bend]))}`);
       await moveFighter(1600);
-      await set('reminderList', '');
       await dropProtected();
     }
 
@@ -324,7 +324,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 5. Interception
     if (want(5)) {
       await closeDialogs(); await spendLuck();
-      await set('interruptList', def('interruptList').replace(/,\s*Protection:roll/, ''));
+      await onlyGuard('Interception');
       const msg = await swing({ d20: [12], dmg: 5 });
       const pop = await waitFor(interceptPopup, 8000);
       const card = game.messages.contents.find(m => (m.timestamp >= suiteStart) && m.getFlag(MOD, 'damageHold')?.guards?.some(g => g.actorUuid === fighter.uuid)
@@ -345,7 +345,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 6. Interception passed
     if (want(6)) {
       await closeDialogs(); await spendLuck();
-      await set('interruptList', def('interruptList').replace(/,\s*Protection:roll/, ''));
+      await onlyGuard('Interception');
       await swing({ d20: [12], dmg: 5 });
       const pop = await waitFor(interceptPopup, 8000);
       const card = game.messages.contents.filter(m => m.getFlag(MOD, 'damageHold')?.status === 'pending').pop();
@@ -353,7 +353,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const landed = await waitFor(() => { const f = game.messages.get(card?.id)?.getFlag(MOD, 'damageHold'); return (f?.applied) ? f : null; }, 12000);
       await sleep(600);
       ok('6a. passed: the damage lands whole', (landed?.answer === 'pass') && ((400 - hp()) > 0), `answer=${landed?.answer} taken=${400 - hp()}`);
-      await set('interruptList', def('interruptList'));
     }
 
     return { log, results, skips };

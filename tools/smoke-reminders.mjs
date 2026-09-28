@@ -22,7 +22,6 @@ const SECTIONS = {
   3: 'multiple sources: Sapped attacker vs Vexed target lists both and nets to NORMAL',
   4: 'Prone, both roles, with the 5-foot geometry',
   5: 'the condition table: poisoned, blinded, incapacitated, frightened',
-  6: 'the lists are the switch: an empty Reminder Sources list turns the gate off',
   7: 'closing the popup rolls nothing',
   8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
   9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
@@ -56,7 +55,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
-  for (const key of ['reminderList', 'conditionList', 'masteryRiders']) {
+  for (const key of ['masteryAsk', 'decisionTimer']) {
     if (!game.settings.settings.has(`${MOD}.${key}`)) {
       return { fatal: `setting ${key} not registered — this client is running OLD code (F5)` };
     }
@@ -64,7 +63,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'dramaticBeat', 'requireTarget', 'reactionHold',
     'riders', 'effectRiders', 'masteryRiders', 'masteryAsk', 'holdTimer', 'saveTimer', 'castApply',
-    'noticeTimer', 'reminderList', 'conditionList', 'effectList'];
+    'noticeTimer'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -142,15 +141,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await set('saveTimer', 0);
     await set('castApply', false);
     await set('noticeTimer', 2);
-    // The suite's OWN lists (what §6 turns off and puts back), not the world's: an older stored list
-    // could lack the range rows §10 needs.
-    const SUITE_LISTS = {
-      reminderList: 'vex, sap, prone, condition, range, effect',
-      conditionList: 'blinded, invisible, hiding, paralyzed, petrified, poisoned, restrained, stunned, unconscious, frightened, grappled, incapacitated, dodging, charmed'
-    };
-    await set('reminderList', SUITE_LISTS.reminderList);
-    await set('conditionList', SUITE_LISTS.conditionList);
-    await set('effectList', game.settings.settings.get(`${MOD}.effectList`).default);
 
     // -------------------------------------------------- fixtures
     const findWeapon = async () => {
@@ -580,31 +570,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearStatuses();
     }
 
-    // ================================================== 6. the lists are the switch
-    if (want(6)) {
-      await clearChips();
-      await clearStatuses();
-      await setStatus(pc, 'poisoned', true);
-      await set('reminderList', '');
-      {
-        const { dialog, system } = await gatedSwing();
-        ok('6. an empty Reminder Sources list: no gate — the SYSTEM\'s own roll dialog opens bare, as it always did',
-          !dialog && system, `section=${!!dialog} systemDialog=${system}`);
-        await closeGates();
-      }
-      await set('reminderList', 'vex, sap, prone, condition');
-      await set('conditionList', 'blinded');
-      {
-        const { dialog, system } = await gatedSwing();
-        ok('6a. poisoned dropped from the Condition Sources list: nothing to read, no section — the bare system dialog',
-          !dialog && system, `section=${!!dialog} systemDialog=${system}`);
-        await closeGates();
-      }
-      await set('conditionList', SUITE_LISTS.conditionList);
-      await set('reminderList', SUITE_LISTS.reminderList);
-      await clearStatuses();
-    }
-
     // ================================================== 7. closing the popup rolls nothing
     if (want(7)) {
       await clearChips();
@@ -906,7 +871,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const { dialog } = await gatedSwing();
             const text = popupText(dialog);
             ok('11e2. …an ally of the attacker beside the target: counted, Advantage, the rule quoted',
-              /— Pack Tactics/.test(text) && /at least one of its allies is within 5 feet of the creature/.test(text)
+              /— Pack Tactics/.test(text) && /allies is within 5 feet of the creature/.test(text)
                 && /1 Modifier — Net Advantage/.test(text), text.slice(0, 300));
             await closeGates();
           }

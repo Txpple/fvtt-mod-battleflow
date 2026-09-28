@@ -1,26 +1,25 @@
 // Battle Flow rest smoke test: the rest grants. Resourceful's Heroic Inspiration on a Long Rest
-// (§1–3); Musician's popup after a rest listing allies within 30 ft, those already inspired greyed
-// (§4–7); Inspiring Leader, Chef's Bolstering Treats and Replenishing Meal (§8–11).
+// (§1–2); Musician's popup after a rest listing allies within 30 ft, those already inspired greyed
+// (§4–6); Inspiring Leader, Chef's Bolstering Treats and Replenishing Meal (§8–11). Every rest-grant
+// row is always on: a section isolates its row by the Halfling holding only the feat under test.
 // Fixture: BF Test Halfling is lent the PHB feats for the run. The song's sections place TEMPORARY
 // linked tokens (the Halfling; BF Test Cleric 10 ft, Bard 15 ft and already inspired, Fighter 40 ft)
 // in a strip found empty at run time.
-// Harness discipline: settings restored; lent items, placed tokens and messages deleted; every
+// Harness discipline: lent items, placed tokens and messages deleted; every
 // touched actor's HP, Hit Dice, temp HP, uses and inspiration restored. Sections: `--section 2`, `--list`.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'rest-grants.js'          // §1–§3 — the grant on the rest's own update, the card's line, the switches; §4–§7 the song to allies
+  'rest-grants.js'          // §1–§2 — the grant on the rest's own update, the card's line; §4–§11 the song to allies
 ];
 
 const SECTIONS = {
   1: 'a Long Rest with Resourceful: the Heroic Inspiration box is ticked, and the rest card says "Heroic Inspiration gained"',
   2: 'a Short Rest: nothing is given',
-  3: 'Resourceful off the Rest Grants list: a Long Rest gives nothing',
   4: 'Musician after a Long Rest: the card lists the allies within 30 ft (not the one at 40), the popup ticks the one without Heroic Inspiration and greys the one with it ("(has it)"); OK gives it, the card names who',
   5: 'Musician after a Short Rest: it asks too',
   6: 'every ally within 30 ft already has Heroic Inspiration: no card, no popup',
-  7: 'Musician off the Rest Grants list: no card',
   8: 'Inspiring Leader (the PHB feats, group 5) after a Short Rest: the amount read off its activity (level + the higher of Wis/Cha on a copy with no ASI record), up to six, the owner too, within 30 ft; a creature holding more is greyed; OK gives the temp HP',
   9: 'Chef after a Long Rest: Bolstering Treats handed out as the Proficiency Bonus in temp HP, up to that many, every ally on the scene; no meal on a Long Rest',
   10: 'Chef after a Short Rest: Replenishing Meal — the Cleric rested first and spent Hit Dice (healed 1d8 now, its dice on a card), the Fighter spent none (greyed), the Bard still resting (carries the meal); every Short Rest card records its Hit Dice',
@@ -50,9 +49,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!modDoc?.active) return { fatal: `module active=${modDoc?.active}` };
   if (!game.settings.settings.has(`${MOD}.decisionTimer`)) return { fatal: 'decisionTimer not registered — OLD code (reload the box)' };
 
-  const prior = { restGrantList: game.settings.get(MOD, 'restGrantList') };
-  const set = (k, v) => game.settings.set(MOD, k, v);
-
   const actor = game.actors.getName('BF Test Halfling');
   if (!actor || (actor.type !== 'character')) return { fatal: 'missing fixture: BF Test Halfling (a character) — run tools/fixture-suite.mjs' };
   const snapshot = actor.toObject();
@@ -63,8 +59,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const teardown = async () => {
     if (restored) return;
     restored = true;
-    try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
-    catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       const scene = game.scenes.getName('Battle Flow Test Range');
       const live = placed.filter(id => scene?.tokens.get(id));
@@ -95,7 +89,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
-    await set('restGrantList', 'Resourceful');   // the song (Musician) has its own sections below
     // Lend Resourceful from the PHB, found by name in the pack's indexes.
     let source = null;
     for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
@@ -132,18 +125,16 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('2a. a Short Rest gives nothing', !inspired(), `inspiration=${actor.system.attributes.inspiration}`);
     }
 
-    // ================================================== 3. off the list
-    if (want(3)) {
-      await clear();
-      await set('restGrantList', '');
-      await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-      await sleep(600);
-      ok('3a. Resourceful off the list: the Long Rest gives nothing', !inspired(), `inspiration=${actor.system.attributes.inspiration}`);
-    }
-
     // ================================================== 4–7. the song
-    if (['4', '5', '6', '7', '8', '9', '10', '11'].some(id => !sections || sections.includes(id))) {
-      await set('restGrantList', 'Musician');   // Resourceful out: the Halfling's own box stays out of it
+    // A lent feat taken back, so the next section's rest raises only the row under test.
+    const unlend = async name => {
+      const ids = lent.filter(id => actor.items.get(id)?.name === name);
+      if (ids.length) await actor.deleteEmbeddedDocuments('Item', ids);
+      for (const id of ids) lent.splice(lent.indexOf(id), 1);
+    };
+
+    if (['4', '5', '6', '8', '9', '10', '11'].some(id => !sections || sections.includes(id))) {
+      await unlend('Resourceful');   // the Halfling's own box stays out of the song
       let musician = null;
       for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
         const hit = (await pack.getIndex()).find(e => e.name === 'Musician');
@@ -186,7 +177,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await place(bard, 3);      // 15 ft
       await place(fighter, 8);   // 40 ft
       own?.control({ releaseOthers: true });   // tokenOfActor: the controlled token is the actor's
-      const songCard = t0 => game.messages.contents.filter(m => (m.timestamp >= t0) && m.getFlag(MOD, 'restSong')).pop() ?? null;
+      const songCard = (t0, row = 'Musician') => game.messages.contents.filter(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'restSong')?.row === row)).pop() ?? null;
       const songPopup = () => [...foundry.applications.instances.values()]
         .find(app => app.rendered && (app.element?.textContent ?? '').includes('Who gets Heroic Inspiration')) ?? null;
       const waitFor = async (test, timeout = 8000) => {
@@ -245,15 +236,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('6a. everyone within 30 ft already has it: no card, no popup', !songCard(t0) && !songPopup(), `card=${!!songCard(t0)} popup=${!!songPopup()}`);
       }
 
-      if (want(7)) {
-        await prime();
-        await set('restGrantList', '');
-        const t0 = Date.now();
-        await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-        await sleep(1200);
-        ok('7a. Musician off the list: no card', !songCard(t0), `card=${!!songCard(t0)}`);
-      }
-
       // ================================================== 8–11. temp HP grants and the meal
       // The same popup: Temporary Hit Points (Inspiring Leader, Chef's Bolstering Treats) and Chef's
       // Replenishing Meal. The amount is read off the lent feat's heal activity on the Halfling's sheet.
@@ -269,8 +251,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         lent.push(item.id);
         return item;
       };
+      // Dialogs only: the chat log is an application too, and closing it stops every card rendering.
       const popupFor = text => [...foundry.applications.instances.values()]
-        .find(app => app.rendered && (app.element?.textContent ?? '').includes(text)) ?? null;
+        .find(app => app.rendered && (app instanceof foundry.applications.api.DialogV2)
+          && (app.element?.textContent ?? '').includes(text)) ?? null;
       const tempOf = a => Number(a.system.attributes.hp.temp) || 0;
       // ⚠ A row with no reach lists EVERY ally on the scene: tick only the suite's own creatures before OK.
       const tickOnly = (app, keep) => {
@@ -291,7 +275,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
 
       if (want(8)) {
-        await set('restGrantList', 'Inspiring Leader');
+        await unlend('Musician');
         const feat = await lendFeat('Inspiring Leader');
         if (!feat) return { fatal: 'the PHB ships no "Inspiring Leader" feat this box can find', results, log, skips };
         // The lent copy has no ASI record, so the higher of Wisdom and Charisma stands; the amount is level + that modifier.
@@ -303,7 +287,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await actor.update({ 'system.attributes.hp.temp': 0 });
         const t0 = Date.now();
         await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-        const card = await waitFor(() => songCard(t0), 6000);
+        const card = await waitFor(() => songCard(t0, 'Inspiring Leader'), 6000);
         const flag = card?.getFlag(MOD, 'restSong');
         const names = (flag?.candidates ?? []).map(c => `${c.name}:${c.feet}${c.has ? ':has' : ''}`);
         ok('8a. Inspiring Leader after a Short Rest: the amount is the activity\'s (level + the higher of Wis/Cha), up to six, the owner too, within 30 ft',
@@ -339,7 +323,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const want8d = Number(actor.system.details.level) + actor.system.abilities.cha.mod;
           const t1 = Date.now();
           await actor.shortRest({ dialog: false, chat: true, advanceTime: false });
-          const card8d = await waitFor(() => songCard(t1), 6000);
+          const card8d = await waitFor(() => songCard(t1, 'Inspiring Leader'), 6000);
           const f8d = card8d?.getFlag(MOD, 'restSong');
           const rest = game.messages.contents.find(m => (m.timestamp >= t1) && (m.type === 'rest'));
           await sleep(500);
@@ -355,14 +339,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
 
       if (want(9)) {
-        await set('restGrantList', 'Bolstering Treats, Replenishing Meal');
+        await unlend('Musician');
+        await unlend('Inspiring Leader');
         const chef = await lendFeat('Chef');
         if (!chef) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
         const prof = Number(actor.system.attributes.prof);
         for (const a of [actor, cleric, bard, fighter]) await a.update({ 'system.attributes.hp.temp': 0 });
         const t0 = Date.now();
         await actor.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
-        const card = await waitFor(() => songCard(t0), 6000);
+        const card = await waitFor(() => songCard(t0, 'Bolstering Treats'), 6000);
         const flag = card?.getFlag(MOD, 'restSong');
         ok('9a. Chef after a Long Rest: Bolstering Treats handed out — the Proficiency Bonus as Temporary Hit Points, up to that many, every ally on the scene (the Fighter at 40 ft too)',
           !!flag && (flag.row === 'Bolstering Treats') && (flag.amount === prof) && (flag.cap === prof) && (flag.reach === null)
@@ -386,11 +371,18 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Bard has not yet; then the Chef's own Short Rest asks.
       let mealCard = null;
       if (want(10)) {
-        await set('restGrantList', 'Replenishing Meal');   // the Long Rest below must not hand out treats
+        await unlend('Musician');
+        await unlend('Inspiring Leader');
         if (!await lendFeat('Chef')) return { fatal: 'the PHB ships no "Chef" feat this box can find', results, log, skips };
         await actor.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });   // Hit Dice back, a clean slate
+        await sleep(600);
         for (const m of game.messages.contents.filter(m => m.getFlag(MOD, 'restSong') && (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong').status === 'pending'))) await m.delete();
+        popupFor('Temporary Hit Points')?.close?.();   // Chef's treats ride that Long Rest too: their ask is dismissed
         for (const a of [cleric, bard, fighter]) await a.longRest({ dialog: false, chat: false, newDay: false, advanceTime: false });
+        // Every rest ask still pending (the Treats of that Long Rest, an earlier section's) goes, with its popup:
+        // one popup per creature at a time, so a stale one would hold the meal's.
+        for (const m of game.messages.contents.filter(m => m.getFlag(MOD, 'restSong')?.status === 'pending')) await m.delete();
+        for (const app of [...foundry.applications.instances.values()].filter(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BF Test Halfling$/.test(a.title ?? ''))) await app.close();
         await cleric.update({ 'system.attributes.hp.value': Math.max(1, cleric.system.attributes.hp.max - 20) });
         await bard.update({ 'system.attributes.hp.value': Math.max(1, bard.system.attributes.hp.max - 20) });
         // The Cleric rests first and spends Hit Dice (autoHD, no dialog); the Fighter rests at full HP and spends none.
@@ -412,6 +404,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             && (cOf(cleric)?.meal === 'spent') && !cOf(cleric)?.has && (cOf(fighter)?.meal === 'none') && cOf(fighter)?.has
             && (cOf(bard)?.meal === 'resting') && !cOf(bard)?.has,
           `formula=${flag?.formula} cap=${flag?.cap} ${(flag?.candidates ?? []).map(c => `${c.name}:${c.meal}${c.has ? ':greyed' : ''}`).join(', ')}`);
+        // One popup per creature at a time: any other grant of this rest (Inspiring Leader) is answered first.
+        for (let i = 0; i < 20 && !popupFor('Who gets an extra 1d8 Hit Points'); i++) {
+          const other = [...foundry.applications.instances.values()].find(a => a.rendered && (a instanceof foundry.applications.api.DialogV2) && /— BF Test Halfling$/.test(a.title ?? ''));
+          other?.element?.querySelector('button[data-action="ok"]')?.click();
+          await sleep(300);
+        }
         const app = await waitFor(() => popupFor('Who gets an extra 1d8 Hit Points'), 6000);
         tickOnly(app, [cleric, bard]);
         app?.element?.querySelector('button[data-action="ok"]')?.click();
