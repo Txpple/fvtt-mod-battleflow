@@ -208,7 +208,7 @@ describe("CONDITION_BENDS — the table, and the set and the default DERIVED fro
       expectPointer(rule, key);
       if (rule.page === "condition") expect(rule.key, key).toBe(key);
     }
-    expect(reg.CONDITION_BENDS.hiding.rule).toEqual({ page: "condition", key: "hiding" });
+    expect(reg.CONDITION_BENDS.hiding.rule).toEqual({ page: "rule", key: "unseenattackers" });
     expect(reg.CONDITION_BENDS.dodging.rule).toEqual({ page: "rule", key: "dodge" });
   });
   it("every row bends at least one side or carries a note — a row that does neither is dead data", () => {

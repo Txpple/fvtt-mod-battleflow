@@ -64,7 +64,7 @@ async function readText(ref) {
   const html = doc?.text?.content ?? doc?.system?.description?.value ?? "";
   if ( !html ) return null;
   const enriched = await foundry.applications.ux.TextEditor.implementation.enrichHTML(html,
-    { relativeTo: doc, secrets: false, rollData: {} });
+    { relativeTo: doc, secrets: false, rollData: { name: "creature" } });
   const box = document.createElement("div");
   box.innerHTML = enriched;
   for ( const secret of box.querySelectorAll("section.secret") ) secret.remove();
