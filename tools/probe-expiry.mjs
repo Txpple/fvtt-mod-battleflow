@@ -8,7 +8,7 @@
 // ⚠ A `turnEnd` refresh does NOT recompute remaining time: `{1 turns, turnEnd}` lives a round longer.
 // ⚠ An effect created without an explicit `start` is stamped with whoever's turn it is, and
 // `game.combat` is the combat of the scene THIS CLIENT views.
-// Also reads whether `dnd5e.preRollAttackV2` and `renderAttackRollConfigurationDialog` fire here.
+// Also reads whether `dnd5e.preRollAttack` and `renderAttackRollConfigurationDialog` fire here.
 //
 // Run:  node tools/probe-expiry.mjs
 // ⚠ One suite at a time; disconnect the bridge first. Creates and deletes a Combat and effects on

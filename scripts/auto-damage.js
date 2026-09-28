@@ -27,7 +27,7 @@ const againstLine = targets => {
 
 /* --- Auto-roll damage on hit ---------------------------------------------------------------- */
 
-listen("dnd5e.rollAttackV2", "auto-damage", async (rolls, { subject }) => {
+listen("dnd5e.rollAttack", "auto-damage", async (rolls, { subject }) => {
   if ( !subject ) return;
 
   const attackMessage = rolls[0]?.parent;
@@ -142,7 +142,7 @@ export function attackMessageForDamage(config, message) {
 
 // The card's own Damage button honours the crit: `applyKeybindings` runs AFTER this hook and
 // stamps `config.isCritical` onto every roll.
-listen("dnd5e.preRollDamageV2", "auto-damage", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "auto-damage", (config, _dialog, message) => {
   try {
     if ( config?.subject?.type !== "attack" ) return;
     // ⚠ The activity's own roll count, before any rider pushes one: this handler runs first on the

@@ -1298,7 +1298,7 @@ export const INITIATIVE_SWAPS = Object.freeze({
 
 /**
  * An Unarmed Strike die "instead of the normal damage": the pack ships it only on the feature's own attack,
- * so unarmed-dice.js swaps that formula in at `preRollDamageV2`. A strike already rolling a die (Martial
+ * so unarmed-dice.js swaps that formula in at `preRollDamage`. A strike already rolling a die (Martial
  * Arts) is left alone. ⚠ NOT A KIND — a second customer is a row.
  */
 export const UNARMED_DICE = Object.freeze({

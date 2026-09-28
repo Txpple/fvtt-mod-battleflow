@@ -252,7 +252,7 @@ function baseFlag(actor, offers, testKind, total, window) {
 }
 
 /** ATTACKS: the module owns the AC, so a clean miss (every judged target) is offered by itself. */
-listen("dnd5e.rollAttackV2", "d20-folds", async (rolls, { subject }) => {
+listen("dnd5e.rollAttack", "d20-folds", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;

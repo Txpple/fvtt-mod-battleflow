@@ -12,7 +12,7 @@ import { CARD, isCard, originIdInData } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 
 // The mark's owner is found by origin alone: mark → its source ITEM → that item's ACTOR (two rangers can
-// mark one creature). ⚠ Crit doubling is free: `preRollDamageV2` fires before `options.isCritical` is
+// mark one creature). ⚠ Crit doubling is free: `preRollDamage` fires before `options.isCritical` is
 // stamped on every roll; never read the source activity's `damage.critical.allow`. Delete this the day
 // Conditional ActiveEffects ships (DESIGN.md §3).
 
@@ -72,7 +72,7 @@ function riderTargets(message) {
   return Array.from(game.user.targets).map(t => t.actor).filter(Boolean);
 }
 
-listen("dnd5e.preRollDamageV2", "hit-riders", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "hit-riders", (config, _dialog, message) => {
   const activity = config.subject;
   const attacker = activity?.actor;
   if ( !attacker ) return;

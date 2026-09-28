@@ -16,7 +16,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
-// Clock riders (registry CLOCK_RIDERS) use hit-riders' seam — `preRollDamageV2` on the roller's client, the
+// Clock riders (registry CLOCK_RIDERS) use hit-riders' seam — `preRollDamage` on the roller's client, the
 // rider its own part, crit-doubled with the weapon's dice. ⚠ An unresolved token in the dice rolls ZERO in
 // silence (NOTES §2), so it is refused and the card says so.
 
@@ -149,7 +149,7 @@ registerOfferPart({
 
 /* --- the rider: the clock's extra damage rides the weapon's roll ---------------------------- */
 
-listen("dnd5e.preRollDamageV2", "clock-riders", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

@@ -30,7 +30,7 @@ const SECTIONS = {
   6: 'once per turn: the chit, the greyed box, and the next turn',
   7: 'Envenom Weapons: the upgraded Poison — its damage, and Poisoned on top',
   8: 'Death Strike: round one, the Con save, the damage again',
-  9: 'the registration FIRED (§11): preRollDamageV2 moved',
+  9: 'the registration FIRED (§11): preRollDamage moved',
   10: 'Steady Aim (a use chip): the use writes the chip, the gate reads it as Advantage, the roll spends it',
   11: 'the ally clause off the map (2026-09-22): an ally beside the target ticks the box at Normal; none, or Disadvantage, does not',
   12: 'the Poison Coating (the PHB feats walk, 2026-09-26 — a rule of cool): Apply Poison writes the chip on the rogue (60 s, the dagger icon), a dose spent, the card, no enchantment card; no dose left writes nothing; a MISS leaves the chip; a HIT spends it — the feat\'s own save at the victim, a failure deals 2d8 poison NOT halved by Poison Resistance (Potent Poison) and presses Poisoned until the end of the rogue\'s next turn (sourceEnd)'
@@ -724,8 +724,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 9. the registrations FIRED
     if (want(9)) {
-      ok('9a. dnd5e.preRollDamageV2 fired (the rider\'s hook)', count('dnd5e.preRollDamageV2') > 0, `count=${count('dnd5e.preRollDamageV2')}`);
-      ok('9b. dnd5e.rollDamageV2 fired (the effects\' hook)', count('dnd5e.rollDamageV2') > 0, `count=${count('dnd5e.rollDamageV2')}`);
+      ok('9a. dnd5e.preRollDamage fired (the rider\'s hook)', count('dnd5e.preRollDamage') > 0, `count=${count('dnd5e.preRollDamage')}`);
+      ok('9b. dnd5e.rollDamage fired (the effects\' hook)', count('dnd5e.rollDamage') > 0, `count=${count('dnd5e.rollDamage')}`);
     }
 
     return { log, results, skips };

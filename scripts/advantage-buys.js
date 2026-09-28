@@ -45,7 +45,7 @@ function carry(config, dialog, actor, testKind) {
   config.bfBuy = buy;
 }
 
-listen("dnd5e.preRollAttackV2", "advantage-buys", (config, dialog) => {
+listen("dnd5e.preRollAttack", "advantage-buys", (config, dialog) => {
   try {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
@@ -54,13 +54,13 @@ listen("dnd5e.preRollAttackV2", "advantage-buys", (config, dialog) => {
 });
 
 // Death saves and concentration saves ride this hook too: every one is a D20 Test.
-listen("dnd5e.preRollSavingThrowV2", "advantage-buys", (config, dialog) => {
+listen("dnd5e.preRollSavingThrow", "advantage-buys", (config, dialog) => {
   try { carry(config, dialog, config?.subject, "save"); }
   catch(err) { console.error(`${TITLE} | Advantage buy (save) failed — rolling natively.`, err); }
 });
 
 // Raw checks, skills, tools and INITIATIVE's dialog (its hookNames carry `initiativeDialog`).
-listen("dnd5e.preRollAbilityCheckV2", "advantage-buys", (config, dialog) => {
+listen("dnd5e.preRollAbilityCheck", "advantage-buys", (config, dialog) => {
   try {
     const initiative = !!config?.hookNames?.includes?.("initiativeDialog");
     carry(config, dialog, config?.subject, initiative ? "initiative" : "check");

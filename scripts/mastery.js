@@ -429,7 +429,7 @@ registerOfferPart({
 
 // THE STRIP, on whichever client rolls the damage, before the dice. A NEGATIVE modifier stays (as
 // dnd5e's own off-hand rule, AttackActivity#_processDamagePart).
-listen("dnd5e.preRollDamageV2", "mastery", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "mastery", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

@@ -99,7 +99,7 @@ async function showCommandNotice(message) {
 }
 
 /** THE RIDE: the die folds INTO the base roll (crit-doubled with it); chip and Reaction spent. */
-listen("dnd5e.preRollDamageV2", "command", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "command", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

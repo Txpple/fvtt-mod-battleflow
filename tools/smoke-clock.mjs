@@ -18,7 +18,7 @@ const SECTIONS = {
   4: 'the uses are the switch the rules give: none left, nothing rides',
   5: 'Assassinate: round one — Advantage against a creature that has not acted, and the Rogue level on the sneak hit; round two, neither',
   6: 'the Clock Riders list is the switch: an empty list rides nothing',
-  7: 'the registration FIRED (§11): preRollDamageV2 moved with a rider on it',
+  7: 'the registration FIRED (§11): preRollDamage moved with a rider on it',
   8: 'Fire\'s Burn (Slice A, 2026-09-24 — `when: "any"`, uses on the ITEM): the Goliath\'s hit offers it ticked, 1d10 FIRE rides, the item\'s own use is spent and recorded; no uses left, not offered',
   9: 'Frost\'s Chill (`effects` + `clock` on a rider): 1d6 cold rides, and "Chilled" lands on the hit clocked to the start of the attacker\'s next turn, receipted on the damage card',
   10: 'the PHB feats, group 3 (2026-09-26): Slasher — a Longsword hit lands "Hamstrung" (speed −10, no Disadvantage), a crit lands "Slashed" too; Crusher — a Mace crit lands "Crushed", a plain hit nothing; Piercer — a Rapier crit rolls ONE more die than the crit\'s double'
@@ -598,7 +598,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     }
 
     if (want(7)) {
-      ok('7a. dnd5e.preRollDamageV2 fired (the rider\'s hook)', count('dnd5e.preRollDamageV2') > 0, `count=${count('dnd5e.preRollDamageV2')}`);
+      ok('7a. dnd5e.preRollDamage fired (the rider\'s hook)', count('dnd5e.preRollDamage') > 0, `count=${count('dnd5e.preRollDamage')}`);
     }
 
     return { log, results, skips };

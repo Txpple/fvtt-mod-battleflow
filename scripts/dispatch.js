@@ -89,13 +89,13 @@ export const VETOABLE = Object.freeze([
   "dnd5e.preApplyDamage",
   "dnd5e.preCalculateDamage",
   "dnd5e.preRestCompleted",
-  "dnd5e.preRollAttackV2",
-  "dnd5e.preRollDamageV2",
-  "dnd5e.preRollSavingThrowV2",
-  "dnd5e.preRollAbilityCheckV2",
+  "dnd5e.preRollAttack",
+  "dnd5e.preRollDamage",
+  "dnd5e.preRollSavingThrow",
+  "dnd5e.preRollAbilityCheck",
   "dnd5e.postRollConfiguration",
   "dnd5e.postDamageRollConfiguration",
-  "dnd5e.rollDeathSaveV2"
+  "dnd5e.rollDeathSave"
 ]);
 
 const RANK = new Map(ORDER.map((key, i) => [key, i]));

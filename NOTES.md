@@ -679,9 +679,14 @@ itself.
 undefined for every human roll, fast-forwarded or not; `false` only when code suppressed the
 dialog. That is the reminder gate's "no dialog, no gate" rule, and why a shift-click is still
 gated. Returning `false` cancels cleanly (`rollAttack` resolves null, the card keeps its button,
-nothing is consumed). The attack hook is TEMPLATED, so `preRollAttackV2` and `preRollD20TestV2`
-both fire and are pinned holes in `tools/check-hook-dispatch.mjs`. A pre-roll reader that wants
-the targets reads `game.user.targets` — the roller's own, which `getTargetDescriptors()` reads.
+nothing is consumed). The attack hook is TEMPLATED, so `preRollAttack` and `preRollD20Test` both
+fire. ⚠ **Every `…V2` roll hook has a plain twin dispatched just before it with the same
+arguments** (read in the 6.0.5 bundle, 2026-09-28: `preRoll<Name>` then `preRoll<Name>V2`,
+`rollAttack` then `rollAttackV2`, and so for damage, concentration and the death save), and the
+system listens to none of its own; the module listens on the plain, documented names, and
+`tools/check-hook-dispatch.mjs` expands the templates from each roll's `hookNames`. A pre-roll
+reader that wants the targets reads `game.user.targets` — the roller's own, which
+`getTargetDescriptors()` reads.
 
 **The seams:** (1) `dialog.configure = true` written in a pre-roll hook survives the keys
 (`applyKeybindings` uses `??=`). (2) `dialog.options` reach the dialog's constructor — dnd5e's own
@@ -720,16 +725,15 @@ anything whose constructor is not `Object`), so the gates carry `ui.js`'s `Dialo
 
 #### Damage: crits, application, healing (5.3.3)
 
-**Injecting a damage part at `dnd5e.preRollDamageV2` gets crit doubling for free** — the hook fires
+**Injecting a damage part at `dnd5e.preRollDamage` gets crit doubling for free** — the hook fires
 before the keybinding pass stamps `isCritical` onto every entry in `config.rolls`, a pushed one
 included. Do not hand-roll it, and do not consult `damage.critical.allow` (it governs the
-standalone button). **`dnd5e.rollDamageV2` hands over the rolls and the activity, not the
+standalone button). **`dnd5e.rollDamage` hands over the rolls and the activity, not the
 message** (2026-09-02): a machine that needs the damage MESSAGE listens to `createChatMessage` and
 gates on `message.isAuthor` (sneak.js).
 
 ⚠ **dnd5e dispatches the damage hook TWICE per roll** (measured 2026-09-09, Empowered Spell:
-"fired 2 for this roll") — the literal `dnd5e.rollDamageV2` and the templated
-``dnd5e.roll${name}V2`` name the same hook, so one registration runs twice. A never-re-stamp read cannot see a
+"fired 2 for this roll"), so one registration runs twice. A never-re-stamp read cannot see a
 `setFlag` still in flight, so an offer raised there opens twice. **One in-flight set per
 moment** keeps the offer, the popup and the spend single: dice-changers.js's `offering` (since
 2026-09-27 the one home of Empowered's and Savage Attacker's, which each carried a copy). A new machine on this hook
@@ -862,12 +866,13 @@ is written in `scripts/d20-folds.js`'s header; it is why Tactical Mind's refund 
 
 The system's `dnd5e.mjs` carries the list of hooks it dispatches twice over: literal `Hooks.call` /
 `callAll` names, and JSDoc blocks tagged `@memberof hookEvents`. ⚠ **Neither is sufficient alone:**
-the TEMPLATED roll hooks (``Hooks.callAll(`dnd5e.roll${name}V2`, …)`` — `rollAbilityCheck`,
+the TEMPLATED roll hooks (``Hooks.callAll(`dnd5e.roll${name}`, …)`` — `rollAbilityCheck`,
 `rollSavingThrow`, `rollSkill`, `rollToolCheck`) exist only in the JSDoc, and `rollAttackV2` only as
-a literal — the family that caused the v1.23.0 bug. Take the union; the holes even it leaves
-(`preRollDamageV2` and its templated siblings) are pinned in `tools/check-hook-dispatch.mjs`. At
-5.3.3: 88 literal, 92 JSDoc, 105 in the union. Holds on 6.0.5: `tools/dnd5e-hooks.json` records 96
-literal and 100 JSDoc names, 113 in the union. ⚠ **It does not work on Foundry** (measured on
+a literal — the family that caused the v1.23.0 bug. Take the union, and EXPAND the templates from
+each roll's `hookNames` and the `const name = …` at the site (`tools/check-hook-dispatch.mjs`, since
+2026-09-28; before it the expanded names were pinned holes). At 5.3.3: 88 literal, 92 JSDoc, 105
+in the union. On 6.0.5 with the expansion: `tools/dnd5e-hooks.json` records 159 dispatched names
+(76 with `Hooks.call`), 100 JSDoc names, 167 in the union, 0 holes. ⚠ **It does not work on Foundry** (measured on
 v14.365's `foundry.mjs`, 7.9 MB): 0 of the 15 core hook names this module registers — computed,
 minified, no JSDoc. A core-hook check built on it would prove nothing.
 

@@ -22,7 +22,7 @@ const precisionTimers = new Map();
 const precisionInFlight = new Set();
 
 /** Stamp: the roller's own client, on the attack message it authored. */
-listen("dnd5e.rollAttackV2", "precision", async (rolls, { subject }) => {
+listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;

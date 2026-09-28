@@ -1586,7 +1586,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await saveBonus(victim, '');
       await healFull(victim);
       await setStatus(victim, 'restrained', true);
-      const firedBefore = count('dnd5e.preRollSavingThrowV2');
+      const firedBefore = count('dnd5e.preRollSavingThrow');
       const cardA = await castDex();
       if (!cardA) return { fatal: 'section 19 dex cast produced no card' };
       const dlgA = await dialogFor(entryName(cardA));
@@ -1598,9 +1598,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `dialog=${!!dlgA} demand=${!!dlgA?.querySelector('[data-bf-save-demand]')} section="${textA.slice(0, 160)}"`);
       ok('19b. the highlighted default is the net — Disadvantage (the user\'s ruling, on the save hook)',
         defaultOf(dlgA) === 'disadvantage', `default=${defaultOf(dlgA)}`);
-      ok('19c. the registration FIRED (§11): dnd5e.preRollSavingThrowV2 moved',
-        count('dnd5e.preRollSavingThrowV2') > firedBefore,
-        `before=${firedBefore} after=${count('dnd5e.preRollSavingThrowV2')}`);
+      ok('19c. the registration FIRED (§11): dnd5e.preRollSavingThrow moved',
+        count('dnd5e.preRollSavingThrow') > firedBefore,
+        `before=${firedBefore} after=${count('dnd5e.preRollSavingThrow')}`);
       dlgA?.querySelector('button[data-action="normal"]')?.click();   // against the net, on purpose
       await until(() => entryOf(cardA, victim)?.done);
       const entryA = entryOf(cardA, victim);

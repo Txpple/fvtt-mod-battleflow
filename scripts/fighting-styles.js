@@ -190,7 +190,7 @@ function ownTurnOf(actor) {
   return !running.length || running.some(c => same(c.combatant?.actor));
 }
 
-listen("dnd5e.preRollDamageV2", "fighting-styles", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "fighting-styles", (config, _dialog, message) => {
   try {
     if ( !config || config[DONE] ) return;
     const activity = config.subject;

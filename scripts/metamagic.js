@@ -254,7 +254,7 @@ function recordForRoll(activity, message) {
 }
 
 // The roll's `options.type` is what the verdict and the applier read: set it before the dice.
-listen("dnd5e.preRollDamageV2", "metamagic", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.item?.type !== "spell" ) return;

@@ -56,7 +56,7 @@ export const ORDER = [
   { name: "smoke-reminders", note: "the gate before the roll — every source, the net, the press" },
   { name: "smoke-sneak", note: "Sneak Attack as drawn — the tick, the menu, the dice, the crit, the chit, the effects" },
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
-  // Beside smoke-sneak and smoke-clock: the same seam (preRollDamageV2) on the cloned fighter fixture.
+  // Beside smoke-sneak and smoke-clock: the same seam (preRollDamage) on the cloned fighter fixture.
   { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature" },
   // The same seam from the DEFENDER's side (the shields), and a bare damage cast's dice (Heat Metal).
   { name: "smoke-shields", note: "the damage shields — Fire Shield's type by its effect, Death Armor walked to its caster and once per turn, Armor of Agathys marked at the cast and ended with its pool, the reach, the list" },

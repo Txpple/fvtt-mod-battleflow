@@ -285,7 +285,7 @@ listen("deleteActiveEffect", "use-chips", effect => floatCoat(effect, false));
 
 /* --- the hit: a weapon's damage while the chip stands ------------------------------------------ */
 
-listen("dnd5e.preRollDamageV2", "use-chips", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "use-chips", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( (activity?.type !== "attack") || (activity.item?.type !== "weapon") ) return;

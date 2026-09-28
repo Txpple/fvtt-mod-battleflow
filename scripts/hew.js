@@ -282,7 +282,7 @@ async function answerSwingOffer(message, use) {
 }
 
 const DIE = /(\d*)d(\d+)/i;
-listen("dnd5e.preRollDamageV2", "hew", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "hew", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;

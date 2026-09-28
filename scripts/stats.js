@@ -12,13 +12,13 @@ import { listen } from "./dispatch.js";
 
 /** The dispatched names (pinned in tools/dnd5e-hooks.json); one roll can fire several. */
 const D20_TEST_HOOKS = [
-  "dnd5e.rollAttackV2",
+  "dnd5e.rollAttack",
   "dnd5e.rollSavingThrow",
   "dnd5e.rollAbilityCheck",
   "dnd5e.rollSkill",
   "dnd5e.rollToolCheck",
-  "dnd5e.rollDeathSaveV2",
-  "dnd5e.rollConcentrationV2"
+  "dnd5e.rollDeathSave",
+  "dnd5e.rollConcentration"
 ];
 
 for ( const hook of D20_TEST_HOOKS ) {

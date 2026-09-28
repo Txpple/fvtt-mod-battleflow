@@ -30,7 +30,7 @@ const SECTIONS = {
   11: 'a copy that has lost its effect: Goaded still lands, pressed from the compendium',
   12: 'Giant Ancestry — Hill\'s Tumble (Slice A, 2026-09-24): the Goliath\'s own group, no feature required; no die, one use of the boon\'s own — Prone pressed with NO save, receipted, the card in the Giant Ancestry voice; a Huge target greys the row "too large"',
   13: 'a pick per group on one hit (2026-09-27, BACKLOG closed): a Battle Master with Hill\'s Tumble sees both groups; ticks in both STAND, the line says "one pick per group"; the damage carries both picks — Trip\'s die rides and spends a Superiority Die, Hill\'s Tumble presses Prone — one resolve per pick',
-  10: 'the registration FIRED (§11): preRollDamageV2 moved with a maneuver on it'
+  10: 'the registration FIRED (§11): preRollDamage moved with a maneuver on it'
 };
 const DEPENDS = { 10: ['3'], 11: ['9'] };
 
@@ -676,7 +676,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 10. the registration FIRED
     if (want(10)) {
-      ok('10. dnd5e.preRollDamageV2 fired (the rider\'s hook)', count('dnd5e.preRollDamageV2') > 0, `count=${count('dnd5e.preRollDamageV2')}`);
+      ok('10. dnd5e.preRollDamage fired (the rider\'s hook)', count('dnd5e.preRollDamage') > 0, `count=${count('dnd5e.preRollDamage')}`);
     }
 
     return { log, results, skips };

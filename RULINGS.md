@@ -23,7 +23,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 
 | The rule as written | What the module does | Why the platform forces it | Since |
 | --- | --- | --- | --- |
-| **Shield**: "when you are hit" (2024: hit by an attack roll) — and every AC reaction beside it | offered after the roll shows a hit, before the damage | the defender's client cannot pause the attacker's roll: `dnd5e.preRollAttackV2` runs synchronously on the attacker's client, so the hold is stamped on the hit (`hold/trigger.js`) | 2026-08-15 (Phase 1.5, v1.1.0 — the hold's birth, `hold/index.js`) |
+| **Shield**: "when you are hit" (2024: hit by an attack roll) — and every AC reaction beside it | offered after the roll shows a hit, before the damage | the defender's client cannot pause the attacker's roll: `dnd5e.preRollAttack` runs synchronously on the attacker's client, so the hold is stamped on the hit (`hold/trigger.js`) | 2026-08-15 (Phase 1.5, v1.1.0 — the hold's birth, `hold/index.js`) |
 | **Lucky**: Disadvantage "when a creature rolls a d20 for an attack roll against you" | offered after the hit, before the damage — a second d20, the lower standing | the same | 2026-09-24 |
 | **Warding Flare**: light flares "before it hits or misses" | offered after the hit | the same | 2026-09-24 |
 | **Shadowy Dodge**: "when a creature makes an attack roll against you" | offered after the hit | the same | 2026-09-24 |
@@ -40,7 +40,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted | an end-of-turn repeat save is a bare sheet roll with no demand to read what it is against (R1: never guessed) | 2026-09-24 |
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
 | **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
-| **Heroic Inspiration, Precision Attack, Graze** once a defender's Lucky (or any `roll` row) turned the hit into a miss | not offered to the attacker | the attacker's rescues are offered at `dnd5e.rollAttackV2`, where the roll was a hit; nothing re-offers them after the hold's verdict — a known gap, DESIGN §8 (Graze already had it for Shield, `mastery.js`) | 2026-09-24 |
+| **Heroic Inspiration, Precision Attack, Graze** once a defender's Lucky (or any `roll` row) turned the hit into a miss | not offered to the attacker | the attacker's rescues are offered at `dnd5e.rollAttack`, where the roll was a hit; nothing re-offers them after the hold's verdict — a known gap, DESIGN §8 (Graze already had it for Shield, `mastery.js`) | 2026-09-24 |
 | **Lucky**: Advantage "when you roll a d20 for a D20 Test" — chosen as you roll | in the roll dialog: a box with a tick, spent when the roll goes out ticked (`advantage-buys.js`). An initiative rolled with NO dialog (the carousel, Roll All) is offered it AFTER the roll — a second d20, the higher standing — so the player has seen the first die when choosing (ruled "After the roll", 2026-09-25) | `Combat#rollInitiative` rolls with no pause before its dice and no hook that can wait for an answer (`dnd5e.preConfigureInitiative` is synchronous), so no popup can come before that roll (`d20-folds.js` `ADVANTAGE`) | 2026-09-25 |
 | **Relentless Endurance** ("when you are reduced to 0 Hit Points") and **Death Ward** ("the first time the target would drop to 0 Hit Points") | caught on DAMAGE applied through the system's damage application — the module's applier and the card's own buttons: the Hit Points are written as 1 in that same update (Death Ward automatic, the effect removed; Relentless Endurance held at 1 while its popup asks, and the clock's pass lands the 0). Hit Points typed on a sheet, or a drop to 0 with no damage, are the table's | `dnd5e.preApplyDamage` is the one place a drop can be changed before it lands, and it is synchronous — the ask has to stand at 1, not at 0; a sheet edit carries no damage to read (`drop-to-one.js`) | 2026-09-25 |
 | **Celestial Revelation's extra damage** on a spell with no attack roll: dealt "when you deal damage to it", with the spell | offered on the spell's card once its damage has landed; the pick lands as its OWN damage (its own card and receipt) — a concentrating target makes a second Constitution save for it | the extra goes to ONE of the spell's targets, the caster's pick, and the spell's damage is one roll applied to all of them: it cannot ride the roll, and the spell's receipt is keyed by creature, so an entry there would overwrite the spell's own (`clock-riders.js`) | 2026-09-25 |
@@ -600,7 +600,7 @@ player's; which set is not. `damage-either.js` (a MACHINE), `decide/damage-dice.
 - **The popup is a one-row tick** (the tick stays on a one-row popup, the ruling): "Roll again"
   dark until ticked, "Keep the roll"; the clock keeps the roll.
 - **"The weapon's damage dice"** are every die of the activity's own damage rolls — counted at
-  `preRollDamageV2` before any rider pushes its roll, the doubled set on a crit — never a modifier,
+  `preRollDamage` before any rider pushes its roll, the doubled set on a crit — never a modifier,
   never a rider's dice. Rolled again as ONE set on its own card; the higher total stands (a tie
   keeps the first); the damage roll shows both, the loser struck.
 - **Once per turn** is the clock riders' turn chit (`riderKey` `savage-attacker`), counted only for
@@ -731,7 +731,7 @@ Crafter and Skilled are native or out of combat. Proved by the full battery, 202
   Strike** (user: *"every time I roll unarmed strike damage it's a 4"* → *"Module swaps it"*, *"but
   give some kind of notice"*): a new table, `UNARMED_DICE`, and the Unarmed Strike Dice list
   (`unarmed-dice.js`) — the flat 1 + Str becomes the formula the feature's own unarmed attack
-  carries (1d4r1 + Str) at `preRollDamageV2`, with one line on the damage card; a strike already
+  carries (1d4r1 + Str) at `preRollDamage`, with one line on the damage card; a strike already
   rolling a die is left alone.
 - **Healer's rerolls** (ruled off the prototype: the 1s start ticked): a new table, `HEAL_REROLLS`,
   and the Healing Rerolls list (`heal-rerolls.js`, the heal applier's claim in `cast.js`) — a
@@ -784,7 +784,7 @@ Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (
   (the walk, 2026-09-26: "the toggle should be the standard +/- every other effect uses"; "match
   the buff name"); the module draws it for every face, since core floats only an effect with
   changes, and quiets core's on the face writes so Defense floats once.
-- **The numbers on the roll** (`preRollDamageV2`, by the attack's own mode): **Great Weapon
+- **The numbers on the roll** (`preRollDamage`, by the attack's own mode): **Great Weapon
   Fighting** floors every damage die of the attack at 3 (`min3`, a crit's doubled dice included —
   "a damage die"), only in two hands with a Two-Handed or Versatile melee weapon; **Thrown Weapon
   Fighting** +2 on a thrown attack; **Two-Weapon Fighting** the ability modifier back on the
@@ -975,7 +975,7 @@ copies (Empowered's in metamagic.js, Savage's and Piercer's in damage-either.js 
   while the plan does something, Keep the roll while nothing is ticked. One row asking keeps its own
   words ("Roll again", "Reroll the picked dice"); two or more say "Apply" and ask "change the dice?".
 - **The record** is `diceChange` on the damage message, one per roll, a row per feature; born due at
-  `preRollDamageV2` (Empowered too, now), promoted once the attack's hold is off the roll, a claim
+  `preRollDamage` (Empowered too, now), promoted once the attack's hold is off the roll, a claim
   on an attack's application while it asks (the dice land once). The old `either` and `empowered`
   keys are no longer written; a card from v2.4.0 or earlier still reads its line on a reload.
 - **One announce card** carries every step's fresh dice (Dice So Nice rolls them), a line per step,

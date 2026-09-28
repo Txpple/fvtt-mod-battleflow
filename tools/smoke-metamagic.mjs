@@ -566,9 +566,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     if (want(16)) {
       const p = pool(); if (p.system.uses.spent) await p.update({ 'system.uses.spent': 0 });
-      const fired0 = count('dnd5e.rollDamageV2');
+      const fired0 = count('dnd5e.rollDamage');
       const t16 = Date.now();
-      log.push(`§16 start: pool ${pool().system.uses.value}/${pool().system.uses.max}, rollDamageV2 fired ${fired0} so far`);
+      log.push(`§16 start: pool ${pool().system.uses.value}/${pool().system.uses.max}, rollDamage fired ${fired0} so far`);
       await set('holdTimer', 0);
       game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: false }); });
       const before = new Set(game.messages.map(m => m.id));
@@ -604,7 +604,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // The window goes at the click; the dice land for up to six seconds more.
       const gone16 = popup ? await waitFor(() => (!popup.rendered || !popup.element?.isConnected) ? { ms: Date.now() - clicked16 } : null, 5000) : null;   // a popup that never fronted cannot "close at the click"
       const used = await waitFor(() => { const f2 = emp(dmg); return f2?.status === 'used' ? f2 : null; }, 10000);
-      log.push(`§16 after: pool ${pool().system.uses.value}, rollDamageV2 fired ${count('dnd5e.rollDamageV2') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
+      log.push(`§16 after: pool ${pool().system.uses.value}, rollDamage fired ${count('dnd5e.rollDamage') - fired0} for this roll, poolSpend=${JSON.stringify(dmg.getFlag(MOD, 'poolSpend'))}`);
       log.push(`§16 spends since start: ${game.messages.filter(m => (m.timestamp >= t16) && m.getFlag(MOD, 'poolSpend')).map(m => `${m.getFlag(MOD, 'poolSpend').ability}@${m.id.slice(-4)}`).join(',')} | empowered flags: ${game.messages.filter(m => emp(m)).map(m => `${m.id.slice(-4)}:${emp(m).status}`).join(',')} | spent=${pool().system.uses.spent}`);
       ok('16d. Reroll: the point spent, three dice rerolled, the flag says which and what', !!used && used.picks?.length === 3 && pool().system.uses.value === 4 && used.picks.every(pk => Number.isFinite(pk.old) && Number.isFinite(pk.new)), JSON.stringify({ picks: used?.picks, pool: pool().system.uses.value }));
       const roll = game.messages.get(dmg.id)?.rolls?.[0];

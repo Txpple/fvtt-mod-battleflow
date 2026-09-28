@@ -33,7 +33,7 @@ function rowFor(actor) {
 
 /* --- the birth flag: due, and Battle Medic's own r1 taken off ---------------------------------- */
 
-listen("dnd5e.preRollDamageV2", "heal-rerolls", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "heal-rerolls", (config, _dialog, message) => {
   try {
     const rolls = config?.rolls ?? [];
     if ( !rolls.some(r => (r?.options?.type ?? null) === "healing") ) return;
@@ -57,7 +57,7 @@ listen("dnd5e.preRollDamageV2", "heal-rerolls", (config, _dialog, message) => {
 
 /* --- the promotion: due → pending when a 1 shows, "none" when none does ------------------------ */
 
-listen("dnd5e.rollDamageV2", "heal-rerolls", rolls => {
+listen("dnd5e.rollDamage", "heal-rerolls", rolls => {
   const message = rolls?.[0]?.parent;
   if ( message instanceof ChatMessage ) void promote(message);
 });

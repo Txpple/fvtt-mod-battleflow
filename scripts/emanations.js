@@ -982,7 +982,7 @@ listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
 });
 
 // Every damage roll of the cast wears the card's type, or the default when it lands before the card.
-listen("dnd5e.preRollDamageV2", "emanations", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "emanations", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "save" ) return;

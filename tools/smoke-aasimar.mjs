@@ -272,9 +272,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       target(victimToken);
       const before = new Set(game.messages.map(m => m.id));
       const baseLight = lightOf(aasDoc);
-      const trace = Hooks.on('dnd5e.preRollDamageV2', config => { if (config?.subject?.name === 'Inner Radiance') log.push(`IR damage roll from: ${new Error().stack.split('\n').slice(2, 14).join(' | ')}`); });
+      const trace = Hooks.on('dnd5e.preRollDamage', config => { if (config?.subject?.name === 'Inner Radiance') log.push(`IR damage roll from: ${new Error().stack.split('\n').slice(2, 14).join(' | ')}`); });
       const { settled } = await use(irAct);
-      setTimeout(() => Hooks.off('dnd5e.preRollDamageV2', trace), 4000);
+      setTimeout(() => Hooks.off('dnd5e.preRollDamage', trace), 4000);
       ok('2a. the transform settles with no placement click', settled, '');
       searing = await waitFor(() => aas.effects.find(e => (e.name === 'Searing Radiance') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
       const keys = (searing?.system?.changes ?? []).map(c => `${c.key}=${c.value}`);

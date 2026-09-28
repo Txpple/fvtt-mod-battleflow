@@ -257,7 +257,7 @@ registerOfferPart({
 
 // The rider: the die rides the hit's damage roll.
 
-listen("dnd5e.preRollDamageV2", "superiority-uses", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "superiority-uses", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

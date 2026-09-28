@@ -1,6 +1,6 @@
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): THE UNARMED STRIKE DICE (registry UNARMED_DICE). At
- * `preRollDamageV2` the plain strike's flat parts become the feature's own unarmed formula, so a
+ * `preRollDamage` the plain strike's flat parts become the feature's own unarmed formula, so a
  * crit doubles the die. Nothing is asked: the die is never worse than the flat.
  */
 import { MODULE_ID, TITLE } from "./core.js";
@@ -67,7 +67,7 @@ function rowFor(actor) {
 
 const DIE = /\d*d\d+/i;
 
-listen("dnd5e.preRollDamageV2", "unarmed-dice", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "unarmed-dice", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( (activity?.type !== "attack") || !isUnarmed(activity) ) return;

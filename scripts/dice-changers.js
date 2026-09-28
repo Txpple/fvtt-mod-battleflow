@@ -65,7 +65,7 @@ const featureOf = (actor, row) => featureNamed(actor, row.feature) ?? itemNamed(
 
 /* --- the birth flag: every row that fits, due or spent this turn ------------------------------- */
 
-listen("dnd5e.preRollDamageV2", "dice-changers", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "dice-changers", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     const actor = activity?.actor;
@@ -101,7 +101,7 @@ listen("dnd5e.preRollDamageV2", "dice-changers", (config, _dialog, message) => {
 /* --- the promotion: due → pending, once the hold is off the roll -------------------------------- */
 
 // The roller's client, as the dice land (twice — the in-flight set keeps it single).
-listen("dnd5e.rollDamageV2", "dice-changers", rolls => {
+listen("dnd5e.rollDamage", "dice-changers", rolls => {
   const message = rolls?.[0]?.parent;
   if ( message instanceof ChatMessage ) void promote(message);
 });

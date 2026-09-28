@@ -424,7 +424,7 @@ if (want('3b')) {
   }
 }
 
-// ---- 3c. the `rollCtx` stamp on a DEATH SAVE (`dnd5e.rollDeathSaveV2`): a character-type
+// ---- 3c. the `rollCtx` stamp on a DEATH SAVE (`dnd5e.rollDeathSave`): a character-type
 // fixture at 0 HP rolls dnd5e's own `rollDeathSave`; out of combat is enough for the shape
 if (want('3c')) {
   const r = await f.evaluate(async () => {

@@ -302,7 +302,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ Registration proves nothing; only dispatch does. dnd5e's `#rollD20Test` fires only the
       // non-V2 check/save names, `#rollSkillTool` a V2 pair and `rollToolCheck` for tools.
       const WANT = [
-        ["dnd5e.rollAttackV2", "attack"],
+        ["dnd5e.rollAttack", "attack"],
         ["dnd5e.rollAbilityCheck", "check"],
         ["dnd5e.rollSkill", "skill"],
         ["dnd5e.rollToolCheck", "tool"],
@@ -320,7 +320,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else skips.push("section 4: no tool on the fixture — dnd5e.rollToolCheck unexercised");
 
         for (const [hook, label] of WANT) {
-          if (hook === "dnd5e.rollAttackV2") continue;               // §3's business
+          if (hook === "dnd5e.rollAttack") continue;               // §3's business
           if ((hook === "dnd5e.rollToolCheck") && !tool) continue;
           ok(`${hook} fires (${label})`, seen.has(hook),
             seen.has(hook) ? "dispatched" : "NEVER DISPATCHED — the name is wrong");

@@ -322,7 +322,7 @@ async function driveDarts(message, activity, v) {
   for ( const a of (v.assignment ?? []) ) {
     if ( !(a.count > 0) ) continue;
     await aimed(a.uuid, async () => {
-      // ⚠ Nested, never dotted: a preRollDamageV2 stamp nests under the same flags.
+      // ⚠ Nested, never dotted: a preRollDamage stamp nests under the same flags.
       const rolls = await activity.rollDamage({}, { configure: false }, { data: {
         ...originData(message.id),
         flags: { [MODULE_ID]: { volleyFor: message.id, volleyTarget: a.uuid, volleyDarts: a.count } }
@@ -373,7 +373,7 @@ async function driveRays(message, activity, v) {
 
 // The dart multiplier: k darts = k copies of the base entry in ONE roll (a formula rewrite would
 // share dice), armed by the pending message's own flag.
-listen("dnd5e.preRollDamageV2", "volleys", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "volleys", (config, _dialog, message) => {
   const k = Number(foundry.utils.getProperty(message?.data ?? {}, `flags.${MODULE_ID}.volleyDarts`)) || 0;
   if ( k < 2 ) return;
   const base = config.rolls?.[0];

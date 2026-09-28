@@ -135,7 +135,7 @@ registerOfferPart({
 
 /* --- the rider: the sneak dice ride the weapon's damage roll --------------------------------- */
 
-listen("dnd5e.preRollDamageV2", "sneak", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "sneak", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -177,7 +177,7 @@ listen("dnd5e.preRollDamageV2", "sneak", (config, _dialog, message) => {
 /** Same-client latch: the effects run once per damage message. */
 const effectsRun = new Set();
 
-// The damage message landing, on its author's client. ⚠ `dnd5e.rollDamageV2` does not reliably hand over the message.
+// The damage message landing, on its author's client. ⚠ `dnd5e.rollDamage` does not reliably hand over the message.
 listen("createChatMessage", "sneak", message => {
   if ( !message.isAuthor ) return;
   const sd = message.getFlag(MODULE_ID, "sneakDamage");

@@ -32,7 +32,7 @@ const SECTIONS = {
   7: 'Advantage cancels: an attack rolled with Advantage, Lucky answers — no second d20, the FIRST die stands as the plain roll',
   8: 'Pass: nothing spent, the hit lands as rolled',
   9: 'the sheet\'s use answers (the fix-the-rules-gap rule): Lucky\'s "Disadvantage" activity used from the sheet mid-hold bends that ONE hold',
-  10: 'the registration FIRED (§11): dnd5e.rollAttackV2 and dnd5e.postUseActivity moved'
+  10: 'the registration FIRED (§11): dnd5e.rollAttack and dnd5e.postUseActivity moved'
 };
 const DEPENDS = {};
 
@@ -391,8 +391,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 10. FIRED
     if (want(10)) {
-      ok('10a. dnd5e.rollAttackV2 and dnd5e.postUseActivity fired', (count('dnd5e.rollAttackV2') > 0) && (count('dnd5e.postUseActivity') > 0),
-        `attack=${count('dnd5e.rollAttackV2')} use=${count('dnd5e.postUseActivity')}`);
+      ok('10a. dnd5e.rollAttack and dnd5e.postUseActivity fired', (count('dnd5e.rollAttack') > 0) && (count('dnd5e.postUseActivity') > 0),
+        `attack=${count('dnd5e.rollAttack')} use=${count('dnd5e.postUseActivity')}`);
     }
 
     return { log, results, skips };

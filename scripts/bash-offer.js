@@ -69,7 +69,7 @@ function offerFor(subject, attacker) {
   return activity ? { kind: "bash", found, activity } : null;
 }
 
-listen("dnd5e.rollAttackV2", "bash-offer", async (rolls, { subject }) => {
+listen("dnd5e.rollAttack", "bash-offer", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;

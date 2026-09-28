@@ -1,6 +1,6 @@
 // Probe: the automatic crit's facts, live. Replays smoke-battleflow §5e's two swings at a Paralyzed
 // victim (within 5 feet, and from 10 feet) with the crit judge's INPUTS logged at
-// `dnd5e.preRollDamageV2` (auto-damage.js `critFor`): the attack, the hits, both tokens, the
+// `dnd5e.preRollDamage` (auto-damage.js `critFor`): the attack, the hits, both tokens, the
 // distance in feet, the target's statuses, the verdict.
 //
 //   node tools/probe-auto-crit.mjs
@@ -31,7 +31,7 @@ const out = await f.evaluate(async () => {
   for ( const [k, v] of Object.entries({ autoDamage: "all", autoApply: true, dramaticBeat: 0, requireTarget: false, reactionHold: false, effectRiders: false, masteryRiders: false }) ) await game.settings.set(MOD, k, v);
 
   const facts = [];
-  const hookId = Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+  const hookId = Hooks.on("dnd5e.preRollDamage", (config, _dialog, message) => {
     try {
       const attack = attackMessageForDamage(config, message);
       const rec = { subjectType: config?.subject?.type ?? null, attackId: attack?.id ?? null,
@@ -93,7 +93,7 @@ const out = await f.evaluate(async () => {
     swings.push(await swing("far"));
   } catch(err) { log.push(`ERROR ${err.message}\n${err.stack}`); }
   finally {
-    Hooks.off("dnd5e.preRollDamageV2", hookId);
+    Hooks.off("dnd5e.preRollDamage", hookId);
     try {
       if ( paralyzed ) await paralyzed.delete();
       await aTok.document.update(prior.pos);

@@ -21,7 +21,7 @@ const SECTIONS = {
   7: 'a crit: the doubled set (2d6) is rolled again whole, the totals compared',
   8: 'the clock keeps the roll: an unanswered offer times out kept, and the damage lands',
   9: 'the list is the switch: an empty Damage Rolled Twice list offers nothing',
-  10: 'the registrations FIRED (§11): dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 moved with the offer on them',
+  10: 'the registrations FIRED (§11): dnd5e.preRollDamage and dnd5e.rollDamage moved with the offer on them',
   12: `Savage Attacker AND Piercer on one hit (the dice changers' one popup, 2026-09-27 — BACKLOG's "one question per hit", closed): ONE popup, both rows, "change the dice?", both ticked under the average; Apply runs Savage's set first (1 → 5, the 5 stands), then Piercer's one die off the face standing (5 → 6); the damage lands once at 6 + the modifier; two fold resolves`,
   11: `Piercer's Puncture (the PHB feats, group 3, 2026-09-26 — a \`one\` row): the Shortsword (Piercing) rolls a 1 — the popup asks "roll the 1 on the d6 again?"; Roll again → 5 stands, the total 5 + the modifier, the card line; a 4 rerolled to a 2 — the new roll stands, LOWER`
 };
@@ -505,8 +505,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- 10. FIRED
     if (want(10)) {
-      ok('10a. dnd5e.preRollDamageV2 and dnd5e.rollDamageV2 fired', (count('dnd5e.preRollDamageV2') > 0) && (count('dnd5e.rollDamageV2') > 0),
-        `pre=${count('dnd5e.preRollDamageV2')} roll=${count('dnd5e.rollDamageV2')}`);
+      ok('10a. dnd5e.preRollDamage and dnd5e.rollDamage fired', (count('dnd5e.preRollDamage') > 0) && (count('dnd5e.rollDamage') > 0),
+        `pre=${count('dnd5e.preRollDamage')} roll=${count('dnd5e.rollDamage')}`);
     }
 
     return { log, results, skips };

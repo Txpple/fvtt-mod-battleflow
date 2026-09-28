@@ -23,7 +23,7 @@ const SECTIONS = {
   4: 'Prone, both roles, with the 5-foot geometry',
   5: 'the condition table: poisoned, blinded, incapacitated, frightened',
   7: 'closing the popup rolls nothing',
-  8: 'the registration FIRED (§11): dnd5e.preRollAttackV2 moved',
+  8: 'the registration FIRED (§11): dnd5e.preRollAttack moved',
   9: 'a metric grid: the 5-foot rule is judged in FEET, never in scene units',
   10: 'range: point-blank, beyond normal, beyond long — and the section follows the attack-mode dropdown',
   11: 'effect sources: an effect or a feature by name, in scope, listed or counted, judged, and spent by the roll',
@@ -586,8 +586,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ================================================== 8. the registration FIRED
     if (want(8)) {
-      ok('8. dnd5e.preRollAttackV2 fired during this suite (the gate\'s pre-roll hook)',
-        count('dnd5e.preRollAttackV2') > 0, `count=${count('dnd5e.preRollAttackV2')}`);
+      ok('8. dnd5e.preRollAttack fired during this suite (the gate\'s pre-roll hook)',
+        count('dnd5e.preRollAttack') > 0, `count=${count('dnd5e.preRollAttack')}`);
       ok('8a. dnd5e.postRollConfiguration fired (the record\'s hook, after the dialog closed with rolls)',
         count('dnd5e.postRollConfiguration') > 0, `count=${count('dnd5e.postRollConfiguration')}`);
       ok('8b. renderRollConfigurationDialog fired (the section\'s hook)',
@@ -942,7 +942,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ================================================== 12. the check gate
     // A check or skill rolled WITH the dialog meets the roller's statuses against CHECK_BENDS inside the
     // system's check dialog. Poisoned is a bend the platform already rolls; Frightened is the gate's own.
-    // 12a green also proves dnd5e.preRollAbilityCheckV2 FIRED.
+    // 12a green also proves dnd5e.preRollAbilityCheck FIRED.
     if (want(12)) {
       await clearStatuses();
       await closeGates();

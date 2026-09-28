@@ -51,7 +51,7 @@ function distantRangeOn(message) {
 /** The dialogs standing with a gate in them, re-judged on a re-target. */
 const openGates = new Set();
 
-listen("dnd5e.preRollAttackV2", "reminders", (config, dialog, message) => {
+listen("dnd5e.preRollAttack", "reminders", (config, dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -99,7 +99,7 @@ const coverOf = actor => {
 
 /* Cover at the attack, per recorded target: MEASURED cover raises the recorded AC over the carried
  * cover (RULINGS *Measured cover*), then a BYPASS feat records the AC without it. */
-listen("dnd5e.preRollAttackV2", "reminders", (config, _dialog, message) => {
+listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -265,7 +265,7 @@ listen("targetToken", "reminders", () => {
 
 /* THE CHECK GATE: checks, skills and tools meet the same machine (CHECK_BENDS); nothing applied.
  * ⚠ Initiative is OUT by design (its hookNames carry `initiativeDialog`, the skip). */
-listen("dnd5e.preRollAbilityCheckV2", "reminders", (config, dialog, _message) => {
+listen("dnd5e.preRollAbilityCheck", "reminders", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
@@ -688,7 +688,7 @@ function pendingDemandFor(actor) {
 }
 
 // The save gate, on every saving throw that opens a dialog (a demand's or a sheet roll's).
-listen("dnd5e.preRollSavingThrowV2", "reminders", (config, dialog, _message) => {
+listen("dnd5e.preRollSavingThrow", "reminders", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const actor = config?.subject;

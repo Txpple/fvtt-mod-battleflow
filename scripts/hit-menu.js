@@ -221,7 +221,7 @@ registerOfferPart({
 
 /* --- the rider: the die rides the weapon's damage roll, the pool is spent ------------------- */
 
-listen("dnd5e.preRollDamageV2", "hit-menu", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;

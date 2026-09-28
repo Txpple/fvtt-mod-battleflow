@@ -227,7 +227,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
 }
 
 /** The die injection — the hit-riders push idiom, gated on the armed one-shot. */
-listen("dnd5e.preRollDamageV2", "riposte", (config, _dialog, message) => {
+listen("dnd5e.preRollDamage", "riposte", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -261,7 +261,7 @@ listen("dnd5e.preRollDamageV2", "riposte", (config, _dialog, message) => {
 });
 
 /* A riposte MISS announces itself, posted by the ROLLING client; the hit half is offerDamageRoll's. */
-listen("dnd5e.rollAttackV2", "riposte", async rolls => {
+listen("dnd5e.rollAttack", "riposte", async rolls => {
   try {
     const message = rolls?.[0]?.parent;
     if ( !(message instanceof ChatMessage) ) return;
