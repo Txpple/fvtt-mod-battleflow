@@ -14,7 +14,7 @@ import { rescueSpendText } from "../decide/rescue-hit.js";
 import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
-import { livePopups } from "../ui.js";
+import { livePopups, waitForWrite } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
@@ -225,19 +225,15 @@ function bentAnnouncement(actor, target, hit) {
   });
 }
 
-/** Wait for every cast reaction's AC to ARRIVE (a baseline compare can race the recompute). */
+/**
+ * Wait for every cast reaction's AC to ARRIVE (a baseline compare can race the recompute): the
+ * reactor's client lands the effect, and the recompute follows it on the actor.
+ * @param {any} hold
+ */
 async function settleForACChange(hold) {
-  const deadline = Date.now() + (HOLD_SETTLE_SECONDS * 1000);
   const casts = hold.targets.filter(t => t.answer === "cast");
-  while ( Date.now() < deadline ) {
-    let allArrived = true;
-    for ( const target of casts ) {
-      const actor = await fromUuid(target.uuid);
-      if ( !reactionACArrived(actor, target) ) { allArrived = false; break; }
-    }
-    if ( allArrived ) return;
-    await new Promise(r => setTimeout(r, 250));
-  }
+  await waitForWrite(() => casts.every(target => reactionACArrived(resolveUuid(target.uuid), target)),
+    { ms: HOLD_SETTLE_SECONDS * 1000, on: ["createActiveEffect", "updateActiveEffect", "updateActor"] });
 }
 
 /** ARCHITECTURE §5 law 4: a decision made ANYWHERE closes its popup — per target. */

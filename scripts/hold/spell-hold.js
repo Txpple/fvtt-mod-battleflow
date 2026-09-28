@@ -11,6 +11,7 @@ import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { SPELL_ROW_TYPES, usableReaction, reactionItemFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
+import { waitForWrite } from "../ui.js";
 import { listen } from "../dispatch.js";
 
 
@@ -32,23 +33,18 @@ listen("dnd5e.postUseActivity", "hold/spell-hold", (activity, _usageConfig, resu
 });
 
 /** When NO hold stamped, clear the damage roll's pending claim so the auto-applier applies; the
- * roll can land a beat later, so poll briefly. */
+ * roll can land a beat later, so wait for it briefly. */
 async function releaseUnheldSpellDamage(activity, holdMessage) {
   try {
     if ( holdMessage.getFlag(MODULE_ID, "hold") ) return; // held — resolution owns the release
     const itemUuid = activity?.item?.uuid ?? null;
     if ( !itemUuid ) return;
-    const deadline = Date.now() + 4000;
-    let damage = null;
-    while ( !damage && (Date.now() < deadline) ) {
-      damage = game.messages.contents.filter(m =>
-        isCard(m, CARD.damage)
-        && (m.author?.id === game.user.id)
-        && (itemUuidOf(m) === itemUuid)
-        && (m.getFlag(MODULE_ID, "spellDamage") === true)
-        && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null;
-      if ( !damage ) await new Promise(r => setTimeout(r, 200));
-    }
+    const damage = await waitForWrite(() => game.messages.contents.filter(m =>
+      isCard(m, CARD.damage)
+      && (m.author?.id === game.user.id)
+      && (itemUuidOf(m) === itemUuid)
+      && (m.getFlag(MODULE_ID, "spellDamage") === true)
+      && (m.timestamp >= holdMessage.timestamp - 10_000)).pop() ?? null, { ms: 4000 });
     if ( !damage ) return; // rolled with subsequentActions:false, or autoApply off — fine
     if ( damage.getFlag(MODULE_ID, "spellHoldPending") )
       await damage.setFlag(MODULE_ID, "spellHoldPending", false);

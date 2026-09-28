@@ -430,6 +430,12 @@ The **continuing client** owns the one authoritative clock; the deadline is **ab
 lives on the flag**, so every client derives the same remaining time. Countdown visuals set an
 animation's `currentTime` from that deadline, never a CSS animation delay (NOTES §1).
 
+**Waiting for a write is `waitForWrite`** ([ui.js](scripts/ui.js)): a card another client is
+about to post, a roll this client posts a beat later, a reaction's AC arriving on its actor. The
+test runs at once, then after each write of the kinds it names (a message's create or update by
+default; an effect's or an actor's on request), and the wait answers null at its limit. Nothing in
+the module polls on a timer.
+
 ---
 
 ## 6. The registry model (R4)

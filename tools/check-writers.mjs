@@ -278,6 +278,45 @@ function ungatedPath(rel, name, node, gated, seen) {
   return null;
 }
 
+/**
+ * The hook names a `listen` call's first argument stands for: a string literal, or the loop
+ * variable of a `for ( const hook of [...] )` over literals (the array written inline, or a `const`
+ * of the file, `Object.freeze`d or not).
+ */
+function hookNamesOf(rel, arg) {
+  if (!arg) return [];
+  if (ts.isStringLiteral(arg)) return [arg.text];
+  // The module's own hooks (`${MODULE_ID}.…`): fired on the client that calls them, never every client.
+  if (ts.isTemplateExpression(arg)) return [arg.getText()];
+  if (!ts.isIdentifier(arg)) return [];
+  // The loop that binds it: `for ( const hook of … )`, or `for ( const [hook, …] of … )` over rows.
+  let n = arg.parent;
+  let index = null;
+  while (n) {
+    if (ts.isForOfStatement(n) && ts.isVariableDeclarationList(n.initializer)) {
+      const d = n.initializer.declarations[0];
+      if (d && ts.isIdentifier(d.name) && (d.name.text === arg.text)) break;
+      if (d && ts.isArrayBindingPattern(d.name)) {
+        const at = d.name.elements.findIndex(e => ts.isBindingElement(e) && ts.isIdentifier(e.name) && (e.name.text === arg.text));
+        if (at >= 0) { index = at; break; }
+      }
+    }
+    n = n.parent;
+  }
+  if (!n) return [];
+  let list = n.expression;
+  if (ts.isIdentifier(list)) {
+    const decl = files.get(rel).sf.statements.flatMap(s => ts.isVariableStatement(s) ? [...s.declarationList.declarations] : [])
+      .find(d => ts.isIdentifier(d.name) && (d.name.text === list.getText()));
+    list = decl?.initializer ?? list;
+  }
+  if (ts.isCallExpression(list) && /Object\.freeze$/.test(list.expression.getText())) list = list.arguments[0];
+  if (!list || !ts.isArrayLiteralExpression(list)) return [];
+  const items = (index === null) ? list.elements
+    : list.elements.map(e => (ts.isArrayLiteralExpression(e) ? e.elements[index] : null)).filter(Boolean);
+  return items.filter(e => ts.isStringLiteral(e)).map(e => e.text);
+}
+
 /* --- the roots: every-client handlers ------------------------------------------------------- */
 
 const failures = [];
@@ -292,8 +331,10 @@ for (const [rel, f] of files) {
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
       && ["listen", "listenOnce"].includes(node.expression.text) && (rel !== "dispatch.js")) {
       const [hookArg, , fnArg] = node.arguments;
-      const hook = (hookArg && ts.isStringLiteral(hookArg)) ? hookArg.text : hookArg?.getText();
-      if (fnArg && EVERY_CLIENT(hook)) {
+      const names = hookNamesOf(rel, hookArg);
+      if (!names.length) failures.push(`${rel}:${lineOf(rel, node)} — listen's hook name is neither a string nor a loop over strings; this check cannot read it`);
+      const hook = names.filter(EVERY_CLIENT).join("|");
+      if (fnArg && hook) {
         roots++;
         const at = `${rel}:${lineOf(rel, node)}`;
         // `listen(hook, key, name)`: a named handler.

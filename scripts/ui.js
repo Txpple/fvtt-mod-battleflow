@@ -435,6 +435,58 @@ registerRelay("momentAck", {
   }
 });
 
+// THE WAIT: for a write that is about to land — a card another client posts, a roll this client
+// posts a beat later, an effect's AC arriving on an actor. The test runs now, then again after each
+// write of the kinds it names, until it answers or its time runs out. Nothing polls.
+
+/** The writes a wait can listen for; a message's create and update by default. */
+const WAIT_ON = Object.freeze(["createChatMessage", "updateChatMessage", "createActiveEffect", "updateActiveEffect", "updateActor"]);
+
+/** @type {Set<{test: () => any, on: string[], resolve: (value: any) => void, timer: any}>} */
+const waiters = new Set();
+
+/** A test that throws answers nothing: the wait goes on. */
+const askWaiter = test => { try { return test(); } catch { return null; } };
+
+/**
+ * Wait until `test` answers (anything truthy) after a write of the kinds in `on`, or `ms` runs out.
+ * @template T
+ * @param {() => T|null|undefined|false} test
+ * @param {{ms: number, on?: string[]}} opts
+ * @returns {Promise<T|null>}  the test's answer, or null at the time limit
+ */
+export function waitForWrite(test, { ms, on = ["createChatMessage", "updateChatMessage"] }) {
+  const now = askWaiter(test);
+  if ( now ) return Promise.resolve(now);
+  for ( const hook of on ) {
+    if ( !WAIT_ON.includes(hook) ) throw new Error(`${TITLE} | waitForWrite cannot listen for ${hook} — add it to WAIT_ON.`);
+  }
+  return new Promise(resolve => {
+    const waiter = { test, on, resolve, timer: null };
+    waiters.add(waiter);
+    waiter.timer = setTimeout(() => expireWaiter(waiter), Math.max(0, ms));
+  });
+}
+
+/** @param {{resolve: (value: any) => void}} waiter */
+function expireWaiter(waiter) {
+  waiters.delete(/** @type {any} */ (waiter));
+  waiter.resolve(null);
+}
+
+function wakeWaiters(hook) {
+  for ( const waiter of [...waiters] ) {
+    if ( !waiter.on.includes(hook) ) continue;
+    const answer = askWaiter(waiter.test);
+    if ( !answer ) continue;
+    waiters.delete(waiter);
+    clearTimeout(waiter.timer);
+    waiter.resolve(answer);
+  }
+}
+
+for ( const hook of WAIT_ON ) listen(hook, "ui", () => wakeWaiters(hook));
+
 // THE OFFER-PART REGISTRY: what a machine paints on the damage offer (auto-damage.js reads it). It
 // lives in the spine because a machine registers at its own evaluation, and the spine is always
 // evaluated first; a store inside a service on an import cycle would still be in its dead zone.

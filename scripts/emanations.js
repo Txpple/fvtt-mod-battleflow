@@ -18,7 +18,7 @@ import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers } from "./decide/emanations.js";
 import { canAnswerFor } from "./core.js";
-import { momentButton, registerRelay } from "./ui.js";
+import { momentButton, registerRelay, waitForWrite } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
@@ -808,8 +808,8 @@ async function carryDamageTypeChoice(activity) {
     const type = pendingTypes.get(activity.uuid) ?? null;
     pendingTypes.delete(activity.uuid);
     if ( !type ) return;
-    let card = null;
-    for ( let i = 0; (i < 40) && !card; i++ ) { await new Promise(r => setTimeout(r, 250)); card = emanationCardFor(activity.uuid); }
+    // The card is the elect's to post, from the area it adopts.
+    const card = await waitForWrite(() => emanationCardFor(activity.uuid), { ms: 10_000 });
     if ( !card ) return;   // no GM adopted the area — no card to carry it
     if ( card.getFlag(MODULE_ID, "emanationCard")?.damageType !== type ) await chooseDamageType(card, type);
   } catch(err) {
