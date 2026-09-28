@@ -1296,6 +1296,18 @@ midi is the alternative for a table that wants to configure everything.
   per-world list and no per-row switch. Prod's saved lists all equalled the shipped defaults, so no
   house row was lost.
 
+## The rule fold reads the book (2026-09-27, off the prototype *The rule fold*)
+
+The user, 2026-09-27, choosing between three shapes: *"A, go with that"* — and of the link-only
+shape, *"C is gonna have a lot of link noise"*.
+
+- "the rule ▸" shows the paragraph the row is about, read from the item's own description: the
+  paragraph whose bold lead names the row's benefit (Mage Slayer's **Guarded Mind.**), else the whole
+  description. A condition or a mastery reads dnd5e's rules page for it.
+- Nothing is copied into the code. A text the packs do not carry shows no fold, never a guess.
+- The text is enriched; a roll link in it reads as plain text, so nothing rolls outside the machine.
+  Foundry's private notes stay out.
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code
