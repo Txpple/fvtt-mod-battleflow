@@ -8,7 +8,7 @@ import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from 
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable } from "./ui.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
-import { CLOCK_RIDERS } from "./decide/registry.js";
+import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -266,7 +266,7 @@ Hooks.on("dnd5e.postUseActivity", activity => {
     if ( !actor?.isOwner || !item ) return;
     const listed = listedNames(clockRiderEntries());
     for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
-      if ( !row.forms || !listed.has(lower(row.feature)) || (lower(item.name) !== lower(row.feature)) ) continue;
+      if ( !row.forms || !listed.has(lower(row.feature)) || !answers(row.feature, item) ) continue;
       const form = row.forms.find(f => f.chip && (lower(f.form) === lower(activity.name)));
       if ( form ) void writeFormChip(actor, activity, key, row, form);
     }

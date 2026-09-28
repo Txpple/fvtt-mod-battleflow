@@ -4,11 +4,11 @@
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
 import { MODULE_ID, TITLE, statContext, decisionWindow } from "../core.js";
-import { blockEntries } from "../decide/registry.js";
+import { answers, blockEntries } from "../decide/registry.js";
 import { bfCard } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
-import { usableReaction, reactionNameFor, reactionImg } from "./lookup.js";
+import { SPELL_ROW_TYPES, usableReaction, reactionItemFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
 
 
@@ -19,10 +19,10 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 
   void (async () => {
     // ⚠ Match what was CAST, not what owns the activity: a statblock casts through a `cast` activity
-    // on "Spellcasting", and this hook gets the CACHED SPELL's activity. reactionNameFor covers both.
-    const spellName = (await reactionNameFor(activity))?.toLowerCase();
-    if ( !spellName ) return;
-    const entries = blockEntries().filter(e => e.spell.toLowerCase() === spellName);
+    // on "Spellcasting", and this hook gets the CACHED SPELL's activity. reactionItemFor covers both.
+    const cast = await reactionItemFor(activity);
+    if ( !cast ) return;
+    const entries = blockEntries().filter(e => answers(e.spell, cast, SPELL_ROW_TYPES));
     if ( !entries.length ) return;
     await stampSpellHold(message, entries);
     await releaseUnheldSpellDamage(activity, message);

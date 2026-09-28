@@ -6,7 +6,7 @@
  * (`registerAskAnswerPart`). ⚠ The flag KEY stays `metamagicAsk`: stored on cards, read by the moment registry.
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { itemNamed, resolveUuid } from "./lookup.js";
 import { isPartyMember } from "./shared.js";
 import { tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
@@ -108,7 +108,7 @@ export async function showAreaAsk(message) {
   const party = ask.candidates.filter(c => c.party), others = ask.candidates.filter(c => !c.party);
   const group = (title, list) => list.length ? `<div data-bf-ask-group="${title}" style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
   const words = askWords(ask);
-  const img = (ask.kind === "choose") ? (ask.itemImg ?? null) : (caster.items?.find(i => i.name === ask.feature)?.img ?? null);
+  const img = (ask.kind === "choose") ? (ask.itemImg ?? null) : (itemNamed(caster, ask.feature)?.img ?? null);
   await openMomentPopup(message, AREA_ASK_FLAG, caster, {
     title: `${ask.feature} — ${caster.name}`, icon: words.icon, width: 420,
     content: bfCard({ img, eyebrow: words.eyebrow, tone: "pending", title: words.title, subtitle: words.subtitle, lines: [ask.rule ? ruleLine(ask.rule) : ""] })

@@ -525,6 +525,22 @@ documented at its table's head in [decide/registry.js](scripts/decide/registry.j
 | `CLOCK_RIDERS` | `when: "any"` · `uses` off the ITEM · `effects` · `clock` · `label` | every hit, uses permitting; the uses read off the activity, else the item its consumption names, spent where they live (`decide/clock.js` `riderUsesFrom`); the activity's own effects on the hit, clocked to the attacker; the name the offer and card use |
 | `DAMAGE_EITHER` (new) | `key` · `weapon` | Savage Attacker's once-per-turn chit key and its weapon-only clause. Not a kind: one machine, rows of data |
 
+### How a row names its content
+
+A row is keyed by its content's English name, and it FINDS the content by dnd5e's
+`system.identifier`: stamped at creation, indexed by the system, kept through a rename (a
+statblock's "Heat Metal - Spellcasting" is `heat-metal`). `identifierOf(name)` in
+[decide/registry.js](scripts/decide/registry.js) is the slug the packs give a name, `ALIASES` the
+rows where it is not; `matchOf` answers identifier first, then the name. On an actor,
+[lookup.js](scripts/lookup.js) `itemsNamed` / `itemNamed` / `featureNamed` return identifier
+matches first, a 2024 copy before a 2014 one, and warn once when only the name matched. For an
+item in hand, `tableIndex(T).rowFor(item)`. A decide/ function that compares names gets the sheet
+in the table's words from `namesAnswering(items, keys)` — the decision layer imports nothing.
+Where one name is several things (Shield is a spell, a monster feat and armor), the lookup is
+scoped by item type. ActiveEffects and activities carry no identifier and stay matched by name,
+as does a name read back off a chat flag. `tools/check-identifiers.mjs` proves every row against
+the packs' snapshot.
+
 ### The tables are the only list
 
 Membership lives in code, never in a world setting. A table's rows are its members; a **kind list**

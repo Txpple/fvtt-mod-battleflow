@@ -8,7 +8,7 @@ import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie }
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
 import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
-import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, tableIndex } from "./decide/registry.js";
+import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
@@ -18,9 +18,9 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 
 const listed = () => listedNames(superiorityUseEntries());
-const { rowNamed } = tableIndex(SUPERIORITY_USES);
+const { rowFor } = tableIndex(SUPERIORITY_USES);
 const useRowFor = activity => {
-  const row = rowNamed(activity?.item?.name);
+  const row = rowFor(activity?.item);
   if ( !row || !listed().has(lower(row.key)) ) return null;
   return (lower(activity.name) === lower(row.use)) ? row : null;
 };
@@ -43,7 +43,7 @@ Hooks.on("preCreateChatMessage", doc => {
   try {
     if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
     const item = cardItem(doc);
-    if ( !item || (item.type !== "feat") || !MANEUVER_FEATURE_NAMES.has(lower(item.name)) ) return;
+    if ( !item || (item.type !== "feat") || ![...MANEUVER_FEATURE_NAMES].some(n => answers(n, item)) ) return;
     doc.updateSource({ [`flags.${MODULE_ID}.-=castApply`]: null });
   } catch(err) { console.warn(`${TITLE} | Could not keep the cast slice off a maneuver's card.`, err); }
 });

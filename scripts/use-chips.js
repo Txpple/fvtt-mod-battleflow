@@ -4,11 +4,11 @@
  * EDGE layer (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
-import { lower, featureNamed, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./decide/registry.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { USE_CHIPS, CARD_CHIPS, COATINGS, tableIndex } from "./decide/registry.js";
+import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
 import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -26,7 +26,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
     const item = activity?.item;
     const actor = activity?.actor;
     if ( !item || !actor?.isOwner ) return;
-    const key = USE_CHIP_INDEX.keyNamed(item.name);
+    const key = USE_CHIP_INDEX.keyFor(item);
     if ( !key ) return;
     const listed = listedNames(effectEntries());
     if ( !listed.has(lower(key)) ) return;
@@ -75,6 +75,10 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 
 const CARD_FLAG = "cardChip";
 
+/** The names the card-chip rows read a use and a sheet in: the items they ride, and the features they need. */
+const CARD_CHIP_ONS = [...new Set(Object.values(CARD_CHIPS).map(r => r.on))];
+const CARD_CHIP_FEATURES = [...new Set(Object.values(CARD_CHIPS).map(r => r.feature))];
+
 /** The chips of a row standing on an actor — every device, one chip each. */
 const devicesOf = (actor, row) => actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card")
   && (lower(e.name) === lower(row.chip)));
@@ -85,7 +89,8 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
     const actor = activity?.actor;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !item || !actor?.isOwner || !message ) return;
-    const key = cardChipRowKey(CARD_CHIPS, { itemName: item.name, featureNames: actor.items.map(i => i.name) },
+    const key = cardChipRowKey(CARD_CHIPS, { itemName: namesAnswering([item], CARD_CHIP_ONS)[0],
+      featureNames: namesAnswering(actor.items, CARD_CHIP_FEATURES) },
       listedNames(cardChipEntries()));
     if ( !key ) return;
     void message.setFlag(MODULE_ID, CARD_FLAG, { ...statContext(actor.uuid), key, chip: CARD_CHIPS[key].chip, made: false })
@@ -134,7 +139,7 @@ async function buildCardChip(message) {
       buttons: [{ action: "ok", label: "OK", default: true }] });
     return;
   }
-  const feature = actor.items.find(i => lower(i.name) === lower(row.feature)) ?? null;
+  const feature = itemNamed(actor, row.feature);
   const [effect] = await actor.createEmbeddedDocuments("ActiveEffect", [{
     name: row.chip, img: feature?.img ?? "icons/svg/aura.svg",
     description: `<p><em>“${row.rule}”</em></p><p>Written by Battle Flow when ${flag.key} was chosen at the Prestidigitation cast; what the device does is the table's.</p>`,
@@ -185,7 +190,7 @@ const COAT_LISTS = { fightingStyles: fightingStyleEntries };
 function coatRowFor(activity) {
   const item = activity?.item;
   for ( const [name, row] of Object.entries(COATINGS) ) {
-    if ( (lower(item?.name) !== lower(name)) || (lower(activity?.name) !== lower(row.activity)) ) continue;
+    if ( !answers(name, item) || (lower(activity?.name) !== lower(row.activity)) ) continue;
     if ( !listedNames(COAT_LISTS[row.list]?.() ?? []).has(lower(name)) ) continue;
     return { name, row };
   }

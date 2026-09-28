@@ -5,7 +5,7 @@
  * d20 fold kind, the ask at the area is area-ask.js.
  */
 import { MODULE_ID, TITLE, statContext, decisionWindow } from "./core.js";
-import { cardActivity, lower, resolveUuid } from "./lookup.js";
+import { cardActivity, featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
 import { metamagicEntries, listedNames, chosenAreaListed } from "./decide/registry.js";
 import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
@@ -31,7 +31,7 @@ function knownOptions(actor) {
   const out = new Map();
   for ( const item of (actor?.items ?? []) ) {
     if ( (item.type !== "feat") || (lower(item.system?.type?.subtype) !== "metamagic") ) continue;
-    const feature = INDEX.keyNamed(item.name);
+    const feature = INDEX.keyFor(item);
     if ( !feature || !listed.has(lower(feature)) ) continue;
     out.set(feature, item);
   }
@@ -62,6 +62,9 @@ function candidatesFor(actor) {
   return { casterDisposition, casterUuid: actor.uuid, targets: selected };
 }
 
+/** Twinned's named exceptions, as one list: a spell reads as the exception it answers. */
+const TWINNED_NAMES = [...TWINNED_EXCEPTIONS.except, ...TWINNED_EXCEPTIONS.also];
+
 /** The facts of the spell being cast, as decide/metamagic.js reads them. */
 function spellFactsOf(activity) {
   const item = activity?.item;
@@ -82,9 +85,9 @@ function spellFactsOf(activity) {
     damageTypes, damageRoll: parts.length > 0,
     spellAttack: activity?.type === "attack",
     // ⚠ The SOURCE count: only it keeps the `@item.level - 1` formula; the prepared value is a number.
-    scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item?.name ?? null, exceptions: TWINNED_EXCEPTIONS }),
+    scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item ? namesAnswering([item], TWINNED_NAMES)[0] : null, exceptions: TWINNED_EXCEPTIONS }),
     // A Chosen Areas spell: Careful greys on it.
-    choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item?.name)
+    choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item)
   };
 }
 
@@ -367,7 +370,7 @@ async function carryDeferredCard(activity, held, templates) {
   const casterTok = tokenOfActor(actor) ?? null;
   // A chosen area never asks its caster about themself.
   const spell = activity.item?.name ?? "the spell";
-  const chooses = chosenAreaListed(activity.item?.name);
+  const chooses = chosenAreaListed(activity.item);
   const contained = (tokensInRegions(templates) ?? [])
     .filter(c => !chooses || ((c.uuid !== actor?.uuid) && !(casterTok && (c.tokenId === casterTok.id))));
   const templateIds = templates.map(t => t.id);
@@ -377,7 +380,8 @@ async function carryDeferredCard(activity, held, templates) {
   const casterDisposition = casterTok?.document?.disposition ?? actor?.prototypeToken?.disposition ?? CONST.TOKEN_DISPOSITIONS.FRIENDLY;
   const whisper = [...new Set([...(actor ? game.users.filter(u => actor.testUserPermission(u, "OWNER")).map(u => u.id) : []), ...game.users.filter(u => u.isGM).map(u => u.id)])];
   const candidates = contained.map(c => ({ uuid: c.uuid, name: c.name, disposition: c.disposition ?? null, tokenId: c.tokenId ?? null, party: isPartyMember(c.uuid) }));
-  const featureRule = held.pick.rule ?? metamagicRuleText(actor?.items?.find(i => i.name === held.pick.feature)?.system?.description?.value ?? "");
+  const option = featureNamed(actor, held.pick.feature);
+  const featureRule = held.pick.rule ?? metamagicRuleText(option?.system?.description?.value ?? "");
   // Heightened on a chosen area with a real choice asks ONE question (who, with Heightened's radio);
   // otherwise the stamp writes the default choice.
   const description = activity.item?.system?.description?.value ?? "";
@@ -391,7 +395,7 @@ async function carryDeferredCard(activity, held, templates) {
   const words = askWords(ask);
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }), whisper,
-    content: bfCard({ img: merged ? (activity.item?.img ?? null) : (actor?.items?.find(i => i.name === held.pick.feature)?.img ?? null),
+    content: bfCard({ img: merged ? (activity.item?.img ?? null) : (option?.img ?? null),
       eyebrow: words.eyebrow, tone: "pending", title: words.carrierTitle, subtitle: words.carrierSubtitle }),
     flags: { [MODULE_ID]: {
       [AREA_ASK_FLAG]: ask,

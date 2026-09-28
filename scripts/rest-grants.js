@@ -5,7 +5,7 @@
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
-import { lower, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
+import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { REST_GRANTS } from "./decide/registry.js";
@@ -33,7 +33,7 @@ function grantsFor(actor, restType) {
   for ( const [name, row] of Object.entries(REST_GRANTS) ) {
     if ( row.to ) continue;   // given to others, asked after the rest (the song, below)
     if ( !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
-    if ( !actor.items.some(i => (i.type === "feat") && (lower(i.name) === lower(featureOf(name, row)))) ) continue;
+    if ( !featureNamed(actor, featureOf(name, row)) ) continue;
     const write = GRANT_WRITES[row.grant]?.(actor);
     if ( write ) out.push({ name, grant: row.grant, write });
   }
@@ -100,7 +100,7 @@ function songRowsFor(actor, restType) {
   const out = [];
   for ( const [name, row] of Object.entries(REST_GRANTS) ) {
     if ( (row.to !== "allies") || !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
-    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(featureOf(name, row))));
+    const item = featureNamed(actor, featureOf(name, row));
     if ( item ) out.push({ name, row, item });
   }
   return out;

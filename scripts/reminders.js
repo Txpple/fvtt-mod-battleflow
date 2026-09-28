@@ -4,7 +4,7 @@
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
-import { featureNamed, resolveUuid } from "./lookup.js";
+import { featureNamed, namesAnswering, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
@@ -19,6 +19,16 @@ import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
+
+/** The names a sheet's feats are read in: the feature rows of the effect table, and the range feats. */
+const EFFECT_FEATURE_KEYS = Object.entries(EFFECT_BENDS).filter(([, r]) => r.match === "feature")
+  .flatMap(([k, r]) => (r.named ? [k, r.named] : [k]));
+const RANGE_FEAT_KEYS = Object.keys(RANGE_FEATS);
+/** The items the effect table's `item` discriminator names. */
+const EFFECT_ITEM_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.item).filter(Boolean))];
+
+/** The actor's feats in the effect table's words. */
+const featuresOf = actor => namesAnswering(actor.items.filter(i => i.type === "feat"), EFFECT_FEATURE_KEYS);
 
 /* THE ATTACK GATE: one fieldset in dnd5e's Attack Roll dialog, default button on the net; re-judged
  * on every re-render and re-target. ⚠ FORCED open: dnd5e applies fast-forward keys AFTER the pre-roll
@@ -71,7 +81,7 @@ function rangeFeatsOf(attacker, activity) {
   const item = activity?.item;
   const weapon = item?.type === "weapon";
   const kind = item?.system?.type?.value ?? "";
-  return rangeFeatsFor(attacker?.items?.filter(i => i.type === "feat").map(i => i.name) ?? [], {
+  return rangeFeatsFor(namesAnswering(attacker?.items?.filter(i => i.type === "feat") ?? [], RANGE_FEAT_KEYS), {
     // a Ranged weapon by its KIND (simpleR, martialR): a dart thrown is one, a dagger thrown is not
     rangedWeapon: weapon && /R$/.test(kind),
     spell: activity?.attack?.type?.classification === "spell",
@@ -274,7 +284,7 @@ Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
       // …and the effect table's rows that bend checks by their text (Heated Metal).
       sources.push(...effectCheckSources({
         effects: actor.effects.filter(e => !e.disabled && !e.isSuppressed).map(e => ({ id: e.id, name: e.name })),
-        features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+        features: featuresOf(actor),
         enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, name: actor.name,
         statuses: actor.statuses ?? [], skill: config.skill ?? null }));
     }
@@ -425,20 +435,20 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null) };
   // An effect's SOURCE: the module's own stamp, else the actor behind its origin (`except: "source"`).
   const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
-  // The ITEM an effect comes from, by name, for a row's `item` discriminator.
+  // The ITEM an effect comes from, in the table's words, for a row's `item` discriminator.
   const itemOf = e => {
     const key = e.getFlag(MODULE_ID, "emanation")?.key;
     if ( key ) return key;
     const origin = e.origin ? resolveUuid(e.origin) : null;
     // ⚠ dnd5e 6 stamps an applied effect's origin with the ACTIVITY; read through to its item.
     const item = (origin instanceof Item) ? origin : ((origin?.item instanceof Item) ? origin.item : null);
-    return item?.name ?? null;
+    return item ? namesAnswering([item], EFFECT_ITEM_KEYS)[0] : null;
   };
   const sheetOf = actor => ({
     uuid: actor.uuid,
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
       sourceFeet: sourceFeetOf(actor, sourceOf(e)) })),
-    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+    features: featuresOf(actor),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),
     notActed: targetNotActed(attacker, actor)
@@ -623,7 +633,7 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
     // The effect table's `saves` facet (Aura of Purity), read against the demand being answered.
     const demand = pendingDemandFor(actor)?.demand ?? null;
     sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
-      features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+      features: featuresOf(actor),
       enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
     // Heightened Spell's mark on the demand: THIS roller's saves against the spell at Disadvantage.
     const mark = demand?.heightened ?? null;

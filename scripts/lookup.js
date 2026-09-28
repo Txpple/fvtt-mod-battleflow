@@ -1,17 +1,65 @@
 /**
  * Battle Flow — SPINE (ARCHITECTURE.md §7): the shared sheet and document readers; nothing here
- * decides. ⚠ It owns no hook, flag or write, and imports only pure modules; keep it that way.
- * ⚠ Names match CASE-INSENSITIVELY: the tables' keys are pack names typed by hand.
+ * decides. ⚠ It owns no hook, flag or write, and imports only core.js and pure modules; keep it that way.
+ * A table's row finds its item by dnd5e's identifier, then by its name (decide/registry.js `matchOf`).
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
-import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
+import { INTERRUPT_REDUCTIONS, identifierOf, matchOf } from "./decide/registry.js";
+import { TITLE } from "./core.js";
 
 export const lower = s => String(s ?? "").toLowerCase();
 
 const sameName = (a, b) => lower(a) === lower(b);
 
-export const itemNamed = (actor, name) => actor?.items?.find(i => sameName(i.name, name)) ?? null;
+/** `actor|row` said once per session: a row found by the name alone. */
+const warnedNameOnly = new Set();
+
+/**
+ * Every item on this actor that answers the row: identifier matches first, a 2024 copy before a
+ * 2014 one. A match by name alone is warned once, so the item's identifier gets fixed at the data.
+ * @param {Actor|null|undefined} actor
+ * @param {string} key  the row's name
+ * @param {{ types?: string[]|null }} [options]  the item types the row means
+ * @returns {Item[]}
+ */
+export function itemsNamed(actor, key, { types = null } = {}) {
+  if ( !actor?.items || !key ) return [];
+  const byIdentifier = [], byName = [];
+  for ( const item of actor.items ) {
+    const how = matchOf(key, item, types);
+    if ( how === "identifier" ) byIdentifier.push(item);
+    else if ( how === "name" ) byName.push(item);
+  }
+  if ( byName.length && !warnedNameOnly.has(`${actor.uuid}|${key}`) ) {
+    warnedNameOnly.add(`${actor.uuid}|${key}`);
+    console.warn(`${TITLE} | ${actor.name}: "${byName[0].name}" found by its name, not the identifier "${identifierOf(key)}".`);
+  }
+  const is2014 = item => (item.system?.source?.rules === "2014") ? 1 : 0;
+  return [...byIdentifier, ...byName].sort((a, b) => is2014(a) - is2014(b));
+}
+
+/** The item on this actor that answers the row, or null. */
+export const itemNamed = (actor, key, options) => itemsNamed(actor, key, options)[0] ?? null;
+
+/**
+ * The sheet in the table's words, for a decide/ function that compares names: each item as the row
+ * name it answers (identifier first, then name), else its own name. "Heat Metal - Spellcasting"
+ * reads as "Heat Metal" against a table keyed "Heat Metal".
+ * @param {Iterable<Item>} items
+ * @param {Iterable<string>} keys  the table's row names
+ * @returns {string[]}
+ */
+export function namesAnswering(items, keys) {
+  const byIdentifier = new Map(), byName = new Map();
+  for ( const key of keys ) {
+    const identifier = identifierOf(key);
+    if ( !byIdentifier.has(identifier) ) byIdentifier.set(identifier, key);
+    if ( !byName.has(lower(key)) ) byName.set(lower(key), key);
+  }
+  return [...(items ?? [])].map(item => byIdentifier.get(item?.system?.identifier)
+    ?? byName.get(lower(item?.name)) ?? item?.name ?? "");
+}
 
 /** The damage types an attack deals, before its dice: its parts plus any weapon base damage taken. */
 export function dealtTypesOf(activity) {
@@ -23,8 +71,7 @@ export function dealtTypesOf(activity) {
   return [...out];
 }
 
-export const featureNamed = (actor, name) =>
-  actor?.items?.find(i => (i.type === "feat") && sameName(i.name, name)) ?? null;
+export const featureNamed = (actor, key) => itemNamed(actor, key, { types: ["feat"] });
 
 /** Does this creature hold (EQUIPPED) what a guard's row demands? */
 export function holdsFor(actor, holding) {

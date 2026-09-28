@@ -3,9 +3,9 @@
  * Shield Master's bash (or a `shove` feat's push); the save and Prone-or-push are the saves machine's.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, inRunningCombat, combatStamp, statContext, drivesMomentFor, decisionWindow } from "./core.js";
-import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf, lower } from "./lookup.js";
+import { resolveUuid, foldEntryFor, itemNamed, dealtTypesOf } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
-import { RULE_TEXT, SHOVES } from "./decide/registry.js";
+import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { hitTargets, resolveAttackMessage } from "./shared.js";
@@ -32,15 +32,20 @@ const OFFER_KINDS = Object.freeze({
 /** An Unarmed Strike — the attack's own classification (the pack's Tavern Brawler strike is a feat's activity). */
 const isUnarmed = subject => subject?.attack?.type?.classification === "unarmed";
 
-/** The SHOVES row a listed `shove` item runs by — Tavern Brawler's when the table does not name it. */
-const shoveRowOf = name => Object.entries(SHOVES).find(([n]) => lower(n) === lower(name)) ?? ["Tavern Brawler", SHOVES["Tavern Brawler"]];
+const shoveIndex = tableIndex(SHOVES);
+
+/** The SHOVES row a listed `shove` item (or a row name off a flag) runs by — Tavern Brawler's when the table does not name it. */
+const shoveRowOf = itemOrName => {
+  const key = (typeof itemOrName === "string") ? shoveIndex.keyNamed(itemOrName) : shoveIndex.keyFor(itemOrName);
+  return key ? [key, SHOVES[key]] : ["Tavern Brawler", SHOVES["Tavern Brawler"]];
+};
 
 /** The first listed `shove` item whose row this hit fits and whose turn's use is unspent, or null. */
 function shoveFor(subject, attacker, entries) {
   for ( const entry of entries.filter(e => e.kind === "shove") ) {
     const item = itemNamed(attacker, entry.name);
     if ( !item ) continue;
-    const [name, row] = shoveRowOf(item.name);
+    const [name, row] = shoveRowOf(item);
     const fits = (row.on === "unarmed") ? (isUnarmed(subject) && (subject.attack?.type?.value === "melee"))
       : dealtTypesOf(subject).includes(row.on);
     if ( !fits ) continue;

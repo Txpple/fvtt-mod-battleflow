@@ -1,12 +1,12 @@
 /**
- * Battle Flow — the volley registry. A spell volleys by NAME alone (⚠ the pack's counts are wrong both
+ * Battle Flow — the volley registry. A spell volleys by its row alone, found by identifier then name (⚠ the pack's counts are wrong both
  * ways: Scorching Ray has none, Eldritch Blast says 1, Dimension Door says 2 — tools/scan-volley-spells.mjs).
  *   kind   "damage" (darts, aggregated per target) | "attack" (rays, a rollAttack each); the used activity must match
  *   count  a formula (@item.level the cast level, @scaling) or ({ activity, castLevel, rollData }) => n; under 2 is native
  *   distinctTargets  one projectile per creature, clamped to the target count
  */
 import { MODULE_ID, TITLE } from "./core.js";
-import { VOLLEY_KINDS } from "./decide/registry.js";
+import { VOLLEY_KINDS, matchOf } from "./decide/registry.js";
 
 /** Eldritch Blast's beams band by CHARACTER level (an NPC's CR stands in); unreadable → 0, native. */
 function eldritchBlastBeams({ rollData }) {
@@ -21,17 +21,23 @@ export const VOLLEY_REGISTRY = new Map([
   ["Steel Wind Strike", { kind: "attack", count: "5", distinctTargets: true }]
 ]);
 
-/** Names already warned about an unknown kind — once per session, not once per attack. */
+/** Rows already warned about an unknown kind — once per session, not once per attack. */
 const warnedEntries = new Set();
 
 /** This spell's entry, or null; ⚠ an unknown `kind` is refused, never guessed (ARCHITECTURE §6). */
 export function volleyEntryFor(item) {
   if ( item?.type !== "spell" ) return null;
-  const entry = VOLLEY_REGISTRY.get(item.name) ?? null;
+  let key = null;
+  for ( const k of VOLLEY_REGISTRY.keys() ) {
+    const how = matchOf(k, item, ["spell"]);
+    if ( how === "identifier" ) { key = k; break; }
+    if ( how === "name" ) key ??= k;
+  }
+  const entry = (key !== null) ? (VOLLEY_REGISTRY.get(key) ?? null) : null;
   if ( entry && !VOLLEY_KINDS.has(entry.kind) ) {
-    if ( !warnedEntries.has(item.name) ) {
-      warnedEntries.add(item.name);
-      console.warn(`${TITLE} | Volley registry: "${item.name}" declares kind "${entry.kind}" (${[...VOLLEY_KINDS].join("/")}) — ignored, never guessed.`);
+    if ( !warnedEntries.has(key) ) {
+      warnedEntries.add(key);
+      console.warn(`${TITLE} | Volley registry: "${key}" declares kind "${entry.kind}" (${[...VOLLEY_KINDS].join("/")}) — ignored, never guessed.`);
     }
     return null;
   }

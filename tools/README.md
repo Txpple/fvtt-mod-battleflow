@@ -30,7 +30,8 @@ it quietly runs the prerequisite and says so.
 | `check-surfaces.mjs` | ⚠ every HTML anchor this module reads off the PLATFORM's markup lives in ONE map (`scripts/surfaces.js`) — no selector string for a platform element anywhere else — and every dnd5e-authored anchor still appears in the shipped templates and bundle of the version `module.json` verifies, recorded in `dnd5e-surfaces.json` (**generated** by `--regen`, pinned to the version like the hook artifact). The 6.0 pass's posture (NOTES §2 *the 6.0 pass* §3b, 2026-09-15): the card's DATA is the contract and its HTML is not; what HTML is still read is counted and checked at the pin bump. Core's own anchors are listed, not checked. |
 | `check-layers.mjs` | ARCHITECTURE §7's dependency rule, mechanical: every edge is downward or pinned in `ALLOW` with a reason, and a pin whose edge has gone FAILS. Since 2026-09-05 it also holds `GROUPS` — a machine that is a directory (`saves/`): edges inside the group are legal, an outside import of any part but `index.js` fails with "import the index". |
 | `check-coverage-map.mjs` | the live suites' `COVERS` claims (the coverage map, below), **both ways**: every machine-tier file is claimed by some battery suite; every claim names a machine that exists (a rename fails here — the layer pins' self-expiry); every ORDER suite declares COVERS and every file declaring COVERS is in ORDER (an unrun suite rots); no claim names a spine file ("spine files are covered by the full battery, drop the claim"); every `needs` resolves above its suite. Prints the suite → covers table. **No allowlist**: a machine nothing drives is claimed by the nearest suite with a comment saying so. `npm run coverage`. |
-| `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every shipped list-setting default survives its own strict parser; the **R4 kind total** and the **source-file count** match their pins. |
+| `check-registry.mjs` | every `S` key is registered and every registration is named in `S`; every registry entry declares a known kind and no amount; every kind list names only kinds from its closed set; the **R4 kind total** and the **source-file count** match their pins. |
+| `check-identifiers.mjs` | every content row of the code tables (a key, or the `item` / `feature` / `named` / `effect` / `spell` it names) resolves against `content/identifiers.json`: its name slugs to an identifier the packs carry, or it names an effect they carry. A row naming nothing installed is on its `NOT_CONTENT` list with the reason. `npm run identifiers`. |
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through the lazy `await import()` idiom. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
 | `check-card-reads.mjs` | a card's ITEM or ACTIVITY is read through `lookup.js` `cardItem` / `cardActivity` — never a bare `fromUuid` / `fromUuidSync` / `resolveUuid` of an `activityUuid`, `itemUuid` or `itemUuidOf(…)` (2026-09-22, Gren's potion: dnd5e deletes a used-up item BEFORE its card exists, and only the card's snapshot still has it). A deliberately live read says `// live only: <reason>` on the line above. |
@@ -167,6 +168,11 @@ premium module ships pack by pack — counts, types, names — and lists the nam
 already keys a row on and the names the 2024 packs already carry, so the next book the house
 buys is measured before it is described; pack indexes only, no sole-GM preflight because it
 asserts on nothing.
+
+`probe-identifiers.mjs` snapshots every Item in every pack and on the world's actors — identifier,
+type, rules version, book, compendium source, effect names — to `content/identifier-snapshot.json`
+(git-ignored, ~2 MB); `compact-identifiers.mjs` reduces it to `content/identifiers.json` (committed,
+what `check-identifiers.mjs` reads). Re-measure after a dnd5e bump or a new premium book.
 
 Read-only sweeps of the official compendia. Curated lists are built from what 5e 2024 actually
 ships, never from what the party owns (DESIGN N1). Re-run after adding content.

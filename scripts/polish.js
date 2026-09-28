@@ -4,11 +4,14 @@
  */
 import { MODULE_ID } from "./core.js";
 import { blockEntries, effectChoiceEntries, interruptEntries } from "./decide/registry.js";
-import { EFFECT_CHOICES, tableIndex } from "./decide/registry.js";
+import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
-import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, targetsOf } from "./decide/card.js";
+import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, itemUuidOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf, dispositionStyle } from "./shared.js";
-import { cardActivity, profileEffectSync } from "./lookup.js";
+import { cardActivity, cardItem, profileEffectSync } from "./lookup.js";
+
+/** A reaction's or a spell's row means a spell or a monster's feature, never armor of the same name. */
+const SPELL_ROW_TYPES = ["spell", "feat"];
 
 
 // Require a target to attack: veto the use on the initiating client before anything rolls or consumes.
@@ -68,8 +71,7 @@ function castApplyQualifies(doc) {
   }
   // A SELF-tagged activity self-aims. ⚠ Except a LISTED reaction answering a PENDING hold: the hold
   // applies its effect (RULINGS *A listed reaction cast freestanding*); the two paths never both land.
-  const itemName = (activity?.item?.name ?? "").toLowerCase();
-  if ( interruptEntries().some(e => e.name.toLowerCase() === itemName)
+  if ( interruptEntries().some(e => answers(e.name, activity?.item, SPELL_ROW_TYPES))
     && holdPendingFor(activity?.actor?.uuid) ) return false;
   return payloadWorthy;
 }
@@ -88,10 +90,9 @@ function holdPendingFor(actorUuid) {
  * null when unlisted or fewer than two match. */
 const EFFECT_CHOICE_INDEX = tableIndex(EFFECT_CHOICES);
 function castChoice(activity) {
-  const name = String(activity?.item?.name ?? "").toLowerCase();
-  if ( !name || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === name) ) return null;
-  const key = EFFECT_CHOICE_INDEX.keyNamed(name);
-  const row = key ? EFFECT_CHOICES[key] : null;
+  const key = EFFECT_CHOICE_INDEX.keyFor(activity?.item);
+  if ( !key || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === key.toLowerCase()) ) return null;
+  const row = EFFECT_CHOICES[key];
   if ( !row ) return null;
   // ⚠ SYNC at preCreate: profiles resolve effects async, so names come off the item's effects by id.
   const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(p => profileEffectSync(p, activity?.item)?.name));
@@ -131,8 +132,10 @@ Hooks.on("preCreateChatMessage", doc => {
   // it). A BLOCKLISTED spell also carries the hold's claim from birth, so the applier can never win the race.
   if ( isCard(doc, CARD.damage) && (activityTypeOf(doc) === "damage") && targetsOf(doc).length ) {
     const claim = { spellDamage: true };
+    // The card's live item, else the name its snapshot carries (a statblock's cached spell resolves no uuid).
+    const item = cardItem(doc, itemUuidOf(doc));
     const name = itemNameOf(doc);
-    if ( name && blockEntries().some(e => e.spell.toLowerCase() === name.toLowerCase()) )
+    if ( blockEntries().some(e => item ? answers(e.spell, item, SPELL_ROW_TYPES) : (!!name && (e.spell.toLowerCase() === name.toLowerCase()))) )
       claim.spellHoldPending = true;
     doc.updateSource({ flags: { [MODULE_ID]: claim } });
   }

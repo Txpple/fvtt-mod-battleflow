@@ -8,10 +8,10 @@
 import { MODULE_ID, S, setting } from "./core.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { allRows, everyRow, marksHeldBy, panelGroups, rowAction } from "./decide/effect-view.js";
-import { EMANATIONS, RANGE_FEATS, tableIndex } from "./decide/registry.js";
+import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.js";
 import { measuredCoverBetween } from "./geometry.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
-import { lower } from "./lookup.js";
+import { featureNamed, lower } from "./lookup.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -45,14 +45,14 @@ function hostileOriginOf(effect) {
   } catch { return null; }
 }
 
-const { rowNamed: emanationRow } = tableIndex(EMANATIONS);
+const { rowFor: emanationRow } = tableIndex(EMANATIONS);
 
 /** Is this the bearer's OWN standing feature aura — the pack's transfer effect on a FEATURE the Emanations
  * row names, read as emanations.js `featureSpec` reads it? A spell's emanation effect never lands here. */
 function ownAuraOf(effect) {
   const item = effect.parent;
   if ( !(item instanceof Item) || (effect.transfer !== true) ) return false;
-  const row = emanationRow(item.name);
+  const row = emanationRow(item);
   if ( !row || (row.kind !== "feature") || !row.effect ) return false;
   if ( lower(effect.name) !== lower(row.effect) ) return false;
   return listedNames(emanationEntries()).has(lower(row.key));
@@ -68,7 +68,7 @@ const styleFeatOf = effect => {
   const item = effect.parent;
   if ( !(item instanceof Item) || (item.system?.type?.subtype !== "fightingStyle") ) return null;
   // the class's own "Fighting Style" feature names no style — its effect's name does
-  return lower(item.name) === "fighting style" ? effect.name : item.name;
+  return answers("Fighting Style", item) ? effect.name : item.name;
 };
 
 /** One effect as the decision layer wants it. */
@@ -229,9 +229,8 @@ function coverHTML(token) {
   const d = m.degree;
   // "Half Cover (+2 AC)", then what is in the way and any feat ignoring it; No and Total Cover stand alone.
   const amount = (d.bonus ? `${d.label} (+${d.bonus} AC)` : d.label);
-  const names = new Set(controlled[0].actor?.items?.filter(i => i.type === "feat").map(i => i.name.toLowerCase()) ?? []);
   const ignores = ((d.key === "half") || (d.key === "threeQuarters"))
-    ? Object.entries(RANGE_FEATS).filter(([name, r]) => r.cover && names.has(name.toLowerCase()))
+    ? Object.entries(RANGE_FEATS).filter(([name, r]) => r.cover && featureNamed(controlled[0].actor, name))
       .map(([name, r]) => `${name} ignores it (${r.scope === "spell" ? "spell attacks" : "ranged weapon attacks"})`)
     : [];
   const why = [m.by.length ? `${m.by.map(b => (b === "wall") ? "a wall" : b).join(", ")} in the way` : "", ...ignores].filter(Boolean).join(" · ");

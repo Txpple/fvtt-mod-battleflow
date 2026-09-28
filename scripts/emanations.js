@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering } from "./lookup.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -29,7 +29,9 @@ const FLAG = "emanation";                       // on the region, and on every m
 const TYPE = `${MODULE_ID}.emanation`;          // the behaviour type this module registers
 const STATUS = "bfEmanation";                   // the status a member effect wears, so the token shows it
 const listed = () => listedNames(emanationEntries());
-const { rowNamed } = tableIndex(EMANATIONS);
+const { rowNamed, rowFor } = tableIndex(EMANATIONS);
+/** An item as the Emanations table's `item ?? key` names it, for `pulseFormKey`. */
+const pulseItemName = item => namesAnswering([item], Object.entries(EMANATIONS).map(([k, r]) => r.item ?? k))[0];
 const colorFor = reach => (reach === "harmful") ? "#b4463c" : "#46965f";   // TONE.bad / TONE.good, solid — a Region colour is a hex
 /** ⚠ LAYER visibility alone still draws the ring on the Regions layer; only LOCKED + LAYER_UNLOCKED is never drawn. */
 const RING_VISIBILITY = () => CONST.REGION_VISIBILITY.LAYER_UNLOCKED;
@@ -522,7 +524,7 @@ Hooks.on("preCreateRegionBehavior", (behavior, data) => {
     if ( !region ) return;
     if ( flagOf(region) ) return false;
     const item = resolveUuid(region.getFlag("dnd5e", "item"));
-    const row = item ? rowNamed(item.name) : null;
+    const row = item ? rowFor(item) : null;
     if ( row && (row.kind === "spell") && listed().has(lower(row.key)) ) return false;
   } catch(err) {
     console.warn(`${TITLE} | Could not judge a region behaviour — the platform's stands.`, err);
@@ -670,7 +672,7 @@ async function adoptSpellRegion(region) {
     // live only: a region names its item by uuid with no card behind it — dnd5e's own region reads resolve the same way
     const item = resolveUuid(itemUuid);
     if ( !item ) return;
-    const row = rowNamed(item.name);
+    const row = rowFor(item);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
     const actor = item.actor ?? null;
     // The placement stamps the usage token as `flags.dnd5e.origin`.
@@ -699,7 +701,7 @@ async function adoptSpellRegion(region) {
 /** A listed spell row whose activity is an emanation from the caster (a `radius` template, range self). */
 function castEmanationRow(activity) {
   if ( activity?.item?.type !== "spell" ) return null;
-  const row = rowNamed(activity.item.name);
+  const row = rowFor(activity.item);
   if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return null;
   return selfAreaOf(activity) ? row : null;
 }
@@ -714,7 +716,7 @@ function selfAreaOf(activity) {
 /** The listed `pulse` row whose FORM this activity is, or null: its use places no area and rolls no damage. */
 function transformRowOf(activity) {
   if ( !activity?.item ) return null;
-  const key = pulseFormKey(EMANATIONS, { itemName: activity.item.name, activityName: activity.name }, listed());
+  const key = pulseFormKey(EMANATIONS, { itemName: pulseItemName(activity.item), activityName: activity.name }, listed());
   return key ? { key, ...EMANATIONS[key] } : null;
 }
 
@@ -981,7 +983,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "save" ) return;
-    const row = rowNamed(activity.item?.name);
+    const row = rowFor(activity.item);
     if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
     const types = partTypesOf(activity);
     if ( types.length < 2 ) return;

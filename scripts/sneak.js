@@ -4,7 +4,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
-import { lower, featureNamed } from "./lookup.js";
+import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable } from "./ui.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
 import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
@@ -15,6 +15,9 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+
+/** The feature names the Cunning Strike menu answers to. */
+const CUNNING_FEATURES = [...Object.values(CUNNING_OPTIONS).flatMap(r => [r.feature, r.upgrade?.feature]), "Improved Cunning Strike"].filter(Boolean);
 
 // The gate arms Sneak Attack; the offer's Cunning Strike pick is committed BEFORE the dice. The rider
 // and the effects run on the ROLLER's client (it owns the items); failed-save follow-ups on the driver.
@@ -56,7 +59,7 @@ function sneakOfferParts(attackMessage, activity) {
   if ( !sneak ) return null;
   const attacker = attackMessage.getAssociatedActor();
   if ( !attacker ) return null;
-  const features = attacker.items.filter(i => i.type === "feat").map(i => i.name);
+  const features = namesAnswering(attacker.items.filter(i => i.type === "feat"), CUNNING_FEATURES);
   const { rows, max } = cunningMenu({ options: CUNNING_OPTIONS, features, weaponName: sneak.weaponName ?? activity?.item?.name ?? "", dice: sneak.number });
   const csItem = featureNamed(attacker, "Cunning Strike");
   const dc = cunningDC(attacker, csItem ? activityNamed(csItem, "Poison") : null);

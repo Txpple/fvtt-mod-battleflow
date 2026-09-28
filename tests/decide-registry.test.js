@@ -383,3 +383,51 @@ describe("Polearm Master (2026-09-27, the user's P1 and the reach ring)", () => 
     expect(row.rule.startsWith("Reactive Strike.")).toBe(true);
   });
 });
+
+describe("how a row names its content — the identifier, then the name", () => {
+  it("slugs a row's name the way the packs do", () => {
+    expect(reg.identifierOf("Hunter's Mark")).toBe("hunters-mark");
+    expect(reg.identifierOf("Crusader’s Mantle")).toBe("crusaders-mantle");
+    expect(reg.identifierOf("Enlarge/Reduce")).toBe("enlarge-reduce");
+    expect(reg.identifierOf("Blessed Strikes: Divine Strike")).toBe(
+      "blessed-strikes-divine-strike"
+    );
+  });
+
+  it("finds a renamed item by its identifier, and a bare one by its name", () => {
+    const statblock = {
+      name: "Heat Metal - Spellcasting",
+      type: "spell",
+      system: { identifier: "heat-metal" }
+    };
+    expect(reg.matchOf("Heat Metal", statblock)).toBe("identifier");
+    expect(reg.matchOf("heat metal", { name: "Heat Metal", type: "spell" })).toBe("name");
+    expect(
+      reg.matchOf("Heat Metal", {
+        name: "Fireball",
+        type: "spell",
+        system: { identifier: "fireball" }
+      })
+    ).toBe(null);
+  });
+
+  it("scopes by type: a +1 Shield is not the Shield spell", () => {
+    const armor = { name: "+1 Shield", type: "equipment", system: { identifier: "shield" } };
+    expect(reg.answers("Shield", armor)).toBe(true);
+    expect(reg.answers("Shield", armor, ["spell", "feat"])).toBe(false);
+  });
+
+  it("a table finds an item's row by identifier first, then by name, the first row per identifier", () => {
+    const t = reg.tableIndex(reg.EMANATIONS);
+    expect(
+      t.keyFor({ name: "Spirit Guardians (Upcast)", system: { identifier: "spirit-guardians" } })
+    ).toBe("Spirit Guardians");
+    expect(t.keyFor({ name: "AURA OF COURAGE" })).toBe("Aura of Courage");
+    expect(t.rowFor({ name: "Fireball", system: { identifier: "fireball" } })).toBe(null);
+    const clock = reg.tableIndex(reg.CLOCK_RIDERS, r => r.feature);
+    const slasher = Object.keys(reg.CLOCK_RIDERS).find(
+      k => reg.CLOCK_RIDERS[k].feature === "Slasher"
+    );
+    expect(clock.keyFor({ name: "Slasher", system: { identifier: "slasher" } })).toBe(slasher);
+  });
+});

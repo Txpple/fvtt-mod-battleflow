@@ -4,7 +4,7 @@
  * directory's only public face.
  */
 import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
-import { resolveUuid } from "../lookup.js";
+import { namesAnswering, resolveUuid } from "../lookup.js";
 import { rollConfigFor } from "../shared.js";
 import { popupKey, bfCard, holdBarHTML } from "../decide/present.js";
 import { livePopups, adoptManagedPopup, DialogCarried, scheduleBarSync, armAskTimer, disarmAskTimer } from "../ui.js";
@@ -163,7 +163,7 @@ function autoFailSources(actor, ability) {
 function autoSucceedSources(actor, flag) {
   if ( !reminderEntries().some(e => e.kind === "effect") ) return [];
   return effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
-    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+    features: namesAnswering(actor.items.filter(i => i.type === "feat"), Object.keys(EFFECT_BENDS)),
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null, name: actor.name })
     .filter(s => s.autoSucceed);
 }

@@ -8,8 +8,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM, statContext, decisionWindow }
   from "./core.js";
-import { d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
-import { activityNamed, cardActivity, itemNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
+import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
+import { activityNamed, cardActivity, itemNamed, itemsNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
@@ -136,8 +136,8 @@ const ADVANTAGE = {
     const key = Object.keys(ADVANTAGE_BUYS).find(k => lower(k) === lower(entry.name));
     const row = key ? ADVANTAGE_BUYS[key] : null;
     if ( !row ) return null;
-    const item = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(key))
-      && (!row.uses || (Number(i.system?.uses?.max) > 0)));
+    const item = itemsNamed(actor, key, { types: ["feat"] })
+      .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
     if ( !item || (row.uses && !(Number(item.system.uses.value ?? 0) > 0)) ) return null;
     return { kind: "advantage", key, row, item };
   },
@@ -1011,7 +1011,7 @@ Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
   try {
     const actor = activity?.actor;
     if ( !actor?.isOwner || (activity.type !== "utility") ) return;
-    const entry = d20FoldEntries().find(e => (e.kind === "tactical") && scopeOf(e) && (e.name.toLowerCase() === String(activity.item?.name ?? "").toLowerCase()));
+    const entry = d20FoldEntries().find(e => (e.kind === "tactical") && scopeOf(e) && answers(e.name, activity.item));
     if ( !entry ) return;
     const scope = scopeOf(entry);
     const message = (results?.message instanceof ChatMessage) ? results.message : null;

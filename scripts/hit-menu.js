@@ -5,11 +5,11 @@
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { verdictsOn } from "./decide/demand.js";
-import { lower, featureNamed, activityOfType, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
+import { featureNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
-import { HIT_GROUPS, HIT_OPTIONS } from "./decide/registry.js";
+import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
 import { hitMenu, hitPick, picksOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
@@ -34,6 +34,9 @@ function dieFormulaOf(actor, activity) {
   return resolveDie(actor, raw);
 }
 
+/** The feature names the menu's groups and options answer to. */
+const MENU_FEATURES = [...Object.values(HIT_GROUPS).map(g => g.feature), ...Object.values(HIT_OPTIONS).map(r => r.feature)].filter(Boolean);
+
 /** The menu for this hit, and the sheet facts behind every row. */
 function menuFor(attackMessage, activity) {
   const attacker = activity?.actor ?? attackMessage?.getAssociatedActor();
@@ -41,7 +44,7 @@ function menuFor(attackMessage, activity) {
   if ( !attacker || !item ) return null;
   const listed = hitMenuEntries().map(e => e.kind);
   if ( !listed.length ) return null;
-  const features = attacker.items.filter(i => i.type === "feat").map(i => i.name);
+  const features = namesAnswering(attacker.items.filter(i => i.type === "feat"), MENU_FEATURES);
   const edge = {};
   const pools = {};
   const fits = {};
@@ -144,7 +147,7 @@ Hooks.once("ready", () => {
 });
 Hooks.on("createItem", (item, _options, userId) => {
   if ( (userId !== game.user.id) || !(item.parent instanceof Actor) || (item.type !== "feat") ) return;
-  if ( Object.values(HIT_OPTIONS).some(r => lower(r.feature) === lower(item.name)) ) void repairTransferEffects(item.parent);
+  if ( Object.values(HIT_OPTIONS).some(r => answers(r.feature, item)) ) void repairTransferEffects(item.parent);
 });
 
 /* --- the offer: a group per paying feature, one pick per group ------------------------------ */

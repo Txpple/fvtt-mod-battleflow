@@ -6,7 +6,7 @@
  * ⚠ dnd5e dispatches the damage hook TWICE per roll: an in-flight set keeps it single.
  */
 import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor, decisionWindow } from "./core.js";
-import { lower, featureNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
+import { lower, featureNamed, itemNamed, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { damageEitherEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, turnChitStands, writeTurnChit, rebuildRolls, spendPoolUses } from "./shared.js";
 import { DAMAGE_EITHER } from "./decide/registry.js";
@@ -60,7 +60,7 @@ const weaponRollsOf = message => {
 
 const rollsTotal = rolls => (rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
 
-const featureOf = (actor, row) => featureNamed(actor, row.feature) ?? actor?.items?.find(i => i.name === row.feature) ?? null;
+const featureOf = (actor, row) => featureNamed(actor, row.feature) ?? itemNamed(actor, row.feature);
 
 /* --- the birth flag: every row that fits, due or spent this turn ------------------------------- */
 

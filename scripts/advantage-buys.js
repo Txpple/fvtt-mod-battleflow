@@ -7,7 +7,7 @@
  * ⚠ HOOK ORDER: imported AFTER reminders.js, so this re-nets the gate's record with the buy included.
  */
 import { MODULE_ID, TITLE, statContext } from "./core.js";
-import { lower } from "./lookup.js";
+import { itemsNamed } from "./lookup.js";
 import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
 import { bfCard, buyBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
@@ -24,8 +24,8 @@ function buysFor(actor, testKind) {
   for ( const [name, row] of Object.entries(ADVANTAGE_BUYS) ) {
     if ( !row.tests.includes(testKind) ) continue;
     // ⚠ Uses demanded: the 2014 Halfling's "Lucky" trait shares the name and has none.
-    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(name))
-      && (!row.uses || (Number(i.system?.uses?.max) > 0)));
+    const item = itemsNamed(actor, name, { types: ["feat"] })
+      .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
     if ( !item ) continue;
     out.push({ name, point: row.point, rule: row.rule, itemId: item.id,
       left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max: Number(item.system?.uses?.max ?? 0) });

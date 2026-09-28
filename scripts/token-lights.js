@@ -2,7 +2,7 @@
  * Battle Flow — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
 import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { lower, resolveUuid, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
 import { registerResumable } from "./ui.js";
 import { bfCard, ruleLine } from "./decide/present.js";
@@ -23,7 +23,8 @@ const listed = () => listedNames(tokenLightEntries());
 
 /** The row this use answers to, as `{ key, ...row }`, or null. */
 function rowFor(activity) {
-  const key = lightRowKey(TOKEN_LIGHTS, { itemName: activity?.item?.name, activityName: activity?.name }, listed());
+  const itemName = activity?.item ? namesAnswering([activity.item], Object.entries(TOKEN_LIGHTS).map(([k, r]) => r.item ?? k))[0] : null;
+  const key = lightRowKey(TOKEN_LIGHTS, { itemName, activityName: activity?.name }, listed());
   return key ? { key, ...TOKEN_LIGHTS[key] } : null;
 }
 

@@ -3,12 +3,12 @@
  * receipted — effects per outcome, status presses, Evasion, chained damage at the verdict's multiplier.
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
-import { applicableProfiles, cardActivity, resolveUuid } from "../lookup.js";
+import { applicableProfiles, cardActivity, featureNamed, namesAnswering, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
 import { dramaticVerdictPause } from "../ui.js";
-import { EFFECT_BENDS, EVASION, SAVE_PRESSES } from "../decide/registry.js";
+import { EFFECT_BENDS, EVASION, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "../decide/receipt.js";
 import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../decide/registry.js";
@@ -20,6 +20,8 @@ import { cleanupSpentTemplates } from "./areas.js";
 
 /** Same-client latch across the verdict pause — fold, update watcher and render can overlap. */
 const saveApplications = new Set();
+
+const SAVE_PRESS_INDEX = tableIndex(SAVE_PRESSES);
 
 /** One target's consequences, once: the verdict pause, effects, then rolled damage. ⚠ RE-READ the
  * flag after the pause: a legendary-resistance flip can land mid-pause. */
@@ -85,7 +87,7 @@ async function applySaveEffects(card, flag, entry) {
     .map(({ effect }) => effect);
   // No pack effect for a failure the text names (Web's Restrained): press the standard status.
   if ( !toApply.length && (entry.outcome === "failed") ) {
-    const press = SAVE_PRESSES[activity.item?.name] ?? null;
+    const press = SAVE_PRESS_INDEX.rowFor(activity.item);
     if ( press?.onFail ) await pressSaveStatus(card, flag, entry, press);
     return;
   }
@@ -104,7 +106,7 @@ export function evasionApplies(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return false;
   if ( !flag.abilities?.includes?.(EVASION.ability) ) return false;
   if ( actor.statuses?.has?.("incapacitated") ) return false;
-  return actor.items.some(i => (i.type === "feat") && (i.name.toLowerCase() === EVASION.feature.toLowerCase()));
+  return !!featureNamed(actor, EVASION.feature);
 }
 
 /** The key of a `halfToNone` effect (Circle of Power) on this saver, or null. */
@@ -112,7 +114,7 @@ export function noneOnSuccessFor(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
   if ( !reminderEntries().some(e => e.kind === "effect") ) return null;
   return saveNoneOnSuccess({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ name: e.name })),
-    features: actor.items.filter(i => i.type === "feat").map(i => i.name),
+    features: namesAnswering(actor.items.filter(i => i.type === "feat"), Object.keys(EFFECT_BENDS)),
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null });
 }
 

@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, isActiveGM, statContext, queueFlagWrite, decisionWindow } from "./core.js";
 import { lower, featureNamed, resolveUuid } from "./lookup.js";
-import { fightingStyleEntries, listedNames } from "./decide/registry.js";
+import { answers, fightingStyleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { FIGHTING_STYLES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
   typesInNames, typedFace, ignoredResistances, typeChoicesLeft } from "./decide/fighting-styles.js";
@@ -36,8 +36,12 @@ const itemFacts = actor => [...(actor?.items ?? [])].map(i => ({
 /** The damage types dnd5e knows — what a `typed` row may read off a feat's name. */
 const damageTypeKeys = () => Object.keys(CONFIG.DND5E?.damageTypes ?? {});
 
-/** The feat copies a `typed` row reads: every feat whose name starts with the row's ("Elemental Adept (Fire)"). */
-const typedCopies = (actor, name) => [...(actor?.items ?? [])].filter(i => (i.type === "feat") && lower(i.name).startsWith(lower(name)));
+/**
+ * The feat copies a `typed` row reads: every feat carrying the row's identifier or a name that starts
+ * with the row's ("Elemental Adept (Fire)").
+ */
+const typedCopies = (actor, name) => [...(actor?.items ?? [])].filter(i => (i.type === "feat")
+  && ((i.system?.identifier === identifierOf(name)) || lower(i.name).startsWith(lower(name))));
 
 /**
  * The listed rows this actor holds — `[{ name, row, feature, types }]`. `types` is the row's own, or
@@ -142,11 +146,11 @@ async function syncFaces(actor) {
 
 /** The pack's ungated effects: off while the face carries the rule, back on when it stops. */
 async function syncTakeovers(actor, rows) {
-  // By NAME, every copy: a second copy of the feat would otherwise keep its pack effect running.
-  const running = new Set(rows.filter(r => r.row.takesOver).map(r => lower(r.name)));
+  // Every copy that answers the row: a second copy of the feat would otherwise keep its pack effect running.
+  const running = rows.filter(r => r.row.takesOver).map(r => r.name);
   for ( const feature of (actor.items ?? []) ) {
     if ( feature.type !== "feat" ) continue;
-    const ours = running.has(lower(feature.name));
+    const ours = running.some(name => answers(name, feature, ["feat"]));
     const writes = [];
     for ( const effect of packEffectsOf(feature) ) {
       const taken = effect.getFlag(MODULE_ID, TAKEN_FLAG) === true;
@@ -719,12 +723,14 @@ Hooks.on("deleteChatMessage", message => { disarmDeadline(grappleTimers, message
 const PICK_FLAG = "typePick";
 const titleCase = t => String(t).charAt(0).toUpperCase() + String(t).slice(1);
 
-/** The listed typed row a copy is, when its name is the row's own with no type — `{ name, row }` or null. */
+/** The listed typed row a copy answers, when its name carries no type — `{ name, row }` or null. */
 function typelessRowOf(item) {
   if ( item?.type !== "feat" ) return null;
   const listed = listedNames(fightingStyleEntries());
   for ( const [name, row] of Object.entries(FIGHTING_STYLES) ) {
-    if ( row.typed && row.choices?.length && listed.has(lower(name)) && (lower(item.name).trim() === lower(name)) ) return { name, row };
+    if ( !row.typed || !row.choices?.length || !listed.has(lower(name)) ) continue;
+    const answered = answers(name, item, ["feat"]) || (lower(item.name).trim() === lower(name));
+    if ( answered && !typesInNames([item.name], name, damageTypeKeys()).length ) return { name, row };
   }
   return null;
 }

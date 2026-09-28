@@ -4,7 +4,7 @@
  * crit doubles the die. Nothing is asked: the die is never worse than the flat.
  */
 import { MODULE_ID, TITLE } from "./core.js";
-import { lower } from "./lookup.js";
+import { featureNamed, lower } from "./lookup.js";
 import { listedNames, unarmedDiceEntries } from "./decide/registry.js";
 import { UNARMED_DICE } from "./decide/registry.js";
 import { esc } from "./decide/present.js";
@@ -57,7 +57,7 @@ function rowFor(actor) {
   let best = null;
   for ( const [name, row] of Object.entries(UNARMED_DICE) ) {
     if ( !on.has(lower(name)) ) continue;
-    const feature = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
+    const feature = featureNamed(actor, name);
     const found = feature ? formulaFor(row, feature, actor) : null;
     if ( found && (!best || (dieMax(found.formula) > dieMax(best.formula))) ) best = { name, feature, ...found };
   }

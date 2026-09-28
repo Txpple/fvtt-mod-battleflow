@@ -8,12 +8,12 @@ import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
-import { INTERRUPT_ROLLS } from "../decide/registry.js";
+import { INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, disadvantageOutcome, needsSecondD20, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor } from "../lookup.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent } from "../shared.js";
 import { registerRelay } from "../ui.js";
-import { reactionItem, reactionNameFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
+import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 
 /**
  * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
@@ -155,9 +155,8 @@ Hooks.on("dnd5e.postUseActivity", activity => {
   void (async () => {
     if ( bends ) return bendFromTheSheet(actor, bends);
     // ⚠ Match on what was CAST: a statblock's Shield lives on "Spellcasting".
-    const names = interruptEntries().map(e => e.name.toLowerCase());
-    const castName = (await reactionNameFor(activity))?.toLowerCase();
-    if ( !names.includes(castName) ) return;
+    const cast = await reactionItemFor(activity);
+    if ( !interruptEntries().some(e => answers(e.name, cast, SPELL_ROW_TYPES)) ) return;
     await answerHoldsFor(activity, actor);
   })();
 });
@@ -186,11 +185,11 @@ async function answerHoldsFor(activity, actor) {
 /* THE `roll` ANSWER (RULINGS *Rescuing the hit*): the cost paid BY HAND (a use() would post a
  * card, and Warding Flare's would place its emanation), the second d20 rolled in the open. */
 
+const ROLL_INDEX = tableIndex(INTERRUPT_ROLLS);
+const rollRowAt = key => key ? { key, row: INTERRUPT_ROLLS[key] } : null;
+
 /** The INTERRUPT_ROLLS row a name keys, case-insensitively. */
-function rollRow(name) {
-  const key = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(name));
-  return key ? { key, row: INTERRUPT_ROLLS[key] } : null;
-}
+const rollRow = name => rollRowAt(ROLL_INDEX.keyNamed(name));
 
 function rescueSpendLine(rescue, poolSpend) {
   const found = rollRow(rescue);
@@ -199,7 +198,7 @@ function rescueSpendLine(rescue, poolSpend) {
 
 /** The row's key when this use is a listed `roll` row's own activity (Lucky ships two), else null. */
 function rollRowUsed(activity) {
-  const found = rollRow(activity?.item?.name);
+  const found = rollRowAt(ROLL_INDEX.keyFor(activity?.item));
   if ( !found || !interruptEntries().some(e => (e.kind === "roll") && (lower(e.name) === lower(found.key))) ) return null;
   return lower(activity?.name) === lower(found.row.activity) ? found.key : null;
 }

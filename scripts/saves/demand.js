@@ -70,7 +70,7 @@ export async function metamagicForDemand(card, activity, contained) {
  * @returns {Promise<{contained: object[]|null, hold: boolean}>}
  */
 export async function areaChoiceForDemand(card, activity, contained) {
-  if ( !Array.isArray(contained) || !chosenAreaListed(activity?.item?.name) ) return { contained, hold: false };
+  if ( !Array.isArray(contained) || !chosenAreaListed(activity?.item) ) return { contained, hold: false };
   const facts = casterFactsOf(activity);
   const casterTok = activity?.actor?.token ?? activity?.actor?.getActiveTokens?.(true, true)?.[0] ?? null;
   const pool = contained.filter(c => (c.uuid !== facts.casterUuid) && !(casterTok && (c.tokenId === casterTok.id))).filter(saveDemandable);
@@ -114,7 +114,7 @@ Hooks.on("preCreateChatMessage", doc => {
     if ( doc.getFlag?.(MODULE_ID, AREA_CHOICE_FLAG) || doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) return;
     const uuid = activityUuidOf(doc);
     const activity = uuid ? resolveUuid(uuid) : null;
-    if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item?.name) ) return;
+    if ( (activity?.type !== "save") || !activity.target?.template?.type || !chosenAreaListed(activity.item) ) return;
     const window = decisionWindow();
     raiseHold(uuid, { reason: "area-choice", bound: window ? (window * 1000) + CHOICE_HOLD_SLACK_MS : null });
   } catch(err) { console.warn(`${TITLE} | The chosen area's hold could not be raised — the picture plays at once.`, err); }
@@ -126,7 +126,7 @@ function settleChoiceHold(activity, message) {
   if ( !uuid || !isHeld(uuid) ) return;
   const ask = message?.getFlag(MODULE_ID, AREA_ASK_FLAG);
   if ( (ask?.status === "pending") && (ask.kind === "choose") ) return;
-  if ( !chosenAreaListed(activity.item?.name) ) return;   // somebody else's hold
+  if ( !chosenAreaListed(activity.item) ) return;   // somebody else's hold
   releaseHold(uuid, message ?? null);
 }
 
@@ -196,7 +196,7 @@ async function stampSaveDemand(activity, message, results) {
     // ⚠ The ITEM's duration for a spell (its activity's is not the spell's), the ACTIVITY's for a
     // feature (a `feat` has none; null would read as a duration area that never ends).
     const durationUnits = activity.item?.system?.duration?.units ?? activity.duration?.units ?? null;
-    const instantArea = (durationUnits === "inst") || spentAreaListed(activity.item?.name);
+    const instantArea = (durationUnits === "inst") || spentAreaListed(activity.item);
     const emptyInstant = awaiting && !!contained && instantArea && !metamagic.hold;
     await message.setFlag(MODULE_ID, "saves", saveDemandData({
       status: emptyInstant ? "done" : "pending",
@@ -267,7 +267,7 @@ Hooks.on("battleflow.areaAskAnswered", async message => {
 const EMANATION_INDEX = tableIndex(EMANATIONS);
 function emanationRowFor(activity) {
   if ( !activity?.item ) return null;
-  const key = EMANATION_INDEX.keyNamed(activity.item.name);
+  const key = EMANATION_INDEX.keyFor(activity.item);
   const row = key ? EMANATIONS[key] : null;
   if ( !row?.reach || !emanationEntries().some(e => e.kind === key.toLowerCase()) ) return null;
   return row;

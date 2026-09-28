@@ -5,7 +5,7 @@
  * tracker is the GM's: a player's answer relays, and the swap reads both LIVE numbers.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { featureNamed, itemNamed, lower, resolveUuid } from "./lookup.js";
 import { initiativeSwapEntries, listedNames } from "./decide/registry.js";
 import { INITIATIVE_SWAPS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
@@ -26,7 +26,7 @@ function rowFor(actor) {
   const on = listedNames(initiativeSwapEntries());
   for ( const [name, row] of Object.entries(INITIATIVE_SWAPS) ) {
     if ( !on.has(lower(name)) ) continue;
-    const item = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
+    const item = featureNamed(actor, name);
     if ( item ) return { name, row, item };
   }
   return null;
@@ -230,7 +230,7 @@ async function showSwapPopup(message) {
   }).join("");
   const dialog = await openMomentPopup(message, SWAP_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-right-left", width: 400,
-    content: bfCard({ img: actor.items.find(i => lower(i.name) === lower(flag.row))?.img ?? null,
+    content: bfCard({ img: itemNamed(actor, flag.row)?.img ?? null,
       eyebrow: `Feat — ${flag.row}`, tone: "pending",
       title: `${flag.row} — swap your Initiative (${flag.initiative})?`,
       subtitle: "pick one ally",

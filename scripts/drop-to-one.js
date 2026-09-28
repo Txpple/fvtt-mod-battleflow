@@ -9,7 +9,7 @@
  * other answer is relayed to it.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
+import { featureNamed, lower, resolveUuid } from "./lookup.js";
 import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
@@ -35,7 +35,7 @@ function rowFor(actor, { outright }) {
       if ( effect ) return { name, row, effect };
       continue;
     }
-    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
+    const item = featureNamed(actor, name);
     if ( !item ) continue;
     if ( row.uses && !(Number(item.system?.uses?.value ?? 0) > 0) ) continue;
     return { name, row, item };

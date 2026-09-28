@@ -4,14 +4,18 @@
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers } from "../decide/registry.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
-import { lower, activityNamed, reductionFor, holdsFor } from "../lookup.js";
+import { lower, activityNamed, reductionFor, holdsFor, itemsNamed, featureNamed } from "../lookup.js";
 import { alliesWithin, tokenForUuid } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
+
+/** The item types a reaction's or a spell's row means: a spell or a monster's feature, never the
+ * +1 Shield armor that shares the Shield spell's identifier. */
+export const SPELL_ROW_TYPES = ["spell", "feat"];
 
 /** Is a slot of at least `level` available (including pact magic)? */
 function hasSpellSlot(actor, level) {
@@ -26,15 +30,15 @@ function hasSpellSlot(actor, level) {
   return false;
 }
 
-/** The item that IS this reaction on this actor. ⚠ One name can match several items silently
- * (a worn "Shield" and a cast activity's cached Shield SPELL), hence the preference order. */
+/** The item that IS this reaction on this actor, a spell or a feature. ⚠ One row can match several
+ * (a statblock's feature and a cast activity's cached SPELL), hence the preference order. */
 export function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
   if ( !actor || !reactionName ) return null;
   const cached = activityId
     ? actor.items.get(itemId)?.system.activities?.get(activityId)?.cachedSpell
     : null;
   if ( cached ) return cached;
-  const matches = actor.items.filter(i => i.name.toLowerCase() === reactionName.toLowerCase());
+  const matches = itemsNamed(actor, reactionName, { types: SPELL_ROW_TYPES });
   return matches.find(i => isReactionItem(i) && i.effects.size)
     ?? matches.find(i => isReactionItem(i))
     ?? matches.find(i => i.effects.size)
@@ -49,8 +53,8 @@ export async function usableReaction(actor, name) {
   // ⚠ Statblock first: its "Spellcasting" `cast` ACTIVITY holds the uses; the linked spell has none.
   const cast = await findCastActivity(actor, name);
   if ( cast ) return { item: cast.item, activity: cast.activity };
-  // ⚠ EVERY item of that name — a worn shield and the Shield spell share it.
-  for ( const item of actor.items.filter(i => i.name.toLowerCase() === name.toLowerCase()) ) {
+  // ⚠ EVERY spell or feature answering the row: a worn shield shares the Shield spell's name.
+  for ( const item of itemsNamed(actor, name, { types: SPELL_ROW_TYPES }) ) {
     // A text-only feature (Uncanny Dodge) counts; the answer spends the Reaction chip itself.
     if ( !isReactionItem(item) && !isTextOnlyFeature(item) ) continue;
 
@@ -113,8 +117,8 @@ export function rollRescuesOf(actor) {
     const row = key ? INTERRUPT_ROLLS[key] : null;
     if ( !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
     if ( row.ally ) continue;   // Protection's Disadvantage is for another creature: a guard's row (protectionGuardsOf)
-    const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key))
-      && (!row.uses || (Number(i.system?.uses?.max) > 0)));
+    const item = itemsNamed(actor, key, { types: ["feat"] })
+      .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
     if ( !item ) continue;
     const max = row.uses ? Number(item.system.uses.max) : null;
     out.push({ name: key, row, item, activity: activityNamed(item, row.activity),
@@ -140,7 +144,7 @@ export function protectionGuardsOf(defender, attacker) {
     for ( const token of alliesWithin(guarded, row.ally, [attacker?.uuid]) ) {
       const actor = token.actor;
       if ( out.some(g => g.uuid === actor.uuid) ) continue;
-      const item = actor.items.find(i => (i.type === "feat") && (lower(i.name) === lower(key)));
+      const item = featureNamed(actor, key);
       if ( !item || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
       out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id,
         activityId: activityNamed(item, row.activity)?.id ?? null, passed: false });
@@ -217,26 +221,25 @@ export function rescueRowsNow(actor, target, roll) {
 }
 
 /** The spell a `cast` activity casts — the link, never the activity's own name. */
-async function castSpellName(activity) {
+async function castSpellOf(activity) {
   if ( activity?.type !== "cast" ) return null;
   const uuid = activity.spell?.uuid;
   if ( !uuid ) return null;
-  try { return (await fromUuid(uuid))?.name ?? null; } catch { return null; }
+  try { return (await fromUuid(uuid)) ?? null; } catch { return null; }
 }
 
 /** Whatever a used activity should be MATCHED against: its linked spell, or its item. */
-export async function reactionNameFor(activity) {
-  return (await castSpellName(activity)) ?? activity?.item?.name ?? null;
+export async function reactionItemFor(activity) {
+  return (await castSpellOf(activity)) ?? activity?.item ?? null;
 }
 
-/** A reaction `cast` activity for the named spell. ⚠ No pool is AT-WILL (`uses.max: ""`). */
+/** A reaction `cast` activity for the row's spell. ⚠ No pool is AT-WILL (`uses.max: ""`). */
 async function findCastActivity(actor, spellName) {
-  const wanted = spellName?.toLowerCase();
   for ( const item of actor.items ) {
     for ( const activity of item.system?.activities?.contents ?? [] ) {
       if ( activity.type !== "cast" ) continue;
       if ( activity.activation?.type !== "reaction" ) continue;
-      if ( (await castSpellName(activity))?.toLowerCase() !== wanted ) continue;
+      if ( !answers(spellName, await castSpellOf(activity), SPELL_ROW_TYPES) ) continue;
       const max = Number(activity.uses?.max);
       const pooled = Number.isFinite(max) && (max > 0);
       if ( pooled && !(Number(activity.uses?.value) > 0) ) continue;   // pool exists, spent

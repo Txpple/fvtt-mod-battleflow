@@ -372,6 +372,50 @@ export const EVASION = Object.freeze({
   rule: "When you’re subjected to an effect that allows you to make a Dexterity saving throw to take only half damage, you instead take no damage if you succeed on the save and only half damage if you fail. You can’t use this feature if you have the Incapacitated condition."
 });
 
+/*
+ * HOW A ROW NAMES ITS CONTENT. A row is keyed by the item's English name and FINDS the item by dnd5e's
+ * `system.identifier`, stamped at creation and kept through a rename ("Heat Metal - Spellcasting" is
+ * `heat-metal`); the name is the fallback, for an item with no identifier or another one.
+ * `tools/check-identifiers.mjs` proves every row's identifier against the packs' snapshot.
+ */
+
+/** A row whose content's identifier is not its name's slug, name → identifier. None today. */
+export const ALIASES = Object.freeze({});
+
+/** The slug dnd5e's packs give a name: lower-case, apostrophes dropped, any other run one hyphen. */
+const slug = name => String(name ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+  .replace(/[’'"]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+/** The identifier a row's name finds its item by. */
+export function identifierOf(name) {
+  const aliased = /** @type {Record<string, string>} */ (ALIASES)[String(name)];
+  return aliased ?? slug(name);
+}
+
+/**
+ * How an item answers a row: "identifier", "name" (the fallback), or null.
+ * @param {string} key  the row's name
+ * @param {{ name?: string|null, identifier?: string|null, type?: string|null, system?: { identifier?: string|null } }|null|undefined} item
+ *   an Item (its `system.identifier` is read) or a plain `{ name, identifier, type }`
+ * @param {string[]|null} [types]  the item types the row means; null for any
+ * @returns {"identifier"|"name"|null}
+ */
+export function matchOf(key, item, types = null) {
+  if ( !item || !key ) return null;
+  if ( types && !types.includes(String(item.type ?? "")) ) return null;
+  const identifier = item.system?.identifier ?? item.identifier ?? null;
+  if ( identifier && (identifier === identifierOf(key)) ) return "identifier";
+  return (String(item.name ?? "").toLowerCase() === String(key).toLowerCase()) ? "name" : null;
+}
+
+/**
+ * Does this item answer the row?
+ * @param {string} key
+ * @param {Parameters<typeof matchOf>[1]} item
+ * @param {string[]|null} [types]
+ */
+export const answers = (key, item, types = null) => !!matchOf(key, item, types);
+
 /**
  * A name-keyed table's closed, lower-cased name set and its case-insensitive lookups. `keyOf` names the
  * column a list validates against when it is not the key.
@@ -380,7 +424,8 @@ export const EVASION = Object.freeze({
  * @template T
  * @param {Record<string, T>} table
  * @param {((row: T, key: string) => string) | null} [keyOf]
- * @returns {{ names: Set<string>, keyNamed: (name: unknown) => string | null, rowNamed: (name: unknown) => (T & { key: string }) | null }}
+ * @returns {{ names: Set<string>, keyNamed: (name: unknown) => string | null, rowNamed: (name: unknown) => (T & { key: string }) | null,
+ *   keyFor: (item: any) => string | null, rowFor: (item: any) => (T & { key: string }) | null }}
  */
 export function tableIndex(table, keyOf = null) {
   const keys = Object.keys(table);
@@ -394,7 +439,23 @@ export function tableIndex(table, keyOf = null) {
     const k = keyNamed(name);
     return k ? { key: k, .../** @type {T} */ (table[k]) } : null;
   };
-  return { names, keyNamed, rowNamed };
+  // An item's row: its identifier first, then its name.
+  const byIdentifier = new Map();
+  for ( const k of keys ) {
+    const identifier = identifierOf(keyOf ? keyOf(/** @type {T} */ (table[k]), k) : k);
+    if ( !byIdentifier.has(identifier) ) byIdentifier.set(identifier, k);   // the first row, as keyNamed
+  }
+  /** @param {Parameters<typeof matchOf>[1]} item */
+  const keyFor = item => {
+    const identifier = item?.system?.identifier ?? item?.identifier ?? null;
+    return (identifier && byIdentifier.get(identifier)) || keyNamed(item?.name);
+  };
+  /** @param {Parameters<typeof matchOf>[1]} item */
+  const rowFor = item => {
+    const k = keyFor(item);
+    return k ? { key: k, .../** @type {T} */ (table[k]) } : null;
+  };
+  return { names, keyNamed, rowNamed, keyFor, rowFor };
 }
 
 
@@ -1413,8 +1474,6 @@ export const clockRiderEntries = () => everyRow(Object.values(CLOCK_RIDERS).map(
 export const hitMenuEntries = () => everyRow(Object.values(HIT_OPTIONS).map(r => r.feature));
 export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
 export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
-export const spentAreaEntries = () => everyRow(Object.keys(SPENT_AREAS));
-export const chosenAreaEntries = () => everyRow(Object.keys(CHOSEN_AREAS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
@@ -1433,14 +1492,20 @@ export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES
 export const effectChoiceEntries = () => everyRow(Object.keys(EFFECT_CHOICES));
 export const metamagicEntries = () => everyRow(Object.keys(METAMAGIC));
 
-/** Is this area's item one swept at the last verdict whatever its data says? */
-export function spentAreaListed(itemName) {
-  const wanted = String(itemName ?? "").toLowerCase();
-  return !!wanted && spentAreaEntries().some(e => e.kind === wanted);
+/**
+ * Is this area's item one swept at the last verdict whatever its data says?
+ * @param {Parameters<typeof matchOf>[1]|string|null|undefined} item  the item, or a name off a flag
+ */
+export function spentAreaListed(item) {
+  const index = tableIndex(SPENT_AREAS);
+  return !!((typeof item === "string") ? index.keyNamed(item) : index.keyFor(item));
 }
 
-/** Is this spell one whose caster chooses who its area affects? */
-export function chosenAreaListed(itemName) {
-  const wanted = String(itemName ?? "").toLowerCase();
-  return !!wanted && chosenAreaEntries().some(e => e.kind === wanted);
+/**
+ * Is this spell one whose caster chooses who its area affects?
+ * @param {Parameters<typeof matchOf>[1]|string|null|undefined} item  the item, or a name off a flag
+ */
+export function chosenAreaListed(item) {
+  const index = tableIndex(CHOSEN_AREAS);
+  return !!((typeof item === "string") ? index.keyNamed(item) : index.keyFor(item));
 }

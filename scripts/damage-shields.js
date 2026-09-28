@@ -10,7 +10,7 @@ import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { bfCard, ruleLine } from "./decide/present.js";
-import { DAMAGE_SHIELDS, tableIndex } from "./decide/registry.js";
+import { DAMAGE_SHIELDS, answers, tableIndex } from "./decide/registry.js";
 import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType } from "./decide/shields.js";
 import { messageActivity } from "./effect-riders.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -22,7 +22,7 @@ import { CARD, castLevelOn, isCard } from "./decide/card.js";
  * the elect as the DEFENDER's, one per ward per hit, claimed BEFORE the dice (`damageShields.paid`). */
 
 const listed = () => listedNames(damageShieldEntries());
-const { rowNamed } = tableIndex(DAMAGE_SHIELDS);
+const { rowFor } = tableIndex(DAMAGE_SHIELDS);
 
 /**
  * Every listed ward standing on this creature, one entry per ward; an unwalkable source falls back
@@ -48,7 +48,7 @@ function shieldsOn(defender) {
       } else {
         if ( !wanted.has(lower(effect.name)) ) continue;
         source = effectSourceOf(effect);
-        if ( source && (lower(source.item?.name) !== lower(key)) ) source = null;
+        if ( source && !answers(key, source.item) ) source = null;
         if ( !source ) {
           const own = itemNamed(defender, key);
           if ( own ) source = { actor: defender, item: own };
@@ -223,7 +223,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
     const item = activity?.item;
     const actor = activity?.actor;
     if ( !item || !actor?.isOwner ) return;
-    const row = rowNamed(item.name);
+    const row = rowFor(item);
     if ( !row?.mark || !listed().has(lower(row.key)) ) return;
     if ( row.cast && (lower(activity.name) !== lower(row.cast)) ) return;
     const message = (results?.message instanceof ChatMessage) ? results.message : null;

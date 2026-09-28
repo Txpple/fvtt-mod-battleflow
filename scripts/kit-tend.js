@@ -5,8 +5,8 @@
  * the feature's OWN heal activity of that size at it, so the healing rerolls and cast applier carry the rest.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, canApplyTo, drivesMomentFor, statContext, whisperNoGM, decisionWindow } from "./core.js";
-import { lower, resolveUuid } from "./lookup.js";
-import { kitTendEntries, listedNames } from "./decide/registry.js";
+import { featureNamed, lower, resolveUuid } from "./lookup.js";
+import { answers, kitTendEntries, listedNames } from "./decide/registry.js";
 import { KIT_TENDS } from "./decide/registry.js";
 import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML, tickRowsHTML } from "./decide/present.js";
 import { targetsOf } from "./decide/card.js";
@@ -23,8 +23,8 @@ const timers = new Map();
 function rowFor(actor, item) {
   const on = listedNames(kitTendEntries());
   for ( const [name, row] of Object.entries(KIT_TENDS) ) {
-    if ( !on.has(lower(name)) || (lower(item?.name) !== lower(row.kit)) ) continue;
-    const feature = actor?.items?.find(i => (i.type === "feat") && (lower(i.name) === lower(name)));
+    if ( !on.has(lower(name)) || !answers(row.kit, item) ) continue;
+    const feature = featureNamed(actor, name);
     if ( feature ) return { name, row, feature };
   }
   return null;
