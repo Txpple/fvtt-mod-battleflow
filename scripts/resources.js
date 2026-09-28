@@ -10,6 +10,7 @@ import { esc, spendLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf } from "./decide/card.js";
 import { cardItem } from "./lookup.js";
+import { listen } from "./dispatch.js";
 
 const flashed = new Set();
 // Flashes held for an ability's own dice — usage message id → the armed flash.
@@ -94,7 +95,7 @@ function releasePending(message) {
   }
 }
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "resources", message => {
   if ( !setting(S.resourceNotices) ) return;
   releasePending(message);
   // History is inert: render-resume and scrollback must never flash last week's spends.
@@ -120,7 +121,7 @@ Hooks.on("createChatMessage", message => {
 
 // A HAND spend arrives as an UPDATE (Parry's answer folds onto the attack message). Same idiom:
 // young messages only, each record flashed once per client, named by the record itself.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "resources", message => {
   if ( !setting(S.resourceNotices) ) return;
   const rows = spendRows(message).filter(r => r.at);
   if ( !rows.length ) return;
@@ -135,7 +136,7 @@ Hooks.on("updateChatMessage", message => {
 // The ledger's spend record, stamped by the ELECT at CREATION only: a late stamp would put NOW's
 // turn on an old spend. ⚠ No setting gates it; a toggle would punch holes in the ledger.
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "resources", message => {
   if ( !isActiveGM() ) return;
   if ( message.getFlag(MODULE_ID, "spend") ) return;   // never re-stamp
   const rows = spendRows(message);
@@ -151,7 +152,7 @@ Hooks.on("createChatMessage", message => {
 
 // The durable record: one line on the usage card, every render, idempotent.
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "resources", (message, html) => {
   if ( !setting(S.resourceNotices) ) return;
   const rows = spendRows(message);
   if ( !rows.length ) return;

@@ -14,6 +14,7 @@ import { bfCard, esc } from "./decide/present.js";
 import { dramaticVerdictPause, registerResumable } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const HEAL_FLAG = "healReroll";
 const offering = new Set();
@@ -32,7 +33,7 @@ function rowFor(actor) {
 
 /* --- the birth flag: due, and Battle Medic's own r1 taken off ---------------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "heal-rerolls", (config, _dialog, message) => {
   try {
     const rolls = config?.rolls ?? [];
     if ( !rolls.some(r => (r?.options?.type ?? null) === "healing") ) return;
@@ -56,12 +57,12 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 
 /* --- the promotion: due → pending when a 1 shows, "none" when none does ------------------------ */
 
-Hooks.on("dnd5e.rollDamageV2", rolls => {
+listen("dnd5e.rollDamageV2", "heal-rerolls", rolls => {
   const message = rolls?.[0]?.parent;
   if ( message instanceof ChatMessage ) void promote(message);
 });
 
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "heal-rerolls", message => {
   const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
   if ( (flag?.status === "due") && message.isAuthor ) void promote(message);
 });
@@ -202,7 +203,7 @@ function cardLine(flag) {
   }
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, HEAL_FLAG);
     if ( !flag || (flag.status === "none") ) return;

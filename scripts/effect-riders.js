@@ -9,6 +9,7 @@ import { CHIP_FLAG, TURN_PINNED, chipClock } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
 import { chipData, placeOf, statSourceOf, turnPlace } from "./shared.js";
 import { METAMAGIC_FLAG, extendedDuration } from "./decide/metamagic.js";
+import { listen } from "./dispatch.js";
 
 export function messageActivity(message) {
   return cardActivity(message);
@@ -170,7 +171,7 @@ export async function revertEffect(message, targetUuid, effectId) {
 
 /* THE TWIN FLOOR. ⚠ `isActiveGM()` is per-USER: two sessions on one account both apply. A
  * fingerprinted newcomer with an ELDER same-name, same-origin twin deletes itself. */
-Hooks.on("createActiveEffect", effect => {
+listen("createActiveEffect", "effect-riders", effect => {
   if ( !isActiveGM() ) return;
   const actor = effect.parent;
   if ( !(actor instanceof Actor) ) return;

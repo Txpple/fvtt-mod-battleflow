@@ -6,10 +6,11 @@ import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWin
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
+import { listen } from "../dispatch.js";
 
 // Any reaction use writes the reaction-spent chip (ARCHITECTURE.md §6); the reactor's own client
 // writes it when no GM is on.
-Hooks.on("dnd5e.postUseActivity", activity => {
+listen("dnd5e.postUseActivity", "hold/trigger", activity => {
   if ( !drivesMomentFor(activity?.actor?.uuid ?? null) ) return;
   if ( activity?.activation?.type !== "reaction" ) return;
   void spendReaction(activity.actor, { origin: activity.item?.uuid ?? null, what: activity.item?.name ?? "a Reaction" });

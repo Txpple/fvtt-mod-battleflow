@@ -16,6 +16,7 @@ import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { isPartyMember } from "./shared.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable } from "./ui.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
 const GRANT_WRITES = {
@@ -40,7 +41,7 @@ function grantsFor(actor, restType) {
   return out;
 }
 
-Hooks.on("dnd5e.preRestCompleted", (actor, result, config) => {
+listen("dnd5e.preRestCompleted", "rest-grants", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !result?.updateData ) return;
     const grants = grantsFor(actor, result.type ?? config?.type ?? "long");
@@ -53,7 +54,7 @@ Hooks.on("dnd5e.preRestCompleted", (actor, result, config) => {
 });
 
 // The rest card says what was gained — stamped once the card exists.
-Hooks.on("dnd5e.restCompleted", (_actor, result) => {
+listen("dnd5e.restCompleted", "rest-grants", (_actor, result) => {
   const grants = result?.bfRestGrants;
   const message = result?.message;
   if ( !grants?.length || !message?.isOwner ) return;
@@ -61,7 +62,7 @@ Hooks.on("dnd5e.restCompleted", (_actor, result) => {
     .catch(err => console.error(`${TITLE} | Rest grant line failed.`, err));
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
     const grants = message.getFlag(MODULE_ID, "restGrant");
     if ( !grants?.length ) return;
@@ -206,7 +207,7 @@ function grantText(flag) {
 
 // Every Short Rest card records the Hit Dice its creature spent (dnd5e's card says it only in
 // words), on the resting client, which authored the card.
-Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
   try {
     const type = result?.type ?? config?.type;
     const message = result?.message;
@@ -218,7 +219,7 @@ Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
   }
 });
 
-Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     const restType = result?.type ?? config?.type ?? "long";
@@ -255,7 +256,7 @@ Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
 
 // The rest card's own activity list: the pack ships one activity per ability and the feat raised
 // ONE (grantActivityOf); the card keeps that row, called by the row's `label`.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
     if ( message.type !== "rest" ) return;
     const root = html instanceof HTMLElement ? html : html?.[0];
@@ -402,7 +403,7 @@ registerResumable(SONG_FLAG, {
 
 // An eater still resting when the meal was served is healed at its own rest's end, on its own
 // client, if it spent Hit Dice in that rest; a meal from another sitting is dropped.
-Hooks.on("dnd5e.restCompleted", (actor, result, config) => {
+listen("dnd5e.restCompleted", "rest-grants", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !actor.isOwner ) return;
     const fed = actor.getFlag(MODULE_ID, FED_FLAG);
@@ -466,7 +467,7 @@ function syncSongCap(box) {
 }
 
 // A tick pings its creature's token and keeps the cap (Careful's picker, one listener for every popup).
-Hooks.once("ready", () => document.addEventListener("change", ev => {
+listenOnce("ready", "rest-grants", () => document.addEventListener("change", ev => {
   const input = ev.target?.closest?.('input[name="bf-rest-song"]');
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
@@ -486,7 +487,7 @@ function songLine(flag) {
   return `asking ${flag.actorName} who gets ${label}`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, SONG_FLAG);
     if ( !flag ) return;
@@ -509,7 +510,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4).
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "rest-grants", message => {
   const flag = message.getFlag(MODULE_ID, SONG_FLAG);
   if ( !flag || (flag.status === "pending") ) return;
   const open = livePopups.get(popupKey(message.id, SONG_FLAG));

@@ -13,6 +13,7 @@ import { lightRowKey, lightChanges, lightTargets, senseRowKey, senseChanges, car
 import { targetsOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 // TOKEN LIGHTS (registry TOKEN_LIGHTS): a `token.*` change on an effect lights the bearer's tokens and
 // lives the effect's life; no token document is written. `self`: the pack's Searing Radiance sits on a
@@ -31,7 +32,7 @@ function rowFor(activity) {
 
 // A `targets` row cast AT someone lights them, not a summoned object: the system's summon prompt
 // is switched off for that use only.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+listen("dnd5e.preUseActivity", "token-lights", (activity, usageConfig) => {
   try {
     const row = rowFor(activity);
     if ( (row?.on !== "targets") || !game.user.targets.size ) return;
@@ -40,7 +41,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not switch off the summon for a token light.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "token-lights", (activity, _usageConfig, results) => {
   try {
     const row = rowFor(activity);
     const actor = activity?.actor;
@@ -158,7 +159,7 @@ registerResumable(LIGHT_FLAG, {
 
 /* --- the card says it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
   const f = message.getFlag(MODULE_ID, LIGHT_FLAG);
   if ( !f?.done || !(f.landed || f.skipped) ) return;
   const row = TOKEN_LIGHTS[f.key];
@@ -182,7 +183,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 // TOKEN SENSES (registry TOKEN_SENSES): the pack's own effect gains the changes as it is created, on
 // whichever client creates it.
 
-Hooks.on("preCreateActiveEffect", (effect, data) => {
+listen("preCreateActiveEffect", "token-lights", (effect, data) => {
   try {
     if ( !(effect.parent instanceof Actor) ) return;   // the item's own copy stays as the pack ships it
     const key = senseRowKey(TOKEN_SENSES, effect.name, listedNames(tokenSenseEntries()));
@@ -196,7 +197,7 @@ Hooks.on("preCreateActiveEffect", (effect, data) => {
 // TOKEN SIZES: the senses' shape — size, width and height added as the pack's effect is created; a step
 // counts from the bearer's size at that moment.
 
-Hooks.on("preCreateActiveEffect", (effect, data) => {
+listen("preCreateActiveEffect", "token-lights", (effect, data) => {
   try {
     const actor = effect.parent;
     if ( !(actor instanceof Actor) ) return;

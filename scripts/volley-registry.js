@@ -7,6 +7,7 @@
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { VOLLEY_KINDS, matchOf } from "./decide/registry.js";
+import { listenOnce } from "./dispatch.js";
 
 /** Eldritch Blast's beams band by CHARACTER level (an NPC's CR stands in); unreadable → 0, native. */
 function eldritchBlastBeams({ rollData }) {
@@ -58,7 +59,7 @@ export function resolveVolleyCount(entry, activity, castLevel) {
   } catch { return 0; }
 }
 
-Hooks.once("init", () => {
+listenOnce("init", "volley-registry", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { volleyRegistry: VOLLEY_REGISTRY });
 });

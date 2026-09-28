@@ -16,10 +16,11 @@ import { openSaveDialog, armSaveTimer, disarmSaveTimer, rollSaveItself } from ".
 import { armSaveChoiceTimer, disarmSaveChoiceTimer, showSaveChoicePopup } from "./choices.js";
 import { SURFACES } from "../surfaces.js";
 import { CARD, isCard, resistedOf } from "../decide/card.js";
+import { listen } from "../dispatch.js";
 
 /* --- the answer channels and the resume discipline ------------------------------------------- */
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "saves/views", message => {
   // A save roll folds into the demand it answers; the demand names its own driver, so the gate sits inside.
   if ( isCard(message, CARD.save) ) {
     const found = saveAnsweredBy(message);
@@ -35,7 +36,7 @@ Hooks.on("createChatMessage", message => {
   }
 });
 
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "saves/views", message => {
   // Legendary resistance: a save flipped to success after the fact.
   if ( isCard(message, CARD.save) && resistedOf(message) ) {
     void flipForcedSave(message);
@@ -81,7 +82,7 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clocks disarm here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "saves/views", message => {
   disarmSaveTimer(message.id);
   disarmSaveChoiceTimer(message.id);
 });
@@ -89,7 +90,7 @@ Hooks.on("deleteChatMessage", message => {
 /* --- the views: the card row and the dialog -------------------------------------------------- */
 
 // A spell that chooses its targets: who its area affects, one line above the demand's rows.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
   const record = message.getFlag(MODULE_ID, AREA_CHOICE_FLAG);
   if ( !Array.isArray(record?.chosen) ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
@@ -101,7 +102,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
   content.appendChild(line);
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
   const flag = message.getFlag(MODULE_ID, "saves");
   if ( !flag ) return;
 

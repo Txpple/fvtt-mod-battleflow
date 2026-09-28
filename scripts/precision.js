@@ -13,17 +13,16 @@ import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor } from ".
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRescue,
   syncRescuePopup } from "./ui.js";
-// Safe statically: the entry evaluates auto-damage.js first. Re-run check-hook-order if this
-// file's entry position moves.
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 const precisionTimers = new Map();
 const precisionInFlight = new Set();
 
 /** Stamp: the roller's own client, on the attack message it authored. */
-Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+listen("dnd5e.rollAttackV2", "precision", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;
@@ -249,7 +248,7 @@ async function mootPrecision(message) {
 
 // The row on the attack card, the watcher, the cleanup.
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "precision", (message, html) => {
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
     const row = document.createElement("div");
@@ -287,7 +286,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "precision", message => {
   const p = message.getFlag(MODULE_ID, "precision");
   if ( p ) {
     // The premise is re-derived every update: once any fold makes it a hit, the offer goes.
@@ -302,6 +301,6 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "precision", message => {
   disarmAskTimer(precisionTimers, message.id);
 });

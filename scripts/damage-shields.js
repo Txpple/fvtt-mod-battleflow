@@ -17,6 +17,7 @@ import { messageActivity } from "./effect-riders.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, castLevelOn, isCard } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 /* THE WARD: found by the pack's effect NAME and walked to its source (the warded creature need not
  * be the caster). THE HIT: judged ONCE on the elect, after any hold settled. THE PAYOUT: rolled by
@@ -219,7 +220,7 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
 /* --- the mark: a ward the pack ships no effect for (Armor of Agathys) ------------------------ */
 
 // The casting client writes a chip named as the spell (the use-chip idiom); refreshed, never doubled.
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "damage-shields", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
     const actor = activity?.actor;
@@ -254,7 +255,7 @@ async function writeMark(actor, item, row, { spellLevel, scaling, message }) {
 }
 
 // The pool at zero ends the mark, on the bearer's elect; the strike that emptied it has already paid.
-Hooks.on("updateActor", (actor, changes) => {
+listen("updateActor", "damage-shields", (actor, changes) => {
   try {
     if ( !(actor instanceof Actor) ) return;
     if ( foundry.utils.getProperty(changes, "system.attributes.hp.temp") === undefined ) return;
@@ -288,7 +289,7 @@ async function endMarks(actor, marks) {
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "damage-shields", (message, html) => {
   const ds = message.getFlag(MODULE_ID, "damageShield");
   if ( ds ) {
     const line = document.createElement("div");

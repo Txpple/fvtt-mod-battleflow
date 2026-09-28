@@ -13,6 +13,7 @@ import { dispositionStyle } from "./shared.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 const SWAP_FLAG = "initiativeSwap";
 /** The combat's own latch — which combatants were already asked (once per combat). */
@@ -37,7 +38,7 @@ const incapacitated = actor => !!actor?.statuses?.has?.("incapacitated");
 
 /* --- the moment: the last Initiative lands --------------------------------------------------------- */
 
-Hooks.on("updateCombatant", (combatant, changes) => {
+listen("updateCombatant", "initiative-swap", (combatant, changes) => {
   if ( !("initiative" in (changes ?? {})) || !isActiveGM() ) return;
   const combat = combatant.parent;
   if ( !combat ) return;
@@ -48,7 +49,7 @@ Hooks.on("updateCombatant", (combatant, changes) => {
 
 // ⚠ The tracker's "Reset Initiative" is ONE Combat update (Combat#resetAll), not a combatant
 // update: no updateCombatant fires, so the re-arm reads the combat's update too.
-Hooks.on("updateCombat", (combat, changes) => {
+listen("updateCombat", "initiative-swap", (combat, changes) => {
   if ( !("combatants" in (changes ?? {})) || !isActiveGM() ) return;
   rearm(combat);
 });
@@ -250,7 +251,7 @@ async function showSwapPopup(message) {
 }
 
 // A pick pings its creature's token and lights Swap (one listener for every popup).
-Hooks.once("ready", () => document.addEventListener("change", ev => {
+listenOnce("ready", "initiative-swap", () => document.addEventListener("change", ev => {
   const input = ev.target?.closest?.('input[name="bf-initiative-swap"]');
   if ( !input ) return;
   const tok = input.dataset.token ? canvas?.tokens?.get(input.dataset.token) : null;
@@ -277,7 +278,7 @@ function swapLine(flag) {
   return `asking ${flag.actorName} about a swap (Initiative ${flag.initiative})`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "initiative-swap", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
     if ( !flag ) return;
@@ -303,7 +304,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "initiative-swap", message => {
   const flag = message.getFlag(MODULE_ID, SWAP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
@@ -334,4 +335,4 @@ function floatSwap(message, flag) {
   } catch(err) { console.warn(`${TITLE} | The initiative swap's floating text could not draw.`, err); }
 }
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "initiative-swap", message => { disarmDeadline(timers, message.id); });

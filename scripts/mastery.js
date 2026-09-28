@@ -16,6 +16,7 @@ import { registerOfferPart } from "./auto-damage.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 // The system stamps a mastery on the attack message only when the wielder has it (eligibility is
 // pre-solved; the owner is always the attacking player). Vex/Sap/Slow = chips, Topple = save card,
@@ -122,7 +123,7 @@ export async function resolveHitMastery(damageMessage, attackMessage, hits) {
 
 // Graze pays on the MISS (no damage message), read as rolled: a later Shield does not re-open it
 // (RULINGS *Where the table bends the rule*).
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "mastery", message => {
   if ( !isCard(message, CARD.attack) ) return;
   if ( masteryOf(message) !== "graze" ) return;
   if ( !drivesMomentFor(masteryContext(message)?.attacker?.uuid ?? null) ) return;
@@ -428,7 +429,7 @@ registerOfferPart({
 
 // THE STRIP, on whichever client rolls the damage, before the dice. A NEGATIVE modifier stays (as
 // dnd5e's own off-hand rule, AttackActivity#_processDamagePart).
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "mastery", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -505,7 +506,7 @@ async function executeMasteryAnswer(message) {
 }
 
 // The answer channel: every client closes an answered popup; the elect executes.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "mastery", message => {
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
     const dialog = livePopups.get(popupKey(message.id, "mastery"));
@@ -520,7 +521,7 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "mastery", message => {
   disarmMasteryTimer(message.id);
 });
 
@@ -551,7 +552,7 @@ async function showMasteryPopup(message, m) {
 }
 
 // The card rows: the ask, the notice and the strip's receipt. Stateless.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
     const row = document.createElement("div");

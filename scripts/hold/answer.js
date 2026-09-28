@@ -14,6 +14,7 @@ import { lower, holdsFor } from "../lookup.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent } from "../shared.js";
 import { registerRelay } from "../ui.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
+import { listen } from "../dispatch.js";
 
 /**
  * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
@@ -145,7 +146,7 @@ registerRelay("respondsTo", {
 });
 
 // The cast IS the answer: a listed reaction cast from the sheet answers its own hold.
-Hooks.on("dnd5e.postUseActivity", activity => {
+listen("dnd5e.postUseActivity", "hold/answer", activity => {
   const actor = activity?.actor;
   // A `roll` row (Lucky's "Disadvantage" is no Reaction) is checked before the activation gate.
   const bends = rollRowUsed(activity);

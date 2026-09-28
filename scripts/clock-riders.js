@@ -14,6 +14,7 @@ import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decid
 import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 // Clock riders (registry CLOCK_RIDERS) use hit-riders' seam — `preRollDamageV2` on the roller's client, the
 // rider its own part, crit-doubled with the weapon's dice. ⚠ An unresolved token in the dice rolls ZERO in
@@ -148,7 +149,7 @@ registerOfferPart({
 
 /* --- the rider: the clock's extra damage rides the weapon's roll ---------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "clock-riders", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -260,7 +261,7 @@ registerResumable("clockRiders", {
 
 /** A `forms` row reads the FORM that stands. Necrotic Shroud lands its effect on the frightened, never on
  * the bearer, so its use writes the module's own form chip (deleted by hand to end it early). */
-Hooks.on("dnd5e.postUseActivity", activity => {
+listen("dnd5e.postUseActivity", "clock-riders", activity => {
   try {
     const actor = activity?.actor;
     const item = activity?.item;
@@ -322,7 +323,7 @@ function spellRidersFor(caster) {
   return out;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   try {
     const picked = message.getFlag(MODULE_ID, SPELL_FLAG) ?? {};
     // What was picked, on every client (R5): the card names where the extra went.
@@ -408,7 +409,7 @@ registerResumable(SPELL_FLAG, {
 
 /* --- the card says it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
   if ( !cr?.riders?.length ) return;
   for ( const r of cr.riders ) {

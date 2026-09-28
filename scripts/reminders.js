@@ -19,6 +19,7 @@ import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
   reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
+import { listen } from "./dispatch.js";
 
 /** The names a sheet's feats are read in: the feature rows of the effect table, and the range feats. */
 const EFFECT_FEATURE_KEYS = Object.entries(EFFECT_BENDS).filter(([, r]) => r.match === "feature")
@@ -50,7 +51,7 @@ function distantRangeOn(message) {
 /** The dialogs standing with a gate in them, re-judged on a re-target. */
 const openGates = new Set();
 
-Hooks.on("dnd5e.preRollAttackV2", (config, dialog, message) => {
+listen("dnd5e.preRollAttackV2", "reminders", (config, dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -98,7 +99,7 @@ const coverOf = actor => {
 
 /* Cover at the attack, per recorded target: MEASURED cover raises the recorded AC over the carried
  * cover (RULINGS *Measured cover*), then a BYPASS feat records the AC without it. */
-Hooks.on("dnd5e.preRollAttackV2", (config, _dialog, message) => {
+listen("dnd5e.preRollAttackV2", "reminders", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -148,7 +149,7 @@ const degreeOf = bonus => COVER_DEGREES.find(d => d.bonus === bonus) ?? COVER_DE
 const COVER_TONE = { none: TONE.good, half: TONE.pending, threeQuarters: TONE.pending, total: TONE.bad };
 
 // The cover row under the card's header: per target, the degree and the feat that ignored it.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverMeasured");
     if ( !flag?.targets?.length ) return;
@@ -180,7 +181,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // the line: "Sharpshooter — ignores the Goblin's cover (+2 AC)"
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
   try {
     const flag = message.getFlag?.(MODULE_ID, "coverIgnored");
     if ( !flag?.targets?.length || message.getFlag?.(MODULE_ID, "coverMeasured") ) return;   // the cover row says it
@@ -239,7 +240,7 @@ function drawGate(app, { force = false } = {}) {
 }
 
 // Re-renders replace only the formula part; the section is a sibling after CONFIGURATION.
-Hooks.on("renderRollConfigurationDialog", (app, element) => {
+listen("renderRollConfigurationDialog", "reminders", (app, element) => {
   try {
     const check = app.options?.bfCheckGate;
     if ( check ) drawCheckGate(element, check);
@@ -255,7 +256,7 @@ Hooks.on("renderRollConfigurationDialog", (app, element) => {
 });
 
 // A re-target fires no dialog render; the judgement follows the canvas.
-Hooks.on("targetToken", () => {
+listen("targetToken", "reminders", () => {
   for ( const app of openGates ) {
     if ( app.rendered && app.element ) { try { drawGate(app, { force: true }); } catch(err) { console.error(`${TITLE} | Reminder section failed to redraw.`, err); } }
     else openGates.delete(app);
@@ -264,7 +265,7 @@ Hooks.on("targetToken", () => {
 
 /* THE CHECK GATE: checks, skills and tools meet the same machine (CHECK_BENDS); nothing applied.
  * ⚠ Initiative is OUT by design (its hookNames carry `initiativeDialog`, the skip). */
-Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog, _message) => {
+listen("dnd5e.preRollAbilityCheckV2", "reminders", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     if ( config?.hookNames?.includes?.("initiativeDialog") ) return;
@@ -318,7 +319,7 @@ function drawCheckGate(element, gate) {
 }
 
 // The check's record: the attack's flag, on the check's message.
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
+listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfCheckGate;
     if ( !gate?.sources?.length || !rolls?.length ) return;
@@ -333,7 +334,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
 });
 
 // The attack's record: what was shown, the net, what was pressed — only with rolls in hand.
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
+listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfReminder;
     if ( !gate || !rolls?.length || (config.subject?.type !== "attack") ) return;
@@ -584,7 +585,7 @@ function sneakFactsFor(attacker, activity, attackMode, net, targets = []) {
 /* --- the card line -------------------------------------------------------------------------- */
 
 // The attack card says a Sneak Attack was ARMED; the damage card says what rode.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
   const s = message.getFlag(MODULE_ID, "sneak");
   if ( !s?.armed ) return;
   const line = document.createElement("div");
@@ -597,7 +598,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // The reminder row rides cardRow: dnd5e 6 draws a save's roll inside the usage card.
-Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
+listen("dnd5e.renderChatMessage", "reminders", cardRow((message, host) => {
   const r = message.getFlag(MODULE_ID, REMINDER_FLAG);
   if ( !r?.sources?.length ) return;
   const line = document.createElement("div");
@@ -687,7 +688,7 @@ function pendingDemandFor(actor) {
 }
 
 // The save gate, on every saving throw that opens a dialog (a demand's or a sheet roll's).
-Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog, _message) => {
+listen("dnd5e.preRollSavingThrowV2", "reminders", (config, dialog, _message) => {
   try {
     if ( dialog?.configure === false ) return;       // no dialog, no gate
     const actor = config?.subject;
@@ -784,7 +785,7 @@ function postSheetAutoFail(gate) {
 }
 
 // The save's record: the attack gate's flag, on the save message.
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
+listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, message) => {
   try {
     const gate = config?.bfSaveGate;
     if ( !gate?.sources?.length || !rolls?.length ) return;

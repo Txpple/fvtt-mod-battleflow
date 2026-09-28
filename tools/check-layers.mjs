@@ -140,9 +140,10 @@ export const LAYER_OF = {
   "decide/effect-view.js": "decision", // the effect view's rows — which effects are listed, how each is toned
   "decide/card.js": "decision",        // THE CARD SEAM — what kind of card, whose, from which, off the typed message
 
-  // CORE — the leaf: ids, settings accessor, the elect, the flag serializer
+  // CORE — the leaves: ids, settings accessor, the elect, the flag serializer
   "core.js": "core",
-  "surfaces.js": "core"   // THE SURFACES MAP — every platform HTML anchor, a second leaf; imports nothing
+  "surfaces.js": "core",   // THE SURFACES MAP — every platform HTML anchor, a second leaf; imports nothing
+  "dispatch.js": "core"    // THE HOOK DISPATCHER — one listener per hook, the handlers in ORDER; a third leaf
 };
 
 /* ---------------------------------------------------------------------------------------------
@@ -174,9 +175,9 @@ const ALLOW = [
   },
   {
     from: "auto-damage.js", to: "hold/index.js", disposition: "PERMANENT",
-    why: "hold's own feature API (stampHoldIfInterrupted) on the deliberate order-pinning edge; "
-      + "the paired bare `import \"../auto-damage.js\"` in hold/index.js is what fixes evaluation order "
-      + "(§7, D6) — breaking it drops the damage-offer bar below the hold row"
+    why: "hold's own feature API (stampHoldIfInterrupted): the attack's damage roll is born holding "
+      + "when a reaction is pending, and the service that rolls it is the one place that knows the "
+      + "roll exists. The cycle back through hold/continue.js is a hoisted function called at hook time"
   },
   {
     from: "auto-apply.js", to: "mastery.js", disposition: "PERMANENT",
@@ -212,10 +213,8 @@ const ALLOW = [
   },
   {
     from: "saves/verdict.js", to: "receipts.js", disposition: "OPEN (D9)",
-    why: "revertTarget, lazy on purpose — a static import would evaluate receipts.js first and "
-      + "register its render row above the verdict row (the ESM order trap; the legendary-"
-      + "resistance unwind). receipts.js is classed a machine because revertTarget has exactly "
-      + "one importer; a second one makes it a service"
+    why: "revertTarget, for the legendary-resistance unwind. receipts.js is classed a machine "
+      + "because revertTarget has exactly one importer; a second one makes it a service"
   },
 ];
 

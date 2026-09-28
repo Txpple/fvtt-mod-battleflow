@@ -14,6 +14,7 @@ import { conditionEntries, effectEntries, reminderEntries } from "../decide/regi
 import { foldSaveAnswer, foldSaveAutoFail, foldSaveAutoSucceed } from "./verdict.js";
 import { SURFACES } from "../surfaces.js";
 import { originData } from "../decide/card.js";
+import { listen } from "../dispatch.js";
 
 /** Same-client re-entry latch (render resume + the buzzer can volunteer in one tick). */
 const saveRollsInFlight = new Set();
@@ -135,7 +136,7 @@ function drawSaveDemand(app, element, demand) {
 }
 
 // On every render (the dropdowns re-render); the entry order keeps polish.js and reminders.js first.
-Hooks.on("renderRollConfigurationDialog", (app, element) => {
+listen("renderRollConfigurationDialog", "saves/ask", (app, element) => {
   try {
     const demand = app.options?.bfSaveDemand ?? null;
     // ⚠ A demand carrying `present` is another machine's (ui.js drawDemandFieldset).

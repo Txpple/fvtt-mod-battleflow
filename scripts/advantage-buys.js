@@ -15,6 +15,7 @@ import { ADVANTAGE_BUYS } from "./decide/registry.js";
 import { rollModeOf } from "./decide/chips.js";
 import { REMINDER_FLAG, netMode, reminderRecord, reminderSource } from "./decide/reminders.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 /** The rows this actor can buy on this kind of test — every held row, spent ones greyed (the box says why). */
 function buysFor(actor, testKind) {
@@ -44,7 +45,7 @@ function carry(config, dialog, actor, testKind) {
   config.bfBuy = buy;
 }
 
-Hooks.on("dnd5e.preRollAttackV2", (config, dialog) => {
+listen("dnd5e.preRollAttackV2", "advantage-buys", (config, dialog) => {
   try {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
@@ -53,13 +54,13 @@ Hooks.on("dnd5e.preRollAttackV2", (config, dialog) => {
 });
 
 // Death saves and concentration saves ride this hook too: every one is a D20 Test.
-Hooks.on("dnd5e.preRollSavingThrowV2", (config, dialog) => {
+listen("dnd5e.preRollSavingThrowV2", "advantage-buys", (config, dialog) => {
   try { carry(config, dialog, config?.subject, "save"); }
   catch(err) { console.error(`${TITLE} | Advantage buy (save) failed — rolling natively.`, err); }
 });
 
 // Raw checks, skills, tools and INITIATIVE's dialog (its hookNames carry `initiativeDialog`).
-Hooks.on("dnd5e.preRollAbilityCheckV2", (config, dialog) => {
+listen("dnd5e.preRollAbilityCheckV2", "advantage-buys", (config, dialog) => {
   try {
     const initiative = !!config?.hookNames?.includes?.("initiativeDialog");
     carry(config, dialog, config?.subject, initiative ? "initiative" : "check");
@@ -124,7 +125,7 @@ function renet(app, element) {
   markDefaultButton(element, buy.net);
 }
 
-Hooks.on("renderRollConfigurationDialog", app => {
+listen("renderRollConfigurationDialog", "advantage-buys", app => {
   try {
     if ( !app.options?.bfBuy ) return;
     openBuys.add(app);
@@ -135,7 +136,7 @@ Hooks.on("renderRollConfigurationDialog", app => {
 });
 
 // The attack gate redraws its whole section on a re-target (reminders.js, registered first); the box follows.
-Hooks.on("targetToken", () => {
+listen("targetToken", "advantage-buys", () => {
   for ( const app of openBuys ) {
     if ( app.rendered && app.element ) { try { drawBuy(app); } catch(err) { console.error(`${TITLE} | Advantage buy box failed to redraw.`, err); } }
     else openBuys.delete(app);
@@ -147,7 +148,7 @@ Hooks.on("targetToken", () => {
  * rewritten with the buy among its sources, the spend as `poolSpend`. ⚠ An initiative roll carries
  * the facts on its own options: the combat makes its message later, from a clone.
  */
-Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
+listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog, message) => {
   try {
     const buy = config?.bfBuy;
     if ( !buy || !rolls?.length ) return;
@@ -179,7 +180,7 @@ Hooks.on("dnd5e.postRollConfiguration", (rolls, config, _dialog, message) => {
 });
 
 // An initiative bought through its dialog: the line reads the roll's own options (no gate record).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "advantage-buys", (message, html) => {
   try {
     const bought = message?.rolls?.[0]?.options?.bfBought;
     if ( !bought || !message.getFlag("core", "initiativeRoll") ) return;

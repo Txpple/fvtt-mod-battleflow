@@ -17,6 +17,7 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 const listed = () => listedNames(superiorityUseEntries());
 const { rowFor } = tableIndex(SUPERIORITY_USES);
@@ -40,7 +41,7 @@ const chipFor = (actor, key) => actor?.effects?.find(e => (e.getFlag(MODULE_ID, 
 
 // ⚠ THE CAST SLICE MUST NOT APPLY A MANEUVER'S EFFECTS (Bait and Switch ships TWELVE, one per
 // face): polish.js's birth stamp is removed here, one hook later, on every maneuver card.
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "superiority-uses", doc => {
   try {
     if ( !isCard(doc, CARD.usage) || !doc.getFlag(MODULE_ID, "castApply") ) return;
     const item = cardItem(doc);
@@ -51,13 +52,13 @@ Hooks.on("preCreateChatMessage", doc => {
 
 // A damage-typed use (Feinting, Lunging): the die is the HIT's, so dnd5e's follow-up damage
 // dialog is switched off at the use.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+listen("dnd5e.preUseActivity", "superiority-uses", (activity, usageConfig) => {
   try {
     if ( useRowFor(activity) && (activity.type === "damage") ) usageConfig.subsequentActions = false;
   } catch(err) { console.warn(`${TITLE} | Could not claim a maneuver's use.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "superiority-uses", (activity, _usageConfig, results) => {
   try {
     const row = useRowFor(activity);
     if ( !row ) return;
@@ -256,7 +257,7 @@ registerOfferPart({
 
 // The rider: the die rides the hit's damage roll.
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "superiority-uses", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -306,7 +307,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 
 // The cards say it (R5).
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "superiority-uses", (message, html) => {
   const su = message.getFlag(MODULE_ID, "superiorityUse");
   if ( su ) {
     const line = document.createElement("div");

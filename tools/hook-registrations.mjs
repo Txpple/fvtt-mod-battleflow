@@ -1,33 +1,26 @@
-// THE MODULE'S HOOK REGISTRATIONS, IN TRUE EVALUATION ORDER — no Foundry, no world.
+// THE MODULE'S HOOK REGISTRATIONS, IN DISPATCH ORDER — no Foundry, no world.
 //
-// Loads `scripts/battleflow.js` in Node behind stubbed globals and records every
-// `Hooks.on`/`Hooks.once` in the order the module bodies run. Read by `check-hook-order.mjs`
-// (relative order on one hook) and `check-hook-dispatch.mjs` (is the name ever dispatched).
-// Shared so the stack-frame attribution below is never copied and fixed in one copy only.
+// Loads `scripts/battleflow.js` in Node behind stubbed globals, then reads the dispatcher's own
+// registry (scripts/dispatch.js `registrations()`): every `listen` / `listenOnce`, per hook, in the
+// order the handlers run. Read by `check-hook-order.mjs` (the order table), `check-hook-dispatch.mjs`
+// (is the name ever dispatched) and `hook-coverage.mjs` (which registrations a battery exercised).
 //
 // ⚠ CALL IT ONCE PER PROCESS: ESM caches modules, so a second call returns the SAME list.
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 /**
- * Every `Hooks.on`/`once` the module performs at import time, in evaluation order.
- * @returns {Promise<Array<{hook: string, file: string}>>} registration order, not entry order
+ * Every handler the module registers at import time, in dispatch order per hook.
+ * @returns {Promise<Array<{hook: string, key: string, file: string, once: boolean}>>}
+ *   `key` is the dispatcher's key (the scripts-relative path without `.js`); `file` adds the `.js`
  */
 export async function loadRegistrations() {
   const here = dirname(fileURLToPath(import.meta.url));
   const entry = pathToFileURL(join(here, "..", "scripts", "battleflow.js")).href;
+  const dispatcher = pathToFileURL(join(here, "..", "scripts", "dispatch.js")).href;
 
-  const reg = []; // { hook, file } in registration order
-  const fileFromStack = () => {
-    const frame = (new Error().stack ?? "").split("\n").find(l => l.includes("/scripts/"));
-    // A directory machine's part reads as `saves/views.js`.
-    return frame?.match(/scripts\/([\w./-]+\.js)/)?.[1] ?? "?";
-  };
-  globalThis.Hooks = {
-    on: hook => { reg.push({ hook, file: fileFromStack() }); },
-    once: hook => { reg.push({ hook, file: fileFromStack() }); }
-  };
   // Eval-time surface only: anything needing more than these stubs at import time is itself a bug.
+  globalThis.Hooks = { on: () => 0, once: () => 0, call: () => true, callAll: () => {} };
   globalThis.game = {};
   globalThis.foundry = {};
   globalThis.dnd5e = {};
@@ -35,12 +28,13 @@ export async function loadRegistrations() {
   globalThis.ui = {};
 
   await import(entry);
-  return reg;
+  const { registrations } = await import(dispatcher);
+  return registrations().map(r => ({ hook: r.hook, key: r.key, file: `${r.key}.js`, once: r.once }));
 }
 
 /**
- * The same list grouped by hook name, values in evaluation order. Insertion order of the map is
- * first-registration order, which is what `check-hook-order.mjs` prints.
+ * The same list grouped by hook name, values (files) in dispatch order. Insertion order of the map
+ * is first-registration order.
  * @param {Array<{hook: string, file: string}>} reg
  * @returns {Map<string, string[]>} hook name → the files that registered on it, in order
  */

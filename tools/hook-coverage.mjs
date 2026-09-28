@@ -31,10 +31,10 @@ const BEFORE_THE_INSTRUMENT = new Map([
     + "settings surface here and volley-registry.js its kinds — both are proven every run by "
     + "`check-registry` statically and by every suite that reads a setting; emanations.js registers "
     + "its Region behaviour type here (2026-09-03) — proven by smoke-emanations, which reads it off CONFIG"],
-  ["ready", "fires once when the world finishes booting, before any suite connects. auto-damage.js "
-    + "primes its lazy machine imports here — proven by smoke-battleflow §5d, whose offer timing "
-    + "only holds when the priming ran; emanations.js sweeps the active scene here (2026-09-03) — "
-    + "the same sweep runs on canvasReady, which smoke-emanations exercises"]
+  ["ready", "fires once when the world finishes booting, before any suite connects. events.js "
+    + "remembers the log's resolves here (its gate is proven by every suite that reads a moment), "
+    + "rule-text.js starts its observer, emanations.js sweeps the active scene — the same sweep runs "
+    + "on canvasReady, which smoke-emanations exercises — and the rest wire document listeners"]
 ]);
 
 // ⚠ Core hooks the PLATFORM never dispatches (a core name that has gone away registers cleanly

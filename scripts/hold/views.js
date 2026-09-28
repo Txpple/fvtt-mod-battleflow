@@ -1,6 +1,6 @@
 /**
  * Battle Flow — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
- * popups. ⚠ ui.js's damage-offer bar registers first because this file imports ui.js (check-hook-order).
+ * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
@@ -14,6 +14,7 @@ import { answerHold, castReaction, rescueReaction, protectReaction } from "./ans
 import { resolveUuid } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
+import { listen } from "../dispatch.js";
 
 /** The math a hold may show, or null with the reveal off. ⚠ ONE gate for card and popup — never re-derive. */
 function revealDetail(target, roll, actor) {
@@ -36,8 +37,8 @@ function revealLine(reveal, target) {
   return text;
 }
 
-// The hold's durable row on the attack card. ⚠ Registration order is on-card order (check-hook-order).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+// The hold's durable row on the attack card, above mastery's rows (dispatch.js ORDER).
+listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
   const hold = message.getFlag(MODULE_ID, "hold");
   if ( !hold?.targets?.length ) return;
 

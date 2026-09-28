@@ -1,13 +1,14 @@
 /**
  * Battle Flow — MACHINE, part of scripts/saves/ (ARCHITECTURE.md §7): the VERDICT — the fold against
  * the stored DC, the die-less folds, the demand's registration, and the legendary-resistance flip.
- * index.js is the directory's only public face and fixes the registration order.
+ * index.js is the directory's only public face.
  */
 import { MODULE_ID, TITLE, queueFlagWrite } from "../core.js";
 import { resistedOf } from "../decide/card.js";
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "../decide/verdict.js";
 import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from "../ui.js";
 import { revertEffect } from "../effect-riders.js";
+import { revertTarget } from "../receipts.js";
 import { disarmSaveTimer } from "./ask.js";
 import { applySaveConsequences, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
 
@@ -211,8 +212,7 @@ async function unwindFailedConsequences(card, entry) {
     await revertEffect(card, entry.uuid, e.id);
   }
   // Revert the damage, then re-apply at the success multiplier DIRECTLY (the deliberate exception to
-  // the reconcile guard). ⚠ LAZY: a static import would register receipts.js's row ahead of ours.
-  const { revertTarget } = await import("../receipts.js");
+  // the reconcile guard).
   for ( const dmg of saveDamageMessages(card) ) {
     const had = dmg.getFlag(MODULE_ID, "receipt")?.targets
       ?.find(t => (t.uuid === entry.uuid) && !t.reverted);

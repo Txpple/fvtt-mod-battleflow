@@ -1,127 +1,174 @@
-// Static hook-order check: loads scripts/battleflow.js in Node with stubbed globals and prints every
-// Hooks registration in true evaluation order (import-graph order, not the entry list), per hook.
-// Run it after adding a file, an import, or a same-hook registration: relative order between
-// same-hook registrations can be behavioral. CHECKS are the known load-bearing orderings.
+// Static hook-order check (no Foundry, milliseconds): the module's handlers run in the order of
+// scripts/dispatch.js's ORDER table, on every hook, and only through the dispatcher.
 //
-//   node tools/check-hook-order.mjs              the named CHECKS, and the snapshot diff
-//   node tools/check-hook-order.mjs --snapshot   refresh tools/hook-order.snapshot on purpose
+//   node tools/check-hook-order.mjs
 //
-// ⚠ The full order lives in `tools/hook-order.snapshot` and any drift FAILS. A move meant to change
-// the order refreshes it with `--snapshot` in the same commit and says why; an order-neutral move
-// prints nothing but PASS. Loading lives in `hook-registrations.mjs`, shared with check-hook-dispatch.
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+// It asserts, with the repo's TypeScript parser over scripts/:
+//   1. `Hooks.on` / `Hooks.once` / `Hooks.off` appear in dispatch.js and nowhere else;
+//   2. every `listen(hook, key, fn)` names its OWN file as the key (a string literal);
+//   3. every registering file is a row of ORDER, and every row of ORDER still registers;
+//   4. a handler that returns `false` registers on a VETOABLE hook (anywhere else the return is
+//      lost, and the veto with it);
+//   5. the load-bearing pairs below hold in ORDER, and both files still register on the hook.
+// Whether VETOABLE matches what the platform dispatches with `Hooks.call` is check-hook-dispatch's.
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
+import { jsFiles, SCRIPTS, toPosix } from "./check-layers.mjs";
 
-const SNAPSHOT = join(dirname(fileURLToPath(import.meta.url)), "hook-order.snapshot");
-const refresh = process.argv.includes("--snapshot");
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const ts = createRequire(join(ROOT, "package.json"))("typescript");
 
-const reg = await loadRegistrations();
-const byHook = groupByHook(reg);
-console.log(`${reg.length} registrations across ${byHook.size} hooks (evaluation order):\n`);
-for (const [hook, files] of byHook) console.log(`  ${hook}: ${files.join(" -> ")}`);
-console.log("");
-
-const before = (hook, a, b) => {
-  const files = byHook.get(hook) ?? [];
-  const ia = files.indexOf(a), ib = files.indexOf(b);
-  return ia >= 0 && ib >= 0 && ia < ib;
-};
+/**
+ * The orderings a card's rows or a hook's chain depend on: `[hook, before, after, why]`, files
+ * scripts-relative. A pair whose files no longer both register on the hook is stale and fails.
+ */
 const CHECKS = [
   ["dnd5e.preApplyDamage", "hold/spell-damage.js", "concentration.js",
-    "the hold's veto before concentration's cause capture (Hooks.call stops at the first false)"],
-  ["dnd5e.renderChatMessage", "hold/views.js", "mastery.js",
-    "hold rows render above mastery rows on a shared attack card (D6 moved the hold's row out of ui.js into hold.js, and the directory cut put it in hold/views.js; this assertion moved with it twice)"],
+    "the hold's negate veto before concentration's cause capture (a false stops the chain)"],
   ["dnd5e.renderChatMessage", "ui.js", "hold/views.js",
-    "the damage-offer bar renders above the hold row — they shared one registration in ui.js until D6, and the order is now held by hold/index.js importing ui.js bare, ahead of its parts (so ui.js's body, and its registration, evaluate first)"],
+    "the damage-offer bar renders above the hold row"],
+  ["dnd5e.renderChatMessage", "hold/views.js", "mastery.js",
+    "the hold row renders above mastery's rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "mastery.js", "receipts.js",
     "mastery rows render above receipt rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "saves/views.js", "receipts.js",
-    "save verdict rows render above receipt rows on a save card (held by the entry order + the lazy import of receipts.js in saves/verdict.js)"],
+    "save verdict rows render above receipt rows on a save card"],
   ["dnd5e.renderChatMessage", "mastery.js", "precision.js",
-    "mastery rows render above the maneuver fold rows on a shared attack card (v1.19.0 entry order; precision.js is the first of the five fold files since Stage 4a)"],
+    "mastery rows render above the maneuver fold rows on a shared attack card"],
   ["dnd5e.renderChatMessage", "command.js", "saves/views.js",
-    "maneuver rows render above the saves rows (the entry imports the five fold files before saves/; command.js is the last of them)"],
+    "maneuver rows render above the saves rows"],
   ["dnd5e.renderChatMessage", "precision.js", "d20-folds.js",
-    "the d20 fold row sits directly below the maneuver rows — the same missed attack can carry a Precision offer AND a reroll/bardic offer, and a table reading the card top-to-bottom should meet them in that order (v1.23.0 entry order)"],
-  // ⚠ Load-bearing: precision stamps its flag on rollAttackV2 first, and d20-folds.js composes its
-  // verdict across every fold already on the message (foldsFrom/foldedVerdict).
+    "the d20 fold row sits directly below the maneuver rows: a missed attack can carry a Precision offer and a reroll offer, read top to bottom"],
   ["dnd5e.rollAttackV2", "precision.js", "d20-folds.js",
-    "precision stamps before the d20 fold composes over it — the fold reads every flag already on the attack"],
+    "precision stamps its flag before the d20 fold composes its verdict over every flag on the attack"],
   ["dnd5e.renderChatMessage", "volleys.js", "saves/views.js",
-    "the volley row renders above the saves rows on a shared usage card (v1.20.0 entry order)"],
+    "the volley row renders above the saves rows on a shared usage card"],
   ["dnd5e.renderChatMessage", "receipts.js", "resources.js",
-    "the spend line is the usage card's footer — below every workflow row (v1.20.0 entry order)"],
+    "the spend line is the usage card's footer, below every workflow row"],
+  ["dnd5e.preRollDamageV2", "auto-damage.js", "hit-riders.js",
+    "the activity's own roll count is stamped before any rider pushes a part"],
   ["dnd5e.preRollDamageV2", "sneak.js", "volleys.js",
-    "the sneak dice are pushed as their own part BEFORE the dart multiplier copies the base entry — attack-gated like the riders, so the sets are disjoint; the order keeps that structural (2026-09-02)"],
+    "the Sneak Attack dice are pushed as their own part before the dart multiplier copies the base entry"],
   ["dnd5e.preRollDamageV2", "hit-menu.js", "volleys.js",
-    "a maneuver's die is pushed BEFORE the dart multiplier copies the base entry — attack-gated like the sneak dice, disjoint from darts; the order keeps that structural (2026-09-04)"],
+    "a maneuver's die is pushed before the dart multiplier copies the base entry"],
   ["dnd5e.preRollDamageV2", "clock-riders.js", "volleys.js",
-    "a clock rider's part is pushed BEFORE the dart multiplier copies the base entry — attack-gated like the marks, disjoint from darts; the order keeps that structural (2026-09-02)"],
+    "a clock rider's part is pushed before the dart multiplier copies the base entry"],
   ["dnd5e.preRollDamageV2", "hit-riders.js", "volleys.js",
-    "the dart multiplier copies the base entry AFTER the riders decided — a rider must never be duplicated per dart (riders are attack-gated and darts are damage-activity rolls, so the sets are disjoint; the order keeps that structural)"],
+    "the riders decide before the dart multiplier copies the base entry: a rider is never duplicated per dart"],
   ["renderRollConfigurationDialog", "reminders.js", "advantage-buys.js",
-    "the buy box is added to the section the gate just drew (or redrew) and re-nets its header — drawn first, the gate's redraw would wipe it (2026-09-25, Lucky)"],
+    "the buy box is added to the section the gate just drew; drawn first, the gate's redraw would wipe it"],
   ["dnd5e.postRollConfiguration", "reminders.js", "advantage-buys.js",
-    "the buy's record overwrites the gate's with the buy among its sources — written first, the gate's record would erase it (2026-09-25, Lucky)"]
+    "the buy's record overwrites the gate's with the buy among its sources; written first, the gate's would erase it"]
 ];
-let ok = true;
+
+const failures = [];
+const fail = (rule, msg) => failures.push(`${rule}: ${msg}`);
+
+/* --- the source: registrations only through the dispatcher, keyed by the file's own path ---- */
+
+const dispatcherUrl = pathToFileURL(join(SCRIPTS, "dispatch.js")).href;
+const { ORDER, VETOABLE } = await import(dispatcherUrl);
+const vetoable = new Set(VETOABLE);
+const registering = new Set();
+let listens = 0;
+
+for (const file of jsFiles(SCRIPTS)) {
+  const rel = toPosix(relative(SCRIPTS, file));
+  const key = rel.replace(/\.js$/, "");
+  const text = readFileSync(file, "utf8");
+  const sf = ts.createSourceFile(rel, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  const at = node => `scripts/${rel}:${sf.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+
+  const visit = node => {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      // (1) the platform's registry is the dispatcher's alone.
+      if (ts.isPropertyAccessExpression(callee) && (callee.expression.getText() === "Hooks")
+        && ["on", "once", "off"].includes(callee.name.text) && (rel !== "dispatch.js")) {
+        fail("outside the dispatcher", `${at(node)} calls Hooks.${callee.name.text} — register through `
+          + "`listen(hook, key, fn)` from scripts/dispatch.js, so the handler runs in ORDER");
+      }
+      // (2) `listen(hook, key, fn)`: the key is the file's own path.
+      if (ts.isIdentifier(callee) && ["listen", "listenOnce"].includes(callee.text) && (rel !== "dispatch.js")) {
+        listens++;
+        registering.add(rel);
+        const [hookArg, keyArg, fnArg] = node.arguments;
+        if (!keyArg || !ts.isStringLiteral(keyArg)) {
+          fail("key", `${at(node)} — the second argument of ${callee.text} must be the string "${key}"`);
+        } else if (keyArg.text !== key) {
+          fail("key", `${at(node)} registers as "${keyArg.text}" but lives in scripts/${rel} — the key is "${key}"`);
+        }
+        // (4) a veto only counts on a vetoable hook.
+        if (fnArg && hookArg && ts.isStringLiteral(hookArg) && returnsFalse(fnArg) && !vetoable.has(hookArg.text)) {
+          fail("lost veto", `${at(node)} returns false on "${hookArg.text}", which is not in VETOABLE `
+            + "(scripts/dispatch.js) — the platform dispatches it with callAll, so the false means nothing; "
+            + "if it IS a Hooks.call hook, add it to VETOABLE and let check-hook-dispatch prove it");
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+}
+
+/** Does this handler (its own body, not a nested function's) contain `return false`? */
+function returnsFalse(fn) {
+  let found = false;
+  const walk = (n, depth) => {
+    if (found) return;
+    if ((depth > 0) && (ts.isFunctionExpression(n) || ts.isArrowFunction(n) || ts.isFunctionDeclaration(n))) return;
+    if (ts.isReturnStatement(n) && n.expression && (n.expression.kind === ts.SyntaxKind.FalseKeyword)) { found = true; return; }
+    ts.forEachChild(n, c => walk(c, depth + 1));
+  };
+  walk(fn, 0);
+  return found;
+}
+
+// (3) ORDER and the registering files agree, both ways.
+const rows = new Set(ORDER.map(k => `${k}.js`));
+for (const rel of registering) {
+  if (!rows.has(rel)) fail("not in ORDER", `scripts/${rel} registers a hook and has no row in ORDER (scripts/dispatch.js) — add it where its rows belong`);
+}
+for (const rel of rows) {
+  if (!registering.has(rel)) fail("stale row", `ORDER names "${rel.replace(/\.js$/, "")}" and scripts/${rel} registers nothing — remove the row`);
+}
+const dupes = ORDER.filter((k, i) => ORDER.indexOf(k) !== i);
+for (const k of new Set(dupes)) fail("duplicate row", `ORDER lists "${k}" twice`);
+
+/* --- the runtime: the dispatcher's own registry, in the order it will run ------------------ */
+
+const reg = await loadRegistrations();
+const byHook = groupByHook(reg);
+console.log(`${reg.length} registrations across ${byHook.size} hooks, through the dispatcher (${listens} listen sites in ${registering.size} files):\n`);
+for (const [hook, files] of byHook) console.log(`  ${hook}: ${[...new Set(files)].join(" -> ")}`);
+console.log("");
+
+// (5) the load-bearing pairs.
+const before = (hook, a, b) => {
+  const files = byHook.get(hook) ?? [];
+  const ia = files.indexOf(a), ib = files.lastIndexOf(b);
+  return (ia >= 0) && (ib >= 0) && (ia < ib);
+};
 for (const [hook, a, b, why] of CHECKS) {
+  const files = byHook.get(hook) ?? [];
+  if (!files.includes(a) || !files.includes(b)) {
+    fail("stale pair", `${hook}: ${a} before ${b} — ${files.includes(a) ? b : a} no longer registers on it; drop or move the pair`);
+    continue;
+  }
   const pass = before(hook, a, b);
-  if (!pass) ok = false;
+  if (!pass) fail("order", `${hook}: ${a} must run before ${b} — ${why}. Move the row in ORDER (scripts/dispatch.js)`);
   console.log(`${pass ? "PASS" : "FAIL"} ${hook}: ${a} before ${b} — ${why}`);
 }
-if (!ok) console.log("\nOrder regressed — re-read the HANDOFF ESM ground truth before shipping this.");
 
-/* --- the snapshot ------------------------------------------------------------------------- */
+/* --- the report ---------------------------------------------------------------------------- */
 
-// One line per registration, in evaluation order: `<hook>\t<file>` (a move between hooks shows as a line move).
-const lines = reg.map(r => `${r.hook}\t${r.file}`);
-const header = "# tools/hook-order.snapshot — every Hooks registration in evaluation order (check-hook-order.mjs --snapshot). Tracked; a diff here is a hook-order change.";
-
-if (refresh) {
-  writeFileSync(SNAPSHOT, `${[header, ...lines].join("\n")}\n`);
-  console.log(`\nSNAPSHOT written: ${lines.length} registrations → tools/hook-order.snapshot`);
-} else if (!existsSync(SNAPSHOT)) {
-  ok = false;
-  console.log("\nFAIL no tools/hook-order.snapshot — run `node tools/check-hook-order.mjs --snapshot` and commit it");
-} else {
-  const want = readFileSync(SNAPSHOT, "utf8").split("\n").filter(l => l && !l.startsWith("#"));
-  const drift = diffLines(want, lines);
-  if (drift.length) {
-    ok = false;
-    console.log(`\nFAIL the evaluation order drifted from tools/hook-order.snapshot (${drift.length} line(s)):`);
-    for (const d of drift) console.log(`  ${d}`);
-    console.log("\nAn import added or removed, a file split, or a registration moved. If the change is "
-      + "intended, refresh with --snapshot in the same commit and explain the difference in the message.");
-  } else {
-    console.log(`\nPASS the evaluation order matches tools/hook-order.snapshot (${lines.length} registrations)`);
-  }
+if (failures.length) {
+  console.error("");
+  for (const f of failures) console.error(`FAIL ${f}`);
+  console.error(`\n${failures.length} hook-order failure(s).`);
+  process.exit(1);
 }
-
-process.exit(ok ? 0 : 1);
-
-/**
- * A line diff (LCS), unified-style: `-N old` lost from the snapshot, `+N new` gained, N 1-based.
- * @param {string[]} a the snapshot
- * @param {string[]} b the tree
- * @returns {string[]} the changed lines, in order; empty when identical
- */
-function diffLines(a, b) {
-  const n = a.length, m = b.length;
-  const lcs = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
-  for (let i = n - 1; i >= 0; i--) {
-    for (let j = m - 1; j >= 0; j--) {
-      lcs[i][j] = (a[i] === b[j]) ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1]);
-    }
-  }
-  const out = [];
-  let i = 0, j = 0;
-  while ((i < n) || (j < m)) {
-    if ((i < n) && (j < m) && (a[i] === b[j])) { i++; j++; }
-    else if ((j < m) && ((i >= n) || (lcs[i][j + 1] >= lcs[i + 1][j]))) { out.push(`+${j + 1} ${b[j].replace("\t", " ")}`); j++; }
-    else { out.push(`-${i + 1} ${a[i].replace("\t", " ")}`); i++; }
-  }
-  return out;
-}
+console.log(`\nPASS every handler runs through the dispatcher in ORDER (${ORDER.length} rows, ${reg.length} registrations, ${CHECKS.length} load-bearing pairs — ARCHITECTURE §7).`);

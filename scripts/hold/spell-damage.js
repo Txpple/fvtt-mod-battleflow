@@ -6,11 +6,13 @@ import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, whisperNoGM } from "../c
 import { damagePartsOf } from "../shared.js";
 import { CARD, isCard, itemNameOf, originIdOf, targetsOf } from "../decide/card.js";
 import { registerResumable } from "../ui.js";
+import { applyDamagesWithReceipt } from "../auto-apply.js";
+import { listen } from "../dispatch.js";
 
 /* The negate veto: preApplyDamage is the one place a negated target can be spared (an explicit false
  * cancels), on whichever client applies. ⚠ Accepted gap (ARCHITECTURE.md §6): Apply pressed while
  * the hold is PENDING lands — vetoing it would strand a hold answered Pass. */
-Hooks.on("dnd5e.preApplyDamage", (actor, _amount, _updates, options) => {
+listen("dnd5e.preApplyDamage", "hold/spell-damage", (actor, _amount, _updates, options) => {
   if ( !actor ) return;
   const damageMessage = options?.originatingMessage;
   // ⚠ Damage only: healing takes applyDamage too.
@@ -65,9 +67,6 @@ async function applySpellDamage(message) {
         "The roll stands — apply it from the card's damage tray.");
     }
     if ( !writable.length ) return;
-    // ⚠ LAZY: a static import would register concentration's preApplyDamage capture AHEAD of the veto,
-    // and a vetoed application would strand a captured cause. Keep this dynamic.
-    const { applyDamagesWithReceipt } = await import("../auto-apply.js");
     await applyDamagesWithReceipt(message, writable, damages);
   } catch(err) {
     console.error(`${TITLE} | Spell damage auto-apply failed.`, err);
@@ -86,7 +85,7 @@ registerResumable("spellDamage", {
   drive: applySpellDamage
 });
 
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "hold/spell-damage", message => {
   if ( !drivesMomentFor(spellDamageSubject(message)) ) return;
   // A resolved spell hold releases every damage roll waiting on it.
   const hold = message.getFlag(MODULE_ID, "hold");

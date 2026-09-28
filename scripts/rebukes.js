@@ -15,6 +15,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const REBUKE_FLAG = "rebuke";
 const timers = new Map();
@@ -85,7 +86,7 @@ function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
 
 /* --- the stamp: the damage landed ------------------------------------------------------------- */
 
-Hooks.on("dnd5e.applyDamage", (actor, amount, options) => {
+listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
   try {
     if ( !(Number(amount) > 0) || !(actor instanceof Actor) ) return;
     const origin = options?.originatingMessage;
@@ -278,7 +279,7 @@ async function showPopup(message) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
     if ( !flag ) return;
@@ -304,7 +305,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "rebukes", message => {
   const flag = message.getFlag(MODULE_ID, REBUKE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
@@ -313,4 +314,4 @@ Hooks.on("updateChatMessage", message => {
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "rebukes", message => { disarmDeadline(timers, message.id); });

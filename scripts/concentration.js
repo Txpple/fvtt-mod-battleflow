@@ -15,6 +15,7 @@ import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments,
 import { SAVE_FOLDS, foldedSave, foldsFrom } from "./decide/verdict.js";
 import { SURFACES } from "./surfaces.js";
 import { isConcentrationPrompt } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 /**
  * What last hit whom, for the ask card: preApplyDamage is the one seam that knows the message.
@@ -28,7 +29,7 @@ const recentDamageCauses = new Map();
  */
 const PRIVATE_ROLL_MODE = "gm";
 
-Hooks.on("dnd5e.preApplyDamage", (actor, amount, _updates, options) => {
+listen("dnd5e.preApplyDamage", "concentration", (actor, amount, _updates, options) => {
   if ( !(Number(amount) > 0) || !actor?.uuid ) return;
   const message = options?.originatingMessage;
   if ( !(message instanceof ChatMessage) ) return;
@@ -79,7 +80,7 @@ function concentratingOn(actor) {
 }
 
 /** The trigger, mirroring the native prompt's guard: a max-HP reduction is not damage. */
-Hooks.on("dnd5e.damageActor", (actor, changes) => {
+listen("dnd5e.damageActor", "concentration", (actor, changes) => {
   // Gated on the SUBJECT: with no GM the concentrator's own client stamps, rolls and breaks.
   if ( !drivesMomentFor(actor?.uuid) ) return;
   if ( !(actor instanceof Actor) ) return;
@@ -102,8 +103,8 @@ function breakOnIncapacitated(effect) {
     console.error(`${TITLE} | Incapacitated concentration break failed.`, err);
   }
 }
-Hooks.on("createActiveEffect", effect => breakOnIncapacitated(effect));
-Hooks.on("updateActiveEffect", (effect, changes) => { if ( changes?.disabled === false ) breakOnIncapacitated(effect); });
+listen("createActiveEffect", "concentration", effect => breakOnIncapacitated(effect));
+listen("updateActiveEffect", "concentration", (effect, changes) => { if ( changes?.disabled === false ) breakOnIncapacitated(effect); });
 
 /** The concentration ability exactly as rollConcentration will resolve it (actor.mjs:1728). */
 function concAbility(actor) {
@@ -415,7 +416,7 @@ async function fireConcTimer(askMessage) {
 }
 
 // The answer channel: whoever drives the ask's subject folds any roll that answers it.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "concentration", message => {
   {
     const askId = concAskAnsweredBy(message);
     const askMsg = askId ? game.messages.get(askId) : null;
@@ -439,7 +440,7 @@ async function autoRollConcentration(askMessage) {
 }
 
 // A resolved ask closes its popup; the queue advances by re-rendering the actor's next ask.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "concentration", message => {
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( !ask ) return;
   const dialog = livePopups.get(popupKey(message.id, "concentration"));
@@ -455,7 +456,7 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latch rides ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "concentration", message => {
   disarmAskTimer(concTimers, message.id);
 });
 
@@ -463,7 +464,7 @@ Hooks.on("deleteChatMessage", message => {
  * The ask's row, stateless, and the resume point: re-arms the clock, folds a landed answer,
  * re-volunteers, re-drives a stale unapplied outcome.
  */
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "concentration", (message, html) => {
   const ask = message.getFlag(MODULE_ID, "concentration");
   if ( !ask ) return;
 
@@ -593,7 +594,7 @@ async function foldConcentrationAutoFail(askMessage, sources = []) {
  * dnd5e's concentration prompts are VETOED (NOTES §2 *the 6.0 pass*) by TYPE, and only with an
  * active GM: a GM-less table falls back to the native prompt, not silence.
  */
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "concentration", doc => {
   if ( !game.users.activeGM ) return;
   if ( !isConcentrationPrompt(doc) ) return;
   return false;

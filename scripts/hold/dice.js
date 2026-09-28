@@ -8,17 +8,18 @@ import { acChips } from "../decide/dice-chips.js";
 import { reactionACBonus } from "./lookup.js";
 import { riseDice } from "../dice-rise.js";
 import { tokenForUuid } from "../geometry.js";
+import { listen, listenOnce } from "../dispatch.js";
 
 const played = new Set();
 const keyOf = (message, target) => `${message.id}|${target.uuid}`;
 const isShield = t => (t?.answer === "cast") && (t?.kind === "ac");
 const bentTargets = message => (message?.getFlag?.(MODULE_ID, "hold")?.targets ?? []).filter(t => t?.bent || isShield(t));
 
-Hooks.once("ready", () => {
+listenOnce("ready", "hold/dice", () => {
   for ( const message of (game.messages ?? []) ) for ( const t of bentTargets(message) ) played.add(keyOf(message, t));
 });
 
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "hold/dice", message => {
   for ( const target of bentTargets(message) ) {
     const key = keyOf(message, target);
     if ( played.has(key) ) continue;

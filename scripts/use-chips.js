@@ -15,6 +15,7 @@ import { tokenForUuid } from "./geometry.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { momentButton, openMomentPopup } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 /* USE CHIPS (USE_CHIPS): a utility activity with NO effect becomes, on use, a chip named as the
  * feature, which the effect table's row lets the gate read and the roll spend. On the using client;
@@ -22,7 +23,7 @@ import { SURFACES } from "./surfaces.js";
 
 const USE_CHIP_INDEX = tableIndex(USE_CHIPS);
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
     const actor = activity?.actor;
@@ -58,7 +59,7 @@ async function writeUseChip(actor, item, row, message) {
   }
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   const u = message.getFlag(MODULE_ID, "useChip");
   if ( !u ) return;
   const line = document.createElement("div");
@@ -84,7 +85,7 @@ const CARD_CHIP_FEATURES = [...new Set(Object.values(CARD_CHIPS).map(r => r.feat
 const devicesOf = (actor, row) => actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "card")
   && (lower(e.name) === lower(row.chip)));
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "use-chips", (activity, _usageConfig, results) => {
   try {
     const item = activity?.item;
     const actor = activity?.actor;
@@ -155,7 +156,7 @@ async function buildCardChip(message) {
 }
 
 // The card says it (R5): the offer while it waits — its button recalls the popup — and what was built.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   const f = message.getFlag(MODULE_ID, CARD_FLAG);
   const row = f ? CARD_CHIPS[f.key] : null;
   if ( !row ) return;
@@ -207,7 +208,7 @@ function coatRowKeyed(key) {
   return name ? { name, row: COATINGS[name] } : null;
 }
 
-Hooks.on("dnd5e.preUseActivity", activity => {
+listen("dnd5e.preUseActivity", "use-chips", activity => {
   try {
     const found = coatRowFor(activity);
     const actor = activity?.actor;
@@ -250,7 +251,7 @@ async function writeCoat(actor, activity, name, row) {
 }
 
 // The card says it (R5): the Bonus Action, what the chip does, the doses left.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   const u = message.getFlag(MODULE_ID, COAT_USE);
   const found = u ? coatRowKeyed(u.key) : null;
   if ( !found ) return;
@@ -279,12 +280,12 @@ const floatCoat = (effect, on) => {
     }
   } catch(err) { console.warn(`${TITLE} | The coating's float could not draw.`, err); }
 };
-Hooks.on("createActiveEffect", effect => floatCoat(effect, true));
-Hooks.on("deleteActiveEffect", effect => floatCoat(effect, false));
+listen("createActiveEffect", "use-chips", effect => floatCoat(effect, true));
+listen("deleteActiveEffect", "use-chips", effect => floatCoat(effect, false));
 
 /* --- the hit: a weapon's damage while the chip stands ------------------------------------------ */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "use-chips", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( (activity?.type !== "attack") || (activity.item?.type !== "weapon") ) return;
@@ -301,11 +302,11 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "use-chips", message => {
   if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
 });
 // The hold's release (`attackHoldPending: false`) brings a held hit back.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "use-chips", message => {
   if ( message.isAuthor && (message.getFlag(MODULE_ID, COAT_HIT)?.status === "due") ) void spendCoat(message);
 });
 
@@ -358,7 +359,7 @@ async function spendCoat(message) {
 }
 
 // The damage card says it (R5): the coating spent on the hit, and who saves.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   const f = message.getFlag(MODULE_ID, COAT_HIT);
   const found = (f?.status === "spent") ? coatRowKeyed(f.key) : null;
   if ( !found ) return;

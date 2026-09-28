@@ -23,6 +23,7 @@ import { attackMessageForDamage } from "./auto-damage.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { empoweredOffer, SORCERY_POINTS } from "./metamagic.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 const timers = new Map();
 const offering = new Set();
@@ -64,7 +65,7 @@ const featureOf = (actor, row) => featureNamed(actor, row.feature) ?? itemNamed(
 
 /* --- the birth flag: every row that fits, due or spent this turn ------------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "dice-changers", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     const actor = activity?.actor;
@@ -100,14 +101,14 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 /* --- the promotion: due → pending, once the hold is off the roll -------------------------------- */
 
 // The roller's client, as the dice land (twice — the in-flight set keeps it single).
-Hooks.on("dnd5e.rollDamageV2", rolls => {
+listen("dnd5e.rollDamageV2", "dice-changers", rolls => {
   const message = rolls?.[0]?.parent;
   if ( message instanceof ChatMessage ) void promote(message);
 });
 
 // The hold's release reaches the roller here; a settled record closes its popup (law 4) and its
 // buzzer, a pending one re-arms on the driving client.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "dice-changers", message => {
   const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
   if ( !flag ) return;
   if ( (flag.status === "due") && message.isAuthor ) void promote(message);
@@ -264,7 +265,7 @@ function syncButtons(form) {
 }
 
 // The chips toggle by delegation, one document listener for every popup; the cap is enforced here.
-Hooks.once("ready", () => document.addEventListener("click", ev => {
+listenOnce("ready", "dice-changers", () => document.addEventListener("click", ev => {
   const chip = ev.target?.closest?.("[data-bf-die]");
   const box = chip?.closest?.("[data-bf-dice-chips]");
   if ( !chip || !box || chip.disabled ) return;
@@ -466,7 +467,7 @@ registerResumable(DICE_CHANGE_FLAG, {
 
 /* --- the card (R5): what happened, and the recall while it asks -------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "dice-changers", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, DICE_CHANGE_FLAG);
     const legacy = !flag ? legacyLines(message) : null;

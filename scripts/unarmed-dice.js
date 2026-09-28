@@ -9,6 +9,7 @@ import { listedNames, unarmedDiceEntries } from "./decide/registry.js";
 import { UNARMED_DICE } from "./decide/registry.js";
 import { esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const UNARMED_FLAG = "unarmedDice";
 
@@ -66,7 +67,7 @@ function rowFor(actor) {
 
 const DIE = /\d*d\d+/i;
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "unarmed-dice", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( (activity?.type !== "attack") || !isUnarmed(activity) ) return;
@@ -85,7 +86,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "unarmed-dice", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, UNARMED_FLAG);
     if ( !flag ) return;

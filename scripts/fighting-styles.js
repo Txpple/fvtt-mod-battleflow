@@ -19,6 +19,7 @@ import { attackMessageForDamage } from "./auto-damage.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
   registerRelay } from "./ui.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 const STYLE_FLAG = "fightingStyle";            // a damage message's record — and a face's own key
 const TAKEN_FLAG = "fightingStyleTakenOver";   // the pack's own effect, switched off for the face
@@ -170,13 +171,13 @@ function syncAll() {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 }
 
-Hooks.once("ready", () => { try { syncAll(); } catch(err) { console.warn(`${TITLE} | fighting styles: the first pass failed.`, err); } });
-Hooks.on("canvasReady", () => {
+listenOnce("ready", "fighting-styles", () => { try { syncAll(); } catch(err) { console.warn(`${TITLE} | fighting styles: the first pass failed.`, err); } });
+listen("canvasReady", "fighting-styles", () => {
   for ( const token of canvas?.tokens?.placeables ?? [] ) if ( token.actor && !token.document.actorLink ) scheduleSync(token.actor);
 });
-Hooks.on("createActor", actor => scheduleSync(actor));
+listen("createActor", "fighting-styles", actor => scheduleSync(actor));
 for ( const hook of ["createItem", "updateItem", "deleteItem"] ) {
-  Hooks.on(hook, item => { if ( item?.parent instanceof Actor ) scheduleSync(item.parent); });
+  listen(hook, "fighting-styles", item => { if ( item?.parent instanceof Actor ) scheduleSync(item.parent); });
 }
 // The list is the switch: a change re-reads every actor (an unlisted style's face goes, its pack effect comes back).
 
@@ -189,7 +190,7 @@ function ownTurnOf(actor) {
   return !running.length || running.some(c => same(c.combatant?.actor));
 }
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "fighting-styles", (config, _dialog, message) => {
   try {
     if ( !config || config[DONE] ) return;
     const activity = config.subject;
@@ -271,7 +272,7 @@ function spellFloor(config, activity, message) {
 }
 
 // The floor goes on the built rolls, so a crit's doubled dice are included.
-Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
+listen("dnd5e.postDamageRollConfiguration", "fighting-styles", (rolls, config) => {
   try {
     const set = config?.[FLOOR];
     if ( !set ) return;
@@ -294,7 +295,7 @@ Hooks.on("dnd5e.postDamageRollConfiguration", (rolls, config) => {
 });
 
 // Count what the floor raised off the evaluated dice; a floor that raised nothing leaves no trace.
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "fighting-styles", doc => {
   try {
     const flag = doc.getFlag?.(MODULE_ID, STYLE_FLAG);
     if ( !flag?.styles?.length ) return;
@@ -321,7 +322,7 @@ Hooks.on("preCreateChatMessage", doc => {
  * The face's float, core's "+(…)" / "−(…)" with the panel's title: core floats only an effect with
  * changes, so the face draws its own (core's is quieted). Every client, on a toggle; a create floats nothing.
  */
-Hooks.on("updateActiveEffect", (effect, changes) => {
+listen("updateActiveEffect", "fighting-styles", (effect, changes) => {
   try {
     const actor = effect.parent;
     if ( !faceOf(effect) || !(actor instanceof Actor) || !("disabled" in changes) || !canvas?.interface?.createScrollingText ) return;
@@ -353,7 +354,7 @@ function isAttackDamage(message) {
   try { return !!resolveAttackMessage(message); } catch { return false; }
 }
 
-Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
+listen("dnd5e.preCalculateDamage", "fighting-styles", (actor, damages, options) => {
   try {
     if ( !(actor instanceof Actor) || !Array.isArray(damages) || (options?.ignore === true) ) return;
     const rows = heldRows(actor).filter(r => r.row.block);
@@ -382,7 +383,7 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
 
 const IGNORED = "bfIgnored";
 
-Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
+listen("dnd5e.preCalculateDamage", "fighting-styles", (actor, damages, options) => {
   try {
     if ( !(actor instanceof Actor) || !Array.isArray(damages) || !options || (options.ignore === true) ) return;
     const message = options.originatingMessage;
@@ -411,14 +412,14 @@ Hooks.on("dnd5e.preCalculateDamage", (actor, damages, options) => {
 });
 
 // The block rides the damage's own update: one write, and every client pops it.
-Hooks.on("dnd5e.preApplyDamage", (_actor, _amount, updates, options) => {
+listen("dnd5e.preApplyDamage", "fighting-styles", (_actor, _amount, updates, options) => {
   const block = options?.[BLOCK];
   if ( !block?.amount || !updates ) return;
   updates[`flags.${MODULE_ID}.${BLOCK_FLAG}`] = { ...block, at: Date.now() };
 });
 
 const popped = new Set();
-Hooks.on("updateActor", (actor, changes) => {
+listen("updateActor", "fighting-styles", (actor, changes) => {
   try {
     // ⚠ The update carries only what CHANGED (a same-amount block sends `at` alone): read the actor's flag.
     if ( !changes?.flags?.[MODULE_ID]?.[BLOCK_FLAG] ) return;
@@ -469,7 +470,7 @@ function chipHTML(c) {
     : `<span class="${cls}"${tip}><b>${esc(c.label)}</b></span>`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "fighting-styles", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
     if ( !flag?.styles?.length ) return;
@@ -503,7 +504,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 // The dice rise off the ATTACKER's token on every client, once, for every style that changed the
 // roll (dice-rise.js draws them). Live cards only: a reload replays nothing.
 const floated = new Set();
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "fighting-styles", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
     const changed = (flag?.styles ?? []).filter(e => e.gain > 0);
@@ -554,7 +555,7 @@ function grappledBy(actor, token) {
 /** The feat's own grapple-damage activity: its bare damage activity. */
 const grappleActivityOf = feature => [...(feature?.system?.activities ?? [])].find(a => a.type === "damage") ?? null;
 
-Hooks.on("updateCombat", (combat, changed) => {
+listen("updateCombat", "fighting-styles", (combat, changed) => {
   try {
     if ( !combat?.started || (!("turn" in changed) && !("round" in changed)) ) return;
     const combatant = combat.combatant;
@@ -676,7 +677,7 @@ async function showGrapplePopup(message) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "fighting-styles", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
     if ( !flag ) return;
@@ -704,7 +705,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "fighting-styles", message => {
   const flag = message.getFlag(MODULE_ID, GRAPPLE_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armGrappleTimer(message); return; }
@@ -713,7 +714,7 @@ Hooks.on("updateChatMessage", message => {
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(grappleTimers, message.id); });
+listen("deleteChatMessage", "fighting-styles", message => { disarmDeadline(grappleTimers, message.id); });
 
 /* --- THE TYPE PICK (Elemental Adept) ------------------------------------------------------------ *
  * The pack's feat carries no type and the row reads it off the NAME: a typeless copy landing on a
@@ -735,7 +736,7 @@ function typelessRowOf(item) {
   return null;
 }
 
-Hooks.on("createItem", (item, _options, userId) => {
+listen("createItem", "fighting-styles", (item, _options, userId) => {
   try {
     if ( userId !== game.user.id ) return;
     const actor = item.parent;
@@ -767,7 +768,7 @@ async function postTypePick(actor, item, name, row) {
 }
 
 // The feat's own card asks too: a typeless copy's card (posted from the sheet) carries the pick.
-Hooks.on("dnd5e.displayCard", (item, card) => {
+listen("dnd5e.displayCard", "fighting-styles", (item, card) => {
   try {
     if ( !(card instanceof ChatMessage) || !card.isAuthor ) return;
     const actor = item?.actor;
@@ -821,7 +822,7 @@ async function chooseType(message, type) {
 }
 
 // The card says it (R5): the choice while it waits — its button recalls the popup — and what was chosen.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "fighting-styles", (message, html) => {
   const f = message.getFlag(MODULE_ID, PICK_FLAG);
   const row = f ? FIGHTING_STYLES[f.row] : null;
   if ( !row ) return;
@@ -841,7 +842,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // A copy renamed by hand with its type settles the card too.
-Hooks.on("updateItem", (item, changes) => {
+listen("updateItem", "fighting-styles", (item, changes) => {
   try {
     if ( !("name" in changes) || !(item.parent instanceof Actor) ) return;
     for ( const message of game.messages.contents.slice(-50) ) {
@@ -857,7 +858,7 @@ Hooks.on("updateItem", (item, changes) => {
 });
 
 // A made choice closes the popup everywhere (law 4).
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "fighting-styles", message => {
   if ( !message.getFlag(MODULE_ID, PICK_FLAG)?.chosen ) return;
   const open = livePopups.get(popupKey(message.id, PICK_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }

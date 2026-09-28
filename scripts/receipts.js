@@ -7,13 +7,14 @@ import { clearStatus } from "./shared.js";
 import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 /** EDGE: the system's own name for a damage or healing type (the phrase is decide/receipt.js's). */
 function typeLabel(type) {
   return CONFIG.DND5E.damageTypes[type]?.label ?? CONFIG.DND5E.healingTypes?.[type]?.label;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
   const receipt = message.getFlag(MODULE_ID, "receipt");
   const effectReceipt = message.getFlag(MODULE_ID, "effectReceipt");
   if ( !receipt?.targets?.length && !effectReceipt?.targets?.length ) return;

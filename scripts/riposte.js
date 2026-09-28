@@ -12,6 +12,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay } from "./ui.js";
+import { listen } from "./dispatch.js";
 
 
 const riposteTimers = new Map();
@@ -22,7 +23,7 @@ const riposteDie = new Map();
 const RIPOSTE_DIE_TTL_MS = 60_000;
 
 /** Stamp: the elect, on the ENEMY's attack message — the Graze miss-path template. */
-Hooks.on("createChatMessage", async message => {
+listen("createChatMessage", "riposte", async message => {
   try {
     if ( !isActiveGM() ) return;
     if ( !isCard(message, CARD.attack) ) return;
@@ -226,7 +227,7 @@ async function resolveRiposte(message, uuid, weaponId, { trusted = false } = {})
 }
 
 /** The die injection — the hit-riders push idiom, gated on the armed one-shot. */
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "riposte", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -260,7 +261,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 });
 
 /* A riposte MISS announces itself, posted by the ROLLING client; the hit half is offerDamageRoll's. */
-Hooks.on("dnd5e.rollAttackV2", async rolls => {
+listen("dnd5e.rollAttackV2", "riposte", async rolls => {
   try {
     const message = rolls?.[0]?.parent;
     if ( !(message instanceof ChatMessage) ) return;
@@ -329,7 +330,7 @@ async function showRipostePopup(message, flag, reactor) {
 
 // THE ROWS, THE WATCHER, THE CLEANUP.
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "riposte", (message, html) => {
   // --- Riposte: one row per reactor on the enemy's attack card ------------------------------
   const r = message.getFlag(MODULE_ID, "riposte");
   if ( r?.reactors?.length ) {
@@ -384,7 +385,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "riposte", message => {
   const r = message.getFlag(MODULE_ID, "riposte");
   if ( r ) {
     for ( const reactor of r.reactors ?? [] ) {
@@ -398,6 +399,6 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "riposte", message => {
   disarmRiposteTimer(message.id);
 });

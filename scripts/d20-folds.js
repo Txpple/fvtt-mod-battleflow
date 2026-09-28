@@ -21,6 +21,7 @@ import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 /** Per-kind views onto `RESCUE_KINDS`: one copy of each quoted string, shared with the rescue view. */
 const kindTable = pick => Object.fromEntries(
@@ -251,7 +252,7 @@ function baseFlag(actor, offers, testKind, total, window) {
 }
 
 /** ATTACKS: the module owns the AC, so a clean miss (every judged target) is offered by itself. */
-Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+listen("dnd5e.rollAttackV2", "d20-folds", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;
@@ -297,7 +298,7 @@ const PLAIN_HOOKS = [
   ["dnd5e.rollSavingThrow", "save"]
 ];
 for ( const [hook, testKind] of PLAIN_HOOKS ) {
-  Hooks.on(hook, async (rolls, data) => {
+  listen(hook, "d20-folds", async (rolls, data) => {
     try {
       const subject = data?.subject;
       if ( !(subject instanceof Actor) ) return;
@@ -351,7 +352,7 @@ async function stampInitiative(actor, combatants, message) {
 }
 
 // The actor's own roll (`Actor5e#rollInitiative` — the sheet, a macro): dnd5e's hook.
-Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
+listen("dnd5e.rollInitiative", "d20-folds", async (actor, combatants) => {
   try {
     if ( !(actor instanceof Actor) ) return;
     const message = game.messages.contents.slice(-30).reverse().find(m => m.getFlag("core", "initiativeRoll")
@@ -364,7 +365,7 @@ Hooks.on("dnd5e.rollInitiative", async (actor, combatants) => {
 
 // ⚠ The tracker's roll button never fires `dnd5e.rollInitiative` (`Combat#rollInitiative` bypasses
 // the actor's); its `initiativeRoll` message is the witness. The latch keeps the two roads to one stamp.
-Hooks.on("createChatMessage", async message => {
+listen("createChatMessage", "d20-folds", async message => {
   try {
     if ( !message.getFlag("core", "initiativeRoll") || !message.isAuthor ) return;
     const actor = message.getAssociatedActor?.() ?? null;
@@ -733,7 +734,7 @@ async function rerollOf(message, actor) {
 
 // PRESENT. A demanded save's roll is drawn as a SUMMARY inside the usage card, so the block rides
 // the `cardRow` seam: the same drawer on the shown card or inside the summary.
-Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
+listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   try {
     const flag = message.getFlag(MODULE_ID, "d20fold");
     if ( !flag ) return;
@@ -951,7 +952,7 @@ function foldPremiseAlive(message, flag) {
 
 // EXPIRE + RESUME
 
-Hooks.on("updateChatMessage", (message) => {
+listen("updateChatMessage", "d20-folds", (message) => {
   const flag = message.getFlag(MODULE_ID, "d20fold");
   if ( !flag ) return;
   // ⚠ RE-DERIVED EVERY UPDATE from the COMPOSED roll: a sibling's spend usually kills the premise.
@@ -973,7 +974,7 @@ Hooks.on("updateChatMessage", (message) => {
   }
 });
 
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "d20-folds", message => {
   disarmAskTimer(foldTimers, message.id);
 });
 
@@ -1008,7 +1009,7 @@ function checkPhrase(skills = [], initiative = false) {
 }
 const article = what => (/^[aeiou]/i.test(what) ? "an" : "a");
 
-Hooks.on("dnd5e.postUseActivity", async (activity, usageConfig, results) => {
+listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, results) => {
   try {
     const actor = activity?.actor;
     if ( !actor?.isOwner || (activity.type !== "utility") ) return;
@@ -1107,7 +1108,7 @@ async function showArmedNotice(message) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
+listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   const t = message.getFlag(MODULE_ID, "tacticalArmed");
   if ( !t ) return;
   const live = !t.spent && (!t.deadline || (t.deadline > Date.now())) && !momentAcknowledged(message, "tacticalArmed");
@@ -1239,7 +1240,7 @@ async function showRefundNotice(message) {
 }
 
 // The ask shows once the fold is settled: the bar while the clock runs, the recall button until answered.
-Hooks.on("dnd5e.renderChatMessage", cardRow((message, host) => {
+listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   try {
     const r = message.getFlag(MODULE_ID, "tacticalRefund");
     if ( !r || (r.status !== "pending") ) return;

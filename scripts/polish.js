@@ -9,13 +9,14 @@ import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, itemUuidOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf, dispositionStyle } from "./shared.js";
 import { cardActivity, cardItem, profileEffectSync } from "./lookup.js";
+import { listen } from "./dispatch.js";
 
 /** A reaction's or a spell's row means a spell or a monster's feature, never armor of the same name. */
 const SPELL_ROW_TYPES = ["spell", "feat"];
 
 
 // Require a target to attack: veto the use on the initiating client before anything rolls or consumes.
-Hooks.on("dnd5e.preUseActivity", activity => {
+listen("dnd5e.preUseActivity", "polish", activity => {
   if ( activity?.type !== "attack" ) return;
   if ( game.user.targets.size ) return;
   ui.notifications.warn(`No target selected — ${activity.item?.name ?? "the attack"} stays sheathed. Target something, then attack.`);
@@ -35,7 +36,7 @@ function potionDefaultsToDrinker(activity) {
   return true;
 }
 
-Hooks.on("dnd5e.preUseActivity", (activity, _usageConfig, _dialogConfig, messageConfig) => {
+listen("dnd5e.preUseActivity", "polish", (activity, _usageConfig, _dialogConfig, messageConfig) => {
   if ( !potionDefaultsToDrinker(activity) ) return;
 
   const path = `data.${TARGETS_KEY}`;
@@ -115,7 +116,7 @@ function castPayload(doc) {
   };
 }
 
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "polish", doc => {
   // A healing roll aimed at targets is claimed at birth. The elect keys on the STAMP, never the
   // setting, so an old log is inert and a mid-session kill still resolves.
   if ( isCard(doc, CARD.healing) ) {
@@ -152,7 +153,7 @@ Hooks.on("preCreateChatMessage", doc => {
 // They are DATA (`system.buttons[]`), filtered at birth so no re-render draws one back (NOTES §2).
 const KEPT_CARD_BUTTONS = new Set(["refundResource"]);
 
-Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
+listen("dnd5e.preCreateUsageMessage", "polish", (_activity, messageConfig) => {
   const buttons = messageConfig?.data?.system?.buttons;
   if ( !Array.isArray(buttons) ) return;
   messageConfig.data.system.buttons = buttons.filter(b => KEPT_CARD_BUTTONS.has(b?.action));
@@ -237,19 +238,19 @@ function paintTargetBlock(element) {
 
 // ⚠ Repaints on EVERY render. Registered BEFORE the centering hook: hooks run in registration
 // order, so the block exists when centering measures offsetHeight.
-Hooks.on("renderRollConfigurationDialog", (app, element) => {
+listen("renderRollConfigurationDialog", "polish", (app, element) => {
   paintTargetBlock(element);
   openTargetBlocks.add(app);
 });
 
 // ActivityUsageDialog's subclasses fire the base's render hook.
-Hooks.on("renderActivityUsageDialog", (app, element) => {
+listen("renderActivityUsageDialog", "polish", (app, element) => {
   paintTargetBlock(element);
   openTargetBlocks.add(app);
 });
 
 // A re-target fires no dialog re-render. ⚠ Hold the APP: the element is replaced on re-render.
-Hooks.on("targetToken", () => {
+listen("targetToken", "polish", () => {
   for ( const app of openTargetBlocks ) {
     if ( app.rendered && app.element ) paintTargetBlock(app.element);
     else openTargetBlocks.delete(app); // closed dialogs drop out on the next re-target
@@ -257,7 +258,7 @@ Hooks.on("targetToken", () => {
 });
 
 // Center roll dialogs, first render only, so it never fights a player dragging the window.
-Hooks.on("renderRollConfigurationDialog", (app, element) => {
+listen("renderRollConfigurationDialog", "polish", (app, element) => {
   if ( app._bfCentered ) return;
   app._bfCentered = true;
   app.setPosition({

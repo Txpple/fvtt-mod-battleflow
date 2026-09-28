@@ -15,6 +15,7 @@ import { volleyEntryFor } from "./volley-registry.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsInData, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 /* THE DICE: a bare damage activity aimed at targets is rolled at the use on the casting client,
  * chained to the usage card, where the `spellDamage` applier lands it (no roll dialog click).
@@ -40,7 +41,7 @@ function drives(activity, targetCount) {
 }
 
 // ⚠ ONE ROLL, NEVER TWO: the native follow-up roll (`_triggerSubsequentActions`) is switched off at the use.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
+listen("dnd5e.preUseActivity", "damage-casts", (activity, usageConfig, _dialogConfig, messageConfig) => {
   try {
     const snapshot = targetsInData(messageConfig?.data);   // null: not written yet — the client's targets
     const n = snapshot ? snapshot.length : game.user.targets.size;
@@ -52,7 +53,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageC
 });
 const { rowFor } = tableIndex(DAMAGE_SAVES);
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "damage-casts", (activity, _usageConfig, results) => {
   try {
     const message = (results?.message instanceof ChatMessage) ? results.message : null;
     if ( !message ) return;                                          // used with create: false — no card, no bus
@@ -95,7 +96,7 @@ async function driveDamageCast(activity, message, targets) {
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "damage-casts", (message, html) => {
   const dc = message.getFlag(MODULE_ID, "damageSaveCard");
   if ( !dc ) return;
   const line = document.createElement("div");

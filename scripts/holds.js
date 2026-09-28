@@ -6,6 +6,7 @@
  */
 
 import { MODULE_ID, TITLE } from "./core.js";
+import { listenOnce } from "./dispatch.js";
 
 /** The contract's version, for other modules. */
 const HOLD_CONTRACT = Object.freeze({ version: 1, keys: ["activity", "message", "document"] });
@@ -102,7 +103,7 @@ export function holdFor(subject) {
   return holdEntry(subject)?.promise ?? null;
 }
 
-Hooks.once("init", () => {
+listenOnce("init", "holds", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, {
     holdFor,

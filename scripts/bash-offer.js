@@ -14,6 +14,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armAskTimer, disarmAskTimer } from "./ui.js";
+import { listen } from "./dispatch.js";
 
 // The offer is stamped on the attacker's OWN attack message (the answer writes directly). Once per
 // turn in combat; out of combat every hit offers.
@@ -68,7 +69,7 @@ function offerFor(subject, attacker) {
   return activity ? { kind: "bash", found, activity } : null;
 }
 
-Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+listen("dnd5e.rollAttackV2", "bash-offer", async (rolls, { subject }) => {
   try {
     if ( !subject || (subject.type !== "attack") ) return;
     const attacker = subject.actor;
@@ -288,7 +289,7 @@ async function showBashOfferPopup(message, flag) {
 
 /* --- THE ROW, THE WATCHER, THE CLEANUP --------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "bash-offer", (message, html) => {
   const b = message.getFlag(MODULE_ID, "bashOffer");
   if ( b ) {
     const row = document.createElement("div");
@@ -333,7 +334,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // Every client closes answered popups; the timers disarm when nothing is pending.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "bash-offer", message => {
   const b = message.getFlag(MODULE_ID, "bashOffer");
   if ( b ) {
     const dialog = livePopups.get(popupKey(message.id, "bashoffer"));
@@ -346,6 +347,6 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "bash-offer", message => {
   disarmAskTimer(bashOfferTimers, message.id);
 });

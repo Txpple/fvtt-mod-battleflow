@@ -8,6 +8,7 @@ import { MODULE_ID, TITLE, isActiveGM, statContext } from "./core.js";
 import { bfCard } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
+import { listen } from "./dispatch.js";
 
 /** The dispatched names (pinned in tools/dnd5e-hooks.json); one roll can fire several. */
 const D20_TEST_HOOKS = [
@@ -21,7 +22,7 @@ const D20_TEST_HOOKS = [
 ];
 
 for ( const hook of D20_TEST_HOOKS ) {
-  Hooks.on(hook, (rolls, ctx) => {
+  listen(hook, "stats", (rolls, ctx) => {
     try {
       const subject = ctx?.subject;
       const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
@@ -41,7 +42,7 @@ for ( const hook of D20_TEST_HOOKS ) {
 const rosterMessageFor = combatId => game.messages.contents.findLast(
   m => m.getFlag(MODULE_ID, "combatRoster")?.combatId === combatId);
 
-Hooks.on("combatStart", combat => {
+listen("combatStart", "stats", combat => {
   if ( !isActiveGM() ) return;
   void stampRoster(combat);
 });
@@ -91,7 +92,7 @@ async function stampRoster(combat) {
 }
 
 // Two same-account GM sessions both stamp; provenance plus elder-wins makes it one.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "stats", message => {
   if ( !isActiveGM() ) return;
   const flag = message.getFlag(MODULE_ID, "combatRoster");
   if ( !flag?.combatId ) return;
@@ -105,7 +106,7 @@ Hooks.on("createChatMessage", message => {
 });
 
 // Deletion is when the final round is known. Best-effort.
-Hooks.on("deleteCombat", combat => {
+listen("deleteCombat", "stats", combat => {
   if ( !isActiveGM() ) return;
   void closeRoster(combat);
 });

@@ -12,6 +12,7 @@ import { EMANATIONS, RANGE_FEATS, answers, tableIndex } from "./decide/registry.
 import { measuredCoverBetween } from "./geometry.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { featureNamed, lower } from "./lookup.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 const ROOT_ID = "bf-effect-view";
 
@@ -245,7 +246,7 @@ function placeBeside(card, token) {
   card.style.top = `${Math.max(8, Math.min(p.y - 6, window.innerHeight - 200))}px`;
 }
 
-Hooks.on("hoverToken", (token, hovered) => {
+listen("hoverToken", "effect-view", (token, hovered) => {
   try {
     if ( !setting(S.effectHover) ) return;
     // Not for a controlled token: the bar is its list already.
@@ -254,7 +255,7 @@ Hooks.on("hoverToken", (token, hovered) => {
 });
 
 // Taking control of the token under the pointer takes its card down the same way.
-Hooks.on("controlToken", (token, controlled) => {
+listen("controlToken", "effect-view", (token, controlled) => {
   if ( controlled && (hoverCard?.dataset.token === token.id) ) hideHover();
 });
 
@@ -280,7 +281,7 @@ function showOverlay() {
   }
 }
 
-Hooks.on("highlightObjects", active => {
+listen("highlightObjects", "effect-view", active => {
   try {
     if ( !setting(S.effectHover) ) return;
     if ( active ) showOverlay(); else clearOverlay();
@@ -433,13 +434,13 @@ function redrawBar() {
   barTimer = setTimeout(() => { barTimer = null; try { drawBar(); } catch(err) { console.error(`${MODULE_ID} | effect view (bar) failed.`, err); } }, 50);
 }
 
-Hooks.on("canvasReady", redrawBar);
-Hooks.on("controlToken", redrawBar);
-Hooks.on("updateActor", redrawBar);          // temp HP and inspiration live on the actor
-Hooks.on("createActiveEffect", redrawBar);
-Hooks.on("updateActiveEffect", redrawBar);
-Hooks.on("deleteActiveEffect", redrawBar);
-Hooks.on("updateCombat", redrawBar);
-Hooks.on("deleteCombat", redrawBar);
-Hooks.on(`${MODULE_ID}.effectViewChanged`, redrawBar);   // the client switch, flipped
-Hooks.once("ready", redrawBar);
+listen("canvasReady", "effect-view", redrawBar);
+listen("controlToken", "effect-view", redrawBar);
+listen("updateActor", "effect-view", redrawBar);          // temp HP and inspiration live on the actor
+listen("createActiveEffect", "effect-view", redrawBar);
+listen("updateActiveEffect", "effect-view", redrawBar);
+listen("deleteActiveEffect", "effect-view", redrawBar);
+listen("updateCombat", "effect-view", redrawBar);
+listen("deleteCombat", "effect-view", redrawBar);
+listen(`${MODULE_ID}.effectViewChanged`, "effect-view", redrawBar);   // the client switch, flipped
+listenOnce("ready", "effect-view", redrawBar);

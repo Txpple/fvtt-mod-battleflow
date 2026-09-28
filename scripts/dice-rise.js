@@ -7,6 +7,7 @@
 
 import { MODULE_ID, TITLE } from "./core.js";
 import { changedDice } from "./decide/dice-chips.js";
+import { listen } from "./dispatch.js";
 
 const tokenForUuid = uuid => canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;
 
@@ -143,7 +144,7 @@ export function driftChip(from, to, label) {
 }
 
 // Every client plays a roll message's `diceRise` record once, as it arrives.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "dice-rise", message => {
   const rise = message.getFlag?.(MODULE_ID, "diceRise");
   if ( !rise?.on ) { platformChanged(message); return; }
   try {

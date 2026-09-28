@@ -20,6 +20,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyActivityEffectsOnHit, applyEffectsWithReceipt, messageActivity } from "./effect-riders.js";
 import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerRelay, registerResumable, shownMoments } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 /*
  * Four parts (rows: decide/registry.js HIT_GROUPS / HIT_OPTIONS): THE OFFER writes the picks on the
@@ -142,11 +143,11 @@ async function repairTransferEffects(actor) {
   }
 }
 
-Hooks.once("ready", () => {
+listenOnce("ready", "hit-menu", () => {
   if ( !hitMenuEntries().length ) return;
   for ( const actor of game.actors.filter(a => a.isOwner) ) void repairTransferEffects(actor);
 });
-Hooks.on("createItem", (item, _options, userId) => {
+listen("createItem", "hit-menu", (item, _options, userId) => {
   if ( (userId !== game.user.id) || !(item.parent instanceof Actor) || (item.type !== "feat") ) return;
   if ( Object.values(HIT_OPTIONS).some(r => answers(r.feature, item)) ) void repairTransferEffects(item.parent);
 });
@@ -220,7 +221,7 @@ registerOfferPart({
 
 /* --- the rider: the die rides the weapon's damage roll, the pool is spent ------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "hit-menu", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -281,7 +282,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 /** Same-client latch: the consequences run once per damage message. */
 const consequencesRun = new Set();
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "hit-menu", message => {
   if ( !message.isAuthor ) return;
   const hm = message.getFlag(MODULE_ID, "hitManeuver");
   if ( !hm || hm.done || consequencesRun.has(message.id) ) return;
@@ -604,7 +605,7 @@ registerResumable("sweepCard", {
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
   const record = message.getFlag(MODULE_ID, "hitManeuver");
   const picks = picksOf(record);
   // A card per pick; the record's notes ride the last.

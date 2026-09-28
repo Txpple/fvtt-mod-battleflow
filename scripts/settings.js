@@ -5,8 +5,9 @@
 import { MODULE_ID, S } from "./core.js";
 import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
   riderEntries, riderUpgradeEntries } from "./decide/registry.js";
+import { listenOnce } from "./dispatch.js";
 
-Hooks.once("init", () => {
+listenOnce("init", "settings", () => {
   game.settings.register(MODULE_ID, S.decisionTimer, {
     name: "Decision Timer Seconds",
     hint: "How long every question the module asks waits for its answer: a reaction to a hit, an offered damage roll, a save or concentration check, a mastery or maneuver offer, a reminder. 0 waits indefinitely. A mandatory roll ROLLS when it runs out; an optional offer PASSES. A draining bar shows the time left on the popup and the card.",

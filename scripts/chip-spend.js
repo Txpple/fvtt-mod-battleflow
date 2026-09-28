@@ -13,10 +13,11 @@ import { bfCard } from "./decide/present.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 // The spend: the rules spend Vex and Sap on the NEXT attack roll, honoured or not. The record lands on the
 // attack message FIRST (a later rescue reads it), the chips go second. Elect-driven: Vex is a write to the monster.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "chip-spend", message => {
   if ( !isCard(message, CARD.attack) ) return;
   const attacker = messageActivity(message)?.item?.actor ?? null;
   if ( !attacker || !drivesMomentFor(attacker.uuid) ) return;
@@ -125,7 +126,7 @@ const expiryTidy = new Map();
  * reads as still up); a hand-dragged pack effect is not ours. */
 const tidyOwns = effect => !!effect.getFlag(MODULE_ID, CHIP_FLAG) || !!effect.getFlag(MODULE_ID, "reactionEffect");
 
-Hooks.on("updateActiveEffect", (effect, changes) => {
+listen("updateActiveEffect", "chip-spend", (effect, changes) => {
   if ( changes?.duration?.expired !== true ) return;
   if ( !tidyOwns(effect) || !(effect.parent instanceof Actor) ) return;
   if ( !isActiveGM() ) return;
@@ -151,7 +152,7 @@ async function tidyExpiredChips(parent) {
   }
 }
 
-Hooks.on("deleteCombat", combat => {
+listen("deleteCombat", "chip-spend", combat => {
   if ( !isActiveGM() ) return;
   void sweepCombatChips(combat);
 });
@@ -178,7 +179,7 @@ async function sweepCombatChips(combat) {
 }
 
 // The receipt: the attack card says which chip this roll used up and whether it was honoured (R5).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "chip-spend", (message, html) => {
   const spend = message.getFlag(MODULE_ID, "chipSpend");
   for ( const r of (spend?.spent ?? []) ) {
     const line = document.createElement("div");

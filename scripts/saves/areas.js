@@ -10,6 +10,7 @@ import { regionShapeTypeFor } from "../decide/geometry.js";
 import { tokensInRegions } from "../geometry.js";
 import { saveDemandable, emanationReach, metamagicForDemand, areaChoiceForDemand } from "./demand.js";
 import { spentAreaListed } from "../decide/registry.js";
+import { listen } from "../dispatch.js";
 
 const activityOfRegion = region => region?.getFlag?.("dnd5e", "activity") ?? null;
 
@@ -146,8 +147,8 @@ function refreshTemplatedDemands(region) {
   const card = live.at(-1);
   if ( card ) void refreshDemandFromTemplates(card);
 }
-Hooks.on("createRegion", region => { refreshTemplatedDemands(region); });
-Hooks.on("updateRegion", (region, changes) => {
+listen("createRegion", "saves/areas", region => { refreshTemplatedDemands(region); });
+listen("updateRegion", "saves/areas", (region, changes) => {
   // The area moved (Moonbeam walks; an attached ring follows its token), or was just claimed.
   if ( ("shapes" in changes) || ("attachment" in changes) || (changes.flags?.dnd5e && ("activity" in changes.flags.dnd5e)) ) refreshTemplatedDemands(region);
 });
@@ -198,7 +199,7 @@ export async function cleanupSpentTemplates(card, { endedConcentrationId = null 
 }
 
 // A deleted concentration effect re-offers the sweep at once; the render floor is the backstop.
-Hooks.on("deleteActiveEffect", effect => {
+listen("deleteActiveEffect", "saves/areas", effect => {
   if ( !(effect.parent instanceof Actor) ) return;
   for ( const m of game.messages.contents ) {
     if ( m.system?.concentration !== effect.id ) continue;

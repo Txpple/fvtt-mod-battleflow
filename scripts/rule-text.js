@@ -9,6 +9,7 @@
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { identifierOf } from "./decide/registry.js";
+import { listenOnce } from "./dispatch.js";
 
 const lower = s => String(s ?? "").toLowerCase();
 
@@ -135,7 +136,7 @@ function fillUnder(root) {
   for ( const node of root.querySelectorAll(`[${REF}]:not([${DONE}])`) ) void fill(node);
 }
 
-Hooks.once("ready", () => {
+listenOnce("ready", "rule-text", () => {
   fillUnder(document.body);
   new MutationObserver(records => {
     for ( const record of records ) for ( const node of record.addedNodes ) fillUnder(/** @type {Element} */ (node));
@@ -143,7 +144,7 @@ Hooks.once("ready", () => {
 });
 
 // Read-only for the suites: what a pointer reads as on this client.
-Hooks.once("init", () => {
+listenOnce("init", "rule-text", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { ruleTextFor });
 });

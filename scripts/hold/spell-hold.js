@@ -10,9 +10,10 @@ import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { SPELL_ROW_TYPES, usableReaction, reactionItemFor, reactionImg } from "./lookup.js";
 import { armHoldTimer, disarmHoldTimer } from "./clock.js";
+import { listen } from "../dispatch.js";
 
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "hold/spell-hold", (activity, _usageConfig, results) => {
   // The usage card is the held document: it carries the target snapshot and is never suppressed.
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // create: false — no card, nothing to hold

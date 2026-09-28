@@ -14,6 +14,7 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
   momentAcknowledged } from "./ui.js";
+import { listen } from "./dispatch.js";
 
 // HEW — a reminder only; the player swings from the sheet. A crit that kills reminds once. ⚠ A
 // hand-tray kill posts no receipt, so no reminder: module damage is the only witness of "to 0".
@@ -71,7 +72,7 @@ async function showHewPopup(message, notice) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "hew", (message, html) => {
   const notice = message.getFlag(MODULE_ID, "hewNotice");
   if ( !notice ) return;
   if ( !notice.deadline || (notice.deadline <= Date.now()) ) return;
@@ -136,7 +137,7 @@ async function maybeHewCritReminder(damageMessage) {
   }
 }
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "hew", message => {
   if ( !isActiveGM() ) return;
   if ( !isCard(message, CARD.damage) ) return;
   void queueHewCheck(message, () => maybeHewCritReminder(message));
@@ -165,7 +166,7 @@ async function maybeHewKillReminder(damageMessage) {
   }
 }
 
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "hew", message => {
   // The kill trigger rides receipt writes, through the check queue.
   if ( message.getFlag(MODULE_ID, "receipt") && isActiveGM() ) {
     void queueHewCheck(message, () => maybeHewKillReminder(message));
@@ -236,7 +237,7 @@ async function maybeSwingReminder(attackMessage) {
   }
 }
 
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "hew", message => {
   if ( !isActiveGM() ) return;
   if ( isCard(message, CARD.attack) ) {
     if ( !hitTargets(message).length ) void maybeSwingReminder(message);
@@ -281,7 +282,7 @@ async function answerSwingOffer(message, use) {
 }
 
 const DIE = /(\d*)d(\d+)/i;
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "hew", (config, _dialog, message) => {
   try {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
@@ -302,7 +303,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "hew", (message, html) => {
   const f = message.getFlag(MODULE_ID, "poleStrikeDie");
   if ( !f ) return;
   const content = html.querySelector?.(SURFACES.messageContent) ?? html;
@@ -315,7 +316,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // The usage card's item snapshot is renamed "<weapon> — Pole Strike" as the card is born (DATA).
-Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
+listen("dnd5e.preCreateUsageMessage", "hew", (_activity, messageConfig) => {
   try {
     const data = messageConfig?.data;
     if ( !foundry.utils.getProperty(data ?? {}, `flags.${MODULE_ID}.poleStrike`) ) return;
@@ -328,7 +329,7 @@ Hooks.on("dnd5e.preCreateUsageMessage", (_activity, messageConfig) => {
 });
 
 // …and its attack and damage cards: their header reads the LIVE item, so the label is drawn at render.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "hew", (message, html) => {
   try {
     if ( !message.getFlag(MODULE_ID, "poleStrike") && !message.getFlag(MODULE_ID, "poleStrikeDie") ) return;
     const title = html.querySelector?.(SURFACES.cardHeaderTitle);

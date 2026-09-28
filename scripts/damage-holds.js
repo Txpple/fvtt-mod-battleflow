@@ -18,6 +18,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const HOLD_FLAG = "damageHold";
 const timers = new Map();
@@ -336,7 +337,7 @@ function holdLine(flag) {
   return `${flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
     if ( !flag ) return;
@@ -364,7 +365,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere; the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "damage-holds", message => {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); closeGuardPopups(message, flag, false); return; }
@@ -383,4 +384,4 @@ function closeGuardPopups(message, flag, all) {
   }
 }
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "damage-holds", message => { disarmDeadline(timers, message.id); });

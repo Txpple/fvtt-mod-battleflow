@@ -5,7 +5,8 @@
 import { MODULE_ID, TITLE, S, setting, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
-import { TONE, esc } from "./decide/present.js";
+import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
+import { livePopups, openManagedPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { critStands } from "./decide/rescue-hit.js";
@@ -13,6 +14,7 @@ import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/c
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted } from "./hold/index.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 /** The "Against …" line. ⚠ The inline `display:inline-block` outranks the dialog stylesheet's block imgs. */
 const againstLine = targets => {
@@ -25,7 +27,7 @@ const againstLine = targets => {
 
 /* --- Auto-roll damage on hit ---------------------------------------------------------------- */
 
-Hooks.on("dnd5e.rollAttackV2", async (rolls, { subject }) => {
+listen("dnd5e.rollAttackV2", "auto-damage", async (rolls, { subject }) => {
   if ( !subject ) return;
 
   const attackMessage = rolls[0]?.parent;
@@ -140,11 +142,11 @@ export function attackMessageForDamage(config, message) {
 
 // The card's own Damage button honours the crit: `applyKeybindings` runs AFTER this hook and
 // stamps `config.isCritical` onto every roll.
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "auto-damage", (config, _dialog, message) => {
   try {
     if ( config?.subject?.type !== "attack" ) return;
-    // ⚠ The activity's own roll count, before any rider pushes one: this handler stays first on the
-    // hook (tools/hook-order.snapshot). Savage Attacker rerolls only these.
+    // ⚠ The activity's own roll count, before any rider pushes one: this handler runs first on the
+    // hook (dispatch.js ORDER). Savage Attacker rerolls only these.
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.weaponRolls`, config.rolls?.length ?? 0);
     const attackMessage = attackMessageForDamage(config, message);
     if ( !attackMessage ) return;
@@ -160,7 +162,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 });
 
 // The damage card says why it doubled (R5).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "auto-damage", (message, html) => {
   const auto = message.getFlag(MODULE_ID, "autoCrit");
   if ( !auto?.sources?.length ) return;
   const line = document.createElement("div");
@@ -224,10 +226,6 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
 
 /** The shell every damage offer wears: button, X and buzzer funnel through ONE `roll`; one popup per card. */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
-  // ⚠ Keep these imports dynamic: a static import of ui.js reorders the hooks (check-hook-order).
-  const { popupKey, bfCard, momentBarHTML } = await import("./decide/present.js");
-  const { livePopups, openManagedPopup } = await import("./ui.js");
-
   const key = popupKey(message.id, "damage");
   const open = livePopups.get(key);
   if ( open ) { open.bringToFront?.(); return; }
@@ -286,15 +284,20 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
  * The offer's contributions, declared by machines at module evaluation (machine → service), in import order:
  *   due(attackMessage, activity)        → a decision is pending: the offer opens even under auto damage
  *   parts(attackMessage, activity, ctx) → null or `{ html, lines, wire(element), commit() }`; commit runs BEFORE the dice
+ * ⚠ A hoisted store: a machine registers while this file's body may not have run yet (the import
+ * cycle through the hold and auto-apply.js), and a `const` would be in its dead zone then.
  */
-const offerParts = [];
+function offerParts() {
+  if ( !offerParts.list ) offerParts.list = [];
+  return offerParts.list;
+}
 
 export function registerOfferPart(part) {
-  offerParts.push(part);
+  offerParts().push(part);
 }
 
 function offerPartsDue(attackMessage, activity) {
-  return offerParts.some(p => {
+  return offerParts().some(p => {
     try { return !!p.due?.(attackMessage, activity); }
     catch(err) { console.error(`${TITLE} | An offer contribution (${p.key}) failed its due check.`, err); return false; }
   });
@@ -302,7 +305,7 @@ function offerPartsDue(attackMessage, activity) {
 
 function offerPartsFor(attackMessage, activity, ctx) {
   const out = [];
-  for ( const p of offerParts ) {
+  for ( const p of offerParts() ) {
     try {
       const parts = p.parts?.(attackMessage, activity, ctx);
       if ( parts ) out.push(parts);

@@ -15,6 +15,7 @@ import { withTargets } from "./shared.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline,
   registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const TEND_FLAG = "kitTend";
 const timers = new Map();
@@ -60,7 +61,7 @@ function hitDiceOf(actor) {
 
 /* --- the moment: the kit's use ------------------------------------------------------------------ */
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usage, results) => {
+listen("dnd5e.postUseActivity", "kit-tend", (activity, _usage, results) => {
   try {
     const actor = activity?.actor;
     const found = rowFor(actor, activity?.item);
@@ -232,7 +233,7 @@ function tendLine(flag) {
   return `${flag.row} — tend ${flag.targetName} with one of their Hit Point Dice?`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "kit-tend", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, TEND_FLAG);
     if ( !flag ) return;
@@ -258,7 +259,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "kit-tend", message => {
   const flag = message.getFlag(MODULE_ID, TEND_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
@@ -267,4 +268,4 @@ Hooks.on("updateChatMessage", message => {
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "kit-tend", message => { disarmDeadline(timers, message.id); });

@@ -12,6 +12,7 @@ import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 // Auto-apply on cast (ARCHITECTURE.md §6). The STAMP is the trigger, never the setting: `castApply` and
 // `healPending` are stamped at preCreate, so an old log re-rendered is inert. Left out on purpose: save
@@ -123,7 +124,7 @@ async function showChoicePopup(card) {
   });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "cast", (message, html) => {
   const payload = message.getFlag(MODULE_ID, "castApply");
   const choice = payload?.choice;
   if ( !choice ) return;

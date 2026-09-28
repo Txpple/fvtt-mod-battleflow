@@ -15,6 +15,7 @@ import { judgeRoll } from "./reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { castLevelOn, originData, targetsInData, targetsOf } from "./decide/card.js";
 import { cardActivity } from "./lookup.js";
+import { listen } from "./dispatch.js";
 
 const volleyTimers = new Map();
 
@@ -32,7 +33,7 @@ function volleySpec(activity, usageConfig, targetCount, { castLevel } = {}) {
   return { n, castLevel: level, distinct: !!entry.distinctTargets };
 }
 
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageConfig) => {
+listen("dnd5e.preUseActivity", "volleys", (activity, usageConfig, _dialogConfig, messageConfig) => {
   const snapshot = targetsInData(messageConfig?.data);
   const spec = volleySpec(activity, usageConfig, snapshot ? snapshot.length : 0);
   if ( !spec ) return;
@@ -40,7 +41,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, _dialogConfig, messageC
   usageConfig.subsequentActions = false;
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, usageConfig, results) => {
+listen("dnd5e.postUseActivity", "volleys", (activity, usageConfig, results) => {
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return;
   const targets = targetsOf(message)
@@ -372,7 +373,7 @@ async function driveRays(message, activity, v) {
 
 // The dart multiplier: k darts = k copies of the base entry in ONE roll (a formula rewrite would
 // share dice), armed by the pending message's own flag.
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "volleys", (config, _dialog, message) => {
   const k = Number(foundry.utils.getProperty(message?.data ?? {}, `flags.${MODULE_ID}.volleyDarts`)) || 0;
   if ( k < 2 ) return;
   const base = config.rolls?.[0];
@@ -386,7 +387,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
   }
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "volleys", (message, html) => {
   const v = message.getFlag(MODULE_ID, "volley");
   if ( !v ) return void renderVolleyAim(message, html);
   renderVolleyRow(message, v, html);
@@ -405,7 +406,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // ui.js's sweep disarms only the hold's clock; each machine disarms its own.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "volleys", message => {
   disarmDeadline(volleyTimers, message.id);
 });
 

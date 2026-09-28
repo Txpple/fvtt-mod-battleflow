@@ -16,8 +16,8 @@ import { EMANATIONS, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../decide/registry.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
-// ⚠ Static on purpose (the ESM order trap): no hook registration moves. Re-run check-hook-order before changing it.
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
+import { listen } from "../dispatch.js";
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -107,7 +107,7 @@ export async function areaChoiceForDemand(card, activity, contained) {
 /* THE PICTURE WAITS FOR THE CHOICE: a hold raised as the card is born keeps FX Studio's visuals
  * back until the stamp (nothing asked) or the answer releases it; bounded by the clock plus slack. */
 const CHOICE_HOLD_SLACK_MS = 30_000;
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "saves/demand", doc => {
   try {
     if ( !isCard(doc, CARD.usage) ) return;
     // A held card re-posted with its answer: the question was already asked.
@@ -137,7 +137,7 @@ export function saveDemandable(t) {
   return !isDeadForSaves(actor);
 }
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "saves/demand", (activity, _usageConfig, results) => {
   if ( activity?.type !== "save" ) return;
   const message = (results?.message instanceof ChatMessage) ? results.message : null;
   if ( !message ) return; // create: false — no card, no bus
@@ -145,7 +145,7 @@ Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
 });
 
 // A usage card held back by the metamagic ask, born with the pick made: stamp as at the use.
-Hooks.on("battleflow.deferredUsageCard", ({ activity, message, templates }) => {
+listen("battleflow.deferredUsageCard", "saves/demand", ({ activity, message, templates }) => {
   if ( (activity?.type !== "save") || !(message instanceof ChatMessage) ) return;
   void stampSaveDemand(activity, message, { templates: [templates ?? []] }).finally(() => settleChoiceHold(activity, message));
 });
@@ -247,7 +247,7 @@ async function rollSaveDamageNow(activity, message, { damageOnSave, targets, awa
 }
 
 // The deferred dice, on the answering client once the area ask is answered; the flag clears first.
-Hooks.on("battleflow.areaAskAnswered", async message => {
+listen("battleflow.areaAskAnswered", "saves/demand", async message => {
   try {
     const deferred = message?.getFlag(MODULE_ID, "savesDeferredRoll");
     if ( !deferred ) return;

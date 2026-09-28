@@ -22,6 +22,7 @@ import { momentButton, registerRelay } from "./ui.js";
 import { rollDamageForSave } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 // An attached Region does the geometry and raises enter/exit/turn events (NOTES *v14 models an emanation end to end*).
 // The pack's formulas resolve against the WEARER, so a member's effect has the source's numbers read in.
@@ -48,7 +49,7 @@ const flagOf = region => region?.getFlag?.(MODULE_ID, FLAG) ?? null;
 
 /* --- the behaviour type: registered at init, events handled on the GM ---------------------- */
 
-Hooks.once("init", () => {
+listenOnce("init", "emanations", () => {
   const Base = foundry.data?.regionBehaviors?.RegionBehaviorType;
   const F = foundry.data?.fields;
   if ( !Base || !F ) { console.warn(`${TITLE} | Region behaviours are not available on this Foundry — emanations off.`); return; }
@@ -367,7 +368,7 @@ async function maybeHeal(behType, token, cause) {
 /* --- the notice: a heal the caster AIMS is offered at their turn start, never played (Aura of Vitality) --- */
 
 /** The turn moved: the current combatant's own spell emanations with a `remind` row say so on a card. */
-Hooks.on("updateCombat", (combat, changes) => {
+listen("updateCombat", "emanations", (combat, changes) => {
   try {
     if ( !isActiveGM() ) return;
     if ( !("turn" in changes) && !("round" in changes) ) return;
@@ -403,7 +404,7 @@ async function remind(region, row, token) {
 }
 
 // The notice's button: the caster's client uses the activity on whatever they have targeted.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
   const r = message.getFlag(MODULE_ID, "emanationRemind");
   if ( !r?.activityUuid ) return;
   const caster = resolveUuid(r.sourceUuid);
@@ -426,7 +427,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
  * its own ring). Rolled once on the bearer, applied to everyone inside. Forward moves only, once per turn.
  */
 const pulsed = new Set();   // `${regionId}|${round}|${turn}` — the ended turns already paid
-Hooks.on("updateCombat", (combat, changes, options) => {
+listen("updateCombat", "emanations", (combat, changes, options) => {
   try {
     if ( !isActiveGM() ) return;
     if ( !("turn" in changes) && !("round" in changes) ) return;
@@ -519,7 +520,7 @@ const pxPerUnit = scene => scene.grid.size / scene.grid.distance;
  * Refuse the platform's own `dnd5e.*` behaviours on an adopted ring or a listed emanation spell's
  * region, so a ring never carries two standing effects (they admit no neutrals, fire no turn events).
  */
-Hooks.on("preCreateRegionBehavior", (behavior, data) => {
+listen("preCreateRegionBehavior", "emanations", (behavior, data) => {
   try {
     if ( !String(data?.type ?? "").startsWith("dnd5e.") ) return;
     const region = behavior?.parent;
@@ -724,7 +725,7 @@ function transformRowOf(activity) {
 
 // A self-centred area is never clicked down: the placement prompt is off and the casting client
 // places the Region with the data `TemplatePlacement.fromActivity` would write.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+listen("dnd5e.preUseActivity", "emanations", (activity, usageConfig) => {
   try {
     if ( transformRowOf(activity) ) {
       usageConfig.create ??= {};
@@ -738,7 +739,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not switch off the template prompt.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "emanations", (activity, _usageConfig, results) => {
   try {
     if ( transformRowOf(activity) || !selfAreaOf(activity) ) return;
     if ( (results?.templates ?? []).flat().length ) return;   // the system placed one after all
@@ -780,7 +781,7 @@ async function placeSelfArea(activity, row, message) {
 
 // A radio per damage type on the usage dialog, the alignment's default checked; held until the cast lands.
 const pendingTypes = new Map();   // activity uuid → type picked in the dialog
-Hooks.on("renderActivityUsageDialog", (app, element) => {
+listen("renderActivityUsageDialog", "emanations", (app, element) => {
   try {
     const activity = app?.activity ?? app?.options?.activity ?? null;
     if ( !castEmanationRow(activity) ) return;
@@ -817,7 +818,7 @@ async function carryDamageTypeChoice(activity) {
 }
 
 // ⚠ dnd5e does NOT make a placed region a concentration dependent: the area ends here.
-Hooks.on("deleteActiveEffect", effect => {
+listen("deleteActiveEffect", "emanations", effect => {
   if ( !isActiveGM() || !effect?.statuses?.has?.("concentrating") ) return;
   void endConcentrationAreas(effect);
 });
@@ -854,7 +855,7 @@ async function endConcentrationAreas(effect) {
 const AREAS_FLAG = "areas";
 
 // The tie, written on the casting client, which owns the concentration effect.
-Hooks.on("dnd5e.postUseActivity", async (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "emanations", async (activity, _usageConfig, results) => {
   try {
     const regions = (results?.templates ?? []).flat().filter(r => r?.parent && r.uuid);
     if ( !regions.length ) return;
@@ -957,7 +958,7 @@ async function chooseDamageType(card, type) {
     flags: { [MODULE_ID]: { emanationTypeAnswer: { cardId: card.id, type } } } });
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
   const f = message.getFlag(MODULE_ID, "emanationCard");
   if ( !f?.types?.length ) return;
   const row = document.createElement("div");
@@ -981,7 +982,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // Every damage roll of the cast wears the card's type, or the default when it lands before the card.
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "emanations", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "save" ) return;
@@ -1010,8 +1011,8 @@ const sweepEverywhere = () => {
   const scenes = liveNow();
   for ( const s of game.scenes ) if ( scenes.has(s.id) || s.regions.some(r => flagOf(r)) ) scheduleScene(s);
 };
-Hooks.once("ready", sweepEverywhere);
-Hooks.on(`${MODULE_ID}.emanationsChanged`, sweepEverywhere);
+listenOnce("ready", "emanations", sweepEverywhere);
+listen(`${MODULE_ID}.emanationsChanged`, "emanations", sweepEverywhere);
 
 /**
  * ⚠ No document hook carries a user's view; the signal is the scene navigation rendering (NOTES
@@ -1025,12 +1026,12 @@ const watchLive = () => {
   liveKey = key;
   sweepEverywhere();
 };
-Hooks.on("updateScene", (_scene, changes) => { if ( "active" in changes ) watchLive(); });
-Hooks.on("renderSceneNavigation", watchLive);
-Hooks.on("canvasReady", canvasObj => { scheduleScene(canvasObj?.scene ?? game.scenes.viewed); watchLive(); });
-Hooks.on("createToken", tok => scheduleScene(tok.parent));
-Hooks.on("deleteToken", tok => scheduleScene(tok.parent));
-Hooks.on("updateToken", (tok, changes) => {
+listen("updateScene", "emanations", (_scene, changes) => { if ( "active" in changes ) watchLive(); });
+listen("renderSceneNavigation", "emanations", watchLive);
+listen("canvasReady", "emanations", canvasObj => { scheduleScene(canvasObj?.scene ?? game.scenes.viewed); watchLive(); });
+listen("createToken", "emanations", tok => scheduleScene(tok.parent));
+listen("deleteToken", "emanations", tok => scheduleScene(tok.parent));
+listen("updateToken", "emanations", (tok, changes) => {
   if ( !isActiveGM() || !tok.parent ) return;
   // A move re-floors every emanation on the scene; a change of actor or disposition re-sweeps.
   if ( ("x" in changes) || ("y" in changes) || ("elevation" in changes) || ("_regions" in changes) ) {
@@ -1042,12 +1043,12 @@ Hooks.on("updateToken", (tok, changes) => {
   }
   if ( ("actorId" in changes) || ("disposition" in changes) || ("actorLink" in changes) ) scheduleScene(tok.parent);
 });
-Hooks.on("updateRegion", (region, changes) => {
+listen("updateRegion", "emanations", (region, changes) => {
   if ( !isActiveGM() || !flagOf(region) ) return;
   if ( ("shapes" in changes) || ("attachment" in changes) || ("behaviors" in changes) ) void reconcileMembers(region);
 });
-Hooks.on("createRegion", region => { if ( isActiveGM() ) void adoptSpellRegion(region); });
-Hooks.on("deleteRegion", region => {
+listen("createRegion", "emanations", region => { if ( isActiveGM() ) void adoptSpellRegion(region); });
+listen("deleteRegion", "emanations", region => {
   const f = flagOf(region);
   if ( !isActiveGM() || !f ) return;
   void reconcileMembers(region, { gone: region });
@@ -1055,13 +1056,13 @@ Hooks.on("deleteRegion", region => {
   if ( f.kind === "feature" ) scheduleScene(region.parent);
 });
 for ( const hook of ["createItem", "deleteItem", "updateItem"] ) {
-  Hooks.on(hook, item => { if ( item?.parent instanceof Actor ) for ( const s of scenesWith(item.parent) ) scheduleScene(s); });
+  listen(hook, "emanations", item => { if ( item?.parent instanceof Actor ) for ( const s of scenesWith(item.parent) ) scheduleScene(s); });
 }
-Hooks.on("updateActor", (actor, changes) => {
+listen("updateActor", "emanations", (actor, changes) => {
   if ( ("system" in changes) || ("items" in changes) ) for ( const s of scenesWith(actor) ) scheduleScene(s);
 });
 for ( const hook of ["createActiveEffect", "deleteActiveEffect", "updateActiveEffect"] ) {
-  Hooks.on(hook, effect => {
+  listen(hook, "emanations", effect => {
     const actor = (effect?.parent instanceof Actor) ? effect.parent : effect?.parent?.parent;
     if ( !(actor instanceof Actor) || effect.getFlag?.(MODULE_ID, FLAG) ) return;   // never re-sweep on our own member effects
     for ( const s of scenesWith(actor) ) scheduleScene(s);

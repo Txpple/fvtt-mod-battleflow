@@ -1,12 +1,15 @@
 // Static hook-dispatch check (no Foundry, milliseconds): every `dnd5e.*` hook this module registers
-// must be one dnd5e actually dispatches. ⚠ A never-dispatched name registers cleanly, throws
-// nothing and does nothing forever (ARCHITECTURE.md §10 D10).
+// must be one dnd5e actually dispatches, and the dispatcher's VETOABLE list must match how the
+// platform dispatches each registered name. ⚠ A never-dispatched name registers cleanly, throws
+// nothing and does nothing forever (ARCHITECTURE.md §10 D10); a veto on a `callAll` hook is lost.
 //
-// The list is GENERATED from dnd5e's shipped bundle: the literal `Hooks.call`/`callAll` names UNION
-// the names in `@memberof hookEvents` JSDoc blocks. ⚠ Neither alone suffices: the roll hooks are
-// dispatched from a template (only the JSDoc names them), and some literals have no JSDoc. A
-// templated dispatch whose JSDoc names only the non-V2 variant is a hole both miss: ALLOW pins those.
-// ⚠ Scope is `dnd5e.*` only: Foundry's minified client bundle yields none of the core names.
+// The list is GENERATED from dnd5e's shipped bundle: the literal `Hooks.call` / `callAll` names,
+// the templated names EXPANDED (the roll pipeline builds `dnd5e.preRoll<Name>`, `…V2` and
+// `dnd5e.post<Name>RollConfiguration` from each roll's `hookNames`; the rest and slot hooks from a
+// type), and the names in `@memberof hookEvents` JSDoc blocks. The template variables the bundle
+// sets at run time are pinned in TEMPLATE_VARIABLES with the line that sets them.
+// ⚠ Scope is `dnd5e.*` only: Foundry's minified client bundle yields none of the core names; a
+// core hook is vetoable when its name starts with `pre` (the document and placement pre-hooks).
 // ⚠ The artifact is committed and pinned to the dnd5e version in `module.json`: bump the pin
 // without `--regen` and the check fails until somebody looks at the diff.
 //
@@ -15,7 +18,7 @@
 //   node tools/check-hook-dispatch.mjs --regen <dir> # ...from a specific systems/dnd5e directory
 //
 import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join } from "node:path";
 import { loadRegistrations, groupByHook } from "./hook-registrations.mjs";
 
@@ -27,72 +30,108 @@ const ARTIFACT = join(ROOT, "tools", "dnd5e-hooks.json");
  * each with its evidence. ⚠ Stale rows fail both ways: a name now in the set, or one nothing registers.
  * ------------------------------------------------------------------------------------------- */
 
-const ALLOW = [
-  {
-    hook: "dnd5e.postDamageRollConfiguration",
-    why: "TEMPLATED, the preRoll twin's hole on the other side of the dialog: BasicRoll.buildConfigure "
-      + "dispatches post<HookName>RollConfiguration for every hookName, and a damage roll's hookNames "
-      + "are [damage, ''] (DamageActivity/AttackActivity rollDamage, dnd5e.mjs 9094 and 18270; the '' "
-      + "is buildConfigure's own, 71968), so this fires once per damage roll with the built, unevaluated "
-      + "rolls — the JSDoc names only the generic postRollConfiguration. fighting-styles.js registers it "
-      + "for Great Weapon Fighting's floor; smoke-styles §4 asserts the floor landed (2026-09-26)"
-  },
-  {
-    hook: "dnd5e.preRollDamageV2",
-    // The template is `dnd5e.preRoll` + hookName.capitalize() + `V2` (not quoted in the string:
-    // a literal dollar-brace inside a string is a biome warning).
-    why: "TEMPLATED-WITH-NARROW-JSDOC, the hole this list exists for. Dispatched from the "
-      + "templated preRoll<HookName>V2 form in the roll pipeline, and the JSDoc block at "
-      + "that site declares only the non-V2 `dnd5e.preRollDamage`. So neither source names it, "
-      + "and it fires on every damage roll. ⚠ VERIFIED LIVE, not reasoned: four files register "
-      + "it (hit-riders, mastery, maneuvers, volleys) and rider injection, mastery riders and "
-      + "the volley multiplier are all table-proven and battery-covered — a dead registration "
-      + "here would have taken the whole damage-rider surface with it"
-  },
-  {
-    hook: "dnd5e.preRollAttackV2",
-    why: "TEMPLATED, the same hole as its damage twin above: dispatched from the preRoll<HookName>V2 "
-      + "form with hookNames [attack, d20Test] (dnd5e.mjs, AttackActivity#rollAttack), and named "
-      + "by no JSDoc. ⚠ MEASURED LIVE 2026-09-01 (tools/probe-expiry.mjs, hookSurfaces): it fires "
-      + "once per attack roll, before the roll dialog, with preRollD20TestV2 beside it. reminders.js "
-      + "registers it for the gate (HANDOFF Stage 2), and smoke-reminders asserts it FIRED"
-  },
-  {
-    hook: "dnd5e.preRollSavingThrowV2",
-    why: "TEMPLATED, the third of the family: Actor5e##rollD20Test sets hookNames [SavingThrow, "
-      + "d20Test] and buildConfigure dispatches preRoll<HookName>V2 for each (dnd5e.mjs, read "
-      + "2026-09-02) — the JSDoc at that site names only the non-V2 dnd5e.preRollSavingThrow. "
-      + "saves.js registers it for the save gate (option E: the demand opens the system's own "
-      + "dialog, and the gate meets every save there), and smoke-saves asserts it FIRED"
-  },
-  {
-    hook: "dnd5e.preRollAbilityCheckV2",
-    why: "TEMPLATED, the fourth of the family (2026-09-03): Actor5e#rollAbilityCheck, #rollSkill "
-      + "and #rollToolCheck all set hookNames [<type>, abilityCheck, d20Test] (dnd5e.mjs, the "
-      + "rollAbilityCheck template) and buildConfigure dispatches preRoll<HookName>V2 for each — "
-      + "the JSDoc names only the non-V2 dnd5e.preRollAbilityCheck. reminders.js registers it for "
-      + "the check gate (the third table on the one machine; initiative skipped by its "
-      + "initiativeDialog hookName), and smoke-reminders §12 asserts it FIRED"
-  }
-];
+const ALLOW = [];
+
+/* ---------------------------------------------------------------------------------------------
+ * The template variables: what the bundle substitutes into a templated hook name at run time,
+ * read off the sites that set them. A new roll type or template shape is a new row here.
+ * ------------------------------------------------------------------------------------------- */
+
+const TEMPLATE_VARIABLES = {
+  // The rest kinds (`config.type` in Actor5e#rest).
+  "config.type": ["short", "long"],
+  "config.type.capitalize()": ["Short", "Long"],
+  // `prepareSpellcastingSlots(spells, type, …)` and the spellcasting table: the progression types.
+  "type.capitalize()": ["Leveled", "Pact"],
+  "spellcasting.type.capitalize()": ["Leveled", "Pact"]
+};
+// `${name}` is read off the site itself: the nearest `const name = …` above it, its string
+// literals (`type === "check" ? "AbilityCheck" : "SavingThrow"`; `"skill" ? "Skill" : "ToolCheck"`).
 
 /* --- the generated set -------------------------------------------------------------------- */
 
+const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+
 /**
- * dnd5e's own declaration of its dispatched hooks, out of its shipped bundle (`dnd5e.*` only).
+ * dnd5e's own declaration of its dispatched hooks, out of its shipped bundle (`dnd5e.*` only),
+ * split by how it dispatches them.
  * @param {string} dir a `systems/dnd5e` directory
  */
 function extract(dir) {
   const src = readFileSync(join(dir, "dnd5e.mjs"), "utf8");
   const version = JSON.parse(readFileSync(join(dir, "system.json"), "utf8")).version;
 
+  // Every `hookNames` a roll declares: the roll pipeline's template variable.
+  const hookNames = new Set([""]);   // buildConfigure appends "" for the generic names
+  for (const m of src.matchAll(/hookNames\s*[:=]\s*\[([^\]]*)\]/g)) {
+    for (const s of m[1].matchAll(/"([^"]*)"/g)) hookNames.add(s[1]);
+  }
+  /** The values an expression can take: the string literals after its `?` (a ternary), else all of them. */
+  const valuesOf = expr => {
+    const q = expr.indexOf("?");
+    const values = [...expr.slice(q < 0 ? 0 : q).matchAll(/"([^"]+)"/g)].map(s => s[1]);
+    return values.length ? values : null;
+  };
+  // The variable ones: `[..., name, "d20Test"]` and `[..., type, "abilityCheck", "d20Test"]` —
+  // every `const name = …` that feeds a hookNames list, and the skill/tool check types.
+  for (const m of src.matchAll(/const name = [^;\n]*;/g)) {
+    if (!/hookNames = \[\.\.\.\(config\.hookNames \?\? \[\]\), name/.test(src.slice(m.index, m.index + 3000))) continue;
+    for (const v of valuesOf(m[0]) ?? []) hookNames.add(v);
+  }
+  hookNames.add("skill");
+  hookNames.add("tool");
+
+  const variables = { ...TEMPLATE_VARIABLES, "hookName.capitalize()": [...hookNames].map(cap) };
+
+  /** The values of the nearest `const name = …` above `index`, or null. */
+  const nameAt = index => {
+    const above = src.slice(Math.max(0, index - 8000), index);
+    const at = above.lastIndexOf("const name = ");
+    if (at < 0) return null;
+    return valuesOf(above.slice(at, above.indexOf(";", at)));
+  };
+
+  /** Every name a template stands for, or null for a shape this tool does not know. */
+  const expand = (template, index) => {
+    const vars = [...template.matchAll(/\$\{([^}]*)\}/g)].map(m => m[1]);
+    const local = { ...variables };
+    if (vars.includes("name")) local.name = nameAt(index);
+    // An inline ternary of literals (`${changes.total > 0 ? "heal" : "damage"}`) names its own values.
+    for (const v of vars) if (!local[v] && v.includes("?")) local[v] = valuesOf(v);
+    if (!vars.every(v => local[v])) return null;
+    let names = [template];
+    for (const v of vars) {
+      names = names.flatMap(n => local[v].map(value => n.replace(`\${${v}}`, value)));
+    }
+    return names;
+  };
+
   let sites = 0;
   let templated = 0;
-  const literal = new Set();
-  for (const m of src.matchAll(/Hooks\.(?:call|callAll)\(\s*(["'`])((?:[^\\]|\\.)*?)\1/g)) {
+  const unknown = [];
+  const byKind = { call: new Set(), callAll: new Set() };
+  const note = (kind, name) => {
+    if (kind === "call") byKind.call.add(name);
+    else byKind.callAll.add(name);
+  };
+  // Inline names: a literal, or a template literal.
+  for (const m of src.matchAll(/Hooks\.(call|callAll)\(\s*(["'`])((?:[^\\]|\\.)*?)\2/g)) {
     sites++;
-    if (m[1] === "`" && m[2].includes("${")) templated++;
-    else literal.add(m[2]);
+    const [, kind, quote, name] = m;
+    if ((quote === "`") && name.includes("${")) {
+      templated++;
+      const names = expand(name, m.index);
+      if (!names) unknown.push(name);
+      else for (const n of names) note(kind, n);
+    } else note(kind, name);
+  }
+  // A name built into a variable and dispatched a line later: `const name = \`…\`; Hooks.call(name, …)`.
+  for (const m of src.matchAll(/const name = `(dnd5e\.[^`]*)`;\s*\n\s*if \( Hooks\.(call|callAll)\(name,/g)) {
+    sites++;
+    templated++;
+    const names = expand(m[1], m.index);
+    if (!names) unknown.push(m[1]);
+    else for (const n of names) note(m[2], n);
   }
   const jsdoc = new Set();
   let blocks = 0;
@@ -101,14 +140,19 @@ function extract(dir) {
     for (const f of b[0].matchAll(/@function\s+([\w.]+)/g)) jsdoc.add(f[1]);
   }
   const dnd = n => n.startsWith("dnd5e.");
-  const hooks = [...new Set([...literal, ...jsdoc])].filter(dnd).sort();
+  const call = [...byKind.call].filter(dnd).sort();
+  const callAll = [...byKind.callAll].filter(dnd).sort();
+  const hooks = [...new Set([...call, ...callAll, ...jsdoc])].filter(dnd).sort();
   return {
     version,
     hooks,
+    call,
     extracted: {
       callSites: sites,
       templatedSites: templated,
-      literalNames: [...literal].filter(dnd).length,
+      unknownTemplates: unknown.filter(dnd),
+      hookNames: [...hookNames].sort(),
+      literalNames: call.length + callAll.length,
       jsdocBlocks: blocks,
       jsdocNames: [...jsdoc].filter(dnd).length
     }
@@ -145,17 +189,20 @@ if (argv.includes("--regen")) {
     $comment: "GENERATED — do not hand-edit. node tools/check-hook-dispatch.mjs --regen",
     system: "dnd5e",
     version: next.version,
-    source: "dnd5e.mjs: literal Hooks.call*/callAll names UNION @memberof hookEvents JSDoc",
+    source: "dnd5e.mjs: Hooks.call*/callAll names, literal and templated (expanded), UNION @memberof hookEvents JSDoc; `call` is the Hooks.call subset",
     extracted: next.extracted,
-    hooks: next.hooks
+    hooks: next.hooks,
+    call: next.call
   };
   writeFileSync(ARTIFACT, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
 
   console.log(`REGENERATED tools/dnd5e-hooks.json from ${dir}`);
   console.log(`  dnd5e ${prev.version} -> ${next.version}`);
   console.log(`  ${next.extracted.callSites} call sites (${next.extracted.templatedSites} `
-    + `templated) · ${next.extracted.literalNames} literal · ${next.extracted.jsdocNames} `
+    + `templated, ${next.extracted.unknownTemplates.length} of unknown shape) · ${next.extracted.literalNames} `
+    + `dispatched names (${next.call.length} with Hooks.call) · ${next.extracted.jsdocNames} `
     + `JSDoc-declared · ${next.hooks.length} union`);
+  for (const t of next.extracted.unknownTemplates) console.log(`    ⚠ unexpanded template: ${t} — add its variable to TEMPLATE_VARIABLES`);
   console.log(`\n  ${added.length} added, ${removed.length} removed:`);
   for (const h of added) console.log(`    + ${h}`);
   for (const h of removed) console.log(`    - ${h}   ⚠ READ THIS ONE — anything registering it is now dead`);
@@ -177,11 +224,15 @@ try {
   process.exit(1);
 }
 const dispatched = new Set(artifact.hooks ?? []);
+const withCall = new Set(artifact.call ?? []);
 
 // (0) The artifact is sane: a truncated list would bless every name and pass.
 if (dispatched.size < 50) {
-  fail("artifact", `only ${dispatched.size} hook names — dnd5e 5.3.3 yields 105. The artifact is `
+  fail("artifact", `only ${dispatched.size} hook names — dnd5e 6.0.5 yields well over a hundred. The artifact is `
     + "truncated or corrupt; regenerate it rather than trusting this run");
+}
+if (!Array.isArray(artifact.call)) {
+  fail("artifact", "no `call` list — regenerate it (node tools/check-hook-dispatch.mjs --regen)");
 }
 
 // (1) The version pin: the artifact and module.json name the same dnd5e version.
@@ -199,6 +250,7 @@ if (pinned !== artifact.version) {
 const reg = await loadRegistrations();
 const byHook = groupByHook(reg);
 const registered = [...byHook.keys()].filter(h => h.startsWith("dnd5e."));
+const core = [...byHook.keys()].filter(h => !h.startsWith("dnd5e."));
 const pins = new Map(ALLOW.map(a => [a.hook, a]));
 const usedPins = new Set();
 
@@ -223,6 +275,29 @@ for (const a of ALLOW) {
   }
 }
 
+// (4) VETOABLE (scripts/dispatch.js) is exactly the registered names the platform dispatches with
+// Hooks.call: a false on any other hook is lost, and a false on one of these stops the chain.
+const { VETOABLE } = await import(pathToFileURL(join(ROOT, "scripts", "dispatch.js")).href);
+const vetoable = new Set(VETOABLE);
+for (const hook of registered) {
+  const isCall = withCall.has(hook) || (pins.get(hook)?.call === true);
+  if (vetoable.has(hook) && !isCall) {
+    fail("vetoable", `${hook} is in VETOABLE (scripts/dispatch.js) and dnd5e ${artifact.version} dispatches it with `
+      + "callAll — a false there means nothing to the platform; remove it from VETOABLE");
+  } else if (!vetoable.has(hook) && isCall) {
+    fail("vetoable", `${hook} is dispatched with Hooks.call and is not in VETOABLE (scripts/dispatch.js) — `
+      + "a handler's false would be lost; add it");
+  }
+}
+for (const hook of core) {
+  const isPre = /^pre[A-Z]/.test(hook);
+  if (vetoable.has(hook) && !isPre) fail("vetoable", `${hook} is in VETOABLE, and a core hook is Hooks.call only when its name starts with pre — remove it`);
+  else if (!vetoable.has(hook) && isPre) fail("vetoable", `${hook} is a core pre-hook (Hooks.call) and is not in VETOABLE (scripts/dispatch.js) — add it`);
+}
+for (const hook of vetoable) {
+  if (!byHook.has(hook)) fail("vetoable", `VETOABLE lists ${hook} and nothing registers it — remove the row`);
+}
+
 /* --- the report ---------------------------------------------------------------------------- */
 
 if (failures.length) {
@@ -232,20 +307,20 @@ if (failures.length) {
   process.exit(1);
 }
 
-const core = [...byHook.keys()].filter(h => !h.startsWith("dnd5e."));
 console.log(`HOOK NAMES THIS MODULE REGISTERS, AGAINST WHAT dnd5e ${artifact.version} DISPATCHES`);
 console.log(`  ${dispatched.size} dispatched names generated from the system bundle `
-  + `(${artifact.extracted.literalNames} literal · ${artifact.extracted.jsdocNames} JSDoc, unioned)`);
+  + `(${artifact.extracted.literalNames} literal or expanded · ${artifact.extracted.jsdocNames} JSDoc, unioned; `
+  + `${withCall.size} with Hooks.call)`);
 console.log(`  ${reg.length} registrations across ${byHook.size} hooks — `
   + `${registered.length} dnd5e.*, ${core.length} core`);
 const w = Math.max(...registered.map(h => h.length));
 for (const hook of registered) {
-  const how = pins.has(hook) ? "PINNED HOLE" : "dispatched";
+  const how = pins.has(hook) ? "PINNED HOLE" : withCall.has(hook) ? "call" : "callAll";
   console.log(`    ${hook.padEnd(w)}  ${how.padEnd(11)}  ${byHook.get(hook).length}× `
     + `(${[...new Set(byHook.get(hook))].join(", ")})`);
 }
-console.log(`\n  ⚠ ${core.length} core (non-dnd5e) hook names are NOT checked and cannot be: `
+console.log(`\n  ⚠ ${core.length} core (non-dnd5e) hook names are NOT checked for dispatch and cannot be: `
   + "Foundry's bundle yields 0 of them (see the SCOPE note in this file).");
 console.log(`\nPASS every dnd5e.* hook registered is one dnd5e ${artifact.version} dispatches `
-  + `(${registered.length} names, ${ALLOW.length} pinned hole${ALLOW.length === 1 ? "" : "s"} `
-  + "— ARCHITECTURE §10 D10).");
+  + `(${registered.length} names, ${ALLOW.length} pinned hole${ALLOW.length === 1 ? "" : "s"}), and VETOABLE `
+  + `names the ${vetoable.size} Hooks.call hooks among them — ARCHITECTURE §10 D10.`);

@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, isContinuingClient } from "../core.js";
 import { armDeadline, disarmDeadline } from "../ui.js";
+import { listen } from "../dispatch.js";
 
 const armedTimers = new Map();
 
@@ -37,6 +38,6 @@ async function fireHoldTimer(messageId) {
 }
 
 // The buzzer must not outlive its message (ui.js sweeps the popup/latch/ack state).
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "hold/clock", message => {
   disarmHoldTimer(message.id);
 });

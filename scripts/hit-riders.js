@@ -9,6 +9,7 @@ import { riderKey } from "./decide/eligible.js";
 import { effectSourceOf, hitTargets } from "./shared.js";
 import { bfCard } from "./decide/present.js";
 import { CARD, isCard, originIdInData } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 // The mark's owner is found by origin alone: mark → its source ITEM → that item's ACTOR (two rangers can
 // mark one creature). ⚠ Crit doubling is free: `preRollDamageV2` fires before `options.isCritical` is
@@ -71,7 +72,7 @@ function riderTargets(message) {
   return Array.from(game.user.targets).map(t => t.actor).filter(Boolean);
 }
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "hit-riders", (config, _dialog, message) => {
   const activity = config.subject;
   const attacker = activity?.actor;
   if ( !attacker ) return;

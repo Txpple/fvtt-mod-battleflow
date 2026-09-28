@@ -15,6 +15,7 @@ import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 /** The feature names the Cunning Strike menu answers to. */
 const CUNNING_FEATURES = [...Object.values(CUNNING_OPTIONS).flatMap(r => [r.feature, r.upgrade?.feature]), "Improved Cunning Strike"].filter(Boolean);
@@ -134,7 +135,7 @@ registerOfferPart({
 
 /* --- the rider: the sneak dice ride the weapon's damage roll --------------------------------- */
 
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "sneak", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -177,7 +178,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 const effectsRun = new Set();
 
 // The damage message landing, on its author's client. ⚠ `dnd5e.rollDamageV2` does not reliably hand over the message.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "sneak", message => {
   if ( !message.isAuthor ) return;
   const sd = message.getFlag(MODULE_ID, "sneakDamage");
   if ( !sd || sd.effectsDone || effectsRun.has(message.id) ) return;
@@ -283,7 +284,7 @@ registerResumable("cunning", {
 
 /* --- the cards say it (R5) -------------------------------------------------------------------- */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "sneak", (message, html) => {
   const sd = message.getFlag(MODULE_ID, "sneakDamage");
   if ( sd ) {
     const picks = sd.cunning ?? [];

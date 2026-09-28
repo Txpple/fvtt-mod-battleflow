@@ -672,24 +672,31 @@ activity's effect profiles resolve, land on the hit targets receipted on the dam
 so an opportunity attack's window is still the attacker's next turn start). Two machines, no
 sideways edge: the shared part went down to the service.
 
-### Registration order is import-graph order
+### Registration order is the dispatcher's ORDER
 
-A file's imports evaluate before its own body, so an "early" file importing a "late" one
-registers the late file's hooks **first**. Some same-hook orderings are behavioral (a veto must
-register before a capture; a card row's render order is its registration order). The
-load-bearing ones are the named `CHECKS` in `tools/check-hook-order.mjs` (stubbed globals, no
-Foundry); the full order is [tools/hook-order.snapshot](tools/hook-order.snapshot), and
-`npm run hooks` **fails on any drift from it**. The lazy-edge tally is `npm run layers`'s to
-print.
+Every hook the module listens to goes through **one dispatcher**, [dispatch.js](scripts/dispatch.js):
+a file registers with `listen(hook, key, fn)` (or `listenOnce`), `key` its own scripts-relative
+path, and the dispatcher holds ONE platform listener per hook name and runs the module's handlers
+behind it in the order of its `ORDER` table — the same order on every hook. Some same-hook
+orderings are behavioral (a veto runs before the capture it protects; a card's rows render in
+handler order), and the table is where they are decided, not the import graph. `Hooks.on`
+appears in dispatch.js and nowhere else; `npm run hooks` (`tools/check-hook-order.mjs`) fails
+on a registration outside it, a key that is not the file's own, a file missing from `ORDER`, a
+stale row, and on any of its named load-bearing pairs out of order. Its twin `npm run dispatch`
+proves every `dnd5e.*` name is one the system dispatches and that `VETOABLE` — the hooks the
+platform dispatches with `Hooks.call`, where a handler's `false` stops the chain — matches the
+bundle.
 
-- **Adding an edge reorders, and so does removing one** — an import drags a file's evaluation
-  earlier than its entry position; a lazy edge holds no order.
-- **A move meant to change the order** refreshes the snapshot with `--snapshot` in the same
-  commit and says why the difference is unobservable (a disjoint flag namespace, no shared card,
-  the contended pair preserved); **a move meant to be order-neutral** is proven so by the gate.
+- **Adding a file that registers a hook** adds its row to `ORDER`, where its rows and vetoes
+  belong; the gate says so. Import order is evaluation order and nothing more.
+- **What evaluation order still fixes** is the eval-time registries — the damage offer's parts,
+  the rescue window's slices, the damage claims, the withholds — each in the order its files are
+  evaluated from the entry.
 
 Cross-file symbols must be **hoisted `function` declarations called at hook time**, never at
-module-eval time — that is the only reason the existing import cycles are safe.
+module-eval time — that is the only reason the existing import cycles are safe. A registry a
+machine writes at ITS evaluation (`registerOfferPart`) keeps its store on a hoisted function for
+the same reason: inside a cycle the service's body may not have run yet.
 
 ### The public API — the only surface another module may read (2026-09-09)
 
@@ -856,7 +863,7 @@ The module rides **public hooks and document writes only** (R3). The seams it de
 | --- | --- |
 | `dnd5e.rollAttackV2` | the attack trigger — fires on the rolling client, after the message exists |
 | `dnd5e.postUseActivity` | the use trigger — spell holds, save demands, volleys, cast payloads; a listed `roll` row's own activity used from the sheet answers the oldest pending hold that asks this defender with the row live (hold/answer.js — Lucky's "Disadvantage" is no Reaction, so it is asked before the activation gate); a scoped tactical fold's ARMING (d20-folds.js: Tactical Assessment or Ambush used from the sheet — the die rolled in the open, a chip carrying the number on the actor, a notice naming the check; `dnd5e.rollSkill` / `dnd5e.rollInitiative` fold the number in when the check the scope names lands) |
-| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES): the marks (hit-riders.js), the Sneak Attack dice after their Cunning Strike costs (sneak.js), the clock riders (clock-riders.js) and Commander's Strike's ride (command.js — the chip the elect put on the ally carries the fighter's die; the ally's own attack's damage folds it into the base roll, spends the chip and the Reaction, and stamps `commandRide`; no driven attack, no relay); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read), and since 2026-09-24 `config.isCritical = false` for a natural 20 a defender's `roll` answer undid. ⚠ **The roll count** (Slice A, 2026-09-24): auto-damage.js's handler is the FIRST registration on the hook (tools/hook-order.snapshot), so it stamps `weaponRolls` — how many rolls are the activity's own — before any rider pushes one; Savage Attacker rerolls those. dice-changers.js's registration sits later on the hook and stamps the `diceChange` birth flag (`due` / `spent`, a row per feature), reading nothing a rider writes |
+| `dnd5e.preRollDamageV2` | injecting rider damage parts (crit doubling comes free — see NOTES): the marks (hit-riders.js), the Sneak Attack dice after their Cunning Strike costs (sneak.js), the clock riders (clock-riders.js) and Commander's Strike's ride (command.js — the chip the elect put on the ally carries the fighter's die; the ally's own attack's damage folds it into the base roll, spends the chip and the Reaction, and stamps `commandRide`; no driven attack, no relay); the automatic Critical Hit — `config.isCritical = true` on a hit within 5 feet of a Paralyzed or Unconscious target (auto-damage.js `critFor`, the ONE crit source the offer's badge and both roll paths read), and since 2026-09-24 `config.isCritical = false` for a natural 20 a defender's `roll` answer undid. ⚠ **The roll count** (Slice A, 2026-09-24): auto-damage.js's handler runs FIRST on the hook (dispatch.js ORDER), so it stamps `weaponRolls` — how many rolls are the activity's own — before any rider pushes one; Savage Attacker rerolls those. dice-changers.js's registration sits later on the hook and stamps the `diceChange` birth flag (`due` / `spent`, a row per feature), reading nothing a rider writes |
 | `dnd5e.preRollAttackV2` · `dnd5e.preRollSavingThrowV2` · `dnd5e.preRollAbilityCheckV2` | the three gates (attack, save, check): judged before the dice, the system's own dialog forced open and given Battle Flow's fieldsets — **the dialog is the system's own, we add one fieldset and set its default** (RULINGS.md *The gate before the roll*); all TEMPLATED names, pinned in `check-hook-dispatch` and asserted FIRED by their suites. Initiative rides the check hook too and is skipped by its `initiativeDialog` hookName. The same judge (`reminders.js` `judgeRoll`) runs in the volley aim popup per ray, and the ray's record rides the roll's own message data |
 | `renderRollConfigurationDialog` (core) | the section drawn into the system's roll dialogs on each render — the attack gate's, the save gate's and the save demand's fieldsets, the Fails button; polish.js's target block rides the same hook |
 | `dnd5e.postRollConfiguration` | the record of what the gate showed and what was pressed, stamped on the roll's message data after the dialog closes with rolls in hand |
@@ -997,7 +1004,8 @@ an added die, a reaction that moves AC):
 2. Depend downward only (§7). If you need a service from a machine, the service is in the wrong
    file. If the edge genuinely must exist, it goes in that tool's `ALLOW` with a REASON and a
    disposition — and an `OPEN` one is recorded in BACKLOG *The two sideways edges* as well.
-3. Run the hook-order check **and the dispatch check** (`npm run hooks && npm run dispatch`).
+3. Register its hooks through `listen` (§7 *Registration order*), add its row to `ORDER` in
+   [dispatch.js](scripts/dispatch.js), and run `npm run hooks && npm run dispatch`.
 4. Register nothing at module-eval time except hook callbacks.
 5. Move `EXPECTED_SOURCE_FILES` in `tools/check-registry.mjs`, and fix the docs that quote it.
    The count is pinned precisely so adding a file is a decision, not a drift.

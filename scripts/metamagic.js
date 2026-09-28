@@ -17,6 +17,7 @@ import { newAsk, registerAskAnswerPart } from "./area-ask.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdInData } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 const INDEX = tableIndex(METAMAGIC);
 /** The name the record shows for Font of Magic's uses — what the table calls them. */
@@ -111,7 +112,7 @@ function windowMenuFor(activity) {
 
 // ⚠ dnd5e skips the usage dialog when nothing is configurable (a cantrip): `scaling: 0` forces it
 // without drawing a scaling section. `configure: false` is respected.
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig) => {
+listen("dnd5e.preUseActivity", "metamagic", (activity, usageConfig, dialogConfig) => {
   try {
     if ( dialogConfig?.configure === false ) return;
     if ( usageConfig?.scaling !== false ) return;                 // something else opens it already
@@ -121,7 +122,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig, dialogConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not open the casting window for the metamagic group.`, err); }
 });
 
-Hooks.on("renderActivityUsageDialog", (app, element) => {
+listen("renderActivityUsageDialog", "metamagic", (app, element) => {
   try {
     const activity = app?.activity ?? app?.options?.activity ?? null;
     const actor = activity?.actor;
@@ -197,7 +198,7 @@ Hooks.on("renderActivityUsageDialog", (app, element) => {
 // ⚠ An unclaimed pick (window cancelled, template never placed) must not land on the NEXT cast:
 // the close hook sweeps it and the stamp refuses a stale one.
 const PICK_TTL_MS = 5 * 60 * 1000;
-Hooks.on("closeActivityUsageDialog", app => {
+listen("closeActivityUsageDialog", "metamagic", app => {
   try {
     const uuid = (app?.activity ?? app?.options?.activity)?.uuid ?? null;
     if ( !uuid || !pending.has(uuid) ) return;
@@ -253,7 +254,7 @@ function recordForRoll(activity, message) {
 }
 
 // The roll's `options.type` is what the verdict and the applier read: set it before the dice.
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "metamagic", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.item?.type !== "spell" ) return;
@@ -277,7 +278,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 
 /* --- The card: born with the pick; the points spent once the cast has landed ------------------ */
 
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "metamagic", doc => {
   try {
     const uuid = activityUuidOf(doc);
     if ( !uuid || !pending.has(uuid) ) return;
@@ -321,19 +322,19 @@ function openCastHold(uuid) {
 }
 
 // The real card's BIRTH lifts the hold, before any `createChatMessage` handler can observe it...
-Hooks.on("preCreateChatMessage", doc => {
+listen("preCreateChatMessage", "metamagic", doc => {
   const uuid = doc.getFlag?.("dnd5e", "activity")?.uuid ?? null;
   if ( uuid && doc.getFlag?.(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, doc);
 });
 // ...and a card posted from ANOTHER client fires no preCreate here, so its arrival lifts it too.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "metamagic", message => {
   const uuid = activityUuidOf(message);
   if ( uuid && message.getFlag(MODULE_ID, METAMAGIC_FLAG)?.chosen ) releaseHold(uuid, message);
 });
 
 // A deleted carrier is the ask withdrawn: the points are spent, so post the card as cast.
 // ⚠ Only the casting client holds one, so exactly one client does this.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "metamagic", message => {
   try {
     const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
     const held = message.getFlag(MODULE_ID, DEFERRED_FLAG);
@@ -345,7 +346,7 @@ Hooks.on("deleteChatMessage", message => {
   } catch(err) { console.error(`${TITLE} | The deleted ask's card could not be posted.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "metamagic", (activity, _usageConfig, results) => {
   try {
     const pick = pending.get(activity?.uuid);
     if ( !pick ) return;
@@ -436,7 +437,7 @@ async function spendForPick(activity, pick, message) {
 
 /* --- The durable record — one line on the spell's card, every render, idempotent (law 6) ------ */
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
   try {
     const record = message.getFlag(MODULE_ID, METAMAGIC_FLAG);
     if ( !record ) return;

@@ -9,6 +9,7 @@ import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, ca
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
 import { abilityOf, originIdOf, rollKindOf, subKindOf } from "./decide/card.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 /** Popup keys this client has auto-shown, so a re-render never stacks a second one. */
 export const shownMoments = new Set();
@@ -127,7 +128,7 @@ export function markDefaultButton(element, action) {
 }
 
 // Every system roll dialog: mark its default (a gate re-marks after), then paint a demand.
-Hooks.on("renderRollConfigurationDialog", (app, element) => {
+listen("renderRollConfigurationDialog", "ui", (app, element) => {
   try {
     const markOwn = () => {
       if ( element.querySelector("[data-bf-default]") ) return;   // a gate got there first
@@ -228,7 +229,7 @@ export async function acknowledgeMoment(message, flagKey) {
 
 // The ack relay registers below `relays` (its dead zone here). Test seam, published on `init`:
 // ⚠ a `ready` hook runs before a suite's ledger arms.
-Hooks.once("init", () => {
+listenOnce("init", "ui", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { acknowledgeMoment });
 });
@@ -326,9 +327,9 @@ export async function dramaticVerdictPause(rollMessage) {
   if ( beat ) await new Promise(r => setTimeout(r, beat));
 }
 
-// ⚠ Card-row order is hook registration order: this bar draws first (check-hook-order.mjs).
-// Every client shows a live `damageOffer`'s bar (a flag this file does not own).
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+// The first row on a card (dispatch.js ORDER): every client shows a live `damageOffer`'s bar (a flag
+// this file does not own).
+listen("dnd5e.renderChatMessage", "ui", (message, html) => {
   const offer = message.getFlag(MODULE_ID, "damageOffer");
   if ( (offer?.status === "pending") && (offer.deadline > Date.now()) ) {
     const row = document.createElement("div");
@@ -364,7 +365,7 @@ export function cardRow(draw) {
   };
 }
 
-Hooks.on("dnd5e.renderChatMessage", (_message, html) => {
+listen("dnd5e.renderChatMessage", "ui", (_message, html) => {
   const root = html instanceof HTMLElement ? html : html?.[0];
   if ( !root ) return;
   for ( const el of root.querySelectorAll(SURFACES.cardSummary) ) {
@@ -378,7 +379,7 @@ Hooks.on("dnd5e.renderChatMessage", (_message, html) => {
 });
 
 // The nudge.
-Hooks.on("updateChatMessage", (message, changed) => {
+listen("updateChatMessage", "ui", (message, changed) => {
   if ( !changed?.flags?.[MODULE_ID] || !rendersAsSummary(message) ) return;
   ui.chat?.updateMessage(message.system.origin);
 });
@@ -398,7 +399,7 @@ export function registerRelay(envelopeKey, { flagKey, targetOf, owns, fold, clea
 }
 
 // ⚠ The folds repeat every guard INSIDE the serializer: two answers can land in one tick.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "ui", message => {
   for ( const [envelopeKey, relay] of relays ) {
     const envelope = message.getFlag(MODULE_ID, envelopeKey);
     if ( !envelope ) continue;
@@ -606,7 +607,7 @@ export function syncRescuePopup(message, { recall = false } = {}) {
 }
 
 // THE ONE DELETE-SWEEP, off the uniform `${messageId}|` key prefix.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "ui", message => {
   for ( const [key, dialog] of [...livePopups] ) {
     if ( !key.startsWith(`${message.id}|`) ) continue;
     livePopups.delete(key);
@@ -709,9 +710,9 @@ function resume(message, cause) {
   }
 }
 
-Hooks.on("createChatMessage", message => resume(message, "create"));
-Hooks.on("updateChatMessage", message => resume(message, "update"));
-Hooks.on("dnd5e.renderChatMessage", message => resume(message, "render"));
+listen("createChatMessage", "ui", message => resume(message, "create"));
+listen("updateChatMessage", "ui", message => resume(message, "update"));
+listen("dnd5e.renderChatMessage", "ui", message => resume(message, "render"));
 
 // THE WITHHOLD REGISTRY: a withholder may pause another machine's verdict with an offer and hands
 // it back via `resumeWithheld`. An offer FAILS OPEN.

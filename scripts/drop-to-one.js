@@ -16,6 +16,7 @@ import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.j
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
   armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
+import { listen } from "./dispatch.js";
 
 const DROP_FLAG = "dropToOne";
 const HP = "system.attributes.hp.value";
@@ -43,7 +44,7 @@ function rowFor(actor, { outright }) {
   return null;
 }
 
-Hooks.on("dnd5e.preApplyDamage", (actor, amount, updates, options) => {
+listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, options) => {
   try {
     if ( !(actor instanceof Actor) || !(Number(amount) > 0) || !(HP in (updates ?? {})) ) return;
     const hp = actor.system?.attributes?.hp;
@@ -215,7 +216,7 @@ function askLine(flag) {
   return `${flag.row} — ${flag.actorName} is held at 1 Hit Point; it waits for the answer`;
 }
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
   try {
     const flag = message.getFlag(MODULE_ID, DROP_FLAG);
     if ( !flag || (flag.answer === "auto") ) return;
@@ -241,7 +242,7 @@ Hooks.on("dnd5e.renderChatMessage", (message, html) => {
 });
 
 // An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "drop-to-one", message => {
   const flag = message.getFlag(MODULE_ID, DROP_FLAG);
   if ( !flag ) return;
   if ( flag.status === "pending" ) { armTimer(message); return; }
@@ -250,4 +251,4 @@ Hooks.on("updateChatMessage", message => {
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });
 
-Hooks.on("deleteChatMessage", message => { disarmDeadline(timers, message.id); });
+listen("deleteChatMessage", "drop-to-one", message => { disarmDeadline(timers, message.id); });

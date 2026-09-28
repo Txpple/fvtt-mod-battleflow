@@ -13,11 +13,12 @@ import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { targetsOf } from "./decide/card.js";
+import { listen } from "./dispatch.js";
 
 // "Directed Attack" targets the ALLY and spends the die; the GM writes a chip carrying it on the
 // ally, whose owner attacks from their own sheet; the die rides that damage and spends their Reaction.
 
-Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
+listen("dnd5e.preUseActivity", "command", (activity, usageConfig) => {
   try {
     if ( (activity?.type !== "damage") || !activity.actor ) return;
     if ( !foldEntryFor(activity.actor, "command", maneuverFoldEntries()) ) return;
@@ -27,7 +28,7 @@ Hooks.on("dnd5e.preUseActivity", (activity, usageConfig) => {
   } catch(err) { console.warn(`${TITLE} | Could not claim Commander's Strike's use.`, err); }
 });
 
-Hooks.on("dnd5e.postUseActivity", (activity, _usageConfig, results) => {
+listen("dnd5e.postUseActivity", "command", (activity, _usageConfig, results) => {
   try {
     if ( (activity?.type !== "damage") || !activity.actor?.isOwner ) return;
     const found = foldEntryFor(activity.actor, "command", maneuverFoldEntries());
@@ -79,7 +80,7 @@ async function ensureCommandChip(message) {
   if ( chip ) await queueFlagWrite(message, "command", current => { if ( current.chipId ) return false; current.chipId = chip.id; });
 }
 
-Hooks.on("createChatMessage", message => { if ( isActiveGM() && message.getFlag(MODULE_ID, "command") ) void ensureCommandChip(message); });
+listen("createChatMessage", "command", message => { if ( isActiveGM() && message.getFlag(MODULE_ID, "command") ) void ensureCommandChip(message); });
 
 /** THE NOTICE: the ally's owner is told, OK-only, auto-closed at the deadline (the Hew notice's shape). */
 async function showCommandNotice(message) {
@@ -98,7 +99,7 @@ async function showCommandNotice(message) {
 }
 
 /** THE RIDE: the die folds INTO the base roll (crit-doubled with it); chip and Reaction spent. */
-Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
+listen("dnd5e.preRollDamageV2", "command", (config, _dialog, message) => {
   try {
     const activity = config.subject;
     if ( activity?.type !== "attack" ) return;
@@ -126,7 +127,7 @@ Hooks.on("dnd5e.preRollDamageV2", (config, _dialog, message) => {
 });
 
 // The fighter's card records the strike — the elect folds it from the ally's damage message.
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "command", message => {
   const ride = message.getFlag(MODULE_ID, "commandRide");
   if ( !ride?.cardId || !isActiveGM() ) return;
   const card = game.messages.get(ride.cardId);
@@ -137,7 +138,7 @@ Hooks.on("createChatMessage", message => {
   }).catch(err => console.warn(`${TITLE} | Could not record the directed strike on the card.`, err));
 });
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "command", (message, html) => {
   const ride = message.getFlag(MODULE_ID, "commandRide");
   if ( ride ) {
     const line = document.createElement("div");

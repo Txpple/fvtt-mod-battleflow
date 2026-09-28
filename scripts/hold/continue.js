@@ -18,9 +18,10 @@ import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived
 import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
+import { listen } from "../dispatch.js";
 
 // ⚠ Reads CURRENT state, not the diff: setFlag's flattened key never matches a nested test.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "hold/continue", message => {
   // Every client, before the continuing-client gate: the popup is usually elsewhere.
   closeAnsweredHoldPopups(message);
 

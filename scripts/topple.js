@@ -11,10 +11,11 @@ import { SURFACES } from "./surfaces.js";
 import { CARD, abilityOf, isCard, originData, originIdOf } from "./decide/card.js";
 import { livePopups, DialogCarried, momentButton, scheduleBarSync, shownMoments, armDeadline,
   disarmDeadline, dramaticVerdictPause, registerDemand, demandAnsweredBy } from "./ui.js";
+import { listen } from "./dispatch.js";
 
 /* ⚠ The twin-ask supersede: `isActiveGM()` is per-USER, so two sessions on one account both stamp
  * the ask. An ask with an ELDER twin (timestamp, then id) deletes itself, the same on every client. */
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "topple", message => {
   const flag = message.getFlag(MODULE_ID, "topple");
   if ( !flag?.sourceMessageId ) return;
   if ( !drivesMomentFor(flag?.attackerUuid) ) return;
@@ -160,7 +161,7 @@ async function fireToppleTimer(messageId) {
 
 /* The card folds its own save against its DC; a failure presses Prone. A save chained to any OTHER
  * message is never a Topple answer; a bare sheet roll may be. */
-Hooks.on("createChatMessage", message => {
+listen("createChatMessage", "topple", message => {
   if ( !isCard(message, CARD.save) ) return;
   // Reachable without a GM; the Prone press guards itself.
   if ( !isActiveGM() && game.users.activeGM ) return;
@@ -267,7 +268,7 @@ async function foldToppleSave(saveMessage) {
 }
 
 // Every client closes a done entry's popup; the buzzer disarms when nothing is pending.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "topple", message => {
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple ) {
     for ( const t of (topple.targets ?? []) ) {
@@ -281,12 +282,12 @@ Hooks.on("updateChatMessage", message => {
 });
 
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "topple", message => {
   disarmToppleTimer(message.id);
 });
 
 // The Topple card's rows: the bar, a Roll button per target, the GM's Prone button.
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "topple", (message, html) => {
   const topple = message.getFlag(MODULE_ID, "topple");
   if ( topple?.targets?.length ) {
     // The buzzer re-arms on render from the absolute deadline, so a reload resumes the clock.

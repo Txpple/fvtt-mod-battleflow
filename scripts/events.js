@@ -10,6 +10,7 @@
 import { MODULE_ID, TITLE } from "./core.js";
 import { MOMENT_KINDS, MOMENT_RECORDS, MOMENT_WORDS, isMomentWord, momentId, newMoments, resolvedMoments } from "./decide/moments.js";
 import { hitTargets } from "./shared.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 /** The contract's version and vocabulary, for other modules. */
 export const MOMENT_CONTRACT = Object.freeze({
@@ -185,27 +186,27 @@ export function observeMessage(message, writerId, publish = true) {
   return out;
 }
 
-Hooks.on("createChatMessage", (message, _options, userId) => {
+listen("createChatMessage", "events", (message, _options, userId) => {
   observeMessage(message, userId ?? message.author?.id ?? null);
 });
 
-Hooks.on("updateChatMessage", (message, changes, _options, userId) => {
+listen("updateChatMessage", "events", (message, changes, _options, userId) => {
   if ( !changes?.flags?.[MODULE_ID] ) return;
   observeMessage(message, userId ?? null);
 });
 
 // The log as it stands is history: remembered, never republished.
-Hooks.once("ready", () => {
+listenOnce("ready", "events", () => {
   try { for ( const message of game.messages ?? [] ) observeMessage(message, null, false); }
   catch(err) { console.warn(`${TITLE} | the moment gate could not read the log on ready — old resolves may republish once.`, err); }
 });
 
-Hooks.on("deleteChatMessage", message => {
+listen("deleteChatMessage", "events", message => {
   const prefix = `${message.id}|`;
   for ( const id of seen ) if ( id.startsWith(prefix) ) seen.delete(id);
 });
 
-Hooks.once("init", () => {
+listenOnce("init", "events", () => {
   const mod = game.modules.get(MODULE_ID);
   if ( mod ) mod.api = Object.assign(mod.api ?? {}, { moments: MOMENT_CONTRACT });
 });

@@ -16,6 +16,7 @@ import { activityUuidOf } from "./decide/card.js";
 import { openMomentPopup, momentButton, armAskTimer, disarmAskTimer, livePopups, scheduleBarSync } from "./ui.js";
 import { releaseHold } from "./holds.js";
 import { SURFACES } from "./surfaces.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 // Raising an ask: what the customers call.
 
@@ -68,7 +69,7 @@ export function registerAskAnswerPart(part) { answerParts.push(part); }
 
 const askTimers = new Map();
 
-Hooks.on("dnd5e.renderChatMessage", (message, html) => {
+listen("dnd5e.renderChatMessage", "area-ask", (message, html) => {
   try {
     const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
     if ( !ask ) return;
@@ -122,7 +123,7 @@ export async function showAreaAsk(message) {
 }
 
 // A tick pings the creature's token, and the cap holds as ticks are made.
-Hooks.once("ready", () => document.addEventListener("change", ev => {
+listenOnce("ready", "area-ask", () => document.addEventListener("change", ev => {
   const any = ev.target?.closest?.('input[name="bf-metamagic-ask"]');
   if ( !any ) return;
   if ( any.checked && any.dataset.token ) {
@@ -186,7 +187,7 @@ export async function answerAsk(message, picked, { timedOut = false, mark = null
 }
 
 // An answered ask closes its popup (law 4) and stands its clock down.
-Hooks.on("updateChatMessage", message => {
+listen("updateChatMessage", "area-ask", message => {
   const ask = message.getFlag(MODULE_ID, AREA_ASK_FLAG);
   if ( !ask || (ask.status === "pending") ) return;
   disarmAskTimer(askTimers, message.id);
