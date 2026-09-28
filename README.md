@@ -55,6 +55,11 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   module can read that changes it: a condition, a feat, a fighting style, cover, an ally beside
   the target. Riders like Sneak Attack, Hunter's Mark and weapon masteries ride the damage as
   ticked boxes.
+- **Cover is measured for you.** Select your token and hover another: a Cover section at the
+  top of its card says No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total, and what is in
+  the way. It uses the 2024 DMG grid method, lines from a corner of your space to the corners of
+  the target's, walls and creatures counted. When you attack, the same measure applies to the
+  target's AC on its own, and the card says so. Sharpshooter and Spell Sniper take it off.
 - **Auras work.** A Paladin's Aura of Protection follows the token; allies get the bonus
   walking in and lose it walking out. Spirit Guardians and friends do the same with their saves.
 - **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
