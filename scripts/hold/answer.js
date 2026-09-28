@@ -50,23 +50,16 @@ export function recordAnswer(target, answer, by = null) {
  *   rescue?: string|null, by?: string|null}} [opts]
  */
 export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null, by = null } = {}) {
-  const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
-  if ( hold.status !== "pending" ) return;
-  const target = hold.targets?.find(t => t.uuid === uuid);
+  const hold = attackMessage.getFlag(MODULE_ID, "hold");
+  if ( hold?.status !== "pending" ) return;
+  // A throwaway copy asks whether this answer records at all; the owner's write repeats it under the lock.
+  const target = foundry.utils.deepClone(hold.targets?.find(t => t.uuid === uuid) ?? null);
   const recorded = recordAnswer(target, answer, by);     // idempotent: the first act wins
   if ( !recorded ) return;
-  if ( recorded === true ) target.answeredAt = Date.now();   // the crash-resume horizon
-  if ( Number(reduceBy) > 0 ) target.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
-  if ( poolSpend ) target.poolSpend = poolSpend;                      // Parry's die, the spend record
-  if ( bent ) target.bent = bent;
-  if ( rescue ) target.rescue = rescue;
 
   // A player cannot update someone else's message: the answer travels as their OWN (ARCHITECTURE.md §3).
   const actor = await fromUuid(uuid);
   const ac = actor?.system?.attributes?.ac?.value ?? null;
-  target.acAtAnswer = ac;
-  // The moment event fires on the ANSWERING user's client, even when the answer is relayed.
-  target.answeredBy = game.user.id;
 
   if ( !attackMessage.isOwner && by ) {
     // A GUARD's answer (Protection): its own card, in its own voice.
@@ -127,7 +120,22 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
       for ( const entry of appliedEffects ) joinEffectReceipt(flag, entry);
     });
   }
-  await attackMessage.setFlag(MODULE_ID, "hold", hold);
+  // The owner's fold, through the serializer (ARCHITECTURE §4 law 2): the GM answering a monster
+  // shares this flag with the relay folding a player's answer; the guards repeat INSIDE the lock.
+  await queueFlagWrite(attackMessage, "hold", flag => {
+    if ( flag.status !== "pending" ) return false;
+    const live = flag.targets?.find(t => t.uuid === uuid);
+    const now = recordAnswer(live, answer, by);
+    if ( !now ) return false;
+    if ( now === true ) live.answeredAt = Date.now();   // the crash-resume horizon
+    if ( Number(reduceBy) > 0 ) live.reduceBy = Number(reduceBy);   // Parry's roll, at the answer
+    if ( poolSpend ) live.poolSpend = poolSpend;                      // Parry's die, the spend record
+    if ( bent ) live.bent = bent;
+    if ( rescue ) live.rescue = rescue;
+    live.acAtAnswer = ac;
+    // The moment event fires on the ANSWERING user's client, even when the answer is relayed.
+    live.answeredBy = game.user.id;
+  });
 }
 
 // A player's answer message: the CONTINUING CLIENT (not the elect) folds it into the hold.

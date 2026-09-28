@@ -68,6 +68,13 @@ const CLICK_BINDERS = new Set(["addEventListener", "momentButton"]);
 const REGISTRIES = /^register[A-Z]/;
 
 /**
+ * Flags several writers fold per-target entries into (ARCHITECTURE §4 law 2). A read-modify-write
+ * of one of these goes through `queueFlagWrite` (core.js); a `setFlag` of a FRESH object literal
+ * is the stamp, which has nothing to merge with, and passes.
+ */
+const SERIALIZED_FLAGS = new Set(["hold", "receipt", "effectReceipt"]);
+
+/**
  * Handlers that write on every client by design, `file:line` of the `listen` call → the reason.
  * ⚠ A stale row (no such handler, or one that no longer reaches an ungated write) fails.
  */
@@ -328,6 +335,17 @@ const seenAllow = new Set();
 
 for (const [rel, f] of files) {
   const visit = node => {
+    // A serialized flag written around the serializer: `setFlag(MODULE_ID, "hold", variable)`.
+    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)
+      && (node.expression.name.text === "setFlag") && (rel !== "core.js")) {
+      const [, keyArg, valueArg] = node.arguments;
+      if (keyArg && ts.isStringLiteral(keyArg) && SERIALIZED_FLAGS.has(keyArg.text)
+        && !(valueArg && ts.isObjectLiteralExpression(valueArg))) {
+        failures.push(`${rel}:${lineOf(rel, node)} writes the \`${keyArg.text}\` flag around the serializer — `
+          + "a read-modify-write of a per-target flag goes through queueFlagWrite (ARCHITECTURE §4 law 2); "
+          + "only a stamp (a fresh object literal) may setFlag it");
+      }
+    }
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)
       && ["listen", "listenOnce"].includes(node.expression.text) && (rel !== "dispatch.js")) {
       const [hookArg, , fnArg] = node.arguments;
@@ -397,4 +415,5 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(`PASS every world write reachable from an every-client hook is behind a gate (${roots} handlers on `
-  + `every-client hooks, ${writing} pinned as writing on every client — ARCHITECTURE §3).`);
+  + `every-client hooks, ${writing} pinned as writing on every client — ARCHITECTURE §3), and every `
+  + `read-modify-write of ${[...SERIALIZED_FLAGS].join("/")} goes through the serializer (§4 law 2).`);

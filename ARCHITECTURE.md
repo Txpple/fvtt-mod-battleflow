@@ -154,7 +154,10 @@ resumable's `drives` are gates, and are checked to be. `isOwner` is not one: a G
 3. **The flag is the state; the popup and the card row are views.** Any view must be
    reconstructable from the flag alone after a reload, on any client.
 4. **Every write that changes the world stamps a receipt** carrying prior values, so revert is
-   arithmetic and not guesswork (R5).
+   a restore of what was recorded and not guesswork (R5). A revert puts the target's HP back to
+   the receipt's `prior`; it does not subtract a delta. A second application on the same target
+   from the same message (a reroll moving applied damage) FOLDS into the entry, `prior` kept
+   (`joinDamageReceipt`), so one revert undoes the whole story.
 
 ### The flow elect — presentation runs without a GM, consequence does not
 
@@ -255,6 +258,20 @@ resume checks stay in their own render hooks, which also draw their rows.)
 asks the spine whether a registered offer withholds it (a d20 fold offered on a save); the
 offer's resolver hands the verdict back through the spine, at that instant, on the client that
 resolved it. Neither machine imports the other.
+
+### Accepted trade-offs — known, measured, chosen (2026-09-28)
+
+A review is going to find these again. Each is a deliberate choice with its reason; a row moves
+to §10 only if the reason stops being true.
+
+| Trade-off | Why it stands |
+| --- | --- |
+| **A revert restores the receipt's recorded prior HP**, not a delta. Healing that landed on that target AFTER the receipt is lost on revert. | Prior values are exact; a delta is not once resistances, temp HP and a 0-HP floor are in play (`takenOf`). The reroll case folds into the entry (law 4). |
+| **Damage lands before its receipt.** `applyDamagesWithReceipt` applies per target, then writes the receipt once. A GM client that dies inside that gap re-applies on resume. | The gap is milliseconds on one client; closing it costs a second DB write per target on every hit. The in-memory `claimedShares` and the `attackDamage` latch cover the live cases. |
+| **Two short in-memory windows exist** despite "no session state": Riposte's armed die (60 s, riposte.js) and the concentration cause for Mage Slayer's Disadvantage (3 s, concentration.js). | Each is a reminder-grade fact, never HP or a resource. A reload inside the window drops one hint. Persisting them would be a flag write per hit for nothing a table has noticed. |
+| **Deadlines are stamped and judged with each client's own clock** (`Date.now()`, never `game.time.serverTime`). A skew of ten minutes or more between machines disables a timer through `deadlineIsLive` rather than misfiring it. | The ceiling was chosen so a wrong clock fails SAFE (no buzzer) instead of rolling dice for a fight that ended. Server time would buy accuracy under skew nobody has measured at the table. |
+| **Some reads scan the whole chat log** (`demandCards`, `holdPendingFor`, `answerHoldsFor`, the riposte and bash-offer lookups). Work grows with the age of a world. | A tail misses: one round can emit dozens of messages (answer.js). Parked in BACKLOG with the un-parking condition. |
+| **The dispatcher catches synchronous errors only.** An async handler that rejects logs its own error. | Every async handler owns its try/catch by convention; awaiting them in the dispatcher would serialize hooks the platform fires synchronously. |
 
 ### The data plane — stat stamps
 
@@ -967,6 +984,11 @@ something structural is genuinely failing a rule, with the rule and the evidence
    announces). Re-read after the write, and gate follow-ups on a `claimed` result.
 3. Not every write needs it. A single-decision object with one writer (concentration's ask,
    mastery's own flag) is not a per-target read-modify-write and the argument does not reach it.
+4. `delete current.x` inside the callback WORKS: the serializer diffs the clone against the
+   stored flag and writes the platform's `"-=x": null` for every key that went missing
+   (`markDeletions`). Objects recurse; an array is replaced whole.
+5. `hold`, `receipt` and `effectReceipt` have ONE write path: `npm run writers` fails a
+   `setFlag` of any of them that is not a stamp (a fresh object literal).
 
 **Adding a RECORD** (a new flag key the module writes — a moment's state, a resolve, a fingerprint):
 1. `npm run moments` fails until the key is classified in [decide/moments.js](scripts/decide/moments.js):

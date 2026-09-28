@@ -166,6 +166,24 @@ export const DEADLINE_CEILING_MS = 600_000;
 export const deadlineIsLive = deadline =>
   !!deadline && ((Date.now() - deadline) <= DEADLINE_CEILING_MS);
 
+/**
+ * `setFlag` MERGES: a key a mutate callback deleted stays stored unless the write carries the
+ * platform's `"-=key": null`. Objects recurse; an array is a value and is replaced whole.
+ * @template {object} T
+ * @param {any} before  the stored flag
+ * @param {T} after     the mutated clone, marked in place
+ * @returns {T}
+ */
+export function markDeletions(before, after) {
+  const plain = v => (v !== null) && (typeof v === "object") && !Array.isArray(v);
+  if ( !plain(before) || !plain(after) ) return after;
+  for ( const k of Object.keys(before) ) {
+    if ( !(k in after) ) after[`-=${k}`] = null;
+    else markDeletions(before[k], after[k]);
+  }
+  return after;
+}
+
 // SERIALIZED FLAG WRITES. ⚠ Overlapping merges lose an entry (last setFlag wins), and a lost
 // receipt entry lands the damage twice. Client-local suffices: every write comes from the elect.
 
@@ -178,9 +196,10 @@ const flagWrites = new Map();
 export function queueFlagWrite(message, key, mutate) {
   const lock = `${message.id}|${key}`;
   const run = async () => {
-    const current = foundry.utils.deepClone(message.getFlag(MODULE_ID, key) ?? { targets: [] });
+    const before = message.getFlag(MODULE_ID, key) ?? { targets: [] };
+    const current = foundry.utils.deepClone(before);
     if ( mutate(current) === false ) return;
-    await message.setFlag(MODULE_ID, key, current);
+    await message.setFlag(MODULE_ID, key, markDeletions(before, current));
   };
   // `.then(run, run)`: one failure must not strand the writes behind it.
   const prior = flagWrites.get(lock) ?? Promise.resolve();

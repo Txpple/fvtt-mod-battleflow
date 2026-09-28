@@ -165,13 +165,15 @@ export async function applyEffectsWithReceipt(receiptMessage, effects, targets,
 
 /** Remove one applied rider effect and mark its receipt entry; tolerates the effect already gone. */
 export async function revertEffect(message, targetUuid, effectId) {
-  const flag = foundry.utils.deepClone(message.getFlag(MODULE_ID, "effectReceipt") ?? {});
-  const entry = revertableEffect(flag, targetUuid, effectId);
-  if ( !entry ) return;
+  if ( !revertableEffect(message.getFlag(MODULE_ID, "effectReceipt"), targetUuid, effectId) ) return;
   const actor = await fromUuid(targetUuid);
   if ( actor instanceof Actor ) await actor.effects.get(effectId)?.delete();
-  entry.reverted = true;
-  await message.setFlag(MODULE_ID, "effectReceipt", flag);
+  // The mark, through the serializer (ARCHITECTURE §4 law 2), the guard repeated inside the lock.
+  await queueFlagWrite(message, "effectReceipt", flag => {
+    const entry = revertableEffect(flag, targetUuid, effectId);
+    if ( !entry ) return false;
+    entry.reverted = true;
+  });
 }
 
 /* THE TWIN FLOOR. ⚠ `isActiveGM()` is per-USER: two sessions on one account both apply. A

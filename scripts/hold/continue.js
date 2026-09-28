@@ -34,6 +34,22 @@ listen("updateChatMessage", "hold/continue", message => {
 });
 
 /**
+ * Write a continuation's resolved hold under the lock. False when the hold was no longer pending
+ * (resolved elsewhere): the caller's announcements are then someone else's to make.
+ * @param {any} message
+ * @param {any} hold  the clone this continuation judged, `status` already "resolved"
+ */
+async function writeResolvedHold(message, hold) {
+  let wrote = false;
+  await queueFlagWrite(message, "hold", live => {
+    if ( live.status !== "pending" ) return false;
+    Object.assign(live, hold);
+    wrote = true;
+  });
+  return wrote;
+}
+
+/**
  * ⚠ Claimed before the first await: the settle wait re-fires the watcher, and a second run rolls
  * damage twice. In memory, so a client dying mid-run cannot strand the hold.
  */
@@ -143,7 +159,9 @@ async function driveHoldContinuation(attackMessage, hold) {
 
   hold.status = "resolved";
   disarmHoldTimer(attackMessage.id);
-  await attackMessage.setFlag(MODULE_ID, "hold", hold);
+  // The verdicts, through the serializer: a fold still queued on this client lands first, and a
+  // hold another client resolved meanwhile is not re-announced.
+  if ( !await writeResolvedHold(attackMessage, hold) ) return;
   if ( announcements.length ) await ChatMessage.create({
     content: announcements.join(`<div style="height:0.3rem;"></div>`),
     speaker: { alias: TITLE }

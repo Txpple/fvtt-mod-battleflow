@@ -3,7 +3,7 @@
  * Battle Flow — the reaction hold: THE BUZZER. Imported by the triggers and the continuation, so
  * its `deleteChatMessage` registration comes first among the hold's.
  */
-import { MODULE_ID, isContinuingClient } from "../core.js";
+import { MODULE_ID, isContinuingClient, queueFlagWrite } from "../core.js";
 import { armDeadline, disarmDeadline } from "../ui.js";
 import { listen } from "../dispatch.js";
 
@@ -25,17 +25,19 @@ async function fireHoldTimer(messageId) {
   const message = game.messages.get(messageId);
   const hold = message?.getFlag(MODULE_ID, "hold");
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
-  const merged = foundry.utils.deepClone(hold);
-  let expired = false;
-  for ( const target of merged.targets ) {
-    if ( target.answer ) continue;
-    target.answer = "pass";
-    target.answeredAt = Date.now();
-    target.timedOut = true;
-    expired = true;
-  }
-  if ( !expired ) return;
-  await message.setFlag(MODULE_ID, "hold", merged);
+  // Under the serializer, the guards repeated inside: an answer folded ahead of the buzzer wins.
+  await queueFlagWrite(message, "hold", live => {
+    if ( live.status !== "pending" ) return false;
+    let expired = false;
+    for ( const target of live.targets ?? [] ) {
+      if ( target.answer ) continue;
+      target.answer = "pass";
+      target.answeredAt = Date.now();
+      target.timedOut = true;
+      expired = true;
+    }
+    if ( !expired ) return false;
+  });
 }
 
 // The buzzer must not outlive its message (ui.js sweeps the popup/latch/ack state).

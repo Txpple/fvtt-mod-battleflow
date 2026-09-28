@@ -81,16 +81,48 @@ export function effectRecord({ id, name, img = null, description }, context) {
 }
 
 /**
- * Merge damage entries into a `receipt` flag; a uuid's entry is REPLACED. ⚠ Run it inside
- * `queueFlagWrite`, or concurrent writers drop entries and the damage lands twice.
+ * Merge damage entries into a `receipt` flag. A uuid's LIVE entry is FOLDED, never replaced: a
+ * later application on the same target (a reroll moving already-applied damage) keeps the first
+ * entry's `prior`, sums `taken` and `delta`, appends `parts`, joins the notes and lists itself
+ * under `adjustments` — one HP story per target per message, so ✕ Revert undoes the whole of it
+ * and a stats reader sees the net. A REVERTED entry is replaced: what follows is a fresh
+ * application. ⚠ Run it inside `queueFlagWrite`, or concurrent writers drop entries and the
+ * damage lands twice.
  */
 export function joinDamageReceipt(flag, entries) {
   flag.targets ??= [];
   for ( const r of entries ) {
     const i = flag.targets.findIndex(t => t.uuid === r.uuid);
-    if ( i >= 0 ) flag.targets[i] = r; else flag.targets.push(r);
+    if ( i < 0 ) flag.targets.push(r);
+    else if ( flag.targets[i].reverted ) flag.targets[i] = r;
+    else flag.targets[i] = foldDamageEntry(flag.targets[i], r);
   }
   return flag;
+}
+
+/** The fold: `live` plus `next`, `prior` the live one's, the later application kept as a line. */
+export function foldDamageEntry(live, next) {
+  const both = (a, b) => ((a === null || a === undefined) && (b === null || b === undefined)) ? null
+    : (Number(a) || 0) + (Number(b) || 0);
+  const notes = [live.note, next.note].filter(Boolean);
+  const traits = [...(live.traits ?? [])];
+  for ( const t of (next.traits ?? []) ) {
+    if ( !traits.some(x => (x.type === t.type) && (x.outcome === t.outcome)) ) traits.push(t);
+  }
+  return {
+    ...live,
+    ...(notes.length ? { note: notes.join(" · ") } : {}),
+    delta: { value: both(live.delta?.value, next.delta?.value) ?? 0, temp: both(live.delta?.temp, next.delta?.temp) ?? 0 },
+    taken: both(live.taken, next.taken),
+    parts: [...(live.parts ?? []), ...(next.parts ?? [])],
+    traits,
+    adjustments: [...(live.adjustments ?? []), {
+      ...(next.note ? { note: next.note } : {}),
+      taken: next.taken ?? null,
+      delta: next.delta ?? { value: 0, temp: 0 },
+      prior: next.prior ?? null
+    }]
+  };
 }
 
 /** Merge one applied-entry into an effectReceipt flag; effects accumulate, deduped by id. */
@@ -146,8 +178,10 @@ export function traitPhrase({ type, outcome, label }) {
 }
 
 /**
- * What reverting one damage entry does, or null once reverted (idempotent). `entry` is LIVE: the
- * caller marks it. `clearDefeated` is the combatplus contract (ARCHITECTURE.md §7). HP only.
+ * What reverting one damage entry does, or null once reverted (idempotent). The restore is the
+ * entry's RECORDED prior values (ARCHITECTURE §4 law 4), so a folded reroll reverts with its hit.
+ * `entry` is the flag's own object: the caller marks it under the serializer. `clearDefeated` is
+ * the combatplus contract (ARCHITECTURE.md §7). HP only.
  */
 export function revertPlan(receipt, uuid) {
   const entry = receipt?.targets?.find(t => t.uuid === uuid);

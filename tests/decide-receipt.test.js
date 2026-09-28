@@ -250,10 +250,115 @@ describe("joinDamageReceipt — merge, never overwrite the flag", () => {
     expect(flag.targets.map(t => t.uuid)).toEqual(["a", "b"]);
   });
 
-  it("REPLACES the entry for a uuid — one HP story per target per damage message", () => {
-    const flag = { targets: [{ uuid: "a", taken: 3 }] };
-    r.joinDamageReceipt(flag, [{ uuid: "a", taken: 9 }]);
-    expect(flag.targets).toEqual([{ uuid: "a", taken: 9 }]);
+  it("FOLDS a later application into the uuid's live entry — one HP story per target per message", () => {
+    // The 2026-09-28 review: a reroll's adjustment used to REPLACE the hit's entry, so ✕ Revert
+    // undid the difference and forgot the hit. Now the hit's `prior` stays and the numbers sum.
+    const flag = {
+      targets: [
+        {
+          uuid: "a",
+          name: "A",
+          note: "the hit",
+          prior: { value: 20, temp: 0, tempmax: 0 },
+          delta: { value: -8, temp: 0 },
+          taken: 8,
+          parts: [{ type: "slashing", amount: 8 }],
+          traits: [],
+          reverted: false
+        }
+      ]
+    };
+    r.joinDamageReceipt(flag, [
+      {
+        uuid: "a",
+        name: "A",
+        note: "Savage Attacker — the reroll",
+        prior: { value: 12, temp: 0, tempmax: 0 },
+        delta: { value: -3, temp: 0 },
+        taken: 3,
+        parts: [{ type: "slashing", amount: 3 }],
+        traits: [],
+        reverted: false
+      }
+    ]);
+    expect(flag.targets).toHaveLength(1);
+    const [a] = flag.targets;
+    expect(a.prior).toEqual({ value: 20, temp: 0, tempmax: 0 });
+    expect(a.taken).toBe(11);
+    expect(a.delta).toEqual({ value: -11, temp: 0 });
+    expect(a.parts).toEqual([
+      { type: "slashing", amount: 8 },
+      { type: "slashing", amount: 3 }
+    ]);
+    expect(a.note).toBe("the hit · Savage Attacker — the reroll");
+    expect(a.adjustments).toEqual([
+      {
+        note: "Savage Attacker — the reroll",
+        taken: 3,
+        delta: { value: -3, temp: 0 },
+        prior: { value: 12, temp: 0, tempmax: 0 }
+      }
+    ]);
+    // and the revert restores the HIT's prior — the whole story, not the difference
+    expect(r.revertPlan(flag, "a").update["system.attributes.hp.value"]).toBe(20);
+  });
+
+  it("folds a lower reroll as a negative take — healing back is part of the same story", () => {
+    const flag = {
+      targets: [
+        {
+          uuid: "a",
+          prior: { value: 20, temp: 0, tempmax: 0 },
+          delta: { value: -8, temp: 0 },
+          taken: 8,
+          reverted: false
+        }
+      ]
+    };
+    r.joinDamageReceipt(flag, [
+      {
+        uuid: "a",
+        prior: { value: 12, temp: 0, tempmax: 0 },
+        delta: { value: 2, temp: 0 },
+        taken: -2
+      }
+    ]);
+    expect(flag.targets[0].taken).toBe(6);
+    expect(flag.targets[0].delta).toEqual({ value: -6, temp: 0 });
+  });
+
+  it("REPLACES a reverted entry — what follows a human's ↩ is a fresh application", () => {
+    const flag = { targets: [{ uuid: "a", taken: 3, reverted: true }] };
+    r.joinDamageReceipt(flag, [{ uuid: "a", taken: 9, reverted: false }]);
+    expect(flag.targets).toEqual([{ uuid: "a", taken: 9, reverted: false }]);
+  });
+
+  it("unions the trait reasons and keeps a null take null when neither side had one", () => {
+    const flag = {
+      targets: [
+        {
+          uuid: "a",
+          traits: [{ type: "fire", outcome: "resistant" }],
+          taken: null,
+          reverted: false
+        }
+      ]
+    };
+    r.joinDamageReceipt(flag, [
+      {
+        uuid: "a",
+        traits: [
+          { type: "fire", outcome: "resistant" },
+          { type: "cold", outcome: "immune" }
+        ],
+        taken: null
+      }
+    ]);
+    expect(flag.targets[0].traits).toEqual([
+      { type: "fire", outcome: "resistant" },
+      { type: "cold", outcome: "immune" }
+    ]);
+    expect(flag.targets[0].taken).toBe(null);
   });
 
   it("seeds an empty flag", () => {

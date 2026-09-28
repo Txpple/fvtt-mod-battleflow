@@ -2,7 +2,7 @@
  * Battle Flow — Receipts: the revert row on damage cards, a view of the receipt flags. Who and
  * what is public; HP pools and the revert controls are GM-only.
  */
-import { MODULE_ID, TITLE } from "./core.js";
+import { MODULE_ID, TITLE, queueFlagWrite } from "./core.js";
 import { clearStatus } from "./shared.js";
 import { receiptAmounts, revertPlan, traitPhrase } from "./decide/receipt.js";
 import { revertEffect } from "./effect-riders.js";
@@ -216,8 +216,7 @@ listen("dnd5e.renderChatMessage", "receipts", (message, html) => {
 
 /** Restore one receipt target's pre-application HP, re-reading the flag (never the DOM). */
 export async function revertTarget(message, uuid) {
-  const receipt = foundry.utils.deepClone(message.getFlag(MODULE_ID, "receipt") ?? {});
-  const plan = revertPlan(receipt, uuid);
+  const plan = revertPlan(message.getFlag(MODULE_ID, "receipt"), uuid);
   if ( !plan ) return;
 
   const actor = await fromUuid(uuid);
@@ -231,8 +230,12 @@ export async function revertTarget(message, uuid) {
   // combatplus usually clears the defeated mark first; this covers a table where it is off.
   if ( plan.clearDefeated ) await clearDefeated(actor);
 
-  plan.entry.reverted = true;
-  await message.setFlag(MODULE_ID, "receipt", receipt);
+  // The mark, through the serializer (ARCHITECTURE §4 law 2), the guard repeated inside the lock.
+  await queueFlagWrite(message, "receipt", flag => {
+    const entry = revertPlan(flag, uuid)?.entry;
+    if ( !entry ) return false;
+    entry.reverted = true;
+  });
 }
 
 /**

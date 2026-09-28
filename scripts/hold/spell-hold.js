@@ -4,7 +4,7 @@
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;
  * a `negate` answer IS the verdict (no re-test, no AC arithmetic). Resolution: `continueSpellHold`.
  */
-import { MODULE_ID, TITLE, statContext, decisionWindow } from "../core.js";
+import { MODULE_ID, TITLE, statContext, decisionWindow, queueFlagWrite } from "../core.js";
 import { answers, blockEntries } from "../decide/registry.js";
 import { bfCard, esc } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
@@ -110,7 +110,14 @@ export async function continueSpellHold(message, hold) {
 
   hold.status = "resolved";
   disarmHoldTimer(message.id);
-  await message.setFlag(MODULE_ID, "hold", hold);
+  // Through the serializer, the guard inside: a hold resolved elsewhere is not re-announced.
+  let wrote = false;
+  await queueFlagWrite(message, "hold", live => {
+    if ( live.status !== "pending" ) return false;
+    Object.assign(live, hold);
+    wrote = true;
+  });
+  if ( !wrote ) return;
   if ( announcements.length ) await ChatMessage.create({
     content: announcements.join(`<div style="height:0.3rem;"></div>`),
     speaker: { alias: TITLE }
