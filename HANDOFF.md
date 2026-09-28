@@ -19,8 +19,9 @@ goes on to **the DMG in a separate session** (the user's call; the DMG drawing s
 slice" — that session decides what that means). The release (a full battery, the tag) waits for the walk.
 
 **The held spells are the NEXT session's** (§The held spells, below): Warding Bond, Vampiric Touch,
-Prismatic Spray, Wall of Fire and Spike Growth are to be BUILT; Counterspell, Magic Circle and Forcecage are
-OUT on the user's word. The slice closes with the PHB spell register. Unbreakable Majesty (a class feature,
+Prismatic Spray, Wall of Fire, Spike Growth, and Magic Circle and Forcecage partially (their regions, the
+circle's Disadvantage and its entry notice, the cage's exit notice) are to be BUILT; Counterspell is OUT on
+the user's word. The slice closes with the PHB spell register. Unbreakable Majesty (a class feature,
 not a spell) is the duplicates' seam with a save for the die — session 0's, with its Bard.
 
 ## Where this comes from
@@ -139,7 +140,8 @@ Flesh to Stone's counter, Magic Circle and Forcecage (a region's ban — movemen
 
 **The user, 2026-09-28 evening:** *"build all three [Warding Bond, Vampiric Touch, Prismatic Spray], work
 autonomously, push when done. counterspell is not in scope. neither is magic circle or forcecage. we need
-to tackle wall of fire / spike growth"* and *"at the end of this exercise then we should have a list of
+to tackle wall of fire / spike growth"*, then *"put force cage and magic circle in scope. we can create the
+region for them, and partially implement them"*, and *"at the end of this exercise then we should have a list of
 every phb spell, if it was in scope y/n, if no why not, if yes then some details like how implemented, any
 'rule of cool' variant, etc other related cols as needed"*. Started in a new session on the user's word;
 this section is its commission. Ground rules as above; the walk of every tier stays deferred.
@@ -154,12 +156,15 @@ this section is its commission. Ground rules as above; the walk of every tier st
 | **Wall of Fire** (L4, conc 1 min) | two save activities "Create Wall" (`wall/60x1` template, Dex, 5d8 fire, half) and "Create Ring" (`cylinder/10x1`); the pack DOES carry templates (the earlier "no area in its data" read was wrong — the walk tool's cut-down read missed `wall`) | **an `area` row** with `trigger enter/turnEnd oncePerTurn` — the region the placement makes IS the burning area; **the bend**: "within 10 feet of the chosen side" cannot be read off a 1-ft wall — the ruling to make: the GM draws/adopts the wall so that its region covers the wall AND the hot side's 10 feet (a bare template the saves machine claims — `saves/areas.js` `claimBareRegion` — needs an `updateRegion` adoption in emanations.js when `flags.dnd5e.activity` lands on a region), OR the module widens the placed wall region by 10 ft on the side the caster picks (an ask, EFFECT_CHOICES-shaped: "which side burns?"). Prototype-free; the register row says which |
 | **Spike Growth** (L2, conc 10 min) | one `damage` activity, `sphere/20`, 2d4 piercing, no save; Difficult Terrain is the table's | **a new trigger on the `area` kind: `on: "move"`** — Foundry raises `tokenMoveIn` / `tokenMoveWithin` / `tokenMoveOut` with the movement's SEGMENTS (measure the event data: `event.data.movement`, `event.data.segments`, the feet inside the region per segment); after the move lands, the feet travelled inside the region ÷ 5 (floor) × the activity's dice, rolled on the caster and applied with a receipt, once per movement id; the mover is never paused (DESIGN §8: no movement pauses — the user, 2026-09-27). ⚠ DESIGN §4 says "movement-triggered anything is judgment, not outcome" with emanations the exception — this is a SECOND exception the user asked for by name: amend DESIGN §4 and add the bend row (the damage lands at the move's END, not per 5 feet as it goes) |
 
-Out on the user's word: **Counterspell, Magic Circle, Forcecage.**
+| **Magic Circle** (L3, 1 hour) — IN, partially (the user, 2026-09-28: "we can create the region for them, and partially implement them … magic circle we can do some stuff with it like the disadvantage") | measure: a `cylinder/10x20` template expected; the chosen creature types (Celestials, Elementals, Fey, Fiends, Undead — one or more) may be a pack choice or text only | **an `area` row** adopted where placed (the ring stands the hour); **the types** asked of the caster at the cast (`EFFECT_CHOICES`' shape, multi-pick, default all five) and stored on the region's behaviour; **the Disadvantage** — a creature of a chosen type attacking a target INSIDE the cylinder has Disadvantage: a new gate source in `decide/reminders.js` (the `effect`/`condition` sources' shape) read off the target's region membership (`tokensInRegions`) and the attacker's `system.details.type.value`; **the entry ban** — a chosen-type creature MOVING INTO the circle raises a notice card (Polearm Master's `alert` shape, `moveIn`): "Magic Circle — X cannot willingly enter by nonmagical means; a teleport in needs a Charisma save" — the move is never paused (DESIGN §8); "can't charm, frighten or possess" is a caveat (the table's) |
+| **Forcecage** (L7, 1 hour, no concentration) — IN, partially (the region) | measure: `cube/10` (bars) and `cube/20` (solid box) as two activities expected | **an `area` row** adopted where placed; **the exit ban** — a creature inside MOVING OUT raises a notice card (`alert` on `moveOut`, the mirror of Polearm Master's `moveIn`): "Forcecage — X leaves the cage: the walls hold it; a teleport out needs a Charisma save (the spell's own), a failure wastes the action" — no pause; the bars' "spells and attacks through the bars" and the box's total cover are the table's (caveats). A second `alert` word — `moveOut` — joins the emanation vocabulary |
+
+Out on the user's word: **Counterspell** only.
 
 ### The register — `audits/spells-register.md` (the deliverable that closes the slice)
 
-A generated audit (the house way: the evidence regenerated, never edited — `tools/audit-spells-register.mjs`,
-run against the corpus JSON `tools/scan-corpus.mjs` already produces, joined with `scripts/decide/registry.js`
+A generated audit (the house way: the evidence regenerated, never edited — a new tool beside
+`tools/audit-corpus.mjs`, run against the corpus JSON `tools/scan-corpus.mjs` already produces, joined with `scripts/decide/registry.js`
 and the drawing), one row per PHB spell (391 in the pack), columns:
 
 | Column | Source |
