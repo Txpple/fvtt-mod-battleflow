@@ -1,14 +1,15 @@
 # Battle Flow
 
-**All-in-one combat automation for D&D 5e (2024 rules) on Foundry VTT.**
+Battle Flow is a combat automation module for D&D 5e (2024 rules) on Foundry VTT. It is one
+module with no dependencies beyond the dnd5e system.
 
-Made to help new players remember all the rule minutiae of 5e: weapon mastery reminders and
-automation, maneuvers, reactions, and every other nuance. And to make life easier for
-experienced players.
+It exists to help new players keep track of the rule details of 5e: weapon mastery reminders
+and automation, maneuvers, reactions, and the other small rules that are easy to forget. It also
+takes routine steps off experienced players.
 
-When an attack hits, the damage rolls and applies. When a spell demands a save, everyone rolls.
-When a reaction could change the outcome, the player gets a popup with a timer. Every automatic
-action leaves a receipt with a one-click revert. No other modules needed.
+What it does: when an attack hits, the damage rolls and applies. When a spell demands a save,
+everyone rolls. When a reaction could change the outcome, the player gets a popup with a timer.
+Every automatic action leaves a receipt with a one-click revert.
 
 ## Status
 
