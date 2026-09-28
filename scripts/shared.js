@@ -3,7 +3,8 @@
  * chits, the Reaction chip and pool spends (ARCHITECTURE.md §7).
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./core.js";
-import { CHIP_FLAG, chipClock, chitStamp, reactionStands } from "./decide/chips.js";
+import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
+import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
@@ -237,8 +238,12 @@ export function reactionSpent(actor) {
   const combat = activeCombatFor(actor);
   const now = combat ? { round: combat.round, turn: combat.turn } : null;
   const actorTurn = combat ? (combat.turns ?? []).findIndex(t => combat.getCombatantsByActor(actor).includes(t)) : null;
-  return chips.some(e => !e.duration?.expired && reactionStands({
-    start: e.start?.combat ? { round: e.start.round, turn: e.start.turn } : null, now, actorTurn }));
+  // Reactive (REACTION_RESETS): the Reaction comes back on every turn, not only the bearer's own.
+  const everyTurn = Object.keys(REACTION_RESETS).some(key => (actor.items ?? []).some(i => (i.type === "feat")
+    && ((i.system?.identifier === identifierOf(key)) || (String(i.name ?? "").toLowerCase() === key.toLowerCase()))));
+  return chips.some(e => !e.duration?.expired && (everyTurn
+    ? reactionStandsEveryTurn({ start: e.start?.combat ? { round: e.start.round, turn: e.start.turn } : null, now })
+    : reactionStands({ start: e.start?.combat ? { round: e.start.round, turn: e.start.turn } : null, now, actorTurn })));
 }
 
 /**

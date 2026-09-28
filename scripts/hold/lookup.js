@@ -81,7 +81,7 @@ export async function usableReaction(actor, name) {
  * The first listed interrupt usable now; `spentOk` looks past a spent Reaction (a greyed row).
  * @returns {Promise<{entry: any, item: any, activity: any, reduce?: any}|null>}
  */
-export async function findInterrupt(actor, { isCritical, spentOk = false }) {
+export async function findInterrupt(actor, /** @type {{isCritical: boolean, spentOk?: boolean, ranged?: boolean|null}} */ { isCritical, spentOk = false, ranged = null }) {
   if ( !actor || (!spentOk && reactionSpent(actor)) ) return null;
   for ( const entry of interruptEntries() ) {
     // `roll` rows are never THE reaction: they ride beside it (rollRescuesOf).
@@ -91,6 +91,8 @@ export async function findInterrupt(actor, { isCritical, spentOk = false }) {
     const reduce = reductionFor(found.item, entry.name);
     // A reduction for ANOTHER creature (Interception) is the guards' (damage-holds.js).
     if ( reduce?.row?.ally ) continue;
+    // A reduction for RANGED hits only (Deflect Missile): a melee hit, or one whose mode is unknown, never holds for it.
+    if ( reduce?.row?.ranged && (ranged !== true) ) continue;
     const kind = reduce ? "damage" : entry.kind;
     // A natural 20 hits regardless of AC.
     if ( isCritical && (kind === "ac") ) continue;

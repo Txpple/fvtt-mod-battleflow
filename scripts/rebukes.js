@@ -8,8 +8,10 @@ import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statConte
 import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
-import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine } from "./decide/rebukes.js";
-import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets } from "./shared.js";
+import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
+import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets } from "./shared.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -44,7 +46,7 @@ function reactionActivity(item, row) {
 
 /** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
  * bystander to the hit); `attackHit`: the damage came from an attack. */
-function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
+function offersFor(actor, source, { ward = false, attackHit = false, miss = false, damageTypes = [] } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
   const damager = tokenForUuid(source.uuid);
@@ -53,7 +55,9 @@ function offersFor(actor, source, { ward = false, attackHit = false } = {}) {
   for ( const [name, row] of Object.entries(REBUKES) ) {
     if ( !listed.has(lower(name)) ) continue;
     if ( !!row.ward !== ward ) continue;
+    if ( (row.on === "miss") !== miss ) continue;           // a miss row only on a miss, never on damage
     if ( row.hit && !attackHit ) continue;
+    if ( !rebukeTypesAdmit(row.types, damageTypes) ) continue;
     const item = itemNamed(actor, name);
     if ( !item ) continue;
     const activity = reactionActivity(item, row);
@@ -95,7 +99,9 @@ listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
     const source = origin.getAssociatedActor?.();
     if ( !(source instanceof Actor) || (source.uuid === actor.uuid) ) return;
     const attackHit = isAttackDamage(origin);
-    void stampRebuke(actor, source, Number(amount), origin, { attackHit });
+    // The damage's types, off the card's rolls (a `types` row); a card with none is unreadable and counts.
+    const damageTypes = [...new Set((origin.rolls ?? []).map(r => r?.options?.type).filter(Boolean))];
+    void stampRebuke(actor, source, Number(amount), origin, { attackHit, damageTypes });
     if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
   } catch(err) {
     console.error(`${TITLE} | The rebuke offer failed — use the reaction from the sheet.`, err);
@@ -108,8 +114,8 @@ function isAttackDamage(origin) {
   try { return !!resolveAttackMessage(origin); } catch { return false; }
 }
 
-async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null } = {}) {
-  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit });
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, damageTypes = [] } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, damageTypes });
   if ( !options.length ) return;
   const window = decisionWindow();
   const flag = {
@@ -117,6 +123,7 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
     sourceUuid: source.uuid, sourceName: source.name, distance, amount, originId: origin.id,
     options, answer: null, choice: null,
     ...(ward ? { ward: true, targetUuid: ward.uuid, targetName: ward.name } : {}),
+    ...(miss ? { miss: true } : {}),
     ...statContext(source.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
@@ -124,13 +131,38 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: ward ? `${source.name} hit ${ward.name}` : `${source.name} damaged ${actor.name}`,
+      title: ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : `${source.name} damaged ${actor.name}`,
       subtitle: ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
+        : miss ? `a melee weapon attack${(distance !== null) ? ` · ${distance} ft away` : ""}`
         : `${amount} damage${(distance !== null) ? ` · ${distance} ft away` : ""}` }),
     flags: { [MODULE_ID]: { [REBUKE_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
 }
+
+/* --- the miss (Sticky Shield): a melee weapon attack that MISSED the bearer, stamped by the elect ---- */
+
+listen("createChatMessage", "rebukes", async message => {
+  try {
+    if ( !isActiveGM() || !isCard(message, CARD.attack) ) return;
+    if ( message.getFlag(MODULE_ID, "rebukeFor") ) return;            // a driven attack never chains re-offers
+    const listed = listedNames(rebukeEntries());
+    if ( !Object.entries(REBUKES).some(([name, row]) => (row.on === "miss") && listed.has(lower(name))) ) return;
+    const activity = cardActivity(message);
+    if ( (activity?.attack?.type?.value !== "melee") || (activity?.item?.type !== "weapon") ) return;
+    const attacker = message.getAssociatedActor?.();
+    if ( !(attacker instanceof Actor) ) return;
+    const hitSet = new Set(hitTargets(message).map(t => t.uuid));
+    for ( const t of targetsOf(message) ) {
+      if ( hitSet.has(t.uuid) ) continue;
+      const actor = await fromUuid(t.uuid).catch(() => null);
+      if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
+      void stampRebuke(actor, attacker, 0, message, { miss: true });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The miss rebuke offer failed — use the reaction from the sheet.`, err);
+  }
+});
 
 /** THE WARDS (Sentinel's Guardian): asked of every OTHER holder in reach of the hitter, on another
  * side; one ask per bearer per dealing card. */

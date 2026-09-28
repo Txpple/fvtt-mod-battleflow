@@ -3,12 +3,26 @@
  * damaged the bearer (the table is registry.js REBUKES, the machine rebukes.js). */
 
 /** The reach in feet: the row's `range`, else the activity's; null offers nothing (never guessed).
- * @param {{range?: number}} row
+ * @param {{range?: number, self?: boolean}} row
  * @param {number|null} activityFeet
  * @returns {number|null} */
 export function rebukeReach(row, activityFeet) {
+  if ( row?.self ) return Infinity;                       // aimed at nobody: no reach to measure
   if ( Number(row?.range) > 0 ) return Number(row.range);
   return (Number(activityFeet) > 0) ? Number(activityFeet) : null;
+}
+
+/**
+ * Does the damage's type answer a `types` row? No `types`: every damage. A card the module cannot read
+ * (`damageTypes` empty) COUNTS the row — never a guessed exemption.
+ * @param {readonly string[]|null|undefined} types
+ * @param {readonly string[]} damageTypes */
+export function rebukeTypesAdmit(types, damageTypes) {
+  if ( !types?.length ) return true;
+  const dealt = (damageTypes ?? []).map(t => String(t ?? "").toLowerCase()).filter(Boolean);
+  if ( !dealt.length ) return true;
+  const wanted = new Set(types.map(t => String(t).toLowerCase()));
+  return dealt.some(t => wanted.has(t));
 }
 
 /** Why this rebuke may not be offered now, or null. A null fact is a rule that does not apply (no uses,
@@ -25,6 +39,7 @@ export function rebukeBlocked({ self, hp, reactionSpent, distance, reach, usesLe
   if ( equipped === false ) return "not held";
   if ( (usesLeft !== null) && (usesLeft !== undefined) && !(Number(usesLeft) > 0) ) return "no uses left";
   if ( slot === false ) return "no spell slot";
+  if ( reach === Infinity ) return null;                  // a `self` row: nothing to reach
   if ( (reach === null) || (reach === undefined) ) return "no reach";
   if ( (distance === null) || (distance === undefined) ) return "distance unknown";
   if ( Number(distance) > Number(reach) ) return "out of reach";
@@ -43,7 +58,7 @@ export function rebukeCost({ usesLeft = null, usesMax = null, spell = false }) {
 
 /** The card's line for a rebuke record — source, then result (law 6).
  * @param {{actorName?: string, sourceName?: string, answer?: string|null, choice?: string|null,
- *          timedOut?: boolean, distance?: number|null, ward?: boolean, targetName?: string}} flag */
+ *          timedOut?: boolean, distance?: number|null, ward?: boolean, targetName?: string, miss?: boolean}} flag */
 export function rebukeLine(flag) {
   const who = flag?.actorName ?? "The creature";
   const at = flag?.sourceName ?? "the creature that damaged it";
@@ -53,6 +68,11 @@ export function rebukeLine(flag) {
     if ( flag.answer === "pass" ) return `${who} lets ${at}'s hit on ${hurt} go${flag.timedOut ? " (timer)" : ""}`;
     const near = Number.isFinite(Number(flag?.distance)) && (flag?.distance !== null) ? ` (${flag.distance} ft)` : "";
     return `${who} may strike ${at}${near} — it hit ${hurt}`;
+  }
+  if ( flag?.miss ) {
+    if ( flag.answer === "use" ) return `${flag.choice} — ${who} answers ${at}'s miss`;
+    if ( flag.answer === "pass" ) return `${who} lets ${at}'s miss go${flag.timedOut ? " (timer)" : ""}`;
+    return `${who} may answer ${at} — it missed`;
   }
   if ( flag?.answer === "use" ) return `${flag.choice} — ${who} answers ${at}`;
   if ( flag?.answer === "pass" ) return `${who} lets ${at}'s damage go${flag.timedOut ? " (timer)" : ""}`;

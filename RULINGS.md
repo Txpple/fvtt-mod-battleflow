@@ -41,6 +41,8 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Death Throes**: "each creature in a 30-foot Emanation" | every creature WITH Hit Points within the Emanation is asked; a creature at 0 is not | the dead-target gate: a demand on a 0-HP creature starves the machine (`saves/demand.js`); the corpse's reach is measured edge to edge from the token's squares (`geometry.js` `creaturesWithin`) | 2026-09-28 |
 | **Greater Magic Resistance**: "the attack rolls of spells automatically miss it" | the save cannot fail (the Succeeds button); a spell attack rolls as any attack — the miss is the table's | the attack gate has no auto-miss verdict; one customer, the row's caveat says so | 2026-09-28 |
 | **Regeneration**: "if it takes Acid or Fire damage, this trait doesn't function on its next turn" | the block is read off the receipts the MODULE wrote since the bearer's last turn started; damage applied with the card's own buttons or typed on a sheet writes no receipt and blocks nothing | only the module's applier receipts the type (`auto-apply.js`); a sheet edit carries none | 2026-09-28 |
+| **Warding Charm, Jinx**: on a failed save "the attack misses instead" | the save is put to the attacker AFTER the hit's damage has landed; a failure's miss is the table's (revert the receipt from the card) | the rebukes' seam is `dnd5e.applyDamage` — the one that knows the dealer; the hold's seam knows the hit but no save can pause the attacker's damage roll on the defender's client | 2026-09-28 |
+| **Fiendish Blood**: a save "each creature of the sahuagin's choice in a 10-foot Emanation" on taking Piercing or Slashing | not built — use the trait from the sheet | a Reaction whose answer is an Emanation save with a pick has no machine: Death Throes' corpse save asks everyone, a rebuke aims at one | 2026-09-28 |
 | **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted — except on a repeat the module raises itself (`REPEAT_SAVES`, 2026-09-28), whose demand says what it is against: there the row COUNTS | an end-of-turn repeat rolled from the sheet is a bare roll with no demand to read what it is against (R1: never guessed) | 2026-09-24; narrowed 2026-09-28 |
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
 | **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
@@ -1625,6 +1627,33 @@ gate holds; the judge hinges on the target, so the target pass reads it).
 | Vile Appearance | a hag, a Beast and a Construct within 30 ft | the Beast's turn start asks; the Construct's does not |
 | Aura of Authority | a hobgoblin captain | a ring and a card; nothing lands on the allies |
 | Displacement | a displacer beast attacked | the gate: "Displacer Beast is — Displacement", Disadvantage; Incapacitated, the row is gone |
+
+## The GM's side — the reaction rows (2026-09-28, night; HANDOFF.md Stage 3)
+
+**Rows on lists that exist**, each naming its precedent; two words of vocabulary.
+
+| Trait | Lands on | What was built |
+| --- | --- | --- |
+| Counterattack, Defensive Stance, Whirlwind of Sand | `INTERRUPTS` (`ac`) | rows already |
+| Toxic Escape | `INTERRUPTS` `damage` + `INTERRUPT_MULTIPLIERS` (Uncanny Dodge's ×0.5) | the half is the module's; the teleport and the Constitution save at the destination are the sheet's (the row's caveat) |
+| Deflect Missile | `INTERRUPT_REDUCTIONS` (Deflect Attacks' shape) — **`ranged: true`** | held on a RANGED hit only: the attack's mode (ranged, or thrown), else its activity's type (`hold/trigger.js` → `findInterrupt`); a melee hit, or one whose mode is unknown, never holds for it. The redirect at 0 is the sheet's Save |
+| Limited Foresight | `INTERRUPT_ROLLS` (Shadowy Dodge's row) | a use of "Expend Use" bends the roll; the Advantage after is the table's (`after`) |
+| Warding Charm, Jinx | `REBUKES` on a hit (`hit: true`), `activity: "Save"` | the save is put to the attacker after the damage lands (`dnd5e.applyDamage` is the rebukes' seam); "the attack misses instead" is the table's — the register row |
+| Sticky Shield | `REBUKES` **`on: "miss"`** — new vocabulary | a MELEE WEAPON attack that MISSED the bearer: the elect stamps the offer off the attack card (`createChatMessage`, Riposte's seam), "X missed Y"; Use puts the Strength save to the attacker |
+| Elemental Absorption, Ink Cloud | `REBUKES` **`types`** and **`self`** | `types`: the damage's types off the card's rolls (a card with none counts the row — never a guessed exemption); `self`: aimed at nobody, no reach measured. Elemental Absorption's Resistance is the pack's toggle; Ink Cloud's "while underwater" is the table's |
+| Fiendish Blood | — | NOT built: its answer is a save in an Emanation at the bearer against creatures of its choice — Death Throes' shape on a Reaction, with a pick; the register's line |
+| Reactive | `REACTION_RESETS` (`every: "turn"`) — the Reaction chip's arithmetic | the spent Reaction stands only for the turn it was spent on; every turn's start gives it back (`decide/chips.js` `reactionStandsEveryTurn`, `shared.js` `reactionSpent`) |
+| Redirect Attack, the cast-triggered seven (Spell Reflection, Counterspell…), Eye Rays, Divine Beam | WAIT | a kind each, no player customer |
+
+### The walk table (deferred — rapid mode)
+
+| Trait | Setup | What you should see |
+| --- | --- | --- |
+| Sticky Shield | a kuo-toa, a PC's melee weapon attack that misses it | "Gren missed Kuo-toa" — Use; a Strength save demanded of Gren |
+| Elemental Absorption | a creature with it takes fire from a card | the rebuke offer; slashing offers nothing; damage typed on the sheet offers nothing (no card) |
+| Deflect Missile | a monster with it hit by an arrow, then by a sword | the hold and the reduce on the arrow; nothing on the sword |
+| Toxic Escape | a monster with it hit | the hold; Use halves the damage; the teleport and the save are yours from the sheet |
+| Reactive | a marilith in combat spends its Reaction on a PC's turn | on the next creature's turn it may react again |
 
 ## Rulings the code carried
 

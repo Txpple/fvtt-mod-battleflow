@@ -17,7 +17,13 @@ let r;
 let tg;
 /** @type {typeof import("../scripts/decide/verdict.js")} */
 let v;
+/** @type {typeof import("../scripts/decide/rebukes.js")} */
+let rb;
+/** @type {typeof import("../scripts/decide/chips.js")} */
+let ch;
 beforeAll(async () => {
+  rb = await import("../scripts/decide/rebukes.js");
+  ch = await import("../scripts/decide/chips.js");
   reg = await import("../scripts/decide/registry.js");
   dr = await import("../scripts/decide/drop-to-one.js");
   r = await import("../scripts/decide/reminders.js");
@@ -485,6 +491,112 @@ describe("EFFECT_BENDS — Displacement and Blurred Form: Disadvantage against t
         })
         .map(s => s.bend)
     ).toEqual(["disadvantage"]);
+  });
+});
+
+describe("the reaction rows — the interrupts, the rebukes, Reactive", () => {
+  it("Toxic Escape halves like Uncanny Dodge; Deflect Missile reduces on RANGED hits only; Limited Foresight bends the roll", () => {
+    expect(reg.INTERRUPTS.map(r => `${r.name}:${r.kind}`)).toEqual(
+      expect.arrayContaining([
+        "Toxic Escape:damage",
+        "Deflect Missile:damage",
+        "Limited Foresight:roll"
+      ])
+    );
+    expect(reg.INTERRUPT_MULTIPLIERS["Toxic Escape"].multiplier).toBe(0.5);
+    expect(reg.INTERRUPT_REDUCTIONS["Deflect Missile"]).toMatchObject({
+      activity: "Reduce Damage",
+      pool: true,
+      ranged: true,
+      hit: "ranged attack"
+    });
+    expect(reg.INTERRUPT_ROLLS["Limited Foresight"]).toMatchObject({
+      reaction: true,
+      uses: true,
+      activity: "Expend Use"
+    });
+    for (const row of [
+      reg.INTERRUPT_MULTIPLIERS["Toxic Escape"],
+      reg.INTERRUPT_REDUCTIONS["Deflect Missile"],
+      reg.INTERRUPT_ROLLS["Limited Foresight"]
+    ])
+      expectPointer(row.rule);
+  });
+  it("the rebukes: a hit's save at the attacker (Warding Charm, Jinx), a MISS row (Sticky Shield), a typed self row (Elemental Absorption), a self row (Ink Cloud)", () => {
+    expect(reg.REBUKES["Warding Charm"]).toMatchObject({ activity: "Save", hit: true });
+    expect(reg.REBUKES["Jinx"]).toMatchObject({ activity: "Save", hit: true });
+    expect(reg.REBUKES["Sticky Shield"]).toMatchObject({ activity: "Save", on: "miss" });
+    expect(reg.REBUKES["Elemental Absorption"]).toMatchObject({
+      activity: null,
+      self: true,
+      types: ["acid", "cold", "fire", "lightning", "thunder"]
+    });
+    expect(reg.REBUKES["Ink Cloud"]).toMatchObject({ activity: "Expend Use", self: true });
+    for (const n of [
+      "Warding Charm",
+      "Jinx",
+      "Sticky Shield",
+      "Elemental Absorption",
+      "Ink Cloud"
+    ]) {
+      expectPointer(reg.REBUKES[n].rule, n);
+      expect(typeof reg.REBUKES[n].caveat, n).toBe("string");
+    }
+  });
+  it("a `self` row has no reach to measure and is never blocked by distance; the types judge counts an unreadable card", () => {
+    expect(rb.rebukeReach({ self: true }, null)).toBe(Infinity);
+    expect(
+      rb.rebukeBlocked({
+        self: false,
+        hp: 10,
+        reactionSpent: false,
+        distance: null,
+        reach: Infinity,
+        usesLeft: 1,
+        slot: null,
+        whileStands: null,
+        equipped: null
+      })
+    ).toBeNull();
+    expect(
+      rb.rebukeBlocked({
+        self: false,
+        hp: 10,
+        reactionSpent: true,
+        distance: null,
+        reach: Infinity,
+        usesLeft: 1,
+        slot: null,
+        whileStands: null,
+        equipped: null
+      })
+    ).toBe("reaction spent");
+    expect(rb.rebukeTypesAdmit(["fire", "cold"], ["fire"])).toBe(true);
+    expect(rb.rebukeTypesAdmit(["fire", "cold"], ["slashing"])).toBe(false);
+    expect(rb.rebukeTypesAdmit(["fire", "cold"], [])).toBe(true);
+    expect(rb.rebukeTypesAdmit(null, ["slashing"])).toBe(true);
+    expect(rb.rebukeLine({ actorName: "Kuo-toa", sourceName: "Gren", miss: true })).toBe(
+      "Kuo-toa may answer Gren — it missed"
+    );
+    expect(
+      rb.rebukeLine({
+        actorName: "Kuo-toa",
+        sourceName: "Gren",
+        miss: true,
+        answer: "use",
+        choice: "Sticky Shield"
+      })
+    ).toBe("Sticky Shield — Kuo-toa answers Gren's miss");
+  });
+  it("Reactive: the spent Reaction stands only for the turn it was spent on", () => {
+    expect(Object.keys(reg.REACTION_RESETS)).toEqual(["Reactive"]);
+    expectPointer(reg.REACTION_RESETS.Reactive.rule);
+    const start = { round: 1, turn: 1 };
+    expect(ch.reactionStandsEveryTurn({ start, now: { round: 1, turn: 1 } })).toBe(true);
+    expect(ch.reactionStandsEveryTurn({ start, now: { round: 1, turn: 2 } })).toBe(false);
+    expect(ch.reactionStandsEveryTurn({ start, now: { round: 2, turn: 1 } })).toBe(false);
+    expect(ch.reactionStandsEveryTurn({ start: null, now: { round: 1, turn: 1 } })).toBe(true);
+    expect(ch.reactionStandsEveryTurn({ start, now: null })).toBe(false);
   });
 });
 

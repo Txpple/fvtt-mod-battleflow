@@ -581,6 +581,9 @@ The GM's side (RULINGS *The GM's side — the five shapes*, 2026-09-28 night) ad
 | — | Legendary Resistance | NOT a row: the platform's `resistSave` and the saves machine's `forced` flip already are it |
 | `EMANATIONS` | `trigger.on: "turnStart"` · `trigger.types` | the third trigger word (a monster's "any creature that starts its turn in"), on the region behaviour's `tokenTurnStart`; a row with no standing effect lets the verdict land the activity's failure effect; `types` narrows the asked to creature types (Vile Appearance). Five aura rows and Aura of Authority (RULINGS *The GM's side — the aura rows and the attack bends*) |
 | `EFFECT_BENDS` | `judge: "notIncapacitated"` | the bearer's Incapacitated status turns the row off (Displacement, Blurred Form) |
+| `INTERRUPT_REDUCTIONS` | `ranged` | a reduction held on RANGED hits only (Deflect Missile); the hold's trigger reads the attack's mode, else its activity's type |
+| `REBUKES` | `on: "miss"` · `types` · `self` | a rebuke on a melee weapon attack that MISSED the bearer, stamped by the elect off the attack card (Sticky Shield); the damage's types the row answers to, an unreadable card counting (Elemental Absorption); a row aimed at nobody, no reach measured (Ink Cloud) |
+| `REACTION_RESETS` (new) | `every: "turn"` | the Reaction back on every turn of combat (Reactive) — the chip's arithmetic in `decide/chips.js` `reactionStandsEveryTurn` |
 
 Tier 3 (the same day, ruled off `prototypes/spells-slice.html`) moved one more kind — `area` on the
 emanations (§6's tripwire 38 → 39) — and added two tables that are not kinds:

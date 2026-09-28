@@ -6,6 +6,7 @@
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
 import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, duplicatesOf } from "./lookup.js";
+import { cardActivity } from "../lookup.js";
 import { bfCard } from "../decide/present.js";
 import { armHoldTimer } from "./clock.js";
 import { listen } from "../dispatch.js";
@@ -26,6 +27,9 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   const held = [];
   const skipped = [];
   const attacker = attackMessage.getAssociatedActor?.() ?? null;
+  // Was this a RANGED attack (a ranged weapon, or a thrown one): the attack's own mode, else its activity's type.
+  const mode = String(attackMessage.system?.mode ?? "");
+  const ranged = (mode === "ranged") || mode.startsWith("thrown") || (cardActivity(attackMessage)?.attack?.type?.value === "ranged");
   for ( const target of hits ) {
     const actor = await fromUuid(target.uuid);
     // THE DUPLICATES (Mirror Image): rolled by the machine once the hit stands, on the same hold — an entry
@@ -37,7 +41,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     }
     const withDuplicates = entry => duplicates ? { ...entry, duplicates: { key: duplicates.key, at: duplicates.at, die: duplicates.die,
       count: duplicates.count, of: duplicates.of, ids: duplicates.ids, names: duplicates.names, img: duplicates.img } } : entry;
-    let found = await findInterrupt(actor, { isCritical: roll.isCritical });
+    let found = await findInterrupt(actor, { isCritical: roll.isCritical, ranged });
     let futile = false;
     if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) {
       // Skipped silently, recorded for the stats.

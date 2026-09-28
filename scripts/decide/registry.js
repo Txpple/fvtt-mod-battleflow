@@ -24,7 +24,11 @@ export const INTERRUPT_KINDS = new Set(["ac", "damage", "roll"]);
  * interrupt stays "reduce by hand". Keyed by the Interrupt list's names. */
 export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
-    rule: Object.freeze({ item: "Uncanny Dodge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeUncannyDod" }) })
+    rule: Object.freeze({ item: "Uncanny Dodge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeUncannyDod" }) }),
+  // The GM's side: the half is the module's; the teleport and the save at the destination are the sheet's.
+  "Toxic Escape": Object.freeze({ multiplier: 0.5,
+    caveat: "the teleport and the Constitution save at the destination are the sheet's — use Save after",
+    rule: Object.freeze({ item: "Toxic Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmToxicEscape000" }) })
 });
 
 /**
@@ -35,6 +39,7 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   any      every damage the module applies is held for it, not only an attack hit (damage-holds.js)
  *   ally     feet — protects ANOTHER creature in reach; every guard in reach is asked, the first wins
  *   holding  "shieldOrWeapon" — a Shield or a Simple or Martial weapon held
+ *   ranged   the hit must be a RANGED attack (Deflect Missile); a melee hit never holds for it
  *   eyebrow / spend / hit / by   the card's and popup's words
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
@@ -49,7 +54,13 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Interception": Object.freeze({ activity: "Intercept", pool: false,
     eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Proficiency Bonus", ally: 5, holding: "shieldOrWeapon",
     rule: Object.freeze({ item: "Interception", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstIntercepti" }),
-    from: "Fighting Style feat" })
+    from: "Fighting Style feat" }),
+  // The GM's side (Deflect Attacks' shape, ranged only): the redirect at 0 is the sheet's Save.
+  "Deflect Missile": Object.freeze({ activity: "Reduce Damage", pool: true, ranged: true,
+    eyebrow: "Reaction", spend: "use", hit: "ranged attack", by: "1d10",
+    caveat: "\"Bludgeoning, Piercing, or Slashing\" is the table's; the redirect when the damage is reduced to 0 is the sheet's Save",
+    rule: Object.freeze({ item: "Deflect Missile", uuid: "Compendium.dnd-monster-manual.features.Item.mmDeflectMissile" }),
+    from: "monsters" })
 });
 
 /**
@@ -75,7 +86,12 @@ export const INTERRUPT_ROLLS = Object.freeze({
   // the pack's effect landed on the protected creature (EFFECT_BENDS "Protected (Protection)").
   "Protection": Object.freeze({ reaction: true, uses: false, point: null, activity: "Protect", ally: 5, holding: "shield", effect: "Protected",
     rule: Object.freeze({ item: "Protection", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstProtection" }),
-    from: "Fighting Style feat" })
+    from: "Fighting Style feat" }),
+  // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
+  "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
+    after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
+    rule: Object.freeze({ item: "Limited Foresight", uuid: "Compendium.dnd-monster-manual.features.Item.mmLimitedForesig" }),
+    from: "monsters (the cyclops)" })
 });
 
 /**
@@ -920,6 +936,11 @@ export const DROP_TO_ONE = Object.freeze({
  *   while     an effect that must stand on the bearer;  equipped  the item must be equipped
  *   ward      a BYSTANDER within `range` of a damager who hit someone else is asked;  hit  attack damage only
  *   opportunity  the answer is an Opportunity Attack (CLOCK_RIDERS "sentinel-halt" reads it)
+ *   on        "miss" (Sticky Shield) — a MELEE WEAPON attack that MISSED the bearer, stamped by the elect off the
+ *             attack card; the answer is the activity used at the attacker
+ *   types     the damage's types the row answers to (Elemental Absorption); a damage card the module cannot
+ *             read counts the row — never a guessed exemption
+ *   self      the answer is aimed at nobody (a heal on self, a cloud) — no reach is measured
  * A spell answers at the lowest slot held — no picker in a Reaction's window.
  */
 export const REBUKES = Object.freeze({
@@ -937,7 +958,36 @@ export const REBUKES = Object.freeze({
   // The pack's Sentinel has no activity: the answer is one melee attack with the weapon last swung.
   "Sentinel": Object.freeze({ attack: "melee", range: 5, ward: true, hit: true, opportunity: true, from: "General feat",
     caveat: "its Disengage half — nothing records a Disengage",
-    rule: Object.freeze({ item: "Sentinel", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftSentinel000", benefit: "Guardian" }) })
+    rule: Object.freeze({ item: "Sentinel", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftSentinel000", benefit: "Guardian" }) }),
+  // THE GM'S SIDE (RULINGS *The GM's side — the reaction rows*). A hit's save at the attacker: the damage has
+  // landed by the time the rebuke asks (`dnd5e.applyDamage`); "the attack misses instead" is the table's.
+  "Warding Charm": Object.freeze({ activity: "Save", hit: true, from: "monsters",
+    caveat: "\"the attack roll misses\" on a failure is the table's — the damage has landed; Charmed is the pack's effect",
+    rule: Object.freeze({ item: "Warding Charm", uuid: "Compendium.dnd-monster-manual.features.Item.mmWardingCharm00" }) }),
+  "Jinx": Object.freeze({ activity: "Save", hit: true, from: "monsters (goblins)",
+    caveat: "\"the attack misses instead\" on a failure is the table's — the damage has landed",
+    rule: Object.freeze({ item: "Jinx", uuid: "Compendium.dnd-monster-manual.features.Item.mmJinx0000000000" }) }),
+  "Sticky Shield": Object.freeze({ activity: "Save", on: "miss", from: "monsters (kuo-toa)",
+    caveat: "the stuck weapon's Free Weapon Check and Escape Check are the sheet's",
+    rule: Object.freeze({ item: "Sticky Shield", uuid: "Compendium.dnd-monster-manual.features.Item.mmStickyShield00" }) }),
+  "Elemental Absorption": Object.freeze({ activity: null, self: true, from: "monsters",
+    types: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
+    caveat: "Resistance to that instance of damage is the pack's own toggle; the Temporary Hit Points are the heal's card",
+    rule: Object.freeze({ item: "Elemental Absorption", uuid: "Compendium.dnd-monster-manual.features.Item.mmElementalAbsor" }) }),
+  "Ink Cloud": Object.freeze({ activity: "Expend Use", self: true, from: "monsters",
+    caveat: "\"while underwater\", the Cube and the swim are the table's",
+    rule: Object.freeze({ item: "Ink Cloud", uuid: "Compendium.dnd-monster-manual.features.Item.mmInkCloud000000" }) })
+});
+
+/**
+ * A feature that gives the Reaction back on EVERY turn of combat, not only at the start of the bearer's own
+ * (Reactive, the marilith): the spent chip stands for the turn it was spent on and dies with it
+ * (decide/chips.js `reactionStandsEveryTurn`, shared.js `reactionSpent`).
+ */
+export const REACTION_RESETS = Object.freeze({
+  "Reactive": Object.freeze({ every: "turn",
+    rule: Object.freeze({ item: "Reactive", uuid: "Compendium.dnd-monster-manual.features.Item.mmReactive000000" }),
+    from: "monsters" })
 });
 
 
@@ -1821,7 +1871,9 @@ export const INTERRUPTS = Object.freeze([
   row("Illusory Self", "ac"), row("Glorious Defense", "ac"), row("Parry", "ac"), row("Counterattack", "ac"),
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
-  row("Interception", "damage"), row("Protection", "roll")
+  row("Interception", "damage"), row("Protection", "roll"),
+  // the GM's side
+  row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
 /** Which spells a reaction stops outright. */
 export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);

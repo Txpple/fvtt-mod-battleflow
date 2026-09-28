@@ -59,6 +59,17 @@ export function reactionStands({ start = null, now, actorTurn }) {
   return now.turn < back.turn;
 }
 
+/**
+ * Reactive (REACTION_RESETS `every: "turn"`): the spent Reaction stands only for the turn it was spent on —
+ * any turn's start gives it back. No clock: stands; no combat: dead.
+ * @param {{start?: {round?: number|null, turn?: number|null}|null, now: {round: number, turn: number}|null}} facts
+ */
+export function reactionStandsEveryTurn({ start = null, now }) {
+  if ( !start || (start.round === null) || (start.round === undefined) || (start.turn === null) || (start.turn === undefined) ) return true;
+  if ( !now ) return false;
+  return (now.round === start.round) && (now.turn === start.turn);
+}
+
 export const TURN_CHIPS = Object.freeze(Object.keys(CHIP_WINDOWS));
 
 /**
