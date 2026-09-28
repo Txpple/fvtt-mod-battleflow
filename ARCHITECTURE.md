@@ -1078,6 +1078,13 @@ an added die, a reaction that moves AC):
 5. A commit that only touches comments starts its subject `comments:`, and CI proves the code did
    not change (`tools/check-comment-only.mjs`).
 
+**Writing HTML** (a card row, a popup, an effect's description):
+1. A name a player can set — a creature's, an item's, a scene's, an image path — goes through
+   `esc` (decide/present.js; `attr` inside an attribute). `npm run html`
+   ([tools/check-html.mjs](tools/check-html.mjs)) fails on one that does not.
+2. A card's `lines` are HTML, so a name inside a line is escaped there too; `eyebrow`, `title`
+   and `subtitle` are text and `bfCard` escapes them itself.
+
 **Any change:**
 1. Which north star does it serve? If none, it is not in scope.
 2. Does it add a required GM click? → redesign (N4).

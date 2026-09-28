@@ -10,7 +10,7 @@ import { registerResumable } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { bfCard, ruleLine } from "./decide/present.js";
+import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { DAMAGE_SHIELDS, answers, tableIndex } from "./decide/registry.js";
 import { durationSeconds, shieldDue, shieldEffectNames, shieldReach, shieldType } from "./decide/shields.js";
 import { messageActivity } from "./effect-riders.js";
@@ -244,7 +244,7 @@ async function writeMark(actor, item, row, { spellLevel, scaling, message }) {
   const seconds = durationSeconds(item.system?.duration);
   const effect = await ActiveEffect.implementation.create({
     name: item.name, img: item.img ?? "icons/svg/ice-aura.svg",
-    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${item.name} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was cast${spellLevel ? ` at level ${spellLevel}` : ""}; it strikes back at every melee hit while the Temporary Hit Points last, and ends with them.</p>`,
     origin: item.uuid, disabled: false, transfer: false,
     ...(seconds ? { duration: { seconds } } : {}),
     flags: { [MODULE_ID]: { shield: { key: row.key, itemUuid: item.uuid, spellLevel, scaling } } }

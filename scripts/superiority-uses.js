@@ -8,7 +8,7 @@ import { ruleHTML } from "./rule-text.js";
 import { cardItem, lower, featureNamed, activityNamed, resolveUuid, resolveDie } from "./lookup.js";
 import { superiorityUseEntries, listedNames } from "./decide/registry.js";
 import { chipData, hitTargets, placeOf, poolSpendsOn } from "./shared.js";
-import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } from "./decide/present.js";
+import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -86,7 +86,7 @@ async function drive(row, activity, actor, message) {
     const clock = chipClock(row.bonus.window, placeOf(actor));
     const effect = roll ? await ActiveEffect.implementation.create({
       name: item.name, img: item.img ?? "icons/svg/shield.svg",
-      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${item.name} was used: ${row.bonus.what} +${roll.total} until the start of ${actor.name}'s next turn.</p>`,
+      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was used: ${row.bonus.what} +${roll.total} until the start of ${esc(actor.name)}'s next turn.</p>`,
       origin: item.uuid, disabled: false, transfer: false,
       changes: [{ key: row.bonus.key, mode: CONST.ACTIVE_EFFECT_MODES.ADD, value: String(roll.total) }],
       ...(clock ? chipData(clock) : {}),
@@ -122,7 +122,7 @@ async function drive(row, activity, actor, message) {
     const clock = chipClock(row.chip.window, placeOf(actor));
     await ActiveEffect.implementation.create({
       name: item.name, img: item.img ?? "icons/svg/aura.svg",
-      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${item.name} was used; the next melee hit this turn may add the die.</p>`,
+      description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(item.name)} was used; the next melee hit this turn may add the die.</p>`,
       origin: item.uuid, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, die } }

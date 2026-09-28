@@ -14,7 +14,7 @@ import { riderPartFormula } from "./decide/clock.js";
 import { tokensInRegions } from "./geometry.js";
 import { emanationShapeData } from "./decide/geometry.js";
 import { castLevelOn } from "./decide/card.js";
-import { bfCard, ruleLine } from "./decide/present.js";
+import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers } from "./decide/emanations.js";
 import { canAnswerFor } from "./core.js";
@@ -794,7 +794,7 @@ listen("renderActivityUsageDialog", "emanations", (app, element) => {
     const fs = document.createElement("fieldset");
     fs.dataset.bfEmanationTypeField = "";
     fs.innerHTML = `<legend>Battle Flow — damage type</legend>
-      <div class="form-group"><label>${activity.item.name} deals</label>
+      <div class="form-group"><label>${esc(activity.item.name)} deals</label>
         <div class="form-fields" style="gap:0.75rem;">${types.map(t => `<label style="display:flex;align-items:center;gap:0.3rem;"><input type="radio" name="bf-emanation-type" value="${t}" ${t === current ? "checked" : ""}> ${cap(t)}</label>`).join("")}</div>
         <p class="hint">${cap(current)} is the default — ${why}. The pick applies to every roll of this cast; the spell's card can change it later.</p></div>`;
     for ( const r of fs.querySelectorAll('input[name="bf-emanation-type"]') ) r.addEventListener("change", () => { if ( r.checked ) pendingTypes.set(activity.uuid, r.value); });

@@ -7,7 +7,7 @@ import { verdictsOn } from "./decide/demand.js";
 import { lower, featureNamed, namesAnswering } from "./lookup.js";
 import { registerResumable, registerOfferPart } from "./ui.js";
 import { damagePartsOf, hitTargets, statSourceOf, withTargets, writeTurnChit } from "./shared.js";
-import { bfCard, cunningMenuHTML, ruleLine } from "./decide/present.js";
+import { bfCard, cunningMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CUNNING_OPTIONS, DEATH_STRIKE } from "./decide/registry.js";
 import { cunningMenu, cunningPick, sneakFormula } from "./decide/sneak.js";
 import { tokenForUuid } from "./geometry.js";
@@ -81,7 +81,7 @@ function sneakOfferParts(attackMessage, activity) {
       const boxes = [...(element?.querySelectorAll('input[name="bf-cunning"]') ?? [])];
       const button = element?.querySelector(SURFACES.dialogRoll);
       const baseLabel = button?.textContent?.trim() ?? "Roll Damage";
-      const relabel = () => { if ( button ) button.innerHTML = `<i class="fa-solid fa-dice-d6" inert></i> ${baseLabel} — ${formulaLabel()}`; };
+      const relabel = () => { if ( button ) button.innerHTML = `<i class="fa-solid fa-dice-d6" inert></i> ${esc(baseLabel)} — ${formulaLabel()}`; };
       const order = [];
       for ( const box of boxes ) {
         box.addEventListener("change", () => {

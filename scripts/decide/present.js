@@ -107,7 +107,7 @@ export function situationalBonusHTML(name) {
   return `
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
       <label style="flex:1;font-size:var(--font-size-12,12px);">Situational Bonus</label>
-      <input type="text" name="${name}" placeholder="e.g. 1d4" autocomplete="off"
+      <input type="text" name="${attr(name)}" placeholder="e.g. 1d4" autocomplete="off"
              style="flex:1;min-width:0;text-align:center;">
     </div>`;
 }
@@ -124,7 +124,7 @@ export function reminderSectionHTML({ head, boxes }) {
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;
                   background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
                   border-left:3px solid ${modeTone(b.bend ?? "listed")};">
-        <div style="font-weight:bold;">${b.label}</div>
+        <div style="font-weight:bold;">${esc(b.label)}</div>
         ${modeTagHTML(b.bend ?? "listed")}
         ${b.rule ? `<div style="grid-column:1 / -1;font-size:var(--font-size-12,12px);line-height:1.45;opacity:0.85;">${ruleLine(b.rule)}</div>` : ""}
       </div>`).join("");
@@ -329,7 +329,7 @@ export function momentBarHTML(spec, label = "to answer") {
                   background:${TONE.good};"></div>
     </div>
     <span style="font-size:var(--font-size-10,10px);opacity:0.6;white-space:nowrap;">
-      ${spec.window}s ${label}</span>
+      ${spec.window}s ${esc(label)}</span>
   </div>`;
 }
 
@@ -640,7 +640,7 @@ export function rescuePaneHTML(quotes = []) {
   const panes = quotes.map((q, i) => `
     <div data-bf-rescue-quote="${attr(q.key)}"
          style="grid-area:1 / 1;${i ? "visibility:hidden;" : ""}">
-      <strong>${q.label}</strong> ${ruleLine(q.text)}
+      <strong>${esc(q.label)}</strong> ${ruleLine(q.text)}
       ${q.detail ? `<div style="margin-top:0.25rem;opacity:0.75;">${q.detail}</div>` : ""}
     </div>`).join("");
   return `
@@ -654,7 +654,7 @@ export function rescuePaneHTML(quotes = []) {
 export function rescueRowsHTML(rows = []) {
   return rows.map(row => {
     const art = row.img
-      ? `<img src="${row.img}" alt="" aria-hidden="true"
+      ? `<img src="${attr(row.img)}" alt="" aria-hidden="true"
            style="width:20px;height:20px;flex:0 0 auto;border-radius:3px;object-fit:cover;">`
       : `<i class="${attr(row.icon)}" aria-hidden="true"
            style="width:20px;flex:0 0 auto;text-align:center;opacity:0.85;"></i>`;
@@ -670,7 +670,7 @@ export function rescueRowsHTML(rows = []) {
       style="display:flex;gap:0.5rem;align-items:center;justify-content:center;
              width:100%;margin-top:0.35rem;">
       ${art}
-      <span>${row.label}${inert ? ` — ${outcome}` : ""}</span>
+      <span>${esc(row.label)}${inert ? ` — ${outcome}` : ""}</span>
     </button>`;
   }).join("");
 }

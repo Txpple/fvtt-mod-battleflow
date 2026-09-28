@@ -154,9 +154,12 @@ export function guardRow({ name, rule = "", mode }) {
   return { row: { key: name, name, dice: "Disadvantage", tag: off ?? "a Reaction", off, rule }, futile };
 }
 
+/** Text made safe for HTML. ⚠ The pure layer imports nothing: decide/present.js's `esc`, repeated. */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 /** The guard popup's line when the row can do nothing. */
 export const futileGuardLine = name =>
-  `It was already rolled with <strong>Disadvantage</strong>, and Disadvantage doesn't stack — ${name} would spend your Reaction for nothing. Keep it for something else.`;
+  `It was already rolled with <strong>Disadvantage</strong>, and Disadvantage doesn't stack — ${esc(name)} would spend your Reaction for nothing. Keep it for something else.`;
 
 const usesLeft = n => `${n} use${n === 1 ? "" : "s"} left`;
 

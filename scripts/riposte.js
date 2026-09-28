@@ -7,7 +7,7 @@ import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula, meleeOpt
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, reactionSpent, spendReaction } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originData, originIdInData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -297,7 +297,7 @@ async function showRipostePopup(message, flag, reactor) {
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
       <label style="flex:1;font-size:var(--font-size-12,12px);">Riposte with</label>
       <select name="bf-riposte-weapon" style="flex:1;min-width:0;">${options
-        .map(o => `<option value="${o.itemId}"${o.itemId === preferred?.itemId ? " selected" : ""}>${o.label}</option>`)
+        .map(o => `<option value="${o.itemId}"${o.itemId === preferred?.itemId ? " selected" : ""}>${esc(o.label)}</option>`)
         .join("")}</select>
     </div>` : "";
   let dialog;
@@ -317,7 +317,7 @@ async function showRipostePopup(message, flag, reactor) {
       title: `${flag.attackerName} missed you`,
       // The rule line is the maneuver's own text; the one-weapon note is the module's hint.
       lines: [ruleLine(RULE_TEXT.riposte),
-        ...((options.length === 1) ? [`Riposte with <strong>${preferred?.label ?? "your weapon"}</strong> — your one melee weapon.`] : [])]
+        ...((options.length === 1) ? [`Riposte with <strong>${esc(preferred?.label ?? "your weapon")}</strong> — your one melee weapon.`] : [])]
     }) + selectHTML + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "riposte", label: preferred && (options.length === 1) ? `Riposte with ${preferred.label}` : "Riposte",

@@ -5,7 +5,7 @@
  * ⚠ Ungated by design (a toggle would punch holes in the ledger).
  */
 import { MODULE_ID, TITLE, isActiveGM, statContext } from "./core.js";
-import { bfCard } from "./decide/present.js";
+import { bfCard, esc } from "./decide/present.js";
 // Safe: shared.js registers no hooks and evaluates first.
 import { statSourceOf } from "./shared.js";
 import { listen } from "./dispatch.js";
@@ -74,7 +74,7 @@ async function stampRoster(combat) {
         eyebrow: "Combat",
         title: scene?.name ?? "The field",
         subtitle: `${combatants.length} combatants`,
-        lines: [`⚔ Begins on ${scene?.name ?? "the field"}`, ...order],
+        lines: [`⚔ Begins on ${esc(scene?.name ?? "the field")}`, ...order],
         tone: "neutral"
       }),
       flags: { [MODULE_ID]: { combatRoster: {

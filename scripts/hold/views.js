@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
-import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML } from "../decide/present.js";
+import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, futileGuardLine, guardRow, liveRows, rescueTitle } from "../decide/rescue-hit.js";
 import { poolOf } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
@@ -210,7 +210,7 @@ async function holdPopupContent(target, roll, actor, hold) {
   const reveal = spell ? null : revealDetail(target, roll, actor);
   const situation = spell
     ? `<div style="font-size:var(--font-size-14,14px);"><strong>${hold.spell}</strong> is about `
-      + `to strike <strong>${target.name}</strong>.</div>`
+      + `to strike <strong>${esc(target.name)}</strong>.</div>`
       + `<div style="opacity:0.85;margin-top:0.15rem;">${target.reaction} stops it completely — `
       + `<em>no damage at all</em>.</div>`
     : reveal
@@ -220,12 +220,12 @@ async function holdPopupContent(target, roll, actor, hold) {
         + `${target.reaction} would make it AC <strong>${reveal.wouldAC}</strong> — `
         + `<em>${reveal.wouldMiss ? "enough to miss" : "still not enough"}</em>.</div>`)
     : `<div style="font-size:var(--font-size-14,14px);">Something hits `
-      + `<strong>${target.name}</strong>.</div>`;
+      + `<strong>${esc(target.name)}</strong>.</div>`;
 
   return `
   <div style="display:flex;gap:0.6rem;align-items:center;padding-bottom:0.5rem;
               border-bottom:1px solid var(--color-border-light-2,#999a);">
-    <img src="${img}" alt="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
+    <img src="${esc(img)}" alt="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
          data-tooltip="${String(target.reaction ?? "").replace(/"/g, "&quot;")}"
          style="width:48px;height:48px;flex:0 0 auto;border-radius:4px;
          border:1px solid var(--color-border-dark,#0006);object-fit:cover;">
@@ -290,7 +290,7 @@ async function showGuardPopup(attackMessage, target, guard, guardActor, hold, ro
   const reveal = revealDetail(target, roll, defender);
   const situation = roll?.isCritical ? "<strong>natural 20</strong> — a <strong>critical hit</strong>."
     : reveal ? `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong> — a hit.`
-    : `Something hits <strong>${target.name}</strong>.`;
+    : `Something hits <strong>${esc(target.name)}</strong>.`;
   const d20 = roll?.dice?.[0] ?? null;
   const { row: guardOffer, futile } = guardRow({ name: guard.row, rule: row?.rule ?? "",
     mode: d20ModeOf({ number: d20?.number, modifiers: d20?.modifiers }) });
@@ -331,7 +331,7 @@ async function showRescuePopup(attackMessage, target, actor, hold, roll) {
   const reveal = revealDetail(target, roll, actor);
   const situation = roll?.isCritical ? "<strong>natural 20</strong> — a <strong>critical hit</strong>."
     : reveal ? `<strong>${reveal.total}</strong> vs AC <strong>${reveal.liveAC}</strong> — a hit.`
-    : `Something hits <strong>${target.name}</strong>.`;
+    : `Something hits <strong>${esc(target.name)}</strong>.`;
   const dialog = await openMomentPopup(attackMessage, target.uuid, actor, {
     title: rescueTitle(rows, target.name), icon: "fa-solid fa-shield-halved", width: 460,
     content: bfCard({ img: actor?.img ?? null, eyebrow: "Reaction — held", tone: "pending",

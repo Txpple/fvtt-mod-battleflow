@@ -8,7 +8,7 @@ import { resolveDie, foldEntryFor, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { RULE_TEXT } from "./decide/registry.js";
 import { chipData, placeOf, poolSpendsOn, spendReaction } from "./shared.js";
-import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase } from "./decide/present.js";
+import { popupKey, bfCard, momentBarHTML, ruleLine, spendPhrase, esc } from "./decide/present.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { openMomentPopup, momentButton, shownMoments, acknowledgeMoment, momentAcknowledged } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
@@ -71,7 +71,7 @@ async function ensureCommandChip(message) {
     const clock = chipClock("steadyAim", placeOf(fighter ?? ally));
     chip = await ActiveEffect.implementation.create({
       name: flag.itemName, img: flag.itemImg ?? "icons/svg/aura.svg",
-      description: `${await ruleHTML(RULE_TEXT.command)}<p>Written by Battle Flow when ${flag.attackerName} used ${flag.itemName}: ${ally.name} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
+      description: `${await ruleHTML(RULE_TEXT.command)}<p>Written by Battle Flow when ${esc(flag.attackerName)} used ${esc(flag.itemName)}: ${esc(ally.name)} may use a Reaction to make one attack with a weapon or an Unarmed Strike; ${flag.dieFormula ?? "the Superiority Die"} rides the damage of the next hit.</p>`,
       origin: flag.itemUuid ?? null, disabled: false, transfer: false,
       ...(clock ? chipData(clock) : {}),
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: "command", die: flag.dieFormula ?? null, sourceUuid: flag.attackerUuid, sourceName: flag.attackerName, cardId: message.id } }

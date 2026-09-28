@@ -245,6 +245,9 @@ export function damageTypeFor(types, alignment = null, chosen = null) {
   return { type: list[0] ?? null, why: "the part's first type" };
 }
 
+/** Text made safe for HTML. ⚠ The pure layer imports nothing: decide/present.js's `esc`, repeated. */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
 /**
  * The ActiveEffect a member receives: the pack's effect named for its source, with the floor's fingerprint.
  * @param {{ key: string, rule?: object|string|null }} row   ⚠ rows carry no `name`; `key` is it
@@ -258,7 +261,7 @@ export function memberEffectData(row, effect, { sourceName, itemUuid, regionId, 
   return {
     name: `${effect.name} — ${sourceName}`,
     img: effect.img ?? "icons/svg/aura.svg",
-    description: `${rule}<p>${row.key}: ${sourceName}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
+    description: `${rule}<p>${row.key}: ${esc(sourceName)}'s emanation. Battle Flow keeps this while the creature stands inside it.</p>`,
     origin: itemUuid ?? null,
     disabled: false, transfer: false,
     ...(status ? { statuses: [status] } : {}),

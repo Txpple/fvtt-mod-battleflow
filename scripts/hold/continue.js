@@ -13,7 +13,7 @@ import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { rescueSpendText } from "../decide/rescue-hit.js";
 import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
-import { bfCard, popupKey, spendPhrase } from "../decide/present.js";
+import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
 import { livePopups } from "../ui.js";
 import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { disarmHoldTimer } from "./clock.js";
@@ -102,13 +102,13 @@ async function driveHoldContinuation(attackMessage, hold) {
           img, eyebrow: "Reaction — not applied", title: target.reaction, subtitle: target.name,
           tone: "bad",
           lines: flatAC
-            ? [`<strong>${target.name}</strong>'s AC is a <strong>fixed number</strong>, so no `
+            ? [`<strong>${esc(target.name)}</strong>'s AC is a <strong>fixed number</strong>, so no `
               + `bonus can reach it — ${target.reaction}'s included.`,
               `The effect did land; the system ignores it. AC reads <strong>${liveAC}</strong>, `
               + `so this resolves as a hit (${roll.total}).`,
               `<em>Fix the statblock: set its AC calculation to Natural Armor with the same `
               + `number, and the reaction works.</em>`]
-            : [`It was cast, but its AC has not arrived on <strong>${target.name}</strong>.`,
+            : [`It was cast, but its AC has not arrived on <strong>${esc(target.name)}</strong>.`,
               `AC still reads <strong>${liveAC}</strong>, so this resolves as a hit (${roll.total}).`,
               `<em>Apply the effect from the card, then Revert the damage if needed.</em>`]
         }));
@@ -135,7 +135,7 @@ async function driveHoldContinuation(attackMessage, hold) {
         subtitle: maneuver ? spendPhrase(target.poolSpend ? [target.poolSpend] : [], r.spend ?? "Superiority Die") : target.name,
         tone: (settled || reduced) ? "good" : "neutral",
         lines: [(settled || reduced)
-          ? `The attack still hits, and its damage against <strong>${target.name}</strong> is ${how} — the receipt says so.`
+          ? `The attack still hits, and its damage against <strong>${esc(target.name)}</strong> is ${how} — the receipt says so.`
           : `Reduce the damage by hand — the roll stands.`]
       }));
     }

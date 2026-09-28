@@ -9,7 +9,7 @@ import { tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, withTargets } from "./shared.js";
-import { popupKey, bfCard, momentBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, momentBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, activityUuidOf, isCard, originIdOf, originData, targetsOf } from "./decide/card.js";
 import { livePopups, openMomentPopup, scheduleBarSync, shownMoments, acknowledgeMoment,
@@ -37,7 +37,7 @@ async function postHewReminder(attacker, featItem, weapon, why, row = null, offe
       title: `${label} — ${attacker.name} can attack again`,
       subtitle: why,
       lines: [ruleLine(row?.rule ?? RULE_TEXT.hew),
-        row?.swing ?? `Swing <strong>${weapon?.name ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
+        row?.swing ?? `Swing <strong>${esc(weapon?.name ?? "the same weapon")}</strong> from the sheet; nothing is automated.`]
     }),
     flags: { [MODULE_ID]: { hewNotice: {
       attackerUuid: attacker.uuid, itemName: featItem.name, itemImg: featItem.img,
@@ -59,7 +59,7 @@ async function showHewPopup(message, notice) {
       title: `${notice.label ?? "Hew"} — ${attacker?.name ?? "you"} can attack again`,
       subtitle: notice.why,
       lines: [ruleLine(notice.rule ?? RULE_TEXT.hew),
-        notice.swing ?? `Swing <strong>${notice.weaponName ?? "the same weapon"}</strong> from the sheet; nothing is automated.`]
+        notice.swing ?? `Swing <strong>${esc(notice.weaponName ?? "the same weapon")}</strong> from the sheet; nothing is automated.`]
     }) + momentBarHTML(notice, "reminder"),
     // An OFFER (Pole Strike) asks Use / Pass (Use drives the swing here); either acknowledges.
     buttons: notice.offer ? [

@@ -9,7 +9,7 @@ import { MODULE_ID, TITLE, S, setting, isActiveGM, queueFlagWrite, canAnswerFor,
 import { cardActivity, resolveUuid, usableManeuver, maneuverDieFormula } from "./lookup.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { hitTargets } from "./shared.js";
-import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor } from "./decide/present.js";
+import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } from "./decide/present.js";
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRescue,
   syncRescuePopup } from "./ui.js";
@@ -175,7 +175,7 @@ async function resolvePrecision(message) {
           ? `${current.attackTotal} → ${composed.total}`
           : `${current.attackTotal} + ${composed.added} = ${composed.total}`;
         lines.push(`${sum} vs AC ${ac} — `
-          + (t.verdict === "hit" ? `<strong>now hits ${t.name}</strong>` : `still misses ${t.name}`));
+          + (t.verdict === "hit" ? `<strong>now hits ${esc(t.name)}</strong>` : `still misses ${esc(t.name)}`));
       }
     });
     // Graze already paid on this miss: announce it, never unwind it.

@@ -9,7 +9,7 @@ import { RULE_TEXT, SHOVES, tableIndex } from "./decide/registry.js";
 import { hitOfferStep, withinBashReach, sizeAllows } from "./decide/sequence.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { hitTargets, resolveAttackMessage } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, ruleLine, esc } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard } from "./decide/card.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -264,7 +264,7 @@ async function showBashOfferPopup(message, flag) {
     <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.5rem;">
       <label style="flex:1;font-size:var(--font-size-12,12px);">${flag.kind === "shove" ? "Push" : "Bash"}</label>
       <select name="bf-bash-target" style="flex:1;min-width:0;">${options
-        .map(o => `<option value="${o.uuid}">${o.name}</option>`).join("")}</select>
+        .map(o => `<option value="${o.uuid}">${esc(o.name)}</option>`).join("")}</select>
     </div>` : "";
   let dialog;
   const answer = kind => answerBashOffer(message, kind, {

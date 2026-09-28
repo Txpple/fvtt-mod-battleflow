@@ -169,7 +169,7 @@ listen("dnd5e.renderChatMessage", "auto-damage", (message, html) => {
   if ( !auto?.sources?.length ) return;
   const line = document.createElement("div");
   line.style.cssText = "margin:0.3rem 0;font-size:var(--font-size-12,12px);line-height:1.5;";
-  line.innerHTML = `${CRIT_BADGE} <span style="opacity:0.85;">${auto.sources.map(s => s.label).join(" · ")}</span>`;
+  line.innerHTML = `${CRIT_BADGE} <span style="opacity:0.85;">${esc(auto.sources.map(s => s.label).join(" · "))}</span>`;
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
 

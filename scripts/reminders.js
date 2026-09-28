@@ -8,7 +8,7 @@ import { featureNamed, namesAnswering, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
-import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE } from "./decide/present.js";
+import { bfCard, reminderFieldsetHTML, ruleLine, sneakBoxHTML, TONE, esc } from "./decide/present.js";
 import { CHIP_FLAG, chipIsDead, chipOwnedBy, rollModeOf } from "./decide/chips.js";
 import { CHECK_BENDS, CONDITION_BENDS, CROSSBOWS, EFFECT_BENDS, MASTERY_RULES, RANGE_FEATS, RANGE_RULES, SAVE_BENDS, SNEAK_ATTACK } from "./decide/registry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
@@ -167,7 +167,7 @@ listen("dnd5e.renderChatMessage", "reminders", (message, html) => {
       const row = document.createElement("div");
       row.style.cssText = `display:flex;align-items:center;gap:8px;padding:4px 8px 4px 5px;border-radius:4px;border:1px solid ${tone};`
         + `border-left-width:4px;background:color-mix(in srgb, ${tone} 16%, transparent);`;
-      row.innerHTML = `<img src="${d.img}" alt="" style="width:28px;height:28px;flex:none;border:0;border-radius:3px;">`
+      row.innerHTML = `<img src="${esc(d.img)}" alt="" style="width:28px;height:28px;flex:none;border:0;border-radius:3px;">`
         + `<div style="display:flex;flex-direction:column;line-height:1.2;min-width:0;">`
         + `<strong style="font-size:var(--font-size-14,14px);">${foundry.utils.escapeHTML(amount)}</strong>`
         + `<span style="font-size:var(--font-size-11,11px);opacity:0.85;">${foundry.utils.escapeHTML(`vs ${t.name}${off}`)}</span></div>`;

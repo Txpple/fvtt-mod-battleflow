@@ -22,6 +22,7 @@ import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, op
 import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
+import { esc } from "./decide/present.js";
 
 /** Per-kind views onto `RESCUE_KINDS`: one copy of each quoted string, shared with the rescue view. */
 const kindTable = pick => Object.fromEntries(
@@ -596,7 +597,7 @@ async function resolveFold(message, answer) {
           const ac = folds.filter(f => f.uuid === t.uuid).findLast(f => Number.isFinite(f.ac))?.ac
             ?? t.ac;
           lines.push(`${sumText(flag, composed)} vs AC ${ac} — `
-            + (t.verdict === "hit" ? `<strong>now hits ${t.name}</strong>` : `still misses ${t.name}`));
+            + (t.verdict === "hit" ? `<strong>now hits ${esc(t.name)}</strong>` : `still misses ${esc(t.name)}`));
         }
       } else if ( succeeded ) {
         lines.push(Number.isFinite(current.dc)
@@ -883,7 +884,7 @@ function resolvedLines(flag, message) {
   if ( flag.testKind === "attack" ) {
     for ( const t of flag.targets ?? [] ) {
       if ( t.verdict ) lines.push(t.verdict === "hit"
-        ? `<strong>Now hits ${t.name}</strong> (AC ${t.ac}).`
+        ? `<strong>Now hits ${esc(t.name)}</strong> (AC ${t.ac}).`
         : `Still misses ${t.name} (AC ${t.ac}).`);
     }
   } else if ( Number.isFinite(flag.dc) ) {
@@ -1030,7 +1031,7 @@ listen("dnd5e.postUseActivity", "d20-folds", async (activity, usageConfig, resul
     const what = checkPhrase(scope.skills ?? [], !!scope.initiative);
     const chip = await ActiveEffect.implementation.create({
       name: activity.item.name, img: activity.item.img ?? "icons/svg/dice-target.svg",
-      description: `${await ruleHTML(scope.rule)}<p>Written by Battle Flow when ${entry.name} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
+      description: `${await ruleHTML(scope.rule)}<p>Written by Battle Flow when ${esc(entry.name)} was used: the die rolled ${total}; the next ${what} adds it.</p>`,
       origin: activity.item.uuid, disabled: false, transfer: false,
       flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: ARMED_KEY, armed: { name: entry.name, total, skills: [...(scope.skills ?? [])], initiative: !!scope.initiative, cardId: message?.id ?? null } } }
     }, { parent: actor }).catch(err => { console.error(`${TITLE} | ${entry.name} could not be armed — add the die by hand.`, err); return null; });
@@ -1180,7 +1181,7 @@ function refundQuestion(r) {
 /** The state sentence on the settled card. */
 function refundLine(r) {
   const total = Number.isFinite(r.total) ? ` (${r.total})` : "";
-  if ( r.status === "refunded" ) return `The check still failed${total} — the use of ${r.poolName} was <strong>refunded</strong>.`;
+  if ( r.status === "refunded" ) return `The check still failed${total} — the use of ${esc(r.poolName)} was <strong>refunded</strong>.`;
   if ( r.status === "kept" ) return `The check succeeded${total} — the use of ${r.poolName} stays spent.`;
   const math = refundArithmetic(r);
   return `${math ? `${math} ` : ""}${refundQuestion(r)} If it still failed, this use of ${r.poolName} isn't expended — answer to refund it.`;
@@ -1210,7 +1211,7 @@ async function answerRefund(message, choice) {
         img: r.itemImg, eyebrow: `D20 Fold — ${r.label}`, tone: "good",
         title: `${r.label} — the use is refunded`,
         subtitle: `${actor?.name ?? ""} · the check still failed`,
-        lines: [`${r.poolName}: <strong>${uses.value ?? 0} of ${uses.max ?? 0}</strong> remaining.`, ruleLine(r.rule)]
+        lines: [`${esc(r.poolName)}: <strong>${uses.value ?? 0} of ${uses.max ?? 0}</strong> remaining.`, ruleLine(r.rule)]
       })
     });
   } catch(err) {

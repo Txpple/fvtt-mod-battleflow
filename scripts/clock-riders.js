@@ -8,7 +8,7 @@ import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
-import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
+import { bfCard, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -119,7 +119,7 @@ function clockRiderOfferParts(attackMessage, activity) {
   const chosen = new Set(due.filter(r => r.formula || r.says).map(r => r.key));
   return {
     riders: due,
-    lines: due.filter(r => !r.formula && !r.says).map(r => `<strong>${r.label}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
+    lines: due.filter(r => !r.formula && !r.says).map(r => `<strong>${esc(r.label)}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
     html: riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule, usesLeft: r.usesLeft, caveat: r.row.caveat }))),
     wire(element) {
       for ( const box of (element?.querySelectorAll('input[name="bf-rider"]') ?? []) ) {

@@ -9,7 +9,7 @@ import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, esc } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, registerOfferPart } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
@@ -327,7 +327,7 @@ const NOTICE_TEXT = {
   cleave: (ctx, _names) => ({
     title: "Cleave — one extra attack available",
     lines: [ruleLine(MASTERY_RULES.cleave),
-      `Press "Arm the Cleave" and the next ${ctx.weapon.name} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
+      `Press "Arm the Cleave" and the next ${esc(ctx.weapon.name)} damage roll drops the modifier for you; Dismiss to resolve it yourself — or if you've already Cleaved this turn.`]
   })
 };
 
@@ -539,7 +539,7 @@ async function showMasteryPopup(message, m) {
       img: m.weapon?.img, eyebrow: "Weapon Mastery", tone: "neutral",
       title: `${label}: use it?`,
       subtitle: `${attacker?.name ?? "The attacker"} — ${m.weapon?.name ?? "weapon"}`,
-      lines: [ruleLine(MASTERY_RULES[m.key]), `Against: ${(m.targets ?? []).map(t => t.name).join(", ")}`]
+      lines: [ruleLine(MASTERY_RULES[m.key]), `Against: ${esc((m.targets ?? []).map(t => t.name).join(", "))}`]
     }) + holdBarHTML(m),
     buttons: [
       { action: "use", label: `Use ${label}`, default: true,

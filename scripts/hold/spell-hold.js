@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, statContext, decisionWindow } from "../core.js";
 import { answers, blockEntries } from "../decide/registry.js";
-import { bfCard } from "../decide/present.js";
+import { bfCard, esc } from "../decide/present.js";
 import { reactionSpent, statSourceOf } from "../shared.js";
 import { CARD, isCard, itemUuidOf, targetsOf } from "../decide/card.js";
 import { SPELL_ROW_TYPES, usableReaction, reactionItemFor, reactionImg } from "./lookup.js";
@@ -108,7 +108,7 @@ export async function continueSpellHold(message, hold) {
       img: reactionImg(actor, target.reaction, target),
       eyebrow: "Reaction — it worked", title: target.reaction, subtitle: target.name,
       tone: "good",
-      lines: [`<strong>${hold.spell}</strong> does nothing to <strong>${target.name}</strong>.`]
+      lines: [`<strong>${esc(hold.spell)}</strong> does nothing to <strong>${esc(target.name)}</strong>.`]
     }));
   }
 
