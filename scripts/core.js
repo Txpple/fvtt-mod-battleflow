@@ -60,7 +60,11 @@ export function drivesMomentFor(subjectUuid) {
 /** May this client WRITE to that actor? Turns a silent permission failure into a spoken one. */
 export const canApplyTo = actor => !!actor?.isOwner;
 
-/** Whisper to self what did NOT happen for lack of a GM, and what still stands. */
+/**
+ * Whisper to self what did NOT happen for lack of a GM, and what still stands.
+ * @param {string} what
+ * @param {string|null} [stands]
+ */
 export async function whisperNoGM(what, stands = null) {
   try {
     await ChatMessage.create({

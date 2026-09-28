@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold: THE NO-ATTACK DAMAGE APPLIER and the `negate` veto at
  * `dnd5e.preApplyDamage` (which blocks wherever the tray's button is pressed).

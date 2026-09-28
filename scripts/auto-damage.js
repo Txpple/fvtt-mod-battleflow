@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
@@ -6,7 +7,7 @@ import { MODULE_ID, TITLE, S, setting, decisionWindow } from "./core.js";
 import { resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
-import { livePopups, openManagedPopup } from "./ui.js";
+import { livePopups, offerParts, openManagedPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
 import { critStands } from "./decide/rescue-hit.js";
@@ -79,13 +80,14 @@ export async function damageAfterHold(attackMessage) {
  * THE crit, one source for every roll path and the badge: the d20's own, or a condition's auto-crit
  * (RULINGS *The gate before the roll*). ⚠ One roll serves every hit target: the crit needs ALL of them.
  * @param {ChatMessage} attackMessage
- * @returns {{isCritical: boolean, rolled: boolean, auto: boolean,
+ * @returns {{isCritical: boolean, rolled: boolean, undone: boolean, auto: boolean,
  *            sources: {status: string, label: string, rule: object|string|null}[], dropped: string[]}}
  */
 function critFor(attackMessage) {
   const d20Crit = attackMessage?.rolls?.[0]?.isCritical ?? false;
   // A natural 20 a defender's Disadvantage undid doubles only if it stands for every hit target.
   const rolled = d20Crit && rolledCritStands(attackMessage);
+  /** @type {ReturnType<typeof critFor>} */
   const out = { isCritical: rolled, rolled, undone: d20Crit && !rolled, auto: false, sources: [], dropped: [] };
   try {
     const hits = hitTargets(attackMessage);
@@ -224,7 +226,13 @@ const CRIT_BADGE = `<span style="display:inline-block;padding:0.05rem 0.45rem;bo
   background:${TONE.crit};color:#111;font-weight:bold;letter-spacing:0.07em;
   font-size:var(--font-size-11,11px);text-transform:uppercase;">&#10022; Critical Hit</span>`;
 
-/** The shell every damage offer wears: button, X and buzzer funnel through ONE `roll`; one popup per card. */
+/**
+ * The shell every damage offer wears: button, X and buzzer funnel through ONE `roll`; one popup per card.
+ * @param {any} message
+ * @param {{roll: () => any, windowTitle: string, windowIcon: string, buttonLabel: string, buttonIcon: string,
+ *   extraHTML?: string, wire?: ((element: any) => void)|null, img?: string|null, eyebrow?: string, title?: string,
+ *   subtitle?: string, lines?: (string|null|undefined|false)[]}} opts
+ */
 async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, buttonIcon, extraHTML = "", wire = null, ...card }) {
   const key = popupKey(message.id, "damage");
   const open = livePopups.get(key);
@@ -280,24 +288,11 @@ async function offerRoll(message, { roll, windowTitle, windowIcon, buttonLabel, 
   if ( wire ) { try { wire(dialog.element); } catch(err) { console.error(`${TITLE} | Offer controls failed to wire.`, err); } }
 }
 
-/**
- * The offer's contributions, declared by machines at module evaluation (machine → service), in import order:
- *   due(attackMessage, activity)        → a decision is pending: the offer opens even under auto damage
- *   parts(attackMessage, activity, ctx) → null or `{ html, lines, wire(element), commit() }`; commit runs BEFORE the dice
- * ⚠ A hoisted store: a machine registers while this file's body may not have run yet (the import
- * cycle through the hold and auto-apply.js), and a `const` would be in its dead zone then.
- */
-function offerParts() {
-  if ( !offerParts.list ) offerParts.list = [];
-  return offerParts.list;
-}
-
-export function registerOfferPart(part) {
-  offerParts().push(part);
-}
+/* The offer's contributions are declared by machines at their evaluation, into ui.js's registry
+ * (`registerOfferPart`); this service reads them in registration order. */
 
 function offerPartsDue(attackMessage, activity) {
-  return offerParts().some(p => {
+  return offerParts.some(p => {
     try { return !!p.due?.(attackMessage, activity); }
     catch(err) { console.error(`${TITLE} | An offer contribution (${p.key}) failed its due check.`, err); return false; }
   });
@@ -305,7 +300,7 @@ function offerPartsDue(attackMessage, activity) {
 
 function offerPartsFor(attackMessage, activity, ctx) {
   const out = [];
-  for ( const p of offerParts() ) {
+  for ( const p of offerParts ) {
     try {
       const parts = p.parts?.(attackMessage, activity, ctx);
       if ( parts ) out.push(parts);
@@ -359,6 +354,9 @@ export async function offerDamageRoll(activity, attackMessage) {
 /**
  * Ask the CASTER to roll a save spell's damage; `reconcileSaveDamage` applies in any order, and an
  * unplaced area is offered targetless. ⚠ The caller gates on `saveModulated`: rider damage never gets here.
+ * @param {any} activity
+ * @param {any} card
+ * @param {{damageOnSave?: string|null, targets?: object[], awaiting?: boolean}} [opts]
  */
 export async function offerSaveDamageRoll(activity, card, { damageOnSave, targets, awaiting } = {}) {
   const against = againstLine(targets);

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).

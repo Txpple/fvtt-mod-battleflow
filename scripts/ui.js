@@ -175,7 +175,14 @@ export function adoptManagedPopup(key, message, dialog) {
   void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
 }
 
-/** Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted). */
+/**
+ * Open a machine popup behind the canAnswerFor gate; null when gated off or already open (fronted).
+ * @param {any} message
+ * @param {string} sub
+ * @param {any} subject
+ * @param {{title?: string, icon?: string, width?: number, content?: string, buttons?: object[],
+ *   autoCloseAt?: number|null, gate?: boolean}} [opts]
+ */
 export async function openMomentPopup(message, sub, subject, {
   title, icon, width = 440, content, buttons, autoCloseAt = null, gate = true
 } = {}) {
@@ -427,6 +434,23 @@ registerRelay("momentAck", {
     current.acknowledged = true;
   }
 });
+
+// THE OFFER-PART REGISTRY: what a machine paints on the damage offer (auto-damage.js reads it). It
+// lives in the spine because a machine registers at its own evaluation, and the spine is always
+// evaluated first; a store inside a service on an import cycle would still be in its dead zone.
+
+/**
+ * The offer's contributions, in registration order:
+ *   due(attackMessage, activity)        → a decision is pending: the offer opens even under auto damage
+ *   parts(attackMessage, activity, ctx) → null or `{ html, lines, wire(element), commit() }`; commit runs BEFORE the dice
+ * @type {{key: string, due?: Function, parts?: Function}[]}
+ */
+export const offerParts = [];
+
+/** @param {{key: string, due?: Function, parts?: Function}} part */
+export function registerOfferPart(part) {
+  offerParts.push(part);
+}
 
 // THE RESCUE REGISTRY: several sources ask one roll "what do you burn?"; ONE window concatenates
 // their slices and routes each press back to its source.

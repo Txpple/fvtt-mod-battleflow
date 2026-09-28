@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold's DICE: a bent attack's d20s, or a cast AC reaction's bonus, rise
  * over the creature hit. Every client, once, off the record landing; a reload replays nothing.

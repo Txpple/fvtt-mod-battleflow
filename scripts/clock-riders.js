@@ -7,11 +7,11 @@ import { lower, featureNamed, activityNamed, cardActivity, resolveUuid, dealtTyp
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
-import { momentButton, registerResumable } from "./ui.js";
+import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
 import { bfCard, riderMenuHTML, ruleLine } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
-import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
+import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";

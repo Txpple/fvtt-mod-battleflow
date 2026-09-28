@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold: THE CONTINUATION. Every held target answered → re-test against
  * the LIVE AC after the settle window, write the verdicts, announce, release the dice. Also closes

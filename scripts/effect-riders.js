@@ -57,6 +57,11 @@ function activityOfEffect(effect) {
  * returns receipt entries for targets where something landed. `matchNames` dedupes by name too:
  * a casting client applies from an item CLONE, whose effect uuid differs. `source` is the acting
  * actor's uuid, the caller's fact (a reactor's self-cast has no message to walk).
+ * @param {{uuid: string, name: string}[]} targets
+ * @param {any[]} effects
+ * @param {{concentration?: any, scaling?: number, spellLevel?: number, matchNames?: boolean,
+ *   extraFlags?: object|null, source?: string|null, extend?: boolean, clock?: object|null,
+ *   message?: any, activity?: any}} [opts]
  */
 export async function applyEffectsTo(targets, effects,
   { concentration = null, scaling = 0, spellLevel, matchNames = false, extraFlags = null, source = null,

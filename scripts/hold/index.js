@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — MACHINE (ARCHITECTURE.md §7): the reaction hold — a pause, NOT a system: the chain
  * pauses on "you are hit" and a human answers (DESIGN.md §4). One `hold` flag on the attack message;

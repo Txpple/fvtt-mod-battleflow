@@ -12,8 +12,8 @@ import { bfCard, holdBarHTML, popupKey, riderMenuHTML, ruleLine, spendPhrase } f
 import { MANEUVER_FEATURE_NAMES, SUPERIORITY_USES, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
-import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
-import { attackMessageForDamage, registerOfferPart } from "./auto-damage.js";
+import { armDeadline, disarmDeadline, momentButton, openMomentPopup, registerResumable, shownMoments, registerOfferPart } from "./ui.js";
+import { attackMessageForDamage } from "./auto-damage.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";

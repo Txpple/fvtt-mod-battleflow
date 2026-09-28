@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold: THE ATTACK TRIGGER. "You are hit" reactions fire BEFORE damage,
  * so the chain pauses and a human answers; the module never plays the reaction (DESIGN.md §4).
@@ -20,6 +21,7 @@ listen("dnd5e.postUseActivity", "hold/trigger", activity => {
 export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true; // already held; never re-stamp
 
+  /** @type {Record<string, any>[]} */
   const held = [];
   const skipped = [];
   for ( const target of hits ) {
@@ -42,13 +44,14 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     if ( !found && !rescue?.live ) {
       // Only the guards are asked.
       held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
-        reaction: guards[0].row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
+        reaction: guards[0]?.row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
         hadEffect: false, ...guardFields, answer: null, verdict: null });
       continue;
     }
     if ( !found ) {
       // The first live `roll` row stands as the hold's own, so `reaction`/`itemId` name a real ability.
-      const first = rescue.records.find(r => !rescue.rows.find(x => x.key === r.name)?.off);
+      const first = rescue?.records.find(r => !rescue.rows.find(x => x.key === r.name)?.off);
+      if ( !first ) continue;
       held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
         reaction: first.name, kind: "roll", itemId: first.itemId, activityId: first.activityId,
         hadEffect: false, ...rescueFields, ...guardFields, answer: null, verdict: null });

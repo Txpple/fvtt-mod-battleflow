@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — auto-apply damage, the shared receipt applier, and the payout pipeline. Split shape (ARCHITECTURE.md §7).
  */
@@ -112,6 +113,10 @@ function claimed(receiptMessage, target, actor, damages, opts) {
 /**
  * The shared applier: Actor5e#applyDamage per target, the receipt stamped on `receiptMessage` (the
  * ATTACK card for Graze, which has no damage message).
+ * @param {any} receiptMessage
+ * @param {{uuid: string, name: string}[]} hits
+ * @param {object[]} damages
+ * @param {{note?: string, multiplier?: number, held?: boolean}} [opts]
  */
 export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { note, multiplier = 1, held = false } = {}) {
   try {

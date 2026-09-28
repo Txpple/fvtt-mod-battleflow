@@ -10,10 +10,11 @@
     // and this module is developed at the table. `checkJs` + JSDoc gives the type safety
     // with none of the compile.
     //
-    // ⚠ `checkJs` stays FALSE globally and files opt IN with `// @ts-check` — the file-by-file
-    // adoption the docs have promised since Phase 0. **`scripts/decide/` is opted in as of
-    // 2026-08-23**: six pure modules, no Foundry, and the most consequential arithmetic in the
-    // module. That is where a type checker earns the most and costs the least.
+    // ⚠ `checkJs` stays FALSE globally and files opt IN with `// @ts-check`, one at a time.
+    // Opted in: `scripts/decide/` (pure, no Foundry, the most consequential arithmetic) and the
+    // damage chain (`auto-damage.js`, `auto-apply.js`, `hold/`). Foundry's and dnd5e's globals
+    // are `any` (types/foundry.d.ts): an opted-in file gets its own logic and its calls into the
+    // tree checked — the JSDoc on a helper it calls is part of the contract.
     "allowJs": true,
     "checkJs": false,
     "noEmit": true,
@@ -31,6 +32,6 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": ["scripts/**/*.js", "tools/**/*.mjs", "tests/**/*.js"],
+  "include": ["scripts/**/*.js", "tools/**/*.mjs", "tests/**/*.js", "types/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
 }

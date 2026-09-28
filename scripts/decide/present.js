@@ -44,8 +44,10 @@ export function modeTagHTML(mode) {
 }
 
 /**
- * The house card. `lines` are already-safe HTML; eyebrow, title and subtitle are TEXT and
- * escaped here (they carry names a player can set).
+ * The house card. `lines` are already-safe HTML (a falsy line is dropped); eyebrow, title and
+ * subtitle are TEXT and escaped here (they carry names a player can set).
+ * @param {{img?: string|null, eyebrow?: string|null, title?: string|null, subtitle?: string|null,
+ *   lines?: (string|null|undefined|false)[], tone?: string}} card
  */
 export function bfCard({ img, eyebrow, title, subtitle, lines = [], tone = "neutral" }) {
   const accent = TONE[tone] ?? TONE.neutral;

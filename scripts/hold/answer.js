@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold, part 5: THE ANSWER. `answerHold` and its relay fold, the cast
  * that IS the answer, and the popup's Cast button (natively, or Parry's die rolled in the open).
@@ -19,6 +20,9 @@ import { listen } from "../dispatch.js";
 /**
  * ONE ANSWER AMONG SEVERAL ASKED (RULINGS *The fighting styles*): the first that ACTS settles it;
  * a PASS only once everyone asked has passed. `by` is the guard's uuid, null for the target.
+ * @param {any} target
+ * @param {string} answer
+ * @param {string|null} [by]
  * @returns {boolean|"partial"}  "partial" when a pass was only recorded
  */
 export function recordAnswer(target, answer, by = null) {
@@ -37,7 +41,14 @@ export function recordAnswer(target, answer, by = null) {
   return true;
 }
 
-/** Record an answer for one held target: an owner writes the hold, anyone else sends its OWN message. */
+/**
+ * Record an answer for one held target: an owner writes the hold, anyone else sends its OWN message.
+ * @param {any} attackMessage
+ * @param {string} uuid
+ * @param {string} answer
+ * @param {{appliedEffects?: object[], reduceBy?: number|null, poolSpend?: object|null, bent?: object|null,
+ *   rescue?: string|null, by?: string|null}} [opts]
+ */
 export async function answerHold(attackMessage, uuid, answer, { appliedEffects = [], reduceBy = null, poolSpend = null, bent = null, rescue = null, by = null } = {}) {
   const hold = foundry.utils.deepClone(attackMessage.getFlag(MODULE_ID, "hold") ?? {});
   if ( hold.status !== "pending" ) return;
@@ -175,10 +186,8 @@ async function answerHoldsFor(activity, actor) {
   }
   if ( !answering.length ) return;
 
-  let applied = [];
-  applied = await applyReactionEffect(activity, actor, answering[0].reaction);
-  for ( let i = 0; i < answering.length; i++ ) {
-    const { message, uuid } = answering[i];
+  const applied = await applyReactionEffect(activity, actor, answering[0]?.reaction);
+  for ( const [i, { message, uuid }] of answering.entries() ) {
     await answerHold(message, uuid, "cast", { appliedEffects: i === 0 ? applied : [] });
   }
 }
@@ -212,7 +221,7 @@ async function bendTheRoll(attackMessage, actor, name) {
   const roll = attackMessage.rolls?.[0];
   const d20 = roll?.dice?.[0] ?? null;
   const { kept, plain } = d20Faces(d20?.results ?? []);
-  if ( !roll || !Number.isFinite(kept) ) return null;
+  if ( !roll || (kept === null) || !Number.isFinite(kept) ) return null;
   const mode = d20ModeOf({ number: d20?.number, modifiers: d20?.modifiers });
   let second = null;
   if ( needsSecondD20(mode) ) {

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold: THE BUZZER. Imported by the triggers and the continuation, so
  * its `deleteChatMessage` registration comes first among the hold's.

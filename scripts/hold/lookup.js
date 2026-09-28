@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
  * item a reaction IS, its AC and art, whether it landed, and the self-cast effect applier. No hooks.
@@ -31,7 +32,10 @@ function hasSpellSlot(actor, level) {
 }
 
 /** The item that IS this reaction on this actor, a spell or a feature. ⚠ One row can match several
- * (a statblock's feature and a cast activity's cached SPELL), hence the preference order. */
+ * (a statblock's feature and a cast activity's cached SPELL), hence the preference order.
+ * @param {any} actor
+ * @param {string} reactionName
+ * @param {{itemId?: string|null, activityId?: string|null}} [ids] */
 export function reactionItem(actor, reactionName, { itemId, activityId } = {}) {
   if ( !actor || !reactionName ) return null;
   const cached = activityId
@@ -71,7 +75,10 @@ export async function usableReaction(actor, name) {
   return null;
 }
 
-/** The first listed interrupt usable now; `spentOk` looks past a spent Reaction (a greyed row). */
+/**
+ * The first listed interrupt usable now; `spentOk` looks past a spent Reaction (a greyed row).
+ * @returns {Promise<{entry: any, item: any, activity: any, reduce?: any}|null>}
+ */
 export async function findInterrupt(actor, { isCritical, spentOk = false }) {
   if ( !actor || (!spentOk && reactionSpent(actor)) ) return null;
   for ( const entry of interruptEntries() ) {
@@ -115,7 +122,7 @@ export function rollRescuesOf(actor) {
     if ( entry.kind !== "roll" ) continue;
     const key = Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(entry.name));
     const row = key ? INTERRUPT_ROLLS[key] : null;
-    if ( !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
+    if ( !key || !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
     if ( row.ally ) continue;   // Protection's Disadvantage is for another creature: a guard's row (protectionGuardsOf)
     const item = itemsNamed(actor, key, { types: ["feat"] })
       .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));

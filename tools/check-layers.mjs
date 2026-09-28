@@ -202,8 +202,8 @@ const ALLOW = [
     why: "service → service: applying damage and applying effects are one consequence pass, and "
       + "the receipt merge disciplines are shared. The services tier is where this belongs"
   },
-  // Offer contributions from machines register INTO auto-damage (`registerOfferPart`), so those
-  // edges point downward and need no pin.
+  // Offer contributions from machines register into ui.js's registry (`registerOfferPart`), which
+  // auto-damage reads: machine → spine and service → spine, downward, no pin.
   {
     from: "volleys.js", to: "reminders.js", disposition: "BY DESIGN",
     why: "judgeRoll (2026-09-02): the volley's aim popup is the gate's SECOND SURFACE — the rays "

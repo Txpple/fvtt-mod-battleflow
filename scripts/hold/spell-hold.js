@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * Battle Flow — the reaction hold, part 4: THE SPELL TRIGGER (ARCHITECTURE.md §5). A listed spell
  * at the moment of USE (Magic Missile against Shield) has no attack roll, so the hold enters here;

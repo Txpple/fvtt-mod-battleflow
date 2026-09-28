@@ -10,9 +10,8 @@ import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
 import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine } from "./decide/present.js";
-import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, registerOfferPart } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
-import { registerOfferPart } from "./auto-damage.js";
 import { messageActivity } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, masteryOf, targetsOf } from "./decide/card.js";

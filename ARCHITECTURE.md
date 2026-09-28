@@ -665,7 +665,8 @@ bus). Shared readers go DOWN (`lookup.js`, rules text to `decide/registry.js`), 
 `auto-damage.js` owns the damage offer's popup, clock and one roll thunk, and knows nothing about
 any feature. What a feature PAINTS on the offer — the armed Cleave line, the Cunning Strike menu,
 the due clock riders, the hit menu — is declared by the machine that owns it, at module
-evaluation, through `registerOfferPart({ key, due, parts })`: `due` says the offer must open
+evaluation, through `registerOfferPart({ key, due, parts })` (a registry in ui.js, which the
+service reads): `due` says the offer must open
 even under auto damage, `parts` returns the markup, the notice lines, the live controls and the
 commit that writes the pick on the attack message before the dice. Order on the offer is
 registration order. A service never imports a machine to paint its content.
@@ -701,8 +702,9 @@ bundle.
 
 Cross-file symbols must be **hoisted `function` declarations called at hook time**, never at
 module-eval time — that is the only reason the existing import cycles are safe. A registry a
-machine writes at ITS evaluation (`registerOfferPart`) keeps its store on a hoisted function for
-the same reason: inside a cycle the service's body may not have run yet.
+machine writes at ITS evaluation (`registerOfferPart`) lives in the spine for the same reason:
+the spine is never on a cycle, so it is always evaluated first, and a store inside a service on
+a cycle could still be in its dead zone.
 
 ### The public API — the only surface another module may read (2026-09-09)
 
@@ -931,7 +933,7 @@ ids stay because code comments cite them.
 | **D4** | a flag accessor layer | dropped by decision 2026-08-23 — *Decided against*, below |
 | **D5** | DECISION logic inlined in EDGE handlers | repaid 2026-08-22 — `scripts/decide/` (§2, §7) |
 | **D6** | the `ui.js` ↔ `hold.js` cycle | closed 2026-08-23 — the view rule, §7; the two remaining cycles are permanent (*Decided against*, below) |
-| **D7** | no static gate | closed 2026-08-23 — `npm run verify`, the type checker over `decide/` |
+| **D7** | no static gate | closed 2026-08-23 — `npm run verify`, the type checker over `decide/` and, since 2026-09-28, the damage chain |
 | **D8** | post-roll folds as one feature's special case | closed 2026-08-23 — `ATTACK_FOLDS` / `SAVE_FOLDS`; §11 *Adding a FOLD* |
 | **D9** | machine → machine import edges | (a) (b) repaid 2026-08-23, (c) (d) 2026-09-05, (f) 2026-09-04 (§7 *The offer's contributions*); what stands is parked — BACKLOG *The two sideways edges*, *Two clock residues*; `npm run layers` is the evidence |
 | **D10** | a hook name the system never dispatches | closed 2026-08-23 — `npm run dispatch`, §9 *The API-drift rule* |
