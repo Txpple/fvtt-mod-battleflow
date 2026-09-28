@@ -14,7 +14,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'turn-grants.js',         // §1 — Heroism's temp HP at the bearer's turn start, once per turn, receipted
+  'turn-grants.js',         // §1 — Heroism's temp HP at the bearer's turn start, once per turn, receipted; §9 Regeneration — the feature row, the block read off the receipts
   'repeat-saves.js',        // §2–§5 — the repeat at the turn end, on damage, as the action; the count; §8 the indigo ray's named save
   'damage-shares.js',       // §6 — Warding Bond's share to the caster, the reach, the end at 0 HP
   'heal-on-hit.js',         // §7 — Vampiric Touch's heal to the caster from the damage that landed
@@ -29,6 +29,7 @@ const SECTIONS = {
   5: 'Flesh to Stone: three failures at three turn ends — the tally on the effect (1, 2), the third pressing Petrified and locking (a fourth turn end asks nothing)',
   6: 'THE HELD SPELLS — Warding Bond: the cast lands Bonded on the Victim; damage landing on it (from a card) is taken by the Cleric too — the same number (the bond\'s resistance already taken), a card, a receipt; 65 ft apart the card says the bond is out of reach and nothing is shared; the Cleric dropped to 0 by a share ends the bond (Bonded gone, the card says why)',
   7: 'Vampiric Touch: a hit (AC 1) lands its necrotic damage on the Victim; the Cleric regains HALF of what landed — a card, a receipt, the Hit Points up; the dealing card carries the once-latch',
+  9: 'REGENERATION (the GM\'s side, 2026-09-28): the Victim lent the Monster Manual trait (its copy naming Acid or Fire as the block, 10 HP) regains 10 at its turn start — a card, a receipt, the Hit Points up; fire dealt to it (a receipt) since its last turn blocks the next turn start with a card saying why and no receipt; the turn after pays again; at 0 HP nothing is paid',
   8: 'Prismatic Spray: the cast\'s card is born with its demand CLOSED and the ray claim pending (no 12d6 at the cast); the cone placed over the Victim rolls a d8 (a 6: indigo) — a summary card and ONE demand against "Indigo Save (Con)", pinned; the cone region gone; the failed save lands Petrifying (Indigo) by the machine, receipted; the Victim\'s turn end repeats the INDIGO save (1 of 3 failures); a second cast with the d8 a 1 (red): the Cast\'s Dexterity demand with the 12d6 rolled as FIRE'
 };
 const DEPENDS = {};
@@ -562,6 +563,77 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.update({ 'system.abilities.con.save.roll.bonus': priorCon });
       await clearVictim();
       await healFull();
+    }
+
+    // ================================================== 9. Regeneration — the bearer's own trait
+    if (want(9)) {
+      let regen = null;
+      try {
+        await clearVictim();
+        await healFull();
+        const pack = game.packs.get('dnd-monster-manual.features');
+        const hit = (await pack?.getIndex())?.find(e => e.name === 'Regeneration');
+        if (!hit) return { fatal: 'the Monster Manual ships no "Regeneration" this box can find', results, log, skips };
+        const src = await pack.getDocument(hit._id);
+        [regen] = await victim.createEmbeddedDocuments('Item', [src.toObject()]);
+        const heal = regen.system.activities.find(a => a.type === 'heal');
+        if (!heal) return { fatal: 'the lent Regeneration carries no heal activity', results, log, skips };
+        // The monster's own copy: the troll's words and the troll's number (the pack's item names neither).
+        await regen.update({
+          'system.description.value': '<p>The troll regains 10 Hit Points at the start of each of its turns. If the troll takes Acid or Fire damage, this trait doesn\'t function on the troll\'s next turn.</p>',
+          [`system.activities.${heal.id}.healing`]: { number: null, denomination: null, bonus: '', custom: { enabled: true, formula: '10' }, types: ['healing'] }
+        });
+        // A goblin has 11 HP: a pool of 40 so the heal shows (teardown restores the pool).
+        const vMax = 40;
+        await victim.update({ 'system.attributes.hp.max': vMax, 'system.attributes.hp.value': vMax - 20 });
+        const hpNow = () => Number(victim.system.attributes.hp.value);
+        await startCombat();
+        const n0 = grantCards().length;
+        await combat.nextTurn();   // the Victim's turn — round 1
+        const grant = await waitFor(() => grantCards()[n0] ?? null, 10000);
+        const receipt = await waitFor(() => grant?.getFlag(MOD, 'receipt'), 8000);
+        const tg = grant?.getFlag(MOD, 'turnGrant');
+        ok('9a. the Victim\'s turn start pays its own Regeneration: a card naming it, 10 healing rolled on the bearer, receipted, the Hit Points up by 10',
+          !!grant && (tg?.key === 'Regeneration') && (tg?.type === 'healing') && (tg?.total === 10) && (tg?.effectUuid === null) && !!receipt && (hpNow() === vMax - 10)
+            && /own Regeneration/.test(grant?.content ?? ''),
+          `card=${!!grant} flag=${JSON.stringify(tg && { key: tg.key, type: tg.type, total: tg.total, effectUuid: tg.effectUuid })} receipt=${!!receipt} hp=${hpNow()}/${vMax}`);
+        // Fire dealt to it during its own turn: a receipt in the module's shape, the damage landed.
+        const stamp = `${combat.id}:${combat.round}:${combat.turn}`;
+        const prior = { value: hpNow(), temp: 0, tempmax: 0 };
+        await victim.applyDamage([{ value: 8, type: 'fire' }]);
+        await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: cleric }), content: '<p>BF test — 8 fire to the Victim</p>',
+          flags: { [MOD]: { receipt: { targets: [{ uuid: victim.uuid, name: victim.name, img: null, note: 'BF test fire', prior, delta: { value: -8, temp: 0 }, taken: 8,
+            parts: [{ type: 'fire', amount: 8 }], traits: [], reverted: false, combat: stamp, sourceUuid: cleric.uuid }] } } } });
+        const hpAfterFire = hpNow();
+        await combat.nextTurn();   // the Cleric — round 2
+        await sleep(300);
+        await combat.nextTurn();   // the Victim — round 2: blocked
+        const blocked = await waitFor(() => grantCards()[n0 + 1] ?? null, 10000);
+        const bf = blocked?.getFlag(MOD, 'turnGrant');
+        await sleep(600);
+        ok('9b. fire since its last turn: the next turn start pays NOTHING — a card says it took Fire damage, no receipt, the Hit Points unchanged',
+          !!blocked && (bf?.key === 'Regeneration') && (bf?.blocked === 'fire') && !blocked?.getFlag(MOD, 'receipt') && (hpNow() === hpAfterFire) && /regains nothing this turn/.test(blocked?.content ?? ''),
+          `card=${!!blocked} flag=${JSON.stringify(bf && { key: bf.key, blocked: bf.blocked, why: bf.why })} receipt=${!!blocked?.getFlag(MOD, 'receipt')} hp=${hpNow()}`);
+        await combat.nextTurn();   // the Cleric — round 3
+        await sleep(300);
+        await combat.nextTurn();   // the Victim — round 3: the fire is behind its last turn
+        const again = await waitFor(() => grantCards()[n0 + 2] ?? null, 10000);
+        await waitFor(() => again?.getFlag(MOD, 'receipt'), 8000);
+        ok('9c. the turn after pays again — the fire lies before its last turn start', !!again && (again.getFlag(MOD, 'turnGrant')?.total === 10) && (hpNow() === hpAfterFire + 10),
+          `cards=${grantCards().length} hp=${hpNow()}`);
+        await victim.update({ 'system.attributes.hp.value': 0 });
+        await combat.nextTurn();
+        await sleep(300);
+        await combat.nextTurn();   // the Victim at 0 HP
+        await sleep(1200);
+        ok('9d. at 0 Hit Points nothing is paid and no card posts', grantCards().length === n0 + 3, `cards=${grantCards().length} hp=${hpNow()}`);
+        await endCombat();
+      } finally {
+        await endCombat();
+        await regen?.delete().catch(() => {});
+        await clearVictim();
+        await healFull();
+      }
     }
 
     return { log, results, skips };

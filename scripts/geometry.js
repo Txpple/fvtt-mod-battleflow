@@ -37,6 +37,25 @@ export function alliesWithin(guarded, feet, exclude = []) {
   return out;
 }
 
+/** Every OTHER creature within `feet` of a token, any side, with Hit Points (a corpse's Emanation — Death
+ * Throes: "each creature in a 30-foot Emanation originating from the balor"); the 0-HP are the dead-target
+ * gate's, skipped. Edge to edge, as an Emanation measures.
+ * @param {Token} origin
+ * @param {number} feet
+ * @returns {Token[]} */
+export function creaturesWithin(origin, feet) {
+  if ( !origin || !(Number(feet) >= 0) ) return [];
+  const out = [];
+  for ( const other of (canvas.tokens?.placeables ?? []) ) {
+    if ( (other === origin) || (other.actor?.uuid === origin.actor?.uuid) ) continue;
+    const actor = other.actor;
+    if ( !actor?.system?.attributes?.hp || ((actor.system.attributes.hp.value ?? 0) <= 0) ) continue;
+    const d = nearestFeet(other, origin);
+    if ( (d !== null) && (d <= feet) ) out.push(other);
+  }
+  return out;
+}
+
 /** The canvas token whose actor (linked or synthetic) carries this uuid. */
 export function tokenForUuid(uuid) {
   return canvas.tokens?.placeables?.find(t => t.actor?.uuid === uuid) ?? null;

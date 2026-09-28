@@ -136,6 +136,39 @@ const out = await f.evaluate(async ({ playerName }) => {
       log.push(`cleared BF Test Shielder's play-state effects (${stale.join(", ")})`);
     }
 
+    // --- the monster: a bare GM-owned NPC for the GM's side (smoke-drop's Undead Fortitude and Death
+    // Throes, smoke-saves' Avoidance, smoke-spells' Regeneration). Linked, so a lent Monster Manual trait
+    // keeps its activities; `legres` so the platform's Legendary Resistance button shows. The suites lend
+    // the traits per section from `dnd-monster-manual.features` and take them back.
+    let monster = game.actors.getName("BF Test Monster");
+    if (!monster) {
+      monster = await Actor.create({
+        name: "BF Test Monster", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
+        prototypeToken: { name: "BF Test Monster", actorLink: true, disposition: -1 },
+        system: {
+          abilities: { str: 14, dex: 12, con: 14, int: 8, wis: 10, cha: 6 },
+          attributes: { hp: { value: 50, max: 50 }, movement: { walk: 30 } },
+          details: { cr: 3 },
+          resources: { legres: { max: 3, spent: 0 } }
+        }
+      });
+      made.push("BF Test Monster");
+      log.push("created BF Test Monster (a bare NPC, 50 HP, Con 14, 3 Legendary Resistances)");
+    }
+    {
+      // Every run: the statblock back (a killed suite leaves HP, a save bonus or a lent trait behind).
+      const cur = monster.system._source;
+      const reset = {};
+      if ((cur.attributes?.hp?.max !== 50) || (cur.attributes?.hp?.value !== 50) || (cur.attributes?.hp?.temp ?? 0)) Object.assign(reset, { "system.attributes.hp.max": 50, "system.attributes.hp.value": 50, "system.attributes.hp.temp": 0 });
+      for (const ab of ["con", "dex", "wis"]) if (cur.abilities?.[ab]?.save?.roll?.bonus) reset[`system.abilities.${ab}.save.roll.bonus`] = "";
+      if (((cur.resources?.legres?.max ?? 0) !== 3) || (cur.resources?.legres?.spent ?? 0)) Object.assign(reset, { "system.resources.legres.max": 3, "system.resources.legres.spent": 0 });
+      if (Object.keys(reset).length) { await monster.update(reset); log.push("BF Test Monster: reset to its statblock"); }
+      const lentTraits = monster.items.filter(i => i.type === "feat");
+      if (lentTraits.length) { await monster.deleteEmbeddedDocuments("Item", lentTraits.map(i => i.id)); log.push(`took back BF Test Monster's lent traits (${lentTraits.map(i => i.name).join(", ")})`); }
+      const stale = monster.effects.map(e => e.id);
+      if (stale.length) { await monster.deleteEmbeddedDocuments("ActiveEffect", stale); log.push("cleared BF Test Monster's play-state effects"); }
+    }
+
     // --- the player-owned PC attacker: the NPC's own attack item, so the sides differ ONLY in
     // actor.type (masteries are PC-only in data)
     let pc = game.actors.getName("BF Test PC Attacker");
@@ -383,6 +416,7 @@ const out = await f.evaluate(async ({ playerName }) => {
     const attackerToken = await ensureToken(attacker, 900, false);
     const victimToken = await ensureToken(victim, 1100, false);
     await ensureToken(shielder, 1500, true);
+    await ensureToken(monster, 1300, true);
     for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
     // Full HP on the token actors: at 0, "applied 0" and "already empty" look the same.

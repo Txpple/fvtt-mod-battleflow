@@ -37,6 +37,10 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Powerful Build**: Advantage on "any ability check you make to end the Grappled condition" | while the Goliath IS Grappled, its Athletics and Acrobatics checks have Advantage, whatever they are for | nothing tells an escape check from any other check the module meets (`EFFECT_BENDS` `checksWhen`); the bearer's status and the escape's two skills are the facts it can read | 2026-09-25 |
 | **Storm's Thunder, Hellish Rebuke, Fount of Moonlight, Retaliation, Sword of Answering** — a Reaction when a creature damages you | offered only when the damage names its dealer: the card it came from (any application with an originating card — the module's, or the card's own buttons); an HP typed on a sheet offers nothing | `dnd5e.applyDamage` knows the dealer only through `originatingMessage`; a sheet edit carries none (`rebukes.js`) | 2026-09-25 |
 | **Trip Attack and Hill's Tumble on one hit** (the rules allow a maneuver and the boon together) | one hit-menu pick per hit; a clock rider (Fire's Burn, Frost's Chill) still rides beside any pick | the pick is ONE record (`hitPick` → `hitManeuver`), so a second pick would be dropped in silence (`decide/hit-menu.js` `hitPick`); the array shape is BACKLOG's | 2026-09-24 |
+| **Undead Fortitude**: "unless the damage is Radiant or from a Critical Hit" | the exemption is read off the damage card (its rolls' types, the crit off its rolls or the attack it answers); damage with no card the module can read — typed on a sheet, applied by a macro — COUNTS the row and the save rolls | the seam (`dnd5e.preApplyDamage`) knows the type and the crit only through `originatingMessage`; the gate never guesses an exemption (DESIGN R1) | 2026-09-28 |
+| **Death Throes**: "each creature in a 30-foot Emanation" | every creature WITH Hit Points within the Emanation is asked; a creature at 0 is not | the dead-target gate: a demand on a 0-HP creature starves the machine (`saves/demand.js`); the corpse's reach is measured edge to edge from the token's squares (`geometry.js` `creaturesWithin`) | 2026-09-28 |
+| **Greater Magic Resistance**: "the attack rolls of spells automatically miss it" | the save cannot fail (the Succeeds button); a spell attack rolls as any attack — the miss is the table's | the attack gate has no auto-miss verdict; one customer, the row's caveat says so | 2026-09-28 |
+| **Regeneration**: "if it takes Acid or Fire damage, this trait doesn't function on its next turn" | the block is read off the receipts the MODULE wrote since the bearer's last turn started; damage applied with the card's own buttons or typed on a sheet writes no receipt and blocks nothing | only the module's applier receipts the type (`auto-apply.js`); a sheet edit carries none | 2026-09-28 |
 | **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted — except on a repeat the module raises itself (`REPEAT_SAVES`, 2026-09-28), whose demand says what it is against: there the row COUNTS | an end-of-turn repeat rolled from the sheet is a bare roll with no demand to read what it is against (R1: never guessed) | 2026-09-24; narrowed 2026-09-28 |
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
 | **A critical hit** when a live Disadvantage row could undo it | the damage is NOT rolled at the hit; it is rolled once after the answer, doubled only if the crit still stands for every hit target | doubled dice rolled before the answer would be discarded the moment the second d20 comes up lower (`hold.critAtStake`, `auto-damage.js` `damageAfterHold`) | 2026-09-24 |
@@ -1543,6 +1547,47 @@ the DMG is built — not `CRIT_RIDERS`, not the injury-poison `COATINGS` rows, n
 each is a machine change or a new reader for a found item no one holds. The register stands as the record
 of where each row lands the day an item is in a player's hands; that day is a new commission on the user's
 word, never owed. The order moves on to Slice B.
+
+## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
+
+**The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):
+the packs own the monsters' traits; what the GM's side owes is five SHAPES, each landing on a machine
+that exists. Built in rapid mode — proved by the suites, not walked; the walk table below is for the
+walk that comes later. Every row names its precedent.
+
+| Shape | Customer | Lands on | What was built |
+| --- | --- | --- | --- |
+| **The kill moment, the victim's side** | Undead Fortitude | `DROP_TO_ONE` (Relentless Endurance's machine, `drop-to-one.js`) — a **`save` facet** | held at 1 in the damage's own update while the bearer's Constitution save rolls ON THE KEEPER, DC 5 + the damage taken (`decide/drop-to-one.js`); the dice decide (R1), no popup; a success leaves the 1, a failure lands the 0; the card says the total against the DC. The exemptions (Radiant, a Critical Hit) are read off the damage card: its rolls' types, and the crit off its rolls or the attack it answers |
+| **The kill moment, the death's side** | Death Throes | the same table — a **`died` row** (`on: "died"`) | when the damage leaves the bearer at 0 and nothing held it (`dnd5e.applyDamage`, after the write; the ask's Drop to 0 and the failed save too), the trait's save activity is used AT THE CORPSE: every creature with Hit Points within the activity's Emanation (edge to edge, `geometry.js` `creaturesWithin`), one demand card pinned to them, the fire and force rolled, the saves machine from there. No creature in reach: a card says so |
+| **Saves against magic** | Magic Resistance · Greater Magic Resistance · Avoidance | `EFFECT_BENDS` feature rows on the `saves` facet (the Circle's Power judge, `spells: true`); `EVASIONS` | Magic Resistance is one ROW (Advantage against a demand marked as a spell or a Magical item). Greater: `succeeds` generalised from Trance's sleep branch to the spells branch — the save cannot fail, the Succeeds button the default. **Avoidance**: `EVASION` became the table `EVASIONS` keyed by feature, `ability` null reaching every save; the verdict and the receipt name the row that applied (`evasionBy`) |
+| **Legendary Resistance** | every legendary creature | **NATIVE — no row** | dnd5e ships it: the NPC's `resistSave`, its button on the failed save's message, the `legres` resource the system spends; the saves machine has honoured the flip since v1.12 (`forced`, smoke-saves §6). A `SAVE_SUCCEEDS` row would be a second entry path to the same thing (a second entry path is never built) |
+| **A heal at the turn start** | Regeneration | `TURN_GRANTS` (Heroism's machine, `turn-grants.js`) — **`match: "feature"`** rows | the bearer's OWN trait: its first heal activity rolled on the bearer's numbers at its turn start, receipted; `while: "aboveZero"`; the block (`unless: { damagedBy: "text" }`) read off the BEARER's copy of the trait — "takes Acid or Fire damage" — against the receipts since its last turn started (`decide/turn-grants.js` `blockingTypes`, `damagedSince`: the combat stamp on every receipt, its own turn counting). Blocked, a card says which damage stopped it and nothing lands |
+
+**Why the block reads the monster's copy, not the row.** The pack ships ONE Regeneration item whose
+text names no type; each monster's copy (the troll's Acid or Fire, the hydra's Fire, the vampire's
+sunlight) carries its own clause. A row naming the troll's types would block the hydra on acid. The
+copy is the data; a clause that is not a damage type is the table's (the row's caveat).
+
+**Where it bends** (the register rows below, same commit): a damage card the module cannot read counts
+Undead Fortitude (the gate never guesses an exemption); Death Throes skips the 0-HP creatures in reach
+(the dead-target gate); Greater Magic Resistance's auto-miss of spell attacks is not built.
+
+**Lists and settings.** No list joined: since *The settings* (2026-09-27) the code table is the only
+list, so a new row is on. The HANDOFF's "verify-settings must carry the default" was stale.
+
+### The walk table (deferred — rapid mode)
+
+| Trait | Setup | What you should see |
+| --- | --- | --- |
+| Undead Fortitude | a zombie at 5 HP, a 10-damage slashing hit | the zombie sits at 1; a Constitution save rolls in chat (DC 15); "saves (N vs DC 15) — it drops to 1 Hit Point instead" or "fails the save — it drops to 0", the 0 then written |
+| Undead Fortitude, exempt | the same with Radiant damage, or a Critical Hit | no save; "drops to 0 — Undead Fortitude does not apply · Radiant damage: no save" |
+| Undead Fortitude, unreadable | 10 typed on the sheet | the save rolls (the row counts) |
+| Death Throes | a balor at 5 HP, three creatures within 30 ft, one at 0 HP | the kill; one card "Death Throes — Balor dies: 2 creatures save", Dexterity DC 19, the 9d6 fire + 9d6 force rolled; the 0-HP one not asked |
+| Magic Resistance | a drow targeted by Hold Person | the save dialog's section: "Magic Resistance — against a spell", Net Advantage |
+| Greater Magic Resistance | a rakshasa targeted by Hold Person | "this save cannot fail", the Succeeds button the default; pressed, "cannot fail (Greater Magic Resistance)" |
+| Avoidance | a creature with Avoidance under Fireball (Dex) and a Con half-damage save | a success takes none, a failure half, "(Avoidance)" on the row and the receipt |
+| Legendary Resistance | a dragon failing a demanded save | dnd5e's own "Use Legendary Resistance" button on the roll; pressed, the verdict flips to saved "(legendary resistance)", the resource spent — nothing of the module's to see |
+| Regeneration | a troll at 30/84 in combat | its turn start: "Regeneration — Troll regains 10 Hit Points", a receipt; after 8 fire dealt to it, the next turn start: "regains nothing this turn · it took Fire damage since its last turn"; the turn after pays again |
 
 ## Rulings the code carried
 

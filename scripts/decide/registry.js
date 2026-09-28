@@ -167,6 +167,9 @@ export const ADVANTAGE_BUYS = Object.freeze({
  * A feature turning a FAILED save into a success once per rest — the `succeed` d20 fold (d20-folds.js):
  * offered on a demanded save before its verdict, and on a sheet save as an offer the roller judges.
  *   activity  the feature's activity that pays;  label  the benefit's name;  abilities  the saves reached
+ * ⚠ Legendary Resistance is NOT a row: dnd5e ships it NATIVE (the NPC's `resistSave`, its button on the failed
+ * save's message, the `legres` resource spent by the system), and the saves machine already honours the flip
+ * (saves/verdict.js `forced`; smoke-saves §6). A row would be a second entry path (RULINGS *The GM's side — the five shapes*).
  */
 export const SAVE_SUCCEEDS = Object.freeze({
   "Mage Slayer": Object.freeze({ activity: "Guard Mind", label: "Guarded Mind",
@@ -369,11 +372,16 @@ export const SAVE_PRESSES = Object.freeze({
     rule: Object.freeze({ item: "Poisoner", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPoisoner000", benefit: "Brew Poison" }) })
 });
 
-/** Evasion, no choice (R1): a Dexterity save against half-on-success takes none on a success and half on a
- * failure; not while Incapacitated. The verdict's multiplier does it. */
-export const EVASION = Object.freeze({
-  feature: "Evasion", ability: "dex",
-  rule: Object.freeze({ item: "Evasion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkEvasion000" })
+/** Evasion's shape, no choice (R1): a save against half-on-success takes none on a success and half on a
+ * failure; not while Incapacitated. The verdict's multiplier does it. Keyed by the feature on the sheet;
+ * `ability` narrows it (Evasion: Dexterity only) or null reaches every save (Avoidance, a monster's — the GM's side). */
+export const EVASIONS = Object.freeze({
+  "Evasion": Object.freeze({ ability: "dex",
+    rule: Object.freeze({ item: "Evasion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkEvasion000" }),
+    from: "Monk 7 / Rogue 7 / Ranger 15" }),
+  "Avoidance": Object.freeze({ ability: null,
+    rule: Object.freeze({ item: "Avoidance", uuid: "Compendium.dnd-monster-manual.features.Item.mmAvoidance00000" }),
+    from: "monsters" })
 });
 
 /*
@@ -834,10 +842,17 @@ export const REST_GRANTS = Object.freeze({
 
 
 /**
- * What turns a drop to 0 HP into 1 (drop-to-one.js: the 1 written in the damage's own update).
+ * What turns a drop to 0 HP into 1 (drop-to-one.js: the 1 written in the damage's own update) — and what a
+ * landed 0 raises (the death's side).
  *   ask       "you can" — held at 1 and the owner asked; false — it simply happens and a card says so
  *   uses      the item's own uses pay;  effect  the effect whose presence is the row, removed when it fires
  *   ends      the spell ends when it fires;  outright  it also stands against damage that kills outright
+ *   save      the DICE decide (R1, Undead Fortitude): held at 1 while the bearer's save rolls on the keeper —
+ *             `ability`, `dc` ("5 + damage"), `unless` (damage types and/or "crit" read off the damage card;
+ *             ⚠ a card the module cannot read counts the row — never a guessed exemption); a failure lands the 0
+ *   on        "died" — THE DEATH'S SIDE (Death Throes): the row fires when the damage leaves the bearer at 0
+ *             and nothing held it; `activity` (null: the first save) is used AT THE CORPSE against every
+ *             creature within the activity's Emanation, one demand card, the saves machine from there
  */
 export const DROP_TO_ONE = Object.freeze({
   "Death Ward": Object.freeze({ ask: false, effect: "Protection from Death", ends: true, outright: true,
@@ -845,7 +860,16 @@ export const DROP_TO_ONE = Object.freeze({
     from: "PHB, level 4 (8 hours)" }),
   "Relentless Endurance": Object.freeze({ ask: true, uses: true, outright: false,
     rule: Object.freeze({ item: "Orc", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspOrc00000000", benefit: "Relentless Endurance" }),
-    from: "Orc" })
+    from: "Orc" }),
+  // The kill moment's two sides, the GM's (RULINGS *The GM's side — the five shapes*). Text-only in the pack: the machine rolls.
+  "Undead Fortitude": Object.freeze({ ask: false, outright: false,
+    save: Object.freeze({ ability: "con", dc: "5 + damage", unless: Object.freeze(["radiant", "crit"]) }),
+    rule: Object.freeze({ item: "Undead Fortitude", uuid: "Compendium.dnd-monster-manual.features.Item.mmUndeadFortitud" }),
+    from: "monsters (zombies)" }),
+  "Death Throes": Object.freeze({ on: "died", activity: null,
+    caveat: "\"revives somewhere in the Abyss\" is the table's",
+    rule: Object.freeze({ item: "Death Throes", uuid: "Compendium.dnd-monster-manual.features.Item.mmDeathThroes000" }),
+    from: "monsters (the balor)" })
 });
 
 
@@ -1309,6 +1333,17 @@ export const EFFECT_BENDS = Object.freeze({
   "Trance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Elf",
     saves: Object.freeze({ succeeds: true, sleep: true }),
     rule: Object.freeze({ item: "Trance", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptTrance0000" }) }),
+  // --- H. monster traits bending SAVES against magic (the GM's side) — the demand's own `spell` mark
+  // (a spell, or an item with the Magical property). Text only in the pack; the rows are the data.
+  "Magic Resistance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "monsters",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Magic Resistance", uuid: "Compendium.dnd-monster-manual.features.Item.mmMagicResistanc" }) }),
+  // The save cannot fail (the fourth button); "the attack rolls of spells automatically miss it" is the
+  // table's — the attack gate has no auto-miss (RULINGS *The GM's side — the five shapes*).
+  "Greater Magic Resistance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "monsters",
+    saves: Object.freeze({ succeeds: true, spells: true }),
+    caveat: "counted — the spell attacks that automatically miss are the table's",
+    rule: Object.freeze({ item: "Greater Magic Resistance", uuid: "Compendium.dnd-monster-manual.features.Item.mmGreaterMagicRe" }) }),
   // While Grappled, its Athletics and Acrobatics checks count as the escape
   // (RULINGS *Where the table bends the rule*); the pack's effect carries only the carrying capacity.
   "Powerful Build": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Goliath",
@@ -1572,11 +1607,22 @@ export const REPEAT_SAVES = Object.freeze({
  * numbers and landed on the bearer, receipted, no choice (R1). Keyed by the spell; `effect` the pack's
  * effect name on the bearer. Precedent: the emanation's `heal on "turnStart"` (EMANATIONS, Aura of Life).
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
+ *   match     "feature" (Regeneration, the GM's side): the bearer's OWN trait pays, rolled on ITS numbers — no effect,
+ *             no caster; `activity` null is the first heal activity
+ *   while     "aboveZero" — only with at least 1 Hit Point at the turn start
+ *   unless    { damagedBy: "text" } — the block read off the BEARER's copy of the trait ("takes Acid or Fire
+ *             damage"): dealt any named type since its last turn started (the receipts), it pays nothing and a
+ *             card says why. The pack's item names no type; each monster's copy names its own
  */
 export const TURN_GRANTS = Object.freeze({
   "Heroism": Object.freeze({ effect: "Bravery", activity: "Heal", on: "turnStart",
     rule: Object.freeze({ item: "Heroism", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHeroism000" }),
-    from: "Bard / Paladin spell, level 1 (Concentration, 1 minute)" })
+    from: "Bard / Paladin spell, level 1 (Concentration, 1 minute)" }),
+  "Regeneration": Object.freeze({ match: "feature", effect: null, activity: null, on: "turnStart", while: "aboveZero",
+    unless: Object.freeze({ damagedBy: "text" }),
+    caveat: "a block that is not a damage type (the vampire's sunlight, running water) is the table's",
+    rule: Object.freeze({ item: "Regeneration", uuid: "Compendium.dnd-monster-manual.features.Item.mmRegeneration00" }),
+    from: "monsters (trolls, hydras, vampires)" })
 });
 
 /**

@@ -13,11 +13,17 @@ tiers, whatever this builds) is DEFERRED, to be walked together later; a walk ta
 RULINGS for each thing built. Releases stay on the user's word (the full battery is the floor before a
 tag). Rapid means no hand-walk between builds, not less proof. The user is not watching in real time.
 
-## State (2026-09-28, night)
+## State (2026-09-28, late night)
 
 - Prod is **v2.6.0**. Main carries, UNRELEASED and UNWALKED: the spells slice end to end (RULINGS *The
-  spells slice — Tiers 1 and 2*, *Tier 3*, *the held spells*) and the DMG register
-  ([audits/dmg-register.md](audits/dmg-register.md), RULINGS *The DMG register*).
+  spells slice — Tiers 1 and 2*, *Tier 3*, *the held spells*), the DMG register
+  ([audits/dmg-register.md](audits/dmg-register.md), RULINGS *The DMG register*), and **Stage 1 of this
+  commission — the five shapes — BUILT** (RULINGS *The GM's side — the five shapes*: the table, the walk
+  table, the register rows). What Stage 1 found: **Legendary Resistance is NATIVE** (dnd5e's `resistSave`
+  button, the saves machine's `forced` flip — no row built); the "verify-settings default" line below is
+  stale (the lists were retired 2026-09-27 — a new row is simply on); `EVASION` is now the table
+  `EVASIONS`. **Next: Stage 2** (the aura rows — the `turnStart` trigger is new vocabulary — and the attack
+  bends), then Stage 3.
 - **The DMG is RULED OUT** (the user, 2026-09-28: "high impact limited value"): nothing in it is built —
   not `CRIT_RIDERS`, not the injury-poison coatings, not the 29 WAITS rows. Never owed; never re-ask.
 - The Monster Manual corpus scan of this session is at `dist/corpus-mm.json` (git-ignored; if it is

@@ -209,12 +209,12 @@ export function verdictTail(flag, t) {
 /** "vs DC 15 — saved — half damage (legendary resistance) (timer)": the verdict after its total. */
 function verdictStakes(flag, t) {
   const half = flag.hasDamage
-    ? t.evasion ? " — no damage (Evasion)"
+    ? t.evasion ? ` — no damage (${t.evasionBy ?? "Evasion"})`
       : (flag.damageOnSave === "half") ? " — half damage"
       : (flag.damageOnSave === "none") ? " — no damage" : " — full damage anyway"
     : "";
   const base = (t.outcome === "saved")
-    ? `saved${half}` : `failed${(t.evasion && flag.hasDamage) ? " — half damage (Evasion)" : ""}`;
+    ? `saved${half}` : `failed${(t.evasion && flag.hasDamage) ? ` — half damage (${t.evasionBy ?? "Evasion"})` : ""}`;
   return `vs DC ${flag.dc} — ${base}`
     + `${t.forced ? " (legendary resistance)" : ""}${t.madeBy ? ` (${t.madeBy})` : ""}${t.timedOut ? " (timer)" : ""}`;
 }

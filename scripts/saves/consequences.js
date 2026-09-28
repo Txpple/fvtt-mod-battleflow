@@ -9,7 +9,7 @@ import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
 import { dramaticVerdictPause } from "../ui.js";
-import { EFFECT_BENDS, EVASION, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
+import { EFFECT_BENDS, EVASIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { effectRecord, joinEffectReceipt } from "../decide/receipt.js";
 import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../decide/registry.js";
@@ -105,12 +105,16 @@ async function applySaveEffects(card, flag, entry) {
   });
 }
 
-/** Does EVASION (registry.js) apply? Read at the fold and stamped on the entry. */
+/** Which EVASIONS row (registry.js) applies — its key (Evasion, Avoidance) or null. Read at the fold and
+ * stamped on the entry. A row's `ability` narrows it; null reaches every save. Never while Incapacitated. */
 export function evasionApplies(actor, flag) {
-  if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return false;
-  if ( !flag.abilities?.includes?.(EVASION.ability) ) return false;
-  if ( actor.statuses?.has?.("incapacitated") ) return false;
-  return !!featureNamed(actor, EVASION.feature);
+  if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
+  if ( actor.statuses?.has?.("incapacitated") ) return null;
+  for ( const [key, row] of Object.entries(EVASIONS) ) {
+    if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
+    if ( featureNamed(actor, key) ) return key;
+  }
+  return null;
 }
 
 /** The key of a `halfToNone` effect (Circle of Power) on this saver, or null. */
@@ -156,7 +160,7 @@ export async function applyOneSaveDamage(damageMessage, flag, entry) {
   await applyDamagesWithReceipt(damageMessage, [{ uuid: entry.uuid, name: entry.name }], damages, {
     multiplier,
     note: entry.evasion
-      ? ((entry.outcome === "saved") ? "saved — Evasion, no damage" : "failed — Evasion, half damage")
+      ? ((entry.outcome === "saved") ? `saved — ${entry.evasionBy ?? "Evasion"}, no damage` : `failed — ${entry.evasionBy ?? "Evasion"}, half damage`)
       : (entry.noneOnSuccess && (entry.outcome === "saved")) ? `saved — ${entry.noneOnSuccess}, no damage`
       : (entry.outcome === "saved")
         ? ((multiplier === 0.5) ? "saved — half damage" : "saved — full damage anyway")

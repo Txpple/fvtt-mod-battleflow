@@ -24,6 +24,67 @@ export function grantRowFor({ table, item, effectName, listed = null, answers })
 }
 
 /**
+ * THE FEATURE ROWS (`match: "feature"`, Regeneration): the bearer's OWN trait pays, on its own numbers — no
+ * effect, no caster. Each row answered by one of `features` (the sheet's feat items, `answers` the matcher).
+ * @param {{table: Readonly<Record<string, any>>, features: any[], listed?: Set<string>|null,
+ *          answers: (key: string, item: any) => boolean}} facts
+ * @returns {{key: string, row: any, item: any}[]}
+ */
+export function featureGrantRows({ table, features, listed = null, answers }) {
+  const out = [];
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( row?.match !== "feature" ) continue;
+    if ( listed && !listed.has(key.toLowerCase()) ) continue;
+    const item = (features ?? []).find(i => answers(key, i)) ?? null;
+    if ( item ) out.push({ key, row, item });
+  }
+  return out;
+}
+
+/**
+ * The damage types the bearer's OWN copy of the trait names as the block — "if the troll takes Acid or
+ * Fire damage, this trait doesn't function on its next turn" — against the system's type labels.
+ * A copy naming none (the vampire's sunlight and running water) blocks on nothing: that clause is the
+ * table's. The pack's generic item names nothing; the monster's copy carries the monster's words.
+ * @param {string|null|undefined} text        the trait's description (HTML or plain)
+ * @param {Readonly<Record<string, string>>} labels   damage type key → label ("fire" → "Fire")
+ * @returns {string[]} type keys
+ */
+export function blockingTypes(text, labels) {
+  const plain = String(text ?? "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  const m = /\b(?:takes?|took|taken|dealt|suffers?)\s+([^.;:]*?)\s+damage\b/i.exec(plain);
+  if ( !m ) return [];
+  const phrase = String(m[1] ?? "").toLowerCase();
+  return Object.entries(labels ?? {})
+    .filter(([, label]) => new RegExp(`\\b${String(label).toLowerCase()}\\b`).test(phrase))
+    .map(([key]) => key);
+}
+
+/**
+ * Was the bearer dealt any of `types` SINCE ITS LAST TURN STARTED? `entries` are receipt rows (`uuid`,
+ * `parts: [{type, amount}]`, `combat: "id:round:turn"`, `reverted`); the window is from the bearer's
+ * previous turn (round − 1 at its own turn index — its own turn counts, a Reaction can burn it there)
+ * to now. Round 1: everything since the combat began. Out of combat nothing is read.
+ * @param {{entries: any[], uuid: string, combatId: string|null, round: number, turn: number, types: readonly string[]}} facts
+ * @returns {{blocked: boolean, type: string|null}}
+ */
+export function damagedSince({ entries, uuid, combatId, round, turn, types }) {
+  if ( !combatId || !(types ?? []).length ) return { blocked: false, type: null };
+  const wanted = new Set(types.map(t => String(t).toLowerCase()));
+  const fromRound = Number(round) - 1, fromTurn = Number(turn) || 0;
+  for ( const e of (entries ?? []) ) {
+    if ( !e || (e.uuid !== uuid) || e.reverted ) continue;
+    const [id, r, t] = String(e.combat ?? "").split(":");
+    if ( id !== combatId ) continue;
+    const er = Number(r), et = Number(t);
+    if ( !((er > fromRound) || ((er === fromRound) && (et >= fromTurn))) ) continue;
+    const part = (e.parts ?? []).find(p => wanted.has(String(p?.type ?? "").toLowerCase()) && (Number(p?.amount) > 0));
+    if ( part ) return { blocked: true, type: String(part.type).toLowerCase() };
+  }
+  return { blocked: false, type: null };
+}
+
+/**
  * Once per turn: a place (`combat|round|turn`) already paid pays nothing; no place, no turn.
  * @param {{paid: Set<string>, place: string|null}} facts
  * @returns {{due: boolean, why: string}}

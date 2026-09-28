@@ -149,7 +149,9 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
         entry.madeBy = (rollMessage.getFlag(MODULE_ID, "d20fold")?.spends ?? []).find(s => s.kind === "succeed")?.label ?? "succeeded instead";
       }
       entry.rollMessageId = rollMessage.id;
-      if ( evasionApplies(rollMessage.getAssociatedActor?.(), current) ) entry.evasion = true;
+      // Evasion's shape (EVASIONS): the row that applies is stamped by name — Evasion, or Avoidance.
+      const evasionBy = evasionApplies(rollMessage.getAssociatedActor?.(), current);
+      if ( evasionBy ) { entry.evasion = true; entry.evasionBy = evasionBy; }
       // Circle of Power: a success against half-on-save spell damage takes none.
       const noneBy = noneOnSuccessFor(rollMessage.getAssociatedActor?.(), current);
       if ( noneBy ) entry.noneOnSuccess = noneBy;

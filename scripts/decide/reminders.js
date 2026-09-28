@@ -213,8 +213,10 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       caveat = ` — against ${hits.map(conditionName).join(", ")}`;
     } else if ( facet.spells ) {
       if ( !demand.spell ) continue;
-      bend = facet.bend;
-      caveat = " — against a spell";
+      // Greater Magic Resistance: the save against magic cannot fail — the fourth button, Trance's shape.
+      succeeds = !!facet.succeeds;
+      bend = succeeds ? null : (facet.bend ?? null);
+      caveat = succeeds ? ": this save cannot fail — against a spell or other magical effect" : " — against a spell";
     } else if ( facet.abilities?.length ) {
       // The save's own ability (Irresistible Dance's Dexterity); a demand naming none is not this one.
       const hits = (demand.abilities ?? []).filter(a => facet.abilities.includes(String(a).toLowerCase()));

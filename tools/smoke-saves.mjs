@@ -18,7 +18,7 @@ export const COVERS = [
   'saves/choices.js',
   'saves/views.js',
   'receipts.js',            // §6 — legendary resistance unwinds the receipts (revertTarget)
-  'reminders.js'            // §19 / §22 / §23 — the save gate
+  'reminders.js'            // §19 / §22 / §23 / §31 — the save gate (§31: Magic Resistance, Greater Magic Resistance; Avoidance on the verdict)
 ];
 
 const SECTIONS = {
@@ -51,7 +51,8 @@ const SECTIONS = {
   28: 'Trance (the Elf, 2026-09-27): against a SPELL whose failed-save effect puts the target to sleep ("Asleep"), a text-only Trance on the sheet says the save cannot fail — Net Succeeds, a Succeeds button the default; pressed, the verdict is SAVED with no die ("cannot fail (Trance)"), the sleep never lands; against a demand that does not sleep, Trance is nowhere in the section',
   29: 'Command (the spells slice, 2026-09-28): a failed save behind a press with a WORD asks the caster — Approach / Flee / Grovel / Halt; Grovel presses Prone (receipted, the announce card says who falls); Halt presses nothing and the card says the table moves the token',
   30: 'the saves facet\'s two new effect rows (the spells slice, 2026-09-28): Poison Protection counts Advantage against a demand that would poison; Irresistible Dance counts Disadvantage against a DEXTERITY demand (the `abilities` scope) and nothing against a Wisdom one',
-  27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never'
+  27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never',
+  31: 'THE GM\'S SIDE (2026-09-28): Magic Resistance, text-only on the sheet, counts Advantage against a spell\'s demand; Greater Magic Resistance says the save cannot fail (a Succeeds button, the default — SAVED with no die); Avoidance on a CONSTITUTION save takes none on a success and half on a failure, the row and the receipt naming Avoidance'
 };
 // §2 rolls §1's demand damage (`card1`); §13 rides §12's lifecycle (`card12`, its area, its scene).
 const DEPENDS = { 2: ['1'], 13: ['12'] };
@@ -2431,6 +2432,104 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         for (const w of wards.splice(0)) await w.delete().catch(() => {});
         await failEff.update({ statuses: priorStatuses }).catch(() => {});
+        await clearChips();
+      }
+    }
+
+    // ============================================== 31. the GM's side — saves against magic, Avoidance
+    if (want(31)) {
+      const traits = [];
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const damageFor = card => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === card?.id));
+        const lendTrait = async name => {
+          const pack = game.packs.get('dnd-monster-manual.features');
+          const hit = (await pack?.getIndex())?.find(e => e.name === name);
+          if (!hit) throw new Error(`the Monster Manual ships no "${name}" this box can find`);
+          const src = await pack.getDocument(hit._id);
+          const [item] = await victim.createEmbeddedDocuments('Item', [src.toObject()]);
+          traits.push(item);
+          return item;
+        };
+        const dropTraits = async () => { for (const t of traits.splice(0)) await t.delete().catch(() => {}); };
+        const castAt = async activity => {
+          target(victimToken);
+          await sleep(120);
+          const use = await activity.use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+        const settle = async card => {
+          await until(() => card?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+          await until(() => game.messages.contents.some(m => (m._source.system?.origin === card?.id) && m.getFlag(MOD, 'receipt')), 12000);
+          await sleep(300);
+          await healFull(victim);
+        };
+
+        // 31a: Magic Resistance — the poison burst IS a spell: the row counts Advantage.
+        await lendTrait('Magic Resistance');
+        const cardA = await castAt(dexActivity());
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        ok('31a. Magic Resistance, text-only on the sheet, meets the gate against a spell: "Magic Resistance — against a spell", Net Advantage, Advantage the default',
+          !!dlgA && /Magic Resistance — against a spell/.test(textA) && /Net Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage'),
+          `text="${textA.slice(0, 220)}" default=${defaultOf(dlgA)}`);
+        dlgA?.querySelector('button[autofocus]')?.click();
+        await settle(cardA);
+        await dropTraits();
+        await clearChips();   // 31a's failure may have landed BF Poisoned; 31c asserts on a clean sheet
+
+        // 31b/c: Greater Magic Resistance — the save cannot fail: the fourth button, the default.
+        await lendTrait('Greater Magic Resistance');
+        const cardB = await castAt(dexActivity());
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        const succeedsBtn = dlgB?.querySelector('button[data-action="bf-succeeds"]');
+        ok('31b. Greater Magic Resistance: "this save cannot fail — against a spell or other magical effect", a Succeeds button, the default',
+          !!dlgB && /Greater Magic Resistance: this save cannot fail/.test(textB) && !!succeedsBtn && (defaultOf(dlgB) === 'bf-succeeds'),
+          `text="${textB.slice(0, 240)}" default=${defaultOf(dlgB)} button=${!!succeedsBtn}`);
+        succeedsBtn?.click();
+        const entryB = await until(() => { const t = game.messages.get(cardB?.id)?.getFlag(MOD, 'saves')?.targets?.[0]; return t?.done ? t : null; }, 10000);
+        await settle(cardB);
+        ok('31c. Succeeds: the verdict is SAVED with no die — cannot fail (Greater Magic Resistance) — the fail-only effect never lands',
+          (entryB?.outcome === 'saved') && (entryB?.autoSucceeded === true) && (entryB?.autoSucceededBy === 'Greater Magic Resistance') && (entryB?.total === null)
+            && !chipOn(victim, 'BF Poisoned'),
+          `entry=${JSON.stringify(entryB)} poisoned=${!!chipOn(victim, 'BF Poisoned')}`);
+        await dropTraits();
+
+        // 31d/e: Avoidance on a CONSTITUTION save (Evasion's shape, any ability): none on a success, half on a failure.
+        await lendTrait('Avoidance');
+        const vMax = victim.system.attributes.hp.max;
+        const runOne = async bonus => {
+          await saveBonus(victim, bonus);
+          await healFull(victim);
+          const card = await castAt(saveActivity());
+          const dlg = await dialogFor(card);
+          dlg?.querySelector('button[data-action="normal"]')?.click();
+          await until(() => entryOf(card, victim)?.applied, 15000);
+          const dmg = await until(() => damageFor(card)?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === victim.uuid) ? damageFor(card) : null, 10000);
+          return { entry: entryOf(card, victim), receipt: dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === victim.uuid) };
+        };
+        const a = await runOne('+30');
+        ok('31d. Avoidance on a Constitution save: a SUCCESS takes NO damage — ×0, receipted and said, the row names Avoidance',
+          (a.entry?.outcome === 'saved') && (a.entry?.evasion === true) && (a.entry?.evasionBy === 'Avoidance') && (a.receipt?.taken === 0) && (a.receipt?.multiplier === 0)
+            && /Avoidance/.test(a.receipt?.note ?? '') && (victim.system.attributes.hp.value === vMax),
+          `outcome=${a.entry?.outcome} by=${a.entry?.evasionBy} taken=${a.receipt?.taken} mult=${a.receipt?.multiplier} note="${a.receipt?.note}"`);
+        const b = await runOne('-30');
+        ok('31e. a FAILURE with Avoidance takes HALF — 5 of the flat 10, the row names Avoidance',
+          (b.entry?.outcome === 'failed') && (b.entry?.evasion === true) && (b.entry?.evasionBy === 'Avoidance') && (b.receipt?.taken === 5) && (b.receipt?.multiplier === 0.5)
+            && /Avoidance/.test(b.receipt?.note ?? ''),
+          `outcome=${b.entry?.outcome} by=${b.entry?.evasionBy} taken=${b.receipt?.taken} mult=${b.receipt?.multiplier} note="${b.receipt?.note}"`);
+      } finally {
+        for (const t of traits.splice(0)) await t.delete().catch(() => {});
+        await saveBonus(victim, '');
+        await healFull(victim);
         await clearChips();
       }
     }

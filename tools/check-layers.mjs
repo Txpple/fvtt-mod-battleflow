@@ -135,7 +135,8 @@ export const LAYER_OF = {
   "decide/clock.js": "decision",
   "decide/emanations.js": "decision",
   "decide/repeat-saves.js": "decision",   // the repeating save: the row an effect answers, the verdict's tally, the words
-  "decide/turn-grants.js": "decision",    // the turn-start grant: the row, once per turn, the words
+  "decide/turn-grants.js": "decision",    // the turn-start grant: the row, once per turn, the words; the feature rows and the damage-since judge (Regeneration)
+  "decide/drop-to-one.js": "decision",    // the drop-to-1 save facet: the DC from the damage, the exemptions, the words (Undead Fortitude, Death Throes)
   "decide/wards.js": "decision",          // the wards: which use is gated, what ends one, the words
   "decide/duplicates.js": "decision",     // the duplicates: the dice, the face that redirects, who sees through, the chips
   "decide/rebukes.js": "decision",       // the rebuke's reach, its gate, its cost and its card line

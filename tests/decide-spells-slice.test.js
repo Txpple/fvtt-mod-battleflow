@@ -67,11 +67,11 @@ describe("Tier 1 — the rows", () => {
     expectPointer(row.rule);
   });
   it("Heroism: the one turn-start grant — Bravery on the bearer, the spell's Heal activity rolled again on the caster", () => {
-    expect(Object.keys(reg.TURN_GRANTS)).toEqual(["Heroism"]);
+    expect(Object.keys(reg.TURN_GRANTS)).toEqual(["Heroism", "Regeneration"]);
     const row = reg.TURN_GRANTS.Heroism;
     expect(Object.isFrozen(row)).toBe(true);
     expect(row).toMatchObject({ effect: "Bravery", activity: "Heal", on: "turnStart" });
-    expect(reg.turnGrantEntries()).toEqual([{ kind: "heroism" }]);
+    expect(reg.turnGrantEntries()).toEqual([{ kind: "heroism" }, { kind: "regeneration" }]);
     expectPointer(row.rule);
   });
 });

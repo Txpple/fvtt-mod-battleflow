@@ -180,12 +180,13 @@ export const MOMENT_RECORDS = Object.freeze({
 
   dropToOne: {
     events: ["hold-answered"],
-    means: "a drop to 0 Hit Points turned into a drop to 1 — Relentless Endurance answered (use or pass), or Death Ward automatic (answer \"auto\") (drop-to-one.js)",
+    means: "a drop to 0 Hit Points turned into a drop to 1 — Relentless Endurance answered (use or pass), Death Ward automatic (answer \"auto\"), or a `save` row's dice (Undead Fortitude: answer \"saved\" / \"failed\", `save` the roll; \"exempt\" when the damage's type or crit set the row aside) (drop-to-one.js)",
     resolved: (r) => r?.answer ? [{
       marker: "message", events: ["hold-answered"],
       facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
         targets: r.actorUuid ? [{ uuid: r.actorUuid, name: r.actorName ?? null }] : [],
-        details: { answer: r.answer, amount: r.amount ?? null, timedOut: !!r.timedOut } }
+        details: { answer: r.answer, amount: r.amount ?? null, timedOut: !!r.timedOut,
+          ...(r.save ? { save: { ability: r.save.ability ?? null, dc: r.save.dc ?? null, total: r.save.total ?? null } } : {}) } }
     }] : []
   },
 
@@ -683,6 +684,8 @@ export const STATE_KEYS = Object.freeze({
   rebukeAnswer: "an envelope — a rebuke's answer; the fold onto the rebuke flag is the resolve",
   damageHoldAnswer: "an envelope — a damage hold's answer; the fold onto the damageHold flag is the resolve",
   dropToOneAnswer: "an envelope — a drop-to-1 answer; the fold onto the dropToOne flag is the resolve",
+  dropToOneSave: "provenance — the save roll a `save` row demanded of the creature it held at 1 (Undead Fortitude, drop-to-one.js); the dropToOne record on the card is the resolve",
+  deathThroes: "the demand card a `died` row raised at the corpse (Death Throes, drop-to-one.js) — beside the saves record, which is the resolve",
   kitTendAnswer: "an envelope — a player's kit-tending answer; the fold onto the kitTend flag, landed by the elect, is the resolve",
   kitTendFor: "a back-link — the heal a kit's tending drove, pointing at the kit's card; the kitTend flag there is the resolve",
   initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
@@ -773,7 +776,7 @@ export const STATE_KEYS = Object.freeze({
   repeatSave: "the demand card a landed effect's repeated save raised (repeat-saves.js) — beside the saves record, which is the resolve; `settled` and `says` what the verdict did to the effect (the cast card's effectReceipt carries the removal)",
   repeatOffer: "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",
   repeatCount: "an ActiveEffect field — a counted repeat's tally and lock (Contagion, Flesh to Stone)",
-  turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP) — the receipt on the same card is the resolve",
+  turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP; Regeneration's heal on the bearer's own trait) — the receipt on the same card is the resolve; a `blocked` card (the troll's fire) carries no receipt and resolves nothing",
   ward: "the demand card a ward raised of whoever targeted its bearer (wards.js, Sanctuary) — beside the saves record, which is the resolve; `settled`, `outcome` and `says` whether the use went on or was turned aside",
   wardEnded: "the card a ward's end posts (wards.js) — its bearer's own attack roll, cast or damage roll ended it; the effect's deletion is the act",
   duplicatesSeen: "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",
