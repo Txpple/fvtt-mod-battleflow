@@ -113,7 +113,7 @@ the same commit (`node tools/verify-settings.mjs` after any run).
   chooses in *Bent by choice*. A new flag key is classified in `decide/moments.js` (`check-moments` fails
   the build otherwise).
 - A change runs its own suites: `node tools/battery.mjs --changed --list`, then the feature's own suites
-  (`node tools/deploy-house-module.mjs --local` first — a battery tests the DEPLOYED copy; a FULL verdict
+  (`node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs --local` first, from this repo — a battery tests the DEPLOYED copy; a FULL verdict
   for a feature still means its own suites). Launch a suite detached. After any run,
   `node tools/verify-settings.mjs` against the reference.
 - Prod is never touched; a release goes out only on the user's word, by a pushed annotated tag (CI
