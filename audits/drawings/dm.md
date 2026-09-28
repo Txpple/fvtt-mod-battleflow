@@ -18,12 +18,12 @@
 | Shape | DMG customers | Where it is built |
 | --- | --- | --- |
 | **Save bends against magic** (the `vsSpells` judge) | Mantle of Spell Resistance, Spellguard Shield, Ring of Spell Turning, Scarab of Protection, Robe of the Archmagi, Blessing of Magic Resistance | with Magic Resistance (MM) and Spell Resistance (Abjurer): `EFFECT_BENDS` `saves` — nine customers |
-| **The reroll kind** | Luck Blade (reroll one d20 per dawn), Deck of Many Things' Fates (out), Robe of Stars (out) | with Indomitable's kind (the classes drawing) — Luck Blade is a row after it |
+| **The reroll kind** | Luck Blade (reroll one d20 per dawn), Deck of Many Things (the Fates card — out), Fates (the card — out), Robe of Stars (out) | with Indomitable's kind (the classes drawing) — Luck Blade is a row after it |
 | **A failed save succeeds** (`SAVE_SUCCEEDS`) | Ring of Evasion (a failed Dex save, 3 charges), Scarab of Protection (a failed save against necromancy, 12 charges), Ioun Stone of Absorption (a spell absorbed — the cast hold's) | Mage Slayer's machine; the Ring and the Scarab are rows with a `charges` pool |
 | **On-hit reactions** (`REBUKES`, `INTERRUPTS`) | Sword of Answering (a row), Shield of the Cavalier (an attack when an ally within 5 ft is hit), Gloves of Missile Snaring (Deflect Attacks' shape: ranged, reduce by 1d10 + Dex), Arrow-Catching Shield (the +2 is an effect; the redirect of a ranged attack on an ally to the bearer is Redirect Attack's kind), Quarterstaff of the Acrobat (+2 AC as a reaction while spinning) | rows on lists that exist; the redirect waits for its kind |
 | **The cast-triggered reaction** (Counterspell's kind, SWEEP §7) | Rod of Absorption, Staff of the Magi's absorption, Ioun Stones of Absorption | with Counterspell, when a player has it |
 | **Critical-hit riders** | Vorpal Sword (a 20 severs a head), Sword of Life Stealing (temp HP on a crit, 10 necrotic to the target), Nine Lives Stealer (a crit demands a save or the target dies, charges), Hammer of Thunderbolts (a 20 stuns on a failed save), Mace of Smiting (a 20 destroys a Construct; +1d6 vs Constructs), Silvered Weapon (+1d8 on a crit vs shape-changers), Adamantine Weapon (a hit on an object is a crit) | none — a `CRIT_RIDERS` table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); **six customers, one table**, but every one a found item: built when the first is found |
-| **Poisons as weapon coatings** | Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Lolth's Sting, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Purple Worm Poison, Serpent Venom, Torpor, Truth Serum, Wyvern Poison | `COATINGS` (Poisoner's Poison Coating): the injury poisons are rows — the save and the damage are the item's own activity; the ingested and inhaled ones are casts, not coatings |
+| **Poisons as weapon coatings** | Lolth's Sting, Purple Worm Poison, Serpent Venom, Wyvern Poison | `COATINGS` (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating |
 | **A turn-start rider on the victim** | Sword of Wounding (1d4 necrotic per wound at the victim's turn start; no healing until a save) | the turn-start `grant` facet's harmful twin — `CLOCK_RIDERS` `turnStart` on the bearer of the wound effect; one customer, waits |
 | **Bends until damaged** | Cloak of Displacement (Disadvantage against the wearer until they take damage, back at the next turn start) | `EFFECT_BENDS` with an `until: damaged` clock — Rage's early-end judge reads the same receipt; one customer, waits |
 
@@ -48,3 +48,35 @@ Comet and the other supernatural gifts (effects and uses).
 **OUT:** traps, hazards and siege weapons (the GM runs them; their saves are the demand's), the
 artifacts' lore powers (Vecna's, Orcus's, Kas's, Blackrazor's, Whelm's, Wave's beyond their weapon
 rows), summoning and figurines, the utility items (347 rows with no family).
+
+## Register verdicts
+
+The hand column `tools/audit-dmg-register.mjs` reads — a verdict the data cannot derive, one row per DMG row,
+by name. A row not listed here takes the generator's default: MODULE when a registry table names it, WAITS
+when the shared-shapes table above names it as a customer, OUT for a trap, hazard or siege weapon, TEXT when
+the pack ships a paragraph only or the text trips no family, NATIVE otherwise.
+`| **Row** | OUT / TEXT / NATIVE / MODULE / WAITS | why |`.
+
+| Row | Verdict | Why |
+| --- | --- | --- |
+| **Eye of Vecna** | OUT | an artifact's lore powers — the GM's; its spells are the sheet's |
+| **Hand of Vecna** | OUT | an artifact's lore powers — the GM's; its spells are the sheet's |
+| **Eye and Hand of Vecna** | OUT | an artifact's lore powers — the GM's |
+| **Wand of Orcus** | OUT | an artifact's lore powers — the GM's; the weapon's +3 and its necrotic are the pack's |
+| **Sword of Kas** | OUT | an artifact's lore powers — the GM's; the weapon's +3 and its extra die are the pack's |
+| **Blackrazor** | OUT | an artifact's lore powers — the GM's; the weapon's +3 is the pack's |
+| **Whelm** | OUT | an artifact's lore powers — the GM's; the weapon's +3 and its dwarf and giant riders are the pack's |
+| **Wave** | OUT | an artifact's lore powers — the GM's; the weapon's +3 is the pack's |
+| **Deck of Illusions** | OUT | a summons — the illusion is the GM's |
+| **Figurine of Wondrous Power** | OUT | a summons — the creature is the GM's |
+| **Gray Bag of Tricks** | OUT | a summons — the creature is the GM's |
+| **Rust Bag of Tricks** | OUT | a summons — the creature is the GM's |
+| **Tan Bag of Tricks** | OUT | a summons — the creature is the GM's |
+| **Cube of Summoning** | OUT | a summons — the creature is the GM's |
+| **Ring of Djinni Summoning** | OUT | a summons — the creature is the GM's |
+| **Scroll of Titan Summoning** | OUT | a summons — the creature is the GM's |
+| **Flames** | TEXT | the Deck of Many Things' card, not Flaming Sphere's `Flames` row — a hostile outsider is the GM's |
+| **Light** | TEXT | the NPC trait (the creature sheds light), not the spell's `TOKEN_LIGHTS` row — the token's light is the sheet's |
+| **Steadfast** | NATIVE | Frightened immunity while an ally is in sight — a status the sheet carries; the ally judge is the GM's |
+| **Telepathic Shroud** | OUT | lore — a mind-reading immunity, nothing in combat |
+| **Poison Tolerant** | WAITS | Dwarven Resilience's `EFFECT_BENDS` row with the feature's name (Advantage on saves against the Poisoned condition) — a row when an NPC carries it |

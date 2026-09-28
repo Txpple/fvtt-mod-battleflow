@@ -1,4 +1,4 @@
-# HANDOFF.md — the DMG register, after the spells slice (commission, 2026-09-28, night)
+# HANDOFF.md — the DMG register delivered; the DMG scope call, then Slice B (2026-09-28, night)
 
 > **What this is:** the commission every session works from until it is delivered, written for a
 > session that starts cold. It is retired when it is delivered, and its record is git history. The
@@ -10,53 +10,33 @@
 **The user's word:** *"make a note in the handoff we're pushing through rapid deployment not
 walkthroughs as we had a free reset of tokens."* Until the user says otherwise: **build, prove with
 the suites, push — and do not stop for a walk.** The walks of the spells slice (Tiers 1–4) and of
-whatever this commission builds are DEFERRED, all to be walked together later; a walk table still
-goes in RULINGS for each thing built, so the walk is ready when it comes. Releases stay on the user's
-word (the full battery is the floor before a tag). Nothing here means skipping the suites or the
-verify gate: rapid means no hand-walk between builds, not less proof.
+whatever is built next are DEFERRED, all to be walked together later; a walk table still goes in
+RULINGS for each thing built. Releases stay on the user's word (the full battery is the floor before a
+tag). Rapid means no hand-walk between builds, not less proof.
 
 ## State (2026-09-28, night)
 
-**The spells slice is BUILT end to end and pushed, UNWALKED and UNRELEASED** (prod is v2.6.0).
-RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3* and *the held spells* are the record; the PHB spell
-register is generated ([audits/spells-register.md](audits/spells-register.md): 391 spells — the counts
-are in its header — from `tools/audit-spells-register.mjs`, run on a spells-only corpus scan joined
-with the registry, RULINGS and the drawing's *Register verdicts* table). The four walk tables sit in
-RULINGS, the walk tool `tools/content/place-spells-walk.mjs` places the whole slice on Party Camp.
-Counterspell is NATIVE by the user's ruling (the caster targets the creature and the saves machine
-demands its Constitution save; *Bent by choice*).
+**The spells slice is BUILT end to end and pushed, UNWALKED and UNRELEASED** (prod is v2.6.0). **The
+DMG register is DELIVERED**: [audits/dmg-register.md](audits/dmg-register.md), 571 rows (50 OUT ·
+367 TEXT · 111 NATIVE · 14 MODULE · 29 WAITS), from `tools/audit-dmg-register.mjs` off a DMG-only scan,
+the registry, RULINGS and the drawing's two hand tables; RULINGS *The DMG register* is the record (the
+WAITS word, the kinds, the shape column, the poison split). The shared readers are
+`tools/register-shared.mjs`; the spells register regenerates byte-identical through them.
 
-## The commission: the DMG — a register, not a slice
+## The open call: what, if anything, the DMG builds now (the user's — asked 2026-09-28)
 
-**The drawing** is [audits/drawings/dm.md](audits/drawings/dm.md), read against
-[audits/dm.md](audits/dm.md): 548 equipment rows and 23 features. Its finding stands: *"the DMG is not
-a slice"* — nothing is granted by a class or a species; a magic item is at a table only when the GM
-hands it out; the house world holds none of the rows below in play. **This session decides what
-"a register" means and delivers it.** The spells register is the pattern, and the answer should be
-the same shape: **one row per DMG row, generated, never edited** — a new generator (name it
-audit-dmg-register) beside `tools/audit-spells-register.mjs` (lift the shared readers into one small
-module rather than copy them), from a DMG-only corpus scan (`node tools/scan-corpus.mjs <out.json> --only
-dnd-dungeon-masters-guide.equipment,dnd-dungeon-masters-guide.features`, live, the user out of the
-world — the scanner's dispose hangs after writing; the file is good), classified, joined with the
-registry, RULINGS and a *Register verdicts* table in the DMG drawing.
+The user's word on seeing the commission: *"i never thought about equipment/magic items... lets see what
+you come up with and decide scope."* The register is what came up. The two candidates, measured on the
+pack (RULINGS *The DMG register*, the last paragraph):
 
-The columns the DMG needs beyond the spells': **Kind** (magic item · poison · trap · hazard · siege
-weapon · supernatural gift · feature) and **Shape** (the drawing's shared-shape row it lands on:
-`vsSpells`, the reroll kind, `SAVE_SUCCEEDS`, the on-hit reactions, the cast-triggered reaction,
-`CRIT_RIDERS`, `COATINGS`, the turn-start rider, bends-until-damaged, or —). The verdict column
-stays NATIVE / MODULE / TEXT / OUT with a fifth word the DMG needs: **WAITS** — a row whose shape is
-drawn and whose customer is a found item (the drawing: "built when the first is found"). The
-generator's default for the ~347 no-family rows is TEXT ("a utility item — no combat mechanism").
+| Candidate | What it is | The honest cost |
+| --- | --- | --- |
+| **`CRIT_RIDERS`** — Vorpal Sword, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon | a table on the damage seam, the crit the module already judges (`riderDue`'s `crit` facet; Piercer's Enhanced Critical is the precedent) | NOT cheap rows: the six ship as ENCHANTMENTS on a base weapon ("Vorpal {}"), so the row is found by the enchantment effect on the attacking weapon — a reader the machine lacks; three of six need a judgment the data cannot make (a head, shape-shifted, a Construct's HP after) and land as a caveated offer; no customer in the house world |
+| **The injury poisons as `COATINGS` rows** — Lolth's Sting, Purple Worm Poison, Serpent Venom, Wyvern Poison | the coating machine (`use-chips.js`) on the item's own "Use Poison" save activity; the dose is the item's `itemUses` | a small generalisation of one machine: the row names the activity and its ability (no ASI pick), no Fighting Styles switch, the card's words from the row, the chip's name from the item; a suite row in `smoke-sneak` (the coating's suite); no customer in the house world |
 
-**What to BUILD in the same pass, if anything — the user's call, asked at the start:** the drawing
-names one table with six customers and no build — **`CRIT_RIDERS`** (Vorpal Sword, Sword of Life
-Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon — the crit
-the module already judges, RULINGS *The hit's sequence*; the precedent is `CLOCK_RIDERS`' `crit`
-facet, Slasher's and Piercer's Enhanced Critical) — and the **injury poisons as `COATINGS` rows**
-(Poisoner's Poison Coating is the machine; the item's own activity is the save and the damage).
-Both are cheap rows on machines that exist; both are found items with no customer in the house
-world. Rapid-deployment mode says build them if the user says go — a register alone is a document,
-and the mode is about shipping.
+Either is a build on its own commit with its RULINGS section and walk table (deferred), its own suites
+run, pushed. **Neither starts without the user's word**; "Slice B" is also a valid answer — the order
+after this is set.
 
 ## Ground rules
 
@@ -71,6 +51,7 @@ and the mode is about shipping.
 - `npm run verify` green on every commit; `biome --write` on named files only.
 - ⚠ Heredocs mangle backslashes and backticks in shell — write files with the editor tools, never
   `cat <<EOF` for code.
+- ⚠ `scan-corpus.mjs`'s dispose HANGS after writing: kill it, the file is good.
 
 ## After this — the next two, already drawn
 
@@ -83,5 +64,4 @@ and the mode is about shipping.
   level band ahead of play; the reroll kind with its first customer; the prototypes (Brutal Strike's
   gate box, Portent, Wild Magic Surge, Inspiring Smite) ruled when that player sits down.
 - **The walks**, when the mode changes back: Tiers 1–4 of the spells slice
-  (`tools/content/place-spells-walk.mjs`, the four RULINGS tables), then whatever this commission
-  built.
+  (`tools/content/place-spells-walk.mjs`, the four RULINGS tables), then whatever is built next.

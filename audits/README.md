@@ -17,5 +17,6 @@
 | [classes/](classes/) | one file per class: the class's features, then each subclass — the order the user asked for (2026-09-28: class by class, all its subclasses, then the next) |
 | [options.md](options.md) | invocations, metamagic, maneuvers, boons |
 | [dm.md](dm.md) | the DMG's features and equipment |
+| [dmg-register.md](dmg-register.md) | **the DMG register** — every DMG row (magic items, poisons, gifts, traps, hazards, siege weapons, the NPC traits): NATIVE / MODULE / WAITS / TEXT / OUT, the kind, the shape a waiting row lands on, why not or how; `node tools/audit-dmg-register.mjs <corpus.json>` from a DMG-only scan, the registry, RULINGS and the drawing's two hand tables |
 | [monsters.md](monsters.md) | the Monster Manual's traits — Slice B's ground |
 | [drawings/](drawings/) | **the verdicts, by hand** — NATIVE / ROW / KIND / OUT per row with the precedent named: [spells](drawings/spells.md), [classes](drawings/classes.md), [the DMG](drawings/dm.md), [the monsters](drawings/monsters.md) |

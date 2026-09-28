@@ -1508,6 +1508,35 @@ and BF Walk Ally stand 5 ft east of it; the Target is a Fiend for the circle):
 | **Forcecage** placed over the Target | the Target walking out: "Forcecage — BF Walk Target leaves BF Walk Cleric's Forcecage — the walls hold it …"; walking in: nothing |
 | **Counterspell** — target the Target, use Counterspell | the ordinary saves demand of the Target: Constitution, the Cleric's DC; the verdict on the card; nothing else |
 
+## The DMG register (2026-09-28, night; HANDOFF.md)
+
+**The commission's question — what "a register" means for the DMG — ruled the spells register's shape:
+one row per DMG row, generated, never edited.** [audits/dmg-register.md](audits/dmg-register.md) from
+`tools/audit-dmg-register.mjs` (the readers it shares with the spells' generator lifted into
+`tools/register-shared.mjs`; the spells register regenerates byte-identical through it), off a DMG-only
+corpus scan joined with the registry, RULINGS and the DMG drawing's TWO hand tables — *The shapes the DMG
+shares with the other books* (a customer named there lands WAITS on that shape) and *Register verdicts*
+(the verdicts the data cannot derive). 571 rows: 484 magic items, 14 poisons, 20 supernatural gifts, 8
+traps, 12 hazards, 10 siege weapons, 23 NPC traits.
+
+| What the DMG needed beyond the spells' | The ruling |
+| --- | --- |
+| **A fifth verdict word — WAITS** | a row whose shape is drawn on a machine that exists and whose customer is a found item: built when the first is found (the drawing: "the DMG is not a slice"). 29 rows wait, on nine shapes |
+| **Kind** | magic item · poison · supernatural gift · trap · hazard · siege weapon · feature, read off the pack's item type and the text's first words (a "Potion"-typed row whose text opens "Ingested Poison" is a poison) |
+| **Shape** | the shared-shapes row a waiting row lands on, by its code (`CRIT_RIDERS`, `COATINGS`, `SAVE_SUCCEEDS`, `vsSpells`, `REBUKES · INTERRUPTS`, `grant · CLOCK_RIDERS · turnStart`, `EFFECT_BENDS · until: damaged`) or its name (the reroll kind, the cast-triggered reaction) |
+| **The defaults** | a trap, hazard or siege weapon is OUT (the GM runs it; its save and damage are the demand's); a row with no family or a paragraph only is TEXT ("a utility item — no combat mechanism"); a same-named registry row is a collision, not a machine, when a hand verdict says so (the Deck's *Flames* is not Flaming Sphere's row, the trait *Light* is not the spell's) |
+| **The poisons** | only the four INJURY poisons (Lolth's Sting, Purple Worm Poison, Serpent Venom, Wyvern Poison) wait on `COATINGS`; the ingested, inhaled and contact ones are NATIVE — the item's own save used at the creature, never a coating |
+
+**Measured on the pack, for the scope call:** the six crit riders (Vorpal Sword, Sword of Life Stealing,
+Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon) ship as ENCHANTMENTS — the
+item is applied to a base weapon and renames it ("Vorpal {}"), so the weapon on a sheet is *Vorpal
+Longsword* carrying the item's enchantment effect; a `CRIT_RIDERS` row must be found by the enchantment on
+the attacking weapon, not by the weapon's name — a reader `CLOCK_RIDERS` does not have. The four injury
+poisons are consumables with one "Use Poison" save activity (Constitution, the damage or the conditions on
+it, `itemUses` consumed): a `COATINGS` row on the item's own activity needs the machine's Poisoner-only
+words (the feat's ASI-picked save, the Fighting Styles switch, the card's "2d8 and Poisoned") read off the
+row. Neither is built; the scope is the user's call.
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code
