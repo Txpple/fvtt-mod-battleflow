@@ -1308,6 +1308,24 @@ shape, *"C is gonna have a lot of link noise"*.
 - The text is enriched; a roll link in it reads as plain text, so nothing rolls outside the machine.
   Foundry's private notes stay out.
 
+## The slice order, off the drawings (2026-09-28)
+
+The 2024 corpus was measured and drawn book by book ([audits/drawings/](audits/drawings/)) and the
+order set off the drawings: **the spells slice, then Slice B, then session 0 of the next campaign
+sets the class slices** (player-facing first, DESIGN N3; B is small and party-independent; the
+classes wait for the party). The commission is HANDOFF.md.
+
+- **A repeated save that succeeds ends the effect automatically** — the rule leaves no choice (R1)
+  — **with a visible cue**: the effect's name floats off the token as it leaves (the scrolling text
+  the use chips and the fighting styles draw), and the card records the end.
+- **All three UI-shaped spell items are in the slice**, each ruled off a prototype first: the placed
+  area that pulses, Sanctuary's gate, Mirror Image's defender interrupt.
+- **The DMG is a register, not a slice**: its shapes are built with their PHB or Monster Manual
+  customer; its own rows wait for the item to be found.
+- **Relentless is not in the 2025 Monster Manual**; the kill moment's monster row is Undead
+  Fortitude. Slice B is redrawn to five shapes in its drawing.
+- **The drawings are the map, never a commission**: nothing in them is owed until the user sets it.
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code
