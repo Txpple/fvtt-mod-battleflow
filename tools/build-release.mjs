@@ -9,7 +9,8 @@
 //
 // The zip is written here, not by a shell tool: `Compress-Archive` writes backslash separators
 // (the module installs as an empty shell) and the execution policy can refuse a PowerShell script.
-// Entries are stored with forward slashes and a fixed timestamp, so the same tree gives the same bytes.
+// Entries are stored with forward slashes and a fixed timestamp, so the same commit gives the same
+// bytes here and on CI.
 //
 // The read-back proves what ships loads: no backslash entry, nothing missing, every relative
 // import inside a packed script resolving to another entry, and every entry inflating to the
@@ -140,6 +141,9 @@ function readZip(buf) {
 }
 
 const files = new Map(names.map(n => [n, readFileSync(join(REPO, n))]));
+// The repo is LF (.gitattributes); a CRLF file is a checkout that drifted, and would ship other bytes than CI's.
+const crlf = [...files].filter(([, data]) => data.includes("\r\n")).map(([n]) => n);
+if (crlf.length) fail(`CRLF line endings in ${crlf.join(", ")} - re-check them out (rm the file, git checkout -- it)`);
 const zip = writeZip(files);
 mkdirSync(dirname(OUT), { recursive: true });
 writeFileSync(OUT, zip);
