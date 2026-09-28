@@ -1252,21 +1252,27 @@ until deleted by hand, or the zip is shipped instead.
 
 ### Release
 
-⚠ **Build the zip with `tools/build-release.ps1`, never `Compress-Archive`.** On Windows PowerShell
-5.1 `Compress-Archive` writes `scripts\file.js` with a **backslash**, which Node-based extractors
-treat as one literal filename at the archive root — the module installs as an empty shell. Every
-release from v1.1.0 to v1.1.15 shipped that way. The builder's second blind spot (v1.21.0,
-2026-08-23): a **non-recursive** enumeration of `scripts/` dropped the new `scripts/decide/` from
-every zip built after 2026-08-22 (no published release affected; caught by reading the builder's
-file list). **Both survived because nothing ever installs what we ship**: `check-imports.mjs`
-proves the working tree, hot-deploy copies the working tree, and the zip is the one artifact nobody
-exercises. So the builder recurses **and** re-reads the finished archive — no backslash entry,
-nothing missing, every relative import resolving inside it.
+**A release is published by CI, from a pushed tag**
+([.github/workflows/release.yml](.github/workflows/release.yml)), and the zip is written by
+[tools/build-release.mjs](tools/build-release.mjs), which runs the gate first. Nothing is
+published from a desk: the same builder run by hand is the dry run.
 
-⚠ **The machine's PowerShell execution policy can refuse `build-release.ps1`** (2026-09-23; it ran
-2026-09-21). The policy is the user's security setting and is never overridden from here; the
-bsdtar fallback in [tools/README.md](tools/README.md) *Release and deploy* runs the same three
-archive checks (v2.0.4 was built that way).
+⚠ **Never build the zip with `Compress-Archive`.** On Windows PowerShell 5.1 it writes
+`scriptsile.js` with a **backslash**, which Node-based extractors treat as one literal filename
+at the archive root — the module installs as an empty shell. Every release from v1.1.0 to v1.1.15
+shipped that way. A second blind spot (v1.21.0): a **non-recursive** enumeration of `scripts/`
+dropped `scripts/decide/` from the zip. **Both survived because nothing ever installs what we
+ship**: `check-imports.mjs` proves the working tree, hot-deploy copies the working tree, and the zip
+is the one artifact nobody exercises. So the builder recurses **and** reads the finished archive
+back: no backslash entry, nothing missing, every relative import resolving inside it, every entry
+inflating to the tree's own bytes.
+
+The builder writes the zip itself (Node's `zlib`), with a fixed timestamp: the same tree gives the
+same bytes on Windows and on CI, and no shell tool or execution policy sits in the chain.
+
+⚠ **A release tag is annotated**: the workflow publishes its subject as the title and its body as
+the notes, and refuses a lightweight one. The notes are hand-written — never NOTES.md, which would
+put every platform finding on a public page.
 
 ### Testing against the live sandbox
 

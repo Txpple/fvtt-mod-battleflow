@@ -1,0 +1,77 @@
+# The release: a pushed version tag builds the zip and publishes it (NOTES §5 *Release*).
+# The tag must be annotated, name module.json's version, and sit on main. The builder runs the
+# whole static gate first, so only a green commit is published. The tag's subject is the
+# release title and its body the release notes.
+#
+# Run by hand (workflow_dispatch) it is the dry run: the same checks and the same build, the zip
+# kept as a workflow artifact, nothing published.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: The tag names an annotated tag on main
+        if: github.ref_type == 'tag'
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          git fetch --force origin "refs/tags/${tag}:refs/tags/${tag}"
+          if [ "$(git cat-file -t "${tag}")" != "tag" ]; then
+            echo "::error::${tag} is a lightweight tag; a release tag is annotated (its message is the notes)"; exit 1
+          fi
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "::error::${tag} is not on main"; exit 1
+          fi
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            echo "::error::a release for ${tag} already exists"; exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Build (the gate, the zip, the read-back)
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            node tools/build-release.mjs --tag "${GITHUB_REF_NAME}"
+          else
+            node tools/build-release.mjs
+          fi
+      - name: Keep the zip (dry run)
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: fvtt-mod-battleflow
+          path: |
+            dist/fvtt-mod-battleflow.zip
+            module.json
+      - name: Publish
+        if: github.ref_type == 'tag'
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          git tag -l --format='%(contents:body)' "${tag}" > "${RUNNER_TEMP}/notes.md"
+          title="$(git tag -l --format='%(contents:subject)' "${tag}")"
+          gh release create "${tag}" --verify-tag --title "${title}" \
+            --notes-file "${RUNNER_TEMP}/notes.md" \
+            dist/fvtt-mod-battleflow.zip module.json
+        env:
+          GH_TOKEN: ${{ github.token }}

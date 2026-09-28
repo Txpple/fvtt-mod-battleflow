@@ -189,7 +189,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BF Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
 | `maintain-party.mjs` | strip temporary actor-level effects, on demand. |
-| `build-release.ps1` | the release zip — step 4 of *Release and deploy* below. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
+| `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
 | `hook-coverage.mjs` | ⚠ **the only measurement in the tree that is about BEHAVIOUR** (ARCHITECTURE §10 D11): which of the module's hook registrations actually FIRED during the run (it prints the count; 83 when it was built, 172 by 2026-09-05), unioned from the per-suite ledgers in `dist/hook-ledger/`. **It reports; it never fails.** A never-fired line is a coverage gap, a dead handler or a rare hook — only a person can tell which, and v1.23.0 would have printed four dead ones beside a green battery. |
@@ -226,18 +226,19 @@ the user's word.
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
    `--check` is part of `verify`.
 3. **The commits.** The change commit(s) — code, its suites and its docs together — then a
-   `release vX.Y.Z: …` commit carrying only the bump, and the tag on that one. (The older
-   three-commit shape with the tag in the middle is retired, 2026-09-24: the v2.0.x releases all
-   ran this way.) Commit bodies are **ASCII** — the log mangles non-ASCII punctuation.
-4. **The zip.** `tools/build-release.ps1` — it runs the gate and `bump-version --check` first,
-   recurses `scripts/`, and re-reads the finished archive: no backslash entry, nothing missing,
-   every relative import resolving inside it. If the execution policy refuses the script (the
-   policy is the user's, never overridden), build with Windows' bsdtar —
-   `C:/Windows/System32/tar.exe -a -c -f dist/fvtt-mod-battleflow.zip module.json LICENSE README.md <every scripts/**/*.js>`
-   (forward-slash entries) — run the same three checks in Node over `tar.exe -tf`, then unpack and
-   diff against the tree. Never `Compress-Archive`.
-5. **The release.** Push, push the tag, `gh release create` with two assets: the zip **and** a bare
-   `module.json`.
+   `release vX.Y.Z: …` commit carrying only the bump. Commit bodies are **ASCII** — the log
+   mangles non-ASCII punctuation.
+4. **The dry run.** `node tools/build-release.mjs --tag vX.Y.Z`: the gate, the tag against
+   `module.json`, the zip in `dist/`, and the read-back (no backslash entry, nothing missing, every
+   relative import resolving inside it, every entry equal to the tree). The same bytes CI builds.
+5. **The release.** An **annotated** tag on the release commit: its subject is the release title,
+   its body the release notes (hand-written, never NOTES.md). Push main, then the tag.
+   [.github/workflows/release.yml](../.github/workflows/release.yml) refuses a lightweight tag, a
+   tag off main, a tag that is not `module.json`'s version and a tag already released; it runs the
+   builder (so the gate) and publishes the zip **and** a bare `module.json`. A red run publishes
+   nothing: fix, make a new release commit and tag it (a tag is never moved or deleted from here).
+   The workflow run by hand (`gh workflow run release.yml`) is the dry run on CI: the zip kept as
+   an artifact, nothing published.
 6. **The deploy** (run in the sibling MCP repo, `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs`):
    `FOUNDRY_HOST=molten node <that script> fvtt-mod-battleflow --check` first. ⚠ An
    all-identical hash is a half-awake box: wake it through the bridge (`get-world-info`), re-check,
