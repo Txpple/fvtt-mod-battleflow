@@ -206,7 +206,7 @@ async function reconcileAuraNow(group, gone) {
   }
 }
 
-/* --- the trigger: a spell row's save, demanded of one creature over the bus ----------------- */
+/* --- the trigger: a row's save (or plain damage), demanded of one creature over the bus ----- */
 
 async function maybeTrigger(behType, token, cause) {
   try {
@@ -227,10 +227,12 @@ async function maybeTrigger(behType, token, cause) {
     }
     if ( !(region.tokens?.has?.(token) ?? true) && (cause === "turnEnd") ) return;   // ended its turn OUTSIDE
     const item = resolveUuid(sys.item);
+    // The save activity judges; an `area` row whose activity is plain damage (Cloud of Daggers) rolls it instead.
     const activity = activityOfType(item, "save");
+    const damage = activity ? null : activityOfType(item, "damage");
     const dc = activity?.save?.dc?.value;
     const abilities = [...(activity?.save?.ability ?? [])];
-    if ( !activity || !(dc > 0) || !abilities.length ) return;
+    if ( !item || (activity ? (!(dc > 0) || !abilities.length) : !damage) ) return;
     const actor = token.actor;
     const combat = activeCombatFor(actor);
     const chitKey = `emanation:${region.id}`;
@@ -242,10 +244,13 @@ async function maybeTrigger(behType, token, cause) {
         origin: item.uuid, riderKey: chitKey }).catch(() => {});
     }
     const casterActor = item.actor ?? null;
+    // An `area` names its caster (nothing is attached); a ring names its source token.
+    const whose = (row.kind === "area") ? (casterActor?.name ?? source?.name ?? "the caster") : (source?.name ?? casterActor?.name ?? "the caster");
+    const why = (cause === "enter") ? `entered ${whose}'s ${row.key}` : `ended its turn inside ${whose}'s ${row.key}`;
+    if ( damage ) return triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due });
     const onSave = activity.damage?.onSave ?? "half";
     const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
     const window = decisionWindow();
-    const why = (cause === "enter") ? `entered ${source?.name ?? "the caster"}'s ${row.key}` : `ended its turn inside ${source?.name ?? "the caster"}'s ${row.key}`;
     const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
     const card = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
@@ -275,6 +280,35 @@ async function maybeTrigger(behType, token, cause) {
     if ( hasDamage && card ) await rollDamageForSave(activity, card);
   } catch(err) {
     console.error(`${TITLE} | Emanation trigger failed — ask for the save by hand.`, err);
+  }
+}
+
+/**
+ * An `area` whose activity is PLAIN DAMAGE (Cloud of Daggers): no save to decide it, so the rule leaves no
+ * choice (R1) — the activity's damage is rolled on the caster at the cast's level and applied, receipted.
+ */
+async function triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due }) {
+  try {
+    const rolls = await damage.rollDamage({ scaling: Number(sys.scaling ?? 0) }, { configure: false }, { create: false });
+    const list = (rolls ?? []).filter(r => r && Number.isFinite(r.total));
+    if ( !list.length ) { console.warn(`${TITLE} | ${row.key}: its damage did not roll — apply it by hand.`); return; }
+    const total = list.reduce((n, r) => n + Number(r.total), 0);
+    const type = list[0]?.options?.type ?? [...(damage.damage?.parts?.[0]?.types ?? [])][0] ?? null;
+    // ⚠ Read the rolls BEFORE the card: ChatMessage.create serializes the array it is handed in place.
+    const damages = list.map(r => ({ value: Number(r.total), type: r.options?.type ?? type ?? "slashing", properties: new Set(["mgc"]) }));
+    const card = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+      rolls: [...list],
+      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "bad",
+        title: `${row.key} — ${actor.name} ${why}: ${total} ${type ?? ""} damage`.replace(/\s+/g, " "),
+        subtitle: `no save · ${due.why}`,
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { emanationTrigger: { ...statContext(casterActor?.uuid ?? null), key: row.key, cause: (/entered/.test(why) ? "enter" : "turnEnd"),
+        regionId: region.id, targetUuid: actor.uuid, why: due.why, total, type, damage: true } } }
+    });
+    if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: token.name }], damages, { note: row.key });
+  } catch(err) {
+    console.error(`${TITLE} | ${row?.key ?? "An area"}'s damage failed — apply it by hand.`, err);
   }
 }
 
@@ -528,7 +562,7 @@ listen("preCreateRegionBehavior", "emanations", (behavior, data) => {
     if ( flagOf(region) ) return false;
     const item = resolveUuid(region.getFlag("dnd5e", "item"));
     const row = item ? rowFor(item) : null;
-    if ( row && (row.kind === "spell") && listed().has(lower(row.key)) ) return false;
+    if ( row && ((row.kind === "spell") || (row.kind === "area")) && listed().has(lower(row.key)) ) return false;
   } catch(err) {
     console.warn(`${TITLE} | Could not judge a region behaviour — the platform's stands.`, err);
   }
@@ -662,8 +696,8 @@ async function reconcileScene(scene) {
       console.error(`${TITLE} | Could not raise ${w.row.key} around ${w.actor.name}.`, err);
     }
   }
-  // Spell regions too: a scene going live or dead changes what they apply, and no event of theirs says so.
-  for ( const region of scene.regions.filter(r => flagOf(r)?.kind === "spell") ) await reconcileMembers(region);
+  // Spell and area regions too: a scene going live or dead changes what they apply, and no event of theirs says so.
+  for ( const region of scene.regions.filter(r => ["spell", "area"].includes(flagOf(r)?.kind)) ) await reconcileMembers(region);
 }
 
 /* --- the lifecycle: a spell's emanation is the region placed at the cast --------------------- */
@@ -676,18 +710,19 @@ async function adoptSpellRegion(region) {
     const item = resolveUuid(itemUuid);
     if ( !item ) return;
     const row = rowFor(item);
-    if ( !row || (row.kind !== "spell") || !listed().has(lower(row.key)) ) return;
+    if ( !row || !["spell", "area"].includes(row.kind) || !listed().has(lower(row.key)) ) return;
     const actor = item.actor ?? null;
-    // The placement stamps the usage token as `flags.dnd5e.origin`.
+    // The placement stamps the usage token as `flags.dnd5e.origin`. ⚠ An AREA is attached to nothing: it stays
+    // where it was placed and the caster drags it (the platform raises enter for whoever it then covers).
     const originTok = resolveUuid(region.getFlag("dnd5e", "origin"));
-    const tok = (originTok?.documentName === "Token") ? originTok
+    const tok = (row.kind === "area") ? null : (originTok?.documentName === "Token") ? originTok
       : actor?.token ?? region.parent.tokens.find(t => t.actor && ((t.actor === actor) || (t.actor.uuid === actor?.uuid))) ?? null;
     const rollData = actor?.getRollData?.() ?? {};
     const effect = row.effect ? (item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null) : null;
     const resolved = effect ? resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData) : { changes: [], unresolved: [] };
     const spellLevel = Number(region.getFlag("dnd5e", "spellLevel") ?? item.system?.level ?? 0);
     const scaling = Math.max(0, spellLevel - Number(item.system?.level ?? 0));
-    await adoptRegion(region, { kind: "spell", key: row.key, tok, itemUuid, reach: row.reach, scaling,
+    await adoptRegion(region, { kind: row.kind, key: row.key, tok, itemUuid, reach: row.reach, scaling,
       effect: (effect && !resolved.unresolved.length) ? { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes: resolved.changes } : null });
     const size = activitySizeOf(item, rollData);
     const drawn = region.shapes?.[0]?.radius;
@@ -907,7 +942,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
     const nothing = row.remind ? "a notice at the start of your turn — the heal is yours to aim"
       : pulseLine ? pulseLine
       : (row.effect === null) ? `no effect to apply — ${row.caveat ?? "the ring is the table's"}` : reach;
-    const rangeText = range ? `${range}-foot Emanation` : "Emanation";
+    const rangeText = (row.kind === "area") ? (range ? `a ${range}-foot area` : "an area") : range ? `${range}-foot Emanation` : "Emanation";
     // A part with several types is a choice the card carries: the alignment's default, or the caster's pick.
     const types = partTypesOf(activity);
     const alignment = actor?.system?.details?.alignment ?? null;

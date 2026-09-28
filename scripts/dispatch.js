@@ -34,6 +34,7 @@ export const ORDER = Object.freeze([
   "bash-offer",
   "topple",
   "chip-spend",
+  "wards",              // the ward's veto before the gate draws (a false stops the chain); the ward ends before cast.js lands its effect
   "reminders",          // the gate draws its section and writes its record first
   "advantage-buys",     // then the buy box joins the section and its record overwrites the gate's
   "rest-grants",

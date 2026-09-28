@@ -7,6 +7,7 @@ import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, futileGuardLine, guardRow, liveRows, rescueTitle } from "../decide/rescue-hit.js";
+import { duplicateWords } from "../decide/duplicates.js";
 import { poolOf } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
@@ -95,6 +96,15 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
         else if ( target.answer === "pass" ) lines.push(target.timedOut
           ? "The reaction window closed — no answer, so the attack lands."
           : "Let it land — no reaction.");
+      }
+      // THE DUPLICATES rolled (Mirror Image): the dice, what they did, what stands.
+      if ( target.duplicates?.faces?.length && (hold.status !== "pending") ) {
+        const d = target.duplicates;
+        const words = duplicateWords({ key: d.key, die: d.die, at: d.at }, { absorbed: !!d.absorbed, winner: d.winner ?? null, faces: d.faces }, { took: d.took?.name ?? null, left: d.left ?? 0, of: d.of ?? 0 });
+        const after = (target.answer === "roll") && target.bent ? [`after ${esc(target.rescue ?? target.reaction)}: <strong>${target.bent.total}</strong> vs AC <strong>${target.acAtVerdict ?? target.ac}</strong> — still a hit`] : [];
+        block.innerHTML = bfCard({ img: d.img ?? null, eyebrow: d.key, title: words.title, subtitle: target.name,
+          tone: d.absorbed ? "good" : "bad", lines: [...after, words.dice, words.count] });
+        return;
       }
       // A resolved BENT roll: who bent it and what it did.
       if ( (target.answer === "roll") && target.bent && target.verdict && (hold.status !== "pending") ) {

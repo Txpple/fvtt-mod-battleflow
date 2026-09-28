@@ -559,7 +559,11 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  * to the token moves with it and raises enter / exit / turn events (`RegionDocument.createTokenEmanation`
  * builds the token-plus-radius shape). The pack ships each aura's effect; who is inside is the module's.
  *   kind       "feature" (on while the source's token is on the scene and the range resolves) | "spell"
- *              (the system's template adopted, attached to the caster, ending with it)
+ *              (the system's template adopted, attached to the caster, ending with it) | "area" (the spells
+ *              slice: the system's template adopted where it was PLACED, attached to nothing;
+ *              the caster drags it, the platform raises enter for whoever it now covers; ends with the
+ *              concentration). An `area` row's activity may be plain DAMAGE (Cloud of Daggers): no save,
+ *              the trigger rolls it on the caster and applies it, receipted
  *   reach      "helpful" (allies and neutrals) | "harmful" (enemies) | "all"
  *   range      null: the activity's size · a formula read off the SOURCE's roll data — ⚠ never a number for
  *              a class-scaled feature (N1) · "weaponReach": the held weapon's (10 with Reach, else 5)
@@ -637,7 +641,39 @@ export const EMANATIONS = Object.freeze({
     alert: Object.freeze({ on: "moveIn", label: "Reactive Strike",
       swing: "Take your <strong>Reaction</strong> to make one melee attack at it, from the sheet." }),
     rule: Object.freeze({ item: "Polearm Master", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPolearmMast", benefit: "Reactive Strike" }),
-    from: "General feat" })
+    from: "General feat" }),
+  // THE AREAS THAT PULSE (the spells slice, Tier 3; RULINGS *The spells slice — Tier 3*): the
+  // 2024 text of each is "enters the area or ends its turn there", "when the area moves into its space",
+  // "only once per turn" — Spirit Guardians' trigger to the word. Reach "all": every creature, the caster too.
+  // Held out: Wall of Fire (no area in its data, a one-sided band), Spike Growth (damage per 5 ft moved — DESIGN §4).
+  "Moonbeam": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the Magic action that moves the beam is the caster's drag of the template; a shape-shifter's reversion is the table's",
+    rule: Object.freeze({ item: "Moonbeam", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMoonbeam00" }),
+    from: "Druid spell, level 2 (Concentration, 1 minute)" }),
+  "Insect Plague": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "Lightly Obscured and Difficult Terrain are the table's",
+    rule: Object.freeze({ item: "Insect Plague", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplInsectPlag" }),
+    from: "Cleric / Druid / Sorcerer spell, level 5 (Concentration, 10 minutes)" }),
+  "Cloudkill": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the fog's own drift (10 feet away from you at the start of each of your turns) is the caster's drag; Heavily Obscured is the table's",
+    rule: Object.freeze({ item: "Cloudkill", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCloudkill0" }),
+    from: "Sorcerer / Wizard spell, level 5 (Concentration, 10 minutes)" }),
+  // No save: the pack's activity is plain damage, rolled on the caster and applied at each trigger (ruled automatic, R1).
+  "Cloud of Daggers": Object.freeze({ kind: "area", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the Magic action that teleports the Cube is the caster's drag of the template",
+    rule: Object.freeze({ item: "Cloud of Daggers", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCloudofDag" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 2 (Concentration, 1 minute)" }),
+  // A SUMMON: the sphere is a token of the pack's own actor, and "within 5 feet of the sphere" is a feature
+  // ring around it — today's kind. Its `Flames` carries the save (the summon matches the caster's DC).
+  "Flaming Sphere": Object.freeze({ kind: "feature", item: "Flames", reach: "all", range: 5, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the Bonus Action that rolls the sphere is its token's move; a creature it is rolled into is entered",
+    rule: Object.freeze({ item: "Flaming Sphere", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFlamingSph" }),
+    from: "Druid / Sorcerer / Wizard spell, level 2 (Concentration, 1 minute)" })
 });
 
 /**
@@ -811,7 +847,7 @@ export const DAMAGE_SAVES = Object.freeze({
 
 
 /** The two lifecycles an emanation can have — the closed set the R4 tripwire counts. */
-export const EMANATION_KINDS = new Set(["feature", "spell"]);
+export const EMANATION_KINDS = new Set(["feature", "spell", "area"]);
 
 /**
  * Areas whose DATA lies about their life, spent at their last verdict (saves/areas.js reads every other
@@ -1491,6 +1527,47 @@ export const TURN_GRANTS = Object.freeze({
 });
 
 /**
+ * THE WARDS (the spells slice, Tier 3; wards.js; RULINGS *The spells slice — Tier 3*): a standing
+ * effect on a creature that makes whoever TARGETS it save first, BEFORE the roll — the buy box's seam
+ * (`dnd5e.preRollAttack`, advantage-buys.js) and the cast's (`dnd5e.preUseActivity`). Keyed by the spell; the
+ * effect is found on the bearer by its name AND its origin item (`repeatRowFor`'s matcher). The save is the
+ * item's own activity, demanded of the attacker through the saves machine; a failure cancels the attack or the
+ * spell (the card says so, the target is the attacker's to change); a success lets it roll.
+ *   effect    the pack's effect on the WARDED creature;  activity  the save activity on the ward's item
+ *   gates     "attack" — every attack roll at the bearer · "damagingSpell" — a spell with damage aimed at it
+ *             (no area: "doesn't protect from areas of effect")
+ *   endsOn    what the BEARER does that ends it: "attack" (an attack roll) · "spell" (any cast, cantrips and
+ *             heals included — ruled) · "damage" (a damage roll — the register row)
+ * Not a kind: one machine, rows of data. ⚠ Unbreakable Majesty (Bard, Glamour 14) is NOT this shape in 2024:
+ * its save comes AFTER a hit ("or the attack misses instead") — the duplicates' seam with a save for the die.
+ */
+export const WARDS = Object.freeze({
+  "Sanctuary": Object.freeze({ effect: "Warded", activity: "Save on Target",
+    gates: Object.freeze(["attack", "damagingSpell"]), endsOn: Object.freeze(["attack", "spell", "damage"]),
+    rule: Object.freeze({ item: "Sanctuary", uuid: "Compendium.dnd-players-handbook.spells.Item.phbSanctuary0000" }),
+    from: "Cleric spell, level 1 (1 minute)" })
+});
+
+/**
+ * THE DUPLICATES (the spells slice, Tier 3; hold/*, RULINGS *The spells slice — Tier 3*): a hit that
+ * stands after the defender's reactions is rolled AGAINST THE DUPLICATES — a die per standing duplicate, any
+ * face at `at` or higher redirects the hit to one of them, which is destroyed (its effect deleted); no choice
+ * (R1), no popup — the dice rise off the token. Rides the hold: the target entry is answered by the machine, the
+ * absorbed hit is a `verdict: "absorbed"` (decide/verdict.js). An attacker that sees through (a status, a sense)
+ * rolls nothing and a line says why.
+ *   effect    the pack's effects, one per duplicate (the count is what stands on the sheet)
+ *   die · at  the die per duplicate, the face that redirects
+ *   seesThrough  { statuses, senses } on the ATTACKER that make it immune
+ * Not a kind: one machine, rows of data.
+ */
+export const DUPLICATES = Object.freeze({
+  "Mirror Image": Object.freeze({ effect: Object.freeze(["Duplicate A", "Duplicate B", "Duplicate C"]), die: 6, at: 3,
+    seesThrough: Object.freeze({ statuses: Object.freeze(["blinded"]), senses: Object.freeze(["blindsight", "truesight"]) }),
+    rule: Object.freeze({ item: "Mirror Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMirrorImag" }),
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 2 (1 minute)" })
+});
+
+/**
  * THE R4 TRIPWIRE (DESIGN.md R4, ARCHITECTURE §6): every closed kind set, with the size of the dnd5e enum it
  * mirrors (`system`; null for the module's own). tools/check-registry.mjs pins the total, so ADDING A KIND
  * FAILS THE GATE until the pin moves on purpose. Only masteries mirror one (`CONFIG.DND5E.weaponMasteries`).
@@ -1517,7 +1594,8 @@ export const KIND_SETS = [
       + "the condition table, and a ranged attack's own range (2026-09-02)" },
   { name: "emanation", owner: "emanations.js", kinds: EMANATION_KINDS, system: null,
     note: "how an emanation lives: always on with a feature's source token, or cast and adopted from "
-      + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock" },
+      + "the template the system placed (2026-09-03) — the platform's Region keeps geometry and clock; "
+      + "`area` (the spells slice): the template adopted where it was placed, attached to nothing" },
   { name: "repeatSave", owner: "repeat-saves.js", kinds: REPEAT_TRIGGERS, system: null,
     note: "what raises a landed effect's repeated save (the spells slice, 2026-09-28): the bearer's turn "
       + "end, damage landing on it, or the bearer's own action offered at its turn start" }
@@ -1592,6 +1670,8 @@ export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));
 export const healRerollEntries = () => everyRow(Object.keys(HEAL_REROLLS));
 export const repeatSaveEntries = () => everyRow(Object.keys(REPEAT_SAVES));
 export const turnGrantEntries = () => everyRow(Object.keys(TURN_GRANTS));
+export const wardEntries = () => everyRow(Object.keys(WARDS));
+export const duplicateEntries = () => everyRow(Object.keys(DUPLICATES));
 export const damageEitherEntries = () => everyRow(Object.keys(DAMAGE_EITHER));
 export const cardChipEntries = () => everyRow(Object.keys(CARD_CHIPS));
 export const rebukeEntries = () => everyRow(Object.keys(REBUKES));

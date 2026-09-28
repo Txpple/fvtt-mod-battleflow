@@ -5,12 +5,14 @@
  */
 import { MODULE_ID, TITLE } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, answers, duplicateEntries, listedNames } from "../decide/registry.js";
+import { repeatRowFor } from "../decide/repeat-saves.js";
+import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, reductionFor, holdsFor, itemsNamed, featureNamed } from "../lookup.js";
 import { alliesWithin, tokenForUuid } from "../geometry.js";
-import { reactionSpent, poolOf, placeOf, chipData } from "../shared.js";
+import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
 
@@ -132,6 +134,28 @@ export function rollRescuesOf(actor) {
       left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max });
   }
   return out;
+}
+
+/**
+ * THE DUPLICATES standing on a defender (DUPLICATES, Mirror Image), read against this attacker: the row, the
+ * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
+ * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null}|null}
+ */
+export function duplicatesOf(defender, attacker) {
+  if ( !defender ) return null;
+  const listed = listedNames(duplicateEntries());
+  for ( const effect of defender.effects ) {
+    if ( !effect.active ) continue;
+    const item = effectSourceOf(effect)?.item ?? null;
+    const row = repeatRowFor({ table: DUPLICATES, item, effectName: effect.name, listed, answers });
+    if ( !row ) continue;
+    const standing = standingDuplicates(row, defender.effects.contents);
+    if ( !standing.length ) return null;
+    const seen = seesThrough(row, { statuses: attacker?.statuses ?? [], senses: attacker?.system?.attributes?.senses ?? {} });
+    return { key: row.key, at: row.at, die: row.die, count: standing.length, of: Array.isArray(row.effect) ? row.effect.length : 1,
+      ids: standing.map(e => e.id), names: standing.map(e => e.name), img: item?.img ?? effect.img ?? null, seenThrough: seen.why };
+  }
+  return null;
 }
 
 /**

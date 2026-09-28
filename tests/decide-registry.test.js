@@ -168,7 +168,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // made a success — the verdict itself, no die; the PHB feats, group 4).
     // 2026-09-28: 35 → 38 — `repeatSave` joins with three kinds (the spells slice): what raises a landed
     // effect's repeated save — the bearer's turn end, damage landing, its own action offered.
-    expect(total).toBe(38);
+    // 2026-09-28 (later): 38 → 39 — `area` joins the emanations (the spells slice, Tier 3): the system's
+    // template adopted where it was placed, attached to nothing — Moonbeam, Cloudkill, Cloud of Daggers.
+    expect(total).toBe(39);
   });
 
   it("counts every kind list's set in the tripwire", () => {

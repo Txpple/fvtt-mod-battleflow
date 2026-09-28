@@ -1,9 +1,10 @@
-// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*) on Party Camp.
+// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3*) on Party Camp.
 // CLEARS every token on Party Camp, then places BF Walk Cleric (friendly; every spell of the slice at
 // will, Cure Wounds beside them) with two targets 5 ft east of it: BF Walk Target (hostile — the
 // one Hold Person, Command and the rest land on) and BF Walk Ally (friendly — Heroism, Beacon of Hope
 // and Protection from Poison go on it). The targets are CLEAN copies of BF Test Victim's shape with
-// plenty of Hit Points, linked tokens; idempotent; asserts nothing.
+// plenty of Hit Points, linked tokens; the Target carries a Morningstar for Sanctuary's and Mirror
+// Image's walk (Tier 3); idempotent; asserts nothing.
 // ⚠ Disconnect the MCP bridge first.
 import { connectSuite } from '../harness.mjs';
 
@@ -47,7 +48,9 @@ const out = await f.evaluate(async () => {
 
   const SPELLS = ['Protection from Poison', 'Haste', 'Beacon of Hope', "Otto's Irresistible Dance", 'Command', 'Sorcerous Burst',
     'Heroism', 'Synaptic Static', 'Hold Person', 'Hold Monster', "Tasha's Hideous Laughter", 'Blindness/Deafness', 'Crown of Madness',
-    'Slow', 'Fear', 'Confusion', 'Phantasmal Killer', 'Eyebite', 'Contagion', 'Dominate Person', 'Flesh to Stone', 'Cure Wounds'];
+    'Slow', 'Fear', 'Confusion', 'Phantasmal Killer', 'Eyebite', 'Contagion', 'Dominate Person', 'Flesh to Stone', 'Cure Wounds',
+    // Tier 3
+    'Moonbeam', 'Cloud of Daggers', 'Cloudkill', 'Insect Plague', 'Flaming Sphere', 'Sanctuary', 'Mirror Image', 'Sacred Flame'];
   const made = {};
   {
     const o = cleric.toObject();
@@ -70,9 +73,10 @@ const out = await f.evaluate(async () => {
   }
   const img = dummyArt?.img ?? 'icons/svg/mystery-man.svg';
   const tex = dummyArt?.prototypeToken?.texture?.src ?? img;
+  const morningstar = await phb('Morningstar', 'weapon');
   for (const [name, disposition] of [[TARGET, -1], [ALLY, 1]]) {
     made[name] = await Actor.create({
-      name, type: 'npc', img, folder: folder.id, items: [],
+      name, type: 'npc', img, folder: folder.id, items: (name === TARGET && morningstar) ? [{ ...morningstar, system: { ...morningstar.system, equipped: true } }] : [],
       system: {
         abilities: { str: { value: 12 }, dex: { value: 12 }, con: { value: 12 }, int: { value: 10 }, wis: { value: 10 }, cha: { value: 10 } },
         attributes: { hp: { value: 120, max: 120 }, ac: { calc: 'flat', flat: 12 }, movement: { walk: 30 } },
@@ -95,7 +99,7 @@ const out = await f.evaluate(async () => {
   log.push(`placed ${tokens.length} token(s)`);
 
   const read = Object.fromEntries(Object.entries(made).map(([n, a]) => [n,
-    `HP ${a.system.attributes.hp.value}/${a.system.attributes.hp.max} · ` + a.items.filter(i => i.type === 'spell').map(i => i.name).join(', ')]));
+    `HP ${a.system.attributes.hp.value}/${a.system.attributes.hp.max} · ` + a.items.filter(i => (i.type === 'spell') || (i.type === 'weapon')).map(i => i.name).join(', ')]));
   return { log, missing, read };
 }, null);
 console.log(JSON.stringify(out, null, 2));

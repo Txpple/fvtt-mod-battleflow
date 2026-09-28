@@ -39,6 +39,8 @@ export const ATTACK_FOLDS = [
       if ( (t.kind === "negate") || (t.verdict === "negated") ) {
         return { uuid: t.uuid, verdict: t.verdict };
       }
+      // A hit a duplicate took (Mirror Image): forced, whatever the AC it was judged against.
+      if ( t.verdict === "absorbed" ) return { uuid: t.uuid, verdict: "absorbed" };
       // A `roll` answer (Disadvantage imposed after the hit): the bent d20 REPLACES for this target alone.
       const bent = Number.isFinite(t.bent?.total)
         ? { replace: { total: t.bent.total, isCritical: t.bent.isCritical === true, isFumble: t.bent.isFumble === true } }

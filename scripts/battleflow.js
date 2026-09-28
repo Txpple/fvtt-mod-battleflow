@@ -24,6 +24,7 @@ import "./effect-riders.js";
 import "./mastery.js";
 import "./topple.js";
 import "./chip-spend.js";
+import "./wards.js";
 import "./reminders.js";
 import "./advantage-buys.js";
 import "./rest-grants.js";

@@ -15,7 +15,8 @@ import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
 import { livePopups, waitForWrite } from "../ui.js";
-import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
+import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf } from "./lookup.js";
+import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
 import { continueSpellHold } from "./spell-hold.js";
@@ -27,7 +28,7 @@ listen("updateChatMessage", "hold/continue", message => {
   closeAnsweredHoldPopups(message);
 
   const hold = message.getFlag(MODULE_ID, "hold");
-  if ( hold?.status === "resolved" ) void landProtection(message, hold);
+  if ( hold?.status === "resolved" ) { void landProtection(message, hold); void landDuplicates(message, hold); }
   if ( !hold || (hold.status !== "pending") || !isContinuingClient(hold) ) return;
   if ( !hold.targets.every(t => t.answer) ) return;
   void continueHold(message);
@@ -157,6 +158,14 @@ async function driveHoldContinuation(attackMessage, hold) {
     }
   }
 
+  // THE DUPLICATES (Mirror Image), rolled on a hit that STILL stands — after the defender's reactions, so a
+  // Shield or a Lucky that turned it rolls nothing (ruled, the prototype's C5).
+  for ( const target of hold.targets ) {
+    if ( !target.duplicates || (target.verdict !== "hit") ) continue;
+    const said = await rollDuplicates(attackMessage, target);
+    if ( said ) announcements.push(said);
+  }
+
   hold.status = "resolved";
   disarmHoldTimer(attackMessage.id);
   // The verdicts, through the serializer: a fold still queued on this client lands first, and a
@@ -176,6 +185,60 @@ async function driveHoldContinuation(attackMessage, hold) {
 
   // A crit the hold could undo was never rolled: roll it now, as the answer left it.
   if ( hold.critAtStake ) await damageAfterHold(attackMessage);
+}
+
+/**
+ * A die per standing duplicate, rolled in the open; any face at `at` or higher redirects the hit to one
+ * of them: the entry's verdict becomes "absorbed" (the applier drops it), the LAST duplicate is the one
+ * destroyed, landed by the defender's driver (`landDuplicates`). Returns the announcement card, or null.
+ */
+async function rollDuplicates(attackMessage, target) {
+  try {
+    const actor = resolveUuid(target.uuid);
+    const attacker = attackMessage.getAssociatedActor?.() ?? null;
+    const live = duplicatesOf(actor, attacker);   // re-read: a duplicate may have gone since the stamp
+    const d = target.duplicates;
+    if ( !live || live.seenThrough || !live.count ) { target.duplicates = { ...d, faces: [], absorbed: false, left: live?.count ?? 0, gone: true }; return null; }
+    const roll = await new Roll(`${live.count}d${live.die}`).evaluate();
+    const faces = roll.dice[0]?.results?.map(r => Number(r.result)) ?? [];
+    const outcome = duplicateOutcome({ at: live.at }, faces);
+    const took = outcome.absorbed ? { id: live.ids.at(-1), name: live.names.at(-1) } : null;
+    const left = outcome.absorbed ? live.count - 1 : live.count;
+    const words = duplicateWords({ key: live.key, die: live.die, at: live.at }, outcome, { took: took?.name ?? null, left, of: live.of });
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${live.key} — a d${live.die} for each duplicate` });
+    target.duplicates = { ...d, faces, winner: outcome.winner, absorbed: outcome.absorbed, took, left, of: live.of, at: live.at, die: live.die };
+    if ( outcome.absorbed ) target.verdict = "absorbed";
+    return bfCard({ img: live.img, eyebrow: live.key, title: words.title, subtitle: target.name, tone: outcome.absorbed ? "good" : "bad",
+      lines: [words.dice, words.count] });
+  } catch(err) {
+    console.error(`${TITLE} | ${target?.duplicates?.key ?? "The duplicates"} could not roll — judge the hit by hand.`, err);
+    return null;
+  }
+}
+
+/** The destroyed duplicate leaves the sheet, once, by the defender's driver (the platform floats its name). */
+const duplicatesLanding = new Set();
+async function landDuplicates(message, hold) {
+  for ( const target of (hold.targets ?? []) ) {
+    const d = target.duplicates;
+    if ( !d?.absorbed || !d.took?.id || d.landed ) continue;
+    const key = `${message.id}|${target.uuid}`;
+    if ( duplicatesLanding.has(key) || !drivesMomentFor(target.uuid) ) continue;
+    const actor = resolveUuid(target.uuid);
+    if ( !(actor instanceof Actor) || !canApplyTo(actor) ) continue;
+    duplicatesLanding.add(key);
+    try {
+      const effect = actor.effects.get(d.took.id);
+      if ( effect ) await effect.delete();
+      if ( message.isOwner ) await queueFlagWrite(message, "hold", h => {
+        const t = h.targets?.find(x => x.uuid === target.uuid);
+        if ( !t?.duplicates || t.duplicates.landed ) return false;
+        t.duplicates.landed = true;
+      });
+    } catch(err) {
+      console.error(`${TITLE} | ${d.key}'s destroyed duplicate could not leave ${target.name} — remove "${d.took.name}" by hand.`, err);
+    }
+  }
 }
 
 /**

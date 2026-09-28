@@ -5,7 +5,8 @@
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
-import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf } from "./lookup.js";
+import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, duplicatesOf } from "./lookup.js";
+import { bfCard } from "../decide/present.js";
 import { armHoldTimer } from "./clock.js";
 import { listen } from "../dispatch.js";
 
@@ -24,8 +25,18 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   /** @type {Record<string, any>[]} */
   const held = [];
   const skipped = [];
+  const attacker = attackMessage.getAssociatedActor?.() ?? null;
   for ( const target of hits ) {
     const actor = await fromUuid(target.uuid);
+    // THE DUPLICATES (Mirror Image): rolled by the machine once the hit stands, on the same hold — an entry
+    // answered by itself when nothing else asks. An attacker that sees through rolls nothing; a line says why.
+    let duplicates = duplicatesOf(actor, attacker);
+    if ( duplicates?.seenThrough ) {
+      void seenThroughCard(actor, attacker, duplicates);
+      duplicates = null;
+    }
+    const withDuplicates = entry => duplicates ? { ...entry, duplicates: { key: duplicates.key, at: duplicates.at, die: duplicates.die,
+      count: duplicates.count, of: duplicates.of, ids: duplicates.ids, names: duplicates.names, img: duplicates.img } } : entry;
     let found = await findInterrupt(actor, { isCritical: roll.isCritical });
     let futile = false;
     if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) {
@@ -39,25 +50,32 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     // Protection from a creature beside this one, each in its own popup.
     const guards = protectionGuardsOf(actor, attackMessage.getAssociatedActor?.() ?? null);
     const guardFields = guards.length ? { guards } : {};
-    if ( !found && !rescue?.live && !guards.length ) continue;
+    if ( !found && !rescue?.live && !guards.length ) {
+      if ( !duplicates ) continue;
+      // Nothing to ask a human: the entry is the machine's own, answered as it is stamped.
+      held.push(withDuplicates({ uuid: target.uuid, name: target.name, ac: target.ac,
+        reaction: duplicates.key, kind: "duplicate", itemId: null, activityId: null, selfAsk: false,
+        hadEffect: false, answer: "auto", answeredAt: Date.now(), verdict: null }));
+      continue;
+    }
     const rescueFields = rescue ? { rows: rescue.rows, rescues: rescue.records } : {};
     if ( !found && !rescue?.live ) {
       // Only the guards are asked.
-      held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
+      held.push(withDuplicates({ uuid: target.uuid, name: target.name, ac: target.ac,
         reaction: guards[0]?.row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
-        hadEffect: false, ...guardFields, answer: null, verdict: null });
+        hadEffect: false, ...guardFields, answer: null, verdict: null }));
       continue;
     }
     if ( !found ) {
       // The first live `roll` row stands as the hold's own, so `reaction`/`itemId` name a real ability.
       const first = rescue?.records.find(r => !rescue.rows.find(x => x.key === r.name)?.off);
       if ( !first ) continue;
-      held.push({ uuid: target.uuid, name: target.name, ac: target.ac,
+      held.push(withDuplicates({ uuid: target.uuid, name: target.name, ac: target.ac,
         reaction: first.name, kind: "roll", itemId: first.itemId, activityId: first.activityId,
-        hadEffect: false, ...rescueFields, ...guardFields, answer: null, verdict: null });
+        hadEffect: false, ...rescueFields, ...guardFields, answer: null, verdict: null }));
       continue;
     }
-    held.push({
+    held.push(withDuplicates({
       ...rescueFields, ...guardFields,
       uuid: target.uuid, name: target.name, ac: target.ac,
       reaction: found.entry.name, kind: found.entry.kind,
@@ -69,7 +87,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
       hadEffect: hasReactionEffect(actor, found.entry.name,
         { itemId: found.item.id, activityId: found.activity?.id }),
       answer: null, verdict: null
-    });
+    }));
   }
   if ( skipped.length ) {
     void attackMessage.setFlag(MODULE_ID, "holdSkipped", {
@@ -92,6 +110,19 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
   });
   armHoldTimer(attackMessage);
   return true;
+}
+
+/** The line for an attacker the duplicates cannot fool (a status, a sense): no dice, and why. */
+async function seenThroughCard(defender, attacker, duplicates) {
+  try {
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: defender }),
+      content: bfCard({ img: duplicates.img, eyebrow: `${duplicates.key} — no roll`, tone: "neutral",
+        title: `${attacker?.name ?? "The attacker"} sees through it`, subtitle: defender?.name ?? "",
+        lines: [`${duplicates.seenThrough}: the duplicates don't fool it.`] }),
+      flags: { [MODULE_ID]: { duplicatesSeen: { key: duplicates.key, defenderUuid: defender?.uuid ?? null, attackerUuid: attacker?.uuid ?? null, why: duplicates.seenThrough } } }
+    });
+  } catch(err) { console.warn(`${TITLE} | The duplicates' line could not post.`, err); }
 }
 
 /**

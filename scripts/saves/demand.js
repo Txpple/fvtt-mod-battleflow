@@ -197,7 +197,8 @@ async function stampSaveDemand(activity, message, results) {
     // feature (a `feat` has none; null would read as a duration area that never ends).
     const durationUnits = activity.item?.system?.duration?.units ?? activity.duration?.units ?? null;
     const instantArea = (durationUnits === "inst") || spentAreaListed(activity.item);
-    const emptyInstant = awaiting && !!contained && instantArea && !metamagic.hold;
+    // …and an EMANATION placed with nobody inside owes nothing at the cast: its region's triggers own every later save.
+    const emptyInstant = awaiting && !!contained && (instantArea || emanation) && !metamagic.hold;
     await message.setFlag(MODULE_ID, "saves", saveDemandData({
       status: emptyInstant ? "done" : "pending",
       stat: statContext(activity.actor?.uuid ?? null),

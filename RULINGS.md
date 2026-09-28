@@ -54,6 +54,9 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Command**: the word is spoken as the spell is cast | asked of the caster when the target's save FAILS (a success asks nothing): Approach / Flee / Grovel / Halt in one popup; Grovel presses Prone (receipted), the other three are the table's to play; the clock defaults to Halt | the verdict pass is the one seam that can hold a consequence for an answer (`saves/choices.js`, the bash's shape), and the word changes nothing the save reads | 2026-09-28 |
 | **Fear**: the target repeats the save "if it doesn't have line of sight to you" | demanded at every turn end, the clause said on the card; a success the creature should not have had is reverted from the cast card by hand | sight is nothing the module reads (`REPEAT_SAVES` `caveat`) | 2026-09-28 |
 | **Beacon of Hope**: "regains the maximum number of Hit Points possible from any healing" | healing the MODULE lands through the cast path (a healing spell aimed at the creature) is raised to the roll's maximum, the receipt saying so; healing applied with a card's own buttons, by a kit, an aura or a sheet edit is not | only the module's own applier can change a number as it lands (`cast.js`, `HEAL_REROLLS` `max`) | 2026-09-28 |
+| **Sanctuary**: the spell ends if the warded creature "deals damage" | the bearer's own DAMAGE ROLL ends it (an attack roll and a cast end it as written) | the applier knows a damage's dealer only through its originating card, and not on every path; the bearer's damage roll is the fact read on all of them (`wards.js`, `dnd5e.rollDamage`) | 2026-09-28 |
+| **Sanctuary**: on a failed save the attacker must "choose a new target or lose the attack or spell" | the use is VETOED before it rolls or casts: nothing is spent — no attack, no slot — and the attacker aims again or lets it go; "lose the spell" (the slot) is not enforced | the veto (`dnd5e.preRollAttack`, `dnd5e.preUseActivity`) is the one seam before the roll, and it stops the use before the platform consumes anything; spending a slot on a cast that never happened would be a hand-written deduction (`wards.js`) | 2026-09-28 |
+| **Mirror Image**: "each time a creature hits you with an attack roll" — the duplicates before anything else | rolled AFTER the defender's held reactions resolve (Shield, Lucky, a guard), only if the hit still stands | the hold is the seam where a hit waits; the duplicates ride it as an entry of their own, and rolling before the answer would burn a duplicate on a hit a Shield then turns (`hold/continue.js`) | 2026-09-28 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -1387,6 +1390,81 @@ and two targets on Party Camp):
 | **Flesh to Stone** landed, three failed turn ends | "1 of 3 failures", "2 of 3", then "the third failure: Petrified" — Petrified on the token, no fourth ask |
 | **Dominate Person** landed, damage the target | the repeat raised on the damage, none at the turn end |
 | **Confusion** landed, a successful turn end | the effect ends and the module's own "−(Confused)" floats (the platform draws none for a bare effect) |
+
+## The spells slice — Tier 3 (2026-09-28, ruled off `prototypes/spells-slice.html`: "all drawn as, go")
+
+**Two corrections to the commission before a line was written** (the PHB pack read on the sandbox): the
+handoff carried 2014 rules in two places. **The placed area's trigger is enter / *ends its turn there* / the
+area moved onto it, once per turn** — every 2024 spell in the list says so, and that is Spirit Guardians'
+trigger word for word, so the area kind reuses it (the handoff said turn *start*). **Mirror Image rolls a d6
+per remaining duplicate on each hit; any 3 or higher redirects** — the pack models it so with three
+Duplicate effects (the d20 against 6 / 8 / 11 was 2014). Sanctuary was as drawn, plus its second clause: it
+gates a *damaging spell* too, never an area.
+
+### The area that pulses — `EMANATIONS` kind `area` (Moonbeam the customer)
+
+The system's template is adopted where it was PLACED, attached to nothing: the caster drags it (the Magic
+action that moves the beam, the fog's drift, the cube's teleport — all the caster's drag of the template)
+and the platform raises the entry for whoever it then covers. The save is the activity's own, demanded on
+the emanation's trigger card as Spirit Guardians' is; the area ends with the concentration. Rows: Moonbeam,
+Insect Plague, Cloudkill (a save), **Cloud of Daggers** (plain damage, no save — rolled on the caster at the
+cast's level and applied, receipted: the rule leaves no choice, R1). **Flaming Sphere is a summon:** "within
+5 feet of the sphere" is a 5-foot feature ring around the sphere's own token (today's kind), its `Flames`
+the save (the summon matches the caster's DC); rolling the sphere into a creature is an entry. Reach `all`:
+"each creature", the caster too. Held out: **Wall of Fire** (no area in its data — the wall is drawn by hand —
+and a one-sided 10-foot band), **Spike Growth** (damage per 5 feet moved — DESIGN §4). The caveats the table
+plays: a shape-shifter's reversion, Obscured, Difficult Terrain.
+
+- **A second trigger in the same turn says so** on a small card ("already saved this turn"), as Spirit Guardians does.
+- **Who moves the area:** whoever may move the template on the platform.
+- **An adopted emanation's cast asks once:** the cast's demand asks who stood inside at the cast; every later
+  save is the region's trigger's (enter, turn end, the area moved). An arrival never joins the cast's demand
+  (it would be asked twice — `saves/areas.js`), and an emanation placed with nobody inside owes nothing at
+  the cast (`saves/demand.js`). Spirit Guardians gains this too.
+
+### Sanctuary — `WARDS`, `wards.js` (the gate before the roll)
+
+The buy box's seam: `dnd5e.preRollAttack` for any attack roll at the warded creature (any item, every
+attack — a Bugbear with two attacks saves twice), `dnd5e.preUseActivity` for a spell with damage aimed at it
+(no area: "doesn't protect the warded creature from areas of effect"; an attack-type spell is gated at its
+roll). The use is vetoed, the ward item's own save activity demanded of the ATTACKER through the saves
+machine on a card of the ward's; **a failure turns it aside** — the card says "no attack roll; choose a new
+target, or the attack is lost", *turned aside* floats off the ward, and a new attack is a new attack (the
+module spends and refunds nothing); **a success makes the use again** with a pass in hand, the roll dialog
+asking as the first press would have. The ward is found by the effect's name AND its origin item (the
+repeat's matcher), so a Warded from elsewhere is nobody's. **The ward ends** on its bearer's own attack roll,
+any cast (cantrips and heals included — the rule says "casts a spell") or damage roll, no choice; a card
+says why and the name floats off (a bare effect: the module draws it). A second customer waits:
+**Unbreakable Majesty is NOT this shape in 2024** — its save comes AFTER a hit ("or the attack misses
+instead"), the duplicates' seam with a save for the die.
+
+### Mirror Image — `DUPLICATES`, the hold (the defender's interrupt after the verdict)
+
+No popup, no Reaction (R1): on a hit that STILL stands after the defender's reactions (Shield, Lucky, the
+guards — the other order would roll dice on hits a Shield then turns), a die per standing duplicate is rolled
+in the open and rises off the token (the dice-that-rise rule's second case: a situational effect that
+changes a roll's outcome); any face at 3 or higher redirects the hit to a duplicate, which is destroyed
+(its effect deleted — Duplicate C first; the platform floats its name), and the hit is `absorbed` — a forced
+verdict on the attack the applier drops, whatever AC it was judged against; the crit's damage goes with it.
+The duplicates ride the hold: an entry the machine answers itself when nothing else asks. An attacker with
+the Blinded condition, Blindsight or Truesight rolls nothing — read off its sheet — and one line says why.
+The last duplicate destroyed ends the spell (the card says so).
+
+**The walk — Tier 3** (`tools/content/place-spells-walk.mjs`: BF Walk Cleric carries Moonbeam, Cloud of
+Daggers, Cloudkill, Insect Plague, Flaming Sphere, Sanctuary, Mirror Image and Sacred Flame; BF Walk Target
+carries a Morningstar):
+
+| Spell | What you should see |
+| --- | --- |
+| **Moonbeam** placed beside the Target, then the Target walks in | an "Emanation" card: "Moonbeam — BF Walk Target entered BF Walk Cleric's Moonbeam", a Constitution save, the 2d10 rolled; ending its turn inside asks again on a new turn, and a second entry in the same turn says "already saved this turn" |
+| **Moonbeam** dragged onto the standing Ally | the same card for the Ally (reach `all`) |
+| **Cloud of Daggers** placed, the Target walks in | a card with the 4d4 rolled and a receipt — no save; the Hit Points move |
+| **Flaming Sphere** cast (the sphere summoned beside the Target), the Target's turn ends within 5 ft | the sphere's own ring: "Flaming Sphere — … ended its turn inside", a Dexterity save, the 2d6 |
+| **Sanctuary** on the Ally, then the Target attacks the Ally | no attack roll: "Sanctuary — a save before the attack" on the Target's side, the Wisdom save; a failure: "turned aside" floats off the Ally and the card says to choose a new target; a success: the attack dialog opens and the attack rolls |
+| **Sanctuary** on the Ally, then Sacred Flame at the Ally | the same gate before the cast; a Fireball at the Ally is not gated |
+| the warded Ally attacks | "Sanctuary ended — BF Walk Ally made an attack roll", the Warded effect gone, "−(Warded)" floating |
+| **Mirror Image** on the Cleric, then the Target hits it | the dice rise off the Cleric (3d6, the redirecting face gold); a duplicate destroyed ("−(Duplicate C)" floats), "A duplicate takes the hit — duplicates: 2 of 3 left", no damage; low dice: "The hit gets through" and the damage lands |
+| the last duplicate | "The last duplicate takes the hit — Mirror Image ended" |
 
 ## Rulings the code carried
 

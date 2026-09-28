@@ -17,12 +17,21 @@ let d;
 let rs;
 /** @type {typeof import("../scripts/decide/turn-grants.js")} */
 let tg;
+/** @type {typeof import("../scripts/decide/wards.js")} */
+let w;
+/** @type {typeof import("../scripts/decide/duplicates.js")} */
+let dup;
+/** @type {typeof import("../scripts/decide/verdict.js")} */
+let v;
 beforeAll(async () => {
   reg = await import("../scripts/decide/registry.js");
   r = await import("../scripts/decide/reminders.js");
   d = await import("../scripts/decide/damage-dice.js");
   rs = await import("../scripts/decide/repeat-saves.js");
   tg = await import("../scripts/decide/turn-grants.js");
+  w = await import("../scripts/decide/wards.js");
+  dup = await import("../scripts/decide/duplicates.js");
+  v = await import("../scripts/decide/verdict.js");
 });
 
 describe("Tier 1 — the rows", () => {
@@ -500,5 +509,302 @@ describe("decide/turn-grants.js — the turn-start grant", () => {
     expect(tg.grantTitle({ spell: "Aura", bearer: "Gren", total: 3, type: "healing" })).toBe(
       "Aura — Gren regains 3 Hit Points"
     );
+  });
+});
+
+/* ================================================================================================
+ * TIER 3 (2026-09-28, ruled off prototypes/spells-slice.html): the area kind, the wards, the duplicates.
+ * ================================================================================================ */
+
+describe("EMANATIONS — the `area` kind (Tier 3)", () => {
+  it("`area` is a fourth emanation kind, counted by the tripwire; the placed areas are rows of it with Spirit Guardians' trigger to the word", () => {
+    expect(reg.EMANATION_KINDS.has("area")).toBe(true);
+    const sg = reg.EMANATIONS["Spirit Guardians"].trigger;
+    for (const k of ["Moonbeam", "Insect Plague", "Cloudkill", "Cloud of Daggers"]) {
+      const row = reg.EMANATIONS[k];
+      expect(row, k).toBeDefined();
+      expect(Object.isFrozen(row), k).toBe(true);
+      expect(row.kind, k).toBe("area");
+      // every creature — the caster too ("each creature in the Sphere")
+      expect(row.reach, k).toBe("all");
+      expect(row.effect, k).toBeNull();
+      expect([...row.trigger.on], k).toEqual([...sg.on]);
+      expect(row.trigger.oncePerTurn, k).toBe(true);
+      expectPointer(row.rule, k);
+      expect(row.rule.item, k).toBe(k);
+      expect(
+        reg.emanationEntries().map(e => e.kind),
+        k
+      ).toContain(k.toLowerCase());
+    }
+  });
+  it("Flaming Sphere is a SUMMON: a feature ring of 5 feet around the sphere's own token, its `Flames` the save", () => {
+    const row = reg.EMANATIONS["Flaming Sphere"];
+    expect(row).toMatchObject({
+      kind: "feature",
+      item: "Flames",
+      reach: "all",
+      range: 5,
+      effect: null
+    });
+    expect([...row.trigger.on]).toEqual(["enter", "turnEnd"]);
+    expect(row.rule.item).toBe("Flaming Sphere");
+  });
+  it("Wall of Fire and Spike Growth are OUT (no area in the data; damage per 5 feet moved)", () => {
+    expect(reg.EMANATIONS["Wall of Fire"]).toBeUndefined();
+    expect(reg.EMANATIONS["Spike Growth"]).toBeUndefined();
+  });
+});
+
+describe("WARDS — the table and decide/wards.js (Tier 3)", () => {
+  it("Sanctuary: the Warded effect, its own Save on Target, both gates, the three ends; frozen, pointed", () => {
+    const row = reg.WARDS.Sanctuary;
+    expect(Object.isFrozen(row)).toBe(true);
+    expect(row).toMatchObject({ effect: "Warded", activity: "Save on Target" });
+    expect([...row.gates]).toEqual(["attack", "damagingSpell"]);
+    expect([...row.endsOn]).toEqual(["attack", "spell", "damage"]);
+    expectPointer(row.rule);
+    expect(row.rule.item).toBe("Sanctuary");
+    expect(reg.wardEntries().map(e => e.kind)).toEqual(["sanctuary"]);
+  });
+  it("the row an effect answers is the repeat's matcher: Warded from Sanctuary, never a Warded from elsewhere", () => {
+    const answers = (key, item) => item?.name === key;
+    expect(
+      rs.repeatRowFor({
+        table: reg.WARDS,
+        item: { name: "Sanctuary" },
+        effectName: "Warded",
+        answers
+      })?.key
+    ).toBe("Sanctuary");
+    expect(
+      rs.repeatRowFor({
+        table: reg.WARDS,
+        item: { name: "Shield of Faith" },
+        effectName: "Warded",
+        answers
+      })
+    ).toBeNull();
+    expect(
+      rs.repeatRowFor({
+        table: reg.WARDS,
+        item: { name: "Sanctuary" },
+        effectName: "Blessed",
+        answers
+      })
+    ).toBeNull();
+  });
+  it("the gate: every attack roll at the ward; a damaging spell only at its cast, never an area, never an attack-type spell there", () => {
+    const row = reg.WARDS.Sanctuary;
+    expect(
+      w.wardGateFor(row, {
+        seam: "attack",
+        activityType: "attack",
+        itemType: "weapon",
+        hasDamage: true,
+        hasTemplate: false
+      })
+    ).toBe("attack");
+    expect(
+      w.wardGateFor(row, {
+        seam: "attack",
+        activityType: "attack",
+        itemType: "spell",
+        hasDamage: true,
+        hasTemplate: false
+      })
+    ).toBe("attack");
+    expect(
+      w.wardGateFor(row, {
+        seam: "use",
+        activityType: "save",
+        itemType: "spell",
+        hasDamage: true,
+        hasTemplate: false
+      })
+    ).toBe("damagingSpell");
+    // Fire Bolt's use is not gated (its roll is); Hold Person deals no damage; Fireball is an area
+    expect(
+      w.wardGateFor(row, {
+        seam: "use",
+        activityType: "attack",
+        itemType: "spell",
+        hasDamage: true,
+        hasTemplate: false
+      })
+    ).toBeNull();
+    expect(
+      w.wardGateFor(row, {
+        seam: "use",
+        activityType: "save",
+        itemType: "spell",
+        hasDamage: false,
+        hasTemplate: false
+      })
+    ).toBeNull();
+    expect(
+      w.wardGateFor(row, {
+        seam: "use",
+        activityType: "save",
+        itemType: "spell",
+        hasDamage: true,
+        hasTemplate: true
+      })
+    ).toBeNull();
+    // a weapon's use is not gated at the cast either
+    expect(
+      w.wardGateFor(row, {
+        seam: "use",
+        activityType: "attack",
+        itemType: "weapon",
+        hasDamage: true,
+        hasTemplate: false
+      })
+    ).toBeNull();
+  });
+  it("the end: the bearer's attack roll, any cast (a heal, a cantrip), a damage roll — never its own cast", () => {
+    const row = reg.WARDS.Sanctuary;
+    expect(w.wardEnds(row, "attack").ends).toBe(true);
+    expect(w.wardEnds(row, "spell").ends).toBe(true);
+    expect(w.wardEnds(row, "damage")).toEqual({ ends: true, why: "dealt damage" });
+    expect(w.wardEnds(row, "spell", { ownItem: true })).toEqual({
+      ends: false,
+      why: "its own cast"
+    });
+    expect(w.wardEnds({ endsOn: ["attack"] }, "spell").ends).toBe(false);
+  });
+  it("the verdict: a success lets the use through, a failure turns it aside; the words name the thing", () => {
+    expect(w.wardVerdict("saved", "attack")).toEqual({
+      through: true,
+      says: "the save passed — the attack goes on"
+    });
+    expect(w.wardVerdict("failed", "damagingSpell")).toEqual({
+      through: false,
+      says: "the save failed — the spell is turned aside"
+    });
+    const words = w.wardWords({
+      spell: "Sanctuary",
+      attacker: "Bugbear",
+      ward: "Ally",
+      gate: "attack",
+      what: "Morningstar"
+    });
+    expect(words.title).toBe("Sanctuary — a save before the attack");
+    expect(words.subtitle).toContain("Bugbear → Ally · Morningstar");
+    expect(words.failed).toMatch(/^No attack roll\. Choose a new target, or the attack is lost\.$/);
+  });
+});
+
+describe("DUPLICATES — the table and decide/duplicates.js (Tier 3)", () => {
+  it("Mirror Image is the 2024 shape: a d6 per duplicate, a 3 or higher redirects; Blinded, Blindsight and Truesight see through", () => {
+    const row = reg.DUPLICATES["Mirror Image"];
+    expect(Object.isFrozen(row)).toBe(true);
+    expect([...row.effect]).toEqual(["Duplicate A", "Duplicate B", "Duplicate C"]);
+    expect(row).toMatchObject({ die: 6, at: 3 });
+    expect([...row.seesThrough.statuses]).toEqual(["blinded"]);
+    expect([...row.seesThrough.senses]).toEqual(["blindsight", "truesight"]);
+    expectPointer(row.rule);
+    expect(reg.duplicateEntries().map(e => e.kind)).toEqual(["mirror image"]);
+  });
+  it("the standing duplicates are the row's effects on the sheet, in the row's order — the last is the one destroyed", () => {
+    const row = reg.DUPLICATES["Mirror Image"];
+    const standing = dup.standingDuplicates(row, [
+      { id: "c", name: "Duplicate C" },
+      { id: "x", name: "Blessed" },
+      { id: "a", name: "Duplicate A" },
+      { id: "b", name: "Duplicate B", active: false }
+    ]);
+    expect(standing.map(e => e.id)).toEqual(["a", "c"]);
+  });
+  it("who sees through: a status on the attacker, or a sense with range; a plain attacker does not", () => {
+    const row = reg.DUPLICATES["Mirror Image"];
+    expect(dup.seesThrough(row, { statuses: ["blinded"], senses: {} })).toEqual({
+      through: true,
+      why: "the Blinded condition"
+    });
+    expect(dup.seesThrough(row, { statuses: [], senses: { blindsight: 60 } })).toEqual({
+      through: true,
+      why: "Blindsight"
+    });
+    expect(
+      dup.seesThrough(row, { statuses: [], senses: { truesight: 10, blindsight: 0 } }).why
+    ).toBe("Truesight");
+    expect(
+      dup.seesThrough(row, { statuses: ["prone"], senses: { darkvision: 60, blindsight: 0 } })
+    ).toEqual({ through: false, why: null });
+  });
+  it("the roll: any face at 3 or higher redirects the hit — the FIRST such face is the gold one; every face under 3 lets it through", () => {
+    expect(dup.duplicateOutcome({ at: 3 }, [1, 4, 2])).toEqual({
+      absorbed: true,
+      winner: 1,
+      faces: [1, 4, 2]
+    });
+    expect(dup.duplicateOutcome({ at: 3 }, [1, 2, 1])).toEqual({
+      absorbed: false,
+      winner: null,
+      faces: [1, 2, 1]
+    });
+    expect(dup.duplicateOutcome({ at: 3 }, [5])).toEqual({ absorbed: true, winner: 0, faces: [5] });
+    expect(dup.duplicateOutcome({ at: 3 }, []).absorbed).toBe(false);
+  });
+  it("the chips: every face, the winner gold", () => {
+    expect(dup.duplicateChips(dup.duplicateOutcome({ at: 3 }, [1, 4, 2]))).toEqual([
+      { label: "1" },
+      { label: "4", up: true },
+      { label: "2" }
+    ]);
+    expect(dup.duplicateChips(dup.duplicateOutcome({ at: 3 }, [1, 2]))).toEqual([
+      { label: "1" },
+      { label: "2" }
+    ]);
+  });
+  it("the words: a duplicate takes the hit and the count stands; the last one ends the spell; a hit gets through", () => {
+    const row = { key: "Mirror Image", die: 6, at: 3 };
+    const took = dup.duplicateWords(row, dup.duplicateOutcome(row, [1, 4, 2]), {
+      took: "Duplicate C",
+      left: 2,
+      of: 3
+    });
+    expect(took.title).toBe("A duplicate takes the hit");
+    expect(took.dice).toContain("3d6 → 1, <strong>4</strong>, 2");
+    expect(took.count).toBe("duplicates: 2 of 3 left");
+    const last = dup.duplicateWords(row, dup.duplicateOutcome(row, [5]), {
+      took: "Duplicate A",
+      left: 0,
+      of: 3
+    });
+    expect(last.title).toBe("The last duplicate takes the hit");
+    expect(last.count).toContain("Mirror Image ended");
+    const through = dup.duplicateWords(row, dup.duplicateOutcome(row, [1, 2, 1]), {
+      took: null,
+      left: 3,
+      of: 3
+    });
+    expect(through.title).toBe("The hit gets through");
+    expect(through.dice).toContain("you are hit");
+  });
+  it("an absorbed hit is a FORCED verdict on the attack (decide/verdict.js): the applier drops the target whatever the AC it was judged against", () => {
+    const flag = {
+      targets: [
+        { uuid: "t1", verdict: "absorbed", acAtVerdict: 13 },
+        { uuid: "t2", verdict: "hit", acAtVerdict: 13 }
+      ]
+    };
+    const folds = v.foldsFrom(key => (key === "hold" ? flag : null));
+    const roll = { total: 19, isCritical: false, isFumble: false };
+    expect(v.foldedVerdict({ uuid: "t1", ac: 13 }, roll, folds)).toBe("absorbed");
+    expect(v.foldedVerdict({ uuid: "t2", ac: 13 }, roll, folds)).toBe("hit");
+    expect(
+      v
+        .hitsAmong({
+          targets: [
+            { uuid: "t1", ac: 13 },
+            { uuid: "t2", ac: 13 }
+          ],
+          roll,
+          folds
+        })
+        .map(t => t.uuid)
+    ).toEqual(["t2"]);
   });
 });

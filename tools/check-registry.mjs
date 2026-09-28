@@ -82,7 +82,7 @@ for (const [name, { rows, kinds }] of Object.entries(KIND_LISTS)) {
 // genuinely new (ARCHITECTURE.md §11 step 3). A kind names a different SPEND or way of KNOWING that a
 // row cannot say; a second customer of an existing shape is a row of its table, not a kind.
 // Bumping more than once a pass is the tripwire firing — re-read DESIGN.md R4.
-const EXPECTED_KINDS = 38;
+const EXPECTED_KINDS = 39;
 
 // A mastery this module resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5).
 const rulesSrc = read("scripts/decide/registry.js");
@@ -105,7 +105,7 @@ const rows = KIND_SETS.map(set => {
 
 // ⚠ The count of every module under scripts/, recursively, quoted by name in ARCHITECTURE.md and
 // check-comments' output. Bump it deliberately when a file is added — the refusal is the feature.
-const EXPECTED_SOURCE_FILES = 110;
+const EXPECTED_SOURCE_FILES = 113;
 const walk = (dir, prefix = "") => readdirSync(join(ROOT, dir), { withFileTypes: true }).flatMap(d =>
   d.isDirectory() ? walk(`${dir}/${d.name}`, `${prefix}${d.name}/`)
     : (d.name.endsWith(".js") ? [`${prefix}${d.name}`] : []));

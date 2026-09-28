@@ -774,6 +774,9 @@ export const STATE_KEYS = Object.freeze({
   repeatOffer: "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",
   repeatCount: "an ActiveEffect field — a counted repeat's tally and lock (Contagion, Flesh to Stone)",
   turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP) — the receipt on the same card is the resolve",
+  ward: "the demand card a ward raised of whoever targeted its bearer (wards.js, Sanctuary) — beside the saves record, which is the resolve; `settled`, `outcome` and `says` whether the use went on or was turned aside",
+  wardEnded: "the card a ward's end posts (wards.js) — its bearer's own attack roll, cast or damage roll ended it; the effect's deletion is the act",
+  duplicatesSeen: "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",
   areas: "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
   saveFor: "an envelope field beside respondsTo — the saves channel's target uuid"
 });

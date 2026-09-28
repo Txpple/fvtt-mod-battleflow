@@ -5,12 +5,23 @@
 > history. The order after it is set (BACKLOG *The long-term order*): **Slice B, then session 0 of the
 > next campaign sets the class slices.** Nothing starts until the user says go; a handoff is not a go.
 
-## State (2026-09-28, later the same day)
+## State (2026-09-28, evening)
 
-**Tiers 1 and 2 are BUILT, suites green, unwalked, unreleased** — RULINGS *The spells slice — Tiers 1
-and 2* is the record (what measured native, the rows, the kind, the walk tables). The walk tool is
-`tools/content/place-spells-walk.mjs`. **Next: the user walks Tiers 1 and 2**, then Tier 3's prototype
-page (the spells slice's, under prototypes/ — not yet drawn) for the three rulings.
+**All three tiers are BUILT, their suites green, pushed, UNWALKED and UNRELEASED.** RULINGS *The spells
+slice — Tiers 1 and 2* and *The spells slice — Tier 3* are the record (what measured native, the rows, the
+kinds, the walk tables — one per tier). Tier 3 was ruled off `prototypes/spells-slice.html` ("all drawn
+as, go") and carries two corrections to §Tier 3 below: the area's trigger is turn END (2024), and Mirror
+Image is a d6 per duplicate (2024). The walk tool is `tools/content/place-spells-walk.mjs`.
+
+**The walk is DEFERRED by the user (2026-09-28): all three tiers wait to be walked together** — the
+tables to walk are RULINGS *The walk — Tier 1*, *The walk — Tier 2*, *The walk — Tier 3*. Development
+goes on to **the DMG in a separate session** (the user's call; the DMG drawing says "a register, not a
+slice" — that session decides what that means). The release (a full battery, the tag) waits for the walk.
+
+**No PHB spell of the drawing is left unbuilt except the held ones** (§Held below): Counterspell (session
+0), Warding Bond, Vampiric Touch, Prismatic Spray, Magic Circle, Forcecage, plus Tier 3's two — Wall of Fire
+(no area in its data) and Spike Growth (movement). Unbreakable Majesty (a class feature, not a spell) is the
+duplicates' seam with a save for the die — session 0's, with its Bard.
 
 ## Where this comes from
 
@@ -91,6 +102,12 @@ damage*; Flesh to Stone counts failures. Nothing in the code repeats a save (mea
   the floating text called, the card line), and `probe-*` only if the clock seam surprises.
 
 ## Tier 3 — the three prototypes (each ruled by the user before a line)
+
+> **BUILT 2026-09-28** — RULINGS *The spells slice — Tier 3*. ⚠ The table below is the COMMISSION as
+> written; the build corrected it in two places off the 2024 text: the area's trigger is enter / turn
+> END / the area moved (never turn start), and Mirror Image rolls a d6 per duplicate, any 3+ redirecting
+> (never a d20 against 6/8/11). Wall of Fire and Spike Growth are held; Flaming Sphere is a feature ring
+> around its summoned token.
 
 Build the three as one clickable page, `spells-slice.html` under prototypes/, in the house look
 ([[ui-prototype-first]]; [[offer-row-no-extra-text]] — a tick row is name + dice, then "the rule ▸").

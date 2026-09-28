@@ -202,6 +202,7 @@ const WORLD_WRITERS = {
   "emanations.js": ["emanationCard", "effectReceipt", "saves", "receipt"],
   "repeat-saves.js": ["saves", "effectReceipt"],   // the demand card it raises; a success's removal marks the cast card's receipt
   "turn-grants.js": ["receipt"],   // Heroism's temp HP at the turn start, landed by the elect
+  "wards.js": ["saves"],   // the demand card it raises of the attacker; the ward's end deletes the effect on the bearer's own act
   "volleys.js": ["volley", "receipt"],
   "cast.js": ["castApply", "effectReceipt", "receipt"],
   "reminders.js": "the gate before the roll — a dialog's default and a Fails press; the roll's verdict is the saves record's resolve",

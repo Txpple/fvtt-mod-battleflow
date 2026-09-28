@@ -72,6 +72,10 @@ export async function refreshDemandFromTemplates(card) {
     if ( flag?.status !== "pending" ) return;
     // A triggered (pinned) demand shares the cast's activity; the area is not its authority.
     if ( flag.pinnedTargets ) return;
+    // An adopted emanation's cast (Spirit Guardians, Moonbeam — EMANATIONS): once its demand is populated,
+    // every later save is the region's trigger's (enter, turn end, the area moved) — an arrival never joins
+    // the cast's, or it would be asked twice (the spells slice).
+    if ( flag.templated && (flag.effectsHandled === "emanation") ) return;
     const wasWaiting = !(flag.targets ?? []).length;
     if ( !wasWaiting && !(flag.targets ?? []).some(t => !t.done) ) return;
     if ( wasWaiting ) {

@@ -1,0 +1,375 @@
+<title>Battle Flow Spells Tier 3</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  /* layout: the house prototype look — scenes along the top, a mock screen (canvas + chat log), rulings down the side */
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --moon:rgba(200,215,255,.22); --moon-edge:rgba(200,215,255,.7); --ward:rgba(232,190,50,.55);
+    --hit-ink:#e79a90; --miss-ink:#8fd0a2; --log:#1a1c20; --tok-foe:#6a3a3a; --tok-pc:#3a4a6a;
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1420px;margin:0 auto;padding-block:22px 40px;padding-inline:20px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:64ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .scenes .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scenes .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:130px;flex:0 0 auto}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .scenes button:focus-visible,.btn:focus-visible,.reset:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:560px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 300px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;min-height:420px;min-width:0}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:var(--log);padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:640px}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .chatlog .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .caption{position:absolute;left:12px;right:12px;bottom:10px;font-size:12px;color:var(--ink-2);background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:4px;padding:6px 9px}
+
+  /* tokens, areas, floating text, dice that rise */
+  .tok{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid var(--bad);background:var(--tok-foe);display:grid;place-items:center;font-size:10px;font-weight:700;color:var(--ink);text-align:center;line-height:1.05}
+  .tok.pc{border-color:var(--good);background:var(--tok-pc)}
+  .tok.ghost{opacity:.35;border-style:dashed}
+  .tok .nm{position:absolute;top:54px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000}
+  .ring-ward{position:absolute;inset:-7px;border-radius:50%;border:2px solid var(--ward);box-shadow:0 0 12px var(--ward)}
+  .area{position:absolute;border-radius:50%;background:var(--moon);border:2px solid var(--moon-edge);box-shadow:0 0 30px var(--moon)}
+  .area.pulse{animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{50%{box-shadow:0 0 50px var(--moon-edge)}}
+  .path{position:absolute;height:0;border-top:2px dashed var(--ink-3)}
+  .float{position:absolute;left:50%;transform:translateX(-50%);top:-26px;white-space:nowrap;font-weight:700;font-size:13px;color:var(--hit-ink);text-shadow:0 1px 3px #000;animation:up 2.4s ease-out infinite}
+  .float.gone{color:var(--ink-2)}
+  @keyframes up{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-26px)}}
+  .dice{position:absolute;left:50%;top:-40px;transform:translateX(-50%);display:flex;gap:5px}
+  .die{width:26px;height:26px;border-radius:5px;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-2);animation:rise .9s ease-out both}
+  .die.win{border-color:var(--crit);color:var(--crit);box-shadow:0 0 8px rgba(232,190,50,.5)}
+  .die:nth-child(2){animation-delay:.12s}.die:nth-child(3){animation-delay:.24s}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.area.pulse,.float,.die{animation:none}}
+
+  /* a chat message holding a bfCard */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2)}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)} .bf.crit{border-left-color:var(--crit)}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .s{font-size:11px;opacity:.75}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5}
+  .bf .l div{margin-top:2px}
+  .bf b{color:var(--ink)}
+  .verdict{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:3px;margin-left:4px}
+  .verdict.hit{background:var(--bad-soft);color:var(--hit-ink)} .verdict.miss{background:var(--good-soft);color:var(--miss-ink)}
+  s.old{color:var(--ink-3);text-decoration-thickness:1.5px}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft)}
+  .chip.used{border-color:rgba(232,190,50,.5);color:var(--crit);background:rgba(232,190,50,.1)}
+  .cbtn{display:inline-block;margin-top:4px;font:inherit;font-size:11.5px;padding:3px 8px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink)}
+  .rule{margin-top:4px;font-size:11px;color:var(--ink-3)}
+
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b,.panel p b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)}
+  .fix{border-left:3px solid var(--bad)}
+  .reset{font:inherit;font-size:11.5px;margin-top:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Battle Flow · prototype · 2026-09-28 · the spells slice, Tier 3 · for ruling, nothing built</div>
+      <h1>Tier 3: the area that pulses, Sanctuary's gate, Mirror Image's duplicates</h1>
+    </div>
+    <p>Three new shapes, each drawn in its states. Pick a scene along the top. The canvas shows what the table sees on the map; the chat log shows the cards. The rulings to make are in the orange panels, and the corrections to the handoff are in the red ones. All of it is drawn to the 2024 text as the PHB pack carries it.</p>
+  </header>
+
+  <nav class="scenes" aria-label="Scenes">
+    <div class="grp"><span>The area that pulses</span>
+      <button data-scene="a1" aria-pressed="true">A1 · Moonbeam appears</button>
+      <button data-scene="a2">A2 · ends its turn inside</button>
+      <button data-scene="a3">A3 · walks in, then ends there</button>
+      <button data-scene="a4">A4 · the caster moves the beam</button>
+      <button data-scene="a5">A5 · who is in, who is out</button>
+    </div>
+    <div class="grp"><span>Sanctuary</span>
+      <button data-scene="b1">B1 · the gate, before the roll</button>
+      <button data-scene="b2">B2 · the save fails</button>
+      <button data-scene="b3">B3 · the save passes</button>
+      <button data-scene="b4">B4 · a spell, an area</button>
+      <button data-scene="b5">B5 · the ward attacks</button>
+    </div>
+    <div class="grp"><span>Mirror Image</span>
+      <button data-scene="c1">C1 · a hit, a duplicate takes it</button>
+      <button data-scene="c2">C2 · a hit, it gets through</button>
+      <button data-scene="c3">C3 · the last duplicate</button>
+      <button data-scene="c4">C4 · a Blindsight attacker</button>
+      <button data-scene="c5">C5 · after Shield or Lucky</button>
+    </div>
+  </nav>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage" id="stage"></div>
+      <div class="chatlog" id="chat"></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  const card = (tone, e, t, s, lines=[]) => `<div class="bf ${tone}"><div class="e">${e}</div><div class="t">${t}</div>${s?`<div class="s">${s}</div>`:""}${lines.length?`<div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div>`:""}</div>`;
+  const msg = (who, inner) => `<div class="msg"><div class="spk">${esc(who)}</div>${inner}</div>`;
+  const log = (...m) => `<div class="ey-log">chat log</div>${m.join("")}`;
+  const panel = (h, items, cls="") => `<div class="panel ${cls}"><h3>${h}</h3>${Array.isArray(items)?`<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>`:`<p>${items}</p>`}</div>`;
+  const rulings = items => `<div class="panel q"><h3>For you to rule</h3><ol>${items.map(i=>`<li>${i}</li>`).join("")}</ol></div>`;
+  const fix = (h, p) => `<div class="panel fix"><h3>${h}</h3><p>${p}</p></div>`;
+  const tok = (x, y, label, name, { pc=false, ghost=false, extra="" } = {}) =>
+    `<div class="tok ${pc?"pc":""} ${ghost?"ghost":""}" style="left:${x}px;top:${y}px">${label}<span class="nm">${esc(name)}</span>${extra}</div>`;
+  const area = (x, y, d, pulse=true) => `<div class="area ${pulse?"pulse":""}" style="left:${x}px;top:${y}px;width:${d}px;height:${d}px"></div>`;
+  const stage = (inner, cap) => `<div class="map"></div>${inner}${cap?`<div class="caption">${cap}</div>`:""}`;
+  const dice = faces => `<div class="dice">${faces.map(f=>`<span class="die ${f>=3?"win":""}">${f}</span>`).join("")}</div>`;
+  const float = (t, gone=false) => `<div class="float ${gone?"gone":""}">${esc(t)}</div>`;
+
+  /* ---------- A · the area that pulses (Moonbeam) ---------- */
+  const MB_RULE = `<div class="rule">Moonbeam · Con save DC 14 · 2d10 Radiant, half on a success · once per turn</div>`;
+  const beamAt = (x,y) => area(x,y,100);
+  const S = {};
+
+  S.a1 = () => ({
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(330,150,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      "The cylinder is placed. The Bugbear is inside; the Goblin Boss is not."),
+    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","The cylinder appears","BF Walk Cleric · Constitution DC 14",
+      [`Bugbear Warrior — <b>7</b> vs DC 14 <span class="verdict hit">FAILED</span> · 2d10 → <b>13</b> Radiant`, MB_RULE]))),
+    side: panel("What this is", [
+        "<b>Today already.</b> The cast's own save activity demands the save of everyone inside when the cylinder appears. Nothing new here; this scene is the baseline.",
+        "<b>What is new</b> is that the placed cylinder stays a live area after the cast, as Spirit Guardians' ring does today, only anchored to the map instead of to the caster."])
+      + fix("Correction to the handoff: turn END, not turn start",
+        "The handoff drew the area's trigger as <b>enter / turnStart</b>. That is the 2014 wording. Every 2024 spell in the list says <b>enters the area or ends its turn there</b>, plus <b>when the area moves into its space</b>, and <b>only once per turn</b>. That is exactly Spirit Guardians' trigger today (enter + turnEnd, once per turn), so the area reuses it unchanged.")
+  });
+
+  S.a2 = () => ({
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior",{extra:float("−9")}) + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      "The Bugbear ends its turn inside the beam."),
+    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","Bugbear Warrior ends its turn in the beam","BF Walk Cleric · Constitution DC 14",
+      [`Bugbear Warrior — <b>16</b> vs DC 14 <span class="verdict miss">SAVED</span> · 2d10 → 18, halved → <b>9</b> Radiant`, MB_RULE]))),
+    side: panel("What this shows", [
+        "<b>The same card as Spirit Guardians' pulse,</b> titled by what happened: who, and why (\"ends its turn in the beam\").",
+        "<b>The save is the spell's own activity:</b> its DC, its ability, its damage and its half on a success. Nothing is copied into a table.",
+        "<b>The damage applies itself,</b> as the save demand does for any spell today, because the save decides it."])
+  });
+
+  S.a3 = () => ({
+    stage: stage(beamAt(150,110) + `<div class="path" style="left:260px;top:185px;width:80px"></div>` + tok(340,160,"GB","",{ghost:true}) + tok(185,160,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      "The Goblin Boss walks into the beam on its turn, then ends its turn there."),
+    chat: log(
+      msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","Goblin Boss enters the beam","BF Walk Cleric · Constitution DC 14",
+        [`Goblin Boss — <b>9</b> vs DC 14 <span class="verdict hit">FAILED</span> · 2d10 → <b>11</b> Radiant`, MB_RULE])),
+      msg("BF Walk Cleric", card("neutral","Moonbeam — no save","Goblin Boss ends its turn in the beam","",
+        [`<span class="chip used">already saved against Moonbeam this turn</span>`]))),
+    side: panel("What this shows", [
+        "<b>Entering raises the save the moment the token stops inside.</b> The same seam Spirit Guardians uses (the token's move lands in the region).",
+        "<b>Once per turn:</b> ending the turn there asks nothing more. A small card says why, in the chit wording Spirit Guardians already uses.",
+        "<b>Walking out and back in</b> on the same turn is still one save."])
+      + rulings(["The second card (\"no save, already saved this turn\"): keep it, or say nothing? Drawn as kept, matching Spirit Guardians."])
+  });
+
+  S.a4 = () => ({
+    stage: stage(area(260,100,100) + `<div class="area" style="left:120px;top:120px;width:100px;height:100px;opacity:.25;animation:none"></div>` + `<div class="path" style="left:220px;top:170px;width:40px"></div>`
+      + tok(285,125,"GB","Goblin Boss") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      "On the Cleric's turn, a Magic action moves the beam onto the Goblin Boss."),
+    chat: log(msg("BF Walk Cleric", card("pending","Save demand — Moonbeam","The beam moves onto Goblin Boss","BF Walk Cleric · Constitution DC 14",
+      [`Goblin Boss — <b>15</b> vs DC 14 <span class="verdict miss">SAVED</span> · 2d10 → 12, halved → <b>6</b> Radiant`, MB_RULE]))),
+    side: panel("What this shows", [
+        "<b>The caster drags the area</b> (the system's own template move). Whoever the area now covers and did not before is demanded the save.",
+        "<b>The Magic action is the table's.</b> The module does not spend it, as it spends nothing for Spirit Guardians."])
+      + rulings(["The move is the GM's or the caster's drag of the template. Should the area also move when the caster's player drags it, or GM only? Drawn as: whoever may move the template on the platform."])
+  });
+
+  S.a5 = () => ({
+    stage: stage(beamAt(150,110) + tok(175,135,"BB","Bugbear Warrior") + tok(60,300,"CL","BF Walk Cleric",{pc:true}),
+      "Which spells get the area, and which stay out."),
+    chat: log(`<div class="ey-log" style="margin-top:8px">the list</div>`,
+      msg("placed areas", card("good","In — the area kind","Moonbeam · Insect Plague · Cloudkill","enter / ends its turn / the area moves onto it · once per turn",[
+        "Cloudkill's own drift (10 ft away from the caster each turn start) is the table's to drag"]))
+      , msg("placed areas", card("pending","In — no save, just damage","Cloud of Daggers","4d4 Slashing on enter / ends its turn / moved onto · once per turn",[
+        "the pack's activity is plain damage, no save"]))
+      , msg("placed areas", card("neutral","Different shape","Flaming Sphere","ends its turn within 5 ft of the sphere",[
+        "the sphere is a SUMMONED token, so its 5 ft is an emanation around that token, today's kind"]))
+      , msg("placed areas", card("bad","Out","Wall of Fire · Spike Growth","",[
+        "Wall of Fire: no area in its data (the wall is drawn by hand) and the damage is one side's 10 ft band",
+        "Spike Growth: damage per 5 ft moved (DESIGN §4, movement stays out)"]))),
+    side: panel("What this sorts", [
+        "<b>Measured on the PHB pack:</b> Moonbeam, Insect Plague and Cloudkill carry a save activity and a placed template (cylinder, sphere, sphere). They fit the area kind as drawn.",
+        "<b>Cloud of Daggers</b> carries a 5 ft cube and a plain damage activity. The area can raise it like the others, but there is no save to decide it.",
+        "<b>Flaming Sphere</b> is a summon. It lands on the existing emanation kind, around the summoned sphere's token."])
+      + rulings([
+        "<b>Cloud of Daggers:</b> roll and apply the 4d4 automatically, as the save demand does (the rule leaves no choice, R1)? Or post the card with its damage button for the GM? Drawn as automatic.",
+        "<b>Wall of Fire out</b> of this slice (no area in its data, and a one-sided band). Drawn as out, parked in the held list.",
+        "<b>Flaming Sphere</b> on today's emanation kind around the summoned token? Drawn as yes, in this tier."])
+  });
+
+  /* ---------- B · Sanctuary ---------- */
+  const SANC_RULE = `<div class="rule">Sanctuary · Wisdom save DC 13 · fail: choose a new target, or lose the attack or spell</div>`;
+  const ward = `<div class="ring-ward"></div>`;
+  const sancStage = (cap, extra="") => stage(tok(150,150,"AL","BF Walk Ally",{pc:true,extra:ward+extra}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BF Walk Cleric",{pc:true}), cap);
+
+  S.b1 = () => ({
+    stage: sancStage("The Bugbear targets the warded Ally and presses Attack. Before the d20, the gate stops it."),
+    chat: log(msg("Bugbear Warrior", card("pending","Sanctuary — a save before the attack","Bugbear Warrior → BF Walk Ally","the attack waits for the save",
+      [`Bugbear Warrior makes a Wisdom save against Sanctuary`, `<span class="chip">rolling · DC 13</span>`, SANC_RULE]))),
+    side: panel("What the gate is", [
+        "<b>The same place the buy box sits today:</b> after the attack is pressed, before its d20. The attacker's roll dialog is untouched.",
+        "<b>The save is the one on Sanctuary's own card</b> (its Save on Target activity), demanded of the attacker through the saves machine, so it rolls or asks exactly as any demand does (Players Roll Their Own Saves applies).",
+        "<b>Every attack asks.</b> The rule says any creature that targets the warded creature. A Bugbear with two attacks saves twice."])
+      + rulings(["Every attack asks (RAW), not once per turn? Drawn as every attack."])
+  });
+
+  S.b2 = () => ({
+    stage: sancStage("The save fails. No d20 is rolled; the Bugbear may target someone else.", float("turned aside",true)),
+    chat: log(msg("Bugbear Warrior", card("good","Sanctuary — the save failed","The attack is turned aside","Bugbear Warrior → BF Walk Ally",
+      [`Wisdom <b>8</b> vs DC 13 <span class="verdict miss">FAILED</span>`, `No attack roll. <b>Choose a new target, or the attack is lost.</b>`, SANC_RULE]))),
+    side: panel("What this shows", [
+        "<b>The attack never rolls.</b> The card says so plainly, and it is the attacker's card.",
+        "<b>A new target is just a new attack.</b> The Bugbear's player targets someone else and presses Attack again. The module spends nothing and refunds nothing: the attack was never made.",
+        "<b>If nobody else is in reach,</b> the attack is simply lost; the table moves on."])
+      + rulings(["\"Turned aside\" floating off the ward: keep it (a situational cue on the token), or the card only? Drawn with it."])
+  });
+
+  S.b3 = () => ({
+    stage: sancStage("The save passes. The attack rolls as normal."),
+    chat: log(
+      msg("Bugbear Warrior", card("neutral","Sanctuary — the save passed","The attack goes on","Bugbear Warrior → BF Walk Ally",
+        [`Wisdom <b>15</b> vs DC 13 <span class="verdict hit">PASSED</span>`])),
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Walk Ally",[`d20 13 +4 = <b>17</b> vs AC 16 <span class="verdict hit">HIT</span>`]))),
+    side: panel("What this shows", [
+        "<b>The attack rolls straight after,</b> no second click. The save card sits above it in the log.",
+        "<b>Sanctuary stays up.</b> Passing the save does not end the spell."])
+  });
+
+  S.b4 = () => ({
+    stage: sancStage("A damaging spell aimed at the Ally is gated the same way; a Fireball is not."),
+    chat: log(
+      msg("Goblin Shaman", card("pending","Sanctuary — a save before the spell","Goblin Shaman → BF Walk Ally · Fire Bolt","the spell waits for the save",
+        [`Wisdom <b>6</b> vs DC 13 <span class="verdict miss">FAILED</span>`, `No attack roll. <b>Choose a new target, or the spell is lost.</b>`, SANC_RULE])),
+      msg("Goblin Shaman", card("neutral","Burning Hands — no gate","an area of effect","",[`Sanctuary doesn't protect against areas of effect.`]))),
+    side: panel("What this shows", [
+        "<b>A damaging spell that targets the ward</b> (an attack roll or a save, with damage) is gated before its roll or its save demand.",
+        "<b>An area never is.</b> A spell with a template (Burning Hands, Fireball) passes through. So does a spell that targets without damage (Hold Person)."])
+      + rulings([
+        "<b>A lost spell's slot:</b> the platform spends the slot at the cast, before the gate can know. The rule says the spell is lost, so the slot stays spent. Drawn as spent, no refund.",
+        "<b>The spell's line</b> (\"no gate, an area of effect\"): show it, or show nothing for areas? Drawn as nothing. The card above is only here to show the rule."])
+  });
+
+  S.b5 = () => ({
+    stage: stage(tok(150,150,"AL","BF Walk Ally",{pc:true,extra:float("−(Sanctuary)",true)}) + tok(220,150,"BB","Bugbear Warrior") + tok(150,260,"CL","BF Walk Cleric",{pc:true}),
+      "The warded Ally attacks. Sanctuary ends."),
+    chat: log(
+      msg("BF Walk Ally", card("bad","Attack","Mace","BF Walk Ally → Bugbear Warrior",[`d20 11 +5 = <b>16</b> vs AC 16 <span class="verdict hit">HIT</span>`])),
+      msg("BF Walk Ally", card("neutral","Sanctuary ended","BF Walk Ally made an attack roll","",[`The ward ends when its bearer attacks, casts a spell, or deals damage.`]))),
+    side: panel("What this shows", [
+        "<b>Three things end it:</b> an attack roll, a spell cast, or damage dealt, by the warded creature. The machine ends it on any of the three, and the name floats off as the repeated saves' end does.",
+        "<b>The attack still happens.</b> Sanctuary ends as the attack is made, not instead of it."])
+      + rulings(["A cantrip or a healing spell cast by the ward ends it too (the rule says <b>casts a spell</b>, any spell). Drawn as yes."])
+  });
+
+  /* ---------- C · Mirror Image ---------- */
+  const MI_RULE = `<div class="rule">Mirror Image · on each hit, a d6 per duplicate; any 3 or higher, a duplicate takes the hit and is destroyed</div>`;
+  const miStage = (faces, fl, cap, dup=3) => stage(tok(170,160,"SO","BF Test Sorcerer",{pc:true,extra:(faces?dice(faces):"")+(fl?float(fl,true):"")})
+    + Array.from({length:dup},(_,i)=>tok(130+i*40,240,"","",{pc:true,ghost:true})).join("") + tok(250,160,"BB","Bugbear Warrior"), cap);
+
+  S.c1 = () => ({
+    stage: miStage([1,4,2], "−(Duplicate C)", "The hit lands. Three d6 rise off the Sorcerer; the 4 wins, a duplicate takes the hit.", 2),
+    chat: log(
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`])),
+      msg("BF Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BF Test Sorcerer",
+        [`3d6 → 1, <b>4</b>, 2 — a 3 or higher: <b>the duplicate is destroyed</b>, no damage to you`, `<span class="chip used">duplicates: 2 of 3 left</span>`, MI_RULE]))),
+    side: panel("What this is", [
+        "<b>Automatic, no popup.</b> The rule leaves no choice, so the machine rolls it the moment a hit stands, before damage.",
+        "<b>The dice rise off the token</b> (the house's canvas dice): Mirror Image is a situational effect that changes a roll's outcome, which is exactly what the dice are for.",
+        "<b>The duplicates are the pack's own:</b> three effects on the Sorcerer (Duplicate A, B, C), each counting one. A destroyed duplicate is one effect deleted, and its name floats off."])
+      + fix("Correction to the handoff: 2024 is d6s, not a d20",
+        "The handoff and the spells drawing drew Mirror Image as <b>a d20 against 6 / 8 / 11</b>. That is the 2014 rule. The 2024 text rolls <b>a d6 for each remaining duplicate after a hit</b>; if any shows 3 or higher, a duplicate is hit instead and destroyed. The pack models it that way too.")
+  });
+
+  S.c2 = () => ({
+    stage: miStage([1,2,1], null, "Every die under 3: the hit gets through to the Sorcerer.", 3),
+    chat: log(
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
+      msg("BF Test Sorcerer", card("bad","Mirror Image","The hit gets through","BF Test Sorcerer",
+        [`3d6 → 1, 2, 1 — none 3 or higher: <b>you are hit</b>`, `<span class="chip">duplicates: 3 of 3 left</span>`, MI_RULE]))),
+    side: panel("What this shows", [
+        "<b>No die at 3 or higher:</b> the damage applies as it would have, and all duplicates stay.",
+        "<b>Fewer duplicates, fewer dice:</b> with one duplicate left it is one d6, which fails a third of the time."])
+  });
+
+  S.c3 = () => ({
+    stage: miStage([5], "−(Mirror Image)", "One duplicate left, the d6 shows 5: the last one is destroyed and the spell ends.", 0),
+    chat: log(msg("BF Test Sorcerer", card("good","Mirror Image","The last duplicate takes the hit","BF Test Sorcerer",
+      [`1d6 → <b>5</b> — the duplicate is destroyed, no damage to you`, `<b>Mirror Image ended</b> — all three duplicates are gone`, MI_RULE]))),
+    side: panel("What this shows", [
+        "<b>The spell ends with its last duplicate,</b> as the rule says. The card says so and the name floats off."])
+  });
+
+  S.c4 = () => ({
+    stage: miStage(null, null, "The attacker has Blindsight. No dice; the duplicates don't fool it.", 3),
+    chat: log(
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 15 +4 = <b>19</b> vs AC 13 <span class="verdict hit">HIT</span>`, `2d8 + 2 → <b>11</b> Piercing — applied`])),
+      msg("BF Test Sorcerer", card("neutral","Mirror Image — no roll","Bugbear Warrior sees through it","",
+        [`Blindsight: the duplicates don't fool it`]))),
+    side: panel("What this shows", [
+        "<b>The data settles it:</b> an attacker with the Blinded condition, Blindsight or Truesight on its sheet is unaffected. The machine reads the senses and the status; nobody is asked (R1).",
+        "<b>One line says why,</b> so the Sorcerer's player is not left wondering where the dice went."])
+      + rulings(["The \"sees through it\" card: keep it, or say nothing? Drawn as kept."])
+  });
+
+  S.c5 = () => ({
+    stage: miStage([3,1,6], "−(Duplicate C)", "The Sorcerer's Shield window comes first; Mirror Image rolls only on the hit that stands.", 2),
+    chat: log(
+      msg("Bugbear Warrior", card("bad","Attack","Morningstar","Bugbear Warrior → BF Test Sorcerer",[`d20 16 +4 = <b>20</b> vs AC <s class="old">13</s> <b>18</b> <span class="verdict hit">still a HIT</span>`])),
+      msg("BF Test Sorcerer", card("neutral","Reaction — cast","Shield","BF Test Sorcerer",["AC is now <b>18</b>."])),
+      msg("BF Test Sorcerer", card("good","Mirror Image","A duplicate takes the hit","BF Test Sorcerer",
+        [`3d6 → <b>3</b>, 1, <b>6</b> — the duplicate is destroyed, no damage to you`, `<span class="chip used">duplicates: 2 of 3 left</span>`]))),
+    side: panel("The order at the hit", [
+        "<b>First the defender's popup</b> (Shield, Lucky, the rescue rows), which may turn the hit into a miss.",
+        "<b>Then Mirror Image,</b> automatically, on a hit that still stands. A miss rolls no dice.",
+        "<b>A crit is a hit:</b> the dice roll the same way, and a destroyed duplicate takes the crit's damage too."])
+      + rulings(["The order: the defender's reaction first, then the duplicates? Drawn as yes. The other order would roll the dice on hits Shield then turns, and burn a reaction the duplicates had already made pointless."])
+  });
+
+  /* ---------- render and wiring ---------- */
+  const state = { scene:"a1" };
+  function render(){
+    const out = (S[state.scene] ?? S.a1)();
+    document.getElementById("stage").innerHTML = out.stage;
+    document.getElementById("chat").innerHTML = out.chat;
+    document.getElementById("side").innerHTML = out.side;
+  }
+  document.querySelector(".scenes").addEventListener("click", e => {
+    const b = e.target.closest("button[data-scene]"); if ( !b ) return;
+    state.scene = b.dataset.scene;
+    document.querySelectorAll(".scenes button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    render();
+  });
+  render();
+})();
+</script>

@@ -24,6 +24,8 @@ const SECTIONS = {
   7: 'Spirit Guardians triggers: a save demand card when the hostile enters, another when it ends its turn inside, none for a second entry in the same turn',
   8: 'the area goes (concentration\'s end) — the region goes and Half Speed lifts',
   10: 'the registrations FIRED (§11): createRegion, updateToken and the region events moved',
+  18: 'THE AREA KIND (the spells slice, Tier 3, 2026-09-28): Moonbeam\'s placed region is adopted where it stands, attached to nothing; a creature walking in is demanded the save (its damage rolled); the beam MOVED onto a standing creature demands it; in combat a turn ended inside demands it, once per turn',
+  19: 'Cloud of Daggers: an area whose activity is plain damage — a creature walking in takes the dice, rolled on the caster and applied with a receipt, no save',
   11: 'LIVE SCENES ONLY (user, 2026-09-04: the bleed; 2026-09-23: a viewed scene is live): another scene made active and viewed brings the range\'s rings down and lifts the ally\'s effects; a stale ring on a scene nobody is on is brought down by the ready sweep; the range VIEWED (not active) raises them; two live scenes with the ally inside the ring on both give ONE copy per aura; the range active again raises them once, no stack',
   12: 'THE SECOND SLICE — Aura of Life: the pack\'s effect on the ally inside, nothing on the hostile; an ally at 0 HP starting its turn inside regains the activity\'s own 1 HP, receipted',
   13: 'Crusader\'s Mantle: the ally inside wears the +1d4 radiant weapon-damage change the pack ships',
@@ -706,6 +708,105 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await rgrTok.update(home[rgrTok.id], mv()).catch(() => {});
         await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
         await sleep(800);
+      }
+    }
+    // ================================================== 18. the AREA kind — Moonbeam
+    const areaRegion = key => scene.regions.find(r => { const f = r.getFlag(MOD, 'emanation'); return f?.kind === 'area' && f.key === key; }) ?? null;
+    /** A placed area as the system's placement writes it (a Region with the dnd5e flags), no click. */
+    const placeArea = async (item, act, shape, spellLevel) => (await scene.createEmbeddedDocuments('Region', [{
+      name: `${item.name} [${game.user.name}]`, color: game.user.color, shapes: [shape],
+      flags: { dnd5e: { activity: act.uuid, item: item.uuid, origin: clrTok.uuid, spellLevel } } }], { dnd5e: { createActivityBehaviors: false } }))[0];
+    const areaList = `${prior.emanationList || 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians'}, Moonbeam, Cloud of Daggers`;
+    if (want(18)) {
+      await set('emanationList', areaList);
+      await set('saveRolls', 'auto');
+      const item = await giveSpell('Moonbeam');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.type === 'save');
+      if (!item || !act) { ok('18-. Moonbeam lent', false, 'the PHB ships no Moonbeam this box can find'); }
+      else {
+        const far = { x: 300, y: 1900 };
+        await vicTok.update(far, mv()); await rgrTok.update({ x: 300, y: 1600 }, mv()); await clrTok.update({ x: 600, y: 1900 }, mv());
+        await sleep(500);
+        const beamAt = { x: 1200, y: 1200 };   // empty ground
+        const t18 = Date.now();
+        const region = await placeArea(item, act, { type: 'circle', x: beamAt.x, y: beamAt.y, radius: 5 * px }, 2);
+        const adopted = await waitFor(() => { const r = areaRegion('Moonbeam'); return r?.behaviors?.some(b => b.type === TYPE) ? r : null; }, 8000);
+        ok('18a. the placed region is adopted as an AREA: flagged kind "area", the module\'s behaviour on it, attached to NO token', !!adopted && (adopted.id === region.id) && !adopted.attachment?.token && !adopted.behaviors.some(b => String(b.type).startsWith('dnd5e.')),
+          `adopted=${adopted?.id} kind=${adopted?.getFlag(MOD, 'emanation')?.kind} attached=${adopted?.attachment?.token?.id ?? 'none'} behaviours=${adopted?.behaviors.map(b => b.type).join(',')}`);
+        const areaCard = await waitFor(() => game.messages.find(m => (m.timestamp >= t18) && m.getFlag(MOD, 'emanationCard')?.key === 'Moonbeam') ?? null, 6000);
+        ok('18b. a card announced the area as cast', !!areaCard, '');
+        // The Victim walks in: entered → a save demand, Constitution, the spell\'s DC, half on a success, the damage rolled.
+        await vicTok.update({ x: beamAt.x - grid / 2, y: beamAt.y - grid / 2 }, mv());
+        const inCard = await waitFor(() => triggerCards().find(m => (m.timestamp >= t18) && m.getFlag(MOD, 'emanationTrigger')?.cause === 'enter' && m.getFlag(MOD, 'emanationTrigger')?.targetUuid === vicTok.actor.uuid) ?? null, 8000);
+        const f = inCard?.getFlag(MOD, 'saves');
+        ok('18c. walking into the beam raises the save demand for the Victim alone — Constitution, the spell\'s DC, half on a success, effectsHandled "emanation", pinned', !!inCard && (f?.abilities?.[0] === 'con') && (f?.dc === act.save.dc.value) && (f?.targets?.length === 1) && (f.targets[0].uuid === vicTok.actor.uuid) && (f?.damageOnSave === 'half') && (f?.effectsHandled === 'emanation') && (f?.pinnedTargets === true),
+          `card=${!!inCard} flag=${JSON.stringify(f && { abilities: f.abilities, dc: f.dc, targets: f.targets.map(t => t.name), effectsHandled: f.effectsHandled, pinned: f.pinnedTargets })} title=${inCard?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 120)}`);
+        const dmg = await waitFor(() => game.messages.find(m => (m.timestamp >= t18) && (m._source.system?.origin === inCard?.id) && (m.type === 'damage')) ?? null, 8000);
+        ok('18d. the spell\'s damage rolled against the demand (2d10 at 2nd level, radiant)', !!dmg && /2d10/.test(dmg.rolls?.[0]?.formula ?? '') && (dmg.rolls?.[0]?.options?.type === 'radiant'), `formula=${dmg?.rolls?.[0]?.formula} type=${dmg?.rolls?.[0]?.options?.type}`);
+        ok('18e. the card names the CASTER, not a source token ("entered BF Test Cleric\'s Moonbeam")', /BF Test Cleric.s Moonbeam/.test(inCard?.content ?? ''), inCard?.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) ?? '');
+        await closeDialogs();
+        // The beam MOVES onto the standing Ranger (the caster\'s Magic action is a drag of the template).
+        const n1 = triggerCards().length;
+        await vicTok.update(far, mv()); await sleep(600);
+        await scene.regions.get(region.id).update({ shapes: [{ type: 'circle', x: rgrTok.x + grid / 2, y: rgrTok.y + grid / 2, radius: 5 * px }] });
+        const moveCard = await waitFor(() => triggerCards().find(m => (m.timestamp >= t18) && m.getFlag(MOD, 'emanationTrigger')?.targetUuid === ranger.uuid) ?? null, 8000);
+        ok('18f. the beam moved onto the standing Ranger: the platform raises the entry and the module demands the save — reach "all", an ally included', !!moveCard && (moveCard.getFlag(MOD, 'emanationTrigger')?.cause === 'enter'), `cards=${triggerCards().length} (was ${n1}) target=${moveCard?.getFlag(MOD, 'emanationTrigger')?.targetUuid}`);
+        await closeDialogs();
+        await scene.regions.get(region.id).update({ shapes: [{ type: 'circle', x: beamAt.x, y: beamAt.y, radius: 5 * px }] });
+        await sleep(600);
+        // In combat: the Victim\'s turn ends inside → a demand; once per turn.
+        await ownCombat([[clrTok, cleric, 20], [vicTok, victim, 10]]);
+        const n2 = triggerCards().length;
+        await vicTok.update({ x: beamAt.x - grid / 2, y: beamAt.y - grid / 2 }, mv());
+        const cIn = await waitFor(() => triggerCards().length > n2 ? triggerCards().at(-1) : null, 8000);
+        // ⚠ The Victim's token is UNLINKED: the chit lives on the token's own actor.
+        ok('18g. in combat, entering demands the save and writes the once-per-turn chit', !!cIn && vicTok.actor.effects.some(e => e.getFlag(MOD, 'riderKey') === `emanation:${region.id}`), `cards=${triggerCards().length} chits=${vicTok.actor.effects.filter(e => e.getFlag(MOD, 'riderKey')).map(e => e.name).join(',')}`);
+        await closeDialogs();
+        const n3 = triggerCards().length;
+        await combat.nextTurn(); await sleep(600);   // → the Victim\'s turn
+        await combat.nextTurn();                     // the Victim\'s turn ENDS inside
+        const endCard = await waitFor(() => triggerCards().find(m => (m.timestamp >= t18) && m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnEnd') ?? null, 8000);
+        ok('18h. the Victim\'s turn ending inside the beam demands the save (a new turn: the chit is gone)', !!endCard && (triggerCards().length === n3 + 1), `cards=${triggerCards().length} (was ${n3})`);
+        await closeDialogs();
+        try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ }
+        combat = null;
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await vicTok.update(home[vicTok.id], mv()); await rgrTok.update(home[rgrTok.id], mv()); await clrTok.update(home[clrTok.id], mv());
+        await sleep(500);
+      }
+    }
+
+    // ================================================== 19. the AREA kind — Cloud of Daggers (plain damage)
+    if (want(19)) {
+      await set('emanationList', areaList);
+      const item = await giveSpell('Cloud of Daggers');
+      const act = [...(item?.system?.activities ?? [])].find(a => a.type === 'damage');
+      if (!item || !act) { ok('19-. Cloud of Daggers lent', false, 'the PHB ships no Cloud of Daggers this box can find'); }
+      else {
+        const far = { x: 300, y: 1900 };
+        await vicTok.update(far, mv()); await clrTok.update({ x: 600, y: 1900 }, mv());
+        await sleep(400);
+        // ⚠ Unlinked: the damage lands on the token's own actor, and a token MOVE re-creates that synthetic
+        // actor — read it fresh at every assertion, never off an instance captured before the move.
+        const vicActor = () => scene.tokens.get(vicTok.id).actor;
+        const hp0 = vicActor().system.attributes.hp.value;
+        const cubeAt = { x: 1200, y: 1200 };
+        const t19 = Date.now();
+        const region = await placeArea(item, act, { type: 'rectangle', x: cubeAt.x - grid / 2, y: cubeAt.y - grid / 2, width: grid, height: grid }, 2);
+        const adopted = await waitFor(() => { const r = areaRegion('Cloud of Daggers'); return r?.behaviors?.some(b => b.type === TYPE) ? r : null; }, 8000);
+        ok('19a. the cube is adopted as an area', !!adopted && (adopted.id === region.id), `adopted=${adopted?.id}`);
+        await vicTok.update({ x: cubeAt.x - grid / 2, y: cubeAt.y - grid / 2 }, mv());
+        const card = await waitFor(() => triggerCards().find(m => (m.timestamp >= t19) && m.getFlag(MOD, 'emanationTrigger')?.key === 'Cloud of Daggers' && m.getFlag(MOD, 'emanationTrigger')?.targetUuid === vicTok.actor.uuid) ?? null, 8000);
+        const tf = card?.getFlag(MOD, 'emanationTrigger');
+        const receipt = await waitFor(() => card?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === vicActor().uuid) ?? null, 8000);
+        const hpDown = await waitFor(() => (vicActor().system.attributes.hp.value < hp0) ? true : null, 6000);
+        ok('19b. walking into the cube takes the dice — NO save demand: a card with the roll (4d4 slashing), a receipt, the Hit Points down', !!card && !card.getFlag(MOD, 'saves') && (tf?.damage === true) && /4d4/.test(card.rolls?.[0]?.formula ?? '') && !!receipt && !!hpDown,
+          `preds=${JSON.stringify({ card: !!card, noSaves: !card?.getFlag(MOD, 'saves'), damage: tf?.damage === true, formula: /4d4/.test(card?.rolls?.[0]?.formula ?? ''), receipt: !!receipt, hpDown: !!hpDown })} flag=${JSON.stringify(tf)} formula=${card?.rolls?.[0]?.formula} receipt=${JSON.stringify(receipt && { taken: receipt.taken, delta: receipt.delta, note: receipt.note })} hp=${hp0}→${vicActor().system.attributes.hp.value}`);
+        await scene.regions.get(region.id)?.delete().catch(() => {});
+        await vicActor().update({ 'system.attributes.hp.value': hp0 });
+        await vicTok.update(home[vicTok.id], mv()); await clrTok.update(home[clrTok.id], mv());
+        await set('emanationList', 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians');
+        await sleep(500);
       }
     }
     return { log, results, skips };

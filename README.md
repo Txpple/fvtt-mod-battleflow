@@ -64,7 +64,11 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   the target's, walls and creatures counted. When you attack, the same measure applies to the
   target's AC on its own, and the card says so. Sharpshooter and Spell Sniper take it off.
 - **Auras work.** A Paladin's Aura of Protection follows the token; allies get the bonus
-  walking in and lose it walking out. Spirit Guardians and friends do the same with their saves.
+  walking in and lose it walking out. Spirit Guardians and friends do the same with their saves,
+  and so do the areas you place and drag — Moonbeam, Cloudkill, Cloud of Daggers.
+- **Sanctuary and Mirror Image play themselves.** Whoever targets a warded creature saves first,
+  and a failed save turns the attack aside before it rolls. A hit on a mirrored creature rolls a
+  d6 per duplicate off the token; a 3 or higher and a duplicate takes it.
 - **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
 - **Everything announces itself.** Spent slots, used reactions, effects landing and expiring, a
   crit against a paralyzed creature. Each is a line on a card so nothing is a mystery.

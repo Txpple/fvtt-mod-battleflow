@@ -298,7 +298,7 @@ describe("the EMANATIONS table (decide/registry.js)", () => {
   it("the emanation kind set is counted by the R4 tripwire", () => {
     const set = reg.KIND_SETS.find(s => s.name === "emanation");
     expect(set?.owner).toBe("emanations.js");
-    expect([...set.kinds].sort()).toEqual(["feature", "spell"]);
+    expect([...set.kinds].sort()).toEqual(["area", "feature", "spell"]);
   });
 });
 
