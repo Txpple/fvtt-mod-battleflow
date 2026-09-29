@@ -255,11 +255,29 @@ export const DEATH_STRIKE = Object.freeze({
  *   lands     an effect with no activity to carry it: `{ name, from?, id, bare? }` — copied from the
  *             feature's effect `from` (changes dropped if `bare`), keyed by `id` so a new hit refreshes it
  *   bonusDice one more first die on a crit — dnd5e's `critical.bonusDice`, never doubled
+ *   self      the rider is the ATTACK's own item, whatever its type (a monster's Chaos Blade, a weapon): due on that attack alone, its
+ *             activity the attack's, no extra dice
+ *   random    `{ die }` — one of the activity's effects, named "N: …", lands by the die (the GM's side:
+ *             "roll 1d4: on a 1 Charmed, on a 2 Frightened…"), the pack's own duration; a `clock` may pin it
  *   label / says / caveat   the offer's and card's words
  * Left out: choices the sheet does not record or judgments the module cannot make (Hunter's Prey,
  * Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal, Foe Slayer). Death Strike: DEATH_STRIKE.
  */
 export const CLOCK_RIDERS = Object.freeze({
+  // THE GM'S SIDE — the random condition on a hit (RULINGS *The Monster Manual — the waiting rows built*): the
+  // attack's own four effects, one landed by a d4 until the bearer's next turn (the pack's 1-round duration).
+  "chaos-blade": Object.freeze({ feature: "Chaos Blade", activity: null, self: true, when: "any", random: Object.freeze({ die: 4 }),
+    label: "Chaos Blade", says: "a d4 decides the condition — Charmed, Frightened, Poisoned or Incapacitated — until the start of your next turn",
+    rule: Object.freeze({ item: "Chaos Blade", uuid: "Compendium.dnd-monster-manual.features.Item.mmChaosBlade0000" }),
+    from: "monsters" }),
+  "chaos-claw": Object.freeze({ feature: "Chaos Claw", activity: null, self: true, when: "any", random: Object.freeze({ die: 4 }),
+    label: "Chaos Claw", says: "a d4 decides the condition — Charmed, Frightened, Poisoned or Incapacitated — until the start of your next turn",
+    rule: Object.freeze({ item: "Chaos Claw", uuid: "Compendium.dnd-monster-manual.features.Item.mmChaosClaw00000" }),
+    from: "monsters" }),
+  "chaos-staff": Object.freeze({ feature: "Chaos Staff", activity: null, self: true, when: "any", random: Object.freeze({ die: 4 }),
+    label: "Chaos Staff", says: "a d4 decides the condition — Charmed, Frightened, Poisoned or Incapacitated — until the start of your next turn",
+    rule: Object.freeze({ item: "Chaos Staff", uuid: "Compendium.dnd-monster-manual.features.Item.mmChaosStaff0000" }),
+    from: "monsters" }),
   "dread-ambusher": Object.freeze({ feature: "Dread Ambusher", activity: "Dreadful Strike", when: "oncePerTurn", uses: true, weapon: true,
     rule: Object.freeze({ item: "Dread Ambusher", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrDreadAmbus", benefit: "Dreadful Strike" }),
     from: "Ranger — Gloom Stalker 3" }),

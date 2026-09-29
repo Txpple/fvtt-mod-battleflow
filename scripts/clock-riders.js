@@ -3,7 +3,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
@@ -79,11 +79,14 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   const out = [];
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;
-    const feature = featureNamed(attacker, row.feature);
+    // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
+    const feature = row.self ? itemNamed(attacker, row.feature) : featureNamed(attacker, row.feature);
     if ( !feature ) continue;
-    const act = row.activity ? activityNamed(feature, row.activity) : null;
-    const part = act?.damage?.parts?.[0];
-    const raw = riderFormulaOf(row, act);
+    // A `self` row rides its OWN attack alone (a monster's Chaos Blade): the activity is the attack's, no extra dice.
+    if ( row.self && (item.id !== feature.id) ) continue;
+    const act = row.self ? activity : (row.activity ? activityNamed(feature, row.activity) : null);
+    const part = row.self ? null : act?.damage?.parts?.[0];
+    const raw = row.self ? null : riderFormulaOf(row, act);
     let formula = null;
     try {
       const resolved = raw ? Roll.replaceFormulaData(raw, attacker.getRollData()) : null;
@@ -187,7 +190,9 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
         // the activity's own effects land once the damage message exists (settleRiderEffects)
-        ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}) });
+        ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
+        // one of them, by the die (Chaos Blade's d4) — rolled when it lands
+        ...(r.row.random && r.activity ? { random: { die: Number(r.row.random.die) }, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}) });
       // Out of combat there is no turn, so no chit is written.
       if ( r.row.when === "oncePerTurn" ) {
         void writeTurnChit(attacker, "rider", { name: `${r.label} — used this turn`, img: r.feature.img ?? null,
@@ -221,7 +226,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
  * on the elect, receipted — the hit menu's path, the row's `clock` pinned to the attacker. */
 async function settleRiderEffects(message) {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
-  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands);
+  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random);
   if ( !rows.length || cr.effectsApplied ) return;
   if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
   try {
@@ -243,6 +248,18 @@ async function settleRiderEffects(message) {
         continue;
       }
       const activity = feature?.system?.activities?.get?.(r.activityId) ?? null;
+      if ( r.random ) {
+        // The die decides (R1): the effect whose name opens with its face — "1: Charmed" — lands; the card says which.
+        const roll = await new Roll(`1d${r.random.die}`).evaluate();
+        const face = roll.total;
+        const landed = await applyActivityEffectsOnHit(message, activity, hits,
+          { clock: r.clock ?? null, attacker, source: statSourceOf(message), only: e => new RegExp(`^${face}\\s*:`).test(String(e?.name ?? "")) });
+        await queueFlagWrite(message, "clockRiders", current => {
+          const row = current.riders?.find(x => x.key === r.key);
+          if ( row ) row.random = { ...row.random, face, landed: (landed ?? []).map(e => e.name) };
+        });
+        continue;
+      }
       await applyActivityEffectsOnHit(message, activity, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
     }
   } catch(err) {
@@ -252,7 +269,7 @@ async function settleRiderEffects(message) {
 
 // Resumed on arrival and on reload, never on an update.
 registerResumable("clockRiders", {
-  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands) && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands || r.random) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleRiderEffects
 });

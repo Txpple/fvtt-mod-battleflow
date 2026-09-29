@@ -3,7 +3,8 @@
  * the one shared effect applier, mirroring the native tray's `_prepareEffectData`.
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, statContext } from "./core.js";
-import { cardActivity, profileEffects, resolveUuid } from "./lookup.js";
+import { cardActivity, lower, profileEffects, resolveUuid } from "./lookup.js";
+import { CLOCK_RIDERS } from "./decide/registry.js";
 import { effectRecord, joinEffectReceipt, revertableEffect } from "./decide/receipt.js";
 import { CHIP_FLAG, TURN_PINNED, chipClock } from "./decide/chips.js";
 import { CARD, castLevelOn, concentrationIdOf, isCard, scalingOf } from "./decide/card.js";
@@ -21,7 +22,12 @@ export async function applyEffectRiders(damageMessage, attackMessage, hits) {
     // ⚠ Guarded by a RIDER-OWNED marker: the mastery applier writes into the same flag.
     if ( damageMessage.getFlag(MODULE_ID, "effectReceipt")?.ridersDone ) return;
     const activity = messageActivity(attackMessage);
-    const effects = (await activity?.getApplicableEffects?.()) ?? [];
+    let effects = (await activity?.getApplicableEffects?.()) ?? [];
+    // A `random` clock rider on this very item (Chaos Blade) lands ONE of its numbered effects by the die: the
+    // rider's, never the attack's own application of all of them.
+    if ( Object.values(CLOCK_RIDERS).some(r => r.random && r.self && (lower(r.feature) === lower(activity?.item?.name))) ) {
+      effects = effects.filter(e => !/^\d+\s*:/.test(String(e?.name ?? "")));
+    }
     if ( !effects.length ) return;
 
     // The usage card carries the cast's metadata; without one, base level and no concentration.
@@ -225,16 +231,18 @@ export async function applyItemEffectOnHit(receiptMessage, feature, lands, targe
 }
 
 /**
- * An activity's own effects on the hit; `clock` is a CHIP_WINDOWS key, or null for the pack's.
+ * An activity's own effects on the hit; `clock` is a CHIP_WINDOWS key, or null for the pack's; `only` picks
+ * among them (a die's face — Chaos Blade). Returns the effects landed.
  * @param {ChatMessage} receiptMessage
  * @param {object|null} activity
  * @param {{uuid: string, name: string}[]} targets
- * @param {{clock?: string|null, attacker?: Actor|null, source?: object|null}} [options]
+ * @param {{clock?: string|null, attacker?: Actor|null, source?: object|null, only?: ((effect: any) => boolean)|null}} [options]
  */
-export async function applyActivityEffectsOnHit(receiptMessage, activity, targets, { clock = null, attacker = null, source = null } = {}) {
-  const effects = (await profileEffects(activity?.effects)).map(({ effect }) => effect).filter(Boolean);
-  if ( !effects.length || !targets?.length ) return;
+export async function applyActivityEffectsOnHit(receiptMessage, activity, targets, { clock = null, attacker = null, source = null, only = null } = {}) {
+  const effects = (await profileEffects(activity?.effects)).map(({ effect }) => effect).filter(e => e && (!only || only(e)));
+  if ( !effects.length || !targets?.length ) return [];
   const window = clock ? chipClock(clock, clockPlace(clock, attacker)) : null;
   await applyEffectsWithReceipt(receiptMessage, effects, targets,
     { source: source ?? statSourceOf(receiptMessage), clock: window ? chipData(window) : null });
+  return effects;
 }

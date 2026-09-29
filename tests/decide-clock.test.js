@@ -195,7 +195,8 @@ describe("the registry's clock-rider data", () => {
       // activity carries the extra damage — the text's `@prof` does).
       // …or no damage at all: an effect-only row (the PHB feats, group 3) says what it does instead.
       if (row.activity === null && !row.says) expect(row.amount, key).toMatch(/^@/);
-      else if (row.activity === null) expect(row.lands?.name || row.bonusDice, key).toBeTruthy();
+      else if (row.activity === null)
+        expect(row.lands?.name || row.bonusDice || row.random, key).toBeTruthy();
       else expect(row.activity, key).toBeTruthy();
       if (row.judge === "transformed") expect(row.forms?.length, key).toBeGreaterThan(0);
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
@@ -203,9 +204,13 @@ describe("the registry's clock-rider data", () => {
       // …or a Critical Hit's own (the PHB feats, group 3: Slasher, Crusher, Piercer): the crit is the limit.
       // …or an Opportunity Attack's (the PHB feats, group 6: Sentinel's Halt) — the Reaction is the limit.
       if (row.when === "any")
-        expect(row.uses === true || row.crit === true || row.judge === "opportunity", key).toBe(
-          true
-        );
+        expect(
+          row.uses === true ||
+            row.crit === true ||
+            row.judge === "opportunity" ||
+            row.self === true,
+          key
+        ).toBe(true);
       if (row.effects || row.lands)
         expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
       expectPointer(row.rule, key);

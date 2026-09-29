@@ -154,6 +154,25 @@ describe("EMANATIONS — the fire auras' pulse, the turn-start ring, the alerts"
   });
 });
 
+describe("CLOCK_RIDERS — the random condition on a hit", () => {
+  it("the three Chaos weapons are self rows: the attack's own item, on any hit, a d4 picking one of its effects, no dice", () => {
+    for (const key of ["chaos-blade", "chaos-claw", "chaos-staff"]) {
+      const row = reg.CLOCK_RIDERS[key];
+      expect(row, key).toMatchObject({
+        self: true,
+        when: "any",
+        activity: null,
+        random: { die: 4 }
+      });
+      expect(row.amount, key).toBeUndefined();
+      expect(row.effects, key).toBeUndefined();
+      expect(row.says, key).toMatch(/d4/);
+      expectPointer(row.rule);
+    }
+    expect(reg.CLOCK_RIDERS["chaos-blade"].feature).toBe("Chaos Blade");
+  });
+});
+
 describe("TURN_GRANTS — the turn-start damage", () => {
   it("the grappled target's rows: the origin's damage activity at the bearer's turn start (the vine, Smother, Spores) or turn end (the swarm)", () => {
     expect(reg.TURN_GRANTS["Constricting Vine"]).toMatchObject({

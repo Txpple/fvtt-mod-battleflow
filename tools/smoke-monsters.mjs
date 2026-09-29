@@ -10,7 +10,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 export const COVERS = [
   'repeat-saves.js',        // §1 — a monster's own activity repeats at the target's turn end (Pacifying Spores); §2 the escalation (Petrifying Bite: Petrified instead of Restrained)
   'turn-grants.js',         // §3 — the grappled target's damage at its own turn start (Constricting Vine) and turn end (Swarm of Proboscises); §4 the grappler's own turn start (Barbed Hide)
-  'emanations.js'           // §5 — the fire auras' pulse at the bearer's turn end (Flame Aura); §6 Gibbering's turn-start demand; §7 the alerts — Watery Rebuke on a move-in, Unnerving Gaze on a turn start
+  'emanations.js',          // §5 — the fire auras' pulse at the bearer's turn end (Flame Aura); §6 Gibbering's turn-start demand; §7 the alerts — Watery Rebuke on a move-in, Unnerving Gaze on a turn start
+  'clock-riders.js'         // §8 — Chaos Blade's d4: one of the attack's four conditions lands on the hit, the card says which
 ];
 
 const SECTIONS = {
@@ -20,7 +21,8 @@ const SECTIONS = {
   4: 'BARBED HIDE: the Monster\'s own turn start deals its damage to the creature it grapples (the Victim, Grappled by it), receipted; nothing when it grapples no one',
   5: 'FLAME AURA: a ring off the damage activity\'s Emanation; the Monster\'s turn END rolls the fire once and lands it on the Victim inside, receipted; the Victim outside takes nothing',
   6: 'GIBBERING: the Victim starting its turn inside the ring is demanded the Wisdom save (cause turnStart); the Monster Incapacitated, nothing',
-  7: 'THE ALERTS: Watery Rebuke — the Victim moving within 5 feet raises the reminder card (hewNotice, the Reaction from the sheet); Unnerving Gaze — the Victim STARTING its turn within 30 feet raises it (cause turnStart), once per turn'
+  7: 'THE ALERTS: Watery Rebuke — the Victim moving within 5 feet raises the reminder card (hewNotice, the Reaction from the sheet); Unnerving Gaze — the Victim STARTING its turn within 30 feet raises it (cause turnStart), once per turn',
+  8: 'CHAOS BLADE: the Monster\'s hit lands ONE of the attack\'s four conditions by a d4 (the rider records the face and the name); a hit with another attack lands none'
 };
 const DEPENDS = {};
 
@@ -41,6 +43,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const suiteStart = Date.now();
+  // The module's own errors, into the log (they say what failed and where).
+  const realError = console.error;
+  console.error = (...a) => { try { log.push(`ERR ${a.map(x => (x instanceof Error) ? `${x.message}\n${x.stack}` : String(x)).join(' ').slice(0, 900)}`); } catch { /* the log */ } realError(...a); };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -72,6 +77,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (restored) return;
     restored = true;
     CONFIG.Dice.randomUniform = realPRNG;
+    console.error = realError;
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
@@ -485,6 +491,59 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await gaze.delete();
       await waitFor(() => featureRegion('Unnerving Gaze') ? null : true, 8000);
       await moveVictim(1);
+    }
+
+    // ================================================== 8. Chaos Blade — the random condition on a hit
+    if (want(8)) {
+      await healFull();
+      await moveVictim(1);
+      const priorAc = { calc: victim.system._source.attributes.ac.calc, flat: victim.system._source.attributes.ac.flat };
+      await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });   // every swing hits
+      const blade = await lendTrait('Chaos Blade');
+      const attack = actOf(blade, { type: 'attack' });
+      ok('8-pre. the pack ships the attack with its four numbered effects', !!attack && (blade.effects.size === 4) && blade.effects.some(e => /^1\s*:/.test(e.name)), `attack=${!!attack} effects=${blade.effects.map(e => e.name).join('|')}`);
+      const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === originId));
+      const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element).find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+      const swing = async act => {
+        monsterToken.control({ releaseOthers: true });
+        target();
+        await sleep(80);
+        const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
+        const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
+        const attackMsg = rolls?.[0]?.parent ?? null;
+        const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
+        const offer = await waitFor(offerEl, 2500);
+        offer?.querySelector('button[data-action="roll"]')?.click();
+        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+        return { attackMsg, dmg };
+      };
+      const before = new Set(victim.effects.map(e => e.id));
+      const { attackMsg, dmg } = await swing(attack);
+      const hit = attackMsg?.rolls?.[0]?.total >= 1;
+      await waitFor(() => dmg?.getFlag(MOD, 'clockRiders')?.riders?.[0]?.random?.face ? true : null, 10000);
+      const cr = game.messages.get(dmg?.id)?.getFlag(MOD, 'clockRiders');
+      const rider = cr?.riders?.find(r => r.key === 'chaos-blade');
+      log.push(`§8 attack clockPick=${JSON.stringify(attackMsg?.getFlag(MOD, 'clockPick'))} attackFlags=${Object.keys(attackMsg?.flags?.[MOD] ?? {}).join(',')} dmgFlags=${Object.keys(game.messages.get(dmg?.id)?.flags?.[MOD] ?? {}).join(',')} riders=${JSON.stringify(cr?.riders?.map(r => r.key))}`);
+      const landed = victim.effects.filter(e => !before.has(e.id) && !e.statuses?.has?.('bloodied'));   // Bloodied is the platform's, on any damage
+      ok('8a. the hit lands: the rider rode (self, no extra dice), its d4 rolled, the face and the landed name on the record',
+        hit && !!dmg && !!rider && (rider.formula === null) && (rider.random?.face >= 1) && (rider.random?.face <= 4) && (rider.random?.landed?.length === 1) && new RegExp(`^${rider.random?.face}\\s*:`).test(rider.random?.landed?.[0] ?? ''),
+        `hit=${hit} dmg=${!!dmg} rider=${JSON.stringify(rider && { formula: rider.formula, random: rider.random })}`);
+      ok('8b. exactly ONE of the four conditions stands on the Victim — the one the face named — receipted on the damage card',
+        (landed.length === 1) && (landed[0].name === rider?.random?.landed?.[0]) && !!game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt'),
+        `landed=${landed.map(e => e.name).join('|')} receipt=${!!game.messages.get(dmg?.id)?.getFlag(MOD, 'effectReceipt')}`);
+      await clearVictim();
+      // Another attack of the Monster's: the rider is Chaos Blade's alone.
+      const other = await lendTrait('Claw');
+      const before2 = new Set(victim.effects.map(e => e.id));
+      const { dmg: dmg2 } = await swing(actOf(other, { type: 'attack' }));
+      await sleep(800);
+      ok('8c. a Claw hit rides no Chaos Blade: no rider record, nothing landed',
+        !!dmg2 && !game.messages.get(dmg2.id)?.getFlag(MOD, 'clockRiders')?.riders?.some(r => r.key === 'chaos-blade') && (victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length === 0),
+        `dmg=${!!dmg2} riders=${JSON.stringify(game.messages.get(dmg2?.id)?.getFlag(MOD, 'clockRiders')?.riders?.map(r => r.key))} landed=${victim.effects.filter(e => !before2.has(e.id) && !e.statuses?.has?.('bloodied')).length}`);
+      await victim.update({ 'system.attributes.ac.calc': priorAc.calc, 'system.attributes.ac.flat': priorAc.flat });
+      await clearVictim();
+      await takeBack('Chaos Blade');
+      await takeBack('Claw');
     }
 
     return { log, results, skips };
