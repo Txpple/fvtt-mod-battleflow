@@ -286,12 +286,9 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
    * on every scene for the run; the section that tests cover clears it itself.
    */
   const coverScenes = await f.evaluate(async () => {
-    const flagged = [];
-    for ( const scene of game.scenes ) {
-      if ( scene.getFlag("fvtt-mod-battleflow", "noCover") ) continue;
-      await scene.setFlag("fvtt-mod-battleflow", "noCover", true);
-      flagged.push(scene.id);
-    }
+    // One batched write each way: a teardown cut off by the dispose ceiling once left the late scenes flagged.
+    const flagged = game.scenes.filter(s => !s.getFlag("fvtt-mod-battleflow", "noCover")).map(s => s.id);
+    if ( flagged.length ) await Scene.updateDocuments(flagged.map(_id => ({ _id, "flags.fvtt-mod-battleflow.noCover": true })));
     return flagged;
   }, null).catch(() => []);
 
@@ -307,7 +304,7 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
     if (hungUp) return;
     hungUp = true;
     if ( coverScenes.length ) {
-      await f.evaluate(async ids => { for ( const id of ids ) await game.scenes.get(id)?.unsetFlag("fvtt-mod-battleflow", "noCover"); }, coverScenes)
+      await f.evaluate(async ids => Scene.updateDocuments(ids.filter(id => game.scenes.has(id)).map(_id => ({ _id, "flags.fvtt-mod-battleflow.-=noCover": null }))), coverScenes)
         .catch(e => console.warn(`[${tag}] the scenes' noCover flags not cleared (${e.message}) — run verify-settings --fix`));
     }
     await dumpHookLedger(tag, f);
