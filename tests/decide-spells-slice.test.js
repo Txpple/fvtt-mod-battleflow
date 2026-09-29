@@ -259,7 +259,14 @@ describe("REPEAT_SAVES — the table (Tier 2)", () => {
       Object.keys(reg.REPEAT_SAVES)
         .filter(k => reg.REPEAT_SAVES[k].count)
         .sort()
-    ).toEqual(["Contagion", "Flesh to Stone", "Petrifying Bite", "Petrifying Breath", "Petrifying Gaze", "Prismatic Spray (Indigo)"]);
+    ).toEqual([
+      "Contagion",
+      "Flesh to Stone",
+      "Petrifying Bite",
+      "Petrifying Breath",
+      "Petrifying Gaze",
+      "Prismatic Spray (Indigo)"
+    ]);
   });
   it("the three chosen-area spells (Slow, Fear, Confusion) are rows here too — the repeat is a second row on the same spell", () => {
     for (const k of ["Slow", "Fear", "Confusion"]) {
