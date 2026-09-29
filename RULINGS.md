@@ -1697,7 +1697,7 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 
 ## The PHB classes — A2 (2026-09-29, Session 0 stage A2)
 
-**The hit menu's next groups — five rows, no new kind, no new file; BUILT, unit-tested, its live suite owed.**
+**The hit menu's next groups — five rows, no new kind, no new file; BUILT and PROVEN (`smoke-classes` §28–31), unwalked.**
 The plan's §3 A2, read off the pack (`dnd-players-handbook.classes`, dnd5e 6.0.5). Built in rapid mode on calls the
 plan left open — **each is the user's to overrule**:
 
@@ -1723,6 +1723,10 @@ plan left open — **each is the user's to overrule**:
 | Elemental Attunement | `HIT_OPTIONS` (`activity: "Elemental Save"`, `only: "own"`, a line) in a free group | on an Elemental Strike hit (the feature's own attack): the Strength save; the push or pull a card line |
 | Psionic Power — Psionic Strike | `HIT_OPTIONS` (`activity`, `ownType`, `oncePerTurn`, `weapon`) in the `psionic-power` group | a Psionic Energy Die + Int as Force on a weapon hit, once per turn |
 | Psionic Power — Protective Field | `INTERRUPT_REDUCTIONS` `pool`, `any`, `ally: 30` | the die + Int (at least 1) off the damage, yourself or an ally within 30 ft; the pool spent at the answer |
+
+**Found by the suite:** an applied enchantment DOUBLES its rider activities (Elemental Attunement's Elemental Save:
+the hidden rider and the enchantment's copy) — the hit menu takes the usable copy by name (`usableNamed`). The guard's
+popup reads the row's words (`label`, `verb`: Protective Field's "Reduce"; Interception keeps "Intercept").
 
 **Owed in the code (known, small):** a Legendary Resistance flip of a failed Stunning Strike unwinds Stunned but
 lands no Slowed (`saves/verdict.js` `unwindFailedConsequences` re-applies damage only); Physician's Touch's
