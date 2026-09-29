@@ -1170,6 +1170,23 @@ shapes the module already has, and what each would cut, for the prototype's next
 Recommended: **margin gate + Reaction gate + the "Not this combat" button**, the card's Answer button underneath
 as the quiet road — no setting. The prototype's group A gets a scene for each before A3 is built; you rule there.
 
+**The prototype's revision (2026-09-29): three packaged options, measured.** Group N of the prototype runs one
+scripted fight (three rounds, 23 D20 Tests, a Lore Bard, a cleric, a Diviner holding Portent 17 and 3) through
+each option in a noise meter. A chance "wanted" = a flip the player would take (the bard and the cleric any
+flip their Reaction allows; the Diviner only the two big moments, a crit and the Hag's save); a player mutes
+after three passes in a row.
+
+| Option | Parts | Popups | Wanted chances taken | Missed |
+| --- | --- | --- | --- | --- |
+| no gate | — | 20 | 8 of 12 | 0 |
+| **A · ask when it can matter (recommended)** | margin + Reaction + mute; **Portent narrowed to saves and crits** (an ordinary hit gets the card button); the card button under everything skipped | **9** | **8 of 12** | **0** |
+| B · ask always, mute by hand | Reaction + once per turn + mute, no margin gate | 11 | 6 of 12 | 2 (the Diviner mutes, then misses the crit and the save) |
+| C · a quiet toast | margin + Reaction; a non-blocking corner note, the roll waits 8 s | 0 (14 toasts) | 8 of 12 | 0 — but a second surface for the same choice |
+
+The measurement's finding: **Portent is the noise** — a stored 3 flips almost any enemy hit, so the margin gate
+alone barely quiets it, and a mute taken against the noise costs the big moments. Hence A's Portent narrowing
+(a new ruling inside Q2). The four chances no option takes are the Reaction already spent.
+
 ---
 
 ## 5. The risks

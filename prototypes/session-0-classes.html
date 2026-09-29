@@ -120,6 +120,40 @@
   .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
   .panel li b,.panel p b{color:var(--ink);font-weight:600}
   .q{border-left:3px solid var(--pending)} .fix{border-left:3px solid var(--bad)}
+  /* the noise meter: three rounds of one scripted fight, every D20 Test, what each bystander would see */
+  .meter .sum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:6px 0 8px}
+  .meter .sum div{background:var(--panel-2);border:1px solid var(--line);border-radius:4px;padding:5px 6px;font-size:11px;color:var(--ink-2)}
+  .meter .sum b{display:block;font-size:20px;line-height:1.1;color:var(--ink);font-variant-numeric:tabular-nums}
+  .meter .sum .miss{color:var(--hit-ink)}
+  .meter .tot{font-size:12px;color:var(--ink-2);margin-bottom:6px} .meter .tot b{color:var(--pending);font-size:15px;font-variant-numeric:tabular-nums}
+  .meter label{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--ink-2);margin:3px 0;cursor:pointer}
+  .meter label small{color:var(--ink-3)}
+  .grid-wrap{max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:4px;margin-top:8px}
+  table.nm{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums}
+  table.nm th,table.nm td{padding:2px 4px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  table.nm th{position:sticky;top:0;background:var(--panel);color:var(--ink-3);font-weight:600}
+  table.nm td.c{text-align:center;width:38px}
+  table.nm tr.rnd td{background:rgba(0,0,0,.25);color:var(--ink-3);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+  .cell{display:inline-block;min-width:22px;padding:0 3px;border-radius:3px;font-weight:700;font-size:10px}
+  .cell.P{background:var(--pending);color:#111} .cell.A{background:var(--good);color:#111} .cell.S{background:var(--neutral-soft);color:var(--ink-3)}
+  .cell.R,.cell.O{background:var(--neutral-soft);color:var(--ink-2)} .cell.M{background:var(--bad-soft);color:var(--hit-ink)} .cell.K{border:1px solid var(--pending);color:var(--pending)}
+  .legend{display:flex;flex-wrap:wrap;gap:4px 8px;font-size:10.5px;color:var(--ink-3);margin-top:6px}
+  .stack .offer{position:absolute}
+  .cardbtn{display:inline-block;margin-top:5px;font:inherit;font-size:11px;padding:2px 8px;border-radius:3px;border:1px solid var(--pending);background:var(--pending-soft);color:var(--ink);cursor:pointer}
+  .cardbtn.dead{border-color:var(--line);background:transparent;color:var(--ink-3);cursor:default}
+  .ev{position:absolute;right:10px;top:10px;background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font-size:11.5px;color:var(--ink-2);max-width:230px}
+  .ev .e{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .settings{position:absolute;left:24px;top:22px;width:420px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px}
+  .settings .title{padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600} .settings .body{padding:10px}
+  .settings .opt{display:flex;gap:8px;align-items:flex-start;padding:6px 4px;font-size:12.5px;color:var(--ink-2)} .settings .opt b{color:var(--ink)}
+  .cell.T{border:1px dashed var(--pending);color:var(--pending)} .cell.TA{border:1px dashed var(--good);color:var(--miss-ink)}
+  .toast{position:absolute;right:14px;bottom:52px;width:260px;max-width:calc(100% - 28px);background:var(--panel);border:1px solid var(--pending);border-radius:6px;padding:8px 10px;font-size:12px;color:var(--ink-2);box-shadow:0 6px 20px rgba(0,0,0,.45)}
+  .toast b{color:var(--ink)} .toast .btnrow{margin-top:6px} .toast .trk{height:3px;margin-top:6px;border-radius:2px;background:var(--panel-2);overflow:hidden} .toast .trk div{width:70%;height:100%;background:var(--pending)}
+  .opts{display:flex;flex-direction:column;gap:6px}
+  .opt3{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 8px;padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);cursor:pointer;text-align:left;font:inherit;color:var(--ink-2)}
+  .opt3.cur{border-color:var(--pending);background:var(--pending-soft)}
+  .opt3 .h{font-weight:600;color:var(--ink);font-size:12.5px} .opt3 .n{font-size:11px;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .opt3 .d{grid-column:1/-1;font-size:11px;color:var(--ink-3)} .opt3 .rec{color:var(--crit);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-left:6px}
   .reset{font:inherit;font-size:11.5px;margin-top:10px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
 </style>
 </head>
@@ -128,7 +162,7 @@
   <header class="top">
     <div>
       <div class="eyebrow">Battle Flow · prototype · 2026-09-29 · Session 0, the PHB classes · for ruling, nothing built</div>
-      <h1>Four shapes: the bystander's bend, Portent, the cast riders, Brutal Strike</h1>
+      <h1>Five shapes: the bystander's bend, its noise gate, Portent, the cast riders, Brutal Strike</h1>
     </div>
     <p>The UI-shaped items of the classes plan, each drawn in its states. Pick a scene along the top; where a scene has a before and after, tick a row and press the button. The canvas shows the map, the chat log the cards, the orange panels the rulings to make. The rule text in every fold is the 2024 wording as the build will read it off the pack.</p>
   </header>
@@ -140,6 +174,19 @@
       <button data-scene="a3">A3 · Guided Strike for an ally</button>
       <button data-scene="a4">A4 · Restore Balance, after</button>
       <button data-scene="a5">A5 · three bystanders, one roll</button>
+    </div>
+    <div class="grp"><span>N · noise (Q2) — 3 options</span>
+      <button data-scene="n1">The problem · no gate</button>
+      <button data-scene="nA">Option A · ask when it can matter ★</button>
+      <button data-scene="nB">Option B · ask always, mute by hand</button>
+      <button data-scene="nC">Option C · a quiet toast</button>
+    </div>
+    <div class="grp"><span>N · the parts</span>
+      <button data-scene="n2">margin gate</button>
+      <button data-scene="n3">once per turn</button>
+      <button data-scene="n4">"Not this combat"</button>
+      <button data-scene="n5">card only</button>
+      <button data-scene="n6">a setting</button>
     </div>
     <div class="grp"><span>B · Portent</span>
       <button data-scene="b1">B1 · the rest's dice</button>
@@ -184,7 +231,7 @@
     smite: "Once per turn when you hit a creature with your pact weapon, you can expend a Pact Magic spell slot to deal an extra 1d8 Force damage to the target, plus another 1d8 per level of the spell slot, and you can give the target the Prone condition if it is Huge or smaller."
   };
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-  const state = { scene:"a1", pick:null, done:null, open:new Set(), give:{gren:4,thomas:4,salyth:4} };
+  const state = { scene:"nA", pick:null, done:null, open:new Set(), give:{gren:4,thomas:4,salyth:4}, gates:null };
 
   /* ---------- pieces ---------- */
   const bar = (secs, label="to answer") => `<div class="bar"><div class="trk"><div class="fill"></div></div><span>${secs}s ${label}</span></div>`;
@@ -297,6 +344,256 @@
         "<b>Two clients:</b> a bystander who does not own the target answers by envelope (the relay), the continuing client folds it — <code>smoke-twoclient</code> gets a section."])
       + rulings(["Several bystanders on one roll: every owner asked at once (drawn), or the nearest only? Drawn as everyone — the rules let them all react."]) });
 
+  /* ---------- N · the noise gate: one scripted fight, three rounds, every D20 Test ---------- */
+  // Party: Gren (AC 15), Salyth the Lore Bard (AC 13, Cutting Words d8), Thomas the cleric (AC 18, Guided Strike),
+  // the Diviner (AC 12, Portent 17 and 3). Foes: two Bugbear Warriors, a Goblin Boss (two attacks), a Green Hag.
+  // t = the AC or DC the module can read; null = a check with no DC it knows. turn = whose turn the roll is on.
+  const FIGHT = [
+    { r:1, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Gren", d:12, mod:5, t:15 },
+    { r:1, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Thomas", d:19, mod:5, t:18 },
+    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Salyth", d:17, mod:4, t:13 },
+    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Salyth", d:6, mod:4, t:13 },
+    { r:1, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Bugbear A", d:6, mod:7, t:16 },
+    { r:1, turn:"thomas", who:"Thomas", kind:"attack", foe:false, at:"Bugbear B", d:15, mod:5, t:16 },
+    { r:1, turn:"div", who:"Bugbear A", kind:"save", foe:true, at:"Dex vs the Diviner's DC", d:14, mod:1, t:15 },
+    { r:1, turn:"sal", who:"Salyth", kind:"attack", foe:false, at:"Goblin Boss", d:4, mod:6, t:17 },
+    { r:2, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Gren", d:20, mod:5, t:15, big:true },
+    { r:2, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Thomas", d:8, mod:5, t:18 },
+    { r:2, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"the Diviner", d:15, mod:4, t:12 },
+    { r:2, turn:"hag", who:"Gren", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:9, mod:1, t:14, big:true },
+    { r:2, turn:"hag", who:"Salyth", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:16, mod:2, t:14 },
+    { r:2, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Bugbear A", d:18, mod:7, t:16 },
+    { r:2, turn:"thomas", who:"Thomas", kind:"attack", foe:false, at:"Bugbear B", d:3, mod:5, t:16 },
+    { r:2, turn:"bbA", who:"Bugbear A", kind:"check", foe:true, at:"Athletics, escaping", d:16, mod:3, t:null },
+    { r:3, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Salyth", d:16, mod:5, t:13 },
+    { r:3, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Gren", d:13, mod:5, t:15 },
+    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Thomas", d:19, mod:4, t:18 },
+    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Thomas", d:2, mod:4, t:18 },
+    { r:3, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Goblin Boss", d:9, mod:7, t:17 },
+    { r:3, turn:"sal", who:"Salyth", kind:"attack", foe:false, at:"Bugbear B", d:2, mod:6, t:16 },
+    { r:3, turn:"div", who:"the Diviner", kind:"attack", foe:false, at:"Bugbear B", d:11, mod:5, t:16 }
+  ];
+  const BYS = [
+    { key:"cw", name:"Salyth", feat:"Cutting Words", reaction:true },
+    { key:"gs", name:"Thomas", feat:"Guided Strike", reaction:true },
+    { key:"pt", name:"the Diviner", feat:"Portent", reaction:false }
+  ];
+  const passes = x => x.t === null ? true : (x.kind === "attack" ? (x.d === 20 || (x.d !== 1 && x.d + x.mod >= x.t)) : x.d + x.mod >= x.t);
+  // Would the bystander care about this roll at all (the rule's trigger), and can its bend flip the verdict?
+  // null = the module cannot tell (a check with no DC): the margin gate asks.
+  function reach(b, x, faces){
+    const total = x.d + x.mod, ok = passes(x);
+    if ( b.key === "cw" ) {
+      if ( !x.foe || x.kind === "save" || !ok ) return { trig:false };
+      if ( x.t === null ) return { trig:true, flip:null };
+      return { trig:true, flip: x.d !== 20 && total - 8 < x.t };
+    }
+    if ( b.key === "gs" ) {
+      if ( x.foe || x.kind !== "attack" || ok ) return { trig:false };
+      return { trig:true, flip: x.d !== 1 && total + 10 >= x.t };
+    }
+    if ( !faces.length ) return { trig:false };
+    if ( x.t === null ) return { trig:true, flip:null };
+    const wantFail = x.foe;             // the Diviner wants a foe's roll to fail, an ally's to pass
+    const face = faces.find(f => { const now = x.kind === "attack" ? (f === 20 || (f !== 1 && f + x.mod >= x.t)) : f + x.mod >= x.t; return wantFail ? (ok && !now) : (!ok && now); });
+    return { trig:true, flip: face !== undefined, face };
+  }
+  const GATE_PRESETS = {
+    n1:{ margin:false, reaction:true, once:false, mute:false, card:false, answer:true },
+    n2:{ margin:true, reaction:true, once:false, mute:false, card:false, answer:true },
+    n3:{ margin:true, reaction:true, once:true, mute:false, card:false, answer:true },
+    n4:{ margin:false, reaction:true, once:false, mute:true, card:false, answer:true },
+    n5:{ margin:false, reaction:true, once:false, mute:false, card:true, answer:true },
+    n6:{ margin:true, reaction:true, once:false, mute:false, card:false, answer:true },
+    nA:{ margin:true, reaction:true, once:false, mute:true, card:false, toast:false, portent:true, answer:true },
+    nB:{ margin:false, reaction:true, once:true, mute:true, card:false, toast:false, answer:true },
+    nC:{ margin:true, reaction:true, once:false, mute:false, card:false, toast:true, answer:true }
+  };
+  // One pass over the fight. Cells: P popup · A popup answered · S silent (the card's button only) · R Reaction spent
+  // · O already asked this turn · M muted · K card only (a button on the card, no popup).
+  function simulate(g){
+    const faces = [17, 3], st = {}, out = [];
+    for ( const b of BYS ) st[b.key] = { spentRound:0, askedTurn:null, passed:0, muted:false, popups:0, toasts:0, flips:0, missed:0, taken:0, portentTurn:null };
+    FIGHT.forEach((x, i) => {
+      const row = { x, cells:{} };
+      for ( const b of BYS ) {
+        const s = st[b.key], rc = reach(b, x, faces);
+        if ( !rc.trig ) { row.cells[b.key] = ""; continue; }
+        const turnKey = `${x.r}:${x.turn}`;
+        const wants = !!rc.flip && (b.reaction || !!x.big);
+        if ( wants ) s.flips++;
+        let c;
+        if ( b.key === "pt" && s.portentTurn === turnKey ) c = "O";
+        else if ( g.reaction && b.reaction && s.spentRound === x.r ) c = "R";
+        else if ( g.once && s.askedTurn === turnKey ) c = "O";
+        else if ( s.muted ) c = "M";
+        else if ( g.card ) c = "K";
+        else if ( g.margin && rc.flip === false ) c = "S";
+        else if ( g.portent && b.key === "pt" && x.kind === "attack" && x.d !== 20 ) c = "S";
+        else {
+          if ( g.toast ) s.toasts++; else s.popups++;
+          s.askedTurn = turnKey;
+          if ( g.answer && wants ) {
+            c = g.toast ? "TA" : "A"; s.passed = 0; s.taken++;
+            if ( b.reaction ) s.spentRound = x.r;
+            if ( b.key === "pt" ) { faces.splice(faces.indexOf(rc.face), 1); s.portentTurn = turnKey; }
+          } else {
+            if ( g.toast ) c = "T";
+            else { c = "P"; s.passed++; if ( g.mute && s.passed >= 3 ) { s.muted = true; c = "P→M"; } }
+          }
+        }
+        if ( wants && ["M","K","S"].includes(c) ) s.missed++;
+        row.cells[b.key] = c;
+      }
+      out.push(row);
+    });
+    return { rows: out, st };
+  }
+  const GATE_LABELS = [
+    ["margin","Margin gate","ask only when the bend can change the verdict"],
+    ["reaction","Reaction gate","not while the Reaction is spent (today's hold already does this)"],
+    ["portent","Portent: saves and crits only","an ordinary hit gets the card button, not a popup"],
+    ["once","Once per turn","one ask per bystander per creature's turn"],
+    ["mute","\"Not this combat\"","a player presses it after passing three in a row"],
+    ["card","Card only","no popup at all, a button on the card"],
+    ["toast","Toast instead of popup","a small corner note with Answer; the roll waits 8 s, not 20"],
+    ["answer","Players take the chances they want","Salyth and Thomas any flip; the Diviner only the crit and the Hag's save; off = every popup passed"]
+  ];
+  function meter(){
+    const g = state.gates, { rows, st } = simulate(g);
+    const total = BYS.reduce((n, b) => n + st[b.key].popups, 0), toasts = BYS.reduce((n, b) => n + st[b.key].toasts, 0);
+    const tag = c => c ? `<span class="cell ${c.replace("P→M","M")}">${c === "P→M" ? "mute" : c === "TA" ? "A" : c}</span>` : "";
+    let lastR = 0, body = "";
+    for ( const { x, cells } of rows ) {
+      if ( x.r !== lastR ) { body += `<tr class="rnd"><td colspan="4">round ${x.r}</td></tr>`; lastR = x.r; }
+      const tot = x.d + x.mod;
+      body += `<tr><td title="${esc(x.at)}">${esc(x.who)} ${x.kind === "attack" ? "→ " + esc(x.at) : esc(x.kind)} <span style="color:var(--ink-3)">${x.d === 20 ? "nat 20" : tot}${x.t === null ? "" : " vs " + x.t}</span></td>${BYS.map(b => `<td class="c">${tag(cells[b.key])}</td>`).join("")}</tr>`;
+    }
+    return `<div class="panel meter"><h3>Noise meter — 3 rounds, 23 D20 Tests</h3>
+      <div class="tot"><b>${total}</b> popups across three bystanders${toasts ? ` · <b>${toasts}</b> toasts` : ""}</div>
+      <div class="sum">${BYS.map(b => { const s = st[b.key]; return `<div>${esc(b.feat)}<b>${s.popups + s.toasts}</b>asked · took ${s.taken} of ${s.flips}${s.missed ? ` · <span class="miss">${s.missed} missed</span>` : ""}</div>`; }).join("")}</div>
+      ${GATE_LABELS.map(([k, l, h]) => `<label><input type="checkbox" id="gate-${k}" data-gate="${k}" ${g[k] ? "checked" : ""}><span><b style="color:var(--ink)">${l}</b> <small>${h}</small></span></label>`).join("")}
+      <div class="grid-wrap"><table class="nm"><thead><tr><th>Roll</th><th class="c">CW</th><th class="c">GS</th><th class="c">Port</th></tr></thead><tbody>${body}</tbody></table></div>
+      <div class="legend"><span><span class="cell P">P</span> popup, passed</span><span>"missed" = a chance the player wanted and never saw</span><span><span class="cell A">A</span> popup, answered</span><span><span class="cell S">S</span> silent, can't flip</span><span><span class="cell R">R</span> Reaction spent</span><span><span class="cell O">O</span> once a turn</span><span><span class="cell M">M</span> muted</span><span><span class="cell K">K</span> card button only</span><span><span class="cell T">T</span> toast</span></div>
+    </div>`;
+  }
+  function popupsWith(g){
+    const { rows, st } = simulate(g);
+    const sum = k => BYS.reduce((n, b) => n + st[b.key][k], 0);
+    return { total: sum("popups"), toasts: sum("toasts"), missed: sum("missed"), pt: st.pt.popups, useful: sum("taken"), wanted: sum("flips") };
+  }
+  const OPTIONS = [
+    { key:"nA", h:"A · Ask when it can matter", rec:true, d:"margin gate + Reaction gate + a \"Not this combat\" button; Portent asks on saves and crits only; the card button under everything skipped" },
+    { key:"nB", h:"B · Ask always, mute by hand", d:"no margin gate; once per turn + Reaction gate + the mute; the player sets the noise" },
+    { key:"nC", h:"C · A quiet toast", d:"margin gate, but a small corner note instead of a popup; the roll waits 8 s" }
+  ];
+  function optionsPanel(){
+    const base = popupsWith(GATE_PRESETS.n1);
+    return `<div class="panel q"><h3>Three options — the same fight (no gate: ${base.total} popups)</h3><div class="opts">${OPTIONS.map(o => {
+      const n = popupsWith(GATE_PRESETS[o.key]);
+      const cnt = n.toasts ? `${n.toasts} toasts · 0 popups` : `${n.total} popups`;
+      return `<button class="opt3 ${state.scene === o.key ? "cur" : ""}" data-goto="${o.key}"><span class="h">${o.h}${o.rec ? `<span class="rec">★ recommended</span>` : ""}</span><span class="n">${cnt}<br>took ${n.useful} of ${n.wanted}${n.missed ? ` · <span style="color:var(--hit-ink)">${n.missed} missed</span>` : ""}</span><span class="d">${o.d}</span></button>`;
+    }).join("")}</div></div>`;
+  }
+  const mapN = (extraBard="", extraBug="") => tok(140,150,"BB","Bugbear A",{extra:extraBug}) + tok(240,170,"GR","Gren",{pc:true}) + tok(430,300,"SA","Salyth",{pc:true,extra:extraBard}) + tok(60,320,"TH","Thomas",{pc:true}) + tok(330,70,"WZ","the Diviner",{pc:true});
+  const btns3 = mute => `<div class="btnrow"><button class="btn primary" ${state.pick?"":"disabled"}>Answer</button><button class="btn" data-act="pass">Pass</button>${mute?`<button class="btn" data-act="mute" title="Mute Cutting Words until this combat ends">Not this combat</button>`:""}</div>`;
+  const cwPopup = (situ, mute) => popup("Cutting Words — Salyth",
+    head("bard","Bugbear B's attack at Thomas","Morningstar · 24 vs AC 18 — a hit · within 60 ft of you") + bar(20)
+    + (situ ? `<div class="situ">${situ}</div>` : "")
+    + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left") + btns3(mute));
+
+  S.n1 = () => ({
+    stage: stage(mapN()
+      + popup("Portent — the Diviner", head("wiz","Bugbear A's attack at Gren","Morningstar · 17 vs AC 15 — a hit") + bar(20) + row("pt1","Portent — replace the 12 with the 3","3 +5 = 8","a stored die · 2 left"))
+      + cwPopup("", false).replace('<div class="offer">', '<div class="offer" style="left:60px;top:70px">')
+      + popup("Portent — the Diviner", head("wiz","Bugbear B's attack at Thomas","24 vs AC 18 — a hit") + row("pt2","Portent — replace the 19 with the 3","3 +5 = 8","a stored die · 2 left")).replace('<div class="offer">', '<div class="offer" style="left:96px;top:130px">'),
+      "No gate: every roll a bystander's rule names opens a popup. Portent names every D20 Test, so the Diviner is asked on almost every roll of the fight."),
+    chat: log(atk("Bugbear A","Morningstar","Gren",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, Salyth, the Diviner · 20s</span></div>`,
+      atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Thomas, Salyth, the Diviner · 20s</span></div>`),
+    side: optionsPanel() + meter() + (() => { const n = popupsWith(GATE_PRESETS.n1); return panel("What this shows", [`<b>The worry, measured.</b> In three rounds of an ordinary fight the three bystanders get <b>${n.total}</b> popups. Portent alone is <b>${n.pt}</b> of them, because its rule reaches every D20 Test and the Diviner is holding the dice.`, `<b>The players take ${n.useful} of them.</b> The rest are noise: a bend that cannot change the verdict, or one the player is saving, still interrupts.`]); })() });
+
+  S.n2 = () => ({
+    stage: stage(mapN() + cwPopup("A d8 can turn this: 24 − 8 = 16, under AC 18.", false),
+      "The margin gate asks only when the bend can change the verdict. A 25 against AC 15, or a natural 20, never opens the popup."),
+    chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
+      atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+    side: optionsPanel() + meter() + panel("What this shows", ["<b>The situation line says why you are asked</b>, with the arithmetic in plain numbers. The line is only there because the gate is.", "<b>The crit asks no one.</b> Cutting Words cannot undo a natural 20, and Portent's dice are checked against it: a stored 3 would turn it into a miss, so the Diviner <i>is</i> asked for that one.", "<b>Precedent:</b> <code>holdSkipped</code>, the futile-skip gate that already declines a hopeless Shield.", "<b>A check with no DC</b> cannot be judged, so the gate asks (the Bugbear's Athletics in round 2)."])
+      + rulings(["The margin gate as the default for every bystander row (recommended)?"]) });
+
+  S.n3 = () => ({
+    stage: stage(mapN() + `<div class="nothing">No popup. Salyth was asked on the Goblin Boss's first attack this turn; the second attack on the same turn is not asked again.</div>`,
+      "Once per turn: a multiattack creature asks each bystander on its first qualifying roll only."),
+    chat: log(atk("Goblin Boss","Scimitar","Thomas",`d20 19 +4 = <b>23</b> vs AC 18 <span class="verdict hit">HIT</span> · Salyth passed`),
+      atk("Goblin Boss","Scimitar","Thomas",`d20 16 +4 = <b>20</b> vs AC 18 <span class="verdict hit">HIT</span>`), `<div class="msg"><span class="chip">Cutting Words — asked once this turn</span></div>`),
+    side: optionsPanel() + meter() + panel("What this shows", ["<b>Small effect in this fight.</b> Only the Goblin Boss attacks twice. Once per turn pays off against dragons and other multiattack monsters.", "<b>It also hides chances.</b> If the second attack is the one that could flip, the player never hears about it. Precedent: the rider chit (<code>TURN_CHITS</code>)."])
+      + rulings(["Once per turn: keep it out of the recommendation (drawn), or add it on top?"]) });
+
+  S.n4 = () => {
+    const muted = state.done === "mute";
+    return {
+      stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
+        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("", true)),
+        muted ? "Muted: Salyth is not asked again this combat. The effect view names the mute and holds the Unmute button; the combat's end clears it." : "A third button on the popup: mute this feature until the combat ends."),
+      chat: log(atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, muted ? "bad" : "pending"),
+        muted ? msg("Salyth", card("neutral","Cutting Words","muted until the combat ends","Salyth",["Unmute from the effect view."])) : `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+      side: optionsPanel() + meter() + panel("What this shows", ["<b>The player's own switch.</b> The mute lasts until the combat ends and shows on the effect view (R5: an icon is never a mystery). Precedent: the mastery chips' combat sweep.", "<b>The meter's model</b> is a player who mutes after passing three times, which is when a player would get tired of it."]) + resetBtn() };
+  };
+
+  S.n5 = () => {
+    const late = state.done === "late";
+    return {
+      stage: stage(mapN(), late ? "Too late: damage was rolled, so the button is greyed out." : "No popup. The attack card carries the button, which only Salyth's client makes live, and it stays live until the damage is rolled."),
+      chat: log(msg("Bugbear B", card("pending","Attack","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,
+        late ? `<button class="cardbtn dead" disabled>Cutting Words — damage already rolled</button>` : `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button> <button class="cardbtn" data-act="late" style="border-color:var(--line);background:transparent;color:var(--ink-3)">▸ the GM rolls damage</button>`])) ),
+      side: optionsPanel() + meter() + panel("What this shows", ["<b>No interruptions at all.</b> The hold does not wait for a button nobody was asked about, so the GM rolls damage straight away and the chance closes.", "<b>The cost:</b> the \"left to the card\" count. At a live table most of those chances are missed, and N3 wants a proactive reminder.", "<b>As the quiet road under a gate, it works well:</b> whatever the gate stays silent on still has its button."]) + resetBtn() };
+  };
+
+  S.n6 = () => ({
+    stage: stage(mapN() + `<div class="settings"><div class="title">Configure Settings — Battle Flow (this client)</div><div class="body">
+      <div class="situ">Bystander prompts</div>
+      <div class="opt"><input type="radio" name="bys" id="bys-margin" checked><label for="bys-margin"><b>When it can change the outcome</b> — the margin gate</label></div>
+      <div class="opt"><input type="radio" name="bys" id="bys-always"><label for="bys-always"><b>Every time</b> — no gate</label></div>
+      <div class="opt"><input type="radio" name="bys" id="bys-never"><label for="bys-never"><b>Never</b> — the card's button only</label></div>
+    </div></div>`, "A per-client setting picks the gate. DESIGN keeps settings to about ten and bans switches, so this is the last resort."),
+    chat: log(`<div class="nothing" style="position:static">a setting changes nothing on the card; it picks which of N2 / N1 / N5 this client sees</div>`),
+    side: optionsPanel() + meter() + panel("What this shows", ["<b>Each player picks their own noise level</b>, and a quiet player can go card-only.", "<b>The cost:</b> a setting the table has to find and explain, and a module that behaves differently on different screens. The same result comes from the mute button without adding a setting."])
+      + rulings(["A setting: out (recommended), or in as the escape hatch?"]) });
+
+  S.nA = () => {
+    const muted = state.done === "mute";
+    return {
+      stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
+        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("A d8 can turn this: 24 − 8 = 16, under AC 18.", true)),
+        "Option A (recommended): the margin gate, the Reaction gate and the mute button; Portent narrowed to saves and crits; the card's button under everything the gate skips."),
+      chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
+        msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button>`])),
+        `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+      side: optionsPanel() + meter() + panel("Why A", [(() => { const a = popupsWith(GATE_PRESETS.n1), b = popupsWith(GATE_PRESETS.nA); return `<b>Asked only when it matters.</b> ${b.total} popups against ${a.total} with no gate; the players take ${b.useful} of the ${b.wanted} chances they want${b.missed ? `, and miss ${b.missed} because a mute was pressed` : ""}.`; })(), "<b>Nothing is hidden.</b> A skipped roll still has the card button, and a mute shows on the effect view.", "<b>No setting, no new kind.</b> The margin read is a pure function beside <code>holdSkipped</code>; the mute is a chip swept with the combat."])
+        + panel("Portent is the noise", ["<b>A stored 3 flips almost any enemy hit</b>, so the margin gate alone barely quiets Portent. Without the narrowing the Diviner is asked on most enemy turns, presses the mute, and then misses the crit and the Hag's save (toggle it off in the meter to see).", "<b>Saves and crits are where Portent earns its keep</b>: a dragon's breath, a hold person, a critical hit. An ordinary hit still has the card button."])
+        + rulings(["<b>Q2's noise gate: A, B or C?</b> A is recommended: the fewest popups, every chance the players want taken, nothing new to learn.", "<b>Portent narrowed to saves and crits</b> (part of A), or asked on every hit a stored face would flip?"]) + resetBtn() };
+  };
+
+  S.nB = () => {
+    const muted = state.done === "mute";
+    return {
+      stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
+        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>`
+          : popup("Cutting Words — Salyth", head("bard","Bugbear A's attack at Gren","Morningstar · natural 20 — a critical hit · within 60 ft of you") + bar(20)
+            + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left") + btns3(true))),
+        "Option B: every roll the rule names is asked, once per creature's turn. Here Salyth is asked about a natural 20 that no d8 can undo. The player's answer to the noise is the mute."),
+      chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, Salyth, the Diviner · 20s</span></div>`),
+      side: optionsPanel() + meter() + panel("B, fairly", ["<b>In this fight the Diviner mutes Portent</b> after three passes and misses both big moments; the mute is a blunt tool.", "<b>Closest to the rule's \"you can\".</b> The module never decides a bend is useless; Cutting Words on a crit to cut its damage is a real play (the damage half).", "<b>The cost is the popup count</b> and Portent's popup on nearly every turn. The mute is the relief, and a muted player misses the good moments too.", "<b>Once per turn</b> keeps a multiattack dragon from asking three times."]) + resetBtn() };
+  };
+
+  S.nC = () => {
+    const late = state.done === "late";
+    return {
+      stage: stage(mapN() + (late ? "" : `<div class="toast"><b>Cutting Words could turn this</b><br>Bugbear B → Thomas · 24 vs AC 18 · −1d8<div class="btnrow"><button class="btn primary">Answer</button><button class="btn" data-act="late">Let it go</button></div><div class="trk"><div></div></div></div>`),
+        late ? "The toast closed; the roll went on. The card still shows the button until the damage is rolled." : "Option C: the margin gate picks the moments, but the ask is a small corner note, not a popup over the map. The roll waits 8 seconds for it, not 20."),
+      chat: log(msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button>`]))),
+      side: optionsPanel() + meter() + panel("C, fairly", ["<b>Softest on the eye.</b> Nothing covers the map; the player keeps moving their mouse and the note fades.", "<b>The cost:</b> a new surface. Every other reaction in the module (Shield, Lucky, Protection) is a popup, so a toast teaches the table a second shape for the same kind of choice. The 8-second window is easy to miss.", "<b>The count is A's</b> with the margin gate, only quieter per ask."]) + resetBtn() };
+  };
+
   /* ---------- B · Portent ---------- */
   const mapB = (extra="") => tok(120,120,"DR","Young Green Dragon",{extra}) + tok(360,300,"WZ","BF Test Wizard",{pc:true}) + tok(260,330,"GR","Gren",{pc:true});
   S.b1 = () => ({
@@ -399,7 +696,21 @@
   }
   document.querySelector(".scenes").addEventListener("click", e => {
     const b = e.target.closest("button[data-scene]"); if ( !b ) return;
-    state.scene = b.dataset.scene; state.pick = null; state.done = null; render();
+    state.scene = b.dataset.scene; state.pick = null; state.done = null;
+    if ( GATE_PRESETS[state.scene] ) state.gates = { ...GATE_PRESETS[state.scene] };
+    render();
+  });
+  document.getElementById("side").addEventListener("click", e => {
+    const o = e.target.closest("[data-goto]"); if ( !o ) return;
+    document.querySelector(`.scenes button[data-scene="${o.dataset.goto}"]`)?.click();
+  });
+  document.getElementById("side").addEventListener("change", e => {
+    const c = e.target.closest("input[data-gate]"); if ( !c ) return;
+    state.gates[c.dataset.gate] = c.checked;
+    const scroll = document.querySelector(".grid-wrap")?.scrollTop ?? 0;
+    render();
+    const w = document.querySelector(".grid-wrap"); if ( w ) w.scrollTop = scroll;
+    document.getElementById(`gate-${c.dataset.gate}`)?.focus();
   });
   document.getElementById("stage").addEventListener("click", e => {
     const r = e.target.closest(".row[data-row]");
@@ -423,6 +734,7 @@
     const a = e.target.closest("[data-act]"); if ( !a ) return;
     if ( a.dataset.act === "reset" ) { state.done = null; state.pick = null; render(); }
   });
+  if ( GATE_PRESETS[state.scene] ) state.gates = { ...GATE_PRESETS[state.scene] };
   render();
 })();
 </script>

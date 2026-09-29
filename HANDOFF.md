@@ -34,6 +34,16 @@
 - **UNWALKED, by the user's mode** (rapid deployment): the spells slice's four tiers (`tools/content/place-spells-walk.mjs`),
   Slice B's three walk tables, the Monster Manual's (RULINGS *The Monster Manual — the waiting rows built* → *The walk table*).
 
+## Progress (2026-09-29, the next session)
+
+- **1. M0 DONE** (32ed78d): five rows NATIVE (Danger Sense, Radiant Strikes, Eldritch Mind, Nature's Sanctuary, Bulwark
+  of Force), nine staged (three join A1), the pools need no new `poolOf` shape; register 99 NATIVE · 113 ROW. The answers
+  are in the plan §3 *M0 — the answers*.
+- **2. The prototype's noise revision DONE, WAITING ON THE RULING**: group N of the prototype (published at
+  https://claude.ai/artifact/JAVoC3knLQjXeDvP9JoTb7) packages three options, measured in a live noise meter (the plan
+  §4a table): **A recommended** (margin + Reaction + mute, Portent narrowed to saves and crits), B (ask always, mute by
+  hand), C (a quiet toast). A3 is built as ruled.
+
 ## Next — in this order, each on the user's go
 
 1. **M0 — measure on the sandbox** (the plan §3 *M0*; ≈ 1 hour, read-only): the fourteen `M0` rows with
