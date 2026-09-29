@@ -98,6 +98,8 @@ function castChoice(activity) {
   if ( !key || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === key.toLowerCase()) ) return null;
   const row = EFFECT_CHOICES[key];
   if ( !row ) return null;
+  // An `on` row asks at the `on` item's use only: the pick's own activity (the Wolf) never asks again.
+  if ( row.on && !answers(row.on, activity?.item) ) return null;
   if ( row.activity && (lower(activity?.name) !== lower(row.activity)) ) return null;
   // ⚠ SYNC at preCreate: profiles resolve effects async, so names come off the item's effects by id.
   const options = row.picks ? [...row.picks]
