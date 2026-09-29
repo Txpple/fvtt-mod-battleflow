@@ -515,7 +515,9 @@ export const SAVE_PRESSES = Object.freeze({
 
 /** Evasion's shape, no choice (R1): a save against half-on-success takes none on a success and half on a
  * failure; not while Incapacitated. The verdict's multiplier does it. Keyed by the feature on the sheet;
- * `ability` narrows it (Evasion: Dexterity only) or null reaches every save (Avoidance, a monster's — the GM's side). */
+ * `ability` narrows it (Evasion: Dexterity only) or null reaches every save (Avoidance, a monster's — the GM's side).
+ * `onMiss` (a `side: "caster"` row): a missed attack with the caster's cantrip still deals that share — Graze's
+ * shape (the miss still pays), rolled once the miss is final (auto-damage.js), landed by the applier. */
 export const EVASIONS = Object.freeze({
   "Evasion": Object.freeze({ ability: "dex",
     rule: Object.freeze({ item: "Evasion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkEvasion000" }),
@@ -525,7 +527,7 @@ export const EVASIONS = Object.freeze({
     from: "monsters" }),
   // THE MIRROR ON THE CASTER (`side: "caster"`): keyed by the CASTER's feature, never the saver's. A successful
   // save against the caster's cantrip (`cantrip`) still takes `onSuccess` of the damage; a failure is unchanged.
-  "Potent Cantrip": Object.freeze({ side: "caster", cantrip: true, onSuccess: 0.5, ability: null,
+  "Potent Cantrip": Object.freeze({ side: "caster", cantrip: true, onSuccess: 0.5, onMiss: 0.5, ability: null,
     rule: Object.freeze({ item: "Potent Cantrip", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPotentCant" }),
     from: "Wizard — Evoker 3" })
 });

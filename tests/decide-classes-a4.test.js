@@ -59,7 +59,7 @@ describe("Potent Cantrip — EVASIONS' mirror on the caster", () => {
   it("the row is keyed to the CASTER, a cantrip's success taking half", () => {
     const row = reg.EVASIONS["Potent Cantrip"];
     expect(Object.isFrozen(row)).toBe(true);
-    expect(row).toMatchObject({ side: "caster", cantrip: true, onSuccess: 0.5 });
+    expect(row).toMatchObject({ side: "caster", cantrip: true, onSuccess: 0.5, onMiss: 0.5 });
     expectPointer(row.rule);
   });
   it("a success against a no-damage-on-save cantrip takes half; a failure stays whole", () => {

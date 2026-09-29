@@ -5,7 +5,7 @@
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
-import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
+import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
 import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
 import { TITLE } from "./core.js";
 
@@ -73,6 +73,20 @@ export function dealtTypesOf(activity) {
 }
 
 export const featureNamed = (actor, key) => itemNamed(actor, key, { types: ["feat"] });
+
+/** The EVASIONS row whose MISS still pays (`onMiss` — Potent Cantrip) for this attack activity: the attacker's
+ * feature, the activity's item a cantrip where the row says so. `{ by, share }` or null. */
+export function missShareFor(activity) {
+  const item = activity?.item ?? null;
+  const actor = activity?.actor ?? null;
+  if ( !actor ) return null;
+  for ( const [key, row] of Object.entries(EVASIONS) ) {
+    if ( (row.side !== "caster") || !row.onMiss ) continue;
+    if ( row.cantrip && !((item?.type === "spell") && (Number(item.system?.level) === 0)) ) continue;
+    if ( featureNamed(actor, key) ) return { by: key, share: row.onMiss };
+  }
+  return null;
+}
 
 /** Does this creature hold (EQUIPPED) what a guard's row demands? */
 export function holdsFor(actor, holding) {

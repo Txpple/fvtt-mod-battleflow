@@ -40,7 +40,8 @@ export const COVERS = [
   'saves/demand.js',        // the save card's effect names by outcome
   // §A4 (32–34)
   'saves/verdict.js',       // Potent Cantrip stamped on the entry at the fold
-  'metamagic.js'            // Psychic Spells' free row, its birth flag, the damage retyped
+  'metamagic.js',           // Psychic Spells' free row, its birth flag, the damage retyped
+  'precision.js'            // the miss wait's synchronous half (Potent Cantrip's miss)
 ];
 
 const SECTIONS = {
@@ -77,7 +78,8 @@ const SECTIONS = {
   31: 'Elemental Attunement: its own Elemental Strike only; "Push or pull — free"; the Strength save and the card\'s line',
   32: 'Potent Cantrip (lent to the Attacker): the Halfling SAVES against its Sacred Flame — "saved — half damage (Potent Cantrip)", half the roll lands; taken back, a saved Sacred Flame lands nothing',
   33: 'Disciple of Life (the Cleric): Cure Wounds at level 2 heals "+4[Disciple of Life]" more — the card says "Disciple of Life — +4 healing", the healing lands with it; at level 1 +3; cast innately, nothing',
-  34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic'
+  34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic',
+  35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share'
 };
 const DEPENDS = {};
 
@@ -2299,6 +2301,86 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (chill) await unlend(sorcerer, chill);
         if (psychic) await unlend(sorcerer, psychic);
         CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 35. Potent Cantrip on a miss: rolled once the miss is final, half landed
+    if (want(35)) {
+      await closeDialogs(); await a1Victim();
+      const potent = await hgLend(pcAttacker, 'Potent Cantrip', 'feat');
+      const bolt = await hgLend(pcAttacker, 'Fire Bolt', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' });
+      const boltAct = () => pcAttacker.items.get(bolt?.id)?.system?.activities?.find(a => a.type === 'attack') ?? null;
+      hgKeep(pcAttacker, { 'system.attributes.inspiration': pcAttacker.system._source.attributes?.inspiration ?? false });
+      const vhp = () => Number(victim.system.attributes.hp.value);
+      const rescueWindow = text => [...document.querySelectorAll('.application')]
+        .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
+      const damagesFor = id => game.messages.contents.filter(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === id));
+      const totalOf = d => Number(d?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0));
+      /** Fire Bolt at the Victim (400 HP): the d20 a 2, later dice `after`; the attack message. */
+      const boltMiss = async (after = [[8, 10]]) => {
+        await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+        pcToken.control({ releaseOthers: true });
+        victimToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        faces([[2, 20], ...after]);
+        const rolls = await boltAct().rollAttack({}, { configure: false }, {});
+        return rolls?.[0]?.parent ?? null;
+      };
+      try {
+        if (!potent || !boltAct()) log.push(`§35 skipped: potent=${!!potent} bolt=${!!boltAct()}`);
+        else {
+          await pcAttacker.update({ 'system.attributes.inspiration': false });
+          await victim.update({ 'system.attributes.ac.override': 30 });
+          // a. the clean miss, no rescue: the share rolls and lands
+          const m1 = await boltMiss();
+          const d1 = await waitFor(() => { const d = damagesFor(m1?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+          const note1 = JSON.stringify(d1?.getFlag(MOD, 'receipt') ?? null);
+          ok('35a. a missed Fire Bolt: its damage rolls and half lands, the receipt says "missed — Potent Cantrip, half damage"',
+            (totalOf(d1) > 1) && ((400 - vhp()) === Math.floor(totalOf(d1) / 2)) && /missed — Potent Cantrip, half damage/.test(note1),
+            `total=${totalOf(d1)} lost=${400 - vhp()} receipt=${note1.slice(0, 160)}`);
+          CONFIG.Dice.randomUniform = realPRNG;
+          // b. without the feature: nothing rolls
+          await unlend(pcAttacker, potent);
+          const m2 = await boltMiss();
+          await sleep(2500);
+          ok('35b. without Potent Cantrip a miss rolls nothing', !damagesFor(m2?.id).length && (vhp() === 400), `damages=${damagesFor(m2?.id).length} hp=${vhp()}`);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const potent2 = await hgLend(pcAttacker, 'Potent Cantrip', 'feat');
+          // c. a rescue window first (Heroic Inspiration): nothing rolls while it stands; Pass → the share
+          await pcAttacker.update({ 'system.attributes.inspiration': true });
+          const m3 = await boltMiss();
+          const win3 = await waitFor(() => rescueWindow('Heroic'), 8000);
+          await sleep(1200);
+          const early = damagesFor(m3?.id).length;
+          ok('35c. with Heroic Inspiration the rescue window opens and NOTHING rolls while it stands', !!win3 && (early === 0) && (m3?.getFlag(MOD, 'd20fold')?.status === 'pending'),
+            `window=${!!win3} damages=${early} fold=${m3?.getFlag(MOD, 'd20fold')?.status}`);
+          faces([[8, 10]]);
+          win3?.querySelector('button[data-action="pass"]')?.click();
+          const d3 = await waitFor(() => { const d = damagesFor(m3?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 10000);
+          await sleep(800);
+          ok('35d. Pass: the miss stands — the share rolls and half lands, once', (damagesFor(m3?.id).length === 1) && (totalOf(d3) > 1) && ((400 - vhp()) === Math.floor(totalOf(d3) / 2)),
+            `damages=${damagesFor(m3?.id).length} total=${totalOf(d3)} lost=${400 - vhp()}`);
+          CONFIG.Dice.randomUniform = realPRNG;
+          // e. the Heroic reroll turns it: the FULL roll, one damage message, no share
+          await pcAttacker.update({ 'system.attributes.inspiration': true });
+          await victim.update({ 'system.attributes.ac.override': 12 });
+          const m4 = await boltMiss();
+          const win4 = await waitFor(() => rescueWindow('Heroic'), 8000);
+          faces([[20, 20], [8, 10]]);
+          win4?.querySelector('[data-bf-rescue-action="heroic"]')?.click();
+          const d4 = await waitFor(() => { const d = damagesFor(m4?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+          await sleep(1500);
+          ok('35e. the Heroic reroll turns the miss: ONE damage roll, the full total lands (never a share beside it)',
+            (damagesFor(m4?.id).length === 1) && (totalOf(d4) > 0) && ((400 - vhp()) === totalOf(d4)),
+            `damages=${damagesFor(m4?.id).length} total=${totalOf(d4)} lost=${400 - vhp()} fold=${JSON.stringify(m4?.getFlag(MOD, 'd20fold')?.targets?.map(t => t.verdict))}`);
+          await unlend(pcAttacker, potent2);
+        }
+      } finally {
+        await closeDialogs();
+        for (const it of pcAttacker.items.filter(i => ['Potent Cantrip', 'Fire Bolt'].includes(i.name) && (lentBy.get(pcAttacker) ?? []).includes(i.id))) await unlend(pcAttacker, it);
+        await victim.update({ 'system.attributes.hp.value': 400 });
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
       }
     }
 

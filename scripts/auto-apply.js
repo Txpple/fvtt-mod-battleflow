@@ -7,7 +7,8 @@ import { receiptEntry, joinDamageReceipt } from "./decide/receipt.js";
 import { interruptMultiplier, reduceDamages } from "./decide/verdict.js";
 import { INTERRUPT_MULTIPLIERS } from "./decide/registry.js";
 import { hitTargets, resolveAttackMessage, damagePartsOf, statSourceOf } from "./shared.js";
-import { CARD, isCard } from "./decide/card.js";
+import { missShareFor } from "./lookup.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { DICE_CHANGE_FLAG, DICE_CHANGE_WAITS } from "./decide/dice-changers.js";
 import { registerResumable } from "./ui.js";
 import { applyEffectRiders } from "./effect-riders.js";
@@ -46,8 +47,31 @@ async function resolveAttackDamage(message) {
   if ( eitherWaits(message) ) return;
   if ( message.getFlag(MODULE_ID, "receipt") ) return;
   const hits = hitTargets(attackMessage);
-  if ( !hits.length ) return; // every target Shield-flipped: the dice do nothing
-  await resolveDamagePayouts(message, attackMessage, hits);
+  // A miss that still pays (Potent Cantrip): the judged targets the roll missed take the row's share.
+  const share = missShareFor(attackMessage.getAssociatedActivity?.() ?? message.getAssociatedActivity?.() ?? null);
+  const missed = share ? await missedTargets(attackMessage, hits) : [];
+  if ( !hits.length && !missed.length ) return; // every target Shield-flipped: the dice do nothing
+  if ( hits.length ) await resolveDamagePayouts(message, attackMessage, hits);
+  if ( share && missed.length ) {
+    await applyDamagesWithReceipt(message, missed, damagePartsOf(message.rolls),
+      { multiplier: share.share, note: `missed — ${share.by}, half damage` });
+  }
+}
+
+/** The judged targets this attack MISSED — never one a duplicate absorbed — still standing and writable here. */
+async function missedTargets(attackMessage, hits) {
+  const hit = new Set(hits.map(t => t.uuid));
+  const hold = attackMessage.getFlag(MODULE_ID, "hold");
+  const out = [];
+  for ( const t of targetsOf(attackMessage) ) {
+    if ( hit.has(t.uuid) || (t.ac === null) || (t.ac === undefined) ) continue;
+    if ( hold?.targets?.find(e => e.uuid === t.uuid)?.verdict === "absorbed" ) continue;
+    const actor = await fromUuid(t.uuid).catch(() => null);
+    const subject = (actor instanceof Actor) ? actor : (actor?.actor ?? null);
+    if ( !subject || ((subject.system?.attributes?.hp?.value ?? 0) <= 0) || !canApplyTo(subject) ) continue;
+    out.push({ uuid: t.uuid, name: t.name });
+  }
+  return out;
 }
 
 /** ⚠ Sequential: the mastery gates (Vex, Slow: damage DEALT) read the receipt the application writes. */

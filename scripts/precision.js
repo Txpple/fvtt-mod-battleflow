@@ -13,7 +13,7 @@ import { bfCard, holdBarHTML, spendPhrase, rescueView, rescueSourceFor, esc } fr
 import { ATTACK_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
 import { momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, registerRescue,
   syncRescuePopup } from "./ui.js";
-import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
+import { offerDamageRoll, registerMissWait, rollDamageForAttack, settleMiss } from "./auto-damage.js";
 import { SURFACES } from "./surfaces.js";
 import { activityUuidOf, masteryOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
@@ -21,22 +21,41 @@ import { listen } from "./dispatch.js";
 const precisionTimers = new Map();
 const precisionInFlight = new Set();
 
-/** Stamp: the roller's own client, on the attack message it authored. */
+// Stamp: the roller's own client, on the attack message it authored.
+
+/** The stamp's SYNCHRONOUS half (the miss wait reads it at the roll): `{ attacker, entry, found, raw, judged }`
+ * for a clean miss Precision may offer on, else null. The die's resolve and the hopeless gate come after. */
+function precisionFor(subject, attackMessage, roll) {
+  if ( !subject || (subject.type !== "attack") ) return null;
+  const attacker = subject.actor;
+  if ( !attacker || !(attackMessage instanceof ChatMessage) || !roll ) return null;
+  if ( attackMessage.getFlag(MODULE_ID, "precision") ) return null;   // never re-stamp
+  if ( roll.isFumble ) return null;                                    // a natural 1 stands
+  const entry = maneuverFoldEntries().find(e => e.kind === "precision");
+  if ( !entry ) return null;
+  const found = usableManeuver(attacker, entry.name);
+  const raw = found ? maneuverDieFormula(found.activity) : null;
+  if ( !found || !raw ) return null;
+  // Clean misses only: resolvable ACs, every one of them missed.
+  const snapshot = targetsOf(attackMessage);
+  if ( !snapshot.length || hitTargets(attackMessage).length ) return null;
+  const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
+  if ( !judged.length ) return null;                                   // null AC — humans have it
+  return { attacker, entry, found, raw, judged };
+}
+/** Attack messages the stamp's async half refused: the miss waits on them no longer. */
+const refused = new Set();
+registerMissWait((subject, message, roll) => !refused.has(message?.id) && !!precisionFor(subject, message, roll));
+
 listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
+  const attackMessage = rolls?.[0]?.parent;
+  const roll = rolls?.[0];
+  const sync = precisionFor(subject, attackMessage, roll);
+  if ( !sync ) return;
+  // Past the sync half the miss waits on this stamp: a refusal below lets it settle (a miss that still pays).
+  let stamped = false;
   try {
-    if ( !subject || (subject.type !== "attack") ) return;
-    const attacker = subject.actor;
-    if ( !attacker ) return;
-    const attackMessage = rolls?.[0]?.parent;
-    if ( !(attackMessage instanceof ChatMessage) ) return;
-    if ( attackMessage.getFlag(MODULE_ID, "precision") ) return;      // never re-stamp
-    const roll = rolls[0];
-    if ( roll.isFumble ) return;                                       // a natural 1 stands
-    const entry = maneuverFoldEntries().find(e => e.kind === "precision");
-    if ( !entry ) return;
-    const found = usableManeuver(attacker, entry.name);
-    const raw = found ? maneuverDieFormula(found.activity) : null;
-    if ( !found || !raw ) return;
+    const { attacker, entry, found, raw, judged } = sync;
     // ⚠ Resolve the `@scale…` die NOW, against the attacker: an unresolved token silently rolls
     // 0, so a formula with no dice left is refused.
     const resolved = await new Roll(raw, attacker.getRollData()).evaluate();
@@ -46,12 +65,6 @@ listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
         + "— no die left in it, so the offer stays off rather than spending one for nothing.");
       return;
     }
-
-    // Clean misses only: resolvable ACs, every one of them missed.
-    const snapshot = targetsOf(attackMessage);
-    if ( !snapshot.length || hitTargets(attackMessage).length ) return;
-    const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
-    if ( !judged.length ) return;                                      // null AC — humans have it
 
     // The hopeless gate, as the hold's: a maximised die cannot reach the nearest AC. Off while
     // the math is hidden, since skipping would reveal it.
@@ -72,9 +85,12 @@ listen("dnd5e.rollAttack", "precision", async (rolls, { subject }) => {
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
       targets: margins.map(m => ({ ...m, verdict: null }))
     });
+    stamped = true;
     armPrecisionTimer(attackMessage);
   } catch(err) {
     console.error(`${TITLE} | Precision stamp failed.`, err);
+  } finally {
+    if ( !stamped ) { refused.add(attackMessage.id); settleMiss(attackMessage); }
   }
 });
 

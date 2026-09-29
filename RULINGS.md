@@ -1748,7 +1748,7 @@ Poisoned rider is B4's.
 ## The PHB classes — A4 (2026-09-29, Session 0 stage A4)
 
 **The healing seam and the caster's feature rows — three rows on tables that exist, no new kind, no new file; BUILT
-and PROVEN (`smoke-classes` §32–34), unwalked.**
+and PROVEN (`smoke-classes` §32–35), unwalked.**
 The plan's §3 A4, read off the pack (`dnd-players-handbook.classes`, dnd5e 6.0.5). Built in rapid mode on calls the
 plan left open — **each is the user's to overrule**:
 
@@ -1763,7 +1763,12 @@ plan left open — **each is the user's to overrule**:
    caster at the fold, stamped on the entry (`casterHalf`), so a Legendary Resistance flip and an automatic success
    (Greater Magic Resistance) take the half too. It never lowers a half or a full success, and Evasion's "none" still
    wins for a saver who has it. A failure is unchanged, and a success lands none of the cantrip's other effects (the
-   save's own rule). **Its attack half** — a missed cantrip attack still deals half — is the second commit of A4.
+   save's own rule). **Its attack half** (`onMiss: 0.5`, Graze's shape — the miss still pays) is rolled ONCE THE
+   MISS IS FINAL: a rescue that could turn it (the d20 fold, Precision) says so at the roll (`registerMissWait`, the
+   synchronous half of its stamp), and the share rolls when it — or a bystander's miss hold — resolves with the miss
+   standing; a turned miss rolls the full damage and never a share. The applier deals the missed targets the share,
+   so a Shield-flipped hit or a partial hit pays it from the hit's own roll. Like Graze it rolls itself, even where
+   the player rolls their own damage.
 3. **Psychic Spells is a FREE row of the casting window** (`METAMAGIC` `free`, `fixed: "psychic"`, `classes:
    ["warlock"]`): no cost, no Sorcery Points line when it stands alone, and its tick stands BESIDE a Metamagic pick
    (a Sorcerer multiclass may take both — it is no Metamagic option). The tick rides its own birth flag,
@@ -1775,7 +1780,7 @@ plan left open — **each is the user's to overrule**:
 | Row | Table · facet | What it does |
 | --- | --- | --- |
 | Disciple of Life | `HEAL_REROLLS` `bonus: "2 + @slot"`, `slotCast` | a levelled spell cast from a slot heals 2 + the slot level more, a labelled part on the healing roll |
-| Potent Cantrip | `EVASIONS` `side: "caster"`, `cantrip`, `onSuccess: 0.5` | a successful save against the caster's cantrip takes half its damage — "saved — half damage (Potent Cantrip)" |
+| Potent Cantrip | `EVASIONS` `side: "caster"`, `cantrip`, `onSuccess: 0.5`, `onMiss: 0.5` | a successful save against the caster's cantrip takes half its damage — "saved — half damage (Potent Cantrip)"; a missed cantrip attack deals half — "missed — Potent Cantrip, half damage" |
 | Psychic Spells | `METAMAGIC` `free`, `fixed`, `classes` | a tick in the casting window on a Warlock spell that deals damage: every damage roll of the cast is Psychic |
 
 **Found by the suite:** dnd5e 6 moved a spell's class from `sourceClass` to `sourceItem` ("class:warlock"),
@@ -1789,6 +1794,7 @@ could borrow an earlier cast's Transmuted type.
 | --- | --- |
 | Disciple of Life, Cure Wounds at level 2 | the healing roll "2d8 + 3 + 4"; the card's line "Disciple of Life — +4 healing"; the healing lands with it; a potion adds nothing |
 | Potent Cantrip, Sacred Flame saved | the verdict "saved — half damage (Potent Cantrip)", the damage halved and applied |
+| Potent Cantrip, Fire Bolt misses | the damage rolls anyway; the receipt "missed — Potent Cantrip, half damage"; with Heroic Inspiration, nothing rolls until the rescue window is passed |
 | Psychic Spells, an Eldritch Blast cast | the casting window's group "Battle Flow — Psychic Spells": the row "Psychic Spells · free"; ticked, the beams deal Psychic, the card says "Psychic Spells — the damage is psychic" |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)

@@ -3,8 +3,8 @@
  * Battle Flow — auto-roll damage on hit (the attacker's client) and the damage offer popup.
  * Owns the one crit judgement (`critFor`). Split shape (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, S, setting, decisionWindow } from "./core.js";
-import { resolveUuid } from "./lookup.js";
+import { MODULE_ID, TITLE, S, setting, decisionWindow, drivesMomentFor } from "./core.js";
+import { missShareFor, resolveUuid } from "./lookup.js";
 import { hitTargets } from "./shared.js";
 import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js";
 import { livePopups, offerParts, openManagedPopup } from "./ui.js";
@@ -39,13 +39,72 @@ listen("dnd5e.rollAttack", "auto-damage", async (rolls, { subject }) => {
 
   const hits = hitTargets(attackMessage);
   // A clean miss a bystander could turn (Guided Strike): held for them; a turned miss rolls at the resolve.
-  if ( !hits.length ) { await stampMissHoldIfBystanders(attackMessage, rolls[0]); return; }
+  if ( !hits.length ) {
+    if ( await stampMissHoldIfBystanders(attackMessage, rolls[0]) ) return;
+    // A miss that still pays (Potent Cantrip): rolled now unless a rescue window is about to open on it.
+    if ( missShareFor(subject) && !rescueComing(subject, attackMessage, rolls[0]) ) {
+      const beat = (Math.max(0, Number(setting(S.dramaticBeat)) || 0)) * 1000;
+      setTimeout(() => void rollMissShare(subject, attackMessage), beat);
+    }
+    return;
+  }
 
   // A hold pauses the APPLICATION, never the dice: the roll is born attackHoldPending.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
   // Except a crit a Disadvantage reaction could undo: `damageAfterHold` rolls it.
   if ( attackMessage.getFlag(MODULE_ID, "hold")?.critAtStake ) return;
   return offerOrRollDamage(subject, attackMessage);
+});
+
+/* --- A miss that still pays (EVASIONS `onMiss` — Potent Cantrip) ------------------------------ */
+// ⚠ ROLLED ONCE THE MISS IS FINAL: a rescue that could turn it (the d20 fold, Precision) says so AT THE ROLL,
+// synchronously (a machine's stamp lands after this listener); its resolve — or the bystander hold's — is an
+// update on the attack card, read below. The applier (auto-apply.js) lands the share on the missed targets.
+
+/** `(subject, attackMessage, roll) => boolean`: a machine that will open a rescue on this clean miss. */
+const missWaits = [];
+/** A machine that may reopen a clean miss registers the synchronous half of its stamp. */
+export function registerMissWait(fn) { missWaits.push(fn); }
+const rescueComing = (subject, message, roll) => missWaits.some(fn => {
+  try { return !!fn(subject, message, roll); } catch(err) { console.warn(`${TITLE} | A miss wait failed — the miss's share waits for nothing.`, err); return false; }
+});
+
+/** The attack-card flags that hold a miss open while pending. */
+const MISS_HOLDERS = ["hold", "d20fold", "precision"];
+const missSettled = message => MISS_HOLDERS.every(k => message.getFlag(MODULE_ID, k)?.status !== "pending");
+const missShareRolled = new Set();
+
+/** The miss's damage, rolled like a hit's (the applier deals the share); once, and never beside a hit's roll. */
+async function rollMissShare(activity, attackMessage) {
+  if ( missShareRolled.has(attackMessage.id) ) return;
+  if ( hitTargets(attackMessage).length || !missSettled(attackMessage) ) return;
+  // A rescue still to stamp (its flag not yet landed) holds it too.
+  if ( rescueComing(activity, attackMessage, attackMessage.rolls?.[0]) ) return;
+  if ( game.messages.contents.some(m => (m.type === "damage") && (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)) ) return;
+  missShareRolled.add(attackMessage.id);
+  await rollDamageForAttack(activity, attackMessage);
+}
+
+/**
+ * The miss settled — a rescue or a hold resolved with it standing, or a machine that said it would open one
+ * found nothing to offer: the share rolls now, on the attacker's driver. Idempotent.
+ * @param {ChatMessage} attackMessage
+ */
+export function settleMiss(attackMessage) {
+  try {
+    if ( !isCard(attackMessage, CARD.attack) ) return;
+    const activity = attackMessage.getAssociatedActivity?.() ?? null;
+    if ( !missShareFor(activity) ) return;
+    if ( !drivesMomentFor(attackMessage.getAssociatedActor?.()?.uuid ?? null) ) return;
+    void rollMissShare(activity, attackMessage);
+  } catch(err) {
+    console.error(`${TITLE} | The miss's share could not be rolled — roll the damage from the card.`, err);
+  }
+}
+
+listen("updateChatMessage", "auto-damage", (message, changes) => {
+  const touched = changes?.flags?.[MODULE_ID];
+  if ( touched && MISS_HOLDERS.some(k => (k in touched) || (`-=${k}` in touched)) ) settleMiss(message);
 });
 
 /** The damage after a hit: offered to the attacker, or rolled after the dramatic beat. One path for every hit. */

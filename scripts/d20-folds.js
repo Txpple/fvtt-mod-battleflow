@@ -19,7 +19,7 @@ import { ADVANTAGE_BUYS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS } from "./decide/regis
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
-import { offerDamageRoll, rollDamageForAttack } from "./auto-damage.js";
+import { offerDamageRoll, registerMissWait, rollDamageForAttack } from "./auto-damage.js";
 import { activityUuidOf, originData, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 import { esc } from "./decide/present.js";
@@ -252,27 +252,34 @@ function baseFlag(actor, offers, testKind, total, window) {
   };
 }
 
+/** The attack stamp's decision, SYNCHRONOUS (the miss wait reads it at the roll): `{ attacker, offers, judged,
+ * spell }` for a clean miss the fold will offer on, else null. */
+function attackFoldFor(subject, message, roll) {
+  if ( !subject || (subject.type !== "attack") ) return null;
+  const attacker = subject.actor;
+  if ( !attacker || !(message instanceof ChatMessage) || !roll ) return null;
+  if ( message.getFlag(MODULE_ID, "d20fold") ) return null;           // never re-stamp
+  const spell = subject.item?.type === "spell";
+  let offers = availableFolds(attacker, "attack", [], { spell });
+  // ⚠ A natural 1 stands against an added die; only a reroll replaces it.
+  if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
+  if ( !offers.length ) return null;
+  const snapshot = targetsOf(message);
+  if ( !snapshot.length || hitTargets(message).length ) return null;  // clean misses only
+  const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
+  if ( !judged.length ) return null;                                  // null AC — humans have it
+  return { attacker, offers, judged, spell };
+}
+registerMissWait((subject, message, roll) => !!attackFoldFor(subject, message, roll));
+
 /** ATTACKS: the module owns the AC, so a clean miss (every judged target) is offered by itself. */
 listen("dnd5e.rollAttack", "d20-folds", async (rolls, { subject }) => {
   try {
-    if ( !subject || (subject.type !== "attack") ) return;
-    const attacker = subject.actor;
-    if ( !attacker ) return;
     const message = rolls?.[0]?.parent;
-    if ( !(message instanceof ChatMessage) ) return;
-    if ( message.getFlag(MODULE_ID, "d20fold") ) return;            // never re-stamp
-    const roll = rolls[0];
-
-    const spell = subject.item?.type === "spell";
-    let offers = availableFolds(attacker, "attack", [], { spell });
-    // ⚠ A natural 1 stands against an added die; only a reroll replaces it.
-    if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
-    if ( !offers.length ) return;
-
-    const snapshot = targetsOf(message);
-    if ( !snapshot.length || hitTargets(message).length ) return;   // clean misses only
-    const judged = snapshot.filter(t => (t.ac !== null) && (t.ac !== undefined));
-    if ( !judged.length ) return;                                   // null AC — humans have it
+    const roll = rolls?.[0];
+    const found = attackFoldFor(subject, message, roll);
+    if ( !found ) return;
+    const { attacker, offers, judged, spell } = found;
 
     const window = decisionWindow();
     await message.setFlag(MODULE_ID, "d20fold", {
