@@ -1,25 +1,47 @@
-# HANDOFF.md — the PHB classes, A3 built, the battery owed (2026-09-29, midday)
+# HANDOFF.md — the PHB classes, A3 in its battery, A1 built (2026-09-29, late morning)
 
 > **What this is:** the pick-up point for a session that starts cold (the user, low on context: *"get ready for a
 > handoff"*). It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
-## FIRST — the one thing in flight
+## FIRST — two things in flight
 
-⚠⚠ **NO `--local` DEPLOY AND NO LIVE SUITE until the battery below has FINISHED** (its run directory holds a file
-for `smoke-nogm`, the last row, or the old session's log ends with the battery's summary). Deploying mid-run changes the
-code under test and poisons the push gate. Until then: offline work only — A1's code, unit tests, `npm run verify`,
-docs, commits (the user, 2026-09-29: start A1 in the new session while the battery runs).
+⚠⚠ **NO `--local` DEPLOY AND NO LIVE SUITE until the A3 battery has FINISHED** (its run directory holds a file
+for `smoke-nogm`, the last row). At the handoff (10:45 local) it stood at 34 of 47, every suite green so far.
 
-**A3 is committed LOCALLY, NOT PUSHED** — `98ebef8` + `25bceeb` on `main`, ahead of `origin/main` by two. A3 touches the
-spine (the hold, `auto-apply.js`, `auto-damage.js`, `shared.js`, the save seam), so **the FULL battery is the push gate**.
-A battery was launched 2026-09-29 13:28 UTC (09:28 local) from the old session: `dist/battery/2026-09-29T13-28-46/`
-(one file per suite; the log in the old session's scratchpad). **Read that run directory first:**
-- if it finished all green (46 suites + smoke-classes = 47): `git push`, then `node tools/verify-settings.mjs`;
-- if it was killed or is incomplete: `node tools/verify-settings.mjs --fix`, `node tools/reset-fixture-state.mjs`,
-  `node tools/fixture-suite.mjs`, then re-run (`node tools/battery.mjs`, detached, `--from <suite>` to resume);
-- a red: read the suite's file (failures print in the body), fix, `npm run verify`, `--local` deploy
-  (`node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local`), re-run that suite, then the battery.
+1. **The A3 battery** — launched 2026-09-29 09:28 local from an earlier session: `dist/battery/2026-09-29T13-28-46/`.
+   It tests A3 (`98ebef8` + `25bceeb`); A1 was committed AFTER it began and is NOT deployed, so the run is still A3's.
+   - finished all green (46 suites + smoke-classes = 47): `git push` (A3 and A1 together are fine — A1 is verify-green,
+     but its live proof is owed; push A3's gate only if the user prefers A1 held), then `node tools/verify-settings.mjs`;
+   - killed or incomplete: `verify-settings --fix`, `reset-fixture-state`, `fixture-suite`, re-run (`--from <suite>`, detached);
+   - a red: read the suite's file, fix, verify, `--local` deploy, re-run that suite, then the battery.
+2. **A1 — BUILT, committed LOCALLY (`26f9154`), unit-tested, NO live suite yet.** All fourteen rows, the rulings, the
+   bends, the register: RULINGS *The PHB classes — A1* (the table of what landed where, and the walk table). The user
+   ruled two things mid-build: **Hunter's Prey's option is asked once and kept** (a `option` flag on the feature, the
+   card's *Change* clears it); **Combat Inspiration's damage die is offered UNTICKED**. Read off the pack (the plan was
+   wrong): the Rage's 2024 extension (attack roll / forced save, not damage taken); Dark One's Blessing also on an
+   ally's kill within 10 ft; the Dragon's floor NATIVE; Starry Form's constellation is never recorded (asked at use).
+   **Owed next, in order** (after the battery, once the box is free):
+   a. `--local` deploy (`node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow --local`, never piped to head);
+   b. **write smoke-classes §13+ (§A1)** — the live proof. Priority by risk (new machine code): Glorious Defense's hit→miss→
+      Strike popup and Combat Inspiration's Defense (hold/lookup.js `bystandersOf` hitSelf/reach/inspired, hold/answer.js);
+      Deflect Attacks rolled + the Redirect card at 0 (hold/views.js `atZero`); Dark One's Blessing (heal-on-hit.js
+      pre/applyDamage `falling`); the Rage reminder (turn-grants.js `remindExtend` — needs a combat and a turn change; the
+      turn's start is recorded in memory on `updateCombat`); Starry Form's pick (Dragon Form only with Dragon; the Chalice
+      chip; the Chalice card buttons, heal-rerolls.js); Rage of the Wilds' pick at the Rage + the Wolf ring's gate
+      (EFFECT_BENDS `member`); Hunter's Prey's option ask on the damage offer + Colossus / Horde Breaker; Frenzy; Repelling
+      Blast; Combat Inspiration's unticked offer row; War Priest; Sacred Weapon's light and its end; Tides of Chaos;
+      Commanding Presence. Fixtures: the suite's own (Attacker, Halfling, Bard, Sorcerer, Cleric, PC Attacker, Victim);
+      lend the PHB features by name (`lend`); there is no Barbarian/Warlock/Monk/Paladin/Druid fixture — lend to the PC
+      Attacker or Cleric. Add the machine files to its `COVERS` (clock-riders, hew, heal-on-hit, turn-grants, cast,
+      polish, heal-rerolls, emanations, reminders, token-lights, advantage-buys, d20-folds — all MACHINE tier);
+   c. run it, then the existing suites of the touched machines: smoke-hold, smoke-twoclient, smoke-guards, smoke-rescue,
+      smoke-clock, smoke-cast, smoke-emanations, smoke-reminders, smoke-d20-folds, smoke-heal, smoke-lucky,
+      smoke-superiority, smoke-spells, smoke-aasimar, smoke-monsters (`battery.mjs --changed` says FULL because registry.js
+      reaches the spine — by the standing rule a feature runs its own suites; hold/ changed, so include the hold family);
+   d. push; HANDOFF → A2.
+   Unverified guesses in the A1 code worth watching in the suite: a heal activity's `rollDamage` after `use()` (Chalice);
+   `withTargets` around `use()` for the Redirect save; the `Rage` effect's `start` stamp on the turn it was entered.
 
 ## State
 
@@ -50,9 +72,7 @@ A battery was launched 2026-09-29 13:28 UTC (09:28 local) from the old session: 
 ## Next — in this order, each on the user's go
 
 1. **The battery → push A3** (above).
-2. **A1** (plan §3, 14 rows — Rage's early-end reminder, Frenzy, Rage of the Wilds, Combat Inspiration, War Priest,
-   Starry Form, Hunter's Prey, Tides of Chaos, Dark One's Blessing, Repelling Blast, Commanding Presence + M0's three:
-   Sacred Weapon's light, Deflect Attacks' redirect, Glorious Defense's strike). Its own suites, then push.
+2. **A1's live proof** (above, 2a–2d), then push.
 3. **A2, A4 → A7, B1 → B5, C1, D1** (the plan §3). A5 and A7 are spine stages (the full battery). A7 carries Portent,
    narrowed to saves and critical hits (ruled). B4 carries Bend Luck and Cosmic Omen on A3's facets.
 4. Then **the DMG** on its register, then **the splat books**.
@@ -82,7 +102,7 @@ A battery was launched 2026-09-29 13:28 UTC (09:28 local) from the old session: 
 - Every row names its precedent (the register does); a platform-forced bend goes in RULINGS *Where the table bends
   the rule* in the same commit; a bend by choice in *Bent by choice*; a new flag key is classified in
   `decide/moments.js` and a new writing file pinned in `tools/moment-writers.mjs`; a new file bumps
-  `tools/check-registry.mjs`'s source-file pin (123 now) and joins `tools/check-layers.mjs`, `scripts/dispatch.js`
+  `tools/check-registry.mjs`'s source-file pin (123 now, A1 added none) and joins `tools/check-layers.mjs`, `scripts/dispatch.js`
   and `scripts/battleflow.js`; a new kind moves `EXPECTED_KINDS` (39 now).
 - A change runs its own suites (`node tools/battery.mjs --changed --list`, then the feature's own — a FULL verdict for
   a feature still means its own suites); a spine change is the full battery; deploy `--local` first; launch detached;
