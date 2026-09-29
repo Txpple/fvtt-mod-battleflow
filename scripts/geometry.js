@@ -111,8 +111,6 @@ export function grappledBy(actor, token) {
   return out;
 }
 
-/** The shortest grid distance between two tokens' squares, IN FEET; null when unreadable.
- * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"). */
 /** Do two tokens' footprints overlap (a creature standing inside another's space)? False when unreadable. */
 export function tokensOverlap(a, b) {
   const da = a?.document ?? a, db = b?.document ?? b;
@@ -122,6 +120,8 @@ export function tokensOverlap(a, b) {
     { x: db.x, y: db.y, w: (db.width ?? 1) * grid, h: (db.height ?? 1) * grid });
 }
 
+/** The shortest grid distance between two tokens' squares, IN FEET; null when unreadable.
+ * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"). */
 export function nearestFeet(a, b) {
   try {
     const pa = documentSquares(a.document), pb = documentSquares(b.document);

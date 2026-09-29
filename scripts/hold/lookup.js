@@ -138,11 +138,6 @@ export function rollRescuesOf(actor) {
   return out;
 }
 
-/**
- * THE DUPLICATES standing on a defender (DUPLICATES, Mirror Image), read against this attacker: the row, the
- * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
- * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null}|null}
- */
 /** What the attack was: RANGED (the attack's own mode — a ranged weapon, a thrown one — else its activity's type), a SPELL attack. */
 export function attackFactsOf(attackMessage) {
   const mode = String(attackMessage?.system?.mode ?? "");
@@ -152,6 +147,11 @@ export function attackFactsOf(attackMessage) {
   return { ranged, spellAttack };
 }
 
+/**
+ * THE DUPLICATES standing on a defender (DUPLICATES, Mirror Image), read against this attacker: the row, the
+ * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
+ * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null}|null}
+ */
 export function duplicatesOf(defender, attacker, { ranged = false, spellAttack = false } = {}) {
   if ( !defender ) return null;
   const listed = listedNames(duplicateEntries());
