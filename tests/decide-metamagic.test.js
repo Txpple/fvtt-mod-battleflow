@@ -108,8 +108,8 @@ const menu = (facts, points = 5, known = ALL, listed = ALL) =>
 const keys = rows => rows.map(r => r.key);
 
 describe("the table", () => {
-  it("names the ten 2024 options, each with a moment, a predicate and no cost", () => {
-    expect(ALL.length).toBe(10);
+  it("names the ten 2024 options (and the free class rows beside them), each with a moment, a predicate and no cost", () => {
+    expect(ALL.filter(k => !METAMAGIC[k].free).length).toBe(10);
     for (const row of Object.values(METAMAGIC)) {
       expect(["cast", "damage", "miss"]).toContain(row.moment);
       expect(row.when).toBeTruthy();
@@ -192,7 +192,7 @@ describe("the points", () => {
       points: 5,
       costs: {}
     });
-    expect(rows.every(r => !r.affordable)).toBe(true);
+    expect(rows.filter(r => !r.free).every(r => !r.affordable)).toBe(true);
     expect(rows.find(r => r.key === "subtle").tag).toBe("cost unreadable");
   });
   it("picks one eligible, affordable row or nothing", () => {

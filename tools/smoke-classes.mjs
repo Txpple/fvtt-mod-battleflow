@@ -6,6 +6,8 @@
 // Restore Balance (the pack's own items). Everything written is restored.
 // §A1 (13–27) — the band-A rows on tables that exist (RULINGS *The PHB classes — A1*): the A3 lends leave first;
 // each section lends its class features (there is no Barbarian/Warlock/Monk/Paladin/Druid fixture) and takes them back.
+// §A4 (32–34) — the healing seam and the caster's rows (RULINGS *The PHB classes — A4*): Potent Cantrip lent to the
+// Attacker, Disciple of Life to the Cleric, Psychic Spells (and a Warlock's Chill Touch) to the Sorcerer.
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
@@ -35,7 +37,10 @@ export const COVERS = [
   'hit-menu.js',            // the Monk's Focus, Open Hand Technique, Elemental Attunement and Psionic Power groups
   'damage-holds.js',        // Protective Field's guard
   'saves/consequences.js',  // Stunning Strike's success half (SAVE_PRESSES `success`)
-  'saves/demand.js'         // the save card's effect names by outcome
+  'saves/demand.js',        // the save card's effect names by outcome
+  // §A4 (32–34)
+  'saves/verdict.js',       // Potent Cantrip stamped on the entry at the fold
+  'metamagic.js'            // Psychic Spells' free row, its birth flag, the damage retyped
 ];
 
 const SECTIONS = {
@@ -69,7 +74,10 @@ const SECTIONS = {
   28: 'Stunning Strike and Hand of Harm (the Monk\'s Focus group): a Longsword hit offers neither; an Unarmed Strike both; Stunning Strike alone costs ONE point (its save\'s use), Stunned on a failure, Slowed on a success; both ride one hit; in a combat the second hit greys Stunning Strike',
   29: 'Open Hand Technique: out of combat every Unarmed Strike offers Addle / Push / Topple; in a combat only after Flurry of Blows (its turn chit); one pick; Topple\'s failed save lands Prone; a Longsword hit none',
   30: 'Psionic Power: Psionic Strike\'s force die on the menu (a die spent); Protective Field asks the Psi Warrior when an ally within 30 ft is hit ("Reduce"), the die + Int off; none left, never asked',
-  31: 'Elemental Attunement: its own Elemental Strike only; "Push or pull — free"; the Strength save and the card\'s line'
+  31: 'Elemental Attunement: its own Elemental Strike only; "Push or pull — free"; the Strength save and the card\'s line',
+  32: 'Potent Cantrip (lent to the Attacker): the Halfling SAVES against its Sacred Flame — "saved — half damage (Potent Cantrip)", half the roll lands; taken back, a saved Sacred Flame lands nothing',
+  33: 'Disciple of Life (the Cleric): Cure Wounds at level 2 heals "+4[Disciple of Life]" more — the card says "Disciple of Life — +4 healing", the healing lands with it; at level 1 +3; cast innately, nothing',
+  34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic'
 };
 const DEPENDS = {};
 
@@ -2128,6 +2136,168 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeOffers(); await closeDialogs();
         if (ea) await unlend(pcAttacker, ea);
         if (focus) await unlend(pcAttacker, focus);
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ================================================ §A4 — the healing seam and the caster's rows (RULINGS *The PHB classes — A4*)
+    const a4Card = (since, test) => game.messages.contents.find(m => (m.timestamp >= since) && test(m)) ?? null;
+
+    // ---- 32. Potent Cantrip: the caster's mirror of Evasion
+    if (want(32)) {
+      await closeDialogs(); await set('saveRolls', 'auto');
+      const potent = await hgLend(attacker, 'Potent Cantrip', 'feat');
+      let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+      if (!flameId) {
+        const flame = await hgLend(attacker, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' });
+        flameId = flame?.id;
+      }
+      const flameAct = () => attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+      /** Sacred Flame at the Halfling, every die at its top face (the save a 20): the card, its entry, the damage and the HP lost. */
+      const flameAtHalfling = async () => {
+        await healFull();
+        const t0 = Date.now();
+        attackerToken.control({ releaseOthers: true });
+        halflingToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        faces([[20, 20]]);
+        const use = await flameAct().use({ consume: { spellSlot: false } }, { configure: false }, {});
+        const card = use?.message ?? null;
+        const entry = await waitFor(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, 12000);
+        const dmg = await waitFor(() => a4Card(t0, m => (m.type === 'damage') && (m.system?.origin === card?.id || m._source?.system?.origin === card?.id)), 8000);
+        // A success with no share writes no receipt (the multiplier is null): the wait runs out, then the HP are read.
+        await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 6000);
+        await sleep(500);
+        clearTargets();
+        return { card, entry, dmg, total: Number(dmg?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0)), lost: 400 - hp() };
+      };
+      try {
+        if (!potent || !flameAct()) log.push(`§32 skipped: potent=${!!potent} flame=${!!flameAct()}`);
+        else {
+          const a = await flameAtHalfling();
+          ok('32a. the Halfling saves; the entry carries the caster\'s row (casterHalf: Potent Cantrip)',
+            (a.entry?.outcome === 'saved') && (a.entry?.casterHalf?.by === 'Potent Cantrip'),
+            JSON.stringify({ outcome: a.entry?.outcome, casterHalf: a.entry?.casterHalf ?? null }));
+          ok('32b. half the roll lands', (a.total > 1) && (a.lost === Math.floor(a.total / 2)), `total=${a.total} lost=${a.lost}`);
+          ok('32c. the card says "saved — half damage (Potent Cantrip)"', /saved — half damage \(Potent Cantrip\)/.test(cardText(a.card?.id)), cardText(a.card?.id).slice(0, 240));
+          await unlend(attacker, potent);
+          const b = await flameAtHalfling();
+          ok('32d. taken back: a saved Sacred Flame lands nothing', (b.entry?.outcome === 'saved') && !b.entry?.casterHalf && (b.lost === 0), `outcome=${b.entry?.outcome} lost=${b.lost}`);
+        }
+      } finally {
+        if (potent) await unlend(attacker, potent);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 33. Disciple of Life: the healing roll carries 2 + the slot level
+    if (want(33)) {
+      await closeDialogs();
+      const own = cleric.items.find(i => (i.name === 'Disciple of Life') && (i.type === 'feat'));
+      const disciple = own ?? await hgLend(cleric, 'Disciple of Life', 'feat');
+      const cure = await hgLend(cleric, 'Cure Wounds', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const cureAct = () => cleric.items.get(cure?.id)?.system?.activities?.find(a => a.type === 'heal');
+      const bonusOf = m => (m?.rolls ?? []).flatMap(r => r.terms ?? []).find(t => t?.flavor === 'Disciple of Life') ?? null;
+      /** Cure Wounds from the Cleric at the Halfling (HP 1), the dice pinned low but never a 1; the settled message. */
+      const cureHalfling = async (scaling = 0) => {
+        await halfling.update({ 'system.attributes.hp.value': 1, 'system.attributes.hp.temp': 0 });
+        halflingToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        faces([[3, 8], [5, 8]]);
+        const rolls = await cureAct().rollDamage(scaling ? { scaling } : {}, { configure: false }, {});
+        const m = rolls?.[0]?.parent ?? null;
+        await waitFor(() => m?.getFlag(MOD, 'receipt'), 10000);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+        return m;
+      };
+      const healTotal = m => (m?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
+      try {
+        if (!disciple || !cureAct()) log.push(`§33 skipped: disciple=${!!disciple} cure=${!!cureAct()}`);
+        else {
+          const m2 = await cureHalfling(1);
+          const line = (await waitFor(() => cardEl(m2?.id)?.querySelector('.bf-heal-bonus-line'), 5000))?.textContent?.trim() ?? '';
+          ok('33a. level 2: the healing roll carries 4[Disciple of Life]; the card says "Disciple of Life — +4 healing"',
+            (Number(bonusOf(m2)?.number) === 4) && /Disciple of Life — \+4 healing/.test(line), `formula="${m2?.rolls?.[0]?.formula}" line="${line}"`);
+          ok('33b. the healing lands with it, once', !!m2?.getFlag(MOD, 'receipt') && (hp() === Math.min(400, 1 + healTotal(m2))), `hp=${hp()} total=${healTotal(m2)}`);
+          const m1 = await cureHalfling(0);
+          ok('33c. level 1: +3', Number(bonusOf(m1)?.number) === 3, `formula="${m1?.rolls?.[0]?.formula}"`);
+          await cleric.items.get(cure.id)?.update({ 'system.method': 'innate' });
+          const mi = await cureHalfling(0);
+          ok('33d. cast innately (no slot): no bonus', !bonusOf(mi) && !!mi, `formula="${mi?.rolls?.[0]?.formula}"`);
+        }
+      } finally {
+        if (cure) await unlend(cleric, cure);
+        if (disciple && !own) await unlend(cleric, disciple);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 34. Psychic Spells: a free row of the casting window
+    if (want(34)) {
+      await closeDialogs();
+      const psychic = await hgLend(sorcerer, 'Psychic Spells', 'feat');
+      const chill = await hgLend(sorcerer, 'Chill Touch', 'spell', { 'system.prepared': 1, 'system.method': 'spell', 'system.sourceItem': 'class:warlock' });
+      const spellAct = name => sorcerer.items.find(i => (i.type === 'spell') && (i.name === name))?.system?.activities?.find(a => ['attack', 'save', 'damage'].includes(a.type)) ?? null;
+      const usageApps = () => [...foundry.applications.instances.values()].filter(a => /ActivityUsageDialog|UsageDialog/.test(a.constructor?.name ?? ''));
+      // An attack needs a target to be used at all (polish.js): the Halfling.
+      const openWindow = async name => {
+        halflingToken.setTarget(true, { releaseOthers: true });
+        await sleep(80);
+        const pendingUse = spellAct(name)?.use({ consume: { spellSlot: false } }, { configure: true }, { create: true });
+        pendingUse?.catch?.(() => { /* closed below */ });
+        const app = await waitFor(() => usageApps().find(a => a.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, 6000);
+        return { app, fs: app?.element?.querySelector('[data-bf-metamagic-field]') ?? null };
+      };
+      const rowOf = (fs, key) => fs?.querySelector(`[data-bf-metamagic-row="${key}"]`) ?? null;
+      const closeWindows = async () => { for (const a of usageApps()) { try { await a.close(); } catch { /* gone */ } } };
+      /** Cast Chill Touch through its window, Psychic Spells ticked or not; its damage rolled chained to the card. */
+      const castChill = async tick => {
+        const t0 = Date.now();
+        const { app, fs } = await openWindow('Chill Touch');
+        const box = rowOf(fs, 'psychic')?.querySelector('input[name="bf-metamagic-free"]');
+        if (box && (box.checked !== tick)) box.click();
+        await sleep(100);
+        app?.element?.querySelector('button[data-action="use"], button[type="submit"]')?.click();
+        const card = await waitFor(() => a4Card(t0, m => (m.type === 'usage') && (m.system?.activity?.uuid === spellAct('Chill Touch')?.uuid)), 8000);
+        await sleep(300);
+        const rolls = card ? await spellAct('Chill Touch').rollDamage({}, { configure: false }, { data: { 'system.origin': card.id } }) : null;
+        clearTargets();
+        return { card, dmg: rolls?.[0]?.parent ?? null, rolls };
+      };
+      try {
+        if (!psychic || !chill || !spellAct('Fire Bolt')) log.push(`§34 skipped: psychic=${!!psychic} chill=${!!chill} fireBolt=${!!spellAct('Fire Bolt')}`);
+        else {
+          const fb = await openWindow('Fire Bolt');
+          const fbRow = rowOf(fb.fs, 'psychic');
+          ok('34a. Fire Bolt (the Sorcerer\'s own): the row greyed "not a Warlock spell"', (fbRow?.dataset?.bfOff === '1') && /not a Warlock spell/.test(textOf(fbRow)), textOf(fbRow) || `window=${!!fb.app} group=${!!fb.fs}`);
+          await closeWindows();
+          const ct = await openWindow('Chill Touch');
+          const row = rowOf(ct.fs, 'psychic');
+          const box = row?.querySelector('input[name="bf-metamagic-free"]');
+          ok('34b. Chill Touch (a Warlock spell): "Psychic Spells · free", live, beside the Metamagic rows', !!box && !box.disabled && /Psychic Spells/.test(textOf(row)) && /free/i.test(textOf(row))
+            && !!ct.fs?.querySelector('input[name="bf-metamagic"]'), textOf(row));
+          box?.click(); await sleep(100);
+          const paidOn = [...(ct.fs?.querySelectorAll('input[name="bf-metamagic"]') ?? [])].filter(b => !b.disabled).length;
+          ok('34c. its tick greys no Metamagic row', paidOn > 0, `live paid rows=${paidOn}`);
+          await closeWindows();
+          await sleep(3200);   // the closed window's tick is swept
+          const on = await castChill(true);
+          const line = (await waitFor(() => cardEl(on.card?.id)?.querySelector('.bf-metamagic-free-line'), 5000))?.textContent?.trim() ?? '';
+          ok('34d. cast ticked: the card carries the tick and says "Psychic Spells — the damage is psychic"',
+            (on.card?.getFlag(MOD, 'metamagicFree')?.[0]?.key === 'psychic') && /Psychic Spells — the damage is psychic/.test(line), `flag=${JSON.stringify(on.card?.getFlag(MOD, 'metamagicFree'))} line="${line}"`);
+          ok('34e. the damage roll is psychic', (on.rolls ?? []).length > 0 && on.rolls.every(r => r.options?.type === 'psychic') && (on.dmg?.getFlag(MOD, 'metamagicType')?.feature === 'Psychic Spells'),
+            `types=${JSON.stringify((on.rolls ?? []).map(r => r.options?.type))}`);
+          const off = await castChill(false);
+          ok('34f. cast unticked: no tick on the card, the damage its own necrotic', !off.card?.getFlag(MOD, 'metamagicFree') && (off.rolls ?? []).length > 0 && off.rolls.every(r => r.options?.type === 'necrotic'),
+            `flag=${JSON.stringify(off.card?.getFlag(MOD, 'metamagicFree') ?? null)} types=${JSON.stringify((off.rolls ?? []).map(r => r.options?.type))}`);
+        }
+      } finally {
+        await closeWindows();
+        if (chill) await unlend(sorcerer, chill);
+        if (psychic) await unlend(sorcerer, psychic);
         CONFIG.Dice.randomUniform = realPRNG;
       }
     }

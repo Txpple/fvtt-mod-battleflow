@@ -10,7 +10,7 @@ export const METAMAGIC_FLAG = "metamagic";
  * A row's `when` predicate over the spell's facts; an unknown name fits nothing.
  * @typedef {{save: boolean, rangeFeet: number|null, touch: boolean, minutes: number,
  *            action: boolean, damageTypes: string[], damageRoll: boolean, spellAttack: boolean,
- *            scalesTargets: boolean, choosesTargets?: boolean}} SpellFacts
+ *            scalesTargets: boolean, choosesTargets?: boolean, sourceClass?: string|null}} SpellFacts
  */
 const WHEN = {
   any: () => true,
@@ -44,12 +44,16 @@ const WHY_UNLESS = {
   choosesTargets: "you choose its targets"
 };
 
+/** A row's `classes`: the spell is one of those classes' own (its `sourceClass`). */
+const classFits = (row, facts) => !row?.classes?.length || row.classes.includes(String(facts?.sourceClass ?? ""));
+
 /**
- * @param {{when: string, unless?: string}} row
+ * @param {{when: string, unless?: string, classes?: readonly string[]}} row
  * @param {SpellFacts} facts
  * @param {{transmutedTypes?: readonly string[]}} [opts]
  */
 export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
+  if ( !classFits(row, facts) ) return false;
   const test = WHEN[row?.when];
   if ( !test?.(facts ?? {}, transmutedTypes) ) return false;
   const not = UNLESS[row?.unless];
@@ -57,6 +61,10 @@ export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
 }
 
 function whyNot(row, facts, transmutedTypes) {
+  if ( !classFits(row, facts) ) {
+    const cls = String(row.classes[0] ?? "");
+    return `not a ${cls.charAt(0).toUpperCase()}${cls.slice(1)} spell`;
+  }
   const test = WHEN[row?.when];
   if ( !test?.(facts ?? {}, transmutedTypes) ) return WHY[row?.when] ?? "does not fit this spell";
   return WHY_UNLESS[row?.unless] ?? "does not fit this spell";
@@ -64,12 +72,12 @@ function whyNot(row, facts, transmutedTypes) {
 
 /**
  * The dialog's rows in table order: every listed, known option of this `moment`, with fit and
- * affordability. An unreadable cost is unaffordable, never free.
+ * affordability. An unreadable cost is unaffordable, never free; a `free` row (a class feature) costs nothing.
  * @param {{table: Readonly<Record<string, any>>, listed: Iterable<string>, known: Iterable<string>,
  *          facts: SpellFacts, points: number, costs: Record<string, number>,
  *          transmutedTypes?: readonly string[], moment?: string}} args
  * @returns {{key: string, feature: string, cost: number|null, picks: string|null, moment: string,
- *            eligible: boolean, why: string|null, affordable: boolean, tag: string}[]}
+ *            eligible: boolean, why: string|null, affordable: boolean, tag: string, free: boolean, fixed: string|null}[]}
  */
 export function metamagicMenu({ table, listed, known, facts, points, costs, transmutedTypes = [], moment = "cast" }) {
   const lower = s => String(s ?? "").toLowerCase();
@@ -81,14 +89,17 @@ export function metamagicMenu({ table, listed, known, facts, points, costs, tran
     if ( row.moment !== moment ) continue;
     if ( !admits.has(lower(feature)) || !have.has(lower(feature)) ) continue;
     const eligible = metamagicFits(row, facts, { transmutedTypes });
+    const free = !!row.free;
     const raw = costs?.[feature];
-    const cost = Number.isFinite(Number(raw)) && (Number(raw) > 0) ? Number(raw) : null;
-    const affordable = (cost !== null) && (left >= cost);
+    const cost = free ? 0 : Number.isFinite(Number(raw)) && (Number(raw) > 0) ? Number(raw) : null;
+    const affordable = free || ((cost !== null) && (left >= cost));
     const why = eligible ? null : whyNot(row, facts, transmutedTypes);
     const tag = !eligible ? why
+      : free ? "free"
       : (cost === null) ? "cost unreadable"
       : affordable ? `${cost} SP` : `${cost} SP — ${left} left`;
-    out.push({ key: row.key, feature, cost, picks: row.picks ?? null, moment: row.moment, eligible, why, affordable, tag: /** @type {string} */ (tag) });
+    out.push({ key: row.key, feature, cost, picks: row.picks ?? null, moment: row.moment, eligible, why, affordable, tag: /** @type {string} */ (tag),
+      free, fixed: row.fixed ?? null });
   }
   return out;
 }
@@ -136,6 +147,7 @@ export function metamagicCardLine(record) {
     case "heightened": return record.target?.name ? `${name} — ${record.target.name} saves with Disadvantage` : `${name} — no target marked`;
     case "extended": return `${name} — duration doubled; concentration saves with Advantage`;
     case "transmuted": return record.type ? `${name} — the damage is ${record.type}` : `${name}`;
+    case "psychic": return `${name} — the damage is ${record.type ?? "psychic"}`;
     case "twinned": return `${name} — one more target, the cast one level higher for targets`;
     default: return name;
   }

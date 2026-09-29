@@ -10,7 +10,7 @@ import { rebuildRolls, withTargets } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { CARD, isCard, originData } from "./decide/card.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
-import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
+import { healDiceOf, slotBonus, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
 import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
 import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
@@ -33,6 +33,33 @@ function rowFor(actor) {
   return null;
 }
 
+/** Spells the owner casts from a slot (never innate or at will) — the `slotCast` rows' reach. */
+const SLOTLESS_METHODS = new Set(["innate", "atwill"]);
+
+/**
+ * The listed `bonus` rows (Disciple of Life) as `{ name, amount }` for this healing roll: the caster's own
+ * levelled spell, from the activity that spends the slot, at the item's level plus the roll's scaling.
+ */
+function bonusesFor(activity, config) {
+  const item = activity?.item;
+  const actor = activity?.actor;
+  if ( !actor || (item?.type !== "spell") ) return [];
+  const level = Number(item.system?.level) || 0;
+  if ( level < 1 ) return [];
+  // An activity that spends no slot (a lingering heal on a later turn — Aura of Vitality) is not the cast.
+  if ( activity.consumption?.spellSlot === false ) return [];
+  const listed = listedNames(healRerollEntries());
+  const slot = level + Math.max(0, Number(config?.scaling ?? item.flags?.dnd5e?.scaling ?? 0) || 0);
+  const out = [];
+  for ( const [name, row] of Object.entries(HEAL_REROLLS) ) {
+    if ( !row.bonus || !listed.has(lower(name)) || !featureNamed(actor, name) ) continue;
+    if ( row.slotCast && SLOTLESS_METHODS.has(String(item.system?.method ?? "")) ) continue;
+    const amount = slotBonus(row.bonus, slot);
+    if ( amount > 0 ) out.push({ name, amount });
+  }
+  return out;
+}
+
 /* --- the birth flag: due, and Battle Medic's own r1 taken off ---------------------------------- */
 
 listen("dnd5e.preRollDamage", "heal-rerolls", (config, _dialog, message) => {
@@ -41,6 +68,10 @@ listen("dnd5e.preRollDamage", "heal-rerolls", (config, _dialog, message) => {
     if ( !rolls.some(r => (r?.options?.type ?? null) === "healing") ) return;
     const activity = config?.subject;
     const actor = activity?.actor;
+    // Disciple of Life: the bonus rides the first healing roll as a labelled number (a label that is no
+    // damage type leaves the roll's type alone), so every applier — the card's buttons too — heals it.
+    const healing = rolls.find(r => (r?.options?.type === "healing") && Array.isArray(r.parts));
+    for ( const b of (healing ? bonusesFor(activity, config) : []) ) healing.parts.push(`${b.amount}[${b.name}]`);
     const found = actor ? rowFor(actor) : null;
     if ( !found ) return;
     const item = activity.item;
@@ -217,6 +248,32 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
     div.innerHTML = `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(flag.feature ?? "")}"></i> ${esc(cardLine(flag))}`;
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The healing-reroll line could not render.`, err); }
+});
+
+/** The `bonus` rows' numbers on a healing roll, read off the labelled terms the roll was born with. */
+const BONUS_NAMES = Object.entries(HEAL_REROLLS).filter(([, row]) => row.bonus).map(([name]) => name);
+function bonusTermsOf(message) {
+  const out = [];
+  for ( const roll of (message.rolls ?? []) ) for ( const term of (roll.terms ?? []) ) {
+    const name = BONUS_NAMES.find(n => lower(term?.flavor) === lower(n));
+    if ( name && Number.isFinite(Number(term.number)) ) out.push({ name, amount: Number(term.number) });
+  }
+  return out;
+}
+
+listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
+  try {
+    if ( !isCard(message, CARD.healing) ) return;
+    const found = bonusTermsOf(message);
+    if ( !found.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-heal-bonus-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-heal-bonus-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    div.innerHTML = found.map(b => `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(b.name)}"></i> ${esc(b.name)} — +${b.amount} healing`).join("<br>");
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The healing bonus line could not render.`, err); }
 });
 
 /* --- `also`: one more creature healed after the caster's own healing spell (Starry Form's Chalice) --- */

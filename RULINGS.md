@@ -1745,6 +1745,52 @@ Poisoned rider is B4's.
 | Psionic Strike, a weapon hit | "Psionic Strike — 1d8 + 3 force · 1 Psionic Energy Die"; the pool spent |
 | Protective Field, an ally within 30 ft hit | the guard's popup to the Psi Warrior; the damage lands short by the roll |
 
+## The PHB classes — A4 (2026-09-29, Session 0 stage A4)
+
+**The healing seam and the caster's feature rows — three rows on tables that exist, no new kind, no new file; BUILT
+and PROVEN (`smoke-classes` §32–34), unwalked.**
+The plan's §3 A4, read off the pack (`dnd-players-handbook.classes`, dnd5e 6.0.5). Built in rapid mode on calls the
+plan left open — **each is the user's to overrule**:
+
+1. **Disciple of Life rides the healing ROLL, not the landing.** The plan put the bonus on `cast.js`'s landing with
+   Beacon of Hope's bend ("a card's own buttons are not raised"); a labelled number on the roll (`4[Disciple of Life]`
+   — a label that is no damage type leaves the roll's type alone) reaches every applier, the card's buttons too, so
+   there is NO bend: Beacon's maximum and the Healer's rerolls read the same roll. "Cast with a spell slot" is read off
+   the data: a levelled spell, not innate or at will, and the activity that spends the slot (`consumption.spellSlot`) —
+   a lingering heal on a later turn (Aura of Vitality) spends none and gets none. The slot is the item's level plus
+   the roll's scaling. The healing card says "Disciple of Life — +N healing".
+2. **Potent Cantrip is the caster's mirror of Evasion** (`EVASIONS` `side: "caster"`): read off the DEMAND card's
+   caster at the fold, stamped on the entry (`casterHalf`), so a Legendary Resistance flip and an automatic success
+   (Greater Magic Resistance) take the half too. It never lowers a half or a full success, and Evasion's "none" still
+   wins for a saver who has it. A failure is unchanged, and a success lands none of the cantrip's other effects (the
+   save's own rule). **Its attack half** — a missed cantrip attack still deals half — is the second commit of A4.
+3. **Psychic Spells is a FREE row of the casting window** (`METAMAGIC` `free`, `fixed: "psychic"`, `classes:
+   ["warlock"]`): no cost, no Sorcery Points line when it stands alone, and its tick stands BESIDE a Metamagic pick
+   (a Sorcerer multiclass may take both — it is no Metamagic option). The tick rides its own birth flag,
+   `metamagicFree` (state), and every damage roll of the cast — never healing — takes Psychic. "A Warlock spell" is
+   the spell's own class (dnd5e 6's `classIdentifier`, else its `sourceItem` "class:warlock"), else the caster's one
+   class. The components half (Enchantment and Illusion spells
+   without Verbal or Somatic components) is out, as the plan ruled: a card line would police nothing.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Disciple of Life | `HEAL_REROLLS` `bonus: "2 + @slot"`, `slotCast` | a levelled spell cast from a slot heals 2 + the slot level more, a labelled part on the healing roll |
+| Potent Cantrip | `EVASIONS` `side: "caster"`, `cantrip`, `onSuccess: 0.5` | a successful save against the caster's cantrip takes half its damage — "saved — half damage (Potent Cantrip)" |
+| Psychic Spells | `METAMAGIC` `free`, `fixed`, `classes` | a tick in the casting window on a Warlock spell that deals damage: every damage roll of the cast is Psychic |
+
+**Found by the suite:** dnd5e 6 moved a spell's class from `sourceClass` to `sourceItem` ("class:warlock"),
+resolved by `classIdentifier` only when the class is on the sheet. A damage roll that names its usage card now reads
+THAT card's metamagic record alone — before, a card with no pick fell back to the newest card of the last minute and
+could borrow an earlier cast's Transmuted type.
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Disciple of Life, Cure Wounds at level 2 | the healing roll "2d8 + 3 + 4"; the card's line "Disciple of Life — +4 healing"; the healing lands with it; a potion adds nothing |
+| Potent Cantrip, Sacred Flame saved | the verdict "saved — half damage (Potent Cantrip)", the damage halved and applied |
+| Psychic Spells, an Eldritch Blast cast | the casting window's group "Battle Flow — Psychic Spells": the row "Psychic Spells · free"; ticked, the beams deal Psychic, the card says "Psychic Spells — the damage is psychic" |
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):

@@ -114,8 +114,24 @@ export function evasionApplies(actor, flag) {
   if ( !(actor instanceof Actor) || !flag?.hasDamage || (flag.damageOnSave !== "half") ) return null;
   if ( actor.statuses?.has?.("incapacitated") ) return null;
   for ( const [key, row] of Object.entries(EVASIONS) ) {
+    if ( row.side === "caster" ) continue;   // the caster's mirror (Potent Cantrip) — casterHalfFor
     if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
     if ( featureNamed(actor, key) ) return key;
+  }
+  return null;
+}
+
+/** The EVASIONS row keyed to the CASTER (`side: "caster"` — Potent Cantrip) that this demand's damage carries:
+ * `{ by, onSuccess }` or null. The caster's feature, the demand's own item a cantrip where the row says so. */
+export function casterHalfFor(card, flag) {
+  if ( !flag?.hasDamage ) return null;
+  const caster = card?.getAssociatedActor?.() ?? null;
+  if ( !(caster instanceof Actor) ) return null;
+  const item = cardActivity(card, flag.activityUuid ?? null)?.item ?? null;
+  for ( const [key, row] of Object.entries(EVASIONS) ) {
+    if ( row.side !== "caster" ) continue;
+    if ( row.cantrip && !((item?.type === "spell") && (Number(item.system?.level) === 0)) ) continue;
+    if ( featureNamed(caster, key) ) return { by: key, onSuccess: row.onSuccess };
   }
   return null;
 }
@@ -165,6 +181,7 @@ export async function applyOneSaveDamage(damageMessage, flag, entry) {
     note: entry.evasion
       ? ((entry.outcome === "saved") ? `saved — ${entry.evasionBy ?? "Evasion"}, no damage` : `failed — ${entry.evasionBy ?? "Evasion"}, half damage`)
       : (entry.noneOnSuccess && (entry.outcome === "saved")) ? `saved — ${entry.noneOnSuccess}, no damage`
+      : (entry.casterHalf && (entry.outcome === "saved")) ? `saved — ${entry.casterHalf.by}, half damage`
       : (entry.outcome === "saved")
         ? ((multiplier === 0.5) ? "saved — half damage" : "saved — full damage anyway")
         : undefined

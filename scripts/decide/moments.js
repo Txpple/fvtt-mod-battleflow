@@ -763,6 +763,7 @@ export const STATE_KEYS = Object.freeze({
   metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
+  metamagicFree: "a free class-feature tick in the casting window (Psychic Spells) - no spend, no answer; the damage roll's type is the result",
   healPending: "a heal claimed at creation for the elect to apply; the receipt is the resolve",
   masteryNotice: "a mastery reminder — presentation",
   cleaveArm: "Cleave armed for the extra attack; that attack is a real roll with its own card",

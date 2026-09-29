@@ -796,6 +796,11 @@ routes to the bard's owner, the relay folds it: the one section that needs two c
 
 ### A4 — the healing seam and the caster's feature rows (≈ ½ session)
 
+> **BUILT 2026-09-29** (RULINGS *The PHB classes — A4*): `smoke-classes` §32–34 green. Differences from the plan below:
+> Disciple of Life rides the healing ROLL (no bend — the card's buttons carry it); Psychic Spells' tick stands beside
+> a Metamagic pick on its own birth flag (`metamagicFree`); Potent Cantrip's ATTACK half (a missed cantrip still
+> deals half) is A4's second commit — the plan scoped the save half only.
+
 **Scope (3 rows in band A; Blessed Healer and Sculpt Spells in B4, Supreme Healing in D1):** Disciple of Life
 (2 + the slot level on a slot-cast healing spell, as it lands through `cast.js`), Potent Cantrip (a
 cantrip's successful save still takes half — Evasion's mirror on the caster), Psychic Spells (any Warlock

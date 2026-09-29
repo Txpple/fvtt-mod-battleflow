@@ -232,3 +232,17 @@ export function rollMaximum(rollData) {
   }
   return Math.max(total, Number(rollData?.total) || 0);
 }
+
+/**
+ * A HEAL_REROLLS `bonus` at a cast (Disciple of Life's "2 + @slot"): the terms summed, `@slot` the cast's level.
+ * A term that is no whole number counts nothing; never below 0.
+ * @param {string|number|null|undefined} expr
+ * @param {number} slot
+ * @returns {number}
+ */
+export function slotBonus(expr, slot) {
+  const level = Math.max(0, Number(slot) || 0);
+  const sum = String(expr ?? "").split("+").map(t => t.trim()).filter(Boolean)
+    .reduce((n, t) => n + ((t === "@slot") ? level : (/^\d+$/.test(t) ? Number(t) : 0)), 0);
+  return Math.max(0, sum);
+}

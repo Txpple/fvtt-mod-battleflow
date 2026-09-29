@@ -26,17 +26,24 @@ const POOL_NAME = SORCERY_POINTS;
 
 /* --- The sheet: the options the caster knows, and the pool they draw on ----------------------- */
 
-/** The metamagic feats on the sheet that the table knows and the list admits, by feat name. */
+/** The metamagic feats on the sheet that the table knows and the list admits, by feat name — and the
+ * `free` rows' class features (Psychic Spells), which are no Metamagic feat. */
 function knownOptions(actor) {
   const listed = listedNames(metamagicEntries());
   const out = new Map();
   for ( const item of (actor?.items ?? []) ) {
-    if ( (item.type !== "feat") || (lower(item.system?.type?.subtype) !== "metamagic") ) continue;
+    if ( item.type !== "feat" ) continue;
     const feature = INDEX.keyFor(item);
     if ( !feature || !listed.has(lower(feature)) ) continue;
+    if ( !METAMAGIC[feature]?.free && (lower(item.system?.type?.subtype) !== "metamagic") ) continue;
     out.set(feature, item);
   }
   return out;
+}
+
+/** The Sorcery Points pool the PAID options draw on (a free row names none). */
+function firstPool(actor, known) {
+  return [...known].filter(([feature]) => !METAMAGIC[feature]?.free).map(([, i]) => poolFor(actor, i)).find(Boolean) ?? null;
 }
 
 /** The option's own cost: its activity's `itemUses` consumption value, read live (N1). */
@@ -88,7 +95,11 @@ function spellFactsOf(activity) {
     // ⚠ The SOURCE count: only it keeps the `@item.level - 1` formula; the prepared value is a number.
     scalesTargets: !activity?.target?.template?.type && scalesTargetsFrom(item?.system?._source?.target?.affects?.count ?? null, { name: item ? namesAnswering([item], TWINNED_NAMES)[0] : null, exceptions: TWINNED_EXCEPTIONS }),
     // A Chosen Areas spell: Careful greys on it.
-    choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item)
+    choosesTargets: !!activity?.target?.template?.type && chosenAreaListed(item),
+    // Whose spell it is (a `classes` row): the item's own class (dnd5e 6 `sourceItem`, resolved when the class is
+    // on the sheet, else read off its "class:" key), else the caster's one class.
+    sourceClass: sys.classIdentifier || (String(sys.sourceItem ?? "").startsWith("class:") ? String(sys.sourceItem).slice(6) : "")
+      || ((Object.keys(activity?.actor?.classes ?? {}).length === 1) ? Object.keys(activity.actor.classes)[0] : null)
   };
 }
 
@@ -96,6 +107,9 @@ function spellFactsOf(activity) {
 
 /** activity uuid → the pick made in the dialog (`{ key, feature, cost, poolId, rangeFeet }`). */
 const pending = new Map();
+/** activity uuid → the `free` rows ticked beside it (`[{ key, feature, type }]`), stamped as `metamagicFree`. */
+const freePending = new Map();
+const FREE_FLAG = "metamagicFree";
 
 /** The window's rows for a spell's use - the same read the window makes - or null when the caster has none that fit. */
 function windowMenuFor(activity) {
@@ -103,7 +117,7 @@ function windowMenuFor(activity) {
   if ( !activity || (activity.item?.type !== "spell") || !actor?.isOwner ) return null;
   const known = knownOptions(actor);
   if ( !known.size ) return null;
-  const first = [...known.values()].map(i => poolFor(actor, i)).find(Boolean) ?? null;
+  const first = firstPool(actor, known);
   const points = Math.max(0, Number(first?.system?.uses?.value ?? 0));
   const costs = Object.fromEntries([...known].map(([feature, item]) => [feature, costOf(item)]));
   const menu = metamagicMenu({ table: METAMAGIC, listed: known.keys(), known: known.keys(), facts: spellFactsOf(activity), points, costs, transmutedTypes: TRANSMUTED_TYPES });
@@ -130,7 +144,7 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
     if ( element.querySelector("[data-bf-metamagic-field]") ) return;
     const known = knownOptions(actor);
     if ( !known.size ) return;
-    const first = [...known.values()].map(i => poolFor(actor, i)).find(Boolean) ?? null;
+    const first = firstPool(actor, known);
     const points = Math.max(0, Number(first?.system?.uses?.value ?? 0));
     const max = Number(first?.system?.uses?.max ?? 0);
     const costs = Object.fromEntries([...known].map(([feature, item]) => [feature, costOf(item)]));
@@ -145,14 +159,27 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
     // A template spell names nobody for Heightened either: the targets are not who the area will hold.
     if ( activity?.target?.template?.type ) selected.targets = [];
     const mark = { ...selected, chosen: pending.get(activity.uuid)?.target?.uuid ?? null };
+    // A free row alone (Psychic Spells on a Warlock) is no Metamagic: the legend names it, no pool line.
+    const paid = menu.some(r => !r.free);
+    const currentFree = new Set((freePending.get(activity.uuid) ?? []).map(r => r.key));
     const fs = document.createElement("fieldset");
     fs.dataset.bfMetamagicField = "";
-    fs.innerHTML = `<legend>Battle Flow — Metamagic</legend>
-      <div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
-        <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>
-      ${menu.map(row => rowHTML(row, known.get(row.feature), current, { facts, currentType, mark })).join("")}
-      ${points === 0 ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
+    fs.innerHTML = `<legend>Battle Flow — ${paid ? "Metamagic" : esc(menu.map(r => r.feature).join(", "))}</legend>
+      ${paid ? `<div data-bf-metamagic-pool style="display:flex;justify-content:space-between;font-size:var(--font-size-12,12px);opacity:0.85;margin:0 0 0.25rem;">
+        <span>${esc(actor.name)}</span><span><strong>${POOL_NAME}: ${points} of ${max}</strong>${first ? "" : " — no pool found"}</span></div>` : ""}
+      ${menu.map(row => rowHTML(row, known.get(row.feature), row.free ? (currentFree.has(row.key) ? row.key : null) : current, { facts, currentType, mark })).join("")}
+      ${(paid && (points === 0)) ? `<p class="hint" style="margin:0.25rem 0 0;">No ${POOL_NAME} — the rows stay so the sheet is not the only place that says so.</p>` : ""}`;
     const boxes = fs.querySelectorAll('input[name="bf-metamagic"]');
+    // The free rows' ticks stand apart from the one-per-cast pick.
+    const freeBoxes = fs.querySelectorAll('input[name="bf-metamagic-free"]');
+    const syncFree = () => {
+      const ticked = [...freeBoxes].filter(b => b.checked && !b.disabled)
+        .map(b => menu.find(r => r.key === b.value)).filter(r => r?.eligible)
+        .map(r => ({ key: r.key, feature: r.feature, type: r.fixed ?? null, at: Date.now() }));
+      if ( ticked.length ) freePending.set(activity.uuid, ticked); else freePending.delete(activity.uuid);
+    };
+    for ( const b of freeBoxes ) b.addEventListener("change", syncFree);
+    syncFree();
     const sync = () => {
       const picked = [...boxes].find(b => b.checked)?.value ?? null;
       for ( const b of boxes ) {
@@ -203,6 +230,7 @@ listen("closeActivityUsageDialog", "metamagic", app => {
     const uuid = (app?.activity ?? app?.options?.activity)?.uuid ?? null;
     if ( !uuid || !pending.has(uuid) ) return;
     setTimeout(() => { const p = pending.get(uuid); if ( p && !p.born ) pending.delete(uuid); }, 3000);
+    setTimeout(() => { freePending.delete(uuid); }, 3000);
   } catch { /* the sweep is a courtesy */ }
 });
 
@@ -228,7 +256,7 @@ function rowHTML(row, item, current, { facts = null, currentType = null, mark = 
   return `<div data-bf-metamagic-row="${esc(row.key)}" data-bf-off="${off ? 1 : 0}"
       style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.6rem;align-items:center;margin:0.3rem 0;padding:0.4rem 0.6rem;border-radius:4px;
              background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));border-left:3px solid ${off ? "rgb(120,120,120)" : "rgb(222,120,40)"};${off ? "opacity:0.55;" : ""}">
-      <input type="checkbox" name="bf-metamagic" value="${esc(row.key)}" ${current === row.key ? "checked" : ""} ${off ? "disabled" : ""} style="margin:0;">
+      <input type="checkbox" name="${row.free ? "bf-metamagic-free" : "bf-metamagic"}" value="${esc(row.key)}" ${current === row.key ? "checked" : ""} ${off ? "disabled" : ""} style="margin:0;">
       <label style="font-weight:bold;cursor:pointer;">${esc(row.feature)}</label>
       <span style="font-size:var(--font-size-11,11px);letter-spacing:0.04em;text-transform:uppercase;white-space:nowrap;opacity:0.8;">${esc(row.tag)}</span>
       ${sub}
@@ -238,20 +266,23 @@ function rowHTML(row, item, current, { facts = null, currentType = null, mark = 
 
 /* --- Transmuted Spell: every damage roll of the cast wears the picked type -------------------- */
 
-/** The metamagic record on the card a roll names as its origin, or on the activity's newest card. */
-function recordForRoll(activity, message) {
+/** The metamagic record (or `flag`'s) on the card a roll names as its origin, or on the activity's newest card. */
+function recordForRoll(activity, message, flag = METAMAGIC_FLAG) {
   try {
     const data = message?.data ?? {};
     const id = originIdInData(data);
     const card = id ? game.messages.get(id) : null;
-    const record = card?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
-    if ( record ) return record;
+    // A roll that names its card reads that card alone: an earlier cast's pick never rides it.
+    if ( card ) return card.getFlag(MODULE_ID, flag) ?? null;
     // No origin named (a roll from the sheet): the activity's newest card of the last minute.
     const recent = game.messages.contents.slice(-40).reverse().find(m => (activityUuidOf(m) === activity?.uuid)
-      && m.getFlag(MODULE_ID, METAMAGIC_FLAG) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
-    return recent?.getFlag(MODULE_ID, METAMAGIC_FLAG) ?? null;
+      && m.getFlag(MODULE_ID, flag) && (Math.abs(Date.now() - (m.timestamp ?? 0)) <= 60_000));
+    return recent?.getFlag(MODULE_ID, flag) ?? null;
   } catch { return null; }
 }
+
+/** A roll that deals damage (never healing or temporary hit points) — what a `fixed` row retypes. */
+const dealsDamage = roll => { const t = lower(roll?.options?.type ?? ""); return !!t && (t !== "healing") && (t !== "temphp"); };
 
 // The roll's `options.type` is what the verdict and the applier read: set it before the dice.
 listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
@@ -276,7 +307,40 @@ listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
   }
 });
 
+// A `fixed` free row (Psychic Spells): every damage roll of the cast takes the row's type.
+listen("dnd5e.preRollDamage", "metamagic", (config, _dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.item?.type !== "spell" ) return;
+    const record = recordForRoll(activity, message, FREE_FLAG);
+    const last = (Array.isArray(record) ? record : []).filter(r => r?.type).at(-1);
+    if ( !last ) return;
+    const to = lower(last.type);
+    let changed = false;
+    for ( const roll of config.rolls ?? [] ) {
+      if ( !dealsDamage(roll) || (lower(roll.options.type) === to) ) continue;
+      roll.options.type = to;
+      if ( Array.isArray(roll.options.types) ) roll.options.types = [to];
+      changed = true;
+    }
+    if ( changed ) foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.metamagicType`, { type: to, feature: last.feature });
+  } catch(err) {
+    console.warn(`${TITLE} | A free damage-type row could not set the type — the roll wears the spell's own.`, err);
+  }
+});
+
 /* --- The card: born with the pick; the points spent once the cast has landed ------------------ */
+
+// The free rows ride their own birth flag: no cost, no deferral, never the one-per-cast record.
+listen("preCreateChatMessage", "metamagic", doc => {
+  try {
+    const uuid = activityUuidOf(doc);
+    if ( !uuid || !freePending.has(uuid) || !isCard(doc, CARD.usage) ) return;
+    const free = freePending.get(uuid).filter(r => (Date.now() - (r.at ?? 0)) <= PICK_TTL_MS);
+    freePending.delete(uuid);
+    if ( free.length ) doc.updateSource({ flags: { [MODULE_ID]: { [FREE_FLAG]: free.map(r => ({ key: r.key, feature: r.feature, type: r.type })) } } });
+  } catch(err) { console.warn(`${TITLE} | The free row's tick could not be stamped on the card.`, err); }
+});
 
 listen("preCreateChatMessage", "metamagic", doc => {
   try {
@@ -450,6 +514,20 @@ listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
     div.innerHTML = `<i class="fa-solid fa-wand-sparkles" data-tooltip="Metamagic"></i> ${esc(metamagicCardLine(record))}`;
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The metamagic line could not render.`, err); }
+});
+
+listen("dnd5e.renderChatMessage", "metamagic", (message, html) => {
+  try {
+    const free = message.getFlag(MODULE_ID, FREE_FLAG);
+    if ( !Array.isArray(free) || !free.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-metamagic-free-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-metamagic-free-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    div.innerHTML = free.map(r => `<i class="fa-solid fa-brain" data-tooltip="${esc(r.feature)}"></i> ${esc(metamagicCardLine(r))}`).join("<br>");
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The free row's line could not render.`, err); }
 });
 
 /* --- Empowered Spell: a row of the dice changers' popup (dice-changers.js) --------------------- */

@@ -10,7 +10,7 @@ import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from ".
 import { revertEffect } from "../effect-riders.js";
 import { revertTarget } from "../receipts.js";
 import { disarmSaveTimer } from "./ask.js";
-import { applySaveConsequences, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
+import { applySaveConsequences, casterHalfFor, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
 
 /**
  * THE FOLD WITHOUT A DIE: a save the rules fail before the roll, recorded as a failure. The buzzer
@@ -68,6 +68,8 @@ export async function foldSaveAutoSucceed(card, uuid, { sources = [], timedOut =
       entry.rollMessageId = null;
       entry.autoSucceeded = true;
       entry.autoSucceededBy = [...new Set(passing.map(s => s.feature ?? s.label))].join(", ");
+      const casterHalf = casterHalfFor(card, current);   // a success all the same (Potent Cantrip)
+      if ( casterHalf ) entry.casterHalf = casterHalf;
       if ( timedOut ) entry.timedOut = true;
       if ( current.targets.every(t => t.done) ) {
         current.status = "done";
@@ -155,6 +157,9 @@ export async function foldSaveAnswer(card, uuid, rollMessage) {
       // Circle of Power: a success against half-on-save spell damage takes none.
       const noneBy = noneOnSuccessFor(rollMessage.getAssociatedActor?.(), current);
       if ( noneBy ) entry.noneOnSuccess = noneBy;
+      // Potent Cantrip: the CASTER's row, read off the demand card's caster.
+      const casterHalf = casterHalfFor(card, current);
+      if ( casterHalf ) entry.casterHalf = casterHalf;
       if ( timedOut ) entry.timedOut = true;
       if ( forced ) entry.forced = true;
       if ( current.targets.every(t => t.done) ) {

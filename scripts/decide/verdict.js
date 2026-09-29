@@ -190,9 +190,11 @@ export function saveMultiplier(entry, damageOnSave) {
   if ( entry.noneOnSuccess && (entry.outcome === "saved") ) return 0;
   if ( entry.outcome === "failed" ) return 1;
   if ( entry.outcome !== "saved" ) return null;
-  if ( damageOnSave === "half" ) return 0.5;
   if ( damageOnSave === "full" ) return 1;
-  return null; // "none"
+  // Potent Cantrip (EVASIONS `side: "caster"`): the caster's cantrip still deals its share on a success.
+  const floor = Number(entry.casterHalf?.onSuccess) || 0;
+  if ( damageOnSave === "half" ) return Math.max(0.5, floor);
+  return floor || null; // "none"
 }
 
 /** One verdict in table English; the only derivation, so the card and the row cannot disagree. */
@@ -216,6 +218,7 @@ export function verdictTail(flag, t) {
 function verdictStakes(flag, t) {
   const half = flag.hasDamage
     ? t.evasion ? ` — no damage (${t.evasionBy ?? "Evasion"})`
+      : t.casterHalf ? ` — half damage (${t.casterHalf.by})`
       : (flag.damageOnSave === "half") ? " — half damage"
       : (flag.damageOnSave === "none") ? " — no damage" : " — full damage anyway"
     : "";

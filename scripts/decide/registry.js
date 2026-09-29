@@ -522,7 +522,12 @@ export const EVASIONS = Object.freeze({
     from: "Monk 7 / Rogue 7 / Ranger 15" }),
   "Avoidance": Object.freeze({ ability: null,
     rule: Object.freeze({ item: "Avoidance", uuid: "Compendium.dnd-monster-manual.features.Item.mmAvoidance00000" }),
-    from: "monsters" })
+    from: "monsters" }),
+  // THE MIRROR ON THE CASTER (`side: "caster"`): keyed by the CASTER's feature, never the saver's. A successful
+  // save against the caster's cantrip (`cantrip`) still takes `onSuccess` of the damage; a failure is unchanged.
+  "Potent Cantrip": Object.freeze({ side: "caster", cantrip: true, onSuccess: 0.5, ability: null,
+    rule: Object.freeze({ item: "Potent Cantrip", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPotentCant" }),
+    from: "Wizard — Evoker 3" })
 });
 
 /*
@@ -1773,7 +1778,12 @@ export const METAMAGIC = Object.freeze({
   "Seeking Spell":    { key: "seeking",    moment: "miss",   when: "spellAttack", picks: null,     apply: "the d20 rerolled on a miss, the new roll stands" },
   "Subtle Spell":     { key: "subtle",     moment: "cast",   when: "any",        picks: null,      apply: "a card line: cast without components" },
   "Transmuted Spell": { key: "transmuted", moment: "cast",   when: "damageType", picks: "type",    apply: "the cast's damage parts carry the picked type" },
-  "Twinned Spell":    { key: "twinned",    moment: "cast",   when: "scalesTargets", picks: "twin", apply: "one more creature in the target snapshot, the cast one level higher for targets" }
+  "Twinned Spell":    { key: "twinned",    moment: "cast",   when: "scalesTargets", picks: "twin", apply: "one more creature in the target snapshot, the cast one level higher for targets" },
+  // A CLASS FEATURE in the group (`free`): no cost, no Sorcery Point, never one of the one-per-cast options - its
+  // tick stands beside a Metamagic pick. `fixed` the damage type every damage roll of the cast takes; `classes`
+  // the spell's own class (its `sourceClass`). The components half is out (a card line would police nothing).
+  "Psychic Spells":   { key: "psychic",    moment: "cast",   when: "damageRoll", picks: null, free: true, fixed: "psychic", classes: ["warlock"],
+    apply: "the cast's damage rolls are psychic" }
 });
 /** The damage types Transmuted Spell trades between — the option's own list. */
 export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightning", "poison", "thunder"]);
@@ -1812,6 +1822,7 @@ export const DAMAGE_EITHER = Object.freeze({
  *             spell cast with a slot (Starry Form's Chalice): offered on the spell's healing card as a pick of
  *             the caster or a creature on its side `within` feet, while `while` stands and the form chip
  *             (EFFECT_CHOICES `chip`) reads `form`; the pick uses the activity at that creature
+ *   bonus / slotCast   the owner's levelled spell heals `bonus` more (`@slot` the cast's level), a part on the roll
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
@@ -1822,6 +1833,11 @@ export const HEAL_REROLLS = Object.freeze({
     caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised",
     rule: Object.freeze({ item: "Beacon of Hope", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBeaconofHo" }),
     from: "Cleric spell, level 3 (Concentration, 1 minute)" }),
+  // `bonus` + `slotCast`: a levelled spell the owner casts (never innate or at will) heals `2 + @slot` more - a
+  // part added to the healing roll itself, so the card's own buttons carry it too.
+  "Disciple of Life": Object.freeze({ bonus: "2 + @slot", slotCast: true,
+    rule: Object.freeze({ item: "Disciple of Life", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcDiscipleOf" }),
+    from: "Cleric — Life Domain 3" }),
   "Starry Form": Object.freeze({ also: "Chalice", while: "Starry Form", form: "chalice", within: 30,
     rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm", benefit: "Chalice" }),
     from: "Druid — Circle of the Stars 3" })
