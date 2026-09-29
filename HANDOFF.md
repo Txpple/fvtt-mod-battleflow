@@ -8,10 +8,10 @@
 - **A4 PUSHED** (`20739b1`, `844daa1`; RULINGS *The PHB classes — A4*): Disciple of Life, Potent Cantrip (the save
   half AND the attack half — a missed cantrip still deals half), Psychic Spells; `smoke-classes` §32–35 green, and
   its own suites green (smoke-battleflow, smoke-hold, smoke-saves, smoke-d20-folds, smoke-rescue, smoke-metamagic,
-  smoke-heal, smoke-classes). Its three calls are the user's to overrule.
+  smoke-heal, smoke-classes). Its three calls were CONFIRMED by the user.
 - **THE BATTERY CADENCE (the user, 2026-09-29, rapid mode):** a stage runs ONLY its own suites, even when it touches
-  the spine (`battery.mjs --changed` will say FULL — name the suites by hand). ONE full battery runs after A7, the
-  end of band A. After a killed run: `verify-settings.mjs --fix` → `reset-fixture-state.mjs` → `fixture-suite.mjs`.
+  the spine (`battery.mjs --changed` will say FULL — name the suites by hand). A full battery runs after each LETTER
+  series is done: after A7, after B5, after C1, after D1. After a killed run: `verify-settings.mjs --fix` → `reset-fixture-state.mjs` → `fixture-suite.mjs`.
 - **Pushed:** A3 + A1 on `origin/main` (`60865f5`, after a green regression battery: 18/18, settings clean).
 - **PUSHED 2026-09-29:** A2 (`3a1d7a7` built, `a2bf9f4` the guard's words, `171b6b0` + `ee92df2` its live
   proof — `smoke-classes` §28–31 green) and the docs. **A2's regression battery** (smoke-hitmenu, smoke-maneuvers,
@@ -51,7 +51,7 @@
 1. ~~Push A2~~ — DONE: its battery green (smoke-classes 119/119 after §25 put the canvas back on the range).
 2. ~~Push A4~~ — DONE.
 3. **A5** (Arcane Ward — the ward pool, a new table and machine: plan §3 A5), then **A6**, **A7** — each on its own
-   suites; **the FULL battery after A7**. Then **B1 → B5, C1, D1**.
+   suites; **the FULL battery after A7**. Then **B1 → B5** (full battery), **C1** (full), **D1** (full).
 4. **Owed small:** a Legendary Resistance flip of a failed Stunning Strike lands no Slowed (`saves/verdict.js`);
    Physician's Touch's Poisoned is B4's.
 5. Then **the DMG**, then **the splat books**; **the prod deploy** (v2.7.0 + everything since) and **the walks**
@@ -63,7 +63,7 @@
   commit; a bend by choice in *Bent by choice*; a new flag key is classified in `decide/moments.js`; a new file bumps
   `tools/check-registry.mjs`'s pin (123) and joins check-layers / dispatch / battleflow.js; a new kind moves
   `EXPECTED_KINDS` (39).
-- A change runs its own suites (in rapid mode a spine change too — the full battery after A7); deploy `--local`
+- A change runs its own suites (in rapid mode a spine change too — the full battery after each letter series); deploy `--local`
   first; launch detached.
 - `npm run verify` green on every commit; `biome --write` on named files only; commit bodies ASCII.
 - After any run: `node tools/verify-settings.mjs` (`--fix` restores).

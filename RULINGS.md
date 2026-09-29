@@ -1750,7 +1750,7 @@ Poisoned rider is B4's.
 **The healing seam and the caster's feature rows — three rows on tables that exist, no new kind, no new file; BUILT
 and PROVEN (`smoke-classes` §32–35), unwalked.**
 The plan's §3 A4, read off the pack (`dnd-players-handbook.classes`, dnd5e 6.0.5). Built in rapid mode on calls the
-plan left open — **each is the user's to overrule**:
+plan left open — **all three confirmed by the user (2026-09-29)**:
 
 1. **Disciple of Life rides the healing ROLL, not the landing.** The plan put the bonus on `cast.js`'s landing with
    Beacon of Hope's bend ("a card's own buttons are not raised"); a labelled number on the roll (`4[Disciple of Life]`
