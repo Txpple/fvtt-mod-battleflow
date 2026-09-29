@@ -53,6 +53,7 @@ import "./command.js";
 import "./rebukes.js";
 import "./damage-shares.js";
 import "./heal-on-hit.js";
+import "./drains.js";
 import "./damage-holds.js";
 import "./d20-folds.js";
 import "./concentration.js";

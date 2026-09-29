@@ -13,7 +13,10 @@ let reg;
 let rs;
 /** @type {typeof import("../scripts/decide/turn-grants.js")} */
 let tg;
+/** @type {typeof import("../scripts/decide/drains.js")} */
+let dn;
 beforeAll(async () => {
+  dn = await import("../scripts/decide/drains.js");
   reg = await import("../scripts/decide/registry.js");
   rs = await import("../scripts/decide/repeat-saves.js");
   tg = await import("../scripts/decide/turn-grants.js");
@@ -170,6 +173,73 @@ describe("CLOCK_RIDERS — the random condition on a hit", () => {
       expectPointer(row.rule);
     }
     expect(reg.CLOCK_RIDERS["chaos-blade"].feature).toBe("Chaos Blade");
+  });
+});
+
+describe("DRAINS — the fall on the damage that landed", () => {
+  it("the three rows: two on the maximum (Proboscis the Necrotic alone), one on Strength by the text's die", () => {
+    expect(reg.DRAINS["Life Drain"]).toMatchObject({ what: "max", type: null });
+    expect(reg.DRAINS.Proboscis).toMatchObject({ what: "max", type: "necrotic" });
+    expect(reg.DRAINS["Draining Swipe"]).toMatchObject({
+      what: "ability",
+      ability: "str",
+      amount: "text"
+    });
+    for (const row of Object.values(reg.DRAINS)) {
+      expect(Object.isFrozen(row)).toBe(true);
+      expectPointer(row.rule);
+    }
+    expect(reg.drainEntries().map(e => e.kind)).toEqual([
+      "life drain",
+      "proboscis",
+      "draining swipe"
+    ]);
+  });
+  it("drainAmount: the whole of what landed, or the row's type's share of it; nothing when none of that type landed", () => {
+    expect(
+      dn.drainAmount(reg.DRAINS["Life Drain"], {
+        taken: 7,
+        parts: [{ value: 7, type: "necrotic" }]
+      })
+    ).toMatchObject({ drains: true, amount: 7 });
+    expect(
+      dn.drainAmount(reg.DRAINS.Proboscis, {
+        taken: 10,
+        parts: [
+          { value: 6, type: "necrotic" },
+          { value: 4, type: "piercing" }
+        ]
+      })
+    ).toMatchObject({ drains: true, amount: 6 });
+    expect(
+      dn.drainAmount(reg.DRAINS.Proboscis, { taken: 4, parts: [{ value: 4, type: "piercing" }] })
+    ).toMatchObject({ drains: false, amount: 0 });
+    expect(dn.drainAmount(reg.DRAINS["Life Drain"], { taken: 0 })).toMatchObject({ drains: false });
+  });
+  it("drainDieFrom reads the first roll enricher off the text; the effect data lowers tempmax under a fixed id", () => {
+    expect(
+      dn.drainDieFrom("the target's Strength score decreases by [[/r 1d4]]. The target dies")
+    ).toBe("1d4");
+    expect(dn.drainDieFrom("no die here")).toBeNull();
+    const data = dn.drainEffectData({ key: "Life Drain", amount: 9, moduleId: "bf" });
+    expect(data._id).toBe(dn.drainEffectId("Life Drain"));
+    expect(data._id).toHaveLength(16);
+    expect(data.changes).toEqual([
+      { key: "system.attributes.hp.tempmax", mode: 2, value: "-9", priority: 20 }
+    ]);
+    expect(data.flags.bf.drain).toEqual({ key: "Life Drain", amount: 9 });
+    expect(
+      dn.drainTitle({ key: "Life Drain", target: "Gren", what: "max", amount: 4, total: 9 })
+    ).toBe("Life Drain — Gren's Hit Point maximum falls by 4 (9 in all)");
+    expect(
+      dn.drainTitle({
+        key: "Draining Swipe",
+        target: "Gren",
+        what: "ability",
+        amount: 2,
+        ability: "Strength"
+      })
+    ).toBe("Draining Swipe — Gren's Strength falls by 2");
   });
 });
 

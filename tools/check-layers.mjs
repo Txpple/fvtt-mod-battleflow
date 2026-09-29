@@ -56,6 +56,7 @@ export const LAYER_OF = {
   "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage
   "damage-shares.js": "machines", // a bond's caster takes what its bearer takes — Warding Bond
   "heal-on-hit.js": "machines",   // a spell's landed damage heals its caster a share — Vampiric Touch
+  "drains.js": "machines",        // a monster's landed damage lowers the target's maximum or a score — Life Drain
   "prismatic.js": "machines",     // a cone's die per creature picks its ray — Prismatic Spray
   "hew.js": "machines",
   "bash-offer.js": "machines",
@@ -115,6 +116,7 @@ export const LAYER_OF = {
   "volley-registry.js": "registry",
 
   // DECISION — pure functions over plain data. ZERO imports, asserted below.
+  "decide/drains.js": "decision",
   "decide/geometry.js": "decision",
   "decide/cover.js": "decision",        // measured cover: the 2024 DMG's corner lines, counted
   "decide/metamagic.js": "decision",

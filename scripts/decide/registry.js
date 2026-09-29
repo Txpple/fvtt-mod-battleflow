@@ -1923,6 +1923,33 @@ export const HEAL_ON_HIT = Object.freeze({
 });
 
 /**
+ * THE DRAIN (RULINGS *The Monster Manual — the waiting rows built*; drains.js): a monster's attack whose damage,
+ * once it has LANDED, lowers the target — its Hit Point maximum by what landed (Life Drain, Proboscis), or an
+ * ability score by the die its text names (Draining Swipe). Vampiric Touch's seam: on `dnd5e.applyDamage` the
+ * dealing card's activity answers the row; the module writes an effect on the target — the pack's own where it
+ * ships one ("Hit: STR Score −N"), else its own (`hp.tempmax` lowered; one copy per row, refreshed with the
+ * total) — receipted on the drain's own card, once per creature per card, no choice (R1). Keyed by the item.
+ *   what      "max" (the maximum, by the damage taken) | "ability" (a score)
+ *   type      the damage type counted, or null for every type (Proboscis: the Necrotic alone)
+ *   ability   a score row's key;  amount  "text" — the die read off the item's text ("[[/r 1d4]]"), never copied
+ * Not a kind: one machine, rows of data.
+ */
+export const DRAINS = Object.freeze({
+  "Life Drain": Object.freeze({ what: "max", type: null,
+    caveat: "the target dies if the fall leaves its maximum at 0, and when the fall ends — the table's",
+    rule: Object.freeze({ item: "Life Drain", uuid: "Compendium.dnd-monster-manual.features.Item.mmLifeDrain00000" }),
+    from: "monsters (wights, specters, wraiths)" }),
+  "Proboscis": Object.freeze({ what: "max", type: "necrotic",
+    caveat: "the target dies if the fall leaves its maximum at 0, and when the fall ends — the table's",
+    rule: Object.freeze({ item: "Proboscis", uuid: "Compendium.dnd-monster-manual.features.Item.mmProboscis00000" }),
+    from: "monsters (stirges)" }),
+  "Draining Swipe": Object.freeze({ what: "ability", ability: "str", amount: "text",
+    caveat: "the target dies at a Strength of 0, and the Shadow that rises from a Humanoid — the table's",
+    rule: Object.freeze({ item: "Draining Swipe", uuid: "Compendium.dnd-monster-manual.features.Item.mmDrainingSwipe0" }),
+    from: "monsters (shadows)" })
+});
+
+/**
  * THE RAY TABLES (RULINGS *The spells slice — the held spells*; prismatic.js): a cone whose text rolls a die
  * PER CREATURE to pick which ray hits it (Prismatic Spray). The cast's own demand is closed at birth; when
  * the cone is placed the machine rolls `die` per creature inside and raises ONE demand per (creature, ray)
@@ -2060,6 +2087,7 @@ export const wardEntries = () => everyRow(Object.keys(WARDS));
 export const duplicateEntries = () => everyRow(Object.keys(DUPLICATES));
 export const damageShareEntries = () => everyRow(Object.keys(DAMAGE_SHARES));
 export const healOnHitEntries = () => everyRow(Object.keys(HEAL_ON_HIT));
+export const drainEntries = () => everyRow(Object.keys(DRAINS));
 export const rayTableEntries = () => everyRow(Object.keys(RAY_TABLES));
 export const damageEitherEntries = () => everyRow(Object.keys(DAMAGE_EITHER));
 export const cardChipEntries = () => everyRow(Object.keys(CARD_CHIPS));

@@ -782,6 +782,7 @@ export const STATE_KEYS = Object.freeze({
   duplicatesSeen: "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",
   damageShare: "the card a bond's share posts (damage-shares.js, Warding Bond) — the receipt on the same card is the resolve; `ended` when the caster's drop ended the bond",
   healOnHit: "on the dealing card: the creatures whose landed damage already paid the caster (heal-on-hit.js, Vampiric Touch) — a latch; on the heal's own card, its facts, and the receipt there is the resolve",
+  drain: "on the dealing card: the creatures already drained by it (drains.js, Life Drain) — a latch; on the drain's own card, its facts (the fall, the total, a score row's die), and the effect receipt there is the resolve",
   prismatic: "the ray table's claim on the cast's card (prismatic.js): pending until the cone stands, rolled once — the rays' demand cards are the moments",
   prismaticRays: "the summary card of a ray table's roll — a d8 per creature, presentation; the rays' demand cards are the moments",
   prismaticRay: "one ray's demand card (prismatic.js) — beside the saves record, which is the resolve; `settled` and `says` what a condition ray's verdict landed (the effectReceipt there carries it)",

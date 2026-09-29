@@ -62,6 +62,7 @@ export const ORDER = Object.freeze([
   "rebukes",
   "damage-shares",      // the bond's share on the damage that landed — the rebukes' seam
   "heal-on-hit",        // the caster's heal on the damage that landed — the same seam
+  "drains",             // the target's fall on the damage that landed — the same seam (Life Drain)
   "damage-holds",
   "d20-folds",          // the d20 fold row directly below the maneuver rows
   "concentration",

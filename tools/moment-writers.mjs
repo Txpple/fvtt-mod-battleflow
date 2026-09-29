@@ -180,6 +180,7 @@ const WORLD_WRITERS = {
   "rebukes.js": ["rebuke"],
   "damage-shares.js": ["receipt"],   // the caster's share of the bond's damage, receipted on the share's card; the bond's end deletes the effect
   "heal-on-hit.js": ["receipt"],     // the caster's heal, receipted on the heal's card
+  "drains.js": ["effectReceipt"],    // the target's fall — an effect on it, receipted on the drain's card; the prior copy deleted
   "prismatic.js": ["saves", "effectReceipt"],   // the ray demand cards it raises; a condition ray's effect, receipted; the spent cone's region deleted
   "damage-holds.js": ["damageHold", "receipt"],
   "bash-offer.js": ["bashOffer"],

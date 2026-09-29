@@ -11,7 +11,8 @@ export const COVERS = [
   'repeat-saves.js',        // §1 — a monster's own activity repeats at the target's turn end (Pacifying Spores); §2 the escalation (Petrifying Bite: Petrified instead of Restrained)
   'turn-grants.js',         // §3 — the grappled target's damage at its own turn start (Constricting Vine) and turn end (Swarm of Proboscises); §4 the grappler's own turn start (Barbed Hide)
   'emanations.js',          // §5 — the fire auras' pulse at the bearer's turn end (Flame Aura); §6 Gibbering's turn-start demand; §7 the alerts — Watery Rebuke on a move-in, Unnerving Gaze on a turn start
-  'clock-riders.js'         // §8 — Chaos Blade's d4: one of the attack's four conditions lands on the hit, the card says which
+  'clock-riders.js',        // §8 — Chaos Blade's d4: one of the attack's four conditions lands on the hit, the card says which
+  'drains.js'               // §9 — Life Drain's fall of the maximum by what landed, stacking; Draining Swipe's Strength by the text's d4
 ];
 
 const SECTIONS = {
@@ -22,7 +23,8 @@ const SECTIONS = {
   5: 'FLAME AURA: a ring off the damage activity\'s Emanation; the Monster\'s turn END rolls the fire once and lands it on the Victim inside, receipted; the Victim outside takes nothing',
   6: 'GIBBERING: the Victim starting its turn inside the ring is demanded the Wisdom save (cause turnStart); the Monster Incapacitated, nothing',
   7: 'THE ALERTS: Watery Rebuke — the Victim moving within 5 feet raises the reminder card (hewNotice, the Reaction from the sheet); Unnerving Gaze — the Victim STARTING its turn within 30 feet raises it (cause turnStart), once per turn',
-  8: 'CHAOS BLADE: the Monster\'s hit lands ONE of the attack\'s four conditions by a d4 (the rider records the face and the name); a hit with another attack lands none'
+  8: 'CHAOS BLADE: the Monster\'s hit lands ONE of the attack\'s four conditions by a d4 (the rider records the face and the name); a hit with another attack lands none',
+  9: 'THE DRAIN: Life Drain\'s hit lowers the Victim\'s Hit Point maximum by what landed (an effect on it, receipted on the drain\'s card); a second hit refreshes the one copy with the total; Draining Swipe\'s hit rolls the text\'s d4 and lands the pack\'s "Hit: STR Score −N"'
 };
 const DEPENDS = {};
 
@@ -544,6 +546,71 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await clearVictim();
       await takeBack('Chaos Blade');
       await takeBack('Claw');
+    }
+
+    // ================================================== 9. the drain — Life Drain, Draining Swipe
+    if (want(9)) {
+      await healFull();
+      await moveVictim(1);
+      const priorAc = { calc: victim.system._source.attributes.ac.calc, flat: victim.system._source.attributes.ac.flat };
+      const priorStr = victim.system._source.abilities.str.value;
+      await victim.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === originId));
+      const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element).find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+      const drainCards = () => cardsWith('drain').filter(m => m.getFlag(MOD, 'drain')?.what);
+      const swing = async act => {
+        monsterToken.control({ releaseOthers: true });
+        target();
+        await sleep(80);
+        const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
+        const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
+        const attackMsg = rolls?.[0]?.parent ?? null;
+        const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
+        const offer = await waitFor(offerEl, 2500);
+        offer?.querySelector('button[data-action="roll"]')?.click();
+        const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+        return { attackMsg, dmg };
+      };
+      const maxNow = () => Number(victim.system.attributes.hp.effectiveMax ?? victim.system.attributes.hp.max);   // dnd5e: max + tempmax
+      const max0 = maxNow();
+      const life = await lendTrait('Life Drain');
+      const n0 = drainCards().length;
+      const { dmg } = await swing(actOf(life, { type: 'attack' }));
+      const taken = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? null;
+      const card = await waitFor(() => drainCards()[n0] ?? null, 10000);
+      await waitFor(() => card?.getFlag(MOD, 'effectReceipt'), 8000);
+      const d1 = card?.getFlag(MOD, 'drain');
+      const fx1 = victim.effects.find(e => e.getFlag(MOD, 'drain')?.key === 'Life Drain') ?? null;
+      ok('9a. Life Drain\'s hit lowers the Victim\'s maximum by what landed: a drain card, the effect on the Victim (tempmax), receipted; the dealing card latched',
+        !!card && (d1?.key === 'Life Drain') && (d1?.what === 'max') && (taken > 0) && (d1?.amount === taken) && !!fx1 && (maxNow() === max0 - taken) && !!card?.getFlag(MOD, 'effectReceipt') && (dmg?.getFlag(MOD, 'drain')?.done ?? []).includes(victim.uuid),
+        `card=${!!card} taken=${taken} flag=${JSON.stringify(d1 && { key: d1.key, what: d1.what, amount: d1.amount, total: d1.total })} max=${maxNow()} vs ${max0} fx=${!!fx1}`);
+      await healFull();
+      const { dmg: dmg2 } = await swing(actOf(life, { type: 'attack' }));
+      const taken2 = dmg2?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid)?.taken ?? null;
+      const card2 = await waitFor(() => drainCards()[n0 + 1] ?? null, 10000);
+      await waitFor(() => card2?.getFlag(MOD, 'effectReceipt'), 8000);
+      const d2 = card2?.getFlag(MOD, 'drain');
+      const copies = victim.effects.filter(e => e.getFlag(MOD, 'drain')?.key === 'Life Drain');
+      ok('9b. a second hit refreshes the ONE copy with the total: the card says the fall and the total, the maximum down by both',
+        !!card2 && (d2?.amount === taken2) && (d2?.total === taken + taken2) && (copies.length === 1) && (copies[0].getFlag(MOD, 'drain')?.amount === taken + taken2) && (maxNow() === max0 - taken - taken2),
+        `taken2=${taken2} flag=${JSON.stringify(d2 && { amount: d2.amount, total: d2.total })} copies=${copies.length} max=${maxNow()} vs ${max0 - taken - taken2}`);
+      await clearVictim();
+      await takeBack('Life Drain');
+      // Draining Swipe: the text's d4 on the Strength score.
+      await healFull();
+      const swipe = await lendTrait('Draining Swipe');
+      const n1 = drainCards().length;
+      const { dmg: dmg3 } = await swing(actOf(swipe, { type: 'attack' }));
+      const card3 = await waitFor(() => drainCards()[n1] ?? null, 10000);
+      await waitFor(() => card3?.getFlag(MOD, 'effectReceipt'), 8000);
+      const d3 = card3?.getFlag(MOD, 'drain');
+      const fx3 = victim.effects.find(e => e.getFlag(MOD, 'drain')?.key === 'Draining Swipe') ?? null;
+      ok('9c. Draining Swipe\'s hit rolls the text\'s 1d4 on the Monster and lands the pack\'s "Hit: STR Score −N" on the Victim, receipted; the score down by the roll',
+        !!dmg3 && !!card3 && (d3?.what === 'ability') && (d3?.die === '1d4') && (d3?.amount >= 1) && (d3?.amount <= 4) && !!fx3 && new RegExp(`STR Score -${d3?.amount}`).test(fx3?.name ?? '') && (Number(victim.system.abilities.str.value) === priorStr - d3?.amount),
+        `card=${!!card3} flag=${JSON.stringify(d3 && { what: d3.what, die: d3.die, amount: d3.amount, total: d3.total })} fx=${fx3?.name} str=${victim.system.abilities.str.value} vs ${priorStr}`);
+      await victim.update({ 'system.attributes.ac.calc': priorAc.calc, 'system.attributes.ac.flat': priorAc.flat });
+      await clearVictim();
+      await takeBack('Draining Swipe');
     }
 
     return { log, results, skips };
