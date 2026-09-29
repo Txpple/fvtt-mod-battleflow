@@ -715,6 +715,7 @@ export const STATE_KEYS = Object.freeze({
   command: "Commander's Strike directed at an ally — the notice and the chip; the die riding the ally's attack (commandRide) is the resolve, and the use posted its own card",
   reminder: "a gate's reminder record — presentation before the roll",
   restGrant: "a rest card's grant line — presentation; the sheet write rode the rest's own update",
+  restBlock: "a rest card's block line (rest-grants.js, Cursed Touch) — presentation; the rest's emptied update rode the rest's own",
   restSpent: "a Short Rest card's Hit Dice spent (the PHB feats, group 5) — a fact the Chef's meal reads; the restSong flag is the resolve",
   mealFed: "an ACTOR flag — a Chef's meal an eater still resting carries to its own rest's end (the PHB feats, group 5); the meal's card is the record, the restSong flag the resolve",
   grappleDamageAnswer: "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",

@@ -243,6 +243,70 @@ describe("DRAINS — the fall on the damage that landed", () => {
   });
 });
 
+describe("the one-row facets — the vampire's drop, the curse on a rest, the defender's own shield, Fiendish Blood, Sun Sickness", () => {
+  it("DROP_TO_ONE: Spiteful Escape is Death Ward's shape with no effect, outright too; Misty and Shadow Escape are died rows with a notice and no activity", () => {
+    expect(reg.DROP_TO_ONE["Spiteful Escape"]).toMatchObject({ ask: false, outright: true });
+    expect(reg.DROP_TO_ONE["Spiteful Escape"].effect).toBeUndefined();
+    for (const key of ["Misty Escape", "Shadow Escape"]) {
+      expect(reg.DROP_TO_ONE[key].on, key).toBe("died");
+      expect(reg.DROP_TO_ONE[key].notice, key).toMatch(/resting place/);
+      expect(reg.DROP_TO_ONE[key].activity, key).toBeUndefined();
+      expectPointer(reg.DROP_TO_ONE[key].rule);
+    }
+    expect(reg.dropToOneEntries().map(e => e.kind)).toEqual([
+      "death ward",
+      "relentless endurance",
+      "undead fortitude",
+      "death throes",
+      "spiteful escape",
+      "misty escape",
+      "shadow escape"
+    ]);
+  });
+  it("REST_GRANTS: the two block rows name the pack's Cursed and their rests, and grant nothing", () => {
+    expect(reg.REST_GRANTS["Cursed Touch"]).toMatchObject({
+      rests: ["short", "long"],
+      block: true,
+      effect: "Cursed"
+    });
+    expect(reg.REST_GRANTS["Restless Touch"]).toMatchObject({
+      rests: ["short"],
+      block: true,
+      effect: "Cursed"
+    });
+    for (const key of ["Cursed Touch", "Restless Touch"]) {
+      expect(reg.REST_GRANTS[key].grant, key).toBeUndefined();
+      expectPointer(reg.REST_GRANTS[key].rule);
+    }
+  });
+  it("DAMAGE_SHIELDS: Corrosive Form is a feature row — melee, 5 feet, the first damage activity", () => {
+    expect(reg.DAMAGE_SHIELDS["Corrosive Form"]).toMatchObject({
+      match: "feature",
+      activity: null,
+      melee: true,
+      range: 5
+    });
+    expect(reg.DAMAGE_SHIELDS["Corrosive Form"].effect).toBeUndefined();
+    expectPointer(reg.DAMAGE_SHIELDS["Corrosive Form"].rule);
+  });
+  it("REBUKES: Fiendish Blood is a typed self row on its Save; EFFECT_BENDS: Sun Sickness is Sunlight Weakness's row", () => {
+    expect(reg.REBUKES["Fiendish Blood"]).toMatchObject({
+      activity: "Save",
+      self: true,
+      types: ["piercing", "slashing"]
+    });
+    expectPointer(reg.REBUKES["Fiendish Blood"].rule);
+    expect(reg.EFFECT_BENDS["Sun Sickness"]).toMatchObject({
+      match: "feature",
+      attacker: "disadvantage",
+      target: null,
+      scope: "any",
+      counted: false
+    });
+    expectPointer(reg.EFFECT_BENDS["Sun Sickness"].rule);
+  });
+});
+
 describe("TURN_GRANTS — the turn-start damage", () => {
   it("the grappled target's rows: the origin's damage activity at the bearer's turn start (the vine, Smother, Spores) or turn end (the swarm)", () => {
     expect(reg.TURN_GRANTS["Constricting Vine"]).toMatchObject({

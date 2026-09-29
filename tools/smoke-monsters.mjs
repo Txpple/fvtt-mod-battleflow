@@ -12,7 +12,11 @@ export const COVERS = [
   'turn-grants.js',         // §3 — the grappled target's damage at its own turn start (Constricting Vine) and turn end (Swarm of Proboscises); §4 the grappler's own turn start (Barbed Hide)
   'emanations.js',          // §5 — the fire auras' pulse at the bearer's turn end (Flame Aura); §6 Gibbering's turn-start demand; §7 the alerts — Watery Rebuke on a move-in, Unnerving Gaze on a turn start
   'clock-riders.js',        // §8 — Chaos Blade's d4: one of the attack's four conditions lands on the hit, the card says which
-  'drains.js'               // §9 — Life Drain's fall of the maximum by what landed, stacking; Draining Swipe's Strength by the text's d4
+  'drains.js',              // §9 — Life Drain's fall of the maximum by what landed, stacking; Draining Swipe's Strength by the text's d4
+  'drop-to-one.js',         // §10 — Spiteful Escape held at 1 (outright too); Misty Escape's notice at the death's side
+  'rest-grants.js',         // §11 — Cursed Touch: a Long Rest grants nothing while Cursed stands, the card says so
+  'damage-shields.js',      // §12 — Corrosive Form: the Monster's own trait strikes the melee attacker
+  'rebukes.js'              // §13 — Fiendish Blood offered on piercing or slashing damage, not on fire
 ];
 
 const SECTIONS = {
@@ -24,7 +28,11 @@ const SECTIONS = {
   6: 'GIBBERING: the Victim starting its turn inside the ring is demanded the Wisdom save (cause turnStart); the Monster Incapacitated, nothing',
   7: 'THE ALERTS: Watery Rebuke — the Victim moving within 5 feet raises the reminder card (hewNotice, the Reaction from the sheet); Unnerving Gaze — the Victim STARTING its turn within 30 feet raises it (cause turnStart), once per turn',
   8: 'CHAOS BLADE: the Monster\'s hit lands ONE of the attack\'s four conditions by a d4 (the rider records the face and the name); a hit with another attack lands none',
-  9: 'THE DRAIN: Life Drain\'s hit lowers the Victim\'s Hit Point maximum by what landed (an effect on it, receipted on the drain\'s card); a second hit refreshes the one copy with the total; Draining Swipe\'s hit rolls the text\'s d4 and lands the pack\'s "Hit: STR Score −N"'
+  9: 'THE DRAIN: Life Drain\'s hit lowers the Victim\'s Hit Point maximum by what landed (an effect on it, receipted on the drain\'s card); a second hit refreshes the one copy with the total; Draining Swipe\'s hit rolls the text\'s d4 and lands the pack\'s "Hit: STR Score −N"',
+  10: 'THE VAMPIRE\'S DROP: Spiteful Escape holds the Monster at 1 on a drop (killed outright too), a card says so; Misty Escape at 0 posts the notice card (nothing used)',
+  11: 'THE CURSE ON A REST: Cursed (from Cursed Touch) on the Victim — a Long Rest regains nothing, the rest card says why; the curse gone, the rest heals',
+  12: 'CORROSIVE FORM: the Victim\'s melee hit on the Monster is answered by the Monster\'s own trait — the acid rolled, landed on the Victim, receipted',
+  13: 'FIENDISH BLOOD: slashing damage to the Monster offers the Reaction (the rebuke card, pending); fire offers nothing'
 };
 const DEPENDS = {};
 
@@ -611,6 +619,128 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await victim.update({ 'system.attributes.ac.calc': priorAc.calc, 'system.attributes.ac.flat': priorAc.flat });
       await clearVictim();
       await takeBack('Draining Swipe');
+    }
+
+    // ================================================== the Monster's own damage — helpers (smoke-drop's)
+    const mHp = () => Number(monster.system.attributes.hp.value);
+    const mSetHp = (value, max = 50) => monster.update({ 'system.attributes.hp.max': max, 'system.attributes.hp.value': value, 'system.attributes.hp.temp': 0 });
+    const damageCard = async (type, speaker = monster) => {
+      const roll = await new CONFIG.Dice.DamageRoll('30', {}, { type }).evaluate();
+      return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: speaker }), rolls: [roll], flavor: `BF test damage — ${type}` });
+    };
+    const mHit = async (n, type = 'slashing', speaker = monster) => {
+      const msg = await damageCard(type, speaker);
+      return monster.applyDamage([{ value: n, type }], { originatingMessage: msg });
+    };
+
+    // ================================================== 10. the vampire's drop
+    if (want(10)) {
+      const t10 = Date.now();
+      const spite = await lendTrait('Spiteful Escape');
+      await mSetHp(20);
+      await mHit(30);
+      await sleep(600);
+      const card = await waitFor(() => cardsWith('dropToOne').find(m => (m.timestamp >= t10) && (m.getFlag(MOD, 'dropToOne')?.row === 'Spiteful Escape')) ?? null, 8000);
+      const f = card?.getFlag(MOD, 'dropToOne');
+      ok('10a. Spiteful Escape: the Monster is held at 1 on the drop, automatically, the card saying so',
+        (mHp() === 1) && !!card && (f?.answer === 'auto') && (f?.applied === true) && /drops to 1 Hit Point instead/.test(card?.content ?? ''),
+        `hp=${mHp()} flag=${JSON.stringify(f && { row: f.row, answer: f.answer })}`);
+      await mSetHp(5);
+      await mHit(90);   // 90 − 5 ≥ the maximum of 50: killed outright
+      await sleep(600);
+      ok('10b. killed outright too (outright: true): held at 1 again', mHp() === 1, `hp=${mHp()}`);
+      await spite.delete();
+      const misty = await lendTrait('Misty Escape');
+      await mSetHp(5);
+      const t10b = Date.now();
+      await mHit(30);
+      const notice = await waitFor(() => cardsWith('deathThroes').find(m => (m.timestamp >= t10b) && (m.getFlag(MOD, 'deathThroes')?.key === 'Misty Escape')) ?? null, 8000);
+      const n = notice?.getFlag(MOD, 'deathThroes');
+      ok('10c. Misty Escape: the 0 lands and the notice card rises — the mist, nothing used, no demand',
+        (mHp() === 0) && !!notice && (n?.notice === true) && (n?.count === 0) && !notice?.getFlag(MOD, 'saves') && /becomes mist/.test(notice?.content ?? ''),
+        `hp=${mHp()} card=${!!notice} flag=${JSON.stringify(n && { key: n.key, notice: n.notice, count: n.count })}`);
+      await misty.delete();
+      await mSetHp(50);
+    }
+
+    // ================================================== 11. the curse on a rest
+    if (want(11)) {
+      const touch = await lendTrait('Cursed Touch');
+      const cursed = await grappleFrom(touch, 'Cursed');   // the pack's Cursed, its origin the touch's attack
+      await victim.update({ 'system.attributes.hp.value': 1 });
+      const t11 = Date.now();
+      await victim.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
+      const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t11) && m.getFlag(MOD, 'restBlock')) ?? null, 8000);
+      const blocks = card?.getFlag(MOD, 'restBlock');
+      ok('11a. Cursed standing: the Long Rest regains nothing — the Hit Points stay at 1, the rest card carries the block line naming Cursed Touch',
+        (hpNow() === 1) && !!card && (blocks?.[0]?.name === 'Cursed Touch') && (blocks?.[0]?.effect === 'Cursed'),
+        `hp=${hpNow()} card=${!!card} blocks=${JSON.stringify(blocks)}`);
+      await cursed.delete();
+      await victim.longRest({ dialog: false, chat: true, newDay: false, advanceTime: false });
+      await sleep(400);
+      ok('11b. the curse gone: the next Long Rest heals', hpNow() === Number(victim.system.attributes.hp.max), `hp=${hpNow()} max=${victim.system.attributes.hp.max}`);
+      await clearVictim();
+      await takeBack('Cursed Touch');
+    }
+
+    // ================================================== 12. Corrosive Form — the defender's own trait
+    if (want(12)) {
+      await healFull();
+      await moveVictim(1);
+      const form = await lendTrait('Corrosive Form');
+      const priorMon = { calc: monster.system._source.attributes.ac.calc, flat: monster.system._source.attributes.ac.flat };
+      await monster.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await mSetHp(50);
+      const weapon = victim.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'melee')))
+        ?? victim.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
+      const act = weapon?.system.activities.find(a => a.type === 'attack') ?? null;
+      ok('12-pre. the Victim has a melee attack', !!act && (act.attack?.type?.value === 'melee'), `weapon=${weapon?.name} melee=${act?.attack?.type?.value}`);
+      const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === originId));
+      const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element).find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+      const hp0 = hpNow();
+      const t12 = Date.now();
+      victimToken.control({ releaseOthers: true });
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      monsterToken.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
+      const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
+      const attackMsg = rolls?.[0]?.parent ?? null;
+      const originId = attackMsg?._source.system?.origin ?? attackMsg?.id;
+      const offer = await waitFor(offerEl, 2500);
+      offer?.querySelector('button[data-action="roll"]')?.click();
+      const dmg = await waitFor(() => { const d = damageFor(originId); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+      const shield = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t12) && (m.getFlag(MOD, 'damageShield')?.key === 'Corrosive Form') && m.getFlag(MOD, 'damageShield')?.rolled) ?? null, 12000);
+      await waitFor(() => shield?.getFlag(MOD, 'receipt'), 8000);
+      const s = shield?.getFlag(MOD, 'damageShield');
+      ok('12a. the Victim\'s melee hit lands and the Monster\'s Corrosive Form strikes back: the acid rolled as the Monster\'s, landed on the Victim, receipted',
+        !!dmg && !!shield && (s?.type === 'acid') && (s?.attackerUuid === victim.uuid) && (s?.total > 0) && !!shield?.getFlag(MOD, 'receipt') && (hpNow() === hp0 - s.total),
+        `dmg=${!!dmg} shield=${!!shield} flag=${JSON.stringify(s && { key: s.key, type: s.type, total: s.total, why: s.why })} hp=${hpNow()} vs ${hp0}`);
+      await monster.update({ 'system.attributes.ac.calc': priorMon.calc, 'system.attributes.ac.flat': priorMon.flat });
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      await form.delete();
+      await healFull();
+      await mSetHp(50);
+    }
+
+    // ================================================== 13. Fiendish Blood — offered on the types it names
+    if (want(13)) {
+      await moveVictim(1);
+      const blood = await lendTrait('Fiendish Blood');
+      await mSetHp(50);
+      const t13 = Date.now();
+      await mHit(10, 'slashing', victim);
+      const offer = await waitFor(() => cardsWith('rebuke').find(m => (m.timestamp >= t13) && (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')) ?? null, 8000);
+      const r = offer?.getFlag(MOD, 'rebuke');
+      ok('13a. slashing damage from the Victim offers Fiendish Blood — the rebuke card pending, the Victim the damager',
+        !!offer && (r?.status === 'pending') && (r?.sourceUuid === victim.uuid) && (r?.actorUuid === monster.uuid),
+        `offer=${!!offer} flag=${JSON.stringify(r && { status: r.status, options: r.options?.map(o => o.name) })}`);
+      const k = cardsWith('rebuke').length;
+      await mHit(10, 'fire', victim);
+      await sleep(1200);
+      ok('13b. fire damage offers nothing (piercing or slashing alone)', !cardsWith('rebuke').slice(k).some(m => (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')), `cards=${cardsWith('rebuke').length} (was ${k})`);
+      await blood.delete();
+      await mSetHp(50);
     }
 
     return { log, results, skips };

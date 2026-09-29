@@ -53,7 +53,10 @@ describe("DROP_TO_ONE — the kill moment's two sides", () => {
       "death ward",
       "relentless endurance",
       "undead fortitude",
-      "death throes"
+      "death throes",
+      "spiteful escape",
+      "misty escape",
+      "shadow escape"
     ]);
   });
 });

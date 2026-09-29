@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, whisperNoGM } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, itemNamed, activityNamed, resolveUuid } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType, resolveUuid } from "./lookup.js";
 import { registerResumable } from "./ui.js";
 import { damageShieldEntries, listedNames } from "./decide/registry.js";
 import { damagePartsOf, effectSourceOf, hitTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
@@ -35,6 +35,13 @@ function shieldsOn(defender) {
   const out = [];
   for ( const [key, row] of Object.entries(DAMAGE_SHIELDS) ) {
     if ( !names.has(lower(key)) ) continue;
+    // The defender's OWN trait (Corrosive Form): the sheet is the row, its first damage activity strikes.
+    if ( row.match === "feature" ) {
+      const own = itemNamed(defender, key);
+      const activity = own ? (row.activity ? activityNamed(own, row.activity) : activityOfType(own, "damage")) : null;
+      if ( own && activity ) out.push({ key, row, effect: null, source: { actor: defender, item: own }, activity, type: null, scaling: 0 });
+      continue;
+    }
     const wanted = new Set(shieldEffectNames(row));
     for ( const effect of defender.effects ) {
       if ( effect.disabled ) continue;
@@ -142,7 +149,7 @@ async function settle(damageMessage, attackMessage, { wasHeld = false } = {}) {
       const combat = activeCombatFor(defender);
       for ( const s of wards ) {
         const judged = shieldDue(s.row, {
-          melee: true, distanceFeet, within: shieldReach(s.activity.range), inCombat: !!combat, tempHP,
+          melee: true, distanceFeet, within: s.row.range ?? shieldReach(s.activity.range), inCombat: !!combat, tempHP,
           chitStands: turnChitStands(defender, "rider", `shield:${s.key}`)
         });
         if ( !judged.due ) continue;
@@ -188,7 +195,7 @@ async function pay({ damageMessage, attackMessage, attacker, defender, ward, jud
   }
   const record = { ...statContext(defender.uuid), key, attackId: attackMessage.id, damageId: damageMessage.id,
     defenderName: defender.name, attackerName: attacker.name, attackerUuid: attacker.uuid,
-    why: judged.why, distanceFeet: distanceFeet ?? null, rule: row.rule, effectName: ward.effect.name,
+    why: judged.why, distanceFeet: distanceFeet ?? null, rule: row.rule, effectName: ward.effect?.name ?? key,
     ...(ward.also ? { also: ward.also } : {}) };
   if ( !rolls?.length ) {
     await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: defender }),

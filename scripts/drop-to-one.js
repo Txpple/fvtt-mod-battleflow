@@ -131,9 +131,9 @@ async function settle(actor, found, { amount, source }) {
   catch(err) { console.warn(`${TITLE} | ${found.name}'s effect could not be removed — end it by hand.`, err); }
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: bfCard({ img: found.effect?.img ?? null, eyebrow: found.name, tone: "good",
+    content: bfCard({ img: found.effect?.img ?? found.item?.img ?? null, eyebrow: found.name, tone: "good",
       title: `${actor.name} drops to 1 Hit Point instead`, subtitle: found.row.ends ? "the spell ends" : "",
-      lines: [ruleLine(found.row.rule)] }),
+      lines: [ruleLine(found.row.rule), found.row.caveat ? `<span style="opacity:0.8;">${found.row.caveat}</span>` : null] }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "auto", row: found.name, actorUuid: actor.uuid,
       actorName: actor.name, amount, applied: true, ...statContext(source?.uuid ?? null) } } }
   });
@@ -213,6 +213,17 @@ async function landedZero(actor, { source }) {
   for ( const found of diedRowsFor(actor) ) {
     try {
       const item = found.item;
+      // A `notice` row: the death's side is the GM's move (the vampire's mist) — the card says what, nothing is used.
+      if ( found.row.notice ) {
+        await ChatMessage.create({
+          speaker: ChatMessage.getSpeaker({ actor }),
+          content: bfCard({ img: item.img ?? null, eyebrow: found.name, tone: "neutral",
+            title: `${actor.name} drops to 0 — ${found.name}`, subtitle: found.row.notice,
+            lines: [ruleLine(found.row.rule), found.row.caveat ? `<span style="opacity:0.8;">${found.row.caveat}</span>` : null] }),
+          flags: { [MODULE_ID]: { deathThroes: { ...statContext(actor.uuid), key: found.name, actorUuid: actor.uuid, sourceUuid: source?.uuid ?? null, count: 0, feet: 0, notice: true } } }
+        });
+        continue;
+      }
       const activity = found.row.activity ? activityNamed(item, found.row.activity) : activityOfType(item, "save");
       const dc = activity?.save?.dc?.value;
       const abilities = [...(activity?.save?.ability ?? [])];

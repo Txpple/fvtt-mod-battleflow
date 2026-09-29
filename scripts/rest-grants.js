@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
-import { listedNames, restGrantEntries } from "./decide/registry.js";
+import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
 import { REST_GRANTS } from "./decide/registry.js";
 import { coatSaveAbility } from "./decide/chips.js";
@@ -14,7 +14,7 @@ import { riderPartFormula } from "./decide/clock.js";
 import { holdsTemp, mealStanding } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
-import { isPartyMember } from "./shared.js";
+import { effectSourceOf, isPartyMember } from "./shared.js";
 import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
@@ -32,7 +32,7 @@ function grantsFor(actor, restType) {
   const on = listedNames(restGrantEntries());
   const out = [];
   for ( const [name, row] of Object.entries(REST_GRANTS) ) {
-    if ( row.to ) continue;   // given to others, asked after the rest (the song, below)
+    if ( row.to || row.block ) continue;   // given to others, asked after the rest (the song, below); a block is not a grant
     if ( !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
     if ( !featureNamed(actor, featureOf(name, row)) ) continue;
     const write = GRANT_WRITES[row.grant]?.(actor);
@@ -41,10 +41,33 @@ function grantsFor(actor, restType) {
   return out;
 }
 
+/** The listed `block` rows standing on this rester for this rest — the pack's effect, its origin the row's item. */
+function blocksFor(actor, restType) {
+  const on = listedNames(restGrantEntries());
+  const out = [];
+  for ( const [name, row] of Object.entries(REST_GRANTS) ) {
+    if ( !row.block || !on.has(lower(name)) || !row.rests.includes(restType) ) continue;
+    const worn = actor.effects.some(e => !e.disabled && (lower(e.name) === lower(row.effect)) && answers(name, effectSourceOf(e)?.item ?? null));
+    if ( worn ) out.push({ name, effect: row.effect });
+  }
+  return out;
+}
+
 listen("dnd5e.preRestCompleted", "rest-grants", (actor, result, config) => {
   try {
     if ( !(actor instanceof Actor) || !result?.updateData ) return;
-    const grants = grantsFor(actor, result.type ?? config?.type ?? "long");
+    const restType = result.type ?? config?.type ?? "long";
+    // A curse on the rest (Cursed Touch): nothing is gained — the rest's writes are emptied, the card says so.
+    const blocks = blocksFor(actor, restType);
+    if ( blocks.length ) {
+      for ( const k of Object.keys(result.updateData) ) delete result.updateData[k];
+      if ( Array.isArray(result.updateItems) ) result.updateItems.length = 0;
+      result.dhd = 0;
+      result.dhp = 0;
+      result.bfRestBlocks = blocks;
+      return;
+    }
+    const grants = grantsFor(actor, restType);
     if ( !grants.length ) return;
     for ( const g of grants ) foundry.utils.mergeObject(result.updateData, g.write);
     result.bfRestGrants = grants.map(({ name, grant }) => ({ name, grant }));
@@ -53,13 +76,38 @@ listen("dnd5e.preRestCompleted", "rest-grants", (actor, result, config) => {
   }
 });
 
-// The rest card says what was gained — stamped once the card exists.
+// The rest card says what was gained — stamped once the card exists; a blocked rest says why nothing was.
 listen("dnd5e.restCompleted", "rest-grants", (_actor, result) => {
   const grants = result?.bfRestGrants;
+  const blocks = result?.bfRestBlocks;
   const message = result?.message;
-  if ( !grants?.length || !message?.isOwner ) return;
+  if ( !message?.isOwner ) return;
+  if ( blocks?.length ) {
+    void message.setFlag(MODULE_ID, "restBlock", blocks)
+      .catch(err => console.error(`${TITLE} | Rest block line failed.`, err));
+    return;
+  }
+  if ( !grants?.length ) return;
   void message.setFlag(MODULE_ID, "restGrant", grants)
     .catch(err => console.error(`${TITLE} | Rest grant line failed.`, err));
+});
+
+listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
+  try {
+    const blocks = message.getFlag(MODULE_ID, "restBlock");
+    if ( !blocks?.length ) return;
+    const root = html instanceof HTMLElement ? html : html?.[0];
+    const host = root?.querySelector(SURFACES.messageContent);
+    if ( !host || host.querySelector("[data-bf-rest-block]") ) return;
+    for ( const b of blocks ) {
+      const line = document.createElement("div");
+      line.setAttribute("data-bf-rest-block", "");
+      line.innerHTML = bfCard({ eyebrow: b.name, tone: "bad", title: "no benefit from this rest", subtitle: `${b.effect} stands` });
+      host.appendChild(line);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Rest block line failed to draw.`, err);
+  }
 });
 
 listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {

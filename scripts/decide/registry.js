@@ -856,6 +856,12 @@ export const EMANATIONS = Object.freeze({
  * ⚠ Hellish Rebuke is NOT this family — a Reaction, a choice (REBUKES). Membership: Damage Shields.
  */
 export const DAMAGE_SHIELDS = Object.freeze({
+  // THE GM'S SIDE (RULINGS *The Monster Manual — the waiting rows built*): the DEFENDER's own trait, no effect to
+  // find (`match: "feature"`): its first damage activity strikes the melee attacker; `range` where the activity carries none.
+  "Corrosive Form": Object.freeze({ match: "feature", activity: null, melee: true, range: 5,
+    caveat: "the ammunition destroyed and the weapon's cumulative −1 are the table's (the pack ships that penalty as an effect to drag onto the weapon)",
+    rule: Object.freeze({ item: "Corrosive Form", uuid: "Compendium.dnd-monster-manual.features.Item.mmCorrosiveForm0" }),
+    from: "monsters (black puddings)" }),
   "Death Armor": Object.freeze({ effect: "Death Armor", activity: "Retaliate", melee: true, when: "oncePerTurn",
     rule: Object.freeze({ item: "Death Armor", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofDeathArmor000" }),
     from: "Heroes of Faerûn — Character Options, level 2 (1 hour)" }),
@@ -937,8 +943,20 @@ export const TOKEN_SIZES = Object.freeze({
  *   reach    feet from the owner (null: every ally on the scene);  cap  "prof", a number or a formula
  *   activity / activities  the heal activity, or one per ability (the feat's own ASI picks, else the
  *            higher modifier — decide/chips.js);  label  the rest card's name for the one kept
+ *   block    true — the rest GRANTS NOTHING while the rester wears `effect` from this item (the GM's side:
+ *            Cursed Touch's "no benefit from finishing a Short or Long Rest"): the rest's own update and its
+ *            item updates are emptied before they land, the card says so
  */
 export const REST_GRANTS = Object.freeze({
+  // The curse on a rest (RULINGS *The Monster Manual — the waiting rows built*): the pack's Cursed effect, its origin the touch.
+  "Cursed Touch": Object.freeze({ rests: Object.freeze(["short", "long"]), block: true, effect: "Cursed",
+    caveat: "the curse's end is the table's — delete Cursed",
+    rule: Object.freeze({ item: "Cursed Touch", uuid: "Compendium.dnd-monster-manual.features.Item.mmCursedTouch000" }),
+    from: "monsters" }),
+  "Restless Touch": Object.freeze({ rests: Object.freeze(["short"]), block: true, effect: "Cursed",
+    caveat: "24 hours or the bearer's death end it — the table's; delete Cursed",
+    rule: Object.freeze({ item: "Restless Touch", uuid: "Compendium.dnd-monster-manual.features.Item.mmRestlessTouch0" }),
+    from: "monsters" }),
   "Resourceful": Object.freeze({ rests: Object.freeze(["long"]), grant: "inspiration",
     rule: Object.freeze({ item: "Human", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspHuman000000", benefit: "Resourceful" }), from: "Human" }),
   "Musician": Object.freeze({ rests: Object.freeze(["short", "long"]), grant: "inspiration", to: "allies", reach: 30, cap: "prof",
@@ -973,6 +991,8 @@ export const REST_GRANTS = Object.freeze({
  *   on        "died" — THE DEATH'S SIDE (Death Throes): the row fires when the damage leaves the bearer at 0
  *             and nothing held it; `activity` (null: the first save) is used AT THE CORPSE against every
  *             creature within the activity's Emanation, one demand card, the saves machine from there
+ *   notice    a `died` row with no activity to use — the card's words for the GM's move (Misty Escape: the mist)
+ * The GM's side, the waiting rows: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const DROP_TO_ONE = Object.freeze({
   "Death Ward": Object.freeze({ ask: false, effect: "Protection from Death", ends: true, outright: true,
@@ -989,7 +1009,20 @@ export const DROP_TO_ONE = Object.freeze({
   "Death Throes": Object.freeze({ on: "died", activity: null,
     caveat: "\"revives somewhere in the Abyss\" is the table's",
     rule: Object.freeze({ item: "Death Throes", uuid: "Compendium.dnd-monster-manual.features.Item.mmDeathThroes000" }),
-    from: "monsters (the balor)" })
+    from: "monsters (the balor)" }),
+  // The vampire's drop: held at 1 and gone (Death Ward's shape, no effect), or the death's side said on a card.
+  "Spiteful Escape": Object.freeze({ ask: false, outright: true,
+    caveat: "dying within 30 feet of its anathema, the teleport to its demiplane, the 2d6 days and the curse on every creature within 60 feet are the table's",
+    rule: Object.freeze({ item: "Spiteful Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmSpitefulEscape" }),
+    from: "monsters" }),
+  "Misty Escape": Object.freeze({ on: "died", notice: "it becomes mist — Shape-Shift, no action — and must reach its resting place within 2 hours or be destroyed; there it is Paralyzed until it regains a Hit Point",
+    caveat: "outside its resting place; the mist form and the Paralyzed are the sheet's",
+    rule: Object.freeze({ item: "Misty Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmMistyEscape000" }),
+    from: "monsters (vampires)" }),
+  "Shadow Escape": Object.freeze({ on: "died", notice: "it teleports into its resting place unless it is in running water or sunlight; there it is Paralyzed for 1 hour, then regains 1 Hit Point",
+    caveat: "outside its resting place; the teleport and the Paralyzed are the sheet's",
+    rule: Object.freeze({ item: "Shadow Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmShadowEscape00" }),
+    from: "monsters (vampires)" })
 });
 
 
@@ -1035,6 +1068,12 @@ export const REBUKES = Object.freeze({
   "Sticky Shield": Object.freeze({ activity: "Save", on: "miss", from: "monsters (kuo-toa)",
     caveat: "the stuck weapon's Free Weapon Check and Escape Check are the sheet's",
     rule: Object.freeze({ item: "Sticky Shield", uuid: "Compendium.dnd-monster-manual.features.Item.mmStickyShield00" }) }),
+  // The waiting rows (RULINGS *The Monster Manual — the waiting rows built*): the reaction's save in an Emanation
+  // — the template placed from the card names the creatures of its choice.
+  "Fiendish Blood": Object.freeze({ activity: "Save", self: true, from: "monsters",
+    types: Object.freeze(["piercing", "slashing"]),
+    caveat: "the Emanation's creatures of its choice are the template's, placed from the card; what a Fiend senses of the cursed is the table's",
+    rule: Object.freeze({ item: "Fiendish Blood", uuid: "Compendium.dnd-monster-manual.features.Item.mmFiendishBlood0" }) }),
   "Elemental Absorption": Object.freeze({ activity: null, self: true, from: "monsters",
     types: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
     caveat: "Resistance to that instance of damage is the pack's own toggle; the Temporary Hit Points are the heal's card",
@@ -1448,6 +1487,9 @@ export const EFFECT_BENDS = Object.freeze({
   "Sunlight Sensitivity": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Disadvantage only in sunlight",
     rule: Object.freeze({ item: "Sunlight Sensitivity", uuid: "Compendium.dnd-monster-manual.features.Item.mmSunlightSensit" }) }),
+  "Sun Sickness": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters (fomorians)",
+    caveat: "listed — Disadvantage on D20 Tests only in sunlight; the hour's death clock is the table's",
+    rule: Object.freeze({ item: "Sun Sickness", uuid: "Compendium.dnd-monster-manual.features.Item.mmSunSickness000" }) }),
   "Sunlight Weakness": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Disadvantage only in sunlight",
     rule: Object.freeze({ item: "Vampire Weakness", uuid: "Compendium.dnd-monster-manual.features.Item.mmVampireWeaknes", benefit: "Sunlight" }) }),

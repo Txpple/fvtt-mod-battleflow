@@ -18,9 +18,16 @@ beforeAll(async () => {
 describe("the table", () => {
   it("names three shields, each with a rule and the pack's damage activity, no dice anywhere", () => {
     const rows = Object.entries(reg.DAMAGE_SHIELDS);
-    expect(rows.map(([k]) => k)).toEqual(["Death Armor", "Fire Shield", "Armor of Agathys"]);
+    // Corrosive Form (the GM's side, 2026-09-28) is a feature row: the defender's own trait, its first damage activity.
+    expect(rows.map(([k]) => k).sort()).toEqual([
+      "Armor of Agathys",
+      "Corrosive Form",
+      "Death Armor",
+      "Fire Shield"
+    ]);
     for (const [key, row] of rows) {
-      expect(row.activity).toBeTruthy();
+      if (row.match === "feature") expect(row.activity, key).toBeNull();
+      else expect(row.activity, key).toBeTruthy();
       expectPointer(row.rule, key);
       expect(row.rule.item, key).toBe(key);
       expect(row.melee).toBe(true);
