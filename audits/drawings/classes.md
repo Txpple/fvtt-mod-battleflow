@@ -41,7 +41,7 @@ waits for its player.**
 | Feature | The pack carries | Verdict → where |
 | --- | --- | --- |
 | **Rage** | effect (resistance, the damage bonus), uses | NATIVE for the numbers. The **early end** ("if you have neither attacked nor taken damage since your last turn") is nothing: ROW+VOCAB → a `turnEnd` judge on the effect table reading the turn chits (`TURN_CHITS` has attacked; damaged is the receipt's) — a reminder, never an automatic end (the Rage can be kept by a Bonus Action) |
-| **Danger Sense** | effect | ROW → `EFFECT_BENDS` `saves` Dex Advantage (measure: if the pack's effect writes `flags.dnd5e.*` the platform may already roll it — Gnomish Cunning's shape) |
+| **Danger Sense** | effect | NATIVE (measured 2026-09-29 (M0): the effect writes `dex.save.roll.mode`) |
 | **Brutal Strike** + **Improved** + **(2)** | effect, dmg | ROW+VOCAB → `HIT_OPTIONS` Brutal Strike group (Forceful Blow, Hamstring Blow; Staggering Blow = `saves` Disadvantage press, Sundering Blow = +5 to the next ally's attack, a `USE_CHIPS`-shaped give). The FORGO-ADVANTAGE trade is decided before the roll: a gate box (RULINGS *The hit menu*). Level 17's two picks is the array shape (the Goliath Battle Master trigger, SWEEP §6) |
 | **Relentless Rage** | save, uses | ROW+VOCAB → `DROP_TO_ONE` with a `save` facet (DC 10 Con, +5 per use, resets on rest) — the drop machine asks Relentless Endurance today; this row rolls first |
 | **Persistent Rage** | uses | ROW → `INITIATIVE_GRANTS` (the table above) |
@@ -96,7 +96,7 @@ waits for its player.**
 
 | Feature | The pack carries | Verdict → where |
 | --- | --- | --- |
-| **Elemental Fury: Potent Spellcasting** | text | measure → `SPELL_DAMAGE_BONUS` |
+| **Elemental Fury: Potent Spellcasting** | text | ROW → the damage-rules row (measured 2026-09-29 (M0): not automatic) |
 | **Nature's Sanctuary** (Land) | 4 effects [coverHalf] | measure → the cover machine reads walls and tokens (RULINGS *Measured cover*); a `coverHalf` STATUS is a third source — a facet, if the status is not read already |
 | **Circle Forms** (Moon) | text | ROW → the turn-start `grant` machine, `on: shapeShift` (temp HP = three × the level) |
 | **Lunar Form** (Moon) | dmg | ROW → `CLOCK_RIDERS` once per turn 2d10 radiant, `while: wildShape`, `targetDamaged` |
@@ -150,7 +150,7 @@ waits for its player.**
 
 | Feature | The pack carries | Verdict → where |
 | --- | --- | --- |
-| **Radiant Strikes** | effect | measure → NATIVE if the pack's effect adds the 1d8; else `CLOCK_RIDERS` `when: any` (SWEEP §3 item 4) |
+| **Radiant Strikes** | effect | NATIVE (measured 2026-09-29 (M0): `bonuses.mwak.damage` `1d8[radiant]`) |
 | **Sacred Weapon** (Devotion) | effect | measure → the +Cha NATIVE; the light a `TOKEN_LIGHTS` row |
 | **Aura of Devotion** (Devotion) | effect | ROW → `EMANATIONS` (Charmed immunity — Aura of Courage's row with the status swapped) |
 | **Smite of Protection** (Devotion) | effect [coverHalf] | ROW+VOCAB → a cast rider: after Divine Smite, half cover to allies in the aura until the next turn (the aura's `effect` facet, `on: cast`) |
@@ -252,7 +252,7 @@ waits for its player.**
 | **Repelling Blast** | effect | ROW → `CLOCK_RIDERS` `press: push 10` on an Eldritch Blast hit (no cost, every beam) |
 | **Eldritch Smite** | dmg | ROW+VOCAB → `HIT_OPTIONS` with a NEW cost kind, a Pact slot: +1d8 per slot level force, Prone if Huge or smaller |
 | **Lifedrinker** | dmg | ROW → `CLOCK_RIDERS` once per turn on a pact-weapon hit (1d6 necrotic / psychic / radiant, the pick a type facet) |
-| **Eldritch Mind** | effect | ROW → `EFFECT_BENDS` `saves` Advantage on Concentration saves (measure: `flags.dnd5e.concentrationAdvantage` may be native) |
+| **Eldritch Mind** | effect | NATIVE (measured 2026-09-29 (M0): `concentration.roll.mode`) |
 | **Gift of the Protectors** | uses, text | ROW → `DROP_TO_ONE` for the NAMED creatures (the tome's list) |
 | **Lunging Attack** (maneuver) | dmg | ROW → `USE_CHIPS` (Dash, then the die on a melee hit this turn) |
 | **Evasive Footwork** (maneuver) | effect | measure → the die as AC until the turn ends — NATIVE if the pack's effect rolls it |
@@ -302,7 +302,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | Feature | Class — Sub | Verdict | Precedent | Stage | Why not / how |
 | --- | --- | --- | --- | --- | --- |
 | **Rage** | Barbarian | ROW | `TURN_GRANTS` · Regeneration (`match: "feature"`, a turn-END judge) | A1 | the numbers are the pack's; the EARLY END ("neither attacked nor taken damage since your last turn") is a REMINDER at the rager's turn end read off the attack chit and the receipts since its last turn — never an automatic end: nothing records the Bonus Action that keeps it (a bend row) |
-| **Danger Sense** | Barbarian | ROW | `EFFECT_BENDS` · Brave (`match: "feature"`, `saves: { bend: advantage, abilities: [dex] }`) | M0 | measure first: if the pack's effect writes a `flags.dnd5e.*` save mode the platform rolls it (Gnomish Cunning's shape) and the row is NATIVE; else the save gate's feature row on Dexterity saves — "effects you can see" is the table's |
+| **Danger Sense** | Barbarian | NATIVE | — | — | measured 2026-09-29 (M0): the pack's transferred effect writes `system.abilities.dex.save.roll.mode` +1, the platform rolls the Advantage (Gnomish Cunning's shape); the Incapacitated exception is the table's (the pack's own note: toggle it in the Effects tab) |
 | **Brutal Strike** | Barbarian | ROW | `HIT_GROUPS` · Combat Superiority + `HIT_OPTIONS` · Trip Attack; the gate box: `ADVANTAGE_BUYS` · Lucky (its mirror — a FORGO tick) | B3 | UI-shaped, prototype: the forgo-Advantage trade is a tick in the attack dialog beside the Reckless box (before the roll, never after); the hit then offers the Brutal Strike group — Forceful Blow (push, a line), Hamstring Blow (the pack's effect), one pick |
 | **Relentless Rage** | Barbarian | ROW | `DROP_TO_ONE` · Undead Fortitude (`save`) + Relentless Endurance (`uses`) | C1 | held at 1 while the Constitution save rolls on the keeper, DC 10 rising by 5 per use (a `dc` counter facet, reset on a rest), `while: raging`; a success heals the level's worth as the pack's heal activity |
 | **Persistent Rage** | Barbarian | TABLE | `INITIATIVE_GRANTS` (new; the seam `initiative-swap.js` reads — every combatant rolled) | A6 | regain all Rage uses when Initiative is rolled — a card and the sheet write, no choice (R1); 5 customers across the classes make the table |
@@ -347,7 +347,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Jack of All Trades** | Bard | NATIVE | — | — | the pack's effect |
 | **Bardic Inspiration** | Bard | MODULE | `D20_FOLDS` · Inspired (`bardic`) | — | the Inspired effect's die folds into the holder's roll today |
 | **Divine Order** | Cleric | OUT | — | — | a level-1 pick — the sheet's |
-| **Blessed Strikes** | Cleric | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells`, gate `always`) — a `bonus: "@mod"` on the class's cantrips | M0 | the parent names the pick: Divine Strike is a `CLOCK_RIDERS` row already; Potent Spellcasting — measure whether the pack's damage part adds Wisdom (its Foundry Note says the bonus "is not" automatic): if not, one row on the damage-rules table (`spells: "cantrip"`, `classes: [cleric]`) |
+| **Blessed Strikes** | Cleric | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells`, gate `always`) — a `bonus: "@mod"` on the class's cantrips | B4 | the parent names the pick: Divine Strike is a `CLOCK_RIDERS` row already; Potent Spellcasting — measured 2026-09-29 (M0): NOT automatic (the pack ships a separate Damage activity with `@abilities.wis.mod`, typed by the dialog) — one row on the damage-rules table (`spells: "cantrip"`, `classes: [cleric]`) |
 | **Improved Blessed Strikes** | Cleric | ROW | `CLOCK_RIDERS` · Divine Strike (the die; the pack's own scaling) + `REST_GRANTS` · Inspiring Leader's temp HP shape on a CAST | C1 | Divine Strike's 2d8 is the activity's own scaling (NATIVE); Potent Spellcasting's temp HP to a creature within 60 ft on a cantrip's damage is a cast rider `grant: temphp` — an ask (the pick is the cleric's) |
 | **Divine Intervention** | Cleric | OUT | — | — | a free cast — the sheet's |
 | **Greater Divine Intervention** | Cleric | OUT | — | — | Wish — the table's |
@@ -374,13 +374,13 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Wild Companion** | Druid | OUT | — | — | a summon (Find Familiar — the spells register's) |
 | **Wild Shape** | Druid | NATIVE | — | — | the platform's transformation |
 | **Wild Resurgence** | Druid | OUT | — | — | a slot-for-a-use trade — the sheet's |
-| **Elemental Fury** | Druid | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells`) — the same row shape as Blessed Strikes | M0 | the parent names the pick: Primal Strike is a `CLOCK_RIDERS` row already; Potent Spellcasting — measure (the text carries a lookup, so the pack may add it); else one damage-rules row on the druid's cantrips |
+| **Elemental Fury** | Druid | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells`) — the same row shape as Blessed Strikes | B4 | the parent names the pick: Primal Strike is a `CLOCK_RIDERS` row already; Potent Spellcasting — measured 2026-09-29 (M0): NOT automatic (no activity, no effect; the text's lookup is display only) — one damage-rules row on the druid's cantrips |
 | **Improved Elemental Fury** | Druid | NATIVE | — | — | Primal Strike's 2d8 is the activity's scaling; Potent Spellcasting's range is the spell's own |
 | **Beast Spells** | Druid | OUT | — | — | casting in Beast form — the table's |
 | **Archdruid** | Druid | OUT | — | — | recovery — the sheet's |
 | **Land's Aid** | Druid — Circle of the Land | NATIVE | — | — | the pack: a save, damage, a heal |
 | **Natural Recovery** | Druid — Circle of the Land | OUT | — | — | a free cast — the sheet's |
-| **Nature's Sanctuary** | Druid — Circle of the Land | ROW | the cover machine (`decide/cover.js`; RULINGS *Measured cover*) — a hand-set cover STATUS already wins | M0 | the pack's `coverHalf` status on the effect: measure whether the cover measure reads the status as a source (it reads a hand-set status); the area's placement and "allies" are the table's |
+| **Nature's Sanctuary** | Druid — Circle of the Land | NATIVE | — | — | measured 2026-09-29 (M0): the four Nature's Ward effects carry the `coverHalf` STATUS; dnd5e folds it into `ac.cover`, which the cover measure already reads as the CARRIED cover (reminders.js `coverOf`, the measure raises only above it) — nothing to build; the cube's placement and which allies stand in it are the table's |
 | **Circle Forms** | Druid — Circle of the Moon | ROW | `TURN_GRANTS` · Heroism (`grant: temphp`) with `on: "transform"` (dnd5e's transformation hook) | A6 | temp HP = three × the level as the Wild Shape lands — a new trigger word for the grant machine (`on: transform`), no choice (R1); the CR and AC are the pack's |
 | **Improved Circle Forms** | Druid — Circle of the Moon | NATIVE | — | — | the pack's effect (radiant option) |
 | **Lunar Form** | Druid — Circle of the Moon | ROW | `CLOCK_RIDERS` · Divine Fury (`when: oncePerTurn`, `judge: wildShape`) | C1 | 2d10 radiant once per turn on an attack in Wild Shape — a `judge: wildShape` reading the transformation |
@@ -413,7 +413,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Additional Fighting Style** | Fighter — Champion | NATIVE | — | — | a second Fighting Styles row on the sheet |
 | **Heroic Warrior** | Fighter — Champion | ROW | `TURN_GRANTS` · Regeneration (`match: "feature"`) — `grant: "inspiration"` (Resourceful's write) | B4 | at the fighter's turn start in combat, Heroic Inspiration if none is held — a sheet write and a card, no choice (R1: "you can" with one sensible answer, the dice changers' rule) |
 | **Superior Critical** | Fighter — Champion | NATIVE | — | — | the crit range on the effect |
-| **Survivor** | Fighter — Champion | ROW | `TURN_GRANTS` · Regeneration (`grant: heal`, `while: bloodied`) + `EFFECT_BENDS` · Brave (`saves` on death saves) | M0 | Heroic Rally: 5 + Con at each turn start while Bloodied — the turn grant; Defy Death: measure whether the pack's effect carries `flags.dnd5e` on death saves (native if so), else a `saves` row on `death` |
+| **Survivor** | Fighter — Champion | ROW | `TURN_GRANTS` · Regeneration (`grant: heal`, `while: bloodied`) + a death-save crit range at `dnd5e.preRollDeathSave` | D1 | Heroic Rally: 5 + Con at each turn start while Bloodied — the turn grant (the pack's Heal activity, `activation: turnStart`, is the number); Defy Death — measured 2026-09-29 (M0): the Advantage is NATIVE (the transferred effect writes `system.attributes.death.roll.mode` +1); the 18–20-counts-as-20 half is NOT (the pack's note) — a row at the death save's config (the critical threshold 18) |
 | **War Bond** | Fighter — Eldritch Knight | NATIVE | — | — | the bond and the summon are the sheet's |
 | **War Magic** | Fighter — Eldritch Knight | ROW | `BONUS_SWINGS` · Pole Strike — a reminder at the Attack action (`when: "attack"`, `says`) | B4 | the reminder that one attack may be a cantrip — a card line, nothing driven; Improved War Magic is the same row's words at 18 |
 | **Eldritch Strike** | Fighter — Eldritch Knight | ROW | `CLOCK_RIDERS` · Frost's Chill (`effects` on the hit) + `EFFECT_BENDS` · Magic Resistance (`saves`, `spells: "source"`) | B2 | the hit lands the pack's effect on the target (the effect-riders seam); the gate reads the effect: Disadvantage on saves against the FIGHTER's spells — `spells: "source"` (the demand knows its caster) |
@@ -422,12 +422,12 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Psionic Power** | Fighter — Psi Warrior | ROW | `INTERRUPT_REDUCTIONS` · Interception (`ally`, `reach: 30`, `pool`) + `HIT_OPTIONS` · a Psionic group (`pool: "feature"`, once per turn) | A2 | Protective Field: the die + Int off any creature's damage within 30 ft (the guard's shape, the Psionic pool); Psionic Strike: a hit-menu row (the die as force, once per turn, the pool the Psionic Energy Dice); Telekinetic Movement: OUT (movement) |
 | **Telekinetic Adept** | Fighter — Psi Warrior | ROW | `HIT_OPTIONS` · Trip Attack (`save`, `onFail: prone`) as a FOLLOW-UP on Psionic Strike | B4 | Telekinetic Thrust: on a Psionic Strike, the target's Strength save or Prone / pushed — the option's save activity used after the damage (Trip's path); Psi-Powered Leap: OUT (movement) |
 | **Guarded Mind** | Fighter — Psi Warrior | ROW | `TURN_GRANTS` · Heroic Warrior — `grant: "end"` (`statuses: [charmed, frightened]`, `pool`) | B4 | at the turn start, an OFFER to spend a Psionic die and end Charmed or Frightened (the effect deleted, receipted); the resistance is the pack's |
-| **Bulwark of Force** | Fighter — Psi Warrior | ROW | the cover machine — Nature's Sanctuary's `coverHalf` status | M0 | the pack's effect carries `coverHalf`; measure with Nature's Sanctuary; the picks are the use's own targets |
+| **Bulwark of Force** | Fighter — Psi Warrior | NATIVE | — | — | measured 2026-09-29 (M0) with Nature's Sanctuary: the effect carries `coverHalf`, dnd5e's `ac.cover` reads it, the measure respects it as carried cover; the picks are the use's own targets |
 | **Telekinetic Master** | Fighter — Psi Warrior | NATIVE | — | — | Telekinesis cast from the feature; the Bonus Action attack while concentrating is the table's |
 | **Martial Arts** | Monk | NATIVE | — | — | the Martial Arts die is the pack's; the unarmed-dice swap leaves a strike that rolls a die alone |
 | **Monk's Focus** | Monk | NATIVE | — | — | Flurry, Patient Defense, Step of the Wind are the pack's activities and effects |
 | **Uncanny Metabolism** | Monk | TABLE | `INITIATIVE_GRANTS` · Persistent Rage — `heal: "Martial Arts die + level"` | A6 | at Initiative, once per Long Rest: every Focus Point back and the heal rolled — an OFFER (it is once per Long Rest, the player may keep it), Persistent Rage's table |
-| **Deflect Attacks** | Monk | MODULE | `INTERRUPT_REDUCTIONS` · Deflect Attacks | — | the reduction; the redirect strike's follow-up — measure (M0) whether the pack's Redirect save activity is used at 0 damage |
+| **Deflect Attacks** | Monk | MODULE | `INTERRUPT_REDUCTIONS` · Deflect Attacks | A1 | the reduction; measured 2026-09-29 (M0): the pack's Redirect is a SAVE activity (Dex vs the Monk's DC, `2@scale.monk.die + @abilities.dex.mod`, 1 Focus Point by uuid) — a `then` facet on the reduction row offers it when the damage lands at 0 |
 | **Slow Fall** | Monk | OUT | — | — | falling damage — the table's |
 | **Stunning Strike** | Monk | ROW | `HIT_OPTIONS` · Trip Attack (`save`) in a new `HIT_GROUPS` group · Monk's Focus (`pool` the Focus Points, `dieLabel: "Focus Point"`, once per turn) | A2 | 1 Focus Point on a Monk weapon or Unarmed Strike hit, the activity's Constitution save; a success lands the pack's half effect (Advantage on the next attack — the effect-riders seam); Stunned on the failure is the activity's |
 | **Empowered Strikes** | Monk | NATIVE | — | — | the type choice is the attack's own |
@@ -462,17 +462,17 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Lay on Hands** | Paladin | NATIVE | — | — | the pack's pool |
 | **Paladin's Smite** | Paladin | OUT | — | — | Divine Smite is a Bonus Action cast after the hit — out of the hit menu (SWEEP §0, 2026-09-03) |
 | **Faithful Steed** | Paladin | OUT | — | — | a summon |
-| **Radiant Strikes** | Paladin | ROW | `CLOCK_RIDERS` · Fire's Burn (`when: "any"`) | M0 | measure: if the pack's effect adds the 1d8 to the weapon's damage it is NATIVE; else a rider on every melee weapon or Unarmed Strike hit, no cost, no clock |
+| **Radiant Strikes** | Paladin | NATIVE | — | — | measured 2026-09-29 (M0): the transferred effect writes `system.bonuses.mwak.damage` `1d8[radiant]` — every melee weapon attack and Unarmed Strike (both `mwak`) rolls it |
 | **Restoring Touch** | Paladin | OUT | — | — | a condition removed on a Lay on Hands use — the pick is the sheet's |
 | **Aura Expansion** | Paladin | NATIVE | — | — | the scale value |
-| **Sacred Weapon** | Paladin — Oath of Devotion | ROW | `TOKEN_LIGHTS` · Light | M0 | measure: the +Cha to attack is the pack's effect (NATIVE if it lands on the weapon); the light is a Token Lights row on the effect |
+| **Sacred Weapon** | Paladin — Oath of Devotion | ROW | `TOKEN_LIGHTS` · Inner Radiance (`activity`, `on: "self"`) | A1 | measured 2026-09-29 (M0): the +Cha to attack (`activities[attack].attack.bonus`) and the Radiant type are the pack's ENCHANT activity — NATIVE; the light (20 / 40) is not carried — a Token Lights row keyed to the Enchant activity; the light's end follows the enchantment on the WEAPON, not an actor effect (the one read Inner Radiance lacks — check at A1) |
 | **Aura of Devotion** | Paladin — Oath of Devotion | ROW | `EMANATIONS` · Aura of Courage (the status swapped) | B5 | Charmed immunity to allies in the aura — the pack's effect on the members |
 | **Smite of Protection** | Paladin — Oath of Devotion | ROW | `EMANATIONS` · Aura of Protection — an `effect` handed out `on: "cast"` (Divine Smite) | C1 | after Divine Smite is cast, the members of the aura gain the pack's Half Cover effect until the paladin's next turn start — a cast rider on the aura's members, `coverHalf` read by the cover machine |
 | **Holy Nimbus** | Paladin — Oath of Devotion | ROW | `EMANATIONS` · Inner Radiance (`pulse` at ENEMIES' turn starts: `trigger.on: turnStart` + damage) + `saves` on the member effect | D1 | for 10 minutes: enemies starting their turn in the aura take the activity's radiant damage (no save); allies in it have Advantage on saves against Fiends and Undead (a `saves` facet with `sourceTypes`) |
 | **Inspiring Smite** | Paladin — Oath of Glory | ROW | `REST_GRANTS` · Inspiring Leader's popup (a temp-HP hand-out) `on: "cast"` (Divine Smite) | A7 | UI-shaped, prototype: after Divine Smite, 2d8 + level temp HP DISTRIBUTED among creatures within 30 ft (the paladin too) — a popup with a number per creature, the clock giving all to the paladin |
 | **Peerless Athlete** | Paladin — Oath of Glory | NATIVE | — | — | the pack's effect (checks, jumps) |
 | **Aura of Alacrity** | Paladin — Oath of Glory | OUT | — | — | speed — movement |
-| **Glorious Defense** | Paladin — Oath of Glory | MODULE | `INTERRUPTS` · Glorious Defense (`ac`) | — | the AC hold; the attack on a miss is Riposte's — measure (M0) whether its driven attack fires |
+| **Glorious Defense** | Paladin — Oath of Glory | MODULE | `INTERRUPTS` · Glorious Defense (`ac`) | A1 | the AC hold; measured 2026-09-29 (M0): the pack's activity is a bare utility (a Reaction, the item's uses) — the attack on a miss is not driven; Riposte's driven attack on the `ac` hold's miss is the row |
 | **Living Legend** | Paladin — Oath of Glory | KIND | the `reroll` kind (Indomitable) — `tests: [attack, save]`, once per turn on an attack, a Reaction on a save | D1 | a missed attack rerolled once per turn; a failed save rerolled as a Reaction; the Charisma checks are the pack's effect |
 | **Vow of Enmity** | Paladin — Oath of Vengeance | MODULE | `EFFECT_BENDS` · Vow of Enmity | — | the bend row |
 | **Relentless Avenger** | Paladin — Oath of Vengeance | ROW | `CLOCK_RIDERS` · Sentinel's Halt (`judge: "opportunity"`, `lands`) | B4 | the pack's speed-0 effect lands on an Opportunity Attack's hit (Halt's clock); the paladin's free move is the table's |
@@ -487,7 +487,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Precise Hunter** | Ranger | MODULE | `EFFECT_BENDS` · Precise Hunter | — | the bend row |
 | **Foe Slayer** | Ranger | MODULE | `RIDER_UPGRADES` · foe-slayer | — | the d10 replaces the mark's d6 |
 | **Primal Companion** | Ranger — Beast Master | OUT | — | — | a summon |
-| **Bestial Fury** | Ranger — Beast Master | ROW | `CLOCK_RIDERS` · Dreadful Strikes — the COMPANION as bearer | M0 | measure: the mark's extra damage on the companion's Beast's Strike — the rider keyed to the ranger's mark, read off the companion's sheet (the companion is its own actor); the second strike is OUT (action economy) |
+| **Bestial Fury** | Ranger — Beast Master | ROW | `CLOCK_RIDERS` · Dreadful Strikes — the COMPANION as bearer | C1 | measured 2026-09-29 (M0): nothing rides the companion — the pack ships a Damage activity on the RANGER's feature (`@scale.ranger.mark` force) to click by hand; the rider is keyed to the ranger's mark and read off the companion's sheet through the summon's origin (the companion is its own actor); the second strike is OUT (action economy) |
 | **Share Spells** | Ranger — Beast Master | OUT | — | — | a second target for a self spell — the table's |
 | **Beguiling Twist** | Ranger — Fey Wanderer | ROW | `EFFECT_BENDS` · Brave (`saves` Advantage against Charmed / Frightened) + a hold at a save VERDICT (the withhold seam) | B2 | the Advantage is Brave's row; the Reaction that turns a creature's SUCCEEDED save within 120 ft into a save of its own (the pack's activity) is offered at the verdict (Guarded Mind's withhold) — the ranger the answerer |
 | **Fey Reinforcements** | Ranger — Fey Wanderer | OUT | — | — | a summon's free cast |
@@ -535,7 +535,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Trance of Order** | Sorcerer — Clockwork Sorcery | ROW | `EFFECT_BENDS` · Elusive (`noAdvantage`) + `D20_FOLDS` · the `floor` fold (Starry Form's Dragon) on every D20 Test | C1 | for 1 minute: attacks against the sorcerer cannot have Advantage; its own D20 Tests treat a 9 or lower as 10 — both facets built by their first customers |
 | **Clockwork Cavalcade** | Sorcerer — Clockwork Sorcery | OUT | — | — | a heal, repairs and dispels in a cube — the table's |
 | **Draconic Resilience** | Sorcerer — Draconic Sorcery | NATIVE | — | — | the pack's effects (HP, AC) |
-| **Elemental Affinity** | Sorcerer — Draconic Sorcery | ROW | `FIGHTING_STYLES` · Elemental Adept (`typed` off the feat's name, `spells`) — a `bonus: "@mod"`, `once: "spell"` | M0 | measure: the pack's damage part may carry the +Cha; else one damage-rules row: +Cha to one damage roll of the chosen type per spell (the first part of the type, said on the card); the resistance is the sheet's |
+| **Elemental Affinity** | Sorcerer — Draconic Sorcery | ROW | `FIGHTING_STYLES` · Elemental Adept (`typed` off the feat's name, `spells`) — a `bonus: "@mod"`, `once: "spell"` | B4 | measured 2026-09-29 (M0): NOT automatic (five typed Damage activities with `@abilities.cha.mod`, clicked by hand) — one damage-rules row: +Cha to one damage roll of the chosen type per spell (the first part of the type, said on the card); the resistance is the sheet's |
 | **Dragon Wings** | Sorcerer — Draconic Sorcery | NATIVE | — | — | the pack's effect (flight) |
 | **Dragon Companion** | Sorcerer — Draconic Sorcery | OUT | — | — | a summon's free cast |
 | **Tides of Chaos** | Sorcerer — Wild Magic Sorcery | ROW | `ADVANTAGE_BUYS` · Lucky (the gate's buy box, an item use) | A1 | Advantage on one D20 Test bought before the roll, the use regained when a surge happens (the surge rider writes it back) |
@@ -566,7 +566,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Clairvoyant Combatant** | Warlock — Great Old One Patron | MODULE | `EFFECT_BENDS` · Clairvoyant Combatant | — | the bend row |
 | **Eldritch Hex** | Warlock — Great Old One Patron | ROW | `EFFECT_BENDS` · Irresistible Dance (`saves.abilities` off the demand) keyed to Hex's effect | B2 | a creature under the warlock's Hex saves at Disadvantage on the Hexed ability — the ability read off the Hex effect's own pick (the pack's effect names it), the demand's ability matched |
 | **Thought Shield** | Warlock — Great Old One Patron | NATIVE | — | — | the pack's effect (resistance); the reflected psychic damage is the table's |
-| **Create Thrall** | Warlock — Great Old One Patron | ROW | `CLOCK_RIDERS` · Bestial Fury's companion row | M0 | a summon's free cast (NATIVE); the thrall's extra psychic damage on its attacks — measure with Bestial Fury (a rider on a summoned actor's sheet) |
+| **Create Thrall** | Warlock — Great Old One Patron | ROW | `CLOCK_RIDERS` · Bestial Fury's companion row | C1 | a summon's free cast (NATIVE); measured 2026-09-29 (M0): the extra psychic is a Hex Damage activity on the WARLOCK's feature (1d6, by hand) — the rider on the summoned Aberration, Bestial Fury's shape; ⚠ the pack's Thrall Temporary HP formula misspells `@abilitis.cha.mod` (a data defect — the warlock level alone rolls; a Vendor Fixes candidate, not Battle Flow's) |
 | **Arcane Recovery** | Wizard | OUT | — | — | slot recovery |
 | **Ritual Adept** | Wizard | OUT | — | — | ritual casting |
 | **Scholar** | Wizard | OUT | — | — | a proficiency |
@@ -590,7 +590,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Illusory Self** | Wizard — Illusionist | MODULE | `INTERRUPTS` · Illusory Self (`ac`) | — | the hold row; the miss it forces is the `ac` hold's negate |
 | **Illusory Reality** | Wizard — Illusionist | OUT | — | — | an illusion made real — the table's |
 | **Armor of Shadows** | Options | OUT | — | — | a utility cast |
-| **Eldritch Mind** | Options | ROW | `EFFECT_BENDS` · War Caster's Concentration Advantage (the pack's `flags.dnd5e.concentrationAdvantage`) | M0 | measure: the pack's effect likely carries the flag, then NATIVE (the gate lists it); else a `saves` row on `concentration` |
+| **Eldritch Mind** | Options | NATIVE | — | — | measured 2026-09-29 (M0): the transferred effect writes `system.attributes.concentration.roll.mode` +1 — the platform rolls it, the gate lists it (War Caster's key) |
 | **Pact of the Blade** | Options | NATIVE | — | — | the conjured weapon |
 | **Pact of the Chain** | Options | OUT | — | — | a familiar |
 | **Pact of the Tome** | Options | OUT | — | — | cantrips and rituals |
@@ -612,8 +612,8 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Master of Myriad Forms** | Options | OUT | — | — | a utility cast |
 | **One with Shadows** | Options | OUT | — | — | Invisible while still in darkness — the table's |
 | **Thirsting Blade** | Options | NATIVE | — | — | Extra Attack with the pact weapon — action economy |
-| **Blessed Strikes: Potent Spellcasting** | Options | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells: "cantrip"`, `bonus: "@abilities.wis.mod"`) | M0 | measure first — the pack's Foundry Note says the bonus "is not" automatic; if so, one damage-rules row on the cleric's cantrips (the option row; its parent Blessed Strikes names the pick) |
-| **Elemental Fury: Potent Spellcasting** | Options | ROW | `FIGHTING_STYLES` · Blessed Strikes: Potent Spellcasting's row | M0 | the druid's cantrips — the same row shape; measure whether the text's lookup already lands in the pack's damage |
+| **Blessed Strikes: Potent Spellcasting** | Options | ROW | `FIGHTING_STYLES` · Elemental Adept (`spells: "cantrip"`, `bonus: "@abilities.wis.mod"`) | B4 | measured 2026-09-29 (M0): NOT automatic — the pack's Damage activity rolls the Wisdom modifier alone, clicked by hand; one damage-rules row on the cleric's cantrips (the option row; its parent Blessed Strikes names the pick) |
+| **Elemental Fury: Potent Spellcasting** | Options | ROW | `FIGHTING_STYLES` · Blessed Strikes: Potent Spellcasting's row | B4 | measured 2026-09-29 (M0): NOT automatic (no activity at all; the pack's note says so) — the druid's cantrips, the same row shape |
 | **Whispers of the Grave** | Options | OUT | — | — | a utility cast |
 | **Gift of the Protectors** | Options | ROW | `DROP_TO_ONE` · Relentless Endurance (`ask`) for the NAMED creatures (`named: true`) | B4 | a creature whose name is in the Book of Shadows drops to 1 instead of 0, once per Long Rest — the names are a list the warlock keeps on the feature (the tome's description read as data), the drop machine's row on each |
 | **Lifedrinker** | Options | ROW | `CLOCK_RIDERS` · Dread Ambusher (`when: oncePerTurn`, the pact weapon a `weapon` judge, the type a pick) | B4 | 1d6 necrotic / psychic / radiant once per turn on a pact-weapon hit (the type the activity's first, said on the card — the rider ruling) and 1d6 healing when Bloodied — the heal a receipt on the same card |
