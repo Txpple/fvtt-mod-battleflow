@@ -74,6 +74,12 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
 | **A bystander's bend on a SAVE** | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered | only a demand carries the DC and a verdict to withhold (`registerWithhold`) | 2026-09-29 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
+| **Rage**'s duration: it ends at the end of a turn that did not extend it (an attack roll against an enemy, a saving throw forced on one, or a Bonus Action) | a REMINDER card at the barbarian's turn end when the turn's own cards show no attack roll and no save at an enemy — "it ends now unless you extended it"; nothing is removed, the barbarian deletes the Rage | nothing records the Bonus Action that extends it, so an automatic end would end a Rage the player kept; the turn's cards are read only from a turn this client saw begin (`turn-grants.js` `remindExtend`) | 2026-09-29 |
+| **Dark One's Blessing**: "when you reduce an enemy to 0 Hit Points" (or someone else does, within 10 feet of you) | paid when damage a CARD dealt takes an enemy (the tokens on opposite sides) to 0; the dealer is the card's actor | a drop typed on a sheet names no dealer and no card (the rebukes' floor), and "enemy" is read off the tokens' dispositions (`heal-on-hit.js` `on: "kill"`) | 2026-09-29 |
+| **Repelling Blast**: "push the creature up to 10 feet straight away from you" | a card line on every beam that hits a Large or smaller creature — "push it up to 10 feet … (move the token)"; the token is never moved | a push is a token move the module never makes (Pushing Attack's line) | 2026-09-29 |
+| **Combat Inspiration**'s Defense and **Glorious Defense**: a bonus to the target's AC "against that attack", when an attack roll hits | offered after the hit shows (Shield's row); the bonus is played as the attack roll's MINUS against that one target — the same arithmetic — and Glorious Defense's "creature you can see within 10 feet of you" is every paladin on the target's side within 10 ft of it (the bystanders' row) | the AC is the defender's number the hold reads; a minus on this roll touches no other attack (`hold/lookup.js` `bystandersOf`, `reach: "target"`) | 2026-09-29 |
+| **Hunter's Prey**: the option is the character's, changeable after a Short or Long Rest | asked ONCE on the damage offer ("which option did you take?") and kept on the feature; the card's *Change* forgets it and the next hit asks again — the rest is the table's | the pack ships one item for both options and records neither (`clock-riders.js` `option`; the user, 2026-09-29) | 2026-09-29 |
+| **Deflect Attacks**' Redirect: "if you reduce the damage to 0" | offered on the damage card once the reduced damage has LANDED at 0, as the pack's own save activity at the attacker; the range and the Focus Point are the activity's | the reduction is rolled at the answer and the damage lands later; only the receipt knows it came to 0 (`hold/views.js` `atZero`) | 2026-09-29 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -260,7 +266,7 @@ ships no effect (`SAVE_PRESSES`, Web); Evasion is an outcome (`EVASION`, none on
 on a failure, applied and receipted); Incapacitated breaks concentration off the effect, no save;
 Uncanny Dodge is an attack-roll interrupt only; an interrupt is the ABILITY by name, never its
 effect; a damage interrupt the module can settle is settled (`INTERRUPT_MULTIPLIERS`: Uncanny Dodge
-×0.5; Absorb Elements and Deflect Attacks stay "reduce by hand"). **Every row on the offer is the
+×0.5; Absorb Elements stays "reduce by hand"; Deflect Attacks is rolled since A1 — *The PHB classes — A1*). **Every row on the offer is the
 same shape:** a tick, the name and the dice, a fact as the tag, the rule folded under — never a
 line of explanation above or below (the standing UI rule). The offer's menus scroll in a bounded
 box; the Roll button names the weapon.
@@ -1639,6 +1645,54 @@ bent by someone who is neither the roller nor its target: vocabulary on the `rol
 | Cutting Words on a Bugbear's Athletics | the popup says no DC is known; the card states the arithmetic and "ask your DM" |
 | "Not this combat" in a fight | the popup closes, the bearer shows "Cutting Words — muted this combat"; nobody asks again until the combat ends |
 
+## The PHB classes — A1 (2026-09-29, Session 0 stage A1)
+
+**Fourteen band-A rows on tables that exist — no new kind, no new file; unwalked (rapid mode).** The plan's §3 A1,
+built off the pack as measured (`dnd-players-handbook.classes`, dnd5e 6.0.5). Two rulings the user gave mid-build
+(2026-09-29): **Hunter's Prey's option is asked once and kept** (the pack records neither option); **Combat
+Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Commanding Presence | `SUPERIORITY_FOLDS` | Tactical Assessment's scoped fold on Intimidation, Performance or Persuasion (and armed from the sheet) |
+| Tides of Chaos | `ADVANTAGE_BUYS` + `D20_FOLDS` `advantage` | Lucky's buy box on every D20 Test; the surge's write-back is A7's |
+| War Priest | `BONUS_SWINGS` `uses`, `ranged` | Hew's reminder after any weapon or Unarmed Strike attack on your turn, the uses shown; none left, no reminder |
+| Hunter's Prey — Colossus Slayer | `CLOCK_RIDERS` `judge: targetDamaged`, `option` | 1d8 of the weapon's type once per turn on a target below its maximum |
+| Hunter's Prey — Horde Breaker | `BONUS_SWINGS` `option`, `near: 5` | the reminder when another creature stands within 5 ft of the target, once per turn |
+| Frenzy | `CLOCK_RIDERS` `judge: reckless` | the Rage Damage d6s on the first hit of the turn while raging and Reckless |
+| Repelling Blast | `CLOCK_RIDERS` `enchant`, `maxSize`, `says` | a card line per beam on the cantrip the invocation enchanted (else Eldritch Blast) |
+| Combat Inspiration — Offense | `CLOCK_RIDERS` `inspired`, `unticked` | the bard's die on the damage offer, unticked; ridden, the Inspired effect is spent |
+| Combat Inspiration — Defense | `INTERRUPT_ROLLS` `inspired`, `only: "self"` | the hit creature's own popup: −the die off the attack, its Reaction and its Inspired die spent |
+| Glorious Defense | `INTERRUPT_ROLLS` `reach: "target"`, formula `bonus`, `turned: "strike"` | −Cha off an attack that hits the paladin or a creature within 10 ft of it; turned to a miss, a Strike popup drives one weapon attack at the attacker. Moved from the `ac` list, where the pack's effectless utility moved no AC |
+| Dark One's Blessing | `HEAL_ON_HIT` `on: "kill"`, `temphp`, `within: 10` | the pack's heal (Cha + Warlock level, min 1) as Temporary Hit Points when the warlock drops an enemy — or anyone does within 10 ft of it (the 2024 text; the plan's walk line had it the warlock's kill only) |
+| Starry Form | `EFFECT_CHOICES` `picks`, `lands`, `chip` + `HEAL_REROLLS` `also` | Archer / Chalice / Dragon asked at "Consume Wild Shape": Dragon Form lands only with Dragon (the pack lands it on every use); Chalice keeps a form chip, and a levelled healing spell's card then offers the Chalice heal to you or a creature on your side within 30 ft |
+| Dragon's Concentration floor | — | **NATIVE**: the pack's Dragon Form carries `concentration.roll.min` 10 (M0 missed it); no `floor` facet was built |
+| Rage of the Wilds | `EFFECT_CHOICES` `on: "Rage"`, `use` + `EMANATIONS` `while` (a list) + `EFFECT_BENDS` `member` | Bear / Eagle / Wolf asked at the Rage (which lands at once); the pick uses the feature's own activity. The Wolf: a quiet 5-ft ring on enemies while Rage of the Wolf AND Rage stand; its members are attacked with Advantage by everyone but the barbarian — the barbarian's own "Rage of the Wolf" never counts |
+| Rage | `TURN_GRANTS` `remind: "extend"` | the turn-end reminder (the register's row) — the 2024 text, not "attacked or took damage" |
+| Sacred Weapon | `TOKEN_LIGHTS` `ends: "enchantment"` | 20 ft Bright, 20 more Dim on the paladin's token, clocked as the enchantment, out when it leaves the weapon; the +Cha and Radiant stay the pack's |
+| Deflect Attacks | `INTERRUPT_REDUCTIONS` `types`, `anyType`, `atZero` | rolled at the answer (Parry's path) — B/P/S hits only unless Deflect Energy; at 0, the Redirect is offered on the damage card |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Rage, then a turn with no attack roll and no save forced | at the turn end: "Rage — it ends now unless you extended it"; nothing removed |
+| Frenzy, Reckless ticked, the first hit | the offer's ticked row "Frenzy — 2d6 …"; the second hit shows none |
+| Rage with Rage of the Wilds | the Rage's card asks Bear / Eagle / Wolf; Wolf: an ally attacking a goblin beside the barbarian sees "Rage of the Wolf — Advantage" in the gate |
+| Combat Inspiration, an Inspired ally hits | the offer's UNticked row "Combat Inspiration — 1d6"; ticked, the die rides and the Inspired effect is gone |
+| Combat Inspiration, an Inspired ally is hit by 2 | the ally's popup "−1d6 · a Reaction · the Inspired die"; Answer: the die rolls, MISS |
+| War Priest, a weapon attack | Hew's popup "War Priest — … 3 of 3 uses left" |
+| Starry Form | "Which constellation glimmers on you?"; Chalice, then Cure Wounds at an ally: "Chalice — heal one more within 30 ft" with a button per creature |
+| Hunter's Prey, the first hit | the offer asks "Hunter's Prey — which option did you take?"; Colossus Slayer on a damaged target rides 1d8; the card's *Change* asks again next hit |
+| Horde Breaker, a goblin beside the target | "Horde Breaker — … Goblin 2 within 5 ft of Goblin" |
+| Tides of Chaos, any d20 dialog | the buy box "Tides of Chaos (1 use)" |
+| Dark One's Blessing, the fighter drops a goblin 5 ft from the warlock | "Dark One's Blessing — Vyr gains 7 Temporary Hit Points", receipted |
+| Repelling Blast, an Eldritch Blast hit | "Repelling Blast — push it up to 10 feet … (move the token)" per beam |
+| Commanding Presence, a Persuasion check | the superiority die offered on the check |
+| Sacred Weapon | the paladin's token lights 20/40; deleting the weapon's enchantment puts it out |
+| Glorious Defense, an ally beside the paladin hit by 2 | the paladin's popup "−3"; Answer: MISS, then "Strike the Bugbear with Longsword?" |
+| Deflect Attacks, a 7-damage hit | the monk's popup, the reduction rolled; at 0, the damage card offers "Redirect" |
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):
@@ -1890,7 +1944,7 @@ feature's own heading when that section is next recut.
 
 ### What a table leaves out, or narrows
 
-- Hunter's Prey, Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal and Foe Slayer are deliberately NOT clock riders — each is a choice the sheet does not record or a judgment the module cannot make
+- Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal and Foe Slayer are deliberately NOT clock riders — each is a choice the sheet does not record or a judgment the module cannot make (Hunter's Prey joined in A1: the option is asked once — *The PHB classes — A1*)
 - A rebuke spell answers at the lowest slot the sheet holds — there is no slot picker inside a Reaction's window; a player who wants to upcast casts from the sheet
 - Twinned Spell is not offered on Animate Dead, Create Undead, Cordon of Arrows or Tasha's Mind Whip — their growing count is a corpse or an arrow, not a target (RULINGS names only Magic Missile, Scorching Ray and Jump)
 - The unarmed-dice swap leaves a strike that already rolls a die (a Monk's Martial Arts) alone — "can … instead" makes that choice the table's

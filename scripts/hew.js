@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, isActiveGM, canAnswerFor, combatStamp, decisionWindow } from "./core.js";
 import { cardActivity, resolveUuid, foldEntryFor, lower } from "./lookup.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { tokenForUuid } from "./geometry.js";
+import { creaturesWithin, tokenForUuid } from "./geometry.js";
 import { maneuverFoldEntries } from "./decide/registry.js";
 import { BONUS_SWINGS, RULE_TEXT } from "./decide/registry.js";
 import { hitTargets, withTargets } from "./shared.js";
@@ -181,28 +181,55 @@ listen("updateChatMessage", "hew", message => {
 // The ATTACK trigger (`when: "attack"`, Pole Strike): once the attack resolves (a hit's damage card,
 // or a total miss); once per the owner's own turn in combat, every attack out of it.
 
-/** A named base item, or every named property. */
+/** A named base item, or every named property; a row naming neither takes any weapon. */
 function swingWeaponFits(row, item) {
   if ( item?.type !== "weapon" ) return false;
+  if ( !row.weapons ) return true;
   const base = item.system?.type?.baseItem ?? null;
   if ( base && (row.weapons?.base ?? []).includes(base) ) return true;
   const props = row.weapons?.properties ?? [];
   return !!props.length && props.every(pr => item.system?.properties?.has?.(pr));
 }
 
+/** The feat's uses as the reminder reads them, or null for a row without them. */
+function swingUsesOf(row, item) {
+  if ( !row.uses ) return null;
+  const max = Number(item?.system?.uses?.max) || 0;
+  return { left: Math.max(0, Number(item?.system?.uses?.value ?? 0) || 0), max };
+}
+
 /** The listed attack-row feat this attack earns a reminder for, with its item — or null. */
 function attackSwingFor(attackMessage) {
   const activity = cardActivity(attackMessage, activityUuidOf(attackMessage));
-  if ( activity?.attack?.type?.value !== "melee" ) return null;
+  const kind = activity?.attack?.type?.value;
+  if ( (kind !== "melee") && (kind !== "ranged") ) return null;
   const attacker = attackMessage.getAssociatedActor?.();
   if ( !attacker ) return null;
   for ( const entry of maneuverFoldEntries().filter(e => (e.kind === "hew") && (whenOf(e.name) === "attack")) ) {
     const row = swingRowOf(entry.name);
+    if ( (kind === "ranged") && !row.ranged ) continue;
     if ( !swingWeaponFits(row, activity.item) ) continue;
     const found = foldEntryFor(attacker, "hew", [entry]);
-    if ( found ) return { attacker, activity, row, item: found.item };
+    if ( !found ) continue;
+    // An `option` row: the feature's kept option (asked on the damage offer — clock-riders.js) must be this one.
+    if ( row.option && (lower(found.item.getFlag(MODULE_ID, "option") ?? "") !== lower(row.option)) ) continue;
+    const uses = swingUsesOf(row, found.item);
+    if ( uses && !(uses.left > 0) ) continue;               // none left: nothing to remind
+    const near = row.near ? secondTargetNear(attackMessage, attacker, row.near) : null;
+    if ( row.near && !near ) continue;                       // nobody else within reach of the target
+    return { attacker, activity, row, item: found.item, uses, near };
   }
   return null;
+}
+
+/** A `near` row's second creature: another living creature within `feet` of the attack's target, not the
+ * attacker — `{ target, others }` by name, or null. */
+function secondTargetNear(attackMessage, attacker, feet) {
+  const target = targetsOf(attackMessage)[0] ?? null;
+  const token = target ? tokenForUuid(target.uuid) : null;
+  if ( !token ) return null;
+  const others = creaturesWithin(token, feet).filter(t => t.actor?.uuid !== attacker.uuid);
+  return others.length ? { target: token.document?.name ?? target.name, others: others.map(t => t.document?.name ?? t.actor?.name) } : null;
 }
 
 /** On the owner's own turn (a running combat), and not yet reminded this turn. */
@@ -231,7 +258,9 @@ async function maybeSwingReminder(attackMessage) {
     const target = ctx.row.drive ? (targetsOf(attackMessage)[0] ?? null) : null;
     const offer = (ctx.row.drive && target) ? { weaponId: ctx.activity.item.id, activityId: ctx.activity.id,
       targetUuid: target.uuid, targetName: target.name, attackId: attackMessage.id } : null;
-    await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}`, ctx.row, offer);
+    const uses = ctx.uses ? ` · ${ctx.uses.left} of ${ctx.uses.max} use${(ctx.uses.max === 1) ? "" : "s"} left` : "";
+    const near = ctx.near ? ` · ${ctx.near.others.join(", ")} within ${ctx.row.near} ft of ${ctx.near.target}` : "";
+    await postHewReminder(ctx.attacker, ctx.item, ctx.activity.item, `An attack with ${ctx.activity.item?.name ?? "the weapon"}${uses}${near}`, ctx.row, offer);
   } catch(err) {
     console.error(`${TITLE} | The bonus swing reminder failed.`, err);
   }

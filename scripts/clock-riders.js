@@ -5,10 +5,10 @@ import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queue
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
-import { hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
+import { grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
-import { bfCard, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
+import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
@@ -45,6 +45,61 @@ function riderFormulaOf(row, act) {
   return part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
 }
 
+/** The item carries this feature's enchantment (a copy, never the feature's own source effect). */
+const enchantedBy = (item, feature) => !!item && (item.id !== feature.id)
+  && item.effects.some(e => (e.type === "enchantment") && (lower(e.name) === lower(feature.name)));
+
+/** An `enchant` row's item: the one its enchantment rides, or — none on the sheet — the row's `spell`. */
+function enchantedFor(attacker, item, feature, row) {
+  if ( enchantedBy(item, feature) ) return true;
+  const anywhere = attacker.items.some(i => enchantedBy(i, feature));
+  return !anywhere && !!row.spell && answers(row.spell, item);
+}
+
+/** The hit target's Hit Points below their maximum (true / false), or null when none can be read. */
+function targetDamagedOf(hits) {
+  const actor = hits[0] ? resolveUuid(hits[0].uuid) : null;
+  const hp = actor?.system?.attributes?.hp;
+  if ( !hp || !Number.isFinite(Number(hp.value)) || !(Number(hp.max) > 0) ) return null;
+  return Number(hp.value) < Number(hp.max);
+}
+
+/** Every hit target at or below `maxSize` (true / false), or null when a size cannot be read (the table judges). */
+function targetsFit(hits, maxSize) {
+  const sizes = CONFIG.DND5E.actorSizes ?? {};
+  const cap = sizes[maxSize]?.numerical;
+  if ( !Number.isFinite(cap) || !hits.length ) return null;
+  let unknown = false;
+  for ( const h of hits ) {
+    const n = sizes[resolveUuid(h.uuid)?.system?.traits?.size]?.numerical;
+    if ( !Number.isFinite(n) ) { unknown = true; continue; }
+    if ( n > cap ) return false;
+  }
+  return unknown ? null : true;
+}
+
+/** The flag a feature keeps its OPTION in — the choice the sheet never records (Hunter's Prey). */
+const OPTION_FLAG = "option";
+const optionOf = feature => feature?.getFlag?.(MODULE_ID, OPTION_FLAG) ?? null;
+
+/**
+ * An `inspired` row: the attacker's own Inspired die, granted by a bard who holds the row's feature (Combat
+ * Inspiration) — the effect, the bard's feature, and the die read off the BARD (d20-folds.js BARDIC's read).
+ */
+function inspiredFrom(attacker, featureName) {
+  for ( const effect of attacker.effects ) {
+    if ( !effect.active || (lower(effect.name) !== "inspired") ) continue;
+    const bard = grantingActor(effect);
+    const feature = bard ? featureNamed(bard, featureName) : null;
+    if ( !feature ) continue;
+    const scale = foundry.utils.getProperty(bard.getRollData(), "scale.bard.inspiration");
+    const die = scale?.formula ?? scale?.die ?? null;
+    if ( (typeof die !== "string") || !die.trim() ) continue;   // a die nobody can read is never guessed
+    return { effect, bard, feature, die: die.trim() };
+  }
+  return null;
+}
+
 /** The damage types a built damage config deals — its rolls' own types. */
 const dealtTypesOfRolls = rolls => [...new Set((rolls ?? []).flatMap(r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : [])))];
 
@@ -63,10 +118,13 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   if ( !listed.size ) return [];
   const combat = activeCombatFor(attacker);
   const weaponType = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;
+  const hits = attackMessage ? hitTargets(attackMessage) : [];
   const facts = {
     inCombat: !!combat, round: combat?.round ?? null,
     sneakArmed: !!attackMessage?.getFlag(MODULE_ID, "sneak")?.armed,
-    raging: attacker.effects.some(e => (lower(e.name) === "rage") || e.statuses?.has?.("raging")),
+    raging: attacker.effects.some(e => e.active && ((lower(e.name) === "rage") || e.statuses?.has?.("raging"))),
+    reckless: attacker.effects.some(e => e.active && (lower(e.name) === "reckless")),
+    targetDamaged: targetDamagedOf(hits),
     weapon: item.type === "weapon",
     dealt: roll.dealt ?? dealtTypesOf(activity),
     // a Critical Hit: the attack's own d20, or the damage roll made critical (a Paralyzed target's)
@@ -79,14 +137,22 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   const out = [];
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;
+    // An `inspired` row's feature is the granting BARD's; its die rides on the attacker's own Inspired effect.
+    const inspired = row.inspired ? inspiredFrom(attacker, row.feature) : null;
+    if ( row.inspired && !inspired ) continue;
     // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
-    const feature = row.self ? itemNamed(attacker, row.feature) : featureNamed(attacker, row.feature);
+    const feature = inspired ? inspired.feature : row.self ? itemNamed(attacker, row.feature) : featureNamed(attacker, row.feature);
     if ( !feature ) continue;
+    // An `option` row rides only the option the character took; none recorded yet, the offer asks.
+    const option = row.option ? optionOf(feature) : null;
+    if ( option && (lower(option) !== lower(row.option)) ) continue;
+    const unpicked = !!row.option && !option;
+    if ( unpicked && row.weapon && !facts.weapon ) continue;
     // A `self` row rides its OWN attack alone (a monster's Chaos Blade): the activity is the attack's, no extra dice.
     if ( row.self && (item.id !== feature.id) ) continue;
     const act = row.self ? activity : (row.activity ? activityNamed(feature, row.activity) : null);
     const part = row.self ? null : act?.damage?.parts?.[0];
-    const raw = row.self ? null : riderFormulaOf(row, act);
+    const raw = row.self ? null : inspired ? inspired.die : riderFormulaOf(row, act);
     let formula = null;
     try {
       const resolved = raw ? Roll.replaceFormulaData(raw, attacker.getRollData()) : null;
@@ -96,8 +162,11 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const type = (row.type === "weapon") ? weaponType : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
     const uses = usesOf(attacker, act, row);
     const usesLeft = uses ? uses.left : null;
-    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key) });
-    out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged,
+    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key),
+      fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
+      enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false });
+    out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged, unpicked,
+      ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}),
       // an effect-only row (no dice: Hamstring, a crit's mark, Piercer's extra die) says what it does
       says: (!raw && row.says) ? row.says : null,
       label: row.label ?? (row.activity === "Damage" ? row.feature : row.activity) });
@@ -105,9 +174,25 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   return out;
 }
 
-/** Is any listed clock rider due on this hit? The offer opens for it whatever the auto-damage setting. */
+/** Is any listed clock rider due on this hit, or an option to ask? The offer opens for it whatever the auto-damage setting. */
 function clockRidersDue(attackMessage, activity) {
-  return clockRidersFor(attackMessage, activity).some(r => r.due);
+  return clockRidersFor(attackMessage, activity).some(r => r.due || r.unpicked);
+}
+
+/** The option asks among these riders, one per feature: every option its rows name, and what it does now. */
+function optionAsks(riders) {
+  const byFeature = new Map();
+  for ( const r of riders.filter(x => x.unpicked) ) {
+    const ask = byFeature.get(r.feature.id) ?? { featureId: r.feature.id, feature: r.feature.name, item: r.feature, options: [] };
+    byFeature.set(r.feature.id, ask);
+    for ( const name of (r.row.options ?? [r.row.option]) ) {
+      if ( ask.options.some(o => o.value === name) ) continue;
+      const mine = (lower(name) === lower(r.row.option));
+      ask.options.push({ value: name, key: mine ? r.key : null, due: mine && r.due,
+        note: mine ? (r.due ? `${r.formula ?? ""} rides this hit (${r.why})`.trim() : `not this hit — ${r.why}`) : "its own reminder, from the next attack" });
+    }
+  }
+  return [...byFeature.values()];
 }
 
 /**
@@ -117,20 +202,42 @@ function clockRidersDue(attackMessage, activity) {
  * @param {object} activity
  */
 function clockRiderOfferParts(attackMessage, activity) {
-  const due = clockRidersFor(attackMessage, activity).filter(r => r.due);
-  if ( !due.length ) return null;
-  const chosen = new Set(due.filter(r => r.formula || r.says).map(r => r.key));
+  const all = clockRidersFor(attackMessage, activity);
+  const due = all.filter(r => r.due && !r.unpicked);
+  const asks = optionAsks(all);
+  if ( !due.length && !asks.length ) return null;
+  const chosen = new Set(due.filter(r => (r.formula || r.says) && !r.row.unticked).map(r => r.key));
+  const options = new Map();                               // feature id → the option picked in this offer
   return {
     riders: due,
     lines: due.filter(r => !r.formula && !r.says).map(r => `<strong>${esc(r.label)}</strong> is due, but its dice could not be read off the sheet — add them by hand.`),
-    html: riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule, usesLeft: r.usesLeft, caveat: r.row.caveat }))),
+    html: optionAskHTML(asks.map(a => ({ featureId: a.featureId, feature: a.feature, options: a.options.map(o => ({ value: o.value, note: o.note })) })))
+      + riderMenuHTML(due.map(r => ({ key: r.key, label: r.label, formula: r.formula, says: r.says, type: r.type, why: r.why, rule: r.row.rule,
+        usesLeft: r.usesLeft, caveat: r.row.caveat, unticked: !!r.row.unticked }))),
     wire(element) {
       for ( const box of (element?.querySelectorAll('input[name="bf-rider"]') ?? []) ) {
         box.addEventListener("change", () => { if ( box.checked ) chosen.add(box.value); else chosen.delete(box.value); });
       }
+      for ( const a of asks ) {
+        for ( const radio of (element?.querySelectorAll(`input[name="bf-option-${a.featureId}"]`) ?? []) ) {
+          radio.addEventListener("change", () => { if ( radio.checked ) options.set(a.featureId, radio.value); });
+        }
+      }
     },
-    /** The pick, on the attack message: WHICH due riders ride. An absent pick (no offer opened) rides all. */
+    /** The pick, on the attack message: WHICH due riders ride. An absent pick (no offer opened) rides all but
+     * the unticked. An option picked is kept on its feature first, and its rider joins the pick when due. */
     async commit() {
+      for ( const a of asks ) {
+        const picked = options.get(a.featureId);
+        if ( !picked ) continue;
+        try {
+          await a.item.setFlag(MODULE_ID, OPTION_FLAG, picked);
+          const o = a.options.find(x => x.value === picked);
+          if ( o?.due && o.key ) chosen.add(o.key);
+        } catch(err) {
+          console.error(`${TITLE} | Could not keep the ${a.feature} option — it will be asked again.`, err);
+        }
+      }
       try {
         await attackMessage.setFlag(MODULE_ID, "clockPick", [...chosen]);
       } catch(err) {
@@ -163,7 +270,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
     const picked = Array.isArray(pick) ? new Set(pick) : null;
     const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
       critical: (config.isCritical === true) || (config.rolls?.[0]?.options?.isCritical === true) })
-      .filter(r => r.due && (!picked || picked.has(r.key)));
+      .filter(r => r.due && !r.unpicked && (picked ? picked.has(r.key) : !r.row.unticked));
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];
@@ -176,16 +283,23 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         opts.critical ??= {};
         opts.critical.bonusDice = (Number(opts.critical.bonusDice) || 0) + Number(r.row.bonusDice);
       }
+      // An `inspired` die has no type of its own: it adds to the attack's damage, so it takes the first roll's.
+      const type = r.type ?? (r.inspired ? (config.rolls?.[0]?.options?.types?.[0] ?? config.rolls?.[0]?.options?.type ?? null) : null);
       if ( r.formula ) {
         config.rolls.push({
           // No `properties`: a feature's extra damage never bypasses physical resistance as the weapon's magic.
           data: foundry.utils.deepClone(config.rolls[0]?.data ?? {}),
           parts: [r.formula],
-          options: { type: r.type ?? null, types: r.type ? [r.type] : [] }
+          options: { type, types: type ? [type] : [] }
         });
       }
-      record.push({ key: r.key, label: r.label, formula: r.formula, type: r.type, why: r.why, rule: r.row.rule,
+      // The Inspired die is spent as it rides: the effect is the die (d20-folds.js BARDIC's spend).
+      if ( r.inspired ) void attacker.effects.get(r.inspired.effectId)?.delete()
+        .catch(err => console.warn(`${TITLE} | Could not spend the Inspired die — delete it by hand.`, err));
+      record.push({ key: r.key, label: r.label, formula: r.formula, type, why: r.why, rule: r.row.rule,
         ...(r.says ? { says: r.says } : {}),
+        ...(r.inspired ? { spent: `${r.inspired.bard}'s Inspired die spent` } : {}),
+        ...(r.row.option ? { option: r.row.option, featureUuid: r.feature.uuid, optionOf: r.feature.name } : {}),
         ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
         ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
@@ -435,9 +549,26 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
       eyebrow: "Clock rider", tone: (r.formula || r.says) ? "good" : "neutral",
       title: r.formula ? `${r.label} — ${r.formula}${r.type ? ` ${r.type}` : ""} rode this roll`
         : r.says ? `${r.label} — ${r.says}` : `${r.label} was due — its dice could not be read`,
-      subtitle: `${r.why}${(r.usesLeft !== undefined) ? ` · ${r.usesLeft} use${r.usesLeft === 1 ? "" : "s"} left` : ""}${r.caveat ? ` · ${r.caveat}` : ""}`,
+      subtitle: `${r.why}${(r.usesLeft !== undefined) ? ` · ${r.usesLeft} use${r.usesLeft === 1 ? "" : "s"} left` : ""}${r.spent ? ` · ${r.spent}` : ""}${r.caveat ? ` · ${r.caveat}` : ""}`,
       lines: [ruleLine(r.rule)]
     });
+    // The kept option can be changed (after a rest, the table's): the next hit asks again.
+    if ( r.option && r.featureUuid ) {
+      const feature = resolveUuid(r.featureUuid);
+      if ( feature?.isOwner && optionOf(feature) ) {
+        line.appendChild(momentButton(`Change ${r.optionOf ?? "the"} option`, () => void clearOption(feature)));
+      }
+    }
     html.querySelector(SURFACES.messageContent)?.appendChild(line);
   }
 });
+
+/** Forget the kept option: the next hit's offer asks which again. */
+async function clearOption(feature) {
+  try {
+    await feature.unsetFlag(MODULE_ID, OPTION_FLAG);
+    ui.notifications?.info(`${TITLE}: ${feature.name} — the next hit asks which option again.`);
+  } catch(err) {
+    console.error(`${TITLE} | Could not clear the ${feature?.name} option.`, err);
+  }
+}

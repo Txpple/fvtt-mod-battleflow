@@ -3,16 +3,16 @@
  * Battle Flow — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
+import { MODULE_ID, TITLE, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
-import { poolOf } from "../shared.js";
+import { poolOf, resolveAttackMessage } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
-import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass } from "./answer.js";
+import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass, useAtZero } from "./answer.js";
 import { resolveUuid, activityNamed, d20FactsOf } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
@@ -38,6 +38,37 @@ function revealLine(reveal, target) {
     + `<em>${reveal.wouldMiss ? "enough to miss" : "still hits"}</em>`;
   return text;
 }
+
+// `atZero` (Deflect Attacks' Redirect): on the DAMAGE card, the defender's own client — the reduction took it to 0.
+listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
+  try {
+    const receipt = message.getFlag(MODULE_ID, "receipt");
+    if ( !receipt?.targets?.length ) return;
+    const attack = resolveAttackMessage(message);
+    const hold = attack?.getFlag(MODULE_ID, "hold");
+    if ( !hold?.targets?.length ) return;
+    const done = message.getFlag(MODULE_ID, "atZero") ?? {};
+    for ( const target of hold.targets ) {
+      if ( (target.answer !== "cast") || !(Number(target.reduceBy) > 0) ) continue;
+      const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => k.toLowerCase() === String(target.reaction ?? "").toLowerCase());
+      const row = key ? INTERRUPT_REDUCTIONS[key] : null;
+      if ( !row?.atZero ) continue;
+      const landed = receipt.targets.find(t => (t.uuid === target.uuid) && !t.reverted);
+      if ( !landed || (Number(landed.taken) !== 0) ) continue;
+      const actor = resolveUuid(target.uuid);
+      if ( !(actor instanceof Actor) || done[actor.id] || !canAnswerFor(actor) ) continue;
+      const attackerUuid = attack.getAssociatedActor?.()?.uuid ?? null;
+      if ( !attackerUuid ) continue;
+      const line = document.createElement("div");
+      line.innerHTML = bfCard({ eyebrow: `${key} — the damage is 0`, tone: "pending",
+        title: `${row.atZero} — at the attacker?`, subtitle: "the feature's own cost and save", lines: [ruleLine(row.rule)] });
+      line.append(momentButton(row.atZero, () => { line.remove(); void useAtZero(message, actor, { row: String(key), activity: String(row.atZero), attackerUuid }); }));
+      html.querySelector(SURFACES.messageContent)?.appendChild(line);
+    }
+  } catch(err) {
+    console.warn(`${TITLE} | The offer at 0 could not render — use it from the sheet.`, err);
+  }
+});
 
 // The hold's durable row on the attack card, above mastery's rows (dispatch.js ORDER).
 listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
@@ -256,7 +287,8 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const pool = (activity ? poolOf(byActor, activity) : null) ?? item;
   const left = Number(pool?.system?.uses?.value ?? 0);
   const poolWord = (pool && (pool !== item)) ? `${pool.name} ` : "";
-  const tag = [(row?.reaction && !guard.self) ? "a Reaction" : null, row?.uses ? `${poolWord}${left} left` : null].filter(Boolean).join(" · ");
+  const tag = [(row?.reaction && (!guard.self || guard.hitSelf)) ? "a Reaction" : null, row?.uses ? `${poolWord}${left} left` : null,
+    guard.inspired ? "the Inspired die" : null].filter(Boolean).join(" · ");
   const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const rows = [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
   const miss = !!hold?.miss;
@@ -265,9 +297,9 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const at = (!miss && self) ? "you" : target.name;
   const dialog = await openMomentPopup(attackMessage, `${target.uuid}|${guard.uuid}`, byActor, {
     title: `${guard.row} — ${whose} attack at ${at}`, icon: "fa-solid fa-comment-dots", width: 460,
-    content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: `${(row?.reaction && !guard.self) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
+    content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: `${(row?.reaction && (!guard.self || guard.hitSelf)) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
       title: `${(miss && self) ? "You" : attacker} ${miss ? "missed" : "hits"} ${at}`,
-      subtitle: `${weapon}${self ? "" : ` · within ${row?.bystander ?? "?"} ft of you`}` })
+      subtitle: `${weapon}${self ? "" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
       + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${bystanderSituation(row, roll, ac, guard, miss)}</div>`
       + tickRowsHTML({ name: "bf-bystander", rows }),
     buttons: [

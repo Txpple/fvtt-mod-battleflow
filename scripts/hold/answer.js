@@ -11,9 +11,11 @@ import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
-import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf } from "../lookup.js";
-import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander } from "../shared.js";
-import { registerRelay } from "../ui.js";
+import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption } from "../lookup.js";
+import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets } from "../shared.js";
+import { registerRelay, openMomentPopup } from "../ui.js";
+import { tokenForUuid } from "../geometry.js";
+import { originData } from "../decide/card.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { listen } from "../dispatch.js";
 
@@ -327,19 +329,22 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
   const actor = await fromUuid(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
-  if ( !actor || !found || !item ) {
-    ui.notifications.warn(`${TITLE}: could not find ${guard.row} on ${guard.name}.`);
+  // An `inspired` row carries no item: its pool is the answerer's own Inspired effect.
+  const inspired = guard.inspired ? (actor?.effects?.get(guard.inspired.effectId) ?? null) : null;
+  if ( !actor || !found || (!item && !inspired) ) {
+    ui.notifications.warn(`${TITLE}: could not find ${guard.row} on ${guard.name}${guard.inspired ? " (the Inspired die is gone)" : ""}.`);
     return;
   }
   const { key, row } = found;
-  const activity = item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row.activity);
-  const reaction = row.reaction && !guard.self;   // the bystander's OWN roll (Guided Strike on yourself) takes none
+  const activity = item ? (item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row.activity)) : null;
+  // The bystander's OWN roll (Guided Strike on yourself) takes none; a hit creature's own answer does.
+  const reaction = row.reaction && (!guard.self || !!guard.hitSelf);
   if ( reaction && reactionSpent(actor) ) {
     ui.notifications.warn(`${TITLE}: ${guard.name}'s Reaction is already spent this round.`);
     return;
   }
   const pool = (activity ? poolOf(actor, activity) : null) ?? item;
-  if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) {
+  if ( row.uses && pool && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) {
     ui.notifications.warn(`${TITLE}: ${guard.name} has no ${pool?.name ?? key} left for ${key}.`);
     return;
   }
@@ -349,7 +354,9 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
   let poolSpend = null;
   if ( row.uses ) poolSpend = await spendPoolUses(actor, pool, key, 1, (pool === item) ? null : pool.name)
     .catch(err => { console.warn(`${TITLE} | Could not spend a use for ${key}.`, err); return null; });
-  if ( reaction ) await spendReaction(actor, { origin: item.uuid, what: key });
+  if ( reaction ) await spendReaction(actor, { origin: item?.uuid ?? inspired?.origin ?? null, what: key });
+  // The Inspired die is spent as it is rolled (d20-folds.js BARDIC's spend).
+  if ( inspired ) await inspired.delete().catch(err => console.warn(`${TITLE} | Could not spend the Inspired die — delete it by hand.`, err));
   let bent = null, reduceBy = null;
   if ( row.bend === "die" ) {
     const formula = guard.die ?? bystanderDie(actor, row);
@@ -371,7 +378,46 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt, faces: facts.faces });
   }
-  return answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid, reduceBy });
+  const settled = await answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid, reduceBy });
+  // `turned: "strike"` — the bend turned the hit to a miss against the live AC: one weapon attack at the attacker.
+  const ac = Number((await fromUuid(target.uuid))?.system?.attributes?.ac?.value ?? target.ac);
+  if ( (row.turned === "strike") && bent && !bent.isCritical && Number.isFinite(ac) && (Number(bent.total) < ac) ) {
+    void offerStrike(attackMessage, actor, key);
+  }
+  return settled;
+}
+
+/** The strike after a turned hit (Glorious Defense): Use drives the answerer's weapon at the attacker; the
+ * weapon's range is the table's. Riposte's driven attack. */
+async function offerStrike(attackMessage, actor, key) {
+  const attacker = attackMessage.getAssociatedActor?.() ?? null;
+  const token = attacker ? tokenForUuid(attacker.uuid) : null;
+  const option = preferredMeleeOption(actor, meleeOptions(actor));
+  if ( !attacker || !token || !option ) return;
+  await openMomentPopup(attackMessage, `strike|${actor.uuid}`, actor, {
+    title: `${key} — strike back`, icon: "fa-solid fa-sword",
+    content: bfCard({ img: actor.items.get(option.itemId)?.img ?? actor.img ?? null, eyebrow: `${key} — the attack misses`, tone: "good",
+      title: `Strike ${token.document?.name ?? attacker.name} with ${option.name}?`,
+      subtitle: "one weapon attack as part of this Reaction — if it is within your weapon's range" }),
+    buttons: [
+      { action: "strike", label: "Strike", default: true, callback: () => void driveStrike(actor, option, token, attackMessage.id) },
+      { action: "pass", label: "Pass", callback: () => {} }
+    ]
+  }).catch(err => console.warn(`${TITLE} | ${key}'s strike could not be offered — attack from the sheet.`, err));
+}
+
+async function driveStrike(actor, option, token, attackId) {
+  try {
+    const activity = actor.items.get(option.itemId)?.system?.activities?.get(option.activityId);
+    if ( !activity ) return;
+    await withTargets([token], async () => {
+      const used = await activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { riposteFor: attackId } } } });
+      const usageId = used?.message?.id ?? null;
+      await activity.rollAttack({}, { configure: false }, { data: { ...(usageId ? originData(usageId) : {}), flags: { [MODULE_ID]: { riposteFor: attackId } } } });
+    });
+  } catch(err) {
+    console.error(`${TITLE} | The strike could not be driven — attack from the sheet.`, err);
+  }
 }
 
 /** "Not this combat" (Q2 option A): mute the bystander's feature for its bearer, and pass this one. */
@@ -452,4 +498,30 @@ async function parryReaction(attackMessage, target, actor) {
   if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, target.reaction).catch(err => { console.warn(`${TITLE} | Could not spend a ${target.reduce.spend ?? "Superiority Die"} for ${target.reaction}.`, err); return null; });
   await spendReaction(actor, { origin: item?.uuid ?? null, what: target.reaction });
   return answerHold(attackMessage, target.uuid, "cast", { reduceBy: total, poolSpend });
+}
+
+/**
+ * `atZero` (INTERRUPT_REDUCTIONS — Deflect Attacks' Redirect): the reduction took the damage to 0, so the
+ * feature's own activity is used at the attacker — the pack's save activity, its cost its own. Once per card.
+ * @param {ChatMessage} damageMessage
+ * @param {Actor} actor   the defender who reduced it
+ * @param {{row: string, activity: string, attackerUuid: string}} offer
+ */
+export async function useAtZero(damageMessage, actor, offer) {
+  let won = false;
+  await queueFlagWrite(damageMessage, "atZero", current => {
+    if ( current[actor.id] ) return false;
+    current[actor.id] = { row: offer.row, activity: offer.activity, at: Date.now() };
+    won = true;
+  });
+  if ( !won ) return;
+  try {
+    const item = reactionItem(actor, offer.row);
+    const activity = item ? activityNamed(item, offer.activity) : null;
+    const token = tokenForUuid(offer.attackerUuid);
+    if ( !activity || !token ) { ui.notifications?.warn(`${TITLE}: ${offer.row} — ${offer.activity} or the attacker is gone; use it from the sheet.`); return; }
+    await withTargets([token], () => activity.use({ subsequentActions: false }, { configure: false }));
+  } catch(err) {
+    console.error(`${TITLE} | ${offer.row}'s ${offer.activity} could not be used — use it from the sheet.`, err);
+  }
 }

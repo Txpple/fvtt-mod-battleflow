@@ -42,7 +42,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     const withDuplicates = entry => duplicates ? { ...entry, duplicates: { key: duplicates.key, at: duplicates.at, die: duplicates.die,
       count: duplicates.count, of: duplicates.of, ids: duplicates.ids, names: duplicates.names, img: duplicates.img,
       ...(duplicates.feature ? { feature: true, reflectAt: duplicates.reflectAt ?? null } : {}) } } : entry;
-    let found = await findInterrupt(actor, { isCritical: roll.isCritical, ranged });
+    let found = await findInterrupt(actor, { isCritical: roll.isCritical, ranged, dealt: attackFacts.dealt });
     let futile = false;
     if ( found && !holdWouldMatter(actor, found, roll, target.ac) ) {
       // Skipped silently, recorded for the stats.

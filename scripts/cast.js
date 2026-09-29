@@ -3,11 +3,11 @@
  * healing, with receipts, and asks the caster's EFFECT_CHOICES pick.
  */
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, whisperNoGM } from "./core.js";
-import { cardActivity, cardItem, lower, resolveUuid } from "./lookup.js";
+import { activityNamed, cardActivity, cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { damagePartsOf, statSourceOf } from "./shared.js";
-import { bfCard, popupKey, ruleLine } from "./decide/present.js";
-import { effectsAfterChoice } from "./decide/choices.js";
-import { HEAL_REROLLS, healRerollEntries, listedNames } from "./decide/registry.js";
+import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
+import { effectsAfterChoice, effectsAfterPick } from "./decide/choices.js";
+import { EFFECT_CHOICES, HEAL_REROLLS, healRerollEntries, listedNames } from "./decide/registry.js";
 import { rollMaximum } from "./decide/damage-dice.js";
 import { momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
@@ -30,7 +30,9 @@ async function executeCastApply(message) {
     const activity = cardActivity(message, payload.activityUuid);
     // dnd5e 6: the list holds PROFILES; the effects resolve asynchronously.
     const applicable = (await activity?.getApplicableEffects?.()) ?? [];
-    const names = effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
+    const row = payload.choice?.key ? EFFECT_CHOICES[payload.choice.key] : null;
+    const names = row?.picks ? effectsAfterPick(applicable.map(e => e.name), row, payload.choice)
+      : effectsAfterChoice(applicable.map(e => e.name), payload.choice ?? null);
     if ( names === null ) return;   // pending — the caster's popup is open on their client
     const wanted = new Set(names.map(n => String(n).toLowerCase()));
     const effects = applicable.filter(e => wanted.has(String(e.name).toLowerCase()));
@@ -128,13 +130,50 @@ registerResumable("healPending", {
 // caster's own card; no clock — the card's button reopens it.
 
 async function chooseEffect(card, name) {
-  const choice = card.getFlag(MODULE_ID, "castApply")?.choice;
+  const payload = card.getFlag(MODULE_ID, "castApply");
+  const choice = payload?.choice;
   if ( !choice || choice.chosen || !choice.options?.includes(name) ) return;
+  let won = false;
   await queueFlagWrite(card, "castApply", current => {
     if ( !current.choice || current.choice.chosen ) return false;
     current.choice.chosen = name;
     current.choice.answeredAt = Date.now();
+    won = true;
   });
+  if ( won ) await afterPick(card, payload, name);
+}
+
+/** What a `picks` row does beyond the cast's own effects, on the caster's client: the form chip kept, or the
+ * feature's activity of that name used (its card lands its own effect). */
+async function afterPick(card, payload, name) {
+  const key = payload.choice.key;
+  const row = EFFECT_CHOICES[key];
+  const actor = resolveUuid(payload.targets?.[0]?.uuid ?? null) ?? card.getAssociatedActor?.() ?? null;
+  if ( !row || !(actor instanceof Actor) || !actor.isOwner ) return;
+  try {
+    if ( row.chip ) await writeChoiceChip(actor, cardItem(card), key, name);
+    if ( row.use ) {
+      const activity = activityNamed(featureNamed(actor, key), name);
+      if ( activity ) await activity.use({ subsequentActions: false }, { configure: false });
+      else ui.notifications?.warn(`${TITLE}: ${key} — no "${name}" on ${actor.name}'s sheet; use it by hand.`);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | ${key} — the ${name} pick could not land; use it from the sheet.`, err);
+  }
+}
+
+/** The pick kept as a form chip (clock-riders.js's `formChip`, keyed by the row), for the item's own clock. */
+async function writeChoiceChip(actor, item, key, name) {
+  const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, "formChip")?.choice === key);
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+  const base = item?.effects?.find(e => lower(e.name) === lower(key)) ?? null;
+  await ActiveEffect.implementation.create({
+    name: `${key}: ${name}`, img: item?.img ?? "icons/svg/aura.svg",
+    description: `<p>Written by Battle Flow when ${esc(name)} was chosen: the form stands while this does. It ends with ${esc(key)}.</p>`,
+    origin: item?.uuid ?? null, disabled: false, transfer: false,
+    duration: base ? { ...(base._source?.duration ?? {}) } : {},
+    flags: { [MODULE_ID]: { formChip: { choice: key, form: lower(name) } } }
+  }, { parent: actor });
 }
 
 async function showChoicePopup(card) {
@@ -158,7 +197,8 @@ listen("dnd5e.renderChatMessage", "cast", (message, html) => {
   const line = document.createElement("div");
   line.innerHTML = bfCard({ eyebrow: `Cast — ${choice.key}`, tone: choice.chosen ? "good" : "pending",
     title: choice.chosen ? `${choice.chosen} — the caster's choice` : (choice.ask ?? "Which effect?"),
-    subtitle: choice.chosen ? "" : `the cast waits for the pick — ${choice.options.join(" or ")}`,
+    subtitle: choice.chosen ? "" : choice.free ? `pick one — ${choice.options.join(", ")}`
+      : `the cast waits for the pick — ${choice.options.join(" or ")}`,
     lines: [ruleLine(choice.rule)] });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
   if ( choice.chosen ) return;

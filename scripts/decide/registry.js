@@ -40,6 +40,10 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   ally     feet — protects ANOTHER creature in reach; every guard in reach is asked, the first wins
  *   holding  "shieldOrWeapon" — a Shield or a Simple or Martial weapon held
  *   ranged   the hit must be a RANGED attack (Deflect Missile); a melee hit never holds for it
+ *   types    the hit's damage must include one of these (read off the attack's activity; unread counts), unless
+ *            the defender holds the `anyType` feature (Deflect Energy)
+ *   atZero   the feature's activity of that name is OFFERED on the damage card when the reduction took the
+ *            damage to 0 — Deflect Attacks' Redirect, the pack's own save activity used at the attacker
  *   eyebrow / spend / hit / by   the card's and popup's words
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
@@ -55,6 +59,12 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Proficiency Bonus", ally: 5, holding: "shieldOrWeapon",
     rule: Object.freeze({ item: "Interception", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstIntercepti" }),
     from: "Fighting Style feat" }),
+  // A1: rolled, as Parry's; before, "reduce by hand" (RULINGS *The PHB classes — A1*).
+  "Deflect Attacks": Object.freeze({ activity: "Reduce", pool: false,
+    eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Dexterity modifier and Monk level",
+    types: Object.freeze(["bludgeoning", "piercing", "slashing"]), anyType: "Deflect Energy", atZero: "Redirect",
+    rule: Object.freeze({ item: "Deflect Attacks", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkDeflectAtt" }),
+    from: "Monk 3" }),
   // The GM's side (Deflect Attacks' shape, ranged only): the redirect at 0 is the sheet's Save.
   "Deflect Missile": Object.freeze({ activity: "Reduce Damage", pool: true, ranged: true,
     eyebrow: "Reaction", spend: "use", hit: "ranged attack", by: "1d10",
@@ -94,8 +104,13 @@ export const INTERRUPT_ROLLS = Object.freeze({
   // `damage` the die may come off the damage roll instead (the card's quiet road, when the gate is silent).
   // `on` which attack it bends: "hit" (a hostile's hit on the bystander's side, turned to a miss — the default),
   // "miss" (its own side's miss, turned to a hit), "both"; `self` the bystander's own roll too, with no Reaction
-  // (`selfActivity` its pack activity). The pool is the activity's own consumption (`poolOf`). Asked only
-  // when the bend can change the verdict.
+  // (`selfActivity` its pack activity); on a HIT the hit creature may answer for itself, and `only: "self"`
+  // lets nobody else. `reach` "target": the feet are to the HIT creature (Glorious Defense), not the roller.
+  // `bonus` may be a formula read off the answerer's roll data. `inspired`: the feature is the granting BARD's,
+  // the die the bard's Bardic Inspiration, paid by deleting the answerer's own Inspired effect (Combat
+  // Inspiration's Defense). `turned: "strike"`: a hit the bend turns to a miss offers the answerer one weapon
+  // attack at the attacker (Riposte's driven attack). The pool is the activity's own consumption (`poolOf`).
+  // Asked only when the bend can change the verdict.
   "Cutting Words": Object.freeze({ reaction: true, uses: true, point: null, activity: "Cut with Words",
     bystander: 60, tests: Object.freeze(["attack", "check"]), bend: "die", sign: -1, die: "scale.bard.inspiration", damage: true,
     rule: Object.freeze({ item: "Cutting Words", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCuttingWor" }),
@@ -109,6 +124,17 @@ export const INTERRUPT_ROLLS = Object.freeze({
     bystander: 30, tests: Object.freeze(["attack"]), bend: "die", sign: 1, bonus: 10, on: "miss",
     rule: Object.freeze({ item: "Guided Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcGuidedStri" }),
     from: "Cleric — War Domain 3" }),
+  // A1: the AC bonus as the attack roll's minus against this target alone — the same arithmetic.
+  "Glorious Defense": Object.freeze({ reaction: true, uses: true, point: null, activity: "Glorious Defense",
+    reach: "target", bystander: 10, tests: Object.freeze(["attack"]), bend: "die", sign: -1,
+    bonus: "max(1, @abilities.cha.mod)", on: "hit", turned: "strike",
+    rule: Object.freeze({ item: "Glorious Defense", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnGloriousDe" }),
+    from: "Paladin — Oath of Glory 15" }),
+  // `bystander` 5: the hit creature itself stands at 0 feet (`only: "self"`).
+  "Combat Inspiration": Object.freeze({ reaction: true, uses: false, point: null, activity: null, inspired: true,
+    only: "self", reach: "target", bystander: 5, tests: Object.freeze(["attack"]), bend: "die", sign: -1, on: "hit",
+    rule: Object.freeze({ item: "Combat Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCombatInsp", benefit: "Defense" }),
+    from: "Bard — College of Valor 3" }),
   // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
@@ -164,7 +190,11 @@ export const RULE_TEXT = {
  * list entry with no row takes Great Weapon Master's shape.
  *   when     "critOrKill" (a crit or a kill with a melee weapon) | "attack" (a qualifying weapon's attack
  *            on the owner's turn, once per turn)
- *   weapons  a base item in `base`, or every property in `properties`
+ *   weapons  a base item in `base`, or every property in `properties`; absent: any weapon (an Unarmed Strike too)
+ *   ranged   a ranged attack earns it too (the default is melee only)
+ *   uses     the feat's own uses: none left, no reminder; the reminder says how many stand
+ *   option   the feature's kept option (CLOCK_RIDERS `option`, asked on the damage offer) must be this one
+ *   near     feet — another creature must stand this close to the attack's target (Horde Breaker's second target)
  *   drive    the reminder is an OFFER: Use drives the weapon's attack at the same creature, a d4 Bludgeoning
  */
 export const BONUS_SWINGS = Object.freeze({
@@ -174,7 +204,17 @@ export const BONUS_SWINGS = Object.freeze({
     drive: true,
     swing: "A Bonus Action: the other end of the weapon, a d4 of Bludgeoning — <strong>Pole Strike</strong> makes the attack for you.",
     rule: Object.freeze({ item: "Polearm Master", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPolearmMast", benefit: "Pole Strike" }),
-    from: "General feat" })
+    from: "General feat" }),
+  // A reminder, never driven: the pack's "Expend Use" spends the use from the sheet.
+  "War Priest": Object.freeze({ when: "attack", label: "War Priest", ranged: true, uses: true,
+    swing: "A Bonus Action: one attack with a weapon or an Unarmed Strike — use <strong>War Priest</strong> from the sheet (it spends the use), then swing.",
+    rule: Object.freeze({ item: "War Priest", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcWarPriest0" }),
+    from: "Cleric — War Domain 3" }),
+  // Not a Bonus Action: the extra attack is the option's own, once per turn, from the sheet.
+  "Hunter's Prey": Object.freeze({ when: "attack", label: "Horde Breaker", ranged: true, option: "Horde Breaker", near: 5,
+    swing: "One more attack with the same weapon at a different creature within 5 feet of the original target, one you haven't attacked this turn — make it from the sheet.",
+    rule: Object.freeze({ item: "Hunter's Prey", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrHuntersPre", benefit: "Horde Breaker" }),
+    from: "Ranger — Hunter 3" })
 });
 
 /**
@@ -198,7 +238,12 @@ export const ADVANTAGE_BUYS = Object.freeze({
   "Lucky": Object.freeze({ uses: true, point: "Luck Point", activity: "Advantage",
     tests: Object.freeze(["attack", "save", "check", "initiative"]),
     rule: Object.freeze({ item: "Lucky", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftLucky000000", benefit: "Advantage" }),
-    from: "Origin feat" })
+    from: "Origin feat" }),
+  // Regained when a Wild Magic Surge happens — the pack's "Recharge from Spell", from the sheet until A7.
+  "Tides of Chaos": Object.freeze({ uses: true, point: "use", activity: "Expend for Advantage",
+    tests: Object.freeze(["attack", "save", "check", "initiative"]),
+    rule: Object.freeze({ item: "Tides of Chaos", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrTidesOfCha" }),
+    from: "Sorcerer — Wild Magic Sorcery 3" })
 });
 
 /**
@@ -270,8 +315,17 @@ export const DEATH_STRIKE = Object.freeze({
  *   effects   the rider activity's effects land on the target (effect-riders.js `applyActivityEffectsOnHit`)
  *   clock     a CHIP_WINDOWS key those effects land with, pinned to the ATTACKER's place
  *   requires  "sneak" — an armed Sneak Attack only;  weapon  a weapon attack only
- *   judge     "raging" | "opportunity" (a driven Opportunity Attack, or an off-turn melee attack, ticked
- *             with the caveat) | "transformed"
+ *   judge     "raging" | "reckless" (raging AND the "Reckless" effect on the attacker) | "targetDamaged"
+ *             (the hit target below its Hit Point maximum) | "opportunity" (a driven Opportunity Attack, or an
+ *             off-turn melee attack, ticked with the caveat) | "transformed"
+ *   enchant   due only on the item carrying the feature's own enchantment (Repelling Blast's "Make
+ *             Repelling"); with none on the sheet, the row's `spell` stands for it
+ *   maxSize   the largest target size it reaches; a larger one is not due, an unreadable size is
+ *   inspired  the feature is the granting BARD's, the die the bard's Bardic Inspiration, paid by the attacker's
+ *             own Inspired effect (deleted as it rides) — Combat Inspiration's damage half
+ *   unticked  offered UNticked, and never ridden without a pick (a driven roll): a scarce die is spent by choice
+ *   option / options  the sheet never records which option the character took (Hunter's Prey): the offer asks
+ *             once, the pick is kept on the feature (`option` flag), and only the picked option's rows ride
  *   type      "weapon" — the weapon's damage type; otherwise the part's first
  *   dealt / crit  a damage type the hit must deal / a Critical Hit only
  *   lands     an effect with no activity to carry it: `{ name, from?, id, bare? }` — copied from the
@@ -282,8 +336,8 @@ export const DEATH_STRIKE = Object.freeze({
  *   random    `{ die }` — one of the activity's effects, named "N: …", lands by the die (the GM's side:
  *             "roll 1d4: on a 1 Charmed, on a 2 Frightened…"), the pack's own duration; a `clock` may pin it
  *   label / says / caveat   the offer's and card's words
- * Left out: choices the sheet does not record or judgments the module cannot make (Hunter's Prey,
- * Brutal Strike, Hand of Harm, Eldritch Smite, Lifedrinker's heal, Foe Slayer). Death Strike: DEATH_STRIKE.
+ * Left out: choices the sheet does not record or judgments the module cannot make (Brutal Strike, Hand of
+ * Harm, Eldritch Smite, Lifedrinker's heal, Foe Slayer). Death Strike: DEATH_STRIKE.
  */
 export const CLOCK_RIDERS = Object.freeze({
   // THE GM'S SIDE — the random condition on a hit (RULINGS *The Monster Manual — the waiting rows built*): the
@@ -321,6 +375,26 @@ export const CLOCK_RIDERS = Object.freeze({
     caveat: "the type is the activity's first — ask for the other by hand",
     rule: Object.freeze({ item: "Divine Fury", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbDivineFury" }),
     from: "Barbarian — Zealot 3" }),
+  // Offered unticked (RULINGS *The PHB classes — A1*): the die is the ally's to spend.
+  "combat-inspiration": Object.freeze({ feature: "Combat Inspiration", activity: null, when: "any", inspired: true, unticked: true,
+    label: "Combat Inspiration",
+    rule: Object.freeze({ item: "Combat Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCombatInsp", benefit: "Offense" }),
+    from: "Bard — College of Valor 3" }),
+  // The option asked once and kept (RULINGS *The PHB classes — A1*); Horde Breaker is BONUS_SWINGS' row.
+  "hunters-prey-colossus-slayer": Object.freeze({ feature: "Hunter's Prey", activity: "Damage", when: "oncePerTurn", judge: "targetDamaged",
+    weapon: true, type: "weapon", label: "Colossus Slayer",
+    option: "Colossus Slayer", options: Object.freeze(["Colossus Slayer", "Horde Breaker"]),
+    rule: Object.freeze({ item: "Hunter's Prey", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrHuntersPre", benefit: "Colossus Slayer" }),
+    from: "Ranger — Hunter 3" }),
+  "frenzy": Object.freeze({ feature: "Frenzy", activity: "Damage", when: "oncePerTurn", judge: "reckless", weapon: true, type: "weapon",
+    label: "Frenzy",
+    rule: Object.freeze({ item: "Frenzy", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbFrenzy0000" }),
+    from: "Barbarian — Path of the Berserker 3" }),
+  // No dice: a card line per beam that hits; the push is the table's (the token is never moved).
+  "repelling-blast": Object.freeze({ feature: "Repelling Blast", activity: null, when: "any", enchant: true, spell: "Eldritch Blast",
+    maxSize: "lg", label: "Repelling Blast", says: "push it up to 10 feet straight away from you (move the token)",
+    rule: Object.freeze({ item: "Repelling Blast", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvRepellingB" }),
+    from: "Eldritch Invocation (Warlock 2)" }),
   // Any attack roll (weapon, unarmed or spell), so no `weapon`; the type is the part's own.
   "fires-burn": Object.freeze({ feature: "Fire's Burn", activity: "Burn", label: "Fire's Burn", when: "any", uses: true,
     rule: Object.freeze({ item: "Fire's Burn", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptFiresBurn0" }),
@@ -609,7 +683,9 @@ export const SUPERIORITY_FOLDS = Object.freeze({
   "Ambush": Object.freeze({ skills: Object.freeze(["ste"]), initiative: true,
     rule: Object.freeze({ item: "Ambush", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvAmbush0000" }) }),
   "Tactical Assessment": Object.freeze({ skills: Object.freeze(["his", "inv", "ins"]), initiative: false,
-    rule: Object.freeze({ item: "Tactical Assessment", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvTacticalAs" }) })
+    rule: Object.freeze({ item: "Tactical Assessment", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvTacticalAs" }) }),
+  "Commanding Presence": Object.freeze({ skills: Object.freeze(["itm", "prf", "per"]), initiative: false,
+    rule: Object.freeze({ item: "Commanding Presence", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvCommanding" }) })
 });
 
 /** Every Battle Master maneuver, lower-cased: their damage activities are the DIE (damage-casts.js skips them). */
@@ -657,7 +733,8 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *              button — Magic Circle's entry ban, Forcecage's exit ban); `types: "chosen"` only the asked types.
  *              A monster's Reaction (Pursuit, Shriek, Watery Rebuke): the response is the activity's, from the sheet
  *   incapacitated  inactive while the source is Incapacitated;  quiet  no card
- *   item / activity / while / pulse   see the Inner Radiance row; a `pulse` with `activity: null` rolls the
+ *   item / activity / while / pulse   see the Inner Radiance row (`while` may list several — every one must
+ *              stand: the Wolf's "Rage of the Wolf" AND the Rage); a `pulse` with `activity: null` rolls the
  *              item's first damage activity at the bearer's turn END (the fire auras — the GM's side)
  * Membership: the Emanations list. What is left out on purpose: RULINGS *Emanations*.
  */
@@ -718,6 +795,12 @@ export const EMANATIONS = Object.freeze({
     pulse: Object.freeze({ on: "sourceTurnEnd", activity: "Inner Radiance" }),
     rule: Object.freeze({ item: "Celestial Revelation", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptCelestialR", benefit: "Inner Radiance" }),
     from: "Aasimar — Celestial Revelation (character level 3)" }),
+  // The Wolf (the pick at the Rage, EFFECT_CHOICES): the pack's own "Rage of the Wolf" worn by the enemies within 5 ft;
+  // EFFECT_BENDS reads the member copies alone (`member`), for everyone but the barbarian (`except: "source"`).
+  "Rage of the Wolf": Object.freeze({ kind: "feature", item: "Rage of the Wilds", while: Object.freeze(["Rage of the Wolf", "Rage"]),
+    reach: "harmful", range: 5, effect: "Rage of the Wolf", incapacitated: false, quiet: true,
+    rule: Object.freeze({ item: "Rage of the Wilds", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbRageOfTheW", benefit: "Wolf" }),
+    from: "Barbarian — Path of the Wild Heart 3" }),
   // An invisible ring at the held weapon's reach; a hostile moving in raises the reminder (attack from the sheet).
   "Polearm Master": Object.freeze({ kind: "feature", reach: "harmful", range: "weaponReach", effect: null, incapacitated: true, quiet: true,
     holding: Object.freeze({ base: Object.freeze(["quarterstaff", "spear"]), properties: Object.freeze(["hvy", "rch"]) }),
@@ -897,11 +980,28 @@ export const DAMAGE_SHIELDS = Object.freeze({
 
 
 /** A cast shipping several effects the text makes alternatives: the caster picks in a popup (R1), only the
- * pick lands. `effects` the names in order; `ask` the question. Fewer than two present asks nothing. */
+ * pick lands. `effects` the names in order; `ask` the question. Fewer than two present asks nothing.
+ *   picks     the choices, when they are NOT all effects (a form's constellations): `lands` maps a pick to the
+ *             cast's own effects that land only with it; every other effect lands whatever the pick
+ *   activity  only this activity's use asks (Starry Form's "Consume Wild Shape", not its Dragon use)
+ *   chip      the pick is kept as a form chip on the caster (`formChip`) for the rows that read it (Chalice)
+ *   on        the item whose USE asks; the row is keyed by the FEATURE the bearer must hold (Rage of the Wilds
+ *             at the Rage): the trigger's own effects land at once, never waiting; `use` — the pick uses the
+ *             feature's activity of that name, whose own card lands its own effect (Bear, Wolf) */
 export const EFFECT_CHOICES = Object.freeze({
   "Fire Shield": Object.freeze({ effects: Object.freeze(["Warm Shield", "Chill Shield"]), ask: "A warm shield or a chill shield?",
     rule: Object.freeze({ item: "Fire Shield", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFireShield" }),
-    from: "PHB, level 4 (10 minutes)" })
+    from: "PHB, level 4 (10 minutes)" }),
+  // The pack lands Starry Form AND Dragon Form on every use: Dragon Form only with its pick.
+  "Starry Form": Object.freeze({ picks: Object.freeze(["Archer", "Chalice", "Dragon"]), activity: "Consume Wild Shape",
+    lands: Object.freeze({ Dragon: Object.freeze(["Dragon Form", "Dragon Form (Twinkling)"]) }), chip: true,
+    ask: "Which constellation glimmers on you?",
+    rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm" }),
+    from: "Druid — Circle of the Stars 3 (10 minutes)" }),
+  "Rage of the Wilds": Object.freeze({ on: "Rage", picks: Object.freeze(["Bear", "Eagle", "Wolf"]), use: true,
+    ask: "Rage of the Wilds — Bear, Eagle or Wolf?",
+    rule: Object.freeze({ item: "Rage of the Wilds", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbRageOfTheW" }),
+    from: "Barbarian — Path of the Wild Heart 3" })
 });
 
 
@@ -913,6 +1013,8 @@ export const EFFECT_CHOICES = Object.freeze({
  *   item / activity   the pack item and activity whose use lands it (activity null: any use)
  *   effect    the pack effect the light rides, landed WITH it; null: the module's own, named as the item
  *   recast    "ends" — casting it again ends the caster's earlier light
+ *   ends      "enchantment" — the light goes out with the ENCHANTMENT the use put on a weapon (the item's own
+ *             effect of the row's `item` name, deleted from the weapon); `clock` its duration off that effect
  */
 export const TOKEN_LIGHTS = Object.freeze({
   "Inner Radiance": Object.freeze({ item: "Celestial Revelation", activity: "Inner Radiance", on: "self", effect: "Searing Radiance", bright: 10, dim: 20,
@@ -921,7 +1023,12 @@ export const TOKEN_LIGHTS = Object.freeze({
   "Light": Object.freeze({ activity: null, on: "targets", effect: null, recast: "ends", bright: 20, dim: 40,
     caveat: "on a creature's token (user, 2026-09-25: any targeted token) — the rule's object is the table's to name",
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" }),
-    from: "PHB cantrip (1 hour)" })
+    from: "PHB cantrip (1 hour)" }),
+  // The +Cha and the Radiant are the pack's Enchant (NATIVE); the weapon's light rides the paladin's token.
+  "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment",
+    caveat: "the light is the paladin's token's — the weapon is in hand",
+    rule: Object.freeze({ item: "Sacred Weapon", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSacredWeap" }),
+    from: "Paladin — Oath of Devotion 3 (10 minutes)" })
 });
 
 
@@ -1302,6 +1409,7 @@ export const CHECK_BENDS = Object.freeze({
  *   spend     "attack" — the next attack roll uses the effect up, with a receipt
  *   only / except  "source" — the bend is for / against all but the creature that placed it (the module's
  *             stamp, else the origin); with no source `only` skips the row and `except` counts it
+ *   member    only an emanation's MEMBER copy bends — the bearer's own effect of the same name never does
  *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }
  *   saves     { bend, statuses?, spells?, abilities?, halfToNone? } scoped by the demand (`abilities`: the
  *             save's own ability, Irresistible Dance's Dexterity), or { succeeds, sleep } — the save
@@ -1399,6 +1507,11 @@ export const EFFECT_BENDS = Object.freeze({
   "Cursed Attacks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Bestow Curse",
     caveat: "counted — press Normal if this attack is not at the caster",
     rule: Object.freeze({ item: "Bestow Curse", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBestowCurs" }) }),
+  // The Wolf's ring members (EMANATIONS "Rage of the Wolf"): the barbarian's allies attack them with Advantage.
+  "Rage of the Wolf": Object.freeze({ attacker: null, target: "advantage", scope: "any", member: true, except: "source",
+    from: "Barbarian — Path of the Wild Heart 3 (Rage of the Wilds: Wolf)",
+    caveat: "counted — an attacker who is not the barbarian's ally is the table's to press Normal",
+    rule: Object.freeze({ item: "Rage of the Wilds", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbRageOfTheW", benefit: "Wolf" }) }),
   // `item`: only an effect from THIS item (the Aura of Protection's "Protected" is a save bonus).
   "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good", item: "Protection from Evil and Good",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
@@ -1639,6 +1752,10 @@ export const DAMAGE_EITHER = Object.freeze({
  * pack's `r1` is stripped from those formulas so the machine does the reroll.
  *   effect / max   a row on the HEALED creature: while `effect` stands on it, healing the module lands
  *                  (cast.js) is the roll's MAXIMUM — Beacon of Hope; the pack's effect carries the save modes
+ *   also      the feature's heal ACTIVITY of that name heals one more creature after the caster's own healing
+ *             spell cast with a slot (Starry Form's Chalice): offered on the spell's healing card as a pick of
+ *             the caster or a creature on its side `within` feet, while `while` stands and the form chip
+ *             (EFFECT_CHOICES `chip`) reads `form`; the pick uses the activity at that creature
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
@@ -1648,7 +1765,10 @@ export const HEAL_REROLLS = Object.freeze({
   "Beacon of Hope": Object.freeze({ effect: "Hopeful", max: true,
     caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised",
     rule: Object.freeze({ item: "Beacon of Hope", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBeaconofHo" }),
-    from: "Cleric spell, level 3 (Concentration, 1 minute)" })
+    from: "Cleric spell, level 3 (Concentration, 1 minute)" }),
+  "Starry Form": Object.freeze({ also: "Chalice", while: "Starry Form", form: "chalice", within: 30,
+    rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm", benefit: "Chalice" }),
+    from: "Druid — Circle of the Stars 3" })
 });
 
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
@@ -1886,6 +2006,10 @@ export const REPEAT_SAVES = Object.freeze({
  *             Poisoned"); a feature row's `deals: "grappled"` deals its damage activity, at the bearer's own turn
  *             start, to the creatures the bearer GRAPPLES (Barbed Hide — Unarmed Fighting's finder, the grapples
  *             it can trace to the bearer only; the rest are the table's)
+ *   remind    "extend" — pays nothing: at the bearer's turn END a card says the effect ends now unless the turn
+ *             extended it (Rage: an attack roll at an enemy or a save forced on one, read off the turn's cards,
+ *             or a Bonus Action nothing records) — never an end (RULINGS *Where the table bends the rule*);
+ *             the turn the effect began is never reminded
  * The GM's side: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const TURN_GRANTS = Object.freeze({
@@ -1915,7 +2039,11 @@ export const TURN_GRANTS = Object.freeze({
   "Barbed Hide": Object.freeze({ match: "feature", effect: null, activity: null, on: "turnStart", deals: "grappled",
     caveat: "a grapple the module cannot trace to the bearer is the table's",
     rule: Object.freeze({ item: "Barbed Hide", uuid: "Compendium.dnd-monster-manual.features.Item.mmBarbedHide0000" }),
-    from: "monsters (barbed devil)" })
+    from: "monsters (barbed devil)" }),
+  "Rage": Object.freeze({ effect: "Rage", on: "turnEnd", remind: "extend",
+    says: "an attack roll against an enemy, a saving throw forced on one, or a Bonus Action to extend it",
+    rule: Object.freeze({ item: "Rage", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbRage000000", benefit: "Duration" }),
+    from: "Barbarian 1" })
 });
 
 /**
@@ -1992,12 +2120,20 @@ export const DAMAGE_SHARES = Object.freeze({
  * the row's `type` (every part of it, on this spell) times `share`, floored, is healed on the caster with a
  * receipt on the same card, once per creature per card, no choice (R1). Keyed by the spell.
  *   share   the fraction healed;  type  the damage type the text names, or null for every type
+ *   on      "kill" — keyed by a FEATURE on its bearer, not the dealing item: when an ENEMY of the bearer (the
+ *           tokens on opposite sides) drops to 0 under damage a card dealt, and the bearer dealt it or stands
+ *           `within` feet of the fallen, the feature's own heal activity lands on the bearer (`temphp`: its
+ *           Temporary Hit Points, which never stack) — receipted, no choice (R1). A drop no card dealt (a sheet
+ *           edit) names no dealer and pays nothing (RULINGS *Where the table bends the rule*)
  * Not a kind: one machine, rows of data.
  */
 export const HEAL_ON_HIT = Object.freeze({
   "Vampiric Touch": Object.freeze({ share: 0.5, type: "necrotic",
     rule: Object.freeze({ item: "Vampiric Touch", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplVampiricTo" }),
-    from: "Sorcerer / Warlock / Wizard spell, level 3 (Concentration, 1 minute)" })
+    from: "Sorcerer / Warlock / Wizard spell, level 3 (Concentration, 1 minute)" }),
+  "Dark One's Blessing": Object.freeze({ on: "kill", temphp: true, within: 10,
+    rule: Object.freeze({ item: "Dark One's Blessing", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkDarkOnesBl" }),
+    from: "Warlock — Fiend Patron 3" })
 });
 
 /**
@@ -2102,10 +2238,11 @@ export const KIND_SETS = [
 const row = (name, kind) => Object.freeze({ name, kind });
 export const INTERRUPTS = Object.freeze([
   row("Shield", "ac"), row("Absorb Elements", "damage"), row("Uncanny Dodge", "damage"), row("Defensive Duelist", "ac"),
-  row("Illusory Self", "ac"), row("Glorious Defense", "ac"), row("Parry", "ac"), row("Counterattack", "ac"),
+  row("Illusory Self", "ac"), row("Glorious Defense", "roll"), row("Parry", "ac"), row("Counterattack", "ac"),
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
   row("Interception", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
+  row("Combat Inspiration", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
@@ -2114,12 +2251,13 @@ export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", rea
 export const MANEUVER_FOLDS = Object.freeze([
   row("Precision Attack", "precision"), row("Riposte", "riposte"), row("Shield Master", "interpose"),
   row("Shield Master", "bash"), row("Great Weapon Master", "hew"), row("Commander's Strike", "command"),
-  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew")
+  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew"), row("War Priest", "hew"),
+  row("Hunter's Prey", "hew")
 ]);
 export const D20_FOLDS = Object.freeze([
   row("Heroic Inspiration", "heroic"), row("Tactical Mind", "tactical"), row("Inspired", "bardic"),
   row("Ambush", "tactical"), row("Tactical Assessment", "tactical"), row("Seeking Spell", "seeking"),
-  row("Lucky", "advantage"), row("Mage Slayer", "succeed")
+  row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

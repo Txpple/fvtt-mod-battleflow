@@ -239,10 +239,11 @@ export function cunningMenuHTML({ rows, max, dc, dice, chosen = [] }) {
 }
 
 /**
- * THE CLOCK RIDERS on the damage offer, TICKED by default (RULINGS *The gate before the roll*).
+ * THE CLOCK RIDERS on the damage offer, TICKED by default (RULINGS *The gate before the roll*) — but an
+ * `unticked` row (a scarce die spent only by choice: Combat Inspiration's Inspired die).
  * ⚠ `caveat` is accepted and IGNORED: no caveat line on the row. An effect-only rider shows `says`.
  * @param {{key: string, label: string, formula: string|null, says?: string|null, type: string|null, why: string, rule: object|string|null,
- *          usesLeft?: number|null, caveat?: string}[]} riders
+ *          usesLeft?: number|null, caveat?: string, unticked?: boolean}[]} riders
  */
 export function riderMenuHTML(riders) {
   const rows = (riders ?? []).filter(r => r.formula || r.says);
@@ -251,7 +252,7 @@ export function riderMenuHTML(riders) {
       <label data-bf-rider-row="${attr(r.key)}" style="display:grid;grid-template-columns:auto 1fr auto;gap:0.2rem 0.5rem;align-items:center;
              margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
              border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
-        <input type="checkbox" name="bf-rider" value="${attr(r.key)}" checked style="margin:0;">
+        <input type="checkbox" name="bf-rider" value="${attr(r.key)}" ${r.unticked ? "" : "checked"} style="margin:0;">
         <span style="font-weight:bold;">${attr(r.label)} — ${r.formula ? `${attr(r.formula)}${r.type ? ` ${attr(r.type)}` : ""}` : attr(r.says)}</span>
         <span style="font-size:var(--font-size-10,10px);letter-spacing:0.06em;text-transform:uppercase;white-space:nowrap;opacity:0.85;">${(r.usesLeft === null) || (r.usesLeft === undefined) ? "" : `${Math.max(0, r.usesLeft - 1)} use${(r.usesLeft - 1) === 1 ? "" : "s"} left after`}</span>
         ${foldedRuleHTML(r.rule).replace("grid-column:1 / -1", "grid-column:2 / -1")}
@@ -261,6 +262,28 @@ export function riderMenuHTML(riders) {
       <div style="font-weight:bold;font-size:var(--font-size-12,12px);">Riding this hit</div>
       ${items}
     </div>`;
+}
+
+
+/**
+ * THE OPTION ASK on the damage offer: a feature whose option the sheet never records (Hunter's Prey) asks
+ * once which the character took; the pick is kept on the feature. Nothing is picked until a radio is.
+ * @param {{featureId: string, feature: string, options: {value: string, note: string}[]}[]} asks
+ */
+export function optionAskHTML(asks) {
+  if ( !asks?.length ) return "";
+  return asks.map(a => `
+    <div data-bf-option-ask="${attr(a.featureId)}" style="margin-top:0.5rem;">
+      <div style="font-weight:bold;font-size:var(--font-size-12,12px);">${attr(a.feature)} — which option did you take?</div>
+      <div style="font-size:var(--font-size-11,11px);opacity:0.8;">Asked once and kept on the feature; the card's <em>Change</em> asks again (after a rest).</div>
+      ${a.options.map(o => `
+      <label style="display:flex;gap:0.5rem;align-items:center;margin:0.3rem 0;padding:0.35rem 0.5rem;border-radius:4px;background:rgba(0,0,0,0.06);
+             border:1px solid var(--color-border-light,rgba(0,0,0,0.2));cursor:pointer;">
+        <input type="radio" name="bf-option-${attr(a.featureId)}" value="${attr(o.value)}" style="margin:0;">
+        <span style="font-weight:bold;">${attr(o.value)}</span>
+        <span style="font-size:var(--font-size-11,11px);opacity:0.8;">${attr(o.note)}</span>
+      </label>`).join("")}
+    </div>`).join("");
 }
 
 

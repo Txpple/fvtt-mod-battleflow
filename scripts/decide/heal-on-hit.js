@@ -36,3 +36,18 @@ export function healOnHitAmount(row, { taken, parts = [] }) {
 export function healOnHitTitle({ spell, caster, amount, target }) {
   return `${spell} — ${caster} regains ${amount} Hit Point${amount === 1 ? "" : "s"} from ${target}`;
 }
+
+/**
+ * `on: "kill"`: does this drop pay the bearer? An ENEMY — the two tokens on opposite sides (a neutral has no
+ * side) — and the bearer dealt the damage or stands within `within` feet of the fallen (an unread distance
+ * never pays a bystander).
+ * @param {{dealt: boolean, feet: number|null, within: number|null, sides: [number, number]}} facts
+ * @returns {{pays: boolean, why: string}}
+ */
+export function killPays({ dealt, feet, within, sides }) {
+  const [mine, theirs] = sides ?? [0, 0];
+  if ( !((mine === 1) && (theirs === -1)) && !((mine === -1) && (theirs === 1)) ) return { pays: false, why: "not an enemy" };
+  if ( dealt ) return { pays: true, why: "you dropped an enemy to 0 Hit Points" };
+  if ( (within !== null) && (feet !== null) && (feet <= within) ) return { pays: true, why: `an enemy dropped to 0 Hit Points ${feet} ft from you` };
+  return { pays: false, why: (feet === null) ? "the distance cannot be read" : `${feet} ft away — beyond ${within ?? 0} ft` };
+}

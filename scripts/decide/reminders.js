@@ -315,10 +315,10 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
 }
 
 /** The `EFFECT_BENDS` rows either sheet carries for this roll. Facets: `judge`, `counted: false`,
- * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`.
+ * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`, `member` (the Wolf).
  * `allyNear` is three-valued: only a measured false skips — never guess an exemption.
- * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean},
- *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean},
+ * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean},
+ *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null, item?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts */
@@ -361,7 +361,8 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( row.match === "feature" ) {
       return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
     }
-    return (who.effects ?? []).filter(e => effectCarriesRow(e, name, row));
+    // `member`: an emanation's member copy alone — the bearer's own effect of the same name never bends.
+    return (who.effects ?? []).filter(e => effectCarriesRow(e, name, row) && (!row.member || !!e.member));
   };
   const out = [];
   for ( const [key, base] of Object.entries(table ?? {}) ) {

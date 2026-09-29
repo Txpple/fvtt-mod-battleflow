@@ -194,10 +194,12 @@ describe("the registry's clock-rider data", () => {
       // A row with no activity names its own `amount` (Celestial Revelation, 2026-09-25: no
       // activity carries the extra damage — the text's `@prof` does).
       // …or no damage at all: an effect-only row (the PHB feats, group 3) says what it does instead.
-      if (row.activity === null && !row.says) expect(row.amount, key).toMatch(/^@/);
-      else if (row.activity === null)
-        expect(row.lands?.name || row.bonusDice || row.random, key).toBeTruthy();
-      else expect(row.activity, key).toBeTruthy();
+      // …or the die is the granting bard's (A1, Combat Inspiration: `inspired`).
+      if (row.activity === null && !row.says && !row.inspired)
+        expect(row.amount, key).toMatch(/^@/);
+      else if (row.activity === null && !row.inspired)
+        expect(row.lands?.name || row.bonusDice || row.random || row.enchant, key).toBeTruthy();
+      else if (!row.inspired) expect(row.activity, key).toBeTruthy();
       if (row.judge === "transformed") expect(row.forms?.length, key).toBeGreaterThan(0);
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
@@ -208,7 +210,9 @@ describe("the registry's clock-rider data", () => {
           row.uses === true ||
             row.crit === true ||
             row.judge === "opportunity" ||
-            row.self === true,
+            row.self === true ||
+            row.enchant === true ||
+            row.inspired === true,
           key
         ).toBe(true);
       if (row.effects || row.lands)

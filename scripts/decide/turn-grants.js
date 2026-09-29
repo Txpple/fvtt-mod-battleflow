@@ -107,3 +107,20 @@ export function grantTitle({ spell, bearer, total, type, deals = false }) {
   if ( type === "temphp" ) return `${spell} — ${bearer} gains ${n} Temporary Hit Point${n === 1 ? "" : "s"}`;
   return `${spell} — ${bearer} regains ${n} Hit Point${n === 1 ? "" : "s"}`;
 }
+
+/**
+ * A `remind: "extend"` row (Rage): did this turn extend it — an attack roll at an ENEMY, or a save forced on one?
+ * `cards` are the bearer's own cards this turn, each `{ kind: "attack"|"save", sides }` (its targets' dispositions);
+ * a card with no targets counts (never judged against the player). The Bonus Action is nobody's record.
+ * @param {{cards: {kind: string, sides: number[]}[], side: number}} facts
+ * @returns {{extended: boolean, why: string}}
+ */
+export function extendedThisTurn({ cards, side }) {
+  const enemy = s => ((side === 1) && (s === -1)) || ((side === -1) && (s === 1)) || (side === 0);
+  for ( const c of (cards ?? []) ) {
+    if ( !c.sides?.length || c.sides.some(enemy) ) {
+      return { extended: true, why: (c.kind === "attack") ? "an attack roll against an enemy" : "an enemy's saving throw forced" };
+    }
+  }
+  return { extended: false, why: "no attack roll against an enemy and forced no saving throw" };
+}

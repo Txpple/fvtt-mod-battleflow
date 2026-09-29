@@ -28,3 +28,20 @@ export function effectsAfterChoice(effectNames, choice) {
   if ( !chosen || !options.has(chosen) ) return null;
   return names.filter(n => !options.has(lower(n)) || (lower(n) === chosen));
 }
+
+/** A `picks` row (EFFECT_CHOICES): the effects that land for this pick — every effect no pick gates, and the
+ * pick's own; null while pending. An `on` row's trigger effects never wait (its pick lands elsewhere).
+ * @param {string[]} effectNames
+ * @param {{picks?: readonly string[], lands?: Readonly<Record<string, readonly string[]>>, on?: string}} row
+ * @param {{chosen?: string|null}|null|undefined} choice
+ * @returns {string[]|null} */
+export function effectsAfterPick(effectNames, row, choice) {
+  const names = effectNames ?? [];
+  if ( row?.on ) return [...names];
+  const chosen = lower(choice?.chosen);
+  if ( !chosen || !(row?.picks ?? []).some(p => lower(p) === chosen) ) return null;
+  const lands = Object.entries(row?.lands ?? {});
+  const gated = new Set(lands.flatMap(([, list]) => list.map(lower)));
+  const mine = new Set((lands.find(([pick]) => lower(pick) === chosen)?.[1] ?? []).map(lower));
+  return names.filter(n => !gated.has(lower(n)) || mine.has(lower(n)));
+}

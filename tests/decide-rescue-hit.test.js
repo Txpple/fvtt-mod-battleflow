@@ -350,7 +350,8 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
       expect(typeof row.uses, name).toBe("boolean");
       expectPointer(row.rule, name);
       expect(row.rule.item, name).toBe(name);
-      expect(row.activity, name).toBeTruthy();
+      // an `inspired` row pays with the answerer's Inspired effect, no activity (A1, Combat Inspiration)
+      expect(row.activity || row.inspired, name).toBeTruthy();
     }
     expect(reg.INTERRUPT_ROLLS.Lucky).toMatchObject({
       reaction: false,

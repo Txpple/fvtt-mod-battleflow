@@ -63,7 +63,7 @@ describe("Tier 1 — the rows", () => {
         .healRerollEntries()
         .map(e => e.kind)
         .sort()
-    ).toEqual(["beacon of hope", "healer"]);
+    ).toEqual(["beacon of hope", "healer", "starry form"]);
     expectPointer(row.rule);
   });
   it("Heroism: the one turn-start grant — Bravery on the bearer, the spell's Heal activity rolled again on the caster", () => {
@@ -644,11 +644,14 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
   });
 
   it("Vampiric Touch: the one HEAL_ON_HIT row — half the necrotic damage; the amount by the parts' proportion, floored", () => {
-    expect(Object.keys(reg.HEAL_ON_HIT)).toEqual(["Vampiric Touch"]);
+    expect(Object.keys(reg.HEAL_ON_HIT)).toEqual(["Vampiric Touch", "Dark One's Blessing"]);
     const row = reg.HEAL_ON_HIT["Vampiric Touch"];
     expect(row).toMatchObject({ share: 0.5, type: "necrotic" });
     expectPointer(row.rule);
-    expect(reg.healOnHitEntries()).toEqual([{ kind: "vampiric touch" }]);
+    expect(reg.healOnHitEntries()).toEqual([
+      { kind: "vampiric touch" },
+      { kind: "dark one's blessing" }
+    ]);
     expect(
       hh.healOnHitAmount(row, { taken: 11, parts: [{ value: 11, type: "necrotic" }] })
     ).toMatchObject({ heals: true, amount: 5 });

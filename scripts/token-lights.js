@@ -1,7 +1,7 @@
 /**
  * Battle Flow — token lights, senses and sizes: a use or effect whose text changes the token, carried on an effect.
  */
-import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
+import { MODULE_ID, TITLE, canApplyTo, drivesMomentFor, isActiveGM, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, resolveUuid, namesAnswering } from "./lookup.js";
 import { tokenLightEntries, tokenSenseEntries, tokenSizeEntries, listedNames } from "./decide/registry.js";
@@ -80,10 +80,12 @@ function standingLights(key, sourceUuid) {
 function lightEffectData(row, item, activity, target, sourceUuid, ruleHtml = "") {
   const base = row.effect ? item?.effects?.find(e => lower(e.name) === lower(row.effect)) ?? null : null;
   if ( row.effect && !base ) return null;
+  // An `ends: "enchantment"` row's clock is its enchantment's (the activity carries none of its own).
+  const enchantment = (row.ends === "enchantment") ? item?.effects?.find(e => (e.type === "enchantment") && (lower(e.name) === lower(row.key))) ?? null : null;
   const data = base ? base.toObject() : {
     name: item?.name ?? row.key, img: item?.img ?? "icons/magic/light/explosion-star-glow-silhouette.webp",
     type: "base", description: ruleHtml,
-    duration: activity?.duration?.getEffectData?.() ?? {}
+    duration: enchantment ? { ...(enchantment._source?.duration ?? {}) } : (activity?.duration?.getEffectData?.() ?? {})
   };
   delete data._id;
   // The pack's own clock for its effect — or, clockless, the activity's.
@@ -171,7 +173,8 @@ listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
     title: names.length ? `${f.key} — ${names.join(", ")} shed${names.length === 1 ? "s" : ""} light: ${row.bright} ft Bright, ${row.dim - row.bright} ft more Dim`
       : `${f.key} — no light landed`,
     subtitle: [
-      row.on === "self" ? "while the transformation stands" : "for the spell's duration; casting it again puts it out",
+      (row.ends === "enchantment") ? "while the weapon's enchantment stands"
+        : row.on === "self" ? "while the transformation stands" : "for the spell's duration; casting it again puts it out",
       (f.skipped ?? []).length ? `not landed (no permission here): ${f.skipped.join(", ")}` : null,
       row.caveat ?? null
     ].filter(Boolean).join(" · "),
@@ -179,6 +182,30 @@ listen("dnd5e.renderChatMessage", "token-lights", (message, html) => {
   });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });
+
+// An `ends: "enchantment"` light goes out with its enchantment: the weapon's copy deleted (or the use's
+// enchantment ended early), the bearer's light is deleted on the elect.
+listen("deleteActiveEffect", "token-lights", effect => {
+  try {
+    if ( !isActiveGM() || (effect.type !== "enchantment") || !(effect.parent instanceof Item) ) return;
+    const actor = effect.parent.actor;
+    if ( !actor ) return;
+    const keys = Object.entries(TOKEN_LIGHTS).filter(([k, r]) => (r.ends === "enchantment") && (lower(k) === lower(effect.name))).map(([k]) => k);
+    if ( !keys.length ) return;
+    // Only when no other copy of it stands on the bearer's items (a re-use moved it to another weapon).
+    const still = actor.items.some(i => !answersItem(i, effect.name)
+      && i.effects.some(e => (e.id !== effect.id) && (e.type === "enchantment") && (lower(e.name) === lower(effect.name))));
+    if ( still ) return;
+    const lit = actor.effects.filter(e => keys.includes(e.getFlag(MODULE_ID, LIGHT_FLAG)?.key));
+    if ( lit.length ) void actor.deleteEmbeddedDocuments("ActiveEffect", lit.map(e => e.id))
+      .catch(err => console.warn(`${TITLE} | Could not put the light out — delete it by hand.`, err));
+  } catch(err) {
+    console.warn(`${TITLE} | Could not put an enchantment's light out — delete it by hand.`, err);
+  }
+});
+
+/** The feature item itself carries the enchantment as its SOURCE; it never counts as a standing copy. */
+const answersItem = (item, name) => lower(item.name) === lower(name);
 
 // TOKEN SENSES (registry TOKEN_SENSES): the pack's own effect gains the changes as it is created, on
 // whichever client creates it.

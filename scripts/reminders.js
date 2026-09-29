@@ -451,7 +451,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const sheetOf = actor => ({
     uuid: actor.uuid,
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
-      sourceFeet: sourceFeetOf(actor, sourceOf(e)) })),
+      sourceFeet: sourceFeetOf(actor, sourceOf(e)), member: !!e.getFlag(MODULE_ID, "emanation") })),
     features: featuresOf(actor),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),

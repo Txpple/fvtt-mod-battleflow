@@ -709,7 +709,9 @@ function featureSpec(tok, row) {
   const actor = tok.actor;
   const item = itemNamed(actor, row.item ?? row.key);
   if ( !item ) return null;
-  if ( row.while && !actor.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) return null;
+  for ( const name of [].concat(row.while ?? []) ) {
+    if ( !actor.effects.some(e => e.active && (lower(e.name) === lower(name))) ) return null;
+  }
   const held = row.holding ? heldWeaponFor(actor, row.holding) : null;
   if ( row.holding && !held ) return null;
   const rollData = actor.getRollData();

@@ -59,7 +59,10 @@ describe("INTERRUPT_REDUCTIONS — a reaction that reduces by a roll (Parry; Sto
     for (const [key, row] of Object.entries(reg.INTERRUPT_REDUCTIONS)) {
       expect(row.activity, key).toBeTruthy();
       // a reduction for another creature (Interception, 2026-09-26) pays with the Reaction alone
-      expect(row.pool === true || Number.isFinite(row.ally), key).toBe(true);
+      // …and so does the defender's own Reaction when the row's `spend` says so (A1, Deflect Attacks)
+      expect(row.pool === true || Number.isFinite(row.ally) || row.spend === "Reaction", key).toBe(
+        true
+      );
       expect(["Maneuver", "Reaction"], key).toContain(row.eyebrow);
       expect(row.spend, key).toBeTruthy();
       expect(row.hit, key).toMatch(/attack$/);
@@ -97,15 +100,19 @@ describe("d20 folds — the spends, one mechanism", () => {
   it("ships every surveyed feature", () => {
     expect(reg.D20_FOLDS.map(e => e.kind).sort()).toEqual([
       "advantage",
+      "advantage",
       "bardic",
       "heroic",
       "seeking",
       "succeed",
       "tactical",
       "tactical",
+      "tactical",
       "tactical"
     ]);
     expect(reg.D20_FOLDS.map(e => e.name)).toContain("Ambush");
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Commanding Presence", kind: "tactical" });
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Tides of Chaos", kind: "advantage" });
   });
 
   // ⚠ The row names the EFFECT ("Inspired") the bard applies, not the bard's own feat: the feat

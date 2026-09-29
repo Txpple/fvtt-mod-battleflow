@@ -434,7 +434,12 @@ describe("TURN_GRANTS — the turn-start damage", () => {
     });
     expect(row.while).toBeUndefined();
     expectPointer(row.rule);
-    expect(reg.turnGrantEntries().map(e => e.kind)).toEqual([
+    expect(
+      reg
+        .turnGrantEntries()
+        .map(e => e.kind)
+        .filter(k => k !== "rage")
+    ).toEqual([
       "heroism",
       "regeneration",
       "constricting vine",

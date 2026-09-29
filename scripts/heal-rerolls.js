@@ -3,15 +3,17 @@
  * is rerolled automatically, never a choice (DESIGN R1). The roll is born `healReroll` DUE and the
  * heal applier waits, so healing lands ONCE; a pack's own `r1` is taken off. A second 1 stands.
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
-import { lower, featureNamed, resolveUuid } from "./lookup.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor, canAnswerFor } from "./core.js";
+import { lower, featureNamed, resolveUuid, activityNamed, cardActivity } from "./lookup.js";
 import { healRerollEntries, listedNames } from "./decide/registry.js";
-import { rebuildRolls } from "./shared.js";
+import { rebuildRolls, withTargets } from "./shared.js";
+import { nearestFeet, tokenOfActor } from "./geometry.js";
+import { CARD, isCard, originData } from "./decide/card.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
-import { bfCard, esc } from "./decide/present.js";
-import { dramaticVerdictPause, registerResumable } from "./ui.js";
+import { bfCard, esc, popupKey, ruleLine } from "./decide/present.js";
+import { dramaticVerdictPause, momentButton, openMomentPopup, registerResumable, shownMoments } from "./ui.js";
 import { moveAppliedDamage } from "./auto-apply.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -215,4 +217,110 @@ listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
     div.innerHTML = `<i class="fa-solid fa-hand-holding-medical" data-tooltip="${esc(flag.feature ?? "")}"></i> ${esc(cardLine(flag))}`;
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The healing-reroll line could not render.`, err); }
+});
+
+/* --- `also`: one more creature healed after the caster's own healing spell (Starry Form's Chalice) --- */
+
+const ALSO_FLAG = "alsoHeal";
+
+/** The listed `also` rows due for this healing card's caster: the spell cast with a slot, the form standing. */
+function alsoRowsFor(message) {
+  if ( !isCard(message, CARD.healing) ) return [];
+  const activity = cardActivity(message);
+  const item = activity?.item;
+  // A levelled spell: the slot is the cast's (a cantrip heals nobody; a free cast is the table's to wave off).
+  if ( (item?.type !== "spell") || !(Number(item.system?.level ?? 0) > 0) ) return [];
+  const caster = message.getAssociatedActor?.() ?? activity.actor ?? null;
+  if ( !(caster instanceof Actor) ) return [];
+  const listed = listedNames(healRerollEntries());
+  const out = [];
+  for ( const [key, row] of Object.entries(HEAL_REROLLS) ) {
+    if ( !row.also || !listed.has(lower(key)) ) continue;
+    const feature = featureNamed(caster, key);
+    const heal = feature ? activityNamed(feature, row.also) : null;
+    if ( !heal ) continue;
+    if ( row.while && !caster.effects.some(e => e.active && (lower(e.name) === lower(row.while))) ) continue;
+    if ( row.form && !caster.effects.some(e => e.active && (e.getFlag(MODULE_ID, "formChip")?.form === row.form)) ) continue;
+    out.push({ key, row, caster, feature, heal });
+  }
+  return out;
+}
+
+/** Who the pick may heal: the caster, and every creature on its side within the row's feet. */
+function alsoCandidates(caster, feet) {
+  const from = tokenOfActor(caster);
+  if ( !from ) return [];
+  const side = from.document?.disposition;
+  const out = [{ uuid: caster.uuid, name: from.document?.name ?? caster.name, token: from }];
+  for ( const t of (canvas.tokens?.placeables ?? []) ) {
+    if ( (t === from) || !t.actor?.system?.attributes?.hp || (t.document?.disposition !== side) ) continue;
+    if ( out.some(c => c.uuid === t.actor.uuid) ) continue;
+    const d = nearestFeet(from, t);
+    if ( (d !== null) && (d <= feet) ) out.push({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name, token: t });
+  }
+  return out;
+}
+
+/** The pick: kept on the card first (once per cast), then the feature's heal used at that creature. */
+async function pickAlso(message, found, candidate) {
+  let won = false;
+  await queueFlagWrite(message, ALSO_FLAG, current => {
+    if ( current.picked ) return false;
+    Object.assign(current, { ...statContext(found.caster.uuid), key: found.key, also: found.row.also, picked: candidate.uuid, name: candidate.name });
+    won = true;
+  });
+  if ( !won ) return;
+  try {
+    await withTargets([candidate.token], async () => {
+      const used = await found.heal.use({ subsequentActions: false }, { configure: false });
+      const usageId = used?.message?.id ?? null;
+      await found.heal.rollDamage({}, { configure: false }, { data: usageId ? originData(usageId) : {} });
+    });
+  } catch(err) {
+    console.error(`${TITLE} | ${found.row.also} could not be used — use it from the sheet.`, err);
+  }
+}
+
+async function showAlsoPopup(message, found, candidates) {
+  const formula = found.heal.healing?.formula ?? "";
+  await openMomentPopup(message, "alsoHeal", found.caster, {
+    title: `${found.row.also} — ${found.caster.name}`, icon: "fa-solid fa-star",
+    content: bfCard({ img: found.feature.img ?? null, eyebrow: `${found.key} — ${found.row.also}`, tone: "pending",
+      title: `Heal a creature within ${found.row.within} ft for ${formula || "the Chalice's die"}?`,
+      subtitle: "you or another creature — or pass", lines: [ruleLine(found.row.rule)] }),
+    buttons: [...candidates.map((c, i) => ({ action: `heal-${i}`, label: c.name, default: i === 0, callback: () => void pickAlso(message, found, c) })),
+      { action: "pass", label: "Pass", callback: () => {} }]
+  });
+}
+
+listen("dnd5e.renderChatMessage", "heal-rerolls", (message, html) => {
+  try {
+    const done = message.getFlag(MODULE_ID, ALSO_FLAG);
+    if ( done?.picked ) {
+      const line = document.createElement("div");
+      line.innerHTML = bfCard({ eyebrow: `${done.key} — ${done.also}`, tone: "good", title: `${done.also} — ${done.name} is healed too`, subtitle: "its own card" });
+      html.querySelector(SURFACES.messageContent)?.appendChild(line);
+      return;
+    }
+    for ( const found of alsoRowsFor(message) ) {
+      if ( !canAnswerFor(found.caster) ) continue;
+      const candidates = alsoCandidates(found.caster, found.row.within);
+      if ( !candidates.length ) continue;
+      const row = document.createElement("div");
+      row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
+      const label = document.createElement("span");
+      label.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.8;";
+      label.textContent = `${found.row.also} — heal one more within ${found.row.within} ft:`;
+      row.appendChild(label);
+      for ( const c of candidates ) row.appendChild(momentButton(c.name, () => void pickAlso(message, found, c)));
+      html.querySelector(SURFACES.messageContent)?.appendChild(row);
+      const shownKey = popupKey(message.id, "alsoHeal");
+      if ( !shownMoments.has(shownKey) && ((Date.now() - (message.timestamp ?? 0)) < 60_000) ) {
+        shownMoments.add(shownKey);
+        void showAlsoPopup(message, found, candidates);
+      }
+    }
+  } catch(err) {
+    console.warn(`${TITLE} | The second heal could not be offered — use it from the sheet.`, err);
+  }
 });

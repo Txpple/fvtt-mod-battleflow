@@ -18,7 +18,11 @@ beforeAll(async () => {
 
 describe("the table", () => {
   it("names Fire Shield with its two shields, a question and the rule — no amounts", () => {
-    expect(Object.keys(reg.EFFECT_CHOICES)).toEqual(["Fire Shield"]);
+    expect(Object.keys(reg.EFFECT_CHOICES)).toEqual([
+      "Fire Shield",
+      "Starry Form",
+      "Rage of the Wilds"
+    ]);
     const row = reg.EFFECT_CHOICES["Fire Shield"];
     expect(row.effects).toEqual(["Warm Shield", "Chill Shield"]);
     expect(row.ask).toMatch(/warm/i);

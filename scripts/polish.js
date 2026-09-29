@@ -8,7 +8,7 @@ import { EFFECT_CHOICES, answers, tableIndex } from "./decide/registry.js";
 import { effectChoiceFor } from "./decide/choices.js";
 import { CARD, TARGETS_KEY, activityTypeOf, activityUuidOf, castLevelOn, isCard, itemNameOf, itemUuidOf, targetsOf } from "./decide/card.js";
 import { targetDescriptorOf, dispositionStyle } from "./shared.js";
-import { cardActivity, cardItem, profileEffectSync } from "./lookup.js";
+import { cardActivity, cardItem, featureNamed, lower, profileEffectSync } from "./lookup.js";
 import { listen } from "./dispatch.js";
 
 /** A reaction's or a spell's row means a spell or a monster's feature, never armor of the same name. */
@@ -91,13 +91,18 @@ function holdPendingFor(actorUuid) {
  * null when unlisted or fewer than two match. */
 const EFFECT_CHOICE_INDEX = tableIndex(EFFECT_CHOICES);
 function castChoice(activity) {
-  const key = EFFECT_CHOICE_INDEX.keyFor(activity?.item);
+  // The item's own row, else a row asked at this item's use by a feature its bearer holds (`on`).
+  const key = EFFECT_CHOICE_INDEX.keyFor(activity?.item)
+    ?? Object.keys(EFFECT_CHOICES).find(k => EFFECT_CHOICES[k].on && answers(EFFECT_CHOICES[k].on, activity?.item)
+      && !!featureNamed(activity?.actor, k)) ?? null;
   if ( !key || !effectChoiceEntries().some(e => String(e.kind).toLowerCase() === key.toLowerCase()) ) return null;
   const row = EFFECT_CHOICES[key];
   if ( !row ) return null;
+  if ( row.activity && (lower(activity?.name) !== lower(row.activity)) ) return null;
   // ⚠ SYNC at preCreate: profiles resolve effects async, so names come off the item's effects by id.
-  const options = effectChoiceFor(row, (activity?.applicableEffects ?? []).map(p => profileEffectSync(p, activity?.item)?.name));
-  return options ? { key, options, ask: row.ask, rule: row.rule, chosen: null } : null;
+  const options = row.picks ? [...row.picks]
+    : effectChoiceFor(row, (activity?.applicableEffects ?? []).map(p => profileEffectSync(p, activity?.item)?.name));
+  return options ? { key, options, ask: row.ask, rule: row.rule, chosen: null, ...(row.on ? { free: true } : {}) } : null;
 }
 
 /** Everything the elect needs to apply a cast, captured off the card at preCreate. */

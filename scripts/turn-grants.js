@@ -11,8 +11,10 @@
  * `deals: "grappled"` pays the bearer's damage to what it grapples at its own turn start (Barbed Hide).
  */
 import { MODULE_ID, TITLE, drivesMomentFor, statContext } from "./core.js";
-import { activityNamed, activityOfType } from "./lookup.js";
-import { effectSourceOf } from "./shared.js";
+import { activityNamed, activityOfType, cardActivity } from "./lookup.js";
+import { chitStampOf, effectSourceOf } from "./shared.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { extendedThisTurn } from "./decide/turn-grants.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
 import { TURN_GRANTS, answers, turnGrantEntries, listedNames } from "./decide/registry.js";
 import { grantRowFor, grantDue, grantTitle, featureGrantRows, blockingTypes, damagedSince } from "./decide/turn-grants.js";
@@ -44,7 +46,48 @@ function payEffects(actor, combat, { on, round, turn, why }) {
     const due = grantDue({ paid, place: settledAt(place) ? null : place });
     if ( !due.due ) continue;
     paid.add(place);
+    if ( row.remind ) { void remindExtend({ effect, row, item, actor, place, combat, round, turn }); continue; }
     void pay({ effect, row, item, actor, place, why: why ?? due.why, on });
+  }
+}
+
+/** When each combatant's turn began on THIS client (`combat|round|turn` → ms): the turn's own cards are those after. */
+const turnBegan = new Map();
+listen("updateCombat", "turn-grants", (combat, changes) => {
+  if ( (!("turn" in changes) && !("round" in changes)) || !combat.started ) return;
+  turnBegan.set(`${combat.id}|${combat.round}|${combat.turn}`, Date.now());
+});
+
+/**
+ * A `remind: "extend"` row (Rage) at the bearer's turn END: nothing paid, nothing ended — a card when the turn
+ * shows no attack roll at an enemy and no save forced on one. The turn the effect began is its own extension;
+ * a turn this client never saw begin is left alone (never a reminder on a guess).
+ */
+async function remindExtend({ effect, row, item, actor, place, combat, round, turn }) {
+  try {
+    if ( chitStampOf(effect) === `${combat.id}:${round}:${turn}` ) return;
+    const began = turnBegan.get(`${combat.id}|${round}|${turn}`);
+    if ( !began ) return;
+    const mine = game.messages.contents.filter(m => ((m.timestamp ?? 0) >= began) && (m.getAssociatedActor?.()?.uuid === actor.uuid));
+    const side = actor.getActiveTokens?.()?.[0]?.document?.disposition ?? 0;
+    const cards = mine.map(m => {
+      const activity = cardActivity(m);
+      const kind = isCard(m, CARD.attack) ? "attack" : ((activity?.type === "save") && !isCard(m, CARD.damage)) ? "save" : null;
+      return kind ? { kind, sides: targetsOf(m).map(t => fromUuidSync(t.uuid)?.getActiveTokens?.()?.[0]?.document?.disposition ?? 0) } : null;
+    }).filter(Boolean);
+    const verdict = extendedThisTurn({ cards, side });
+    if ( verdict.extended ) return;
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({ img: item.img ?? null, eyebrow: "Turn end", tone: "neutral",
+        title: `${row.key} — it ends now unless you extended it`,
+        subtitle: `${actor.name} made ${verdict.why} this turn — ${row.says}; nothing is removed`,
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { [GRANT_FLAG]: { ...statContext(actor.uuid), key: row.key, place, effectUuid: effect.uuid,
+        actorUuid: actor.uuid, remind: row.remind, why: verdict.why } } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | ${row?.key ?? "The"} reminder could not post.`, err);
   }
 }
 

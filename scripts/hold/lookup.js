@@ -10,9 +10,9 @@ import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
-import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf } from "../lookup.js";
+import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf } from "../lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
-import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted } from "../shared.js";
+import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
 
@@ -81,7 +81,7 @@ export async function usableReaction(actor, name) {
  * The first listed interrupt usable now; `spentOk` looks past a spent Reaction (a greyed row).
  * @returns {Promise<{entry: any, item: any, activity: any, reduce?: any}|null>}
  */
-export async function findInterrupt(actor, /** @type {{isCritical: boolean, spentOk?: boolean, ranged?: boolean|null}} */ { isCritical, spentOk = false, ranged = null }) {
+export async function findInterrupt(actor, /** @type {{isCritical: boolean, spentOk?: boolean, ranged?: boolean|null, dealt?: string[]|null}} */ { isCritical, spentOk = false, ranged = null, dealt = null }) {
   if ( !actor || (!spentOk && reactionSpent(actor)) ) return null;
   for ( const entry of interruptEntries() ) {
     // `roll` rows are never THE reaction: they ride beside it (rollRescuesOf).
@@ -93,6 +93,9 @@ export async function findInterrupt(actor, /** @type {{isCritical: boolean, spen
     if ( reduce?.row?.ally ) continue;
     // A reduction for RANGED hits only (Deflect Missile): a melee hit, or one whose mode is unknown, never holds for it.
     if ( reduce?.row?.ranged && (ranged !== true) ) continue;
+    // A reduction for some damage types only (Deflect Attacks): an unread type counts; `anyType` lifts it.
+    if ( reduce?.row?.types && dealt?.length && !dealt.some(t => reduce.row.types.includes(t))
+      && !(reduce.row.anyType && featureNamed(actor, reduce.row.anyType)) ) continue;
     const kind = reduce ? "damage" : entry.kind;
     // A natural 20 hits regardless of AC.
     if ( isCritical && (kind === "ac") ) continue;
@@ -139,13 +142,14 @@ export function rollRescuesOf(actor) {
   return out;
 }
 
-/** What the attack was: RANGED (the attack's own mode — a ranged weapon, a thrown one — else its activity's type), a SPELL attack. */
+/** What the attack was: RANGED (the attack's own mode — a ranged weapon, a thrown one — else its activity's type), a SPELL attack,
+ * and the damage types its activity deals. */
 export function attackFactsOf(attackMessage) {
   const mode = String(attackMessage?.system?.mode ?? "");
   const activity = cardActivity(attackMessage);
   const ranged = (mode === "ranged") || mode.startsWith("thrown") || (activity?.attack?.type?.value === "ranged");
   const spellAttack = (activity?.item?.type === "spell") || (activity?.attack?.type?.classification === "spell");
-  return { ranged, spellAttack };
+  return { ranged, spellAttack, dealt: activity ? dealtTypesOf(activity) : [] };
 }
 
 /**
@@ -235,18 +239,25 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( token.document?.disposition !== side ) continue;
       const actor = token.actor;
       const self = !!actor && (actor.uuid === attacker.uuid);
+      // On a hit, the hit creature itself answers only a `self` row; `only: "self"` lets nobody else answer.
+      const hitSelf = !!actor && (on === "hit") && (actor.uuid === defender.uuid);
       if ( !actor || (self && !((on === "miss") && row.self)) || out.some(b => (b.uuid === actor.uuid) && (b.row === key)) ) continue;
+      if ( (row.only === "self") && !hitSelf ) continue;
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
-      const feet = nearestFeet(token, from);
+      const feet = hitSelf ? 0 : nearestFeet(token, (row.reach === "target") ? guarded : from);
       if ( (feet === null) || (feet > row.bystander) ) continue;
-      const item = featureNamed(actor, key);
+      // An `inspired` row: the answerer's own Inspired die, granted by a bard holding the feature.
+      const inspired = row.inspired ? inspiredDieOf(actor, key) : null;
+      if ( row.inspired && !inspired ) continue;
+      const item = inspired ? null : featureNamed(actor, key);
       const activity = item ? activityNamed(item, (self && row.selfActivity) ? row.selfActivity : row.activity) : null;
-      if ( !item || !activity ) continue;
-      if ( row.reaction && !self && reactionSpent(actor) ) continue;
-      const pool = poolOf(actor, activity) ?? item;
+      if ( !inspired && (!item || !activity) ) continue;
+      // A `self` answer on your own roll takes no Reaction (Guided Strike); a hit creature's own answer does.
+      if ( row.reaction && (!self || hitSelf) && reactionSpent(actor) ) continue;
+      const pool = activity ? (poolOf(actor, activity) ?? item) : null;
       if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
       if ( bystanderMuted(actor, key) ) continue;
-      const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
+      const die = (row.bend !== "die") ? null : inspired ? inspired.die : formulaBonusOf(actor, row) ?? bystanderDie(actor, row);
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;   // a die nobody can read is never guessed
       // ⚠ The margin gate judges the AC: with the math hidden it would leak it (holdWouldMatter's rule),
       // so a die bend is then asked on every hit but a natural 20 or 1.
@@ -254,12 +265,36 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
         kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total), target: Number(ac), mode: facts.mode,
         isCritical: !!roll.isCritical, isFumble: !!roll.isFumble, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
       if ( !matters && !row.damage ) continue;
-      out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id,
-        activityId: activity.id ?? null, passed: !matters, bystander: true, ...(matters ? {} : { quiet: true }),
-        ...(self ? { self: true } : {}), die });
+      out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item?.id ?? null,
+        activityId: activity?.id ?? null, passed: !matters, bystander: true, ...(matters ? {} : { quiet: true }),
+        ...(self ? { self: true } : {}), ...(hitSelf ? { hitSelf: true } : {}),
+        ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}), die });
     }
   }
   return out;
+}
+
+/** A row's `bonus` written as a formula ("max(1, @abilities.cha.mod)"), resolved on the answerer; null otherwise. */
+function formulaBonusOf(actor, row) {
+  if ( (typeof row.bonus !== "string") || !row.bonus.includes("@") ) return null;
+  try {
+    const resolved = Roll.replaceFormulaData(row.bonus, actor.getRollData());
+    const n = Roll.validate(resolved) ? Math.floor(Number(Roll.safeEval(resolved))) : NaN;
+    return Number.isFinite(n) ? String(n) : null;
+  } catch { return null; }
+}
+
+/** The answerer's own Inspired die from a bard holding `featureName` — the effect, the bard, the die (the BARD's). */
+export function inspiredDieOf(actor, featureName) {
+  for ( const effect of actor?.effects ?? [] ) {
+    if ( !effect.active || (lower(effect.name) !== "inspired") ) continue;
+    const bard = grantingActor(effect);
+    if ( !bard || !featureNamed(bard, featureName) ) continue;
+    const scale = foundry.utils.getProperty(bard.getRollData(), "scale.bard.inspiration");
+    const die = scale?.formula ?? scale?.die ?? null;
+    if ( (typeof die === "string") && die.trim() ) return { effect, bard, die: die.trim() };
+  }
+  return null;
 }
 
 function rescueFactsOf(actor, roll) {
