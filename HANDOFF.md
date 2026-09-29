@@ -6,7 +6,7 @@
 ## FIRST — the state
 
 - **Pushed:** A3 + A1 on `origin/main` (`60865f5`, after a green regression battery: 18/18, settings clean).
-- **Local, unpushed on `main`:** A2 (`3a1d7a7` built, `a2bf9f4` the guard's words, `171b6b0` + `ee92df2` its live
+- **PUSHED 2026-09-29:** A2 (`3a1d7a7` built, `a2bf9f4` the guard's words, `171b6b0` + `ee92df2` its live
   proof — `smoke-classes` §28–31 green) and the docs. **A2's regression battery** (smoke-hitmenu, smoke-maneuvers,
   smoke-goliath, smoke-saves, smoke-guards, smoke-superiority, smoke-rescue, smoke-classes) is the push gate — if this
   file still says it is running, its output is the newest `dist/battery/` directory. Green → `git push`, then
@@ -37,7 +37,7 @@
 
 ## Next — in this order, each on the user's go
 
-1. **Push A2** once its battery is green (above).
+1. ~~Push A2~~ — DONE: its battery green (smoke-classes 119/119 after §25 put the canvas back on the range).
 2. **A4** — the healing seam and the caster's rows (plan §3 A4): Disciple of Life (`HEAL_REROLLS` `bonus` +
    `slotCast`), Potent Cantrip (`EVASIONS` `side: "caster"`, `onSuccess: 0.5`), Psychic Spells (`METAMAGIC` `free` +
    `fixed`). Suites: smoke-heal, smoke-saves, smoke-metamagic (+ a smoke-classes section if a fixture is missing).
