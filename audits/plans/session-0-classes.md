@@ -32,11 +32,12 @@ roll bent by a reaction, the kind the Monster Manual register holds for a player
 **vocabulary on the `roll` interrupt** (`bystander`, `tests`, `die`) plus one new seam (the save withhold and
 the check offer), not a kind: it changes the roll itself, which the `roll` kind already means. That is Q2.
 
-**The seven table rows are four tables:** `INITIATIVE_GRANTS` (regain on Initiative — Persistent Rage,
-Superior Inspiration, Uncanny Metabolism, Perfect Focus, Tandem Footwork), `WARD_POOLS` (the damage-absorbing
-pool — Arcane Ward, Bastion of Law, Projected Ward's reaction), `REROLLS` (the reroll kind's rows) and the
-cast riders' table (Wild Magic Surge, Inspiring Smite, Smite of Protection). None is a kind: one machine, rows
-of data.
+**The seven table rows are two tables:** `INITIATIVE_GRANTS` (regain on Initiative — Persistent Rage,
+Superior Inspiration, Uncanny Metabolism, Perfect Focus, Tandem Footwork) and `WARD_POOLS` (the damage-absorbing
+pool — Arcane Ward, Bastion of Law; Projected Ward is a reduction row drawing from it). Two more tables arrive
+as data behind other verdicts: `REROLLS` (the reroll kind's rows, counted as KIND) and the cast riders' table
+(Wild Magic Surge, Inspiring Smite, Smite of Protection — rows on `cast.js`, counted as ROW). None is a kind:
+one machine, rows of data.
 
 **The order is the band's, then the party's.** Session 0 seats a level 1–3 party, so the plan builds **band A
 (levels 1–5) for all twelve classes first** — 30 rows (29 in band A, plus Persistent Rage as its table's first customer) and the tables their customers sit on, in seven stages —
