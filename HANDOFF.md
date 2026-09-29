@@ -1,10 +1,14 @@
-# HANDOFF.md — the PHB classes: A4 pushed, next A5 (2026-09-29, evening)
+# HANDOFF.md — the PHB classes: A5 pushed, next A6 (2026-09-29, evening)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
 ## FIRST — the state
 
+- **A5 PUSHED** (`d91887e`; RULINGS *The PHB classes — A5*): Arcane Ward — the new `WARD_POOLS` table and
+  `scripts/ward-pools.js` (files 125); the take at `dnd5e.preApplyDamage`, created/refilled by Abjuration slot casts,
+  the receipt's take and its revert. `smoke-classes` §36 green; own suites green (smoke-battleflow, smoke-hold,
+  smoke-concentration, smoke-drop, smoke-styles, smoke-classes 144/144). Its three calls are the user's to overrule.
 - **A4 PUSHED** (`20739b1`, `844daa1`; RULINGS *The PHB classes — A4*): Disciple of Life, Potent Cantrip (the save
   half AND the attack half — a missed cantrip still deals half), Psychic Spells; `smoke-classes` §32–35 green, and
   its own suites green (smoke-battleflow, smoke-hold, smoke-saves, smoke-d20-folds, smoke-rescue, smoke-metamagic,
@@ -50,7 +54,7 @@
 
 1. ~~Push A2~~ — DONE: its battery green (smoke-classes 119/119 after §25 put the canvas back on the range).
 2. ~~Push A4~~ — DONE.
-3. **A5** (Arcane Ward — the ward pool, a new table and machine: plan §3 A5), then **A6**, **A7** — each on its own
+3. ~~A5~~ — DONE. **A6** (the grants on Initiative and at the turn: plan §3 A6), then **A7** — each on its own
    suites; **the FULL battery after A7**. Then **B1 → B5** (full battery), **C1** (full), **D1** (full).
 4. **Owed small:** a Legendary Resistance flip of a failed Stunning Strike lands no Slowed (`saves/verdict.js`);
    Physician's Touch's Poisoned is B4's.
