@@ -87,6 +87,28 @@ export const INTERRUPT_ROLLS = Object.freeze({
   "Protection": Object.freeze({ reaction: true, uses: false, point: null, activity: "Protect", ally: 5, holding: "shield", effect: "Protected",
     rule: Object.freeze({ item: "Protection", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstProtection" }),
     from: "Fighting Style feat" }),
+  // THE BYSTANDERS (RULINGS *The full release — the order*, Q2 option A): another creature's roll, bent by
+  // someone who is neither the roller nor its target. `bystander` the feet from the bystander to the ROLLER;
+  // `tests` which D20 Tests; `bend` "die" (a signed `die` read off the BYSTANDER's roll data, or a flat
+  // `bonus`) or "neutralise" (Advantage and Disadvantage gone, the first d20 standing — a rule of cool, Q3);
+  // `damage` the die may come off the damage roll instead (the card's quiet road, when the gate is silent).
+  // `on` which attack it bends: "hit" (a hostile's hit on the bystander's side, turned to a miss — the default),
+  // "miss" (its own side's miss, turned to a hit), "both"; `self` the bystander's own roll too, with no Reaction
+  // (`selfActivity` its pack activity). The pool is the activity's own consumption (`poolOf`). Asked only
+  // when the bend can change the verdict.
+  "Cutting Words": Object.freeze({ reaction: true, uses: true, point: null, activity: "Cut with Words",
+    bystander: 60, tests: Object.freeze(["attack", "check"]), bend: "die", sign: -1, die: "scale.bard.inspiration", damage: true,
+    rule: Object.freeze({ item: "Cutting Words", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCuttingWor" }),
+    from: "Bard — College of Lore 3" }),
+  "Restore Balance": Object.freeze({ reaction: true, uses: true, point: null, activity: "Prevent Advantage/Disadvantage",
+    bystander: 60, tests: Object.freeze(["attack", "save", "check"]), bend: "neutralise", on: "both",
+    rule: Object.freeze({ item: "Restore Balance", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrRestoreBal" }),
+    from: "Sorcerer — Clockwork Sorcery 3" }),
+  "Guided Strike": Object.freeze({ reaction: true, uses: true, point: null, activity: "Guide Another Creature",
+    self: true, selfActivity: "Guide Yourself",
+    bystander: 30, tests: Object.freeze(["attack"]), bend: "die", sign: 1, bonus: 10, on: "miss",
+    rule: Object.freeze({ item: "Guided Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcGuidedStri" }),
+    from: "Cleric — War Domain 3" }),
   // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
@@ -2083,7 +2105,7 @@ export const INTERRUPTS = Object.freeze([
   row("Illusory Self", "ac"), row("Glorious Defense", "ac"), row("Parry", "ac"), row("Counterattack", "ac"),
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
-  row("Interception", "damage"), row("Protection", "roll"),
+  row("Interception", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);

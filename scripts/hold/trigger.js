@@ -5,8 +5,9 @@
  */
 import { MODULE_ID, TITLE, S, setting, drivesMomentFor, statContext, decisionWindow } from "../core.js";
 import { spendReaction, statSourceOf } from "../shared.js";
-import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, duplicatesOf, attackFactsOf } from "./lookup.js";
+import { findInterrupt, hasReactionEffect, reactionACBonus, rescueStateOf, protectionGuardsOf, bystandersOf, duplicatesOf, attackFactsOf } from "./lookup.js";
 import { bfCard } from "../decide/present.js";
+import { targetsOf } from "../decide/card.js";
 import { armHoldTimer } from "./clock.js";
 import { listen } from "../dispatch.js";
 
@@ -51,10 +52,14 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     }
     // Every Disadvantage the defender holds rides beside the reaction (RULINGS *Rescuing the hit*).
     const rescue = await rescueStateOf(actor, roll, { found, hidePrimary: futile });
-    // Protection from a creature beside this one, each in its own popup.
-    const guards = protectionGuardsOf(actor, attackMessage.getAssociatedActor?.() ?? null);
+    // Protection from a creature beside this one, and the BYSTANDERS (Cutting Words, Restore Balance), each in
+    // its own popup. A QUIET bystander (the margin gate silent) rides a hold that exists, never opens one.
+    const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
+    const bystanders = bystandersOf(actor, attacker, roll, liveAC);
+    const asking = [...protectionGuardsOf(actor, attacker), ...bystanders.filter(b => !b.quiet)];
+    const guards = (found || rescue?.live || asking.length) ? [...asking, ...bystanders.filter(b => b.quiet)] : [];
     const guardFields = guards.length ? { guards } : {};
-    if ( !found && !rescue?.live && !guards.length ) {
+    if ( !found && !rescue?.live && !asking.length ) {
       if ( !duplicates ) continue;
       // Nothing to ask a human: the entry is the machine's own, answered as it is stamped.
       held.push(withDuplicates({ uuid: target.uuid, name: target.name, ac: target.ac,
@@ -66,7 +71,7 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     if ( !found && !rescue?.live ) {
       // Only the guards are asked.
       held.push(withDuplicates({ uuid: target.uuid, name: target.name, ac: target.ac,
-        reaction: guards[0]?.row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
+        reaction: asking[0]?.row, kind: "roll", itemId: null, activityId: null, selfAsk: false,
         hadEffect: false, ...guardFields, answer: null, verdict: null }));
       continue;
     }
@@ -109,8 +114,36 @@ export async function stampHoldIfInterrupted(attackMessage, roll, hits) {
     continuedBy: game.user.id,
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
     // A crit a live Disadvantage can undo: the dice wait for the answer.
-    ...((roll.isCritical && held.some(t => t.rows?.some(r => (r.kind === "roll") && !r.off) || t.guards?.length)) ? { critAtStake: true } : {}),
+    ...((roll.isCritical && held.some(t => t.rows?.some(r => (r.kind === "roll") && !r.off) || t.guards?.some(g => !g.quiet))) ? { critAtStake: true } : {}),
     targets: held
+  });
+  armHoldTimer(attackMessage);
+  return true;
+}
+
+/**
+ * THE MISS HOLD (Q2 option A): a clean miss a bystander on the ATTACKER's side can turn (Guided Strike's +10,
+ * Restore Balance on a Disadvantage roll) is held for them — only when the bend can change it, one judged
+ * target (one AC to turn). The continuation rolls the damage when it turns (`hold.miss`). True when stamped.
+ */
+export async function stampMissHoldIfBystanders(attackMessage, roll) {
+  if ( attackMessage.getFlag(MODULE_ID, "hold") ) return true;
+  const attacker = attackMessage.getAssociatedActor?.() ?? null;
+  const judged = targetsOf(attackMessage).filter(t => (t.ac !== null) && (t.ac !== undefined));
+  const target = (judged.length === 1) ? judged[0] : null;
+  if ( !attacker || !target ) return false;
+  const actor = await fromUuid(target.uuid);
+  const liveAC = actor?.system?.attributes?.ac?.value ?? target.ac;
+  const guards = bystandersOf(actor, attacker, roll, liveAC, { on: "miss" }).filter(b => !b.quiet);
+  if ( !guards.length ) return false;
+  const window = decisionWindow();
+  await attackMessage.setFlag(MODULE_ID, "hold", {
+    status: "pending", miss: true,
+    ...statContext(statSourceOf(attackMessage)),
+    continuedBy: game.user.id,
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}),
+    targets: [{ uuid: target.uuid, name: target.name, ac: target.ac, reaction: guards[0]?.row ?? null, kind: "roll",
+      itemId: null, activityId: null, selfAsk: false, hadEffect: false, guards, answer: null, verdict: null }]
   });
   armHoldTimer(attackMessage);
   return true;

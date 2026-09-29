@@ -143,6 +143,11 @@ export const ORDER = [
     name: "smoke-guards", note: "the guards — Protection's popup beside the defender's own (P1), the bent roll and the card naming the guard, \"Protected — <guard>\" and the gate's Disadvantage within 5 ft; Interception's claim on the attack's damage, the reduction, the pass",
     needs: ["fixture-suite"]
   },
+  // Session 0's classes: BF Test Bard lent Cutting Words, BF Test Sorcerer Restore Balance; four tokens placed and removed.
+  {
+    name: "smoke-classes", note: "the PHB classes — §A3 the bystander's bend on a hit: the margin gate, the popup, the quiet road off the damage, Restore Balance's first d20, the reach, \"Not this combat\" and its sweep",
+    needs: ["fixture-suite"]
+  },
   // ⚠ ITS OWN SEED: the probe reads the fixture tokens, which smoke-metamagic and smoke-emanations
   // move and sweep; the seed runs only when the probe is selected.
   { name: "fixture-suite", note: "not a suite — re-places the tokens probe-effect-view needs", reset: true },

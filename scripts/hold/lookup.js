@@ -3,16 +3,16 @@
  * Battle Flow — the reaction hold's READERS (`hold/` part 1, ARCHITECTURE.md §7): eligibility, the
  * item a reaction IS, its AC and art, whether it landed, and the self-cast effect applier. No hooks.
  */
-import { MODULE_ID, TITLE } from "../core.js";
+import { MODULE_ID, TITLE, S, setting } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
-import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
+import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
-import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed } from "../lookup.js";
-import { alliesWithin, tokenForUuid } from "../geometry.js";
-import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf } from "../shared.js";
+import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf } from "../lookup.js";
+import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
+import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
 
@@ -128,6 +128,7 @@ export function rollRescuesOf(actor) {
     const row = key ? INTERRUPT_ROLLS[key] : null;
     if ( !key || !row ) continue;   // a `roll` entry the table has no cost shape for: nothing to spend, never guessed
     if ( row.ally ) continue;   // Protection's Disadvantage is for another creature: a guard's row (protectionGuardsOf)
+    if ( row.bystander ) continue;   // another creature's roll, bent from outside: a bystander's row (bystandersOf)
     const item = itemsNamed(actor, key, { types: ["feat"] })
       .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
     if ( !item ) continue;
@@ -201,6 +202,61 @@ export function protectionGuardsOf(defender, attacker) {
       if ( !item || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
       out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id,
         activityId: activityNamed(item, row.activity)?.id ?? null, passed: false });
+    }
+  }
+  return out;
+}
+
+/**
+ * THE BYSTANDERS (RULINGS *The full release — the order*, Q2 option A), for a HIT (`on: "hit"` — creatures on the
+ * DEFENDER's side, the bend turning it to a miss) or a MISS (`on: "miss"` — creatures on the ATTACKER's side,
+ * the bend turning it to a hit; the attacker itself when the row is `self`, with no Reaction): within a row's
+ * feet of the ATTACKER, their Reaction free, a use left, not muted this combat. ASKED (a popup) when the bend
+ * can change the verdict — the margin gate; else QUIET (`passed` from the start, no popup, the card's Answer
+ * only) when the row has a damage half; else not listed. Sight is never judged; the side and the distance are.
+ * @returns {{uuid: string, name: string, row: string, itemId: string, activityId: string|null, passed: boolean,
+ *   bystander: boolean, quiet?: boolean, self?: boolean, die: string|null}[]}
+ */
+export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) {
+  const keys = bystanderRows("attack").filter(k => [on, "both"].includes(INTERRUPT_ROLLS[k].on ?? "hit"));
+  if ( !keys.length || !defender || !attacker || !roll ) return [];
+  const guarded = tokenForUuid(defender.uuid), from = tokenForUuid(attacker.uuid);
+  const side = (on === "hit") ? guarded?.document?.disposition : from?.document?.disposition;
+  const other = (on === "hit") ? from?.document?.disposition : guarded?.document?.disposition;
+  if ( !guarded || !from || ((side !== 1) && (side !== -1)) ) return [];
+  if ( other === side ) return [];   // an attack inside one side: not a bystander's to bend
+  const want = (on === "hit") ? "miss" : "hit";
+  const facts = d20FactsOf(roll);
+  if ( !Number.isFinite(facts.kept) ) return [];
+  const out = [];
+  for ( const key of keys ) {
+    const row = INTERRUPT_ROLLS[key];
+    for ( const token of (canvas.tokens?.placeables ?? []) ) {
+      if ( token.document?.disposition !== side ) continue;
+      const actor = token.actor;
+      const self = !!actor && (actor.uuid === attacker.uuid);
+      if ( !actor || (self && !((on === "miss") && row.self)) || out.some(b => (b.uuid === actor.uuid) && (b.row === key)) ) continue;
+      if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
+      const feet = nearestFeet(token, from);
+      if ( (feet === null) || (feet > row.bystander) ) continue;
+      const item = featureNamed(actor, key);
+      const activity = item ? activityNamed(item, (self && row.selfActivity) ? row.selfActivity : row.activity) : null;
+      if ( !item || !activity ) continue;
+      if ( row.reaction && !self && reactionSpent(actor) ) continue;
+      const pool = poolOf(actor, activity) ?? item;
+      if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
+      if ( bystanderMuted(actor, key) ) continue;
+      const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
+      if ( (row.bend === "die") && !dieMaxOf(die) ) continue;   // a die nobody can read is never guessed
+      // ⚠ The margin gate judges the AC: with the math hidden it would leak it (holdWouldMatter's rule),
+      // so a die bend is then asked on every hit but a natural 20 or 1.
+      const matters = ((row.bend === "die") && !setting(S.holdReveal)) ? !(roll.isCritical || roll.isFumble) : bystanderMatters({ bend: row.bend, sign: row.sign ?? 1, dieMax: dieMaxOf(die), want,
+        kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total), target: Number(ac), mode: facts.mode,
+        isCritical: !!roll.isCritical, isFumble: !!roll.isFumble, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
+      if ( !matters && !row.damage ) continue;
+      out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id,
+        activityId: activity.id ?? null, passed: !matters, bystander: true, ...(matters ? {} : { quiet: true }),
+        ...(self ? { self: true } : {}), die });
     }
   }
   return out;

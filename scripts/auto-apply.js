@@ -78,9 +78,9 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
   for ( const target of hits ) {
     const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;
     const found = entry ? interruptMultiplier(entry, INTERRUPT_MULTIPLIERS) : null;
-    // A reaction that REDUCES by a roll (Parry): the number the answer carried.
-    const reduce = (entry?.answer === "cast") && (Number(entry.reduceBy) > 0) ? Number(entry.reduceBy) : 0;
-    const note = found?.note ?? (reduce ? `${entry.reaction} — reduced by ${reduce}` : undefined);
+    // A reaction that REDUCES by a roll (Parry; a bystander's die off the damage — Cutting Words): the number the answer carried.
+    const reduce = ((entry?.answer === "cast") || (entry?.answer === "roll")) && (Number(entry.reduceBy) > 0) ? Number(entry.reduceBy) : 0;
+    const note = found?.note ?? (reduce ? `${(entry.answer === "roll") ? (entry.rescue ?? entry.reaction) : entry.reaction} — reduced by ${reduce}` : undefined);
     const key = `${found?.multiplier ?? 1}|${note ?? ""}|${reduce}`;
     if ( !groups.has(key) ) groups.set(key, { multiplier: found?.multiplier ?? 1, note, reduce, hits: [] });
     groups.get(key).hits.push(target);

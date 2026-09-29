@@ -443,3 +443,90 @@ describe("bentChips - the dice of a bent roll (the user, 2026-09-26: start with 
     expect(r.bentChips(null)).toEqual([]);
   });
 });
+
+describe("the bystander's bend (Q2, option A) — the margin gate and the two new outcomes", () => {
+  it("reads a die's largest face off a plain formula", () => {
+    expect(r.dieMaxOf("1d8")).toBe(8);
+    expect(r.dieMaxOf("d6")).toBe(6);
+    expect(r.dieMaxOf("2d4")).toBe(8);
+    expect(r.dieMaxOf("+10")).toBe(10);
+    expect(r.dieMaxOf("")).toBeNull();
+    expect(r.dieMaxOf("1d8+@mod")).toBeNull();
+  });
+
+  it("Cutting Words is asked only when a d8 can take the hit under the AC", () => {
+    const base = { bend: "die", sign: -1, dieMax: 8, want: "miss", target: 15 };
+    expect(r.bystanderMatters({ ...base, kept: 12, total: 17 })).toBe(true); // 17 − 8 = 9 < 15
+    expect(r.bystanderMatters({ ...base, kept: 17, total: 22 })).toBe(true); // 22 − 8 = 14 < 15
+    expect(r.bystanderMatters({ ...base, kept: 18, total: 23 })).toBe(false); // 23 − 8 = 15, still a hit
+    expect(r.bystanderMatters({ ...base, kept: 20, total: 25, isCritical: true })).toBe(false); // a natural 20 stands
+  });
+
+  it("a +10 on a miss is asked only when it can reach the AC", () => {
+    const base = { bend: "die", sign: 1, dieMax: 10, want: "hit", target: 16 };
+    expect(r.bystanderMatters({ ...base, kept: 6, total: 13 })).toBe(true);
+    expect(r.bystanderMatters({ ...base, kept: 1, total: 8, isFumble: true })).toBe(false);
+    expect(r.bystanderMatters({ ...base, kept: 2, total: 5 })).toBe(false);
+  });
+
+  it("Restore Balance is asked only when the first d20 flips the verdict", () => {
+    const base = { bend: "neutralise", want: "miss", target: 15 };
+    // Advantage 18 and 9, +5: 23 hits; the first die (9) → 14 misses.
+    expect(r.bystanderMatters({ ...base, mode: "advantage", kept: 18, plain: 9, total: 23 })).toBe(
+      true
+    );
+    // Advantage 18 then 12: 17 still hits.
+    expect(r.bystanderMatters({ ...base, mode: "advantage", kept: 18, plain: 12, total: 23 })).toBe(
+      false
+    );
+    // A plain roll has nothing to take away.
+    expect(r.bystanderMatters({ ...base, mode: "normal", kept: 12, plain: 12, total: 17 })).toBe(
+      false
+    );
+  });
+
+  it("dieOutcome moves the total and keeps the d20's own crit", () => {
+    const o = r.dieOutcome({ kept: 12, total: 17, add: -5 });
+    expect(o).toMatchObject({ how: "die", total: 12, add: -5, isCritical: false, changed: true });
+    expect(r.bentChips(o)).toEqual([{ label: "−5", up: true }]);
+    const lines = r.bentLines({
+      rescue: "Cutting Words (Salyth)",
+      bent: o,
+      verdict: "miss",
+      ac: 15
+    });
+    expect(lines.headline).toBe("Cutting Words (Salyth) −5 — 17 → 12, MISS");
+  });
+
+  it("neutraliseOutcome stands the first d20 (Q3, a rule of cool)", () => {
+    const o = r.neutraliseOutcome({
+      mode: "advantage",
+      kept: 18,
+      plain: 9,
+      total: 23,
+      faces: [9, 18]
+    });
+    expect(o).toMatchObject({ how: "neutralised", stood: 9, total: 14, changed: true });
+    expect(r.bentChips(o)).toEqual([
+      { label: "9", up: true },
+      { label: "18", drop: true }
+    ]);
+    expect(r.neutraliseOutcome({ mode: "normal", kept: 12, plain: 12, total: 17 }).how).toBe(
+      "none"
+    );
+  });
+
+  it("the bystander rows are pointers, with a reach and the tests they bend", () => {
+    for (const name of ["Cutting Words", "Restore Balance"]) {
+      const row = reg.INTERRUPT_ROLLS[name];
+      expect(row.bystander, name).toBeGreaterThan(0);
+      expect(row.tests, name).toContain("attack");
+      expectPointer(row.rule, name);
+      expect(
+        reg.INTERRUPTS.some(e => e.name === name && e.kind === "roll"),
+        name
+      ).toBe(true);
+    }
+    expect(reg.INTERRUPT_ROLLS["Cutting Words"].damage).toBe(true);
+  });
+});

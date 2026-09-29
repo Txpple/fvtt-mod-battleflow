@@ -10,9 +10,9 @@ import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
-import { d20Faces, d20ModeOf, disadvantageOutcome, needsSecondD20, rescueSpendText } from "../decide/rescue-hit.js";
-import { lower, holdsFor } from "../lookup.js";
-import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent } from "../shared.js";
+import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
+import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf } from "../lookup.js";
+import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander } from "../shared.js";
 import { registerRelay } from "../ui.js";
 import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
 import { listen } from "../dispatch.js";
@@ -28,7 +28,8 @@ import { listen } from "../dispatch.js";
 export function recordAnswer(target, answer, by = null) {
   if ( !target || target.answer ) return false;
   const guard = by ? (target.guards ?? []).find(g => g.uuid === by) : null;
-  if ( by && (!guard || guard.passed) ) return false;
+  // A QUIET bystander (the margin gate silent) starts passed, yet may still ACT from the card.
+  if ( by && (!guard || (guard.passed && !(guard.quiet && (answer !== "pass")))) ) return false;
   if ( answer === "pass" ) {
     if ( guard ) guard.passed = true;
     else if ( target.selfPassed ) return false;
@@ -65,17 +66,22 @@ export async function answerHold(attackMessage, uuid, answer, { appliedEffects =
     // A GUARD's answer (Protection): its own card, in its own voice.
     const guard = await fromUuid(by);
     const guarding = answer === "roll";
+    const entry = (target.guards ?? []).find(g => g.uuid === by);
+    const verb = entry?.bystander ? "bends the roll against" : "protects";
     await ChatMessage.create({
       content: bfCard({
-        img: guard?.items?.get((target.guards ?? []).find(g => g.uuid === by)?.itemId)?.img ?? null,
+        img: guard?.items?.get(entry?.itemId)?.img ?? null,
         eyebrow: guarding ? `Reaction — ${rescue}` : "Reaction — passed",
         title: guarding ? rescue : "Lets it land",
-        subtitle: guarding ? `${guard?.name ?? "A guard"} protects ${target.name}` : `${guard?.name ?? "A guard"} · ${target.name}`,
-        lines: guarding ? [rescueSpendLine(rescue, null)] : [`No reaction — ${guard?.name ?? "the guard"} lets it land.`],
+        subtitle: guarding ? `${guard?.name ?? "A guard"} ${verb} ${target.name}` : `${guard?.name ?? "A guard"} · ${target.name}`,
+        lines: guarding ? [rescueSpendLine(rescue, poolSpend), ...(Number(reduceBy) > 0 ? [`the damage reduced by <strong>${Number(reduceBy)}</strong>`] : [])].filter(Boolean)
+          : [`No reaction — ${guard?.name ?? "the guard"} lets it land.`],
         tone: guarding ? "good" : "neutral"
       }),
       speaker: ChatMessage.getSpeaker({ actor: guard }),
       flags: { [MODULE_ID]: { respondsTo: attackMessage.id, uuid, answer, by, ac,
+        ...(Number(reduceBy) > 0 ? { reduceBy: Number(reduceBy) } : {}),
+        ...(poolSpend ? { poolSpend } : {}),
         ...(bent ? { bent } : {}), ...(rescue ? { rescue } : {}) } }
     });
     return;
@@ -306,6 +312,74 @@ export async function protectReaction(attackMessage, target, guard) {
   await spendReaction(actor, { origin: item.uuid, what: found.key });
   const bent = await bendTheRoll(attackMessage, actor, found.key);
   return answerHold(attackMessage, target.uuid, "roll", { bent, rescue: found.key, by: guard.uuid });
+}
+
+/**
+ * A BYSTANDER's answer (Cutting Words, Restore Balance — Q2 option A): the cost paid by hand, the bend
+ * rolled in the open, recorded on the target it bent. `onDamage`: the die comes off the damage instead
+ * (the quiet road, where the gate was silent — Cutting Words' "makes a damage roll").
+ * @param {ChatMessage} attackMessage
+ * @param {object} target  the hit creature's entry
+ * @param {object} guard   the bystander's entry
+ * @param {{onDamage?: boolean}} [opts]
+ */
+export async function bystanderReaction(attackMessage, target, guard, { onDamage = false } = {}) {
+  const actor = await fromUuid(guard.uuid);
+  const found = rollRow(guard.row);
+  const item = actor?.items.get(guard.itemId) ?? null;
+  if ( !actor || !found || !item ) {
+    ui.notifications.warn(`${TITLE}: could not find ${guard.row} on ${guard.name}.`);
+    return;
+  }
+  const { key, row } = found;
+  const activity = item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row.activity);
+  const reaction = row.reaction && !guard.self;   // the bystander's OWN roll (Guided Strike on yourself) takes none
+  if ( reaction && reactionSpent(actor) ) {
+    ui.notifications.warn(`${TITLE}: ${guard.name}'s Reaction is already spent this round.`);
+    return;
+  }
+  const pool = (activity ? poolOf(actor, activity) : null) ?? item;
+  if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) {
+    ui.notifications.warn(`${TITLE}: ${guard.name} has no ${pool?.name ?? key} left for ${key}.`);
+    return;
+  }
+  const roll = attackMessage.rolls?.[0];
+  const facts = d20FactsOf(roll);
+  if ( !roll || !Number.isFinite(facts.kept) ) return;
+  let poolSpend = null;
+  if ( row.uses ) poolSpend = await spendPoolUses(actor, pool, key, 1, (pool === item) ? null : pool.name)
+    .catch(err => { console.warn(`${TITLE} | Could not spend a use for ${key}.`, err); return null; });
+  if ( reaction ) await spendReaction(actor, { origin: item.uuid, what: key });
+  let bent = null, reduceBy = null;
+  if ( row.bend === "die" ) {
+    const formula = guard.die ?? bystanderDie(actor, row);
+    let n = 0;
+    try {
+      const die = await new Roll(String(formula)).evaluate();
+      const rise = onDamage ? reductionRise({ roll: die.toJSON(), from: actor.uuid }) : null;
+      await die.toMessage({ speaker: ChatMessage.getSpeaker({ actor }),
+        flavor: onDamage ? `${key} — off ${target.name}'s damage` : `${key} — off the attack at ${target.name}`,
+        ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
+      n = Math.max(0, Number(die.total) || 0);
+    } catch(err) {
+      console.error(`${TITLE} | ${key}'s die could not be rolled — bend the roll by hand.`, err);
+    }
+    if ( onDamage ) reduceBy = n;
+    else bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: (row.sign ?? 1) * n,
+      critAt: facts.critAt, fumbleAt: facts.fumbleAt });
+  } else if ( row.bend === "neutralise" ) {
+    bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
+      critAt: facts.critAt, fumbleAt: facts.fumbleAt, faces: facts.faces });
+  }
+  return answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid, reduceBy });
+}
+
+/** "Not this combat" (Q2 option A): mute the bystander's feature for its bearer, and pass this one. */
+export async function muteAndPass(attackMessage, target, guard) {
+  const actor = await fromUuid(guard.uuid);
+  const img = actor?.items?.get(guard.itemId)?.img ?? null;
+  await muteBystander(actor, guard.row, { img }).catch(err => console.warn(`${TITLE} | Could not mute ${guard.row}.`, err));
+  if ( !guard.passed ) return answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid });
 }
 
 /** The sheet's answer for a `roll` row: ONE hold, the oldest asking (unlike Shield, "that roll" only). */

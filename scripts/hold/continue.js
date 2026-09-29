@@ -104,7 +104,7 @@ async function driveHoldContinuation(attackMessage, hold) {
     target.verdict = hit ? "hit" : "miss";
     target.acAtVerdict = liveAC;
     if ( target.answer === "roll" ) {
-      announcements.push(bentAnnouncement(actor, target, hit));
+      announcements.push(bentAnnouncement(actor, target, hit, !!hold.miss));
       continue;
     }
     if ( target.answer !== "cast" ) continue;
@@ -183,8 +183,8 @@ async function driveHoldContinuation(attackMessage, hold) {
     await dmg.setFlag(MODULE_ID, "attackHoldPending", false);
   }
 
-  // A crit the hold could undo was never rolled: roll it now, as the answer left it.
-  if ( hold.critAtStake ) await damageAfterHold(attackMessage);
+  // A crit the hold could undo was never rolled, nor a miss a bystander turned: roll it now, as the answer left it.
+  if ( hold.critAtStake || (hold.miss && hold.targets.some(t => t.verdict === "hit")) ) await damageAfterHold(attackMessage);
 }
 
 /**
@@ -297,16 +297,22 @@ function bentFold(target) {
 }
 
 /** The defender's card after a `roll` answer: the row, its cost, whether it turned the hit. */
-function bentAnnouncement(actor, target, hit) {
+function bentAnnouncement(actor, target, hit, miss = false) {
   const found = Object.keys(INTERRUPT_ROLLS).find(k => k.toLowerCase() === String(target.rescue ?? "").toLowerCase());
   const row = found ? INTERRUPT_ROLLS[found] : null;
   const spend = rescueSpendText({ row, poolSpend: target.poolSpend ?? null });
   const by = target.guardedBy ?? null;
   const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
+  const bystander = !!(target.guards ?? []).find(g => (g.uuid === by?.uuid) && g.bystander);
+  const reduced = Number(target.reduceBy) > 0 ? Number(target.reduceBy) : 0;
+  const outcome = (reduced && !target.bent) ? `The hit stands; its damage to <strong>${esc(target.name)}</strong> is reduced by <strong>${reduced}</strong>.`
+    : miss ? (hit ? "<strong>The attack hits.</strong>" : "It did not turn the miss.")
+    : hit ? "It did not turn the hit." : "<strong>The attack misses.</strong>";
   return bfCard({
     img: guardImg ?? reactionImg(actor, target.rescue ?? target.reaction, {}), eyebrow: `Reaction — ${target.rescue ?? target.reaction}`,
-    title: target.rescue ?? target.reaction, subtitle: by ? `${by.name} protects ${target.name}` : target.name, tone: hit ? "bad" : "good",
-    lines: [spend, hit ? "It did not turn the hit." : "<strong>The attack misses.</strong>"].filter(Boolean)
+    title: target.rescue ?? target.reaction, subtitle: by ? `${by.name} ${bystander ? "bends the roll against" : "protects"} ${target.name}` : target.name,
+    tone: miss ? (hit ? "good" : "bad") : ((hit && !reduced) ? "bad" : "good"),
+    lines: [spend, outcome].filter(Boolean)
   });
 }
 

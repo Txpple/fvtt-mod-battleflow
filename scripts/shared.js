@@ -267,6 +267,36 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
   }, { parent: actor });
 }
 
+/* --- "Not this combat": a bystander's feature muted until the combat ends (Q2, option A) ------- */
+
+/** Is this bystander feature muted for its bearer in the bearer's RUNNING combat? A stale mute is no mute. */
+export function bystanderMuted(actor, key) {
+  const combat = activeCombatFor(actor);
+  if ( !combat || !actor ) return false;
+  const want = String(key ?? "").toLowerCase();
+  return actor.effects?.some(e => { const m = e.getFlag(MODULE_ID, "bystanderMute");
+    return m && (String(m.key ?? "").toLowerCase() === want) && (m.combat === combat.id); }) ?? false;
+}
+
+/**
+ * Mute a bystander feature until the combat ends: an effect on the bearer (the effect view lists it; the
+ * combat's end sweeps it; deleting it unmutes). Out of combat there is nothing to mute: null.
+ * @param {Actor} actor
+ * @param {string} key   the INTERRUPT_ROLLS row
+ * @param {{img?: string|null}} [opts]
+ */
+export async function muteBystander(actor, key, { img = null } = {}) {
+  if ( !(actor instanceof Actor) || !canApplyTo(actor) ) return null;
+  const combat = activeCombatFor(actor);
+  if ( !combat || bystanderMuted(actor, key) ) return null;
+  return ActiveEffect.implementation.create({
+    name: `${key} — muted this combat`, img: img ?? "icons/svg/sound-off.svg",
+    description: `${actor.name} is not asked about ${key} again until this combat ends. Delete this effect to be asked again.`,
+    disabled: false, transfer: false,
+    flags: { [MODULE_ID]: { bystanderMute: { key, combat: combat.id } } }
+  }, { parent: actor });
+}
+
 /**
  * Who put an effect on and from what Item. ⚠ An applied copy carries its template's stale compendium
  * `item` beside a fresh `activity`: candidates are tried, `activity` first, until one reaches a world Actor.
@@ -304,6 +334,22 @@ function sourceFromUuid(uuid) {
   return item ? { actor: doc, item } : null;
 }
 
+/**
+ * A pool named by a COMPENDIUM uuid on a sheet whose copy carries no source (an imported or hand-built
+ * Bardic Inspiration): the pack index's NAME for that uuid, matched to the sheet's one feature of that name
+ * with uses. Null when the index cannot say or two features share the name.
+ */
+function poolByPackName(actor, target) {
+  if ( !target.startsWith("Compendium.") ) return null;
+  let entry = null;
+  try { entry = fromUuidSync(target, { strict: false }); } catch { entry = null; }
+  const name = String(entry?.name ?? "").toLowerCase();
+  if ( !name ) return null;
+  const hits = actor.items.filter(i => (i.type === "feat") && (String(i.name ?? "").toLowerCase() === name)
+    && (Number(i.system?.uses?.max) > 0));
+  return (hits.length === 1) ? hits[0] : null;
+}
+
 /** The pool an activity consumes; packs name it by item id, bare identifier or compendium UUID. */
 export function poolOf(actor, activity) {
   for ( const c of (activity?.consumption?.targets ?? []) ) {
@@ -313,7 +359,8 @@ export function poolOf(actor, activity) {
     const item = actor.items.get(target)
       ?? actor.items.find(i => (i.system?.identifier === target) || (i.identifier === target))
       ?? actor.items.find(i => (i._stats?.compendiumSource === target) || (i.flags?.core?.sourceId === target))
-      ?? actor.items.find(i => target.endsWith(`.${i._stats?.compendiumSource?.split(".").pop() ?? "\u0000"}`));
+      ?? actor.items.find(i => target.endsWith(`.${i._stats?.compendiumSource?.split(".").pop() ?? "\u0000"}`))
+      ?? poolByPackName(actor, target);
     if ( item ) return item;
   }
   return null;

@@ -5,7 +5,8 @@
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
-import { INTERRUPT_REDUCTIONS, identifierOf, matchOf } from "./decide/registry.js";
+import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
+import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
 import { TITLE } from "./core.js";
 
 export const lower = s => String(s ?? "").toLowerCase();
@@ -260,4 +261,33 @@ export function reductionFor(item, reactionName) {
   const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
   if ( !activity || !formula ) return null;
   return { row, activity, formula };
+}
+
+/* --- THE BYSTANDER'S READERS (Q2 option A): the attack side (hold/) and the save and check side (bystanders.js) --- */
+
+/** The listed bystander rows (INTERRUPT_ROLLS `bystander`) that reach this kind of D20 Test. */
+export function bystanderRows(testKind) {
+  return interruptEntries().filter(e => e.kind === "roll")
+    .map(e => Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(e.name)))
+    .filter(k => k && INTERRUPT_ROLLS[k].bystander && (INTERRUPT_ROLLS[k].tests ?? []).includes(testKind));
+}
+
+/** A bystander row's die, read off the BYSTANDER's own roll data (a scale's formula); a flat `bonus` as itself. */
+export function bystanderDie(actor, row) {
+  if ( row.bonus !== undefined ) return String(row.bonus);
+  if ( !row.die ) return null;
+  const value = foundry.utils.getProperty(actor?.getRollData?.() ?? {}, row.die);
+  // ⚠ `formula`/`die` are getters on ScaleValueTypeDice (BARDIC's lesson): a plain string only.
+  const formula = (typeof value === "string") ? value : (value?.formula ?? value?.die ?? null);
+  return ((typeof formula === "string") && formula.trim()) ? formula.trim() : null;
+}
+
+/** A d20 roll's facts for the gate and the bend: the kept and first faces, the mode, the crit range. */
+export function d20FactsOf(roll) {
+  const d20 = roll?.dice?.[0] ?? null;
+  const { kept, plain } = d20Faces(d20?.results ?? []);
+  return { kept, plain, mode: d20ModeOf({ number: d20?.number, modifiers: d20?.modifiers }),
+    faces: (d20?.results ?? []).filter(r => !r?.rerolled).map(r => r.result),
+    critAt: Number(d20?.options?.criticalSuccess ?? roll?.options?.criticalSuccess ?? 20),
+    fumbleAt: Number(d20?.options?.criticalFailure ?? roll?.options?.criticalFailure ?? 1) };
 }

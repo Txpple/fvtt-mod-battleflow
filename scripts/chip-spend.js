@@ -164,7 +164,8 @@ async function sweepCombatChips(combat) {
     await Promise.all([...actors].map(async actor => {
       // …and the reaction's self-cast effect clocked to this combat.
       const ids = actor.effects.filter(e => TURN_CHIPS.includes(e.getFlag(MODULE_ID, CHIP_FLAG))
-        || (e.getFlag(MODULE_ID, "reactionEffect") && (e._source.start?.combat === combat.id))).map(e => e.id);
+        || (e.getFlag(MODULE_ID, "reactionEffect") && (e._source.start?.combat === combat.id))
+        || (e.getFlag(MODULE_ID, "bystanderMute")?.combat === combat.id)).map(e => e.id);
       if ( !ids.length ) return;
       try {
         await actor.deleteEmbeddedDocuments("ActiveEffect", ids);

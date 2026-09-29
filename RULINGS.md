@@ -1579,6 +1579,17 @@ faerun, ravenloft). caveat: we will prioritize work if the table needs something
 - **Q3 — Restore Balance after the roll, the first d20 standing, AS A RULE OF COOL** (*"yes we will have to rule
   of cool the restore balance that way, and mark it in the rule of cool"*): its row goes in *Bent by choice*
   when it is built, not the platform register — the sorcerer sees both faces before choosing.
+- **Q2's noise gate — OPTION A** (ruled 2026-09-29 off the prototype's group N, *"A, with Portent narrowed to saves
+  and crits"*): a bystander is ASKED only when its bend can change the verdict (the **margin gate**, the
+  futile-skip precedent `holdSkipped`: a subtracted die up to its maximum under the AC or DC, a +10 short of it, a
+  cancelled Advantage or Disadvantage whose other face flips it); never while its Reaction is spent (the
+  **Reaction gate**, the hold's rule already); the popup carries a third button, **"Not this combat"**, muting the
+  feature for its bearer until the combat ends (a chip on the bearer, listed by the effect view, swept with the
+  combat). Everything the gate stays silent on keeps the attack card's **Answer button** — the quiet road — live
+  until the damage rolls. **Portent is narrowed to saves and critical hits** (A7): an ordinary hit a stored face
+  would flip gets the card button only. No setting; no new kind. The measurement (plan §4a): 20 popups ungated →
+  9, every chance the players want still taken; the alternatives (B, ask always + mute; C, a quiet toast) stand
+  in the prototype as history.
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

@@ -6,14 +6,14 @@
 import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
-import { bentLines, d20ModeOf, futileGuardLine, guardRow, liveRows, rescueTitle } from "../decide/rescue-hit.js";
+import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
 import { poolOf } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
 import { reactionItem, reactionImg, reactionACBonus, rescueRowsNow } from "./lookup.js";
 import { armHoldTimer } from "./clock.js";
-import { answerHold, castReaction, rescueReaction, protectReaction } from "./answer.js";
-import { resolveUuid } from "../lookup.js";
+import { answerHold, castReaction, rescueReaction, protectReaction, bystanderReaction, muteAndPass } from "./answer.js";
+import { resolveUuid, activityNamed, d20FactsOf } from "../lookup.js";
 import { continueHold } from "./continue.js";
 import { SURFACES } from "../surfaces.js";
 import { listen } from "../dispatch.js";
@@ -113,10 +113,23 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
         const label = by ? `${rescue} (${by.name})` : rescue;
         const { headline, detail } = bentLines({ rescue: label, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
         const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
+        const how = ((target.bent.how === "die") || (target.bent.how === "neutralised")) ? label : `Disadvantage · ${label}`;
         block.innerHTML = bfCard({
-          img: guardImg ?? reactionImg(actor, rescue, {}), eyebrow: `Attack — Disadvantage · ${label}`,
+          img: guardImg ?? reactionImg(actor, rescue, {}), eyebrow: `Attack — ${how}`,
           title: rescue, subtitle: target.name, tone: (target.verdict === "miss") ? "good" : "bad",
           lines: [`<strong>${headline}</strong>`, detail]
+        });
+        return;
+      }
+
+      // A bystander's die off the DAMAGE (Cutting Words' quiet road): the hit stands, the damage is less.
+      if ( (target.answer === "roll") && !target.bent && (Number(target.reduceBy) > 0) && (hold.status !== "pending") ) {
+        const by = target.guardedBy ?? null;
+        const rescue = target.rescue ?? target.reaction;
+        block.innerHTML = bfCard({
+          img: (by ? resolveUuid(by.uuid)?.items?.get(by.itemId)?.img : null) ?? reactionImg(actor, rescue, {}),
+          eyebrow: `Reaction — ${rescue}${by ? ` (${by.name})` : ""}`, title: `${rescue} — the damage reduced by ${target.reduceBy}`,
+          subtitle: target.name, tone: "good", lines: ["The attack still hits."]
         });
         return;
       }
@@ -150,6 +163,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
       if ( hold.status !== "pending" ) return;
       // A reload lands here with the hold open: re-arm the buzzer from the flag's deadline.
       armHoldTimer(message);
+      if ( !target.answer ) appendBystanderRows(block, message, target);
       const selfOpen = (target.selfAsk !== false) && !target.selfPassed && canAnswerFor(actor);
       const guardOpen = (target.guards ?? []).some(g => !g.passed && canAnswerFor(resolveUuid(g.uuid)));
       if ( target.answer || (!selfOpen && !guardOpen) ) return;
@@ -180,6 +194,95 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
     void showHoldPopup(message, hold);
   }
 });
+
+/**
+ * THE BYSTANDERS' CARD ROWS (Q2 option A), on the attack card itself and only on the bystander's own client —
+ * never a message of their own: a QUIET row (the margin gate silent) offers the die off the damage; every row
+ * carries "Not this combat".
+ */
+function appendBystanderRows(block, message, target) {
+  for ( const guard of (target.guards ?? []) ) {
+    if ( !guard.bystander ) continue;
+    if ( !guard.quiet && guard.passed ) continue;
+    const who = resolveUuid(guard.uuid);
+    if ( !canAnswerFor(who) ) continue;
+    const row = INTERRUPT_ROLLS[guard.row] ?? null;
+    const line = document.createElement("div");
+    line.dataset.bfBystander = `${guard.row}|${guard.uuid}`;
+    Object.assign(line.style, { display: "flex", gap: "0.3rem", alignItems: "center", justifyContent: "flex-end", flexWrap: "wrap",
+      marginTop: "0.3rem", fontSize: "var(--font-size-12,12px)" });
+    const label = document.createElement("span");
+    label.style.opacity = "0.85";
+    label.textContent = guard.quiet ? `${guard.row} (${guard.name}) — −${guard.die ?? "a die"} off the damage` : `${guard.row} (${guard.name})`;
+    line.append(label);
+    const small = { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" };
+    if ( guard.quiet && row?.damage ) line.append(momentButton("Answer", () => void bystanderReaction(message, target, guard, { onDamage: true }), small));
+    line.append(momentButton("Not this combat", () => { line.remove(); void muteAndPass(message, target, guard); }, small));
+    block.append(line);
+  }
+}
+
+/** The bystander popup's situation: the premise, and under the reveal the arithmetic the gate judged. */
+function bystanderSituation(row, roll, ac, guard, miss = false) {
+  const facts = d20FactsOf(roll);
+  const reveal = setting(S.holdReveal);
+  if ( row?.bend === "neutralise" ) {
+    const o = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
+      critAt: facts.critAt, fumbleAt: facts.fumbleAt });
+    const mode = (facts.mode === "advantage") ? "Advantage" : "Disadvantage";
+    return `Rolled with <strong>${mode}</strong>: ${facts.faces.join(" and ")} → <strong>${roll.total}</strong>${reveal ? ` vs AC <strong>${ac}</strong>` : ""}. `
+      + `Take it away and the <strong>first d20 (${o.stood})</strong> stands — <strong>${o.total}</strong>.`;
+  }
+  const head = roll?.isCritical ? "<strong>natural 20</strong> — a critical hit."
+    : `<strong>${roll.total}</strong>${reveal ? ` vs AC <strong>${ac}</strong>` : ""} — a ${miss ? "miss" : "hit"}.`;
+  const max = dieMaxOf(guard.die);
+  if ( !reveal || !max ) return head;
+  const minus = (row?.sign ?? 1) < 0;
+  const what = /d/i.test(String(guard.die)) ? esc(guard.die) : `${minus ? "−" : "+"}${esc(guard.die)}`;
+  return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.`;
+}
+
+/** A BYSTANDER's popup (Cutting Words, Restore Balance): keyed like a guard's, three buttons — the third mutes. */
+async function showBystanderPopup(attackMessage, target, guard, byActor, hold, roll) {
+  const row = INTERRUPT_ROLLS[guard.row] ?? null;
+  const attacker = attackMessage.getAssociatedActor?.()?.name ?? "The attacker";
+  const weapon = attackMessage.getAssociatedActivity?.()?.item?.name ?? "the attack";
+  const defender = resolveUuid(target.uuid);
+  const ac = defender?.system?.attributes?.ac?.value ?? target.ac;
+  const item = byActor?.items?.get(guard.itemId) ?? null;
+  const activity = item ? (item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row?.activity)) : null;
+  const pool = (activity ? poolOf(byActor, activity) : null) ?? item;
+  const left = Number(pool?.system?.uses?.value ?? 0);
+  const poolWord = (pool && (pool !== item)) ? `${pool.name} ` : "";
+  const tag = [(row?.reaction && !guard.self) ? "a Reaction" : null, row?.uses ? `${poolWord}${left} left` : null].filter(Boolean).join(" · ");
+  const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
+  const rows = [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
+  const miss = !!hold?.miss;
+  const self = miss ? !!guard.self : (guard.uuid === target.uuid);
+  const whose = (miss && self) ? "your" : `${attacker}'s`;
+  const at = (!miss && self) ? "you" : target.name;
+  const dialog = await openMomentPopup(attackMessage, `${target.uuid}|${guard.uuid}`, byActor, {
+    title: `${guard.row} — ${whose} attack at ${at}`, icon: "fa-solid fa-comment-dots", width: 460,
+    content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: `${(row?.reaction && !guard.self) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
+      title: `${(miss && self) ? "You" : attacker} ${miss ? "missed" : "hits"} ${at}`,
+      subtitle: `${weapon}${self ? "" : ` · within ${row?.bystander ?? "?"} ft of you`}` })
+      + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${bystanderSituation(row, roll, ac, guard, miss)}</div>`
+      + tickRowsHTML({ name: "bf-bystander", rows }),
+    buttons: [
+      { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
+        if ( !button?.form?.querySelector?.('input[name="bf-bystander"]:checked') ) return;
+        void bystanderReaction(attackMessage, target, guard);
+      } },
+      { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) },
+      { action: "mute", label: "Not this combat", callback: () => muteAndPass(attackMessage, target, guard) }
+    ]
+  });
+  const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
+  const box = form?.querySelector?.('input[name="bf-bystander"]') ?? null;
+  const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
+  if ( box ) box.checked = true;
+  box?.addEventListener("change", () => { if ( answer ) answer.disabled = !box.checked; });
+}
 
 /** A maneuver reaction's popup (Parry): Riposte's shape — the card, the cost, the rule, the clock. */
 function maneuverPopupContent(attackMessage, target, actor, hold) {
@@ -267,7 +370,8 @@ async function showHoldPopup(attackMessage, hold) {
       if ( guard.passed ) continue;
       const guardActor = resolveUuid(guard.uuid);
       if ( !canAnswerFor(guardActor) ) continue;
-      await showGuardPopup(attackMessage, target, guard, guardActor, hold, roll);
+      if ( guard.bystander ) await showBystanderPopup(attackMessage, target, guard, guardActor, hold, roll);
+      else await showGuardPopup(attackMessage, target, guard, guardActor, hold, roll);
     }
     if ( (target.selfAsk === false) || target.selfPassed ) continue;
     // canAnswerFor ALONE routes: the owning player while connected, else the GM.

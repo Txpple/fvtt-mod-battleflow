@@ -720,6 +720,7 @@ export const STATE_KEYS = Object.freeze({
   mealFed: "an ACTOR flag — a Chef's meal an eater still resting carries to its own rest's end (the PHB feats, group 5); the meal's card is the record, the restSong flag the resolve",
   grappleDamageAnswer: "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
+  bystanderMute: "an ActiveEffect flag — \"Not this combat\" (Q2 option A, 2026-09-29): the bystander feature its bearer muted, with the combat it lasts for; a player's preference, swept with the combat, no resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",
   armorBlock: "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (fighting-styles.js, 2026-09-26)",

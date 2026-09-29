@@ -13,7 +13,7 @@ import { autoCritSources } from "./decide/reminders.js";
 import { critStands } from "./decide/rescue-hit.js";
 import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
-import { stampHoldIfInterrupted } from "./hold/index.js";
+import { stampHoldIfInterrupted, stampMissHoldIfBystanders } from "./hold/index.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -38,7 +38,8 @@ listen("dnd5e.rollAttack", "auto-damage", async (rolls, { subject }) => {
   if ( !subject.damage?.parts?.length && !subject.item?.system.properties?.has("amm") ) return;
 
   const hits = hitTargets(attackMessage);
-  if ( !hits.length ) return;
+  // A clean miss a bystander could turn (Guided Strike): held for them; a turned miss rolls at the resolve.
+  if ( !hits.length ) { await stampMissHoldIfBystanders(attackMessage, rolls[0]); return; }
 
   // A hold pauses the APPLICATION, never the dice: the roll is born attackHoldPending.
   await stampHoldIfInterrupted(attackMessage, rolls[0], hits);
@@ -65,6 +66,8 @@ function offerOrRollDamage(subject, attackMessage) {
 export async function damageAfterHold(attackMessage) {
   try {
     if ( !hitTargets(attackMessage).length ) return;
+    // Rolled already (a fold on the same miss got there first): never twice.
+    if ( game.messages.contents.some(m => (m.type === "damage") && (m.getFlag(MODULE_ID, "attackFor") === attackMessage.id)) ) return;
     const activity = attackMessage.getAssociatedActivity?.() ?? null;
     if ( !activity ) {
       console.warn(`${TITLE} | The held crit's damage has no activity to roll from — roll it from the card.`);

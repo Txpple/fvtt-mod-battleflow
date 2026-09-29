@@ -16,4 +16,4 @@ import "./spell-damage.js";
 import "./views.js";
 import "./dice.js";
 
-export { stampHoldIfInterrupted } from "./trigger.js";
+export { stampHoldIfInterrupted, stampMissHoldIfBystanders } from "./trigger.js";

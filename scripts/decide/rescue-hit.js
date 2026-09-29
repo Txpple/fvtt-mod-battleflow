@@ -72,15 +72,88 @@ export function disadvantageOutcome({ mode, kept, plain = null, second = null, t
   };
 }
 
+/* THE BYSTANDER'S BEND (RULINGS *The full release — the order*, Q2 and its noise gate, option A): another
+ * creature's roll bent by a die (Cutting Words' −1d8, Guided Strike's +10) or neutralised (Restore
+ * Balance: the first d20 stands, a RULE OF COOL). The same `bent` shape as Disadvantage, so the hold's
+ * fold, card and dice read it unchanged: `how` "die" or "neutralised". */
+
+/**
+ * A die's largest face off a plain formula ("1d8" → 8, "+10" → 10); null when unreadable.
+ * @param {string|number|null} formula
+ */
+export function dieMaxOf(formula) {
+  const s = String(formula ?? "").replace(/\s+/g, "").replace(/^[+-]/, "");
+  const dice = /^(\d*)d(\d+)$/i.exec(s);
+  if ( dice ) return (Number(dice[1] || 1) * Number(dice[2])) || null;
+  const flat = Number(s);
+  return (s !== "") && Number.isFinite(flat) ? Math.abs(flat) : null;
+}
+
+/**
+ * A roll bent by a die or a flat number already rolled: the d20 stands, its own crit and fumble with it.
+ * @param {{kept: number, total: number, add: number, critAt?: number, fumbleAt?: number}} args
+ */
+export function dieOutcome({ kept, total, add, critAt = 20, fumbleAt = 1 }) {
+  const delta = Number(add) || 0;
+  return { how: "die", first: Number(kept), second: null, stood: Number(kept), add: delta,
+    firstTotal: Number(total), total: Number(total) + delta,
+    isCritical: Number(kept) >= critAt, isFumble: Number(kept) <= fumbleAt,
+    wasCritical: Number(kept) >= critAt, changed: delta !== 0 };
+}
+
+/**
+ * Advantage or Disadvantage taken away after the roll: the FIRST d20 stands (Q3, a rule of cool).
+ * @param {{mode: string, kept: number, plain?: number|null, total: number, critAt?: number, fumbleAt?: number, faces?: number[]|null}} args
+ */
+export function neutraliseOutcome({ mode, kept, plain = null, total, critAt = 20, fumbleAt = 1, faces = null }) {
+  const modifier = Number(total) - Number(kept);
+  const stood = ((mode !== "normal") && Number.isFinite(plain)) ? Number(plain) : Number(kept);
+  return { how: (mode === "normal") ? "none" : "neutralised", first: Number(kept), second: null, stood,
+    firstTotal: Number(total), total: stood + modifier,
+    isCritical: stood >= critAt, isFumble: stood <= fumbleAt,
+    wasCritical: Number(kept) >= critAt, changed: stood !== Number(kept),
+    ...(Array.isArray(faces) ? { faces: faces.map(Number).filter(Number.isFinite) } : {}) };
+}
+
+/**
+ * THE MARGIN GATE (Q2, option A): can this bystander's bend change the verdict? The futile-skip gate's
+ * shape (`holdSkipped`), for another creature's roll. `want` is the verdict the bystander is after.
+ * @param {{bend: "die"|"neutralise", sign?: number, dieMax?: number|null, want: "miss"|"hit",
+ *   kept: number, plain?: number|null, total: number, target: number, mode?: string,
+ *   isCritical?: boolean, isFumble?: boolean, critAt?: number, fumbleAt?: number}} args
+ * @returns {boolean}
+ */
+export function bystanderMatters({ bend, sign = 1, dieMax = null, want, kept, plain = null, total, target, mode = "normal",
+  isCritical = false, isFumble = false, critAt = 20, fumbleAt = 1 }) {
+  if ( !Number.isFinite(Number(target)) ) return false;
+  if ( bend === "die" ) {
+    if ( isCritical || isFumble || !(Number(dieMax) > 0) ) return false;   // a natural 20 or 1 stands against any die
+    const reach = Number(total) + (sign * Number(dieMax));
+    return (want === "miss") ? (sign < 0) && (reach < target) : (sign > 0) && (reach >= target);
+  }
+  if ( bend === "neutralise" ) {
+    const o = neutraliseOutcome({ mode, kept, plain, total, critAt, fumbleAt });
+    if ( !o.changed ) return false;
+    const hits = o.isCritical || (!o.isFumble && (o.total >= target));
+    return (want === "miss") ? !hits : hits;
+  }
+  return false;
+}
+
 /**
  * THE DICE OF A BENT ROLL for the canvas: every d20 in order, the one that STANDS up, the rest
  * struck (`lost` when the drop took a critical). A tie keeps the first.
  * @param {{how: string, first: number, second: number|null, stood: number, wasCritical: boolean,
- *          isCritical: boolean, faces?: number[]}|null} bent
+ *          isCritical: boolean, faces?: number[], add?: number}|null} bent
  * @returns {{label: string, up?: boolean, drop?: boolean, lost?: boolean}[]}
  */
 export function bentChips(bent) {
   if ( !bent || (bent.how === "none") ) return [];
+  // A bystander's die: the number it moved the roll by, one chip (a signed label).
+  if ( bent.how === "die" ) {
+    const n = Number(bent.add) || 0;
+    return n ? [{ label: `${n > 0 ? "+" : "−"}${Math.abs(n)}`, up: true }] : [];
+  }
   const lost = !!bent.wasCritical && !bent.isCritical;
   let dice, keep;
   if ( bent.how === "lower" ) {
@@ -217,13 +290,26 @@ export function rescueTitle(rows, defender) {
 /**
  * The attacker's card: who bent the roll and what it did, the detail keeping the struck die.
  * `verdict` is against the live AC.
- * @param {{rescue: string, bent: ReturnType<typeof disadvantageOutcome>, verdict: "hit"|"miss", ac: number|null}} args
+ * @param {{rescue: string, bent: {how: string, first: number, second: number|null, stood: number, firstTotal: number,
+ *   total: number, wasCritical: boolean, isCritical: boolean, changed: boolean, add?: number}, verdict: "hit"|"miss", ac: number|null}} args
  * @returns {{headline: string, detail: string}}
  */
 export function bentLines({ rescue, bent, verdict, ac }) {
   const word = (verdict === "miss") ? "MISS"
     : (bent.wasCritical && !bent.isCritical) ? "a hit, no longer a crit"
     : bent.changed ? "HIT" : "still a HIT";
+  if ( bent.how === "die" ) {
+    const n = Number(bent.add) || 0;
+    const signed = `${n < 0 ? "−" : "+"}${Math.abs(n)}`;
+    const vs2 = Number.isFinite(ac) ? ` vs AC ${ac}` : "";
+    return { headline: `${rescue} ${signed} — ${bent.firstTotal} → ${bent.total}, ${word}`,
+      detail: `d20 ${bent.first} (${bent.firstTotal}) ${signed} = ${bent.total}${vs2}` };
+  }
+  if ( bent.how === "neutralised" ) {
+    const vs2 = Number.isFinite(ac) ? ` vs AC ${ac}` : "";
+    return { headline: `${rescue} — no Advantage or Disadvantage, ${bent.firstTotal} → ${bent.total}, ${word}`,
+      detail: `the first d20 stands: ${bent.stood} (${bent.total})${vs2}` };
+  }
   const how = (bent.how === "cancelled") ? "Disadvantage cancels the Advantage" : "Disadvantage";
   const first = bent.wasCritical ? "natural 20" : `${bent.firstTotal}`;
   const headline = bent.changed
