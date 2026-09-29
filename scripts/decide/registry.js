@@ -1845,6 +1845,21 @@ export const HEAL_REROLLS = Object.freeze({
     from: "Druid — Circle of the Stars 3" })
 });
 
+/**
+ * A POOL OF HIT POINTS on its bearer that takes damage first, automatically (R1: the ward has no choice) —
+ * ward-pools.js at `dnd5e.preApplyDamage`, after Resistances, so the card's own buttons carry it too.
+ *   pool     where the hit points live: "uses" — the feature's own uses (the pack's Create Ward / Damage Ward
+ *            activities write them); the maximum is the item's
+ *   create   the feature's activity whose use creates the ward (full) once per Long Rest, on the first cast
+ *   refill   `{ school, per }`: a spell of that school cast from a slot restores `per` × the slot level
+ * ⚠ NOT A KIND — one table, one machine; Bastion of Law is the second customer (B4).
+ */
+export const WARD_POOLS = Object.freeze({
+  "Arcane Ward": Object.freeze({ pool: "uses", create: "Create Ward", refill: Object.freeze({ school: "abj", per: 2 }),
+    rule: Object.freeze({ item: "Arcane Ward", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdArcaneWard" }),
+    from: "Wizard — Abjurer 3" })
+});
+
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
  * combat (initiative-swap.js). ⚠ NOT A KIND — a second customer is a row. */
 export const INITIATIVE_SWAPS = Object.freeze({
@@ -2371,6 +2386,7 @@ export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));
 export const healRerollEntries = () => everyRow(Object.keys(HEAL_REROLLS));
+export const wardPoolEntries = () => everyRow(Object.keys(WARD_POOLS));
 export const repeatSaveEntries = () => everyRow(Object.keys(REPEAT_SAVES));
 export const turnGrantEntries = () => everyRow(Object.keys(TURN_GRANTS));
 export const wardEntries = () => everyRow(Object.keys(WARDS));

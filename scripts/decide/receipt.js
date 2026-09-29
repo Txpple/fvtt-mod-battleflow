@@ -52,8 +52,10 @@ export function hpDelta(prior, after) {
 /**
  * One receipt entry. ⚠ `taken` (what the hit dealt) and `delta` (what the pool did) differ at 0 HP.
  * `context` is per entry: a held target's belongs to the turn its verdict landed on.
+ * @param {{uuid: string, name: string, img?: string|null, note?: string, multiplier?: number, prior: any, after: any,
+ *   calc: any, context: any, ward?: {itemUuid: string, took: number}|null}} args
  */
-export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, prior, after, calc, context }) {
+export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, prior, after, calc, context, ward = null }) {
   return {
     uuid,
     name,
@@ -66,6 +68,8 @@ export function receiptEntry({ uuid, name, img = null, note, multiplier = 1, pri
     // POST-trait per part (rolls minus parts = lost to traits); healing parts arrive negated.
     parts: (calc || []).map(d => ({ type: d.type ?? null, amount: d.value ?? 0 })),
     traits: traitReasons(calc, multiplier),
+    // A ward pool's take (WARD_POOLS): the revert gives it back.
+    ...(ward ? { ward } : {}),
     reverted: false,
     ...statFields(context)
   };
@@ -193,7 +197,8 @@ export function revertPlan(receipt, uuid) {
       "system.attributes.hp.temp": entry.prior.temp,
       "system.attributes.hp.tempmax": entry.prior.tempmax
     },
-    clearDefeated: (entry.prior.value ?? 0) > 0
+    clearDefeated: (entry.prior.value ?? 0) > 0,
+    ward: entry.ward ?? null
   };
 }
 

@@ -763,6 +763,8 @@ export const STATE_KEYS = Object.freeze({
   metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
+  wardAbsorb: "an actor field — the ward's take on its bearer's damage update, for the pop on every client; the receipt is the resolve",
+  wardRefill: "a usage card's line — the ward created or refilled by an Abjuration cast; the item's uses are the state",
   metamagicFree: "a free class-feature tick in the casting window (Psychic Spells) - no spend, no answer; the damage roll's type is the result",
   healPending: "a heal claimed at creation for the elect to apply; the receipt is the resolve",
   masteryNotice: "a mastery reminder — presentation",

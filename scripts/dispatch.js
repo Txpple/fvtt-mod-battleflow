@@ -38,6 +38,7 @@ export const ORDER = Object.freeze([
   "reminders",          // the gate draws its section and writes its record first
   "advantage-buys",     // then the buy box joins the section and its record overwrites the gate's
   "rest-grants",
+  "ward-pools",         // the ward takes its share of the HP update before drop-to-one reads it
   "drop-to-one",
   "sneak",              // the Sneak Attack dice as their own part, before volleys' multiplier
   "clock-riders",       // a clock rider's part, before volleys' multiplier

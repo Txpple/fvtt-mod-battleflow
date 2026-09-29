@@ -77,6 +77,7 @@ export const LAYER_OF = {
   "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use
   "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike
   "fighting-styles.js": "machines", // the fighting styles' faces, gates and damage numbers
+  "ward-pools.js": "machines",      // the ward pools (Arcane Ward): the take at preApplyDamage, the cast's refill
   "drop-to-one.js": "machines",      // Relentless Endurance and Death Ward at a drop to 0
   "sneak.js": "machines",
   "clock-riders.js": "machines",
@@ -127,6 +128,7 @@ export const LAYER_OF = {
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set
   "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries
   "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count
+  "decide/ward-pools.js": "decision",        // the ward's take, the HP split after it, the refill
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

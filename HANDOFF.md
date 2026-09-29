@@ -61,7 +61,7 @@
 
 - Every row names its precedent; a platform-forced bend goes in RULINGS *Where the table bends the rule* in the same
   commit; a bend by choice in *Bent by choice*; a new flag key is classified in `decide/moments.js`; a new file bumps
-  `tools/check-registry.mjs`'s pin (123) and joins check-layers / dispatch / battleflow.js; a new kind moves
+  `tools/check-registry.mjs`'s pin (125) and joins check-layers / dispatch / battleflow.js; a new kind moves
   `EXPECTED_KINDS` (39).
 - A change runs its own suites (in rapid mode a spine change too — the full battery after each letter series); deploy `--local`
   first; launch detached.

@@ -226,6 +226,13 @@ export async function revertTarget(message, uuid) {
   }
 
   await actor.update(plan.update);
+  // A ward pool's take goes back to the ward (its hit points are the feature's uses).
+  if ( plan.ward?.took ) {
+    // live only: the ward's hit points are its feature's uses on the bearer's sheet, never a card's snapshot
+    const item = await fromUuid(plan.ward.itemUuid).catch(() => null);
+    const spent = Number(item?.system?.uses?.spent ?? 0);
+    if ( item ) await item.update({ "system.uses.spent": Math.max(0, spent - Number(plan.ward.took)) });
+  }
 
   // combatplus usually clears the defeated mark first; this covers a table where it is off.
   if ( plan.clearDefeated ) await clearDefeated(actor);

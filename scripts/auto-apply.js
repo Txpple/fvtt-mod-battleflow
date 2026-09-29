@@ -157,17 +157,20 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       // ⚠ It fires the calculate-damage hooks a second time.
       const calc = actor.calculateDamage(damages, { multiplier, originatingMessage: receiptMessage });
 
-      await actor.applyDamage(damages, {
-        multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage
-      });
+      // The options object is read back: ward-pools.js writes what a ward took onto it.
+      const applyOptions = { multiplier, isDelta: true, originatingMessage: receiptMessage, origin: receiptMessage };
+      await actor.applyDamage(damages, applyOptions);
       const after = actor.system._source.attributes.hp;
+      const ward = applyOptions.bfWard ?? null;
       // fighting-styles.js's block and ignored Resistance.
       const block = calc?.bfArmorBlock;
       const ignored = (calc?.bfIgnored ?? []).map(i => `${i.feature} — ignores ${i.types.join(", ")} resistance`);
-      const said = [note, block?.amount ? `${block.feature} — blocked ${block.amount}` : null, ...ignored].filter(Boolean).join(" · ") || note;
+      const warded = ward?.took ? `${ward.feature} took ${ward.took}${ward.left ? ` — ${ward.left} landed` : ""}` : null;
+      const said = [note, block?.amount ? `${block.feature} — blocked ${block.amount}` : null, warded, ...ignored].filter(Boolean).join(" · ") || note;
       receipts.push(receiptEntry({
         uuid: target.uuid, name: target.name, img: actor.img,
-        note: said, multiplier, prior, after, calc, context
+        note: said, multiplier, prior, after, calc, context,
+        ward: ward?.took ? { itemUuid: ward.itemUuid, took: ward.took } : null
       }));
     }
     if ( receipts.length ) {

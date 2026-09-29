@@ -832,6 +832,10 @@ Cantrip: Sacred Flame's successful save takes half on BF Test Wizard lent the fe
 
 ### A5 — the ward pool (`WARD_POOLS`, a new table and machine; ≈ ½ session)
 
+> **BUILT 2026-09-29** (RULINGS *The PHB classes — A5*): `smoke-classes` §36 green. Differences from the plan below:
+> the seam is `dnd5e.preApplyDamage` (after Resistances, the rule's order), the ward created on the first Abjuration
+> slot cast (the pack's Create Ward use); two files (`ward-pools.js` + `decide/ward-pools.js`, files 125).
+
 **Scope (1 row in band A; Projected Ward and Bastion of Law in B4):** Arcane Ward — a pool of hit points on
 the wizard (max 2 × level + Int) that absorbs damage BEFORE it lands, automatically (R1: the ward has no
 choice), refilled by 2 × the slot level on each Abjuration cast, its pop over the token.

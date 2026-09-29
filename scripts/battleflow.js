@@ -42,6 +42,7 @@ import "./dice-changers.js";
 import "./heal-rerolls.js";
 import "./unarmed-dice.js";
 import "./fighting-styles.js";
+import "./ward-pools.js";
 import "./kit-tend.js";
 import "./initiative-swap.js";
 // precision.js before d20-folds.js: its rescue slice sits above the d20 fold's in the one window.

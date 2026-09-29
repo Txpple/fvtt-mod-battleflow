@@ -41,7 +41,10 @@ export const COVERS = [
   // §A4 (32–34)
   'saves/verdict.js',       // Potent Cantrip stamped on the entry at the fold
   'metamagic.js',           // Psychic Spells' free row, its birth flag, the damage retyped
-  'precision.js'            // the miss wait's synchronous half (Potent Cantrip's miss)
+  'precision.js',           // the miss wait's synchronous half (Potent Cantrip's miss)
+  // §A5 (36)
+  'ward-pools.js',          // Arcane Ward: the take at preApplyDamage, the pop, the cast's create and refill
+  'receipts.js'             // the revert gives the ward its take back
 ];
 
 const SECTIONS = {
@@ -79,7 +82,8 @@ const SECTIONS = {
   32: 'Potent Cantrip (lent to the Attacker): the Halfling SAVES against its Sacred Flame — "saved — half damage (Potent Cantrip)", half the roll lands; taken back, a saved Sacred Flame lands nothing',
   33: 'Disciple of Life (the Cleric): Cure Wounds at level 2 heals "+4[Disciple of Life]" more — the card says "Disciple of Life — +4 healing", the healing lands with it; at level 1 +3; cast innately, nothing',
   34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic',
-  35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share'
+  35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
+  36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing'
 };
 const DEPENDS = {};
 
@@ -2383,6 +2387,86 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await closeDialogs();
         for (const it of pcAttacker.items.filter(i => ['Potent Cantrip', 'Fire Bolt'].includes(i.name) && (lentBy.get(pcAttacker) ?? []).includes(i.id))) await unlend(pcAttacker, it);
         await victim.update({ 'system.attributes.hp.value': 400 });
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 36. Arcane Ward: the ward pool
+    if (want(36)) {
+      await closeDialogs();
+      const ward = await hgLend(sorcerer, 'Arcane Ward', 'feat', { 'system.uses.max': '12', 'system.uses.spent': 12 });
+      const armor = await hgLend(sorcerer, 'Mage Armor', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const sorcTok = canvas.tokens.placeables.find(t => t.actor?.id === sorcerer.id) ?? null;
+      hgKeep(sorcerer, {
+        'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value,
+        'system.attributes.hp.max': sorcerer.system._source.attributes.hp.max,
+        'system.attributes.hp.temp': sorcerer.system._source.attributes.hp.temp ?? 0,
+        'system.attributes.ac.override': sorcerer.system._source.attributes.ac.override ?? null,
+        'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells)
+      });
+      const wardNow = () => Number(sorcerer.items.get(ward?.id)?.system?.uses?.value ?? NaN);
+      const shp = () => Number(sorcerer.system.attributes.hp.value);
+      const setWard = n => sorcerer.items.get(ward.id).update({ 'system.uses.spent': 12 - n });
+      const armorAct = () => sorcerer.items.get(armor?.id)?.system?.activities?.contents?.[0] ?? null;
+      const lineOf = async card => (await waitFor(() => cardEl(card?.id)?.querySelector('.bf-ward-line'), 5000))?.textContent?.trim() ?? '';
+      const cast = async (level = 1) => {
+        sorcTok?.setTarget(true, { releaseOthers: true });
+        await sleep(80);
+        const r = await armorAct()?.use({ spell: { slot: `spell${level}` }, subsequentActions: false }, { configure: false }, {});
+        clearTargets();
+        const card = r?.message ?? null;
+        await waitFor(() => card?.getFlag(MOD, 'wardRefill'), 6000);
+        return card;
+      };
+      try {
+        if (!ward || !armorAct() || !sorcTok) log.push(`§36 skipped: ward=${!!ward} armor=${!!armorAct()} token=${!!sorcTok}`);
+        else {
+          await sorcerer.update({ 'system.attributes.hp.max': 200, 'system.attributes.hp.value': 200, 'system.attributes.hp.temp': 0,
+            'system.attributes.ac.override': 5, 'system.spells.spell1.value': 4, 'system.spells.spell2.value': 3 });
+          // a. the first Abjuration slot cast creates it, full
+          const c1 = await cast(1);
+          ok('36a. Mage Armor (level 1) creates the ward: 12 of 12, the card says "created, 12 hit points (of 12)"',
+            (wardNow() === 12) && /Arcane Ward — created, 12 hit points \(of 12\)/.test(await lineOf(c1)), `ward=${wardNow()} line="${await lineOf(c1)}"`);
+          // b. damage applied straight to the actor (the card's own buttons' road): the ward takes it
+          await sorcerer.applyDamage([{ value: 5, type: 'bludgeoning' }]);
+          await sleep(500);
+          ok('36b. 5 damage applied to the actor lands on the ward: HP untouched, the ward 12 → 7', (shp() === 200) && (wardNow() === 7), `hp=${shp()} ward=${wardNow()}`);
+          // c. a hit through the module with the ward at 2: the receipt says what it took; the revert gives both back
+          await setWard(2);
+          attackerToken.control({ releaseOthers: true });
+          sorcTok.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          faces([[15, 20], [6, 6], [6, 6]]);
+          const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+          const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const atk = rolls?.[0]?.parent ?? null;
+          const dmg = await waitFor(() => { const d = damageFor(atk?.id); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          clearTargets();
+          const total = Number(dmg?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0));
+          const entry = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === sorcerer.uuid);
+          ok('36c. a hit with the ward at 2: "Arcane Ward took 2 — N landed", the ward 0, the HP down by the rest',
+            (wardNow() === 0) && (shp() === 200 - (total - 2)) && new RegExp(`Arcane Ward took 2 — ${total - 2} landed`).test(entry?.note ?? '') && (entry?.ward?.took === 2),
+            `total=${total} hp=${shp()} ward=${wardNow()} note="${entry?.note}" ward=${JSON.stringify(entry?.ward)}`);
+          const { revertTarget } = await import('/modules/fvtt-mod-battleflow/scripts/receipts.js');
+          await revertTarget(dmg, sorcerer.uuid);
+          await sleep(500);
+          ok('36d. the revert gives both back: HP 200, the ward 2', (shp() === 200) && (wardNow() === 2), `hp=${shp()} ward=${wardNow()}`);
+          // e. a level-2 Abjuration cast refills +4
+          await setWard(0);
+          const c2 = await cast(2);
+          ok('36e. Mage Armor at level 2 refills +4: "Arcane Ward — +4 (4 of 12)"', (wardNow() === 4) && /Arcane Ward — \+4 \(4 of 12\)/.test(await lineOf(c2)),
+            `ward=${wardNow()} line="${await lineOf(c2)}"`);
+          // f. at 0 it takes nothing
+          await setWard(0);
+          await sorcerer.applyDamage([{ value: 5, type: 'bludgeoning' }]);
+          await sleep(400);
+          ok('36f. a ward at 0 takes nothing: the 5 lands', (shp() === 195) && (wardNow() === 0), `hp=${shp()} ward=${wardNow()}`);
+        }
+      } finally {
+        if (armor) await unlend(sorcerer, armor);
+        if (ward) await unlend(sorcerer, ward);
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

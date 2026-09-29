@@ -1797,6 +1797,39 @@ could borrow an earlier cast's Transmuted type.
 | Potent Cantrip, Fire Bolt misses | the damage rolls anyway; the receipt "missed — Potent Cantrip, half damage"; with Heroic Inspiration, nothing rolls until the rescue window is passed |
 | Psychic Spells, an Eldritch Blast cast | the casting window's group "Battle Flow — Psychic Spells": the row "Psychic Spells · free"; ticked, the beams deal Psychic, the card says "Psychic Spells — the damage is psychic" |
 
+## The PHB classes — A5 (2026-09-29, Session 0 stage A5)
+
+**The ward pool — a new table (`WARD_POOLS`) and its machine (`scripts/ward-pools.js`); no new kind; BUILT and
+PROVEN (`smoke-classes` §36), unwalked.** Calls the plan left open — **each is the user's to overrule**:
+
+1. **The seam is `dnd5e.preApplyDamage`, not `preCalculateDamage`** (the plan's): the rule applies Resistances and
+   Vulnerabilities BEFORE the ward, and `preApplyDamage` hands the amount after them, with the hit-point update still
+   open. The ward takes its share, the rest goes through Temporary Hit Points then Hit Points (dnd5e's own split), so
+   every applier carries it — the module's and the card's own buttons. It runs before drop-to-one, which reads the
+   update; dnd5e's concentration check reads the real change, so a hit the ward swallows asks no save.
+2. **Created automatically** on the first Abjuration cast from a slot after a Long Rest (R1 — "you can" has one
+   sensible answer): the pack's Create Ward activity (1 per Long Rest) is spent and the ward filled; every later such
+   cast refills 2 × the slot level. The pack's Bonus Action refill ("Expend Spell Slot for Ward") stays the sheet's.
+3. **The receipt says what the ward took** ("Arcane Ward took 2 — 7 landed") and its **revert gives the ward back**
+   (the entry's `ward`); the take pops over the wizard on every client (`wardAbsorb`, Heavy Armor Master's shape).
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Arcane Ward | `WARD_POOLS` `pool: "uses"`, `create`, `refill: { school: "abj", per: 2 }` | the feature's own uses are the ward's hit points; damage lands on it first, after traits; an Abjuration slot cast creates or refills it |
+
+**Known limit (small):** the `amount` other damage hooks read (`dnd5e.applyDamage` — the rebukes, damage shares,
+drains) is the amount before the ward, so a hit the ward swallows still counts as damage taken there. The effect
+view does not yet list the ward's hit points (they stand on the sheet's uses).
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Arcane Ward, the first Abjuration cast after a Long Rest | the card's line "Arcane Ward — created, 12 hit points (of 12)" |
+| a 9-damage hit on the wizard, the ward at 4 | "−4 Arcane Ward" pops over the wizard; the receipt "Arcane Ward took 4 — 5 landed" |
+| damage applied from the card's own buttons | the ward takes it the same way |
+| a Shield cast (level 1) | "Arcane Ward — +2 (6 of 12)" |
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):
