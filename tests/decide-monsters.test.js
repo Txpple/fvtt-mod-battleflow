@@ -99,6 +99,61 @@ describe("REPEAT_SAVES — a monster's own activity", () => {
   });
 });
 
+describe("EMANATIONS — the fire auras' pulse, the turn-start ring, the alerts", () => {
+  it("the pulse rows: feature rings with no effect, the first damage activity at the bearer's turn end", () => {
+    for (const [key, reach] of [
+      ["Fire Aura", "harmful"],
+      ["Flame Aura", "all"],
+      ["Heat Aura", "all"]
+    ]) {
+      const row = reg.EMANATIONS[key];
+      expect(row, key).toMatchObject({
+        kind: "feature",
+        reach,
+        range: null,
+        effect: null,
+        pulse: { on: "sourceTurnEnd", activity: null }
+      });
+      expect(row.trigger, key).toBeUndefined();
+      expectPointer(row.rule);
+    }
+  });
+  it("Gibbering is Stench's row — a turnStart trigger, off while Incapacitated", () => {
+    expect(reg.EMANATIONS.Gibbering).toMatchObject({
+      kind: "feature",
+      reach: "all",
+      effect: null,
+      incapacitated: true,
+      trigger: { on: ["turnStart"], oncePerTurn: true }
+    });
+    expectPointer(reg.EMANATIONS.Gibbering.rule);
+  });
+  it("the alerts are Polearm Master's rows at the trigger's range — three on a move-in, Unnerving Gaze on a turn start", () => {
+    for (const [key, range, reach] of [
+      ["Pursuit", 120, "harmful"],
+      ["Shriek", 30, "all"],
+      ["Watery Rebuke", 5, "harmful"]
+    ]) {
+      expect(reg.EMANATIONS[key], key).toMatchObject({
+        kind: "feature",
+        reach,
+        range,
+        effect: null,
+        incapacitated: true,
+        quiet: true,
+        alert: { on: "moveIn", label: key }
+      });
+      expect(reg.EMANATIONS[key].alert.swing, key).toMatch(/Reaction/);
+      expectPointer(reg.EMANATIONS[key].rule);
+    }
+    expect(reg.EMANATIONS["Unnerving Gaze"]).toMatchObject({
+      range: 30,
+      reach: "harmful",
+      alert: { on: "turnStart", label: "Unnerving Gaze" }
+    });
+  });
+});
+
 describe("TURN_GRANTS — the turn-start damage", () => {
   it("the grappled target's rows: the origin's damage activity at the bearer's turn start (the vine, Smother, Spores) or turn end (the swarm)", () => {
     expect(reg.TURN_GRANTS["Constricting Vine"]).toMatchObject({

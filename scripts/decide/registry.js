@@ -612,10 +612,13 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *   remind     a notice at the source's turn start naming an AIMED heal — offered, never played (R1)
  *   holding    the ring stands only while a qualifying weapon is held (`base`, or every `properties`)
  *   alert      a reminder to the source when a reached creature itself MOVES INTO the ring (tokenMoveIn),
- *              or `on: "moveOut"` OUT of it; `kind: "notice"` a plain card with `says` (no Reaction, no
- *              button — Magic Circle's entry ban, Forcecage's exit ban); `types: "chosen"` only the asked types
+ *              or `on: "moveOut"` OUT of it, or `on: "turnStart"` STARTS ITS TURN inside it (Unnerving Gaze);
+ *              `kind: "notice"` a plain card with `says` (no Reaction, no
+ *              button — Magic Circle's entry ban, Forcecage's exit ban); `types: "chosen"` only the asked types.
+ *              A monster's Reaction (Pursuit, Shriek, Watery Rebuke): the response is the activity's, from the sheet
  *   incapacitated  inactive while the source is Incapacitated;  quiet  no card
- *   item / activity / while / pulse   see the Inner Radiance row
+ *   item / activity / while / pulse   see the Inner Radiance row; a `pulse` with `activity: null` rolls the
+ *              item's first damage activity at the bearer's turn END (the fire auras — the GM's side)
  * Membership: the Emanations list. What is left out on purpose: RULINGS *Emanations*.
  */
 export const EMANATIONS = Object.freeze({
@@ -778,6 +781,50 @@ export const EMANATIONS = Object.freeze({
   "Aura of Authority": Object.freeze({ kind: "feature", activity: "Expend Use", reach: "helpful", range: null, effect: null, incapacitated: true,
     caveat: "the Advantage on attack rolls and saving throws of the bearer and its allies inside is the table's",
     rule: Object.freeze({ item: "Aura of Authority", uuid: "Compendium.dnd-monster-manual.features.Item.mmAuraOfAuthorit" }),
+    from: "monsters" }),
+  // THE GM'S SIDE, the waiting rows (RULINGS *The Monster Manual — the waiting rows built*). The bearer's turn-end
+  // pulse (Inner Radiance's shape): "at the end of each of its turns, each creature in the Emanation takes…" — the
+  // damage activity carries the Emanation, rolled once on the bearer, landed on everyone inside.
+  "Fire Aura": Object.freeze({ kind: "feature", reach: "harmful", range: null, effect: null, incapacitated: false,
+    pulse: Object.freeze({ on: "sourceTurnEnd", activity: null }),
+    caveat: "\"of the bearer's choice\" reads as its enemies; a friend inside is spared — the table's",
+    rule: Object.freeze({ item: "Fire Aura", uuid: "Compendium.dnd-monster-manual.features.Item.mmFireAura000000" }),
+    from: "monsters" }),
+  "Flame Aura": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    pulse: Object.freeze({ on: "sourceTurnEnd", activity: null }),
+    rule: Object.freeze({ item: "Flame Aura", uuid: "Compendium.dnd-monster-manual.features.Item.mmFlameAura00000" }),
+    from: "monsters" }),
+  "Heat Aura": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    pulse: Object.freeze({ on: "sourceTurnEnd", activity: null }),
+    caveat: "\"each creature that isn't an azer\" — a kin inside is spared, the table's",
+    rule: Object.freeze({ item: "Heat Aura", uuid: "Compendium.dnd-monster-manual.features.Item.mmHeatAura000000" }),
+    from: "monsters (azers)" }),
+  // The turn-start ring (Stench's shape): the save demanded of a creature starting its turn inside; the d8 the GM's.
+  "Gibbering": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: true,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "the failure's d8 — what the target does this turn — is the GM's from the sheet",
+    rule: Object.freeze({ item: "Gibbering", uuid: "Compendium.dnd-monster-manual.features.Item.mmGibbering00000" }),
+    from: "monsters (gibbering mouther)" }),
+  // The alerts (Polearm Master's shape): an invisible ring at the trigger's range; a creature moving in — or
+  // starting its turn inside — raises the reminder; the Reaction's response is the activity's, from the sheet.
+  "Pursuit": Object.freeze({ kind: "feature", reach: "harmful", range: 120, effect: null, incapacitated: true, quiet: true,
+    alert: Object.freeze({ on: "moveIn", label: "Pursuit", swing: "Take your <strong>Reaction</strong> to use Pursuit — Teleport to a space near it, from the sheet." }),
+    caveat: "\"ends its move within 120 feet\" — a creature passing through is alerted too; whether its move ended is the GM's",
+    rule: Object.freeze({ item: "Pursuit", uuid: "Compendium.dnd-monster-manual.features.Item.mmPursuit0000000" }),
+    from: "monsters" }),
+  "Shriek": Object.freeze({ kind: "feature", reach: "all", range: 30, effect: null, incapacitated: true, quiet: true,
+    alert: Object.freeze({ on: "moveIn", label: "Shriek", swing: "Take your <strong>Reaction</strong> to use Shriek, from the sheet." }),
+    caveat: "a source of Bright Light moving in is the table's (a token is a creature)",
+    rule: Object.freeze({ item: "Shriek", uuid: "Compendium.dnd-monster-manual.features.Item.mmShriek00000000" }),
+    from: "monsters (shriekers)" }),
+  "Watery Rebuke": Object.freeze({ kind: "feature", reach: "harmful", range: 5, effect: null, incapacitated: true, quiet: true,
+    alert: Object.freeze({ on: "moveIn", label: "Watery Rebuke", swing: "Take your <strong>Reaction</strong> to use Watery Rebuke at it — a Strength save, the cold and the push, from the sheet." }),
+    rule: Object.freeze({ item: "Watery Rebuke", uuid: "Compendium.dnd-monster-manual.features.Item.mmWateryRebuke00" }),
+    from: "monsters (marids)" }),
+  "Unnerving Gaze": Object.freeze({ kind: "feature", reach: "harmful", range: 30, effect: null, incapacitated: true, quiet: true,
+    alert: Object.freeze({ on: "turnStart", label: "Unnerving Gaze", swing: "Take your <strong>Reaction</strong> to use Unnerving Gaze at it — a Wisdom save, from the sheet." }),
+    caveat: "\"can see the bearer\" and a success's 24-hour immunity are the table's",
+    rule: Object.freeze({ item: "Unnerving Gaze", uuid: "Compendium.dnd-monster-manual.features.Item.mmUnnervingGaze0" }),
     from: "monsters" })
 });
 

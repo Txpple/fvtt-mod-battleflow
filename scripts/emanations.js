@@ -78,6 +78,7 @@ listenOnce("init", "emanations", () => {
       const token = event.data?.token ?? event.data?.combatant?.token ?? null;
       await maybeHeal(this, token, "turnStart");
       await maybeTrigger(this, token, "turnStart");
+      await maybeAlert(this, token, null, "turnStart");
     }
     static async #onToggle(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); }
     static async #onMoveIn(event) {
@@ -343,7 +344,8 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
 
 /**
  * An `alert` row: a creature that MOVED into the reach raises Hew's reminder (`hewNotice`), once per
- * movement; a `kind: "notice"` row (an area's ban on entering or leaving) posts a plain card instead.
+ * movement — or, `on: "turnStart"`, one that STARTS ITS TURN inside it, once per turn (Unnerving Gaze);
+ * a `kind: "notice"` row (an area's ban on entering or leaving) posts a plain card instead.
  * tokenMoveIn fires only for a mover, and a walked move is split at each region edge, so passing
  * through is caught.
  */
@@ -356,7 +358,8 @@ async function maybeAlert(behType, token, movement, cause) {
     if ( !row?.alert || (row.alert.on !== cause) || behType.behavior?.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;
-    const key = `${region.id}|${token.id}|${cause}|${movement?.id ?? Date.now()}`;
+    const turn = game.combat ? `${game.combat.id}:${game.combat.round}:${game.combat.turn}` : null;
+    const key = `${region.id}|${token.id}|${cause}|${movement?.id ?? ((cause === "turnStart") && turn) ?? Date.now()}`;
     if ( row.alert.kind === "notice" ) {
       if ( alerted.has(key) ) return;
       if ( !typeAdmits(row.alert, flagOf(region)?.picked ?? askDefaults(row.ask), creatureTypeOf(token.actor.system?.details?.type ?? null)) ) return;
@@ -373,15 +376,17 @@ async function maybeAlert(behType, token, movement, cause) {
     const item = resolveUuid(sys.item);
     const weapon = row.holding ? heldWeaponFor(bearer, row.holding) : null;
     const window = decisionWindow();
+    const what = (cause === "turnStart") ? "started its turn within" : "entered";
+    const trait = item?.system?.type?.value === "monster";
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: bearer, token: source }),
-      content: bfCard({ img: item?.img ?? null, eyebrow: `Feat — ${item?.name ?? row.key}`, tone: "good",
-        title: `${row.alert.label} — ${token.name} entered ${bearer.name}'s reach`,
-        subtitle: weapon ? `${weapon.name} · ${weaponReachOf(weapon)} ft` : "",
-        lines: [ruleLine(row.rule), row.alert.swing] }),
+      content: bfCard({ img: item?.img ?? null, eyebrow: `${trait ? "Trait" : "Feat"} — ${item?.name ?? row.key}`, tone: "good",
+        title: `${row.alert.label} — ${token.name} ${what} ${bearer.name}'s reach`,
+        subtitle: weapon ? `${weapon.name} · ${weaponReachOf(weapon)} ft` : (row.range ? `${row.range} ft` : ""),
+        lines: [ruleLine(row.rule), row.alert.swing, row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
       flags: { [MODULE_ID]: { hewNotice: {
         attackerUuid: bearer.uuid, itemName: item?.name ?? row.key, itemImg: item?.img ?? null,
-        weaponName: weapon?.name ?? null, why: `${token.name} entered your reach`,
+        weaponName: weapon?.name ?? null, why: `${token.name} ${what} your reach`, cause,
         label: row.alert.label, rule: row.rule, swing: row.alert.swing, targetName: token.name,
         ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
       } } }
@@ -593,7 +598,8 @@ listen("updateCombat", "emanations", (combat, changes, options) => {
 
 /** The pulse's damage off the row's activity: its formula as the pack wrote it, and its type. */
 function pulseDamageOf(item, row) {
-  const activity = activityNamed(item, row.pulse?.activity ?? row.activity);
+  const name = row.pulse?.activity ?? row.activity ?? null;
+  const activity = name ? activityNamed(item, name) : activityOfType(item, "damage");
   const part = activity?.damage?.parts?.[0] ?? null;
   const raw = part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
   return { activity, raw, type: [...(part?.types ?? [])][0] ?? null };

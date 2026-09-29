@@ -9,14 +9,18 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
   'repeat-saves.js',        // §1 — a monster's own activity repeats at the target's turn end (Pacifying Spores); §2 the escalation (Petrifying Bite: Petrified instead of Restrained)
-  'turn-grants.js'          // §3 — the grappled target's damage at its own turn start (Constricting Vine) and turn end (Swarm of Proboscises); §4 the grappler's own turn start (Barbed Hide)
+  'turn-grants.js',         // §3 — the grappled target's damage at its own turn start (Constricting Vine) and turn end (Swarm of Proboscises); §4 the grappler's own turn start (Barbed Hide)
+  'emanations.js'           // §5 — the fire auras' pulse at the bearer's turn end (Flame Aura); §6 Gibbering's turn-start demand; §7 the alerts — Watery Rebuke on a move-in, Unnerving Gaze on a turn start
 ];
 
 const SECTIONS = {
   1: 'PACIFYING SPORES: the Monster\'s save fails the Victim (Stunned lands from the trait); the Victim\'s turn END raises the repeat — Constitution at the trait\'s DC, not a spell; a failure holds, a success ends it',
   2: 'PETRIFYING BITE: the First Save lands Restrained; the turn end repeats on the SECOND Save; the failure presses Petrified INSTEAD — the Restrained gone, the card says so',
   3: 'CONSTRICTING VINE and SWARM OF PROBOSCISES: the grappled Victim takes the vine\'s "Damage: Grappled" at its own turn START, receipted; the swarm\'s at its turn END; nothing once the grapple ends',
-  4: 'BARBED HIDE: the Monster\'s own turn start deals its damage to the creature it grapples (the Victim, Grappled by it), receipted; nothing when it grapples no one'
+  4: 'BARBED HIDE: the Monster\'s own turn start deals its damage to the creature it grapples (the Victim, Grappled by it), receipted; nothing when it grapples no one',
+  5: 'FLAME AURA: a ring off the damage activity\'s Emanation; the Monster\'s turn END rolls the fire once and lands it on the Victim inside, receipted; the Victim outside takes nothing',
+  6: 'GIBBERING: the Victim starting its turn inside the ring is demanded the Wisdom save (cause turnStart); the Monster Incapacitated, nothing',
+  7: 'THE ALERTS: Watery Rebuke — the Victim moving within 5 feet raises the reminder card (hewNotice, the Reaction from the sheet); Unnerving Gaze — the Victim STARTING its turn within 30 feet raises it (cause turnStart), once per turn'
 };
 const DEPENDS = {};
 
@@ -350,6 +354,137 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await endCombat();
       await clearVictim();
       await takeBack('Barbed Hide');
+    }
+
+    // ================================================== the rings — helpers
+    const TYPE = `${MOD}.emanation`;
+    const mv = () => ({ teleport: true, animate: false });
+    const featureRegion = key => scene.regions.find(r => { const f = r.getFlag(MOD, 'emanation'); return f?.kind === 'feature' && f.tokenId === monsterToken.document.id && f.key === key; }) ?? null;
+    const ringOf = async key => waitFor(() => { const r = featureRegion(key); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 12000);
+    const moveVictim = async squares => { await victimToken.document.update({ x: monsterToken.document.x + squares * g, y: monsterToken.document.y }, mv()); await sleep(400); };
+    const triggerCards = () => cardsWith('emanationTrigger');
+    const pulseCards = () => cardsWith('emanationPulse');
+    const notices = label => game.messages.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'hewNotice')?.label === label));
+    const setIncapacitated = async (actor, on) => {
+      const carriers = actor.effects.filter(e => e.statuses?.has?.('incapacitated'));
+      if (on && !carriers.length) { const eff = await ActiveEffect.implementation.fromStatusEffect('incapacitated'); await ActiveEffect.implementation.create(eff.toObject(), { parent: actor, keepId: true }); }
+      else if (!on && carriers.length) await actor.deleteEmbeddedDocuments('ActiveEffect', carriers.map(e => e.id));
+      await sleep(300);
+    };
+    const ringWanted = [5, 6, 7].some(n => want(n));
+    if (ringWanted) {
+      // The Victim turned FRIENDLY for the ring sections: the Monster's enemy (a harmful reach).
+      await victimToken.document.update({ disposition: 1 });
+      await sleep(200);
+    }
+
+    // ================================================== 5. Flame Aura — the pulse
+    if (want(5)) {
+      await healFull();
+      const t5 = Date.now();
+      const aura = await lendTrait('Flame Aura');
+      const ring = await ringOf('Flame Aura');
+      const beh = ring?.behaviors?.find(b => b.type === TYPE);
+      ok('5a. Flame Aura lent: a ring rises on the Monster\'s token off the damage activity\'s Emanation, reaching all, no member effect',
+        !!ring && (ring.shapes?.[0]?.radius > 0) && (beh?.system?.reach === 'all') && (beh?.system?.effect === null), `ring=${!!ring} radius=${ring?.shapes?.[0]?.radius} reach=${beh?.system?.reach}`);
+      await moveVictim(1);   // inside
+      await startCombat();   // the Monster's turn
+      const hp0 = hpNow();
+      await combat.nextTurn();   // the Monster's turn ENDS → the pulse
+      const card = await waitFor(() => pulseCards().find(m => (m.timestamp >= t5) && (m.getFlag(MOD, 'emanationPulse')?.key === 'Flame Aura')) ?? null, 10000);
+      await waitFor(() => card?.getFlag(MOD, 'receipt'), 8000);
+      const p = card?.getFlag(MOD, 'emanationPulse');
+      ok('5b. the Monster\'s turn end rolls the aura\'s fire once and lands it on the Victim inside, receipted',
+        !!card && (p?.type === 'fire') && (p?.total > 0) && (p?.targets?.some(t => t.uuid === victim.uuid)) && (hpNow() === hp0 - p.total) && !!card?.getFlag(MOD, 'receipt'),
+        `card=${!!card} flag=${JSON.stringify(p && { type: p.type, total: p.total, targets: p.targets?.map(t => t.name) })} hp=${hpNow()} vs ${hp0}`);
+      await moveVictim(-6);   // 30 ft away on the near side, outside (a stray token may still sit inside the ring — the range is shared)
+      await sleep(1500);      // the ring re-bases and the region's membership settles
+      const hp1 = hpNow();
+      const n1 = pulseCards().length;
+      await combat.nextTurn();   // the Victim
+      await sleep(300);
+      await combat.nextTurn();   // the Monster's turn ends again, the Victim outside
+      await sleep(1000);
+      const later = pulseCards().slice(n1);
+      ok('5c. the Victim outside: the next turn end names it in no pulse and its Hit Points stand', !later.some(m => m.getFlag(MOD, 'emanationPulse')?.targets?.some(x => x.uuid === victim.uuid)) && (hpNow() === hp1),
+        `later=${later.length} targets=${later.map(m => m.getFlag(MOD, 'emanationPulse')?.targets?.map(x => x.name).join('+')).join(';')} hp=${hpNow()} vs ${hp1}`);
+      await endCombat();
+      await aura.delete();
+      await waitFor(() => featureRegion('Flame Aura') ? null : true, 8000);
+      await moveVictim(1);
+    }
+
+    // ================================================== 6. Gibbering — the turn-start ring
+    if (want(6)) {
+      await healFull();
+      await saveBonus('wis', '-30');
+      const t6 = Date.now();
+      const gib = await lendTrait('Gibbering');
+      const ring = await ringOf('Gibbering');
+      ok('6a. Gibbering lent: a ring rises off the save activity\'s Emanation', !!ring && (ring.shapes?.[0]?.radius > 0), `ring=${!!ring}`);
+      await moveVictim(1);
+      await startCombat();
+      const n0 = triggerCards().length;
+      await combat.nextTurn();   // the Victim's turn STARTS inside
+      const card = await waitFor(() => triggerCards().find(m => (m.timestamp >= t6) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'turnStart') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Gibbering')) ?? null, 10000);
+      const sv = card?.getFlag(MOD, 'saves');
+      ok('6b. the Victim starting its turn inside is demanded the Wisdom save — cause turnStart, the trait\'s DC, pinned to it',
+        !!card && (sv?.abilities?.[0] === 'wis') && (sv?.targets?.length === 1) && (sv.targets[0].uuid === victim.uuid) && /started its turn inside/.test(card?.content ?? ''),
+        `card=${!!card} saves=${JSON.stringify(sv && { abilities: sv.abilities, dc: sv.dc, targets: sv.targets.map(t => t.name) })}`);
+      await waitFor(() => game.messages.get(card?.id)?.getFlag(MOD, 'saves')?.targets?.[0]?.applied ? true : null, 15000);
+      await setIncapacitated(monster, true);
+      await waitFor(() => featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled ? true : null, 8000);
+      const n1 = triggerCards().length;
+      await combat.nextTurn();   // the Monster
+      await sleep(300);
+      await combat.nextTurn();   // the Victim again — the ring disabled
+      await sleep(1000);
+      ok('6c. the Monster Incapacitated: the ring stands disabled and the next turn start asks nothing', (triggerCards().length === n1) && !!featureRegion('Gibbering')?.behaviors?.find(b => b.type === TYPE)?.disabled, `cards=${triggerCards().length} (was ${n1}, before ${n0})`);
+      await setIncapacitated(monster, false);
+      await endCombat();
+      await gib.delete();
+      await waitFor(() => featureRegion('Gibbering') ? null : true, 8000);
+      await clearVictim();
+    }
+
+    // ================================================== 7. the alerts — Watery Rebuke (move-in), Unnerving Gaze (turn start)
+    if (want(7)) {
+      await moveVictim(4);   // 20 ft away: outside a 5-ft ring
+      const rebuke = await lendTrait('Watery Rebuke');
+      const ring = await ringOf('Watery Rebuke');
+      const beh = ring?.behaviors?.find(b => b.type === TYPE);
+      ok('7a. Watery Rebuke lent: a quiet 5-foot ring rises, harmful, no effect', !!ring && (beh?.system?.reach === 'harmful') && (beh?.system?.effect === null), `ring=${!!ring} reach=${beh?.system?.reach}`);
+      const t7 = Date.now();
+      await victimToken.document.update({ x: monsterToken.document.x + g, y: monsterToken.document.y }, { animate: false });   // a real move, into the ring
+      const card = await waitFor(() => notices('Watery Rebuke').find(m => m.timestamp >= t7) ?? null, 10000);
+      const n = card?.getFlag(MOD, 'hewNotice');
+      ok('7b. the Victim moving within 5 feet raises the Monster\'s reminder: the trait, the swing, the Reaction from the sheet',
+        !!card && (n?.attackerUuid === monster.uuid) && (n?.itemName === 'Watery Rebuke') && (n?.cause === 'moveIn') && /Watery Rebuke — .* entered/.test(card?.content ?? '') && /Trait — Watery Rebuke/.test(card?.content ?? ''),
+        `card=${!!card} flag=${JSON.stringify(n && { attacker: n.attackerUuid === monster.uuid, item: n.itemName, cause: n.cause })}`);
+      await rebuke.delete();
+      await waitFor(() => featureRegion('Watery Rebuke') ? null : true, 8000);
+      // Unnerving Gaze: the turn start inside 30 feet.
+      const gaze = await lendTrait('Unnerving Gaze');
+      await ringOf('Unnerving Gaze');
+      await moveVictim(2);   // 10 ft: inside
+      await startCombat();
+      const t7b = Date.now();
+      await combat.nextTurn();   // the Victim's turn starts inside
+      const c2 = await waitFor(() => notices('Unnerving Gaze').find(m => m.timestamp >= t7b) ?? null, 10000);
+      const n2 = c2?.getFlag(MOD, 'hewNotice');
+      ok('7c. the Victim STARTING its turn within 30 feet raises Unnerving Gaze\'s reminder — cause turnStart, the card says so',
+        !!c2 && (n2?.cause === 'turnStart') && (n2?.itemName === 'Unnerving Gaze') && /started its turn within/.test(c2?.content ?? ''),
+        `card=${!!c2} flag=${JSON.stringify(n2 && { cause: n2.cause, item: n2.itemName })}`);
+      const k = notices('Unnerving Gaze').length;
+      await combat.nextTurn();   // the Monster
+      await sleep(300);
+      await combat.nextTurn();   // the Victim again: a second turn, a second reminder
+      await waitFor(() => notices('Unnerving Gaze').length > k ? true : null, 8000);
+      ok('7d. the next turn start raises it again — once per turn, not once ever', notices('Unnerving Gaze').length === k + 1, `notices=${notices('Unnerving Gaze').length} (was ${k})`);
+      await endCombat();
+      await gaze.delete();
+      await waitFor(() => featureRegion('Unnerving Gaze') ? null : true, 8000);
+      await moveVictim(1);
     }
 
     return { log, results, skips };
