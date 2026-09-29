@@ -1,41 +1,50 @@
-# HANDOFF.md — the PHB classes: A5 pushed, next A6 (2026-09-29, evening)
+# HANDOFF.md — the PHB classes: A6 + A7a pushed, A7b LOCAL, next the FULL battery (2026-09-29, night)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
 ## FIRST — the state
 
-- **A5 PUSHED** (`d91887e`; RULINGS *The PHB classes — A5*): Arcane Ward — the new `WARD_POOLS` table and
-  `scripts/ward-pools.js` (files 125); the take at `dnd5e.preApplyDamage`, created/refilled by Abjuration slot casts,
-  the receipt's take and its revert. `smoke-classes` §36 green; own suites green (smoke-battleflow, smoke-hold,
-  smoke-concentration, smoke-drop, smoke-styles, smoke-classes 144/144). Its three calls are the user's to overrule.
-- **A4 PUSHED** (`20739b1`, `844daa1`; RULINGS *The PHB classes — A4*): Disciple of Life, Potent Cantrip (the save
-  half AND the attack half — a missed cantrip still deals half), Psychic Spells; `smoke-classes` §32–35 green, and
-  its own suites green (smoke-battleflow, smoke-hold, smoke-saves, smoke-d20-folds, smoke-rescue, smoke-metamagic,
-  smoke-heal, smoke-classes). Its three calls were CONFIRMED by the user.
-- **THE BATTERY CADENCE (the user, 2026-09-29, rapid mode):** a stage runs ONLY its own suites, even when it touches
-  the spine (`battery.mjs --changed` will say FULL — name the suites by hand). A full battery runs after each LETTER
-  series is done: after A7, after B5, after C1, after D1. After a killed run: `verify-settings.mjs --fix` → `reset-fixture-state.mjs` → `fixture-suite.mjs`.
-- **Pushed:** A3 + A1 on `origin/main` (`60865f5`, after a green regression battery: 18/18, settings clean).
-- **PUSHED 2026-09-29:** A2 (`3a1d7a7` built, `a2bf9f4` the guard's words, `171b6b0` + `ee92df2` its live
-  proof — `smoke-classes` §28–31 green) and the docs. **A2's regression battery** (smoke-hitmenu, smoke-maneuvers,
-  smoke-goliath, smoke-saves, smoke-guards, smoke-superiority, smoke-rescue, smoke-classes) is the push gate — if this
-  file still says it is running, its output is the newest `dist/battery/` directory. Green → `git push`, then
-  `node tools/verify-settings.mjs`. A red → read the suite's file, fix, `--local` deploy, re-run that suite.
-- **The worktree** `.claude/worktrees/a2-live` (branch `claude/a2-live`) was used for the A2 suite's drafting; `main`
-  was fast-forwarded past it (the deploy script reads the main checkout only). It can be removed:
-  `git worktree remove .claude/worktrees/a2-live` and `git branch -D claude/a2-live` (its commits are all on main).
+- **A6 PUSHED** (`b1ca408`; RULINGS *The PHB classes — A6*): `INITIATIVE_GRANTS` + `scripts/initiative-grants.js`
+  (Persistent Rage automatic, Uncanny Metabolism offered), Vitality Surge (`on: "use"`) and Life-Giving Force (the rest
+  song's hand-out) on `TURN_GRANTS`, the Rage reminder silenced by Persistent Rage; Circle Forms NATIVE. Own suites
+  green (smoke-classes 154/154, battleflow, alert, spells, rest; monsters 50/51 — the §4a token-order lesson below).
+- **A7a PUSHED** (`c3b1f67`; RULINGS *The PHB classes — A7*): `CAST_RIDERS` + `scripts/cast-riders.js` — Wild Magic
+  Surge (the module's d20, the table on a 20, Tides of Chaos spent: the table at once and Tides back) and Inspiring
+  Smite (the song's `distribute` popup, No keeps the Channel Divinity, the clock gives all to the paladin). Own suites
+  green (smoke-classes 163/163, battleflow, rest).
+- **A7b — Portent — is in `git stash` ("A7b Portent"), NOT committed, NOT pushed.** `git stash pop` restores it:
+  `STORED_DICE` + two new files, stored-dice.js and its decide/ half (files 131), the `Portent` row on `INTERRUPT_ROLLS`
+  (`bend: "set"`) through hold/lookup, hold/answer, hold/views, bystanders.js, `shared.js` (the chip helpers),
+  `decide/rescue-hit.js` (`bentLines` "set"), smoke-classes §41, unit tests, RULINGS A7 (calls 4–7), the bend
+  register's Portent row, the plan's A7 note, the drawing/register row. `npm run verify` green on it; deployed
+  `--local` (the sandbox carries it now).
+  - §41 ALONE: 7/7. Its battery (dist/battery/2026-09-29T22-00-03): battleflow, hold, saves 137/137, twoclient,
+    superiority, rescue, wards, guards ALL green; **smoke-classes 167/170 — §41c, §41d, §41f red IN THE FULL RUN**:
+    - §41f: `hp=60` — §37 leaves the Halfling's HP max at 60 (its `hgKeep` restores only at teardown), so `swing`'s
+      `healFull` (400) clamps; the verdict and the bent roll were RIGHT. Fix: §41 sets the Halfling's max back to 400
+      first (or §37 restores its own).
+    - §41c/§41d: the pinned natural 1 did not land (the save totalled 14, it passed, nobody was asked). Something
+      earlier in the full run leaves the dice queue or the Halfling's save state different — reproduce with
+      `smoke-classes --section 37,38,39,40,41`, fix, re-run.
+  - **The push gate for A7b:** those three green in a full smoke-classes run → commit (message drafted below) → push.
+- **THE FULL BATTERY is next** — the letter series A is done once A7b is in (the rapid-mode cadence: a full battery
+  after A7). The user asked for it to START the next session: `node tools/battery.mjs` (launch detached), then
+  `node tools/verify-settings.mjs`. After a killed run: `verify-settings.mjs --fix` → `reset-fixture-state.mjs` →
+  `fixture-suite.mjs`.
 
-## Done today
+A7b's commit message (draft): "A7b: Portent - the stored dice (STORED_DICE, stored-dice.js) and the set bend" — the
+Long Rest keeps two d20s on a chip; its own roll: a tick per face in the dialog, the d20 term rolls the face; another
+creature's save or critical hit: the bystander's `bend: "set"`, after the roll (the register's row); no new kind
+(tripwire 39); files 131; smoke-classes 41.
 
-1. **The A3 battery** 46/47 → the emanations race fixed (`faf2011`), the harness's `noCover` lever batched
-   (`96c7b25` — the drift is gone: the A1 battery ended "settings clean").
-2. **A1's live proof** — `smoke-classes` §13–27, 100/100; Rage of the Wilds' second pick fixed (`polish.js`).
-3. **A2** — RULINGS *The PHB classes — A2*: five calls the plan left open, **each the user's to overrule** (Monk's
-   Focus ONE group of TWO picks; Open Hand Technique and Elemental Attunement FREE groups; the Flurry a turn chit;
-   Stunning Strike's Slowed moved to the success at the SAVE — `SAVE_PRESSES` `success`, the sheet path too;
-   Protective Field keyed by its item with the row's `label` / `verb`). Two bends registered. The suite found: an
-   applied enchantment doubles its rider activities — the hit menu takes the usable copy (`usableNamed`).
+## The calls made today (each the user's to overrule; all in RULINGS)
+
+- A6: Circle Forms NATIVE; Vitality Surge at the Rage's USE and Life-Giving Force at the turn START (the pack's text,
+  not the plan's); the Initiative grants read per combatant as its own Initiative lands; never spent on nothing.
+- A7: Wild Magic Surge rolled by the module (Q7, *Bent by choice*); Tides of Chaos per the 2024 text; Inspiring Smite
+  offered and divided, its clock all-to-the-paladin (*Bent by choice*); Portent: NO `set` kind (a bend on the `roll`
+  interrupt + a pinned die), faces on a chip, its own rolls before the roll, others' saves and crits after.
 
 ## Suite lessons (smoke-classes, keep them)
 
@@ -49,15 +58,26 @@
 - dnd5e 6: a spell's class is `system.sourceItem` ("class:warlock"), `classIdentifier` only with the class on the
   sheet. An attack's rescue on a character is Heroic Inspiration (`system.attributes.inspiration`); Lucky's d20
   is an initiative fold only.
+- Created embedded documents do NOT come back in the order asked (`createEmbeddedDocuments('Combatant', [a, b])`):
+  find each by its actor (§37 set the wrong combatant's Initiative for half a day).
+- An UNLINKED token shares its base actor's effects: smoke-battleflow's permanent unlinked Victim token (1100,1000)
+  picks up a Grappled put on BF Test Victim — smoke-monsters §4a counts the Victim twice when it runs after
+  smoke-battleflow without the full battery's order between them (not a code defect; delete the two unlinked
+  "Hobgoblin" tokens and it passes).
+- A moments-scan `[CONST]` key resolves across EVERY file: two machines using the same constant name for different
+  keys collide (a new machine's flag constants carry its own prefix).
+- Pinning a d20 face: override the TERM's `randomFace` (`d20.randomFace = () => face`) — the result IS the face; `min`/
+  `max` modifiers only change `count` and dnd5e's crit/fumble never see them.
+
+
 
 ## Next — in this order, each on the user's go
 
-1. ~~Push A2~~ — DONE: its battery green (smoke-classes 119/119 after §25 put the canvas back on the range).
-2. ~~Push A4~~ — DONE.
-3. ~~A5~~ — DONE. **A6** (the grants on Initiative and at the turn: plan §3 A6), then **A7** — each on its own
-   suites; **the FULL battery after A7**. Then **B1 → B5** (full battery), **C1** (full), **D1** (full).
+1. **A7b's three §41 reds** (above) → commit → push.
+2. **The FULL battery** (the end of letter series A) — green → the A series is closed.
+3. **B1 → B5** (full battery after B5), **C1** (full), **D1** (full).
 4. **Owed small:** a Legendary Resistance flip of a failed Stunning Strike lands no Slowed (`saves/verdict.js`);
-   Physician's Touch's Poisoned is B4's.
+   Physician's Touch's Poisoned is B4's; the `.claude/worktrees/a2-live` worktree can be removed.
 5. Then **the DMG**, then **the splat books**; **the prod deploy** (v2.7.0 + everything since) and **the walks**
    whenever the user says.
 
@@ -65,7 +85,7 @@
 
 - Every row names its precedent; a platform-forced bend goes in RULINGS *Where the table bends the rule* in the same
   commit; a bend by choice in *Bent by choice*; a new flag key is classified in `decide/moments.js`; a new file bumps
-  `tools/check-registry.mjs`'s pin (125) and joins check-layers / dispatch / battleflow.js; a new kind moves
+  `tools/check-registry.mjs`'s pin (129 pushed; 131 with A7b) and joins check-layers / dispatch / battleflow.js; a new kind moves
   `EXPECTED_KINDS` (39).
 - A change runs its own suites (in rapid mode a spine change too — the full battery after each letter series); deploy `--local`
   first; launch detached.
