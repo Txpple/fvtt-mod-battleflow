@@ -1655,6 +1655,24 @@ gate holds; the judge hinges on the target, so the target pass reads it).
 | Toxic Escape | a monster with it hit | the hold; Use halves the damage; the teleport and the save are yours from the sheet |
 | Reactive | a marilith in combat spends its Reaction on a PC's turn | on the next creature's turn it may react again |
 
+## The Monster Manual register (2026-09-28, night)
+
+**The user's question — "did you really go through every ability?" — and the honest answer: no.** The
+drawing ([audits/drawings/monsters.md](audits/drawings/monsters.md)) had judged the 251 rows the scan gave a
+mechanism family; the other 424 were listed by name only, the scan's silence taken as "the pack's". So the
+424 were read one by one against the corpus text and the book got what the spells and the DMG have:
+[audits/monsters-register.md](audits/monsters-register.md) from `tools/audit-monsters-register.mjs`
+(the shared readers of `tools/register-shared.mjs`, the DMG's WAITS word), one row per trait, action and
+reaction, generated, never edited. 680 rows: 433 NATIVE · 55 MODULE · 60 WAITS · 114 TEXT · 18 OUT.
+
+| What the reading found | The ruling |
+| --- | --- |
+| **The silence was mostly right** | 250-odd rows are the attacks themselves, 60 are casts (the spell's own row in the spells register — a "casts X" row is NATIVE by the generator's rule), the rest senses, movement, telepathy, restorations, Multiattack (TEXT: the attacks it names are the items') |
+| **Eleven shapes hid in it, every one on a machine that exists** | the drawing's new table *The rows the scan gave no family*: the repeating save on a monster's own activity (seven customers — Pacifying Spores, Paralysis Gas, Scare, Spores; the petrifying three with an escalation), the grappler's turn-start damage (five), the charge (four: Gore, Tusk, Avalanche Slam, Ravage), the bearer's turn-end pulse (three fire auras), the drain (three), the random condition on a hit (the three Chaos weapons), the ring that moves with the bearer (two), the vampire's drop (three), the curse on a rest (two), nine one-customer rows, one more cast-triggered check (Haunted Zone). **None is a new kind and none is built here** — each is WAITS: built when its monster comes to the table, the precedent named in the drawing |
+| **Kind** | trait (the pack's `trait` property) · reaction (the text opens "Trigger:") · action (the rest) |
+| **Walked** | the three GM's-side walk tables, read off their plain first cells (the registers' shared reader expects bold names; the GM's side wrote plain ones — the generator reads both) |
+| **The first drawing's deferred rows restated** | Redirect Attack, Fiendish Blood, the cast-triggered seven, Eye Rays and Divine Beam, Burst of Ingenuity / Portent / Maneuver, Watery Rebuke / Pursuit / Shriek / Unnerving Gaze — WAITS with their shape; Life Suppression and Negative Energy Cone, Rampage and its kin, Swarm, Antimagic Cone — OUT, as drawn |
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code

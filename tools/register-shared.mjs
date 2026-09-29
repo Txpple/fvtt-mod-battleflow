@@ -44,7 +44,14 @@ export const WHERE = {
   CLOCK_RIDERS: ["clock-riders.js", "Rulings the code carried · The hit's sequence"],
   COATINGS: ["use-chips.js", "Bent by choice — the rule of cool"],
   USE_CHIPS: ["use-chips.js", "The gate before the roll"],
-  FIGHTING_STYLES: ["fighting-styles.js", "The fighting styles"]
+  FIGHTING_STYLES: ["fighting-styles.js", "The fighting styles"],
+  EVASIONS: ["saves/consequences.js", "The GM's side — the five shapes"],
+  SAVE_SUCCEEDS: ["saves/", "The PHB feats — groups 4–6"],
+  REACTION_RESETS: ["decide/chips.js", "The GM's side — the reaction rows"],
+  INTERRUPT_REDUCTIONS: ["hold/", "The reaction hold"],
+  INTERRUPT_ROLLS: ["hold/", "The reaction hold"],
+  INTERRUPT_MULTIPLIERS: ["hold/", "The reaction hold"],
+  REST_GRANTS: ["rest-grants.js", "The PHB feats — groups 1–3"]
 };
 
 /** How a table's mention reads in a register cell. */
