@@ -98,6 +98,8 @@ as its code.**
 | **Chef**'s Bolstering Treats: cooked "with 1 hour of work or when you finish a Long Rest", they last 8 hours, and "a creature can use a Bonus Action to eat one" for Temporary Hit Points equal to the Proficiency Bonus | after the Chef's Long Rest a popup hands them out: up to the Proficiency Bonus creatures on the scene (the Chef too) gain that many Temporary Hit Points at once — no treat to carry, no Bonus Action (`REST_GRANTS` "Bolstering Treats", `rest-grants.js`) | no treat bookkeeping, and the party starts the day with them (the user, 2026-09-26: Bolstering Treats as temp HP handed out after the Long Rest) | 2026-09-27 (ruled 2026-09-26) |
 | **Restore Balance**: "is about to roll a d20 with Advantage or Disadvantage" — before the roll | offered AFTER the roll, both faces shown; answered, the FIRST d20 stands (the register's arithmetic for a cancelled Advantage), on an attack, a demanded save or a check (`decide/rescue-hit.js` `neutraliseOutcome`) | the sorcerer chooses with the faces in hand, which is more fun than guessing; the seam before the roll does not exist on another client (ruled Q3, 2026-09-29: *"yes we will have to rule of cool the restore balance that way"*) | 2026-09-29 |
 | **Counterspell**: "you attempt to interrupt a creature in the process of casting a spell" — a Reaction at the moment of the cast | the caster TARGETS the creature and uses Counterspell; the saves machine demands its Constitution save as for any targeted save, and the verdict stands on the card — nothing watches for a cast, no hold is raised, no spell is stopped by the module; the rest is the table's | the drawing's cast-triggered hold (a reaction at a hostile's cast, prototype-first, cost 2) was traded for the table's own timing: the player says "Counterspell" as the spell is declared, the module answers with the save (the user, 2026-09-28: *"the user can just target intended counterspell actor, and force them to make the con save per the spell. the rest can be handled at table"*) | 2026-09-28 |
+| **Wild Magic Surge**: "you can roll 1d20 immediately after you cast a Sorcerer spell with a spell slot" | the module rolls the d20 itself after every such cast, once per turn in a combat; a 20 rolls the surge table and posts it (`cast-riders.js`, `CAST_RIDERS`) | no click on every cast for a die with one sensible answer, and the surge is never forgotten (ruled Q7, 2026-09-29: the dice changers' one-sensible-answer rule) | 2026-09-29 |
+| **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
@@ -1879,6 +1881,41 @@ machines naming different keys by the same constant name collide (`GRANT_FLAG` w
 | Life-Giving Force, a raging turn start | the dice on a card and the popup "Who gets N Temporary Hit Points?" — creatures on your side within 10 ft, one pick; OK: the card names who got them |
 | Persistent Rage, a raging turn with no attack | no "it ends now unless you extended it" card |
 | Circle Forms, Wild Shape | the form lands with 3 × the Druid level in temp HP (dnd5e's own) |
+
+## The PHB classes — A7 (2026-09-29, Session 0 stage A7)
+
+**The cast riders — a new table (`CAST_RIDERS`) and its machine (`scripts/cast-riders.js`); no new kind; BUILT and
+PROVEN (`smoke-classes` §39–40), unwalked.** Measured on the pack first (`dnd-players-handbook.classes`, dnd5e 6.0.5).
+Calls the plan left open — **each is the user's to overrule**:
+
+1. **Wild Magic Surge's d20 is rolled by the module** after every Sorcerer spell cast with a slot, once per turn in a
+   combat (every cast out of one) — Q7 as ruled, a *Bent by choice* row. A 20 rolls the pack's Wild Magic Surge
+   table (never marked drawn) and posts its card; the cast card says "d20: 14, nothing" or "d20: 20, a SURGE — …".
+   "A Sorcerer spell" is the spell's own class, else its `sourceItem`, else the caster's one class (A4's reading).
+2. **Tides of Chaos, read off the pack's text:** while its use is spent, a Sorcerer slot cast rolls the table AT ONCE
+   (no d20) and the use comes back — the plan's "a use back on a 20" was the 2014 wording. The buy box's row (A1)
+   is unchanged.
+3. **Inspiring Smite is OFFERED** (it spends a Channel Divinity): after Divine Smite the 2d8 + Paladin level rolls on
+   a card and the paladin divides it — a number per creature on its side within 30 ft, the paladin among them, what
+   is left counted live. It is the rest song's popup (`askHandOut` with `distribute`), not a second picker. **No**
+   keeps the Channel Divinity; it is spent only when something is given. Temporary Hit Points never stack: a creature
+   already holding more keeps its own ("keeps more" on the card). **The clock gives all to the paladin** — a *Bent by
+   choice* row.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Wild Magic Surge | `CAST_RIDERS` `spellClass`, `surgeOn`, `table`, `tides` | after a Sorcerer slot cast, once per turn: the d20; a 20 rolls the surge table; Tides of Chaos spent: the table at once, Tides back |
+| Inspiring Smite | `CAST_RIDERS` `after: "Divine Smite"`, `handOut`, `activity`, `reach`, `self` | after Divine Smite: 2d8 + level Temporary Hit Points divided among creatures within 30 ft; the Channel Divinity paid when given |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Wild Magic Surge, a slot cast | the cast card's line "Wild Magic Surge — d20: 14, nothing"; on a 20 "a SURGE — …" and the table's card |
+| Wild Magic Surge, a second cast the same turn | no line |
+| Tides of Chaos spent, a slot cast | "Tides of Chaos spent: the surge rolls — …; Tides of Chaos regained"; the sheet's Tides back |
+| Inspiring Smite after Divine Smite | the dice on a card; the popup "Divide 12 Temporary Hit Points", a number per creature within 30 ft, "N to give · M left"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
+| Inspiring Smite, the timer runs out | all of it to the paladin, "(timer: all to the giver)" |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

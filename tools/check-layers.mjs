@@ -73,6 +73,7 @@ export const LAYER_OF = {
   "advantage-buys.js": "machines",
   "rest-grants.js": "machines",
   "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled
+  "cast-riders.js": "machines",     // what a feature does right after its bearer casts (Wild Magic Surge, Inspiring Smite)
   "initiative-grants.js": "machines", // what a feature gives back as its owner's Initiative lands (Persistent Rage, Uncanny Metabolism)
   "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll
   "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use
@@ -129,6 +130,7 @@ export const LAYER_OF = {
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set
   "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries
   "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count
+  "decide/cast-riders.js": "decision",      // whose spell, a slot cast, the surge's outcome and line, a divided hand-out
   "decide/initiative-grants.js": "decision", // the Initiative grant due, its card line
   "decide/ward-pools.js": "decision",        // the ward's take, the HP split after it, the refill
   "decide/registry.js": "decision",
@@ -187,6 +189,12 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
  * ------------------------------------------------------------------------------------------- */
 
 const ALLOW = [
+  {
+    from: "cast-riders.js", to: "rest-grants.js", disposition: "BY DESIGN",
+    why: "machine → machine: Inspiring Smite's divided Temporary Hit Points are the rest song's hand-out "
+      + "(`askHandOut` with `distribute`: the popup, the record, the GM's landing, the clock) — one picker "
+      + "for every Temporary Hit Point hand-out (2026-09-29, the PHB classes A7)"
+  },
   {
     from: "turn-grants.js", to: "rest-grants.js", disposition: "BY DESIGN",
     why: "machine → machine: Life-Giving Force's gift at the turn start is the rest song's hand-out "

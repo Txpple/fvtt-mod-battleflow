@@ -250,7 +250,7 @@ export const MOMENT_RECORDS = Object.freeze({
     resolved: (r) => r?.applied ? [{
       marker: "message", events: ["choice"],
       facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
-        targets: (r.picks ?? []).map(uuid => ({ uuid, name: (r.candidates ?? []).find(c => c.uuid === uuid)?.name ?? null })),
+        targets: (r.picks ?? []).map(p => p?.uuid ?? p).map(uuid => ({ uuid, name: (r.candidates ?? []).find(c => c.uuid === uuid)?.name ?? null })),
         details: { grant: r.grant ?? null, given: r.given ?? [] } }
     }] : []
   },
@@ -713,6 +713,7 @@ export const STATE_KEYS = Object.freeze({
   initiativeGrantRead: "a combat flag — the once-per-combat latch of which combatants' Initiative grants were read; initiativeGrant on the card is the resolve",
   initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
   initiativeSwapAsked: "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
+  castRider: "a usage card's line — the Wild Magic Surge d20 and whether the table rolled (cast-riders.js); the table's own card is the platform's, the Tides of Chaos use the sheet's",
   restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",
   emanationTypeAnswer: "an envelope — the caster's type pick; the fold onto emanationCard is the resolve",
   momentAck: "an envelope — a notice acknowledged; presentation, not a moment",

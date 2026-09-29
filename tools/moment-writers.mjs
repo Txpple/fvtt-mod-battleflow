@@ -164,7 +164,8 @@ const WORLD_WRITERS = {
   "hit-riders.js": "the weapon's own damage parts, folded into the roll config before it rolls — the damage message is the platform's and its receipt the resolve",
   "sneak.js": ["sneakDamage", "effectReceipt"],
   "initiative-swap.js": ["initiativeSwap"],   // Alert's swap, landed by the elect
-  "initiative-grants.js": ["initiativeGrant", "receipt"],   // Persistent Rage, Uncanny Metabolism (its heal receipted on the card)
+  "initiative-grants.js": ["initiativeGrant", "receipt"],
+  "cast-riders.js": "the surge's line is state (castRider) — the table posts its own card and Tides of Chaos is the sheet's use; Inspiring Smite's hand-out is the rest song's record (restSong)",   // Persistent Rage, Uncanny Metabolism (its heal receipted on the card)
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll
   "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect
   "ward-pools.js": "Arcane Ward's hit points are its feature's own uses: the take lands in the damage receipt the applier writes (its pop rides the bearer's damage update, wardAbsorb), the cast's line is state (wardRefill)",

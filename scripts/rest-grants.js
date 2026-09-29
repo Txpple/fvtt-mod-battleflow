@@ -4,18 +4,19 @@
  * Inspiration). The grant rides `dnd5e.preRestCompleted`'s one actor update (`result.updateData`),
  * on the resting client, and the rest card says what was gained. Nothing is asked.
  */
-import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor } from "./core.js";
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
-import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
+import { bfCard, esc, holdBarHTML, popupKey, foldedRuleHTML } from "./decide/present.js";
+import { CAST_RIDERS, REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
+import { distribution } from "./decide/cast-riders.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { holdsTemp, mealStanding } from "./decide/rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { effectSourceOf, isPartyMember } from "./shared.js";
-import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable } from "./ui.js";
+import { livePopups, openMomentPopup, momentButton, shownMoments, registerRelay, registerResumable, armDeadline, disarmDeadline, scheduleBarSync } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
 
 /** What a grant writes, by its `grant` word — the sheet facts the table knows how to set. */
@@ -209,25 +210,29 @@ function candidateNote(grant, c) {
   return c.has ? "has it" : "";
 }
 
-/** The row a song record answers — a rest's, or a turn's hand-out (`table: "turn"`, Life-Giving Force). */
-const songRowOf = flag => ((flag?.table === "turn") ? TURN_GRANTS : REST_GRANTS)[flag?.row] ?? null;
+/** The row a song record answers — a rest's, a turn's hand-out (`table: "turn"`, Life-Giving Force), a cast's (Inspiring Smite). */
+const songRowOf = flag => ((flag?.table === "turn") ? TURN_GRANTS : (flag?.table === "cast") ? CAST_RIDERS : REST_GRANTS)[flag?.row] ?? null;
 
 /**
- * THE HAND-OUT outside a rest (TURN_GRANTS `to: "ally"` — Life-Giving Force): the amount already rolled (its dice on
- * the card), given to one creature on the owner's side within the row's reach — the song's popup and landing.
- * No card when nobody could take it.
+ * THE HAND-OUT outside a rest: the amount already rolled (its dice on the card), given to creatures on the owner's
+ * side within the row's reach — the song's popup and landing. A turn's (TURN_GRANTS `to: "ally"`, Life-Giving
+ * Force): one creature gets it all. A cast's `distribute` (Inspiring Smite): the total DIVIDED as the giver likes,
+ * a number per creature, "No" keeps the `cost` (the pool the row spends — only when something is given); its
+ * clock (`window` seconds) gives it all to the giver (a bend by choice). No card when nobody could take it.
  */
-export async function askHandOut(actor, { name, row, item, amount, roll = null }) {
-  const grantRow = { ...row, grant: "temphp" };
-  const base = { status: "pending", row: name, table: "turn", grant: "temphp", itemId: item.id, actorUuid: actor.uuid, actorName: actor.name,
-    cap: 1, reach: Number.isFinite(row.reach) ? row.reach : null, amount, formula: roll?.formula ?? null, restAt: Date.now(),
-    ...statContext(actor.uuid) };
-  const candidates = songCandidates(actor, grantRow, base);
+export async function askHandOut(actor, { name, row, item, amount, roll = null, table = "turn", distribute = false, cost = null, window = 0 }) {
+  const grantRow = { ...row, grant: "temphp", to: "ally" };
+  const base = { status: "pending", row: name, table, grant: "temphp", itemId: item.id, actorUuid: actor.uuid, actorName: actor.name,
+    cap: distribute ? 99 : 1, reach: Number.isFinite(row.reach) ? row.reach : null, amount, formula: roll?.formula ?? null, restAt: Date.now(),
+    ...(distribute ? { distribute: true } : {}), ...(cost ? { cost } : {}),
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}), ...statContext(actor.uuid) };
+  const candidates = songCandidates(actor, grantRow, base).map(c => distribute ? { ...c, has: false } : c);
   if ( !candidates.some(c => !c.has) ) return null;
   const flag = { ...base, candidates };
   return ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }), rolls: roll ? [roll] : [],
-    content: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for another creature` }),
+    content: bfCard({ img: item.img, eyebrow: name, tone: "pending",
+      title: distribute ? `${name} — ${amount} Temporary Hit Points to divide` : `${name} — ${grantText(flag)} for another creature` }),
     flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
   });
 }
@@ -359,20 +364,23 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 
 /* --- the answer: the GM folds it, a player sends it ---------------------------------------------- */
 
-/** The picks a record allows — the offered allies without the grant, at most the cap. */
+/** The picks a record allows — the offered allies without the grant, at most the cap; a divided hand-out's
+ * `{ uuid, n }` never past its total. */
 function allowedPicks(flag, picks) {
   const allowed = new Set((flag.candidates ?? []).filter(c => !c.has).map(c => c.uuid));
+  if ( flag.distribute ) return distribution({ total: flag.amount, picks, allowed });
   return [...new Set(picks ?? [])].filter(u => allowed.has(u)).slice(0, flag.cap);
 }
 
-async function answerSong(message, picks) {
+async function answerSong(message, picks, { declined = false, timedOut = false } = {}) {
   const flag = message.getFlag(MODULE_ID, SONG_FLAG);
   if ( flag?.status !== "pending" ) return;
-  const chosen = allowedPicks(flag, picks);
+  const chosen = declined ? [] : allowedPicks(flag, picks);
+  const marks = { ...(declined ? { declined: true } : {}), ...(timedOut ? { timedOut: true } : {}) };
   if ( isActiveGM() ) {
     await queueFlagWrite(message, SONG_FLAG, current => {
       if ( current.status !== "pending" ) return false;
-      Object.assign(current, { status: "resolved", picks: allowedPicks(current, chosen), answeredAt: Date.now() });
+      Object.assign(current, { status: "resolved", picks: allowedPicks(current, chosen), answeredAt: Date.now(), ...marks });
     });
     return;
   }
@@ -383,7 +391,7 @@ async function answerSong(message, picks) {
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }),
     content: "", whisper: game.users.filter(u => u.isGM).map(u => u.id),
-    flags: { [MODULE_ID]: { restSongAnswer: { messageId: message.id, picks: chosen } } }
+    flags: { [MODULE_ID]: { restSongAnswer: { messageId: message.id, picks: chosen, ...marks } } }
   });
 }
 
@@ -394,7 +402,8 @@ registerRelay("restSongAnswer", {
   cleanup: true,
   fold: (current, a) => {
     if ( current.status !== "pending" ) return false;
-    Object.assign(current, { status: "resolved", picks: allowedPicks(current, a.picks), answeredAt: Date.now() });
+    Object.assign(current, { status: "resolved", picks: a.declined ? [] : allowedPicks(current, a.picks), answeredAt: Date.now(),
+      ...(a.declined ? { declined: true } : {}), ...(a.timedOut ? { timedOut: true } : {}) });
   }
 });
 
@@ -436,7 +445,21 @@ async function landSong(message) {
       const target = await fromUuid(uuid).catch(() => null);
       if ( target instanceof Actor ) picked.push(target);
     }
-    if ( flag.grant === "meal" ) {
+    if ( flag.distribute ) {
+      // A divided hand-out: each its own number (Temporary Hit Points never stack — only a larger pool is written);
+      // the cost paid once, only when something was given.
+      for ( const p of (flag.picks ?? []) ) {
+        const target = await fromUuid(p.uuid).catch(() => null);
+        if ( !(target instanceof Actor) ) continue;
+        const name = flag.candidates.find(c => c.uuid === p.uuid)?.name ?? target.name;
+        if ( holdsTemp(target.system?.attributes?.hp?.temp, p.n) ) { given.push(`${name} (keeps more)`); continue; }
+        await target.update({ "system.attributes.hp.temp": p.n });
+        given.push(`${name} ${p.n}`);
+      }
+      const owner = (flag.picks ?? []).length ? resolveUuid(flag.actorUuid) : null;
+      const pool = owner && flag.cost?.itemId ? owner.items?.get(flag.cost.itemId) : null;
+      if ( pool ) await pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + 1 });
+    } else if ( flag.grant === "meal" ) {
       // Judged afresh at the landing — an eater may have finished its rest since the ask.
       const now = [];
       for ( const target of picked ) {
@@ -511,6 +534,7 @@ async function showSongPopup(message) {
       <span>${esc(c.name)}${note(c) ? ` <span style="opacity:0.8">(${esc(note(c))})</span>` : ""}</span>
       <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
   const group = (title, list) => list.length ? `<div style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
+  if ( flag.distribute ) return showDividePopup(message, flag, actor, row);
   const party = flag.candidates.filter(c => c.party), others = flag.candidates.filter(c => !c.party);
   const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
   const cap = (row?.cap === "prof") ? `up to ${flag.cap} (your Proficiency Bonus)` : (flag.cap === 1) ? "one creature" : `up to ${flag.cap}`;
@@ -529,6 +553,58 @@ async function showSongPopup(message) {
     ]
   });
   syncSongCap(dialog?.element?.querySelector?.("[data-bf-rest-song]") ?? null);
+}
+
+/** A DIVIDED hand-out's popup (Inspiring Smite): a number per creature, what is left counted live; OK gives, No keeps. */
+async function showDividePopup(message, flag, actor, row) {
+  const rowOf = c => `<label style="display:flex;align-items:center;gap:0.4rem;margin:0.2rem 0;">
+      <input type="number" name="bf-rest-song-n" min="0" max="${flag.amount}" step="1" value="0" data-uuid="${esc(c.uuid)}" data-name="${esc(c.name)}" data-token="${esc(c.tokenId ?? "")}" style="width:3.5rem;flex:0 0 auto;">
+      <span>${esc(c.name)}${c.temp ? ` <span style="opacity:0.8">(${c.temp} temp HP now)</span>` : ""}</span>
+      <span style="margin-left:auto;font-size:var(--font-size-11,11px);opacity:0.7;">${c.self ? "you" : `${c.feet} ft`}</span></label>`;
+  const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
+  await openMomentPopup(message, SONG_FLAG, actor, {
+    title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-heart", width: 420,
+    content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
+      title: `Divide ${flag.amount} Temporary Hit Points`, subtitle: `creatures ${reach}, you among them${flag.cost ? ` · 1 ${flag.cost.name}` : ""}`,
+      lines: [row?.rule ? foldedRuleHTML(row.rule) : ""] })
+      + `<div data-bf-divide data-total="${flag.amount}" style="margin:0.4rem 0;">${flag.candidates.map(rowOf).join("")}`
+      + `<div data-bf-divide-left style="text-align:right;font-size:var(--font-size-11,11px);opacity:0.8;">${flag.amount} to give · ${flag.amount} left</div></div>`
+      + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "ok", label: "OK", default: true, callback: (_event, button) => {
+        const picks = [...button.form.querySelectorAll('input[name="bf-rest-song-n"]')].map(i => ({ uuid: i.dataset.uuid, n: Number(i.value) || 0 }));
+        void answerSong(message, picks);
+      } },
+      { action: "no", label: "No", callback: () => { void answerSong(message, [], { declined: true }); } }
+    ]
+  });
+}
+
+// A number typed: what is left counted, the over-giving box trimmed.
+listenOnce("ready", "rest-grants", () => document.addEventListener("input", ev => {
+  const input = ev.target?.closest?.('input[name="bf-rest-song-n"]');
+  const box = input?.closest?.("[data-bf-divide]");
+  if ( !box ) return;
+  const total = Number(box.dataset.total) || 0;
+  const inputs = [...box.querySelectorAll('input[name="bf-rest-song-n"]')];
+  const others = inputs.filter(i => i !== input).reduce((n, i) => n + Math.max(0, Number(i.value) || 0), 0);
+  if ( (Number(input.value) || 0) > (total - others) ) input.value = String(Math.max(0, total - others));
+  const given = others + Math.max(0, Number(input.value) || 0);
+  const left = box.querySelector("[data-bf-divide-left]");
+  if ( left ) left.textContent = `${total} to give · ${total - given} left`;
+}));
+
+/* --- the clock (a divided hand-out): all to the giver, on whoever drives the giver's moments ---------- */
+
+const songTimers = new Map();
+function armSongTimer(message) {
+  const flag = message.getFlag(MODULE_ID, SONG_FLAG);
+  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
+  armDeadline(songTimers, message.id, flag.deadline, async () => {
+    const live = game.messages.get(message.id);
+    const f = live?.getFlag(MODULE_ID, SONG_FLAG);
+    if ( f?.status === "pending" ) await answerSong(live, [{ uuid: f.actorUuid, n: f.amount }], { timedOut: true });
+  });
 }
 
 /** With the cap reached the unticked rows grey; one below it they come back. An ally who has it stays greyed. */
@@ -551,6 +627,13 @@ listenOnce("ready", "rest-grants", () => document.addEventListener("change", ev 
 
 /** The card's line — who was given it, or that it waits. */
 function songLine(flag) {
+  if ( flag.distribute ) {
+    if ( flag.declined ) return `${flag.row} — kept, nothing given`;
+    if ( flag.applied ) return (flag.given ?? []).length
+      ? `${flag.row} — ${flag.given.join(", ")}${flag.timedOut ? " (timer: all to the giver)" : ""}${flag.cost ? ` · 1 ${flag.cost.name} spent` : ""}` : `${flag.row} — no one was given any`;
+    if ( flag.status === "resolved" ) return `${flag.row} — giving…`;
+    return `asking ${flag.actorName} how to divide ${flag.amount} Temporary Hit Points`;
+  }
   const label = grantText(flag);
   if ( flag.applied ) {
     const given = (flag.given ?? []).length ? `${label} — ${flag.given.join(", ")}` : "";
@@ -578,6 +661,7 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
         if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showSongPopup(message); }
         div.appendChild(momentButton("Answer", () => { void showSongPopup(message); }));
       }
+      if ( flag.deadline ) { div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`); scheduleBarSync(div); armSongTimer(message); }
     }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The rest song line could not render.`, err); }
@@ -586,7 +670,9 @@ listen("dnd5e.renderChatMessage", "rest-grants", (message, html) => {
 // An answer anywhere closes the popup everywhere (law 4).
 listen("updateChatMessage", "rest-grants", message => {
   const flag = message.getFlag(MODULE_ID, SONG_FLAG);
-  if ( !flag || (flag.status === "pending") ) return;
+  if ( !flag ) return;
+  if ( flag.status === "pending" ) { armSongTimer(message); return; }
+  disarmDeadline(songTimers, message.id);
   const open = livePopups.get(popupKey(message.id, SONG_FLAG));
   if ( open ) { try { void open.close(); } catch { /* gone */ } }
 });

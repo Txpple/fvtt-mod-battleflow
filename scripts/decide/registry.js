@@ -246,7 +246,7 @@ export const ADVANTAGE_BUYS = Object.freeze({
     tests: Object.freeze(["attack", "save", "check", "initiative"]),
     rule: Object.freeze({ item: "Lucky", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftLucky000000", benefit: "Advantage" }),
     from: "Origin feat" }),
-  // Regained when a Wild Magic Surge happens — the pack's "Recharge from Spell", from the sheet until A7.
+  // Regained by a Sorcerer slot cast while spent — the surge rolls at once (CAST_RIDERS "Wild Magic Surge", A7).
   "Tides of Chaos": Object.freeze({ uses: true, point: "use", activity: "Expend for Advantage",
     tests: Object.freeze(["attack", "save", "check", "initiative"]),
     rule: Object.freeze({ item: "Tides of Chaos", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrTidesOfCha" }),
@@ -1879,6 +1879,27 @@ export const INITIATIVE_GRANTS = Object.freeze({
     from: "Monk 2" })
 });
 
+/**
+ * THE CAST RIDERS (the PHB classes, A7; cast-riders.js): what a feature does right after its bearer casts, read at
+ * `dnd5e.postUseActivity` on the casting client. Keyed by the feature.
+ *   spellClass  the spell must be this class's, cast WITH A SPELL SLOT (levelled, not innate or at will, a slot spent)
+ *   surgeOn · table  the d20 rolled by the module once per turn (in a combat), the RollTable rolled on that face
+ *   tides    the feature whose spent use makes the table roll at once, and comes back (Tides of Chaos)
+ *   after    the spell whose cast raises the rider (Inspiring Smite: Divine Smite)
+ *   handOut  the feature's heal activity's Temporary Hit Points DIVIDED among creatures within `reach` (the giver
+ *            too) — the rest song's popup; the activity's consumption (Channel Divinity) paid only when given
+ * ⚠ NOT A KIND — one table, one machine; Controlled Chaos (C1) and Tamed Surge (D1) are facets of the surge row.
+ */
+export const CAST_RIDERS = Object.freeze({
+  "Wild Magic Surge": Object.freeze({ spellClass: "sorcerer", surgeOn: 20, tides: "Tides of Chaos",
+    table: "Compendium.dnd-players-handbook.tables.RollTable.phbWildMagicSurg",
+    rule: Object.freeze({ item: "Wild Magic Surge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrSurgeWildM" }),
+    from: "Sorcerer — Wild Magic Sorcery 3" }),
+  "Inspiring Smite": Object.freeze({ after: "Divine Smite", handOut: true, activity: "Heal", reach: 30, self: true,
+    rule: Object.freeze({ item: "Inspiring Smite", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnInspiringS" }),
+    from: "Paladin — Oath of Glory 3" })
+});
+
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
  * combat (initiative-swap.js). ⚠ NOT A KIND — a second customer is a row. */
 export const INITIATIVE_SWAPS = Object.freeze({
@@ -2418,6 +2439,7 @@ export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
 export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
 export const initiativeGrantEntries = () => everyRow(Object.keys(INITIATIVE_GRANTS));
+export const castRiderEntries = () => everyRow(Object.keys(CAST_RIDERS));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));

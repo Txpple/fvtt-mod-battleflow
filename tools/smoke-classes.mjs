@@ -49,7 +49,9 @@ export const COVERS = [
   'receipts.js',            // the revert gives the ward its take back
   // §A6 (37–38)
   'initiative-grants.js',   // Persistent Rage and Uncanny Metabolism at Initiative
-  'rest-grants.js'          // the song's hand-out outside a rest: Life-Giving Force's pick
+  'rest-grants.js',         // the song's hand-out outside a rest: Life-Giving Force's pick, Inspiring Smite's division
+  // §A7 (39–40)
+  'cast-riders.js'          // Wild Magic Surge (the d20, the table, Tides of Chaos), Inspiring Smite's ask
 ];
 
 const SECTIONS = {
@@ -90,7 +92,9 @@ const SECTIONS = {
   35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
   36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing',
   37: 'the Initiative grants: Persistent Rage (lent to the PC Attacker, Rage 1 of 3) regains every Rage use at Initiative, automatically — "Persistent Rage — Rage uses regained (3 of 3)"; Uncanny Metabolism (lent to the Halfling) asks, Yes lands Focus 3 of 3 and 1d8 + 5 (9) Hit Points, its use spent; rerolled with both spent, nothing; No keeps the use; with Persistent Rage a quiet raging turn is never reminded',
-  38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked'
+  38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked',
+  39: 'Wild Magic Surge (lent to the Sorcerer with Tides of Chaos; Mage Armor marked a Sorcerer spell): a slot cast rolls the d20 — "d20: 14, nothing"; a 20 rolls the table and its card posts; Tides of Chaos spent: the table at once and Tides regained; a Wizard spell rolls nothing; in a combat, once per turn',
+  40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin'
 };
 const DEPENDS = {};
 
@@ -2654,6 +2658,148 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropFx(pcAttacker, RAGE_FX);
         for (const it of [rage, vitality]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ================================================ §A7 — the cast riders and Portent (RULINGS *The PHB classes — A7*)
+    const castSpell = async (actor, token, spell, level = 1, target = null) => {
+      (target ?? token)?.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const a = actor.items.get(spell?.id)?.system?.activities?.contents?.[0] ?? null;
+      const r = await a?.use({ spell: { slot: `spell${level}` }, subsequentActions: false }, { configure: false }, {});
+      clearTargets();
+      return r?.message ?? null;
+    };
+    const surgeLineOf = async card => (await waitFor(() => cardEl(card?.id)?.querySelector('.bf-surge-line'), 6000))?.textContent?.trim() ?? '';
+
+    // ---- 39. Wild Magic Surge: the d20 after a Sorcerer slot cast; a 20 rolls the table; Tides of Chaos spent surges and comes back
+    if (want(39)) {
+      await closeA1();
+      const sorcTok = canvas.tokens.placeables.find(t => t.actor?.id === sorcerer.id) ?? null;
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells) });
+      const wms = await hgLend(sorcerer, 'Wild Magic Surge', 'feat');
+      const tides = await hgLend(sorcerer, 'Tides of Chaos', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      const armor = await hgLend(sorcerer, 'Mage Armor', 'spell', { 'system.prepared': 1, 'system.method': 'spell', 'system.sourceItem': 'class:sorcerer' });
+      const tables = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag('core', 'RollTable'));
+      let combat = null;
+      try {
+        if (!wms || !tides || !armor || !sorcTok) log.push(`§39 skipped: wms=${!!wms} tides=${!!tides} armor=${!!armor} token=${!!sorcTok}`);
+        else {
+          await sorcerer.update({ 'system.spells.spell1.value': 4, 'system.spells.spell2.value': 3 });
+          // a. a 14: nothing
+          faces([[14, 20]]);
+          const c1 = await castSpell(sorcerer, sorcTok, armor, 1);
+          ok('39a. a Sorcerer slot cast rolls the d20: "Wild Magic Surge — d20: 14, nothing"', /Wild Magic Surge — d20: 14, nothing/.test(await surgeLineOf(c1)), `line="${await surgeLineOf(c1)}"`);
+          // b. a 20: the table rolls and posts
+          const t0 = tables().length;
+          faces([[20, 20], [1, 100]]);
+          const c2 = await castSpell(sorcerer, sorcTok, armor, 1);
+          const l2 = await surgeLineOf(c2);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('39b. a 20: "d20: 20, a SURGE — …" and the table\'s card posts', /d20: 20, a SURGE/.test(l2) && (tables().length === t0 + 1), `line="${l2}" tables=${tables().length - t0}`);
+          // c. Tides of Chaos spent: no d20, the table rolls, Tides comes back
+          await tides.update({ 'system.uses.spent': 1 });
+          const c3 = await castSpell(sorcerer, sorcTok, armor, 1);
+          const l3 = await surgeLineOf(c3);
+          ok('39c. Tides of Chaos spent: "Tides of Chaos spent: the surge rolls … Tides of Chaos regained", Tides 1 of 1',
+            /Tides of Chaos spent: the surge rolls/.test(l3) && /Tides of Chaos regained/.test(l3) && (Number(sorcerer.items.get(tides.id)?.system?.uses?.spent) === 0),
+            `line="${l3}" spent=${sorcerer.items.get(tides.id)?.system?.uses?.spent}`);
+          // d. not a Sorcerer spell: nothing
+          await armor.update({ 'system.sourceItem': 'class:wizard' });
+          faces([[14, 20]]);
+          const c4 = await castSpell(sorcerer, sorcTok, armor, 1);
+          await sleep(1500);
+          ok('39d. a Wizard spell rolls nothing', !cardEl(c4?.id)?.querySelector('.bf-surge-line') && !c4?.getFlag(MOD, 'castRider'), `line="${await surgeLineOf(c4)}"`);
+          await armor.update({ 'system.sourceItem': 'class:sorcerer' });
+          // e. once per turn in a combat
+          await sorcerer.update({ 'system.spells.spell1.value': 4 });   // a–d spent the level-1 slots
+          [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat.id);
+          await combat.createEmbeddedDocuments('Combatant', [{ tokenId: sorcTok.document.id, sceneId: scene.id, actorId: sorcerer.id, initiative: 20 }]);
+          await combat.startCombat();
+          faces([[5, 20], [6, 20]]);
+          const c5 = await castSpell(sorcerer, sorcTok, armor, 1);
+          const c6 = await castSpell(sorcerer, sorcTok, armor, 1);
+          await sleep(1500);
+          ok('39e. in a combat, once per turn: the first cast rolls, the second in the same turn rolls nothing',
+            /d20: 5/.test(await surgeLineOf(c5)) && !c6?.getFlag(MOD, 'castRider'), `first="${await surgeLineOf(c5)}" second=${JSON.stringify(c6?.getFlag(MOD, 'castRider') ?? null)}`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        for (const it of [wms, tides, armor]) if (it) await unlend(sorcerer, it);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 40. Inspiring Smite: after Divine Smite, the temp HP divided; No keeps the Channel Divinity; the clock gives all to the paladin
+    if (want(40)) {
+      await closeA1();
+      hgKeep(cleric, { 'system.attributes.hp.temp': cleric.system._source.attributes.hp.temp ?? 0, 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
+      hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes.hp.temp ?? 0 });
+      hgKeep(halfling, { 'system.attributes.hp.temp': halfling.system._source.attributes.hp.temp ?? 0 });
+      const smite = await hgLend(cleric, 'Inspiring Smite', 'feat');
+      if (smite) await pinHeal(smite, 'Heal', '2d8 + 3');
+      const divineSmite = await hgLend(cleric, 'Divine Smite', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const cd = divinity();
+      const cdSpent = () => Number(divinity()?.system?.uses?.spent ?? NaN);
+      const temp = actor => Number(actor.system.attributes.hp.temp ?? 0);
+      const asks = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong')?.row === 'Inspiring Smite'));
+      const smiteOnce = async () => {
+        const before = asks().length;
+        faces([[4, 8], [5, 8]]);   // 2d8 = 9, + 3 = 12
+        await castSpell(cleric, clericToken, divineSmite, 1, victimToken);
+        const ask = await waitFor(() => (asks().length > before) ? asks().at(-1) : null, 8000);
+        CONFIG.Dice.randomUniform = realPRNG;
+        return ask;
+      };
+      const priorTimer = game.settings.get(MOD, 'decisionTimer');
+      try {
+        if (!smite || !divineSmite || !cd) log.push(`§40 skipped: smite=${!!smite} divineSmite=${!!divineSmite} cd=${!!cd}`);
+        else {
+          await cleric.update({ 'system.spells.spell1.value': 4 });
+          await cd.update({ 'system.uses.spent': 0 });
+          for (const a of [cleric, pcAttacker, halfling]) await a.update({ 'system.attributes.hp.temp': 0 });
+          // a. the popup: 12 to divide among the creatures within 30 ft, the paladin too
+          const ask = await smiteOnce();
+          const pop = await waitFor(() => titled(/^Inspiring Smite — /), 6000);
+          const inputs = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song-n"]') ?? [])];
+          const byName = n => inputs.find(i => i.dataset.name === n);
+          ok('40a. after Divine Smite: "Divide 12 Temporary Hit Points" with a number per creature, the paladin among them',
+            !!pop && (ask?.getFlag(MOD, 'restSong')?.amount === 12) && /Divide 12 Temporary Hit Points/.test(textOf(pop?.element)) && !!byName(clericToken.document.name) && !!byName(pcToken.document.name),
+            `amount=${ask?.getFlag(MOD, 'restSong')?.amount} names=${JSON.stringify(inputs.map(i => i.dataset.name))}`);
+          // b. 7 to the paladin, 5 to the PC: both land, the Channel Divinity spent once
+          const set = (input, n) => { if (input) { input.value = String(n); input.dispatchEvent(new Event('input', { bubbles: true })); } };
+          set(byName(clericToken.document.name), 7);
+          set(byName(pcToken.document.name), 5);
+          pop?.element?.querySelector('button[data-action="ok"]')?.click();
+          await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied, 8000);
+          ok('40b. 7 and 5: the paladin 7 temp HP, the PC 5, one Channel Divinity spent',
+            (temp(cleric) === 7) && (temp(pcAttacker) === 5) && (cdSpent() === 1), `cleric=${temp(cleric)} pc=${temp(pcAttacker)} cd=${cdSpent()}`);
+          // c. No: nothing given, nothing spent
+          for (const a of [cleric, pcAttacker]) await a.update({ 'system.attributes.hp.temp': 0 });
+          const ask2 = await smiteOnce();
+          const pop2 = await waitFor(() => titled(/^Inspiring Smite — /), 6000);
+          pop2?.element?.querySelector('button[data-action="no"]')?.click();
+          await waitFor(() => ask2?.getFlag(MOD, 'restSong')?.status === 'resolved', 6000);
+          await sleep(800);
+          ok('40c. No: nothing given, the Channel Divinity kept', (temp(cleric) === 0) && (cdSpent() === 1), `cleric=${temp(cleric)} cd=${cdSpent()}`);
+          // d. the clock: all 12 to the paladin
+          await game.settings.set(MOD, 'decisionTimer', 2);
+          const ask3 = await smiteOnce();
+          await waitFor(() => ask3?.getFlag(MOD, 'restSong')?.applied, 10000);
+          ok('40d. the clock gives all 12 to the paladin, the Channel Divinity spent', (temp(cleric) === 12) && (cdSpent() === 2),
+            `cleric=${temp(cleric)} cd=${cdSpent()} flag=${JSON.stringify(ask3?.getFlag(MOD, 'restSong')?.picks ?? null)}`);
+        }
+      } finally {
+        await game.settings.set(MOD, 'decisionTimer', priorTimer);
+        await closeA1();
+        await hgClose(/^Inspiring Smite — /);
+        for (const it of [smite, divineSmite]) if (it) await unlend(cleric, it);
+        if (cd) await cd.update({ 'system.uses.spent': 0 });
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

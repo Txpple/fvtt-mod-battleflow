@@ -57,6 +57,7 @@ export const ORDER = Object.freeze([
   "kit-tend",
   "initiative-swap",
   "initiative-grants",
+  "cast-riders",
   "precision",          // stamps its flag on the attack before the d20 fold composes over it; its row above the fold's
   "riposte",
   "hew",
