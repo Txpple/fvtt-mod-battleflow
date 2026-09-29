@@ -2312,8 +2312,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const boltAct = () => pcAttacker.items.get(bolt?.id)?.system?.activities?.find(a => a.type === 'attack') ?? null;
       hgKeep(pcAttacker, { 'system.attributes.inspiration': pcAttacker.system._source.attributes?.inspiration ?? false });
       const vhp = () => Number(victim.system.attributes.hp.value);
-      const rescueWindow = text => [...document.querySelectorAll('.application')]
-        .find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
+      // ⚠ Only a window opened SINCE this attack: an earlier section's rescue window can still stand in a full run.
+      const rescueWindow = prior => [...document.querySelectorAll('.application')]
+        .find(el => !prior.has(el) && el.querySelector('[data-bf-rescue-action="heroic"]')) ?? null;
+      const appsNow = () => new Set(document.querySelectorAll('.application'));
       const damagesFor = id => game.messages.contents.filter(m => (m.type === 'damage') && (m.getFlag(MOD, 'attackFor') === id));
       const totalOf = d => Number(d?.rolls?.reduce((n, r) => n + (Number(r.total) || 0), 0));
       /** Fire Bolt at the Victim (400 HP): the d20 a 2, later dice `after`; the attack message. */
@@ -2348,8 +2350,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const potent2 = await hgLend(pcAttacker, 'Potent Cantrip', 'feat');
           // c. a rescue window first (Heroic Inspiration): nothing rolls while it stands; Pass → the share
           await pcAttacker.update({ 'system.attributes.inspiration': true });
+          const prior3 = appsNow();
           const m3 = await boltMiss();
-          const win3 = await waitFor(() => rescueWindow('Heroic'), 8000);
+          const win3 = await waitFor(() => rescueWindow(prior3), 8000);
           await sleep(1200);
           const early = damagesFor(m3?.id).length;
           ok('35c. with Heroic Inspiration the rescue window opens and NOTHING rolls while it stands', !!win3 && (early === 0) && (m3?.getFlag(MOD, 'd20fold')?.status === 'pending'),
@@ -2364,8 +2367,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // e. the Heroic reroll turns it: the FULL roll, one damage message, no share
           await pcAttacker.update({ 'system.attributes.inspiration': true });
           await victim.update({ 'system.attributes.ac.override': 12 });
+          const prior4 = appsNow();
           const m4 = await boltMiss();
-          const win4 = await waitFor(() => rescueWindow('Heroic'), 8000);
+          const win4 = await waitFor(() => rescueWindow(prior4), 8000);
           faces([[20, 20], [8, 10]]);
           win4?.querySelector('[data-bf-rescue-action="heroic"]')?.click();
           const d4 = await waitFor(() => { const d = damagesFor(m4?.id)[0]; return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
