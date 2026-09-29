@@ -16,7 +16,7 @@ import { tokensInRegions } from "./geometry.js";
 import { parseDice, sneakConditionsHold, sneakWeaponQualifies } from "./decide/sneak.js";
 import { METAMAGIC_FLAG } from "./decide/metamagic.js";
 import { CARD, itemNameOf, originIdInData, rollKindInData } from "./decide/card.js";
-import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
+import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor, tokensOverlap } from "./geometry.js";
 import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, demandBendSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
@@ -435,7 +435,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const range = enabled.has("range") ? reachedRange(rangeFactsFor(activity, attackMode, rangeFeet), feats.reach) : { ranged: false };
   const effectsOn = enabled.has("effect") ? effectEntries().map(e => e.kind) : [];
   const scope = { classification: activity?.attack?.type?.classification ?? null,
-    type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null) };
+    type: modeIsRanged(attackMode) ? "ranged" : (activity?.attack?.type?.value ?? null),
+    item: activity?.item?.name ?? null };
   // An effect's SOURCE: the module's own stamp, else the actor behind its origin (`except: "source"`).
   const sourceOf = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
   // The ITEM an effect comes from, in the table's words, for a row's `item` discriminator.
@@ -512,7 +513,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     }
     if ( attackerSheet ) {
       // Target-side rows, and attacker-side rows that hinge on THIS target (Bloodied, an ally beside it).
-      out.push(...effectSources({ attacker: attackerSheet, target: { ...sheetOf(target), allyNear: allyNearTarget(attackerToken, token) },
+      out.push(...effectSources({ attacker: attackerSheet, target: { ...sheetOf(target), allyNear: allyNearTarget(attackerToken, token), inSpace: tokensOverlap(attackerToken, token) },
         enabled: effectsOn, table: EFFECT_BENDS, scope, attackerName, targetName, pass: "target" }));
       out.push(...circleSourcesFor(attacker, token, attackerName));
     }

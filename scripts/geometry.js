@@ -5,7 +5,7 @@
  */
 import { MODULE_ID, TITLE } from "./core.js";
 import { measureCover } from "./decide/cover.js";
-import { lengthUnitKey, tokenSamplePoints } from "./decide/geometry.js";
+import { lengthUnitKey, rectsOverlap, tokenSamplePoints } from "./decide/geometry.js";
 
 /** The roller's own token for this actor: a controlled one first, else the first on the canvas. */
 export function tokenOfActor(actor) {
@@ -113,6 +113,15 @@ export function grappledBy(actor, token) {
 
 /** The shortest grid distance between two tokens' squares, IN FEET; null when unreadable.
  * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"). */
+/** Do two tokens' footprints overlap (a creature standing inside another's space)? False when unreadable. */
+export function tokensOverlap(a, b) {
+  const da = a?.document ?? a, db = b?.document ?? b;
+  const grid = da?.parent?.grid?.size ?? db?.parent?.grid?.size;
+  if ( !da || !db || !grid ) return false;
+  return rectsOverlap({ x: da.x, y: da.y, w: (da.width ?? 1) * grid, h: (da.height ?? 1) * grid },
+    { x: db.x, y: db.y, w: (db.width ?? 1) * grid, h: (db.height ?? 1) * grid });
+}
+
 export function nearestFeet(a, b) {
   try {
     const pa = documentSquares(a.document), pb = documentSquares(b.document);

@@ -66,6 +66,12 @@ export function tokenCenter(tok) {
   return { x: tok.x + (tok.width * grid) / 2, y: tok.y + (tok.height * grid) / 2 };
 }
 
+/** Do two rectangles ({x, y, w, h}) share any area? Touching edges do not count. */
+export function rectsOverlap(a, b) {
+  if ( !a || !b ) return false;
+  return (a.x < b.x + b.w) && (b.x < a.x + a.w) && (a.y < b.y + b.h) && (b.y < a.y + a.h);
+}
+
 /** One sample per occupied square: a large token counts when ANY square is in the area. */
 export function tokenSamplePoints(tok) {
   const grid = tok.parent?.grid?.size;

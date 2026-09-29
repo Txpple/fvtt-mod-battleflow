@@ -1039,7 +1039,10 @@ describe("DUPLICATES — the table and decide/duplicates.js (Tier 3)", () => {
     expect([...row.seesThrough.statuses]).toEqual(["blinded"]);
     expect([...row.seesThrough.senses]).toEqual(["blindsight", "truesight"]);
     expectPointer(row.rule);
-    expect(reg.duplicateEntries().map(e => e.kind)).toEqual(["mirror image"]);
+    expect(reg.duplicateEntries().map(e => e.kind)).toEqual([
+      "mirror image",
+      "reflective carapace"
+    ]);
   });
   it("the standing duplicates are the row's effects on the sheet, in the row's order — the last is the one destroyed", () => {
     const row = reg.DUPLICATES["Mirror Image"];

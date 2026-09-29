@@ -15,7 +15,16 @@ let rs;
 let tg;
 /** @type {typeof import("../scripts/decide/drains.js")} */
 let dn;
+/** @type {typeof import("../scripts/decide/reminders.js")} */
+let rm;
+/** @type {typeof import("../scripts/decide/duplicates.js")} */
+let dp;
+/** @type {typeof import("../scripts/decide/geometry.js")} */
+let ge;
 beforeAll(async () => {
+  rm = await import("../scripts/decide/reminders.js");
+  dp = await import("../scripts/decide/duplicates.js");
+  ge = await import("../scripts/decide/geometry.js");
   dn = await import("../scripts/decide/drains.js");
   reg = await import("../scripts/decide/registry.js");
   rs = await import("../scripts/decide/repeat-saves.js");
@@ -304,6 +313,84 @@ describe("the one-row facets — the vampire's drop, the curse on a rest, the de
       counted: false
     });
     expectPointer(reg.EFFECT_BENDS["Sun Sickness"].rule);
+  });
+});
+
+describe("Object Slam and Reflective Carapace — the last two rows", () => {
+  it("Object Slam: the attack's own bend, judged on the map — the attack is the carrier, inside the space only", () => {
+    const row = reg.EFFECT_BENDS["Object Slam"];
+    expect(row).toMatchObject({
+      attack: "Object Slam",
+      attacker: "advantage",
+      judge: "targetInSpace"
+    });
+    expectPointer(row.rule);
+    const facts = {
+      enabled: ["Object Slam"],
+      table: { "Object Slam": row },
+      attacker: { uuid: "a", effects: [], features: [] },
+      pass: "target",
+      attackerName: "The mimic",
+      targetName: "Gren"
+    };
+    const inside = rm.effectSources({
+      ...facts,
+      target: { uuid: "t", effects: [], features: [], inSpace: true },
+      scope: { item: "Object Slam" }
+    });
+    expect(inside).toHaveLength(1);
+    expect(inside[0]).toMatchObject({ bend: "advantage" });
+    expect(
+      rm.effectSources({
+        ...facts,
+        target: { uuid: "t", effects: [], features: [], inSpace: false },
+        scope: { item: "Object Slam" }
+      })
+    ).toHaveLength(0);
+    expect(
+      rm.effectSources({
+        ...facts,
+        target: { uuid: "t", effects: [], features: [], inSpace: true },
+        scope: { item: "Claw" }
+      })
+    ).toHaveLength(0);
+    expect(
+      ge.rectsOverlap({ x: 0, y: 0, w: 200, h: 200 }, { x: 100, y: 100, w: 100, h: 100 })
+    ).toBe(true);
+    expect(ge.rectsOverlap({ x: 0, y: 0, w: 100, h: 100 }, { x: 100, y: 0, w: 100, h: 100 })).toBe(
+      false
+    );
+  });
+  it("Reflective Carapace: a feature duplicate on ranged spell attacks alone, a d6 at 1 (always turned aside), a 6 reflecting; the words say so", () => {
+    const row = reg.DUPLICATES["Reflective Carapace"];
+    expect(row).toMatchObject({
+      match: "feature",
+      die: 6,
+      at: 1,
+      reflectAt: 6,
+      only: "rangedSpellAttack"
+    });
+    expect(row.effect).toBeUndefined();
+    expectPointer(row.rule);
+    const outcome = dp.duplicateOutcome({ at: 1 }, [6]);
+    expect(outcome).toMatchObject({ absorbed: true, winner: 0 });
+    const words = dp.duplicateWords({ key: "Reflective Carapace", die: 6, at: 1 }, outcome, {
+      took: null,
+      left: 1,
+      of: 1,
+      feature: true,
+      reflected: true
+    });
+    expect(words.title).toMatch(/REFLECTS/);
+    expect(words.count).toMatch(/caster is the target/);
+    expect(words.took).toBeNull();
+    const plain = dp.duplicateWords(
+      { key: "Reflective Carapace", die: 6, at: 1 },
+      dp.duplicateOutcome({ at: 1 }, [3]),
+      { took: null, left: 1, of: 1, feature: true, reflected: false }
+    );
+    expect(plain.title).toBe("Reflective Carapace turns the spell aside");
+    expect(plain.count).toBe("Reflective Carapace stands");
   });
 });
 

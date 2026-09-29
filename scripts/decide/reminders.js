@@ -318,15 +318,15 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
  * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`.
  * `allyNear` is three-valued: only a measured false skips — never guess an exemption.
  * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean},
- *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean},
+ *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
- *          scope?: {classification?: string|null, type?: string|null},
+ *          scope?: {classification?: string|null, type?: string|null, item?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts */
 export function effectSources({ attacker = {}, target = {}, enabled, table, scope = {},
   attackerName = "You", targetName = "the target", pass = "both" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   // The EDGE reads the attacker once, then each target: a row hinging on the TARGET is the target pass's.
-  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget", "notIncapacitated"]);
+  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget", "notIncapacitated", "targetInSpace"]);
   const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source");
   const notOnlyFor = (row, e, otherUuid) => (row.only === "source") && (!e?.sourceUuid || !otherUuid || (e.sourceUuid !== otherUuid));
   const attackerRowHere = row => (pass === "both") || ((pass === "target") === hingesOnTarget(row));
@@ -347,12 +347,15 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       case "targetNotActed": return !!target.notActed;
       case "allyNearTarget": return target.allyNear !== false;
       case "notIncapacitated": return !target.incapacitated;    // Displacement: off while the bearer is Incapacitated
+      case "targetInSpace": return !!target.inSpace;             // Object Slam: the target stands inside the attacker's space
       default: return true;
     }
   };
   // A MEASURED farther source skips the row; an unmeasured one counts.
   const outOfReach = (row, e) => Number.isFinite(row.sourceWithin) && Number.isFinite(e?.sourceFeet) && (e.sourceFeet > row.sourceWithin);
   const carriers = (who, row) => {
+    // `attack`: the attack's own item is the carrier (Object Slam) — no sheet is read.
+    if ( row.attack ) return (String(scope.item ?? "").toLowerCase() === String(row.attack).toLowerCase()) ? [{ id: null }] : [];
     // `named`: the effect's own name when the row's key cannot be it (a second "Protected")
     const name = String(row.named ?? row.__name).toLowerCase();
     if ( row.match === "feature" ) {

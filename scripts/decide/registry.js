@@ -1284,10 +1284,13 @@ export const CHECK_BENDS = Object.freeze({
  *   saves     { bend, statuses?, spells?, abilities?, halfToNone? } scoped by the demand (`abilities`: the
  *             save's own ability, Irresistible Dance's Dexterity), or { succeeds, sleep } — the save
  *             cannot fail against magical sleep (a fourth button)
+ *   attack    the bend rides ONE attack alone — the item making it (Object Slam, the GM's side): the attack
+ *             itself is the carrier, no feature or effect is read;  judge "targetInSpace": the target's
+ *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated", spend?: "attack",
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace", spend?: "attack", attack?: string,
  *   only?: "source", except?: "source", rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -1487,6 +1490,9 @@ export const EFFECT_BENDS = Object.freeze({
   "Sunlight Sensitivity": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Disadvantage only in sunlight",
     rule: Object.freeze({ item: "Sunlight Sensitivity", uuid: "Compendium.dnd-monster-manual.features.Item.mmSunlightSensit" }) }),
+  // THE GM'S SIDE — the attack's own bend, judged on the map: Advantage when the target stands inside the bearer's space.
+  "Object Slam": Object.freeze({ match: "feature", attack: "Object Slam", attacker: "advantage", target: null, scope: "any", judge: "targetInSpace", from: "monsters (mimics)",
+    rule: Object.freeze({ item: "Object Slam", uuid: "Compendium.dnd-monster-manual.features.Item.mmObjectSlam0000" }) }),
   "Sun Sickness": Object.freeze({ match: "feature", attacker: "disadvantage", target: null, scope: "any", counted: false, from: "monsters (fomorians)",
     caveat: "listed — Disadvantage on D20 Tests only in sunlight; the hour's death clock is the table's",
     rule: Object.freeze({ item: "Sun Sickness", uuid: "Compendium.dnd-monster-manual.features.Item.mmSunSickness000" }) }),
@@ -1922,13 +1928,21 @@ export const WARDS = Object.freeze({
  *   effect    the pack's effects, one per duplicate (the count is what stands on the sheet)
  *   die · at  the die per duplicate, the face that redirects
  *   seesThrough  { statuses, senses } on the ATTACKER that make it immune
+ *   match     "feature" (the GM's side, Reflective Carapace): the DEFENDER's own trait, one "duplicate" that is
+ *             never destroyed — `only: "rangedSpellAttack"` narrows the hits it answers; `reflectAt` the face
+ *             that also reflects the spell (the caster the target — the table's, the card says so)
  * Not a kind: one machine, rows of data.
  */
 export const DUPLICATES = Object.freeze({
   "Mirror Image": Object.freeze({ effect: Object.freeze(["Duplicate A", "Duplicate B", "Duplicate C"]), die: 6, at: 3,
     seesThrough: Object.freeze({ statuses: Object.freeze(["blinded"]), senses: Object.freeze(["blindsight", "truesight"]) }),
     rule: Object.freeze({ item: "Mirror Image", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplMirrorImag" }),
-    from: "Bard / Sorcerer / Warlock / Wizard spell, level 2 (1 minute)" })
+    from: "Bard / Sorcerer / Warlock / Wizard spell, level 2 (1 minute)" }),
+  // The tarrasque's shell: every ranged spell attack is turned aside (a d6 — 1 to 5 unaffected, a 6 unaffected AND reflected).
+  "Reflective Carapace": Object.freeze({ match: "feature", die: 6, at: 1, reflectAt: 6, only: "rangedSpellAttack",
+    caveat: "Magic Missile (no attack roll) is the cast-triggered kind, not built; the reflection on a 6 — the caster the target — is the table's",
+    rule: Object.freeze({ item: "Reflective Carapace", uuid: "Compendium.dnd-monster-manual.features.Item.mmReflectiveCara" }),
+    from: "monsters (the tarrasque)" })
 });
 
 /**

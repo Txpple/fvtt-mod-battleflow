@@ -15,7 +15,7 @@ import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
 import { livePopups, waitForWrite } from "../ui.js";
-import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf } from "./lookup.js";
+import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
@@ -196,17 +196,20 @@ async function rollDuplicates(attackMessage, target) {
   try {
     const actor = resolveUuid(target.uuid);
     const attacker = attackMessage.getAssociatedActor?.() ?? null;
-    const live = duplicatesOf(actor, attacker);   // re-read: a duplicate may have gone since the stamp
+    const live = duplicatesOf(actor, attacker, attackFactsOf(attackMessage));   // re-read: a duplicate may have gone since the stamp
     const d = target.duplicates;
     if ( !live || live.seenThrough || !live.count ) { target.duplicates = { ...d, faces: [], absorbed: false, left: live?.count ?? 0, gone: true }; return null; }
     const roll = await new Roll(`${live.count}d${live.die}`).evaluate();
     const faces = roll.dice[0]?.results?.map(r => Number(r.result)) ?? [];
     const outcome = duplicateOutcome({ at: live.at }, faces);
-    const took = outcome.absorbed ? { id: live.ids.at(-1), name: live.names.at(-1) } : null;
-    const left = outcome.absorbed ? live.count - 1 : live.count;
-    const words = duplicateWords({ key: live.key, die: live.die, at: live.at }, outcome, { took: took?.name ?? null, left, of: live.of });
-    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${live.key} — a d${live.die} for each duplicate` });
-    target.duplicates = { ...d, faces, winner: outcome.winner, absorbed: outcome.absorbed, took, left, of: live.of, at: live.at, die: live.die };
+    // A feature row's one "duplicate" is never destroyed (the carapace stands); a face at `reflectAt` also reflects.
+    const took = (outcome.absorbed && !live.feature) ? { id: live.ids.at(-1), name: live.names.at(-1) } : null;
+    const left = (outcome.absorbed && !live.feature) ? live.count - 1 : live.count;
+    const reflected = !!live.feature && Number.isFinite(live.reflectAt) && faces.some(f => f >= live.reflectAt);
+    const words = duplicateWords({ key: live.key, die: live.die, at: live.at }, outcome, { took: took?.name ?? null, left, of: live.of, feature: !!live.feature, reflected });
+    await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: live.feature ? `${live.key} — a d${live.die}` : `${live.key} — a d${live.die} for each duplicate` });
+    target.duplicates = { ...d, faces, winner: outcome.winner, absorbed: outcome.absorbed, took, left, of: live.of, at: live.at, die: live.die,
+      ...(live.feature ? { feature: true, reflected } : {}) };
     if ( outcome.absorbed ) target.verdict = "absorbed";
     return bfCard({ img: live.img, eyebrow: live.key, title: words.title, subtitle: target.name, tone: outcome.absorbed ? "good" : "bad",
       lines: [words.dice, words.count] });

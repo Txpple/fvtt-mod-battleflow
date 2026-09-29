@@ -16,7 +16,10 @@ export const COVERS = [
   'drop-to-one.js',         // §10 — Spiteful Escape held at 1 (outright too); Misty Escape's notice at the death's side
   'rest-grants.js',         // §11 — Cursed Touch: a Long Rest grants nothing while Cursed stands, the card says so
   'damage-shields.js',      // §12 — Corrosive Form: the Monster's own trait strikes the melee attacker
-  'rebukes.js'              // §13 — Fiendish Blood offered on piercing or slashing damage, not on fire
+  'rebukes.js',             // §13 — Fiendish Blood offered on piercing or slashing damage, not on fire
+  'reminders.js',           // §14 — Object Slam's Advantage when the target stands inside the Monster's space, none beside it
+  'hold/trigger.js',        // §15 — Reflective Carapace: a ranged spell attack's hit is turned aside on the hold (absorbed), a melee hit is not
+  'hold/continue.js'
 ];
 
 const SECTIONS = {
@@ -32,7 +35,9 @@ const SECTIONS = {
   10: 'THE VAMPIRE\'S DROP: Spiteful Escape holds the Monster at 1 on a drop (killed outright too), a card says so; Misty Escape at 0 posts the notice card (nothing used)',
   11: 'THE CURSE ON A REST: Cursed (from Cursed Touch) on the Victim — a Long Rest regains nothing, the rest card says why; the curse gone, the rest heals',
   12: 'CORROSIVE FORM: the Victim\'s melee hit on the Monster is answered by the Monster\'s own trait — the acid rolled, landed on the Victim, receipted',
-  13: 'FIENDISH BLOOD: slashing damage to the Monster offers the Reaction (the rebuke card, pending); fire offers nothing'
+  13: 'FIENDISH BLOOD: slashing damage to the Monster offers the Reaction (the rebuke card, pending); fire offers nothing',
+  14: 'OBJECT SLAM: the Victim standing INSIDE the Monster\'s space — the attack\'s gate reads Advantage for Object Slam alone (not for a Claw); beside it, nothing',
+  15: 'REFLECTIVE CARAPACE: the Victim\'s Fire Bolt hits the Monster — the hold rolls the carapace\'s d6, the hit is ABSORBED (no damage lands), the card says the spell is turned aside; a Longsword hit is not answered'
 };
 const DEPENDS = {};
 
@@ -741,6 +746,103 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('13b. fire damage offers nothing (piercing or slashing alone)', !cardsWith('rebuke').slice(k).some(m => (m.getFlag(MOD, 'rebuke')?.options ?? []).some(o => o.name === 'Fiendish Blood')), `cards=${cardsWith('rebuke').length} (was ${k})`);
       await blood.delete();
       await mSetHp(50);
+    }
+
+    // ================================================== 14. Object Slam — the gate's judge on the map
+    if (want(14)) {
+      await healFull();
+      const slam = await lendTrait('Object Slam');
+      const claw = await lendTrait('Claw');
+      // The HUMAN-style roll (smoke-reminders' shape): the system's dialog is allowed, so the gate's section stands in it.
+      const rollDialog = () => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
+      const closeGates = async () => {
+        for (const app of foundry.applications.instances.values()) {
+          const gate = (app instanceof foundry.applications.api.DialogV2) && /Before you roll/.test(app.title ?? '');
+          if (gate || /RollConfigurationDialog/.test(app.constructor?.name ?? '')) { try { await app.close(); } catch { /* gone */ } }
+        }
+      };
+      const popupText = dlg => ((dlg?.element?.querySelector('[data-bf-reminder]') ?? dlg?.element?.querySelector('.window-content'))?.textContent ?? '').replace(/\s+/g, ' ').trim();
+      const gateOf = async act => {
+        monsterToken.control({ releaseOthers: true });
+        target();
+        await sleep(80);
+        const results = await act.use({ subsequentActions: false, consume: { uses: false, resources: false } }, { configure: false }, {});
+        const usageId = results?.message?.id ?? null;
+        const li = await waitFor(() => document.querySelector(`.message[data-message-id="${usageId}"]`), 4000);
+        const event = { target: li?.querySelector('button[data-action="rollAttack"]') ?? li, clientY: 200, altKey: false, ctrlKey: false, metaKey: false, shiftKey: false };
+        act.rollAttack({ event }, {}, {}).catch(() => { /* the dialog is closed below: the roll is cancelled */ });
+        const dlg = await waitFor(rollDialog, 6000);
+        await sleep(250);
+        const text = popupText(dlg);
+        await closeGates();
+        await sleep(200);
+        return { dialog: dlg, text };
+      };
+      // Beside the Monster: nothing.
+      await moveVictim(1);
+      const beside = await gateOf(actOf(slam, { type: 'attack' }));
+      ok('14a. the Victim beside the Monster: the roll dialog opens and its gate lists no Object Slam', !!beside.dialog && !/Object Slam/.test(beside.text), `dialog=${!!beside.dialog} text="${beside.text.slice(0, 200)}"`);
+      // Inside its space.
+      await moveVictim(0);
+      const inside = await gateOf(actOf(slam, { type: 'attack' }));
+      ok('14b. the Victim inside the Monster\'s space: the gate reads Object Slam — Advantage', /Object Slam/.test(inside.text) && /Advantage/.test(inside.text), `text="${inside.text.slice(0, 300)}"`);
+      const other = await gateOf(actOf(claw, { type: 'attack' }));
+      ok('14c. a Claw from the same space reads no Object Slam (the bend rides that attack alone)', !/Object Slam/.test(other.text), `text="${other.text.slice(0, 200)}"`);
+      await moveVictim(1);
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      await takeBack('Object Slam');
+      await takeBack('Claw');
+    }
+
+    // ================================================== 15. Reflective Carapace — the hold turns the spell aside
+    if (want(15)) {
+      await healFull();
+      await moveVictim(2);
+      const shell = await lendTrait('Reflective Carapace');
+      const priorMon = { calc: monster.system._source.attributes.ac.calc, flat: monster.system._source.attributes.ac.flat };
+      await monster.update({ 'system.attributes.ac.calc': 'flat', 'system.attributes.ac.flat': 1 });
+      await mSetHp(50);
+      const priorCasting = victim.system._source.attributes.spellcasting ?? '';
+      await victim.update({ 'system.attributes.spellcasting': 'int' });
+      const pack = game.packs.find(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item') && (p.metadata.name === 'spells'));
+      const hit = (await pack?.getIndex())?.find(e => e.name === 'Fire Bolt');
+      const src = hit ? await pack.getDocument(hit._id) : null;
+      const data = src?.toObject(); if (data) data.system.prepared = 1;
+      const [bolt] = data ? await victim.createEmbeddedDocuments('Item', [data]) : [null];
+      ok('15-pre. Fire Bolt lent to the Victim, the carapace to the Monster', !!bolt && !!shell, `bolt=${!!bolt}`);
+      const cast = async act => {
+        victimToken.control({ releaseOthers: true });
+        game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+        monsterToken.setTarget(true, { releaseOthers: true });
+        await sleep(80);
+        const results = await act.use({ subsequentActions: false, consume: { spellSlot: false, uses: false, resources: false } }, { configure: false }, {});
+        const rolls = await act.rollAttack({}, { configure: false }, results?.message?.id ? { data: { 'system.origin': results.message.id } } : {});
+        return rolls?.[0]?.parent ?? null;
+      };
+      const hp0 = mHp();
+      const attackMsg = await cast(bolt.system.activities.find(a => a.type === 'attack'));
+      const hold = await waitFor(() => { const h = game.messages.get(attackMsg?.id)?.getFlag(MOD, 'hold'); return (h?.status === 'resolved') ? h : null; }, 15000);
+      const t = hold?.targets?.find(x => x.uuid === monster.uuid);
+      ok('15a. the Fire Bolt hit is held and rolled against the carapace: one d6, the hit ABSORBED, the entry a feature (no duplicate destroyed)',
+        !!hold && (t?.verdict === 'absorbed') && (t?.duplicates?.feature === true) && (t?.duplicates?.faces?.length === 1) && (t?.duplicates?.took === null) && (t?.duplicates?.left === 1),
+        `hold=${hold?.status} verdict=${t?.verdict} dup=${JSON.stringify(t?.duplicates && { feature: t.duplicates.feature, faces: t.duplicates.faces, left: t.duplicates.left, reflected: t.duplicates.reflected })}`);
+      await sleep(1500);
+      const said = game.messages.contents.find(m => (m.timestamp >= (attackMsg?.timestamp ?? 0)) && /turns the spell aside/.test(m.content ?? '')) ?? null;
+      ok('15b. no damage lands on the Monster and the card says the spell is turned aside', (mHp() === hp0) && !!said, `hp=${mHp()} vs ${hp0} card=${!!said}`);
+      // A melee hit: not the carapace's.
+      const sword = victim.items.find(i => (i.type === 'weapon') && i.system.activities?.some?.(a => (a.type === 'attack') && (a.attack?.type?.value === 'melee')));
+      await moveVictim(1);
+      const swing = await cast(sword.system.activities.find(a => a.type === 'attack'));
+      await sleep(800);
+      const h2 = game.messages.get(swing?.id)?.getFlag(MOD, 'hold');
+      ok('15c. a Longsword hit is not answered by the carapace (no duplicates entry on the hold)', !!swing && !h2?.targets?.some(x => x.duplicates), `hold=${JSON.stringify(h2 && { status: h2.status, dup: h2.targets?.map(x => !!x.duplicates) })}`);
+      await monster.update({ 'system.attributes.ac.calc': priorMon.calc, 'system.attributes.ac.flat': priorMon.flat });
+      await victim.update({ 'system.attributes.spellcasting': priorCasting });
+      if (bolt) await bolt.delete();
+      game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
+      await shell.delete();
+      await mSetHp(50);
+      await healFull();
     }
 
     return { log, results, skips };

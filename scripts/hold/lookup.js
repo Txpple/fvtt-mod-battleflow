@@ -10,7 +10,7 @@ import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { d20ModeOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
-import { lower, activityNamed, reductionFor, holdsFor, itemsNamed, featureNamed } from "../lookup.js";
+import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed } from "../lookup.js";
 import { alliesWithin, tokenForUuid } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf } from "../shared.js";
 import { chipClock } from "../decide/chips.js";
@@ -143,9 +143,29 @@ export function rollRescuesOf(actor) {
  * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
  * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null}|null}
  */
-export function duplicatesOf(defender, attacker) {
+/** What the attack was: RANGED (the attack's own mode — a ranged weapon, a thrown one — else its activity's type), a SPELL attack. */
+export function attackFactsOf(attackMessage) {
+  const mode = String(attackMessage?.system?.mode ?? "");
+  const activity = cardActivity(attackMessage);
+  const ranged = (mode === "ranged") || mode.startsWith("thrown") || (activity?.attack?.type?.value === "ranged");
+  const spellAttack = (activity?.item?.type === "spell") || (activity?.attack?.type?.classification === "spell");
+  return { ranged, spellAttack };
+}
+
+export function duplicatesOf(defender, attacker, { ranged = false, spellAttack = false } = {}) {
   if ( !defender ) return null;
   const listed = listedNames(duplicateEntries());
+  // The defender's OWN trait (Reflective Carapace): one "duplicate" that stands, for the hits the row names.
+  for ( const [key, base] of Object.entries(DUPLICATES) ) {
+    const row = /** @type {any} */ (base);
+    if ( (row.match !== "feature") || !listed.has(lower(key)) ) continue;
+    if ( (row.only === "rangedSpellAttack") && !(ranged && spellAttack) ) continue;
+    const item = featureNamed(defender, key);
+    if ( !item ) continue;
+    const seen = seesThrough(row, { statuses: attacker?.statuses ?? [], senses: attacker?.system?.attributes?.senses ?? {} });
+    return { key, at: row.at, die: row.die, count: 1, of: 1, ids: [], names: [key], img: item.img ?? null, seenThrough: seen.why,
+      feature: true, reflectAt: row.reflectAt ?? null };
+  }
   for ( const effect of defender.effects ) {
     if ( !effect.active ) continue;
     const item = effectSourceOf(effect)?.item ?? null;

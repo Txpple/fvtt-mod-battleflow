@@ -57,11 +57,18 @@ export function duplicateChips(outcome) {
  * The words: the dice line, the headline, the count that stands after.
  * @param {{key: string, die: number, at: number}} row
  * @param {{absorbed: boolean, winner: number|null, faces: number[]}} outcome
- * @param {{took: string|null, left: number, of: number}} count   `took` the destroyed duplicate's name
+ * @param {{took: string|null, left: number, of: number, feature?: boolean, reflected?: boolean}} count   `took` the destroyed
+ *   duplicate's name; `feature` a trait's one duplicate that is never destroyed (Reflective Carapace), `reflected` its reflecting face
  */
-export function duplicateWords(row, outcome, { took, left, of }) {
+export function duplicateWords(row, outcome, { took, left, of, feature = false, reflected = false }) {
   const n = outcome.faces.length;
   const faces = outcome.faces.map((f, i) => (i === outcome.winner) ? `<strong>${f}</strong>` : String(f)).join(", ");
+  if ( feature ) {
+    const dice = `${n}d${row.die} → ${faces} — ${outcome.absorbed ? `<strong>the spell is turned aside</strong>, no effect on you` : "<strong>you are hit</strong>"}`;
+    const title = outcome.absorbed ? (reflected ? `${row.key} turns the spell aside — and REFLECTS it` : `${row.key} turns the spell aside`) : "The spell gets through";
+    const count = reflected ? "the caster is the target now — resolve the reflected spell by hand" : `${row.key} stands`;
+    return { title, dice, count, took: null };
+  }
   const dice = `${n}d${row.die} → ${faces} — ${outcome.absorbed ? `a ${row.at} or higher: <strong>the duplicate is destroyed</strong>, no damage to you` : `none ${row.at} or higher: <strong>you are hit</strong>`}`;
   const title = outcome.absorbed ? (left === 0 ? "The last duplicate takes the hit" : "A duplicate takes the hit") : "The hit gets through";
   const count = (outcome.absorbed && (left === 0)) ? `<strong>${row.key} ended</strong> — every duplicate is gone` : `duplicates: ${left} of ${of} left`;
