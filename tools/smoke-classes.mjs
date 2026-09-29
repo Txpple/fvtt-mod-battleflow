@@ -30,7 +30,12 @@ export const COVERS = [
   'emanations.js',          // the Wolf's ring
   'reminders.js',           // the gate's member bend (Rage of the Wolf)
   'advantage-buys.js',      // Tides of Chaos
-  'd20-folds.js'            // Commanding Presence
+  'd20-folds.js',           // Commanding Presence
+  // §A2 (28–31)
+  'hit-menu.js',            // the Monk's Focus, Open Hand Technique, Elemental Attunement and Psionic Power groups
+  'damage-holds.js',        // Protective Field's guard
+  'saves/consequences.js',  // Stunning Strike's success half (SAVE_PRESSES `success`)
+  'saves/demand.js'         // the save card's effect names by outcome
 ];
 
 const SECTIONS = {
@@ -60,7 +65,11 @@ const SECTIONS = {
   24: 'the Rage reminder: in a combat BF Test PC Attacker (lent Rage) enters Rage on its turn — that turn is never reminded; a later turn with no attack roll and no save forced ends with "Rage — it ends now unless you extended it", nothing removed; a turn with an attack roll at an enemy ends with no card',
   25: 'Rage of the Wilds: with Rage and Rage of the Wilds lent, the Rage\'s card asks "Rage of the Wilds — Bear, Eagle or Wolf?" and the Rage lands at once; Wolf uses the feature\'s own Wolf activity ("Rage of the Wolf" on the barbarian); the enemy within 5 ft wears the quiet ring\'s member copy; the Cleric attacking it sees Advantage from "Rage of the Wolf" in the gate, the barbarian\'s own attack does not',
   26: 'Tides of Chaos: an attack, a save and a check dialog carry the buy box "Tides of Chaos — 1 use · 1 left"; ticked and pressed, the save rolls at Advantage, the use spent and recorded; with none left the box is greyed "no uses left", no tick',
-  27: 'Commanding Presence: BF Test Fighter\'s Persuasion, Intimidation and Performance checks offer the superiority die (the scoped tactical fold); Athletics does not; accepted on Persuasion, a die spent and the total patched'
+  27: 'Commanding Presence: BF Test Fighter\'s Persuasion, Intimidation and Performance checks offer the superiority die (the scoped tactical fold); Athletics does not; accepted on Persuasion, a die spent and the total patched',
+  28: 'Stunning Strike and Hand of Harm (the Monk\'s Focus group): a Longsword hit offers neither; an Unarmed Strike both; Stunning Strike alone costs ONE point (its save\'s use), Stunned on a failure, Slowed on a success; both ride one hit; in a combat the second hit greys Stunning Strike',
+  29: 'Open Hand Technique: out of combat every Unarmed Strike offers Addle / Push / Topple; in a combat only after Flurry of Blows (its turn chit); one pick; Topple\'s failed save lands Prone; a Longsword hit none',
+  30: 'Psionic Power: Psionic Strike\'s force die on the menu (a die spent); Protective Field asks the Psi Warrior when an ally within 30 ft is hit ("Reduce"), the die + Int off; none left, never asked',
+  31: 'Elemental Attunement: its own Elemental Strike only; "Push or pull — free"; the Strength save and the card\'s line'
 };
 const DEPENDS = {};
 
@@ -92,7 +101,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const SETTING_KEYS = ['autoDamage', 'autoApply', 'playerRollDamage', 'damageTimer', 'dramaticBeat', 'requireTarget',
     'reactionHold', 'holdTimer', 'holdReveal', 'holdSkipFutile', 'holdApplyEffect', 'riders', 'effectRiders',
-    'masteryRiders', 'masteryAsk', 'castApply', 'concMode'];
+    'masteryRiders', 'masteryAsk', 'castApply', 'concMode', 'saveRolls'];
   const prior = Object.fromEntries(SETTING_KEYS.map(k => [k, game.settings.get(MOD, k)]));
   const set = (k, v) => game.settings.set(MOD, k, v);
 
@@ -1826,6 +1835,288 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await pool.update({ 'system.uses.spent': priorSpent }).catch(() => {});
           if (!native) await unlend(fighter, cp);
         }
+      }
+    }
+
+    // ================================================ §A2 — the hit menu's Monk and Psi Warrior groups (RULINGS *The PHB classes — A2*)
+    const hitBox = (offer, key) => offer?.element?.querySelector(`input[name="bf-hit"][value="${key}"]`) ?? null;
+    const hitRow = (offer, key) => textOf(offer?.element?.querySelector(`[data-bf-hit-row="${key}"]`));
+    const hitRows = offer => [...(offer?.element?.querySelectorAll('[data-bf-hit-row]') ?? [])].map(r => r.dataset.bfHitRow);
+    const groupText = (offer, key) => textOf(offer?.element?.querySelector(`div[data-bf-hit-group="${key}"]`));
+    const tick = async (offer, ...keys) => { for (const k of keys) { hitBox(offer, k)?.click(); await sleep(60); } };
+    const saveCardFor = (key, since) => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'hitManeuverCard')?.key === key)) ?? null;
+    const outcomeOn = card => card?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.outcome ?? null;
+    const settledSave = (key, since) => waitFor(() => { const c = saveCardFor(key, since); return outcomeOn(c) ? c : null; }, 12000);
+    const typesOf = d => (d?.rolls ?? []).flatMap(r => [...(r.options?.types ?? []), r.options?.type].filter(Boolean));
+    /** The PHB's Unarmed Strike weapon on BF Test PC Attacker (taken back at teardown). */
+    const lendUnarmed = async () => {
+      const src = await fromUuid('Compendium.dnd-players-handbook.equipment.Item.phbUnarmedStrike');
+      if (!src) return null;
+      const [us] = await pcAttacker.createEmbeddedDocuments('Item', [src.toObject()]);
+      lentBy.set(pcAttacker, [...(lentBy.get(pcAttacker) ?? []), us.id]);
+      return us;
+    };
+    /** A lent copy's damage part pinned to `formula` (the fixture has no Monk / Psi Warrior scale — §17's shape). */
+    const pinPart = async (item, act, formula) => {
+      const parts = act.toObject().damage.parts;
+      parts[0].custom = { enabled: true, formula };
+      await item.update({ [`system.activities.${act.id}.damage.parts`]: parts });
+    };
+    const vfxBase = new Set(victim.effects.map(e => e.id));
+    const victimFx = () => victim.effects.filter(e => !vfxBase.has(e.id));
+    const dropVictimFx = async () => { const ids = victimFx().map(e => e.id); if (ids.length) await victim.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
+    const a2Combat = async () => {
+      const [c] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(c.id);
+      await c.createEmbeddedDocuments('Combatant', [
+        { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
+        { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
+      await c.startCombat();
+      await sleep(400);
+      return c;
+    };
+
+    // ---- 28. Stunning Strike and Hand of Harm: the Monk's Focus group
+    if (want(28)) {
+      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      const focus = await hgLend(pcAttacker, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
+      const stun = await hgLend(pcAttacker, 'Stunning Strike', 'feat');
+      const hoh = await hgLend(pcAttacker, 'Hand of Harm', 'feat');
+      const us = await lendUnarmed();
+      let combat28 = null;
+      try {
+        if (!focus || !stun || !hoh || !us || !pcWeapon) log.push(`§28 skipped: focus=${!!focus} stun=${!!stun} hoh=${!!hoh} unarmed=${!!us} weapon=${!!pcWeapon}`);
+        else {
+          await pinPart(hoh, hoh.system.activities.find(a => a.type === 'damage'), '1d8 + @abilities.wis.mod');
+          const spent = () => Number(pcAttacker.items.get(focus.id)?.system?.uses?.spent ?? 0);
+          const usAct = () => pcAttacker.items.get(us.id).system.activities.find(a => a.type === 'attack');
+          const fx = () => victimFx().map(e => e.name);
+
+          const r0 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('28a. a Longsword hit (a Martial weapon without Light): neither Stunning Strike nor Hand of Harm',
+            !hitBox(r0.offer, 'stunning-strike') && !hitBox(r0.offer, 'hand-of-harm'), `offer=${!!r0.offer} rows=${hitRows(r0.offer)}`);
+          if (r0.offer) await a1Roll(r0.msg, r0.offer); else await a1Damage(r0.msg);
+
+          const t1 = Date.now();
+          const r1 = await a1Hit(pcAttacker, pcToken, usAct());
+          ok('28b. an Unarmed Strike hit: the group "Monk\'s Focus · 5 Focus Points left", "Stunning Strike — 1 Focus Point", "Hand of Harm — 1d8 + N necrotic · 1 Focus Point"',
+            !!hitBox(r1.offer, 'stunning-strike') && !!hitBox(r1.offer, 'hand-of-harm') && /5 Focus Points left/.test(groupText(r1.offer, 'monks-focus'))
+              && /1 Focus Point/.test(hitRow(r1.offer, 'stunning-strike')) && /1d8 \+ -?\d+ necrotic · 1 Focus Point/.test(hitRow(r1.offer, 'hand-of-harm')),
+            `group="${groupText(r1.offer, 'monks-focus').slice(0, 200)}"`);
+          await tick(r1.offer, 'stunning-strike');
+          faces([[1, 20]]);   // every die a 1: the save fails
+          await a1Roll(r1.msg, r1.offer);
+          const c1 = await settledSave('stunning-strike', t1);
+          await waitFor(() => fx().includes('Stunned'), 6000); await sleep(600);
+          ok('28c. Stunning Strike, the save failed: Stunned lands, Slowed does not; ONE Focus Point spent (the save\'s own use is the cost)',
+            (outcomeOn(c1) === 'failed') && fx().includes('Stunned') && !fx().includes('Slowed') && (spent() === 1),
+            `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} spent=${spent()}`);
+          await dropVictimFx();
+
+          const t2 = Date.now();
+          const r2 = await a1Hit(pcAttacker, pcToken, usAct());
+          await tick(r2.offer, 'stunning-strike');
+          faces([[20, 20]]);   // every die a 20: the save succeeds
+          await a1Roll(r2.msg, r2.offer);
+          const c2 = await settledSave('stunning-strike', t2);
+          await waitFor(() => fx().includes('Slowed'), 6000); await sleep(600);
+          ok('28d. the save succeeded: Slowed lands (the success half — the pack marks it failure-only), Stunned does not; a second point spent',
+            (outcomeOn(c2) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned') && (spent() === 2),
+            `outcome=${outcomeOn(c2)} fx=${JSON.stringify(fx())} spent=${spent()} names=${JSON.stringify(c2?.getFlag(MOD, 'saves')?.effectNames ?? null)}`);
+          await dropVictimFx();
+
+          const t3 = Date.now();
+          const r3 = await a1Hit(pcAttacker, pcToken, usAct());
+          await tick(r3.offer, 'stunning-strike', 'hand-of-harm');
+          const both = !!hitBox(r3.offer, 'stunning-strike')?.checked && !!hitBox(r3.offer, 'hand-of-harm')?.checked;
+          faces([[1, 20]]);
+          const d3 = await a1Roll(r3.msg, r3.offer);
+          await settledSave('stunning-strike', t3); await sleep(800);
+          ok('28e. both ride one hit (the group\'s two picks): the necrotic die on the roll, two more Focus Points',
+            both && typesOf(d3).includes('necrotic') && (spent() === 4),
+            `both=${both} types=${JSON.stringify(typesOf(d3))} spent=${spent()} picks=${JSON.stringify((d3?.getFlag(MOD, 'hitManeuver')?.picks ?? []).map(p => p.key))}`);
+          await dropVictimFx();
+
+          await pcAttacker.items.get(focus.id).update({ 'system.uses.spent': 0 });
+          combat28 = await a2Combat();
+          const t4 = Date.now();
+          const r4 = await a1Hit(pcAttacker, pcToken, usAct());
+          await tick(r4.offer, 'stunning-strike');
+          faces([[1, 20]]);
+          await a1Roll(r4.msg, r4.offer);
+          await settledSave('stunning-strike', t4); await sleep(800);
+          const chit = pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'stunning-strike') ?? null;
+          const r5 = await a1Hit(pcAttacker, pcToken, usAct());
+          ok('28f. in a combat, the second hit this turn: Stunning Strike greyed "used this turn" (its chit), Hand of Harm still offered',
+            !!chit && /used this turn/.test(hitRow(r5.offer, 'stunning-strike')) && (hitBox(r5.offer, 'stunning-strike')?.disabled === true) && (hitBox(r5.offer, 'hand-of-harm')?.disabled === false),
+            `chit=${chit?.name ?? null} row="${hitRow(r5.offer, 'stunning-strike').slice(0, 80)}"`);
+          if (r5.offer) await a1Roll(r5.msg, r5.offer);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (combat28 && game.combats.get(combat28.id)) await combat28.delete();
+        await dropVictimFx();
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [us, hoh, stun, focus]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 29. Open Hand Technique: after Flurry of Blows, one free pick
+    if (want(29)) {
+      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      const focus = await hgLend(pcAttacker, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
+      const oht = await hgLend(pcAttacker, 'Open Hand Technique', 'feat');
+      const us = await lendUnarmed();
+      let combat29 = null;
+      try {
+        if (!focus || !oht || !us || !pcWeapon) log.push(`§29 skipped: focus=${!!focus} oht=${!!oht} unarmed=${!!us}`);
+        else {
+          const usAct = () => pcAttacker.items.get(us.id).system.activities.find(a => a.type === 'attack');
+          const OHT = ['open-hand-addle', 'open-hand-push', 'open-hand-topple'];
+          const r0 = await a1Hit(pcAttacker, pcToken, usAct());
+          ok('29a. out of combat (no turn to read the Flurry in): an Unarmed Strike offers Addle / Push / Topple, the group "free"',
+            OHT.every(k => !!hitBox(r0.offer, k)) && /free/.test(groupText(r0.offer, 'open-hand-technique')),
+            `rows=${hitRows(r0.offer)} group="${groupText(r0.offer, 'open-hand-technique').slice(0, 120)}"`);
+          if (r0.offer) await a1Roll(r0.msg, r0.offer);
+
+          combat29 = await a2Combat();
+          const r1 = await a1Hit(pcAttacker, pcToken, usAct());
+          ok('29b. in a combat, no Flurry of Blows this turn: none', !OHT.some(k => hitBox(r1.offer, k)), `rows=${hitRows(r1.offer)}`);
+          if (r1.offer) await a1Roll(r1.msg, r1.offer); else await a1Damage(r1.msg);
+
+          const flurry = pcAttacker.items.get(focus.id).system.activities.find(a => a.name === 'Flurry of Blows');
+          await flurry?.use({ consume: { resources: false, action: false, spellSlot: false }, subsequentActions: false }, { configure: false }, {});
+          const chit = await waitFor(() => pcAttacker.effects.find(e => e.getFlag(MOD, 'riderKey') === 'flurry-of-blows') ?? null, 6000);
+          const t2 = Date.now();
+          const r2 = await a1Hit(pcAttacker, pcToken, usAct());
+          ok('29c. Flurry of Blows used: its turn chit; the next Unarmed Strike offers the three, one pick',
+            !!chit && OHT.every(k => !!hitBox(r2.offer, k)), `chit=${chit?.name ?? null} rows=${hitRows(r2.offer)}`);
+          await tick(r2.offer, 'open-hand-push', 'open-hand-topple');
+          const one = !hitBox(r2.offer, 'open-hand-push')?.checked && !!hitBox(r2.offer, 'open-hand-topple')?.checked;
+          faces([[1, 20]]);
+          await a1Roll(r2.msg, r2.offer);
+          const c2 = await settledSave('open-hand-topple', t2);
+          await waitFor(() => victim.statuses?.has?.('prone'), 6000); await sleep(400);
+          ok('29d. one pick (Topple gave Push way); the Dexterity save failed: Toppled — the target Prone',
+            one && (outcomeOn(c2) === 'failed') && !!victim.statuses?.has?.('prone'),
+            `one=${one} outcome=${outcomeOn(c2)} fx=${JSON.stringify(victimFx().map(e => e.name))}`);
+          await dropVictimFx();
+
+          const r3 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('29e. a Longsword hit after the Flurry: none (an Unarmed Strike only)', !OHT.some(k => hitBox(r3.offer, k)), `rows=${hitRows(r3.offer)}`);
+          if (r3.offer) await a1Roll(r3.msg, r3.offer); else await a1Damage(r3.msg);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (combat29 && game.combats.get(combat29.id)) await combat29.delete();
+        await dropVictimFx();
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [us, oht, focus]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 30. Psionic Power: Psionic Strike on the menu, Protective Field for an ally and for yourself
+    if (want(30)) {
+      await closeDialogs(); await a1Victim(); await spendLuck(); await dropReactionChips(pcAttacker);
+      hgKeep(pcAttacker, { 'system.attributes.hp.value': pcAttacker.system._source.attributes.hp.value, 'system.attributes.hp.max': pcAttacker.system._source.attributes.hp.max });
+      // The Psi Warrior's own item: the Soulknife's shares the name and the identifier.
+      const src = await fromUuid('Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow');
+      let pp = null;
+      if (src) {
+        const data = src.toObject();
+        foundry.utils.setProperty(data, '_stats.compendiumSource', src.uuid);
+        [pp] = await pcAttacker.createEmbeddedDocuments('Item', [data]);
+        lentBy.set(pcAttacker, [...(lentBy.get(pcAttacker) ?? []), pp.id]);
+        await pp.update({ 'system.uses.max': '4', 'system.uses.spent': 0 });
+      }
+      try {
+        if (!pp || !pcWeapon) log.push(`§30 skipped: psionicPower=${!!pp} weapon=${!!pcWeapon}`);
+        else {
+          const strikeAct = pp.system.activities.find(a => a.name === 'Psionic Strike');
+          const fieldAct = pp.system.activities.find(a => a.name === 'Protective Field');
+          await pinPart(pp, strikeAct, '1d8 + @abilities.int.mod');
+          await pp.update({ [`system.activities.${fieldAct.id}.healing.custom.formula`]: 'max(1, 1d8 + @abilities.int.mod)' });
+          const left = () => Number(pcAttacker.items.get(pp.id)?.system?.uses?.value ?? -1);
+          await pcAttacker.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
+
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('30a. a Longsword hit: "Psionic Strike — 1d8 + N force · 1 Psionic Energy Die" in the Psionic Power group',
+            !!hitBox(r1.offer, 'psionic-strike') && /1d8 \+ -?\d+ force · 1 Psionic Energy Die/.test(hitRow(r1.offer, 'psionic-strike')),
+            `row="${hitRow(r1.offer, 'psionic-strike').slice(0, 120)}" group="${groupText(r1.offer, 'psionic-power').slice(0, 80)}"`);
+          await tick(r1.offer, 'psionic-strike');
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          await sleep(600);
+          ok('30b. ticked: the force die rides the roll, one Psionic Energy Die spent', typesOf(d1).includes('force') && (left() === 3),
+            `types=${JSON.stringify(typesOf(d1))} left=${left()}`);
+
+          // Protective Field for an ally: the hostile Attacker hits the Halfling, BF Test PC Attacker within 30 ft
+          const fieldPopup = () => popups().find(app => /Protective Field/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="cast"]')) ?? null;
+          const holdOn = since => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, 'damageHold')) ?? null;
+          const t2 = Date.now();
+          const m2 = await swing({ d20: [19], dmg: 6 });
+          const pop = await waitFor(fieldPopup, 8000);
+          ok('30c. the Halfling hit: Protective Field asks BF Test PC Attacker ("within 30 ft of you · a Reaction · a Psionic Energy Die", Reduce)',
+            !!pop && /within 30 ft of you/.test(textOf(pop?.element)) && /Psionic Energy Die/.test(textOf(pop?.element))
+              && (textOf(pop?.element?.querySelector('button[data-action="cast"]')) === 'Reduce'),
+            `attack=${!!m2} pop="${textOf(pop?.element).slice(0, 220)}"`);
+          faces([[8, 8]]);
+          pop?.element?.querySelector('button[data-action="cast"]')?.click();
+          const h2 = await waitFor(() => { const m = holdOn(t2); const f = m?.getFlag(MOD, 'damageHold'); return (f?.status === 'resolved') ? f : null; }, 12000);
+          await sleep(800);
+          ok('30d. Reduce: the die + Int off the Halfling\'s damage, a Psionic Energy Die spent, the Reaction spent',
+            (h2?.answer === 'cast') && (Number(h2?.reduceBy) >= 1) && (left() === 2) && !!reactionChipOn(pcAttacker),
+            `hold=${JSON.stringify(h2 && { answer: h2.answer, reduceBy: h2.reduceBy, amount: h2.amount, label: h2.label })} left=${left()} hp=${hp()}`);
+          await closeDialogs(); await dropReactionChips(pcAttacker);
+
+          // none left: never asked
+          await pcAttacker.items.get(pp.id).update({ 'system.uses.spent': 4 });
+          const t3 = Date.now();
+          await swing({ d20: [19], dmg: 6 });
+          await sleep(2500);
+          ok('30e. no Psionic Energy Dice left: the Halfling\'s damage lands with nobody asked', !fieldPopup() && !holdOn(t3) && (hp() < 400),
+            `pop=${!!fieldPopup()} hold=${!!holdOn(t3)} hp=${hp()}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        await dropReactionChips(pcAttacker);
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        if (pp) await unlend(pcAttacker, pp);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 31. Elemental Attunement: its own Elemental Strike, the push or pull
+    if (want(31)) {
+      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      const ea = await hgLend(pcAttacker, 'Elemental Attunement', 'feat');
+      try {
+        const strike = ea?.system?.activities?.find(a => a.name === 'Elemental Strike');
+        if (!ea || !strike || !pcWeapon) log.push(`§31 skipped: ea=${!!ea} strike=${!!strike}`);
+        else {
+          await pinPart(ea, strike, '1d8 + @mod');
+          const r0 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('31a. a Longsword hit: no Elemental Attunement row (its own Elemental Strike only)', !hitBox(r0.offer, 'elemental-attunement'), `rows=${hitRows(r0.offer)}`);
+          if (r0.offer) await a1Roll(r0.msg, r0.offer); else await a1Damage(r0.msg);
+          const t1 = Date.now();
+          const r1 = await a1Hit(pcAttacker, pcToken, pcAttacker.items.get(ea.id).system.activities.find(a => a.name === 'Elemental Strike'));
+          ok('31b. an Elemental Strike hit: "Push or pull — free"', !!hitBox(r1.offer, 'elemental-attunement') && /Push or pull/.test(hitRow(r1.offer, 'elemental-attunement')) && /free/.test(hitRow(r1.offer, 'elemental-attunement')),
+            `row="${hitRow(r1.offer, 'elemental-attunement')}"`);
+          await tick(r1.offer, 'elemental-attunement');
+          faces([[1, 20]]);
+          await a1Roll(r1.msg, r1.offer);
+          const c1 = await settledSave('elemental-attunement', t1);
+          await sleep(600);
+          ok('31c. the Strength save, failed; the card says the table moves the token (pushed or pulled up to 10 feet)',
+            (outcomeOn(c1) === 'failed') && /pushed or pulled up to 10 feet/.test(cardText(c1?.id)),
+            `outcome=${outcomeOn(c1)} card="${cardText(c1?.id).slice(0, 220)}"`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (ea) await unlend(pcAttacker, ea);
+        CONFIG.Dice.randomUniform = realPRNG;
       }
     }
 

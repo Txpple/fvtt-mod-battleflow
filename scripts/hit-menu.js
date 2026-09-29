@@ -387,8 +387,8 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
       const source = missing.length ? await compendiumCopyOf(item) : null;
       const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
       if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
-      // The save pays only when it IS the cost (Stunning Strike's Focus Point); a maneuver's die paid already.
-      const results = await withTargets(tokens, () => act.use(hm.paidBySave ? {} : { consume: false }, { configure: false }, {}));
+      // A save that IS the cost (Stunning Strike's Focus Point) pays here; the rider spent nothing for it (`paidBySave`).
+      const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
       const card = results?.message;
       if ( card instanceof ChatMessage ) {
         // The follow-up's effect: a condition the pack left on the ITEM, unlinked (Trip's Prone).
