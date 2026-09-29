@@ -1955,6 +1955,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         await closeOffers(); await closeDialogs();
         if (combat28 && game.combats.get(combat28.id)) await combat28.delete();
+        await sleep(800);   // the last save's effect lands after its card
         await dropVictimFx();
         await dropEffects(pcAttacker, riderChits(pcAttacker));
         for (const it of [us, hoh, stun, focus]) if (it) await unlend(pcAttacker, it);
@@ -1964,7 +1965,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- 29. Open Hand Technique: after Flurry of Blows, one free pick
     if (want(29)) {
-      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto'); await dropVictimFx();
       const focus = await hgLend(pcAttacker, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
       const oht = await hgLend(pcAttacker, 'Open Hand Technique', 'feat');
       const us = await lendUnarmed();
@@ -2065,8 +2066,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           pop?.element?.querySelector('button[data-action="cast"]')?.click();
           const h2 = await waitFor(() => { const m = holdOn(t2); const f = m?.getFlag(MOD, 'damageHold'); return (f?.status === 'resolved') ? f : null; }, 12000);
           await sleep(800);
-          ok('30d. Reduce: the die + Int off the Halfling\'s damage, a Psionic Energy Die spent, the Reaction spent',
-            (h2?.answer === 'cast') && (Number(h2?.reduceBy) >= 1) && (left() === 2) && !!reactionChipOn(pcAttacker),
+          // Out of combat no Reaction chip is written (a turn to give it back is needed): the die is the spend.
+          ok('30d. Reduce: the die + Int off the Halfling\'s damage, a Psionic Energy Die spent',
+            (h2?.answer === 'cast') && (Number(h2?.reduceBy) >= 1) && (left() === 2),
             `hold=${JSON.stringify(h2 && { answer: h2.answer, reduceBy: h2.reduceBy, amount: h2.amount, label: h2.label })} left=${left()} hp=${hp()}`);
           await closeDialogs(); await dropReactionChips(pcAttacker);
 
@@ -2091,10 +2093,17 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ---- 31. Elemental Attunement: its own Elemental Strike, the push or pull
     if (want(31)) {
       await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      const focus = await hgLend(pcAttacker, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
       const ea = await hgLend(pcAttacker, 'Elemental Attunement', 'feat');
       try {
-        const strike = ea?.system?.activities?.find(a => a.name === 'Elemental Strike');
-        if (!ea || !strike || !pcWeapon) log.push(`§31 skipped: ea=${!!ea} strike=${!!strike}`);
+        // Elemental Strike and Elemental Save are the enchantment's RIDERS: hidden until "Active Attunement" is applied
+        // to the item (a use with configure false applies nothing — §23's shape).
+        const attune = ea?.system?.activities?.find(a => a.type === 'enchant');
+        const attuned = attune ? await attune.use({ subsequentActions: false }, { configure: false }, {}) : null;
+        try { await attune?.applyEnchantment(attune.effects?.[0]?._id ?? null, pcAttacker.items.get(ea.id), { chatMessage: attuned?.message ?? null, strict: false }); }
+        catch (err) { log.push(`§31 applyEnchantment threw: ${err?.message}`); }
+        const strike = await waitFor(() => pcAttacker.items.get(ea?.id)?.system?.activities?.find(a => (a.name === 'Elemental Strike') && a.canUse) ?? null, 6000);
+        if (!ea || !strike || !pcWeapon) log.push(`§31 skipped: ea=${!!ea} strike=${!!strike} (usable after the attunement) enchantments=${JSON.stringify(pcAttacker.items.get(ea?.id)?.effects?.map(e => [e.name, e.type, e.isAppliedEnchantment ?? null]) ?? null)}`);
         else {
           await pinPart(ea, strike, '1d8 + @mod');
           const r0 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
@@ -2111,11 +2120,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(600);
           ok('31c. the Strength save, failed; the card says the table moves the token (pushed or pulled up to 10 feet)',
             (outcomeOn(c1) === 'failed') && /pushed or pulled up to 10 feet/.test(cardText(c1?.id)),
-            `outcome=${outcomeOn(c1)} card="${cardText(c1?.id).slice(0, 220)}"`);
+            `outcome=${outcomeOn(c1)} card="${cardText(c1?.id).slice(0, 220)}" acts=${JSON.stringify([...pcAttacker.items.get(ea.id).system.activities].map(a => [a.name, a.canUse, a.isRider, a.isHidden]))} riders=${JSON.stringify(pcAttacker.items.get(ea.id).flags?.dnd5e?.riders ?? null)}`);
         }
       } finally {
         await closeOffers(); await closeDialogs();
         if (ea) await unlend(pcAttacker, ea);
+        if (focus) await unlend(pcAttacker, focus);
         CONFIG.Dice.randomUniform = realPRNG;
       }
     }

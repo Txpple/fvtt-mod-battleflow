@@ -12,7 +12,7 @@ import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, tur
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
-import { hitMenu, hitPick, optionReaches, picksOf, sweepVerdict } from "./decide/hit-menu.js";
+import { hitMenu, hitPick, optionReaches, picksOf, pluralOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -66,7 +66,7 @@ function menuFor(attackMessage, activity) {
       const feat = featureNamed(attacker, row.feature);
       if ( !feat ) continue;
       // Several options on one item (Open Hand Technique) name their own activity.
-      const named = row.activity ? activityNamed(feat, row.activity) : null;
+      const named = row.activity ? usableNamed(feat, row.activity) : null;
       if ( row.activity && !named ) continue;
       const die = row.noDie ? null : ((named?.type === "damage") ? named : activityOfType(feat, "damage"));
       // A no-save press ships a utility activity and no die — its uses are the cost; a no-die option
@@ -113,6 +113,13 @@ function sizeFits(hits, maxSize) {
     if ( n > cap ) return false;
   }
   return unknown ? null : true;
+}
+
+/** The option's activity by name, the USABLE copy first: an enchantment's riders (Elemental Attunement's Elemental
+ * Save) stand twice once applied — the hidden rider and the enchantment's own. */
+function usableNamed(item, name) {
+  const all = [...(item?.system?.activities ?? [])].filter(a => String(a.name ?? "").toLowerCase() === String(name ?? "").toLowerCase());
+  return all.find(a => a.canUse !== false) ?? all[0] ?? activityNamed(item, name);
 }
 
 /** A Monk weapon: a Simple melee weapon, or a Martial melee weapon with the Light property. */
@@ -221,7 +228,7 @@ registerOfferPart({
     // An option-pool group counts USES, a shared pool DICE.
     const leftTag = g => g.free ? "free"
       : (g.perOption || g.ownDice)
-        ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : `${g.dieLabel}s`} left` : `no ${g.dieLabel}s left`)
+        ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : pluralOf(g.dieLabel)} left` : `no ${pluralOf(g.dieLabel)} left`)
         : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
     const groupsView = menu.groups.map(g => ({
       key: g.key, label: g.label, max: g.max, off: !g.free && (g.left <= 0),
@@ -234,7 +241,7 @@ registerOfferPart({
     const heading = menu.groups.map(g => g.heading).join(" · ");
     const summary = live
       ? `pick one to ride this hit, or none; ${solo ? solo.per : "one pick per group"}.`
-      : `${(solo?.perOption || solo?.ownDice) ? `no ${solo.dieLabel}s left` : "no dice left"}; the rows stay for the record.`;
+      : `${(solo?.perOption || solo?.ownDice) ? `no ${pluralOf(solo.dieLabel)} left` : "no dice left"}; the rows stay for the record.`;
     return {
       html: hitMenuHTML({ groups: groupsView }),
       lines: [`<strong>${heading}</strong> — ${summary}`],
@@ -379,7 +386,7 @@ async function runConsequences(damageMessage, record) {
 /** One pick's consequences: its save at the target, its sweep card. */
 async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes }) {
   if ( hm.save ) {
-    const act = hm.activity ? activityNamed(item, hm.activity) : activityOfType(item, "save");
+    const act = hm.activity ? usableNamed(item, hm.activity) : activityOfType(item, "save");
     if ( act ) {
       await repairTransferEffects(attacker);
       // A linked effect the item lost is pressed on the failure from the compendium copy (same id).
@@ -425,7 +432,7 @@ async function settleHitEffects(message) {
       if ( hm.effects ) {
         // The shared path (effect-riders.js), also used by the clock riders' `effects` rows.
         const attacker = resolveUuid(record.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
-        const act = item ? (hm.activity ? activityNamed(item, hm.activity) : activityOfType(item, "damage")) : null;
+        const act = item ? (hm.activity ? usableNamed(item, hm.activity) : activityOfType(item, "damage")) : null;
         await applyActivityEffectsOnHit(message, act, hits,
           { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
       }

@@ -49,7 +49,7 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
       const spent = !!row.oncePerTurn && !!used?.[key];
       const own = ownDice ? (dice?.[key] ?? null) : null;
-      const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${group.dieLabel}${(Number(pool.max) || rowLeft) === 1 ? "" : "s"} left`;
+      const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${(Number(pool.max) || rowLeft) === 1 ? group.dieLabel : pluralOf(group.dieLabel)} left`;
       const cost = perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
         : free ? "free"
@@ -73,6 +73,12 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       eyebrow: group.eyebrow ?? "Maneuver", dieLabel: group.dieLabel, rows });
   }
   return { groups: out };
+}
+
+/** A pool's word counted: "Superiority Die" → "Superiority Dice", "Focus Point" → "Focus Points". */
+export function pluralOf(label) {
+  const s = String(label ?? "");
+  return /die$/i.test(s) ? `${s.slice(0, -3)}${s.endsWith("Die") ? "Dice" : "dice"}` : `${s}s`;
 }
 
 /**
