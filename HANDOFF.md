@@ -1,10 +1,16 @@
-# HANDOFF.md — the PHB classes: A1 pushed, A2 proven (2026-09-29, afternoon)
+# HANDOFF.md — the PHB classes: A2 pushed, A4 built (2026-09-29, evening)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
 ## FIRST — the state
 
+- **A4 BUILT, 2 commits LOCAL** (`20739b1`, `844daa1`; RULINGS *The PHB classes — A4*): Disciple of Life, Potent
+  Cantrip (the save half AND the attack half — a missed cantrip still deals half), Psychic Spells; `smoke-classes`
+  §32–35 green. The attack half touched the spine (auto-damage, auto-apply, lookup): **the FULL battery is the push
+  gate** — if this file still says it is running, its output is the newest `dist/battery/` directory. Green →
+  `git push`, then `node tools/verify-settings.mjs`. A red → read the suite's file, fix, `--local` deploy, re-run
+  that suite, then `node tools/battery.mjs --from <it>`.
 - **Pushed:** A3 + A1 on `origin/main` (`60865f5`, after a green regression battery: 18/18, settings clean).
 - **PUSHED 2026-09-29:** A2 (`3a1d7a7` built, `a2bf9f4` the guard's words, `171b6b0` + `ee92df2` its live
   proof — `smoke-classes` §28–31 green) and the docs. **A2's regression battery** (smoke-hitmenu, smoke-maneuvers,
@@ -34,13 +40,15 @@
 - The fixtures lack class scales (`@scale.monk.*`, `@scale.psi-warrior.*`, `@scale.barbarian.*`): pin the lent
   copy's part (`pinPart`); lend anything consumed BY UUID with its compendium source stamped (`hgLend`).
 - Out of combat no Reaction chip is written; the save's outcome is forced by pinning every die to 1 or 20.
+- An ATTACK with no target is refused outright (polish.js) — a casting-window test must target someone.
+- dnd5e 6: a spell's class is `system.sourceItem` ("class:warlock"), `classIdentifier` only with the class on the
+  sheet. An attack's rescue on a character is Heroic Inspiration (`system.attributes.inspiration`); Lucky's d20
+  is an initiative fold only.
 
 ## Next — in this order, each on the user's go
 
 1. ~~Push A2~~ — DONE: its battery green (smoke-classes 119/119 after §25 put the canvas back on the range).
-2. **A4** — the healing seam and the caster's rows (plan §3 A4): Disciple of Life (`HEAL_REROLLS` `bonus` +
-   `slotCast`), Potent Cantrip (`EVASIONS` `side: "caster"`, `onSuccess: 0.5`), Psychic Spells (`METAMAGIC` `free` +
-   `fixed`). Suites: smoke-heal, smoke-saves, smoke-metamagic (+ a smoke-classes section if a fixture is missing).
+2. **Push A4** once its full battery is green (above). A4's three calls are the user's to overrule (RULINGS A4).
 3. **A5 → A7, B1 → B5, C1, D1**. A5 and A7 are spine stages (the full battery).
 4. **Owed small:** a Legendary Resistance flip of a failed Stunning Strike lands no Slowed (`saves/verdict.js`);
    Physician's Touch's Poisoned is B4's.
