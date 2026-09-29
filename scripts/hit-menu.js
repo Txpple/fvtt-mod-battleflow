@@ -6,12 +6,13 @@
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
-import { featureNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
+import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
 import { hitMenuEntries } from "./decide/registry.js";
-import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, withTargets } from "./shared.js";
+import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
+import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
-import { hitMenu, hitPick, picksOf, sweepVerdict } from "./decide/hit-menu.js";
+import { hitMenu, hitPick, optionReaches, picksOf, sweepVerdict } from "./decide/hit-menu.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -50,34 +51,51 @@ function menuFor(attackMessage, activity) {
   const edge = {};
   const pools = {};
   const fits = {};
+  const eligible = {};
+  const used = {};
+  const dice = {};
   const hits = attackMessage ? hitTargets(attackMessage) : [];
+  const facts = hitFacts(attacker, activity);
   for ( const [gkey, group] of Object.entries(HIT_GROUPS) ) {
     // A group with no paying feature (a text-only parent) requires nothing.
     if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
     const perOption = group.pool === "option";
+    const free = group.pool === "free";
     for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
       if ( row.group !== gkey ) continue;
       const feat = featureNamed(attacker, row.feature);
-      const die = feat ? activityOfType(feat, "damage") : null;
-      // A no-save press ships a utility activity and no die — its uses are the cost.
-      const paying = die ?? ((feat && row.press) ? activityOfType(feat, "utility") : null);
-      if ( !feat || !paying ) continue;
-      const pool = poolOf(attacker, paying);
+      if ( !feat ) continue;
+      // Several options on one item (Open Hand Technique) name their own activity.
+      const named = row.activity ? activityNamed(feat, row.activity) : null;
+      if ( row.activity && !named ) continue;
+      const die = row.noDie ? null : ((named?.type === "damage") ? named : activityOfType(feat, "damage"));
+      // A no-save press ships a utility activity and no die — its uses are the cost; a no-die option
+      // pays through its own activity's consumption (Stunning Strike's save spends the Focus Point).
+      const paying = die ?? (row.noDie ? (named ?? activityOfType(feat, row.save ? "save" : "utility"))
+        : row.press ? activityOfType(feat, "utility") : null);
+      if ( !paying ) continue;
+      eligible[key] = optionReaches({ row, ...facts, own: activity.item?.id === feat.id });
+      used[key] = !!row.oncePerTurn && turnChitStands(attacker, "rider", key);
+      const pool = free ? null : poolOf(attacker, paying);
       const formula = die ? dieFormulaOf(attacker, die) : null;
-      // An option-pool group's damage type is the boon's own. ⚠ Only there: a maneuver's die part
-      // lists several types (the die takes the weapon's), and its first is arbitrary.
-      const partType = (die && perOption) ? ([...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null) : null;
-      edge[key] = { item: feat, dieActivity: die, saveActivity: activityOfType(feat, "save"), pool, formula, type: partType };
+      // An option-pool group's damage type is the boon's own, as is an `ownType` option's (Hand of Harm's
+      // necrotic). ⚠ Only there: a maneuver's die part lists several types (the die takes the weapon's).
+      const partType = (die && (perOption || row.ownType)) ? ([...(die.damage?.parts?.[0]?.types ?? [])][0] ?? null) : null;
+      const saveActivity = row.save ? ((named?.type === "save") ? named : activityOfType(feat, "save")) : null;
+      const effectActivity = row.effects ? (named ?? activityOfType(feat, "damage")) : null;
+      edge[key] = { item: feat, dieActivity: die, saveActivity, effectActivity, pool, formula, type: partType,
+        paidBySave: !!row.noDie && !!row.save && (paying === saveActivity) };
       if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: formula, type: partType } : null;
-      else {
-        pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), die: formula } : null;
-        if ( pools[gkey] && !pools[gkey].die && formula ) pools[gkey].die = formula;
+      else if ( !free ) {
+        pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: group.ownDice ? null : formula } : null;
+        if ( pools[gkey] && !group.ownDice && !pools[gkey].die && formula ) pools[gkey].die = formula;
+        if ( group.ownDice ) dice[key] = { die: formula, type: partType };
       }
       if ( row.maxSize ) fits[key] = sizeFits(hits, row.maxSize);
     }
   }
   const melee = activity.attack?.type?.value !== "ranged";
-  const menu = hitMenu({ groups: HIT_GROUPS, options: HIT_OPTIONS, listed, features, melee, pools, fits });
+  const menu = hitMenu({ groups: HIT_GROUPS, options: HIT_OPTIONS, listed, features, melee, pools, fits, eligible, used, dice });
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;
   return { attacker, menu, edge, type };
 }
@@ -95,6 +113,24 @@ function sizeFits(hits, maxSize) {
     if ( n > cap ) return false;
   }
   return unknown ? null : true;
+}
+
+/** A Monk weapon: a Simple melee weapon, or a Martial melee weapon with the Light property. */
+function isMonkWeapon(item) {
+  if ( item?.type !== "weapon" ) return false;
+  const kind = item.system?.type?.value;
+  return (kind === "simpleM") || ((kind === "martialM") && !!item.system?.properties?.has?.("lig"));
+}
+
+/** The attack's facts the options' reach reads (decide/hit-menu.js `optionReaches`). `flurry` null out of combat. */
+function hitFacts(attacker, activity) {
+  const unarmed = activity?.attack?.type?.classification === "unarmed";
+  return {
+    unarmed,
+    weapon: (activity?.item?.type === "weapon") && !unarmed,
+    monkWeapon: isMonkWeapon(activity?.item),
+    flurry: activeCombatFor(attacker) ? turnChitStands(attacker, "rider", FLURRY) : null
+  };
 }
 
 /**
@@ -155,6 +191,19 @@ listen("createItem", "hit-menu", (item, _options, userId) => {
   if ( Object.values(HIT_OPTIONS).some(r => answers(r.feature, item)) ) void repairTransferEffects(item.parent);
 });
 
+/* --- Flurry of Blows this turn (Open Hand Technique's `only: "flurry"`) ------------------------ */
+
+/** The chit's rider key: the pack records no Flurry on the strikes that follow, so the use writes the turn's mark. */
+const FLURRY = "flurry-of-blows";
+listen("dnd5e.postUseActivity", "hit-menu", activity => {
+  if ( (String(activity?.name ?? "").toLowerCase() !== "flurry of blows") || !activity.actor?.isOwner ) return;
+  if ( !Object.values(HIT_OPTIONS).some(r => (r.only === "flurry") && featureNamed(activity.actor, r.feature)) ) return;
+  void writeTurnChit(activity.actor, "rider", { name: "Flurry of Blows — this turn", img: activity.item?.img ?? null,
+    description: "Flurry of Blows was used this turn: its Unarmed Strikes offer Open Hand Technique. Ends with the turn.",
+    origin: activity.item?.uuid ?? null, riderKey: FLURRY })
+    .catch(err => console.warn(`${TITLE} | Could not mark Flurry of Blows this turn.`, err));
+});
+
 /* --- the offer: a group per paying feature, one pick per group ------------------------------ */
 
 registerOfferPart({
@@ -170,21 +219,22 @@ registerOfferPart({
     const { menu, edge, type } = read;
     const chosen = new Set();
     // An option-pool group counts USES, a shared pool DICE.
-    const leftTag = g => g.perOption
-      ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : `${g.dieLabel}s`} left` : `no ${g.dieLabel}s left`)
-      : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
+    const leftTag = g => g.free ? "free"
+      : (g.perOption || g.ownDice)
+        ? (g.left > 0 ? `${g.left} ${g.left === 1 ? g.dieLabel : `${g.dieLabel}s`} left` : `no ${g.dieLabel}s left`)
+        : (g.left > 0 ? `${g.left} × ${g.die ?? "die"} left` : "no dice left");
     const groupsView = menu.groups.map(g => ({
-      key: g.key, label: g.label, off: g.left <= 0,
+      key: g.key, label: g.label, max: g.max, off: !g.free && (g.left <= 0),
       tag: leftTag(g),
       rows: g.rows.map(r => ({ key: r.key, label: r.label, cost: r.cost, caveat: r.caveat, rule: r.rule, affordable: r.affordable }))
     }));
     // The offer line in the group's own voice; with two groups, the rule both share.
-    const live = menu.groups.some(g => g.left > 0);
+    const live = menu.groups.some(g => g.free || (g.left > 0));
     const solo = menu.groups.length === 1 ? menu.groups[0] : null;
     const heading = menu.groups.map(g => g.heading).join(" · ");
     const summary = live
       ? `pick one to ride this hit, or none; ${solo ? solo.per : "one pick per group"}.`
-      : `${solo?.perOption ? `no ${solo.dieLabel}s left` : "no dice left"}; the rows stay for the record.`;
+      : `${(solo?.perOption || solo?.ownDice) ? `no ${solo.dieLabel}s left` : "no dice left"}; the rows stay for the record.`;
     return {
       html: hitMenuHTML({ groups: groupsView }),
       lines: [`<strong>${heading}</strong> — ${summary}`],
@@ -193,11 +243,11 @@ registerOfferPart({
         for ( const box of boxes ) {
           box.addEventListener("change", () => {
             if ( box.checked ) {
-              // One pick per group: only the box's own group gives way.
-              for ( const other of boxes ) {
-                if ( (other !== box) && other.checked && (other.dataset.bfHitGroup === box.dataset.bfHitGroup) ) {
-                  other.checked = false; chosen.delete(other.value);
-                }
+              // A group's `max` picks: past it, the box's own group gives way (oldest first).
+              const max = menu.groups.find(g => g.key === box.dataset.bfHitGroup)?.max ?? 1;
+              const others = boxes.filter(o => (o !== box) && o.checked && (o.dataset.bfHitGroup === box.dataset.bfHitGroup));
+              for ( const other of others.slice(0, Math.max(0, others.length - max + 1)) ) {
+                other.checked = false; chosen.delete(other.value);
               }
               chosen.add(box.value);
             } else chosen.delete(box.value);
@@ -209,8 +259,9 @@ registerOfferPart({
         const { picks } = hitPick({ menu, chosen });
         const records = picks.filter(p => edge[p.row.key]).map(p => {
           const facts = edge[p.row.key];
-          return { key: p.row.key, group: p.group, feature: p.row.feature, mode: p.row.mode,
-            formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null };
+          return { key: p.row.key, group: p.group, feature: p.row.feature, label: p.row.label, mode: p.row.mode,
+            formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null,
+            activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave };
         });
         try {
           await attackMessage.setFlag(MODULE_ID, "hitPick", records.length ? { picks: records } : { key: null });
@@ -248,8 +299,9 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
           options: { type: pick.type ?? null, types: pick.type ? [pick.type] : [] }
         });
       }
-      // One use spent on the item the activity names; the count left is read after the spend.
-      const pool = resolveUuid(pick.poolUuid);
+      // One use spent on the item the activity names; the count left is read after the spend. A save option
+      // paid by its own activity (Stunning Strike) spends at its use, in the consequences.
+      const pool = pick.paidBySave ? null : resolveUuid(pick.poolUuid);
       const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
       // The one spend path (shared.js `spendSuperiorityDie`); the card, flash and subtitle read its record.
       const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
@@ -257,13 +309,21 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
         void spendSuperiorityDie(attacker, pool, row.feature)
           .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
       }
+      if ( row.oncePerTurn ) {
+        // live only: the paying feature is never used up, so the sheet is the truth (the chit's icon)
+        void writeTurnChit(attacker, "rider", { name: `${row.label ?? row.feature} — used this turn`, img: resolveUuid(pick.itemUuid)?.img ?? null,
+          description: `${row.label ?? row.feature} has ridden a hit this turn. Once per turn; this chit ends with the turn.`,
+          origin: pick.itemUuid ?? null, riderKey: pick.key })
+          .catch(err => console.warn(`${TITLE} | Could not write the ${row.feature} chit.`, err));
+      }
       out.push({
-        key: pick.key, feature: row.feature, group: group.label, dieLabel: group.dieLabel,
+        key: pick.key, feature: row.label ?? row.feature, group: group.label, dieLabel: group.dieLabel,
         eyebrow: group.eyebrow ?? "Maneuver", maneuver: (group.eyebrow ?? "Maneuver") === "Maneuver",
         formula: pick.formula, type: pick.type ?? null, mode: pick.mode ?? "ride", rides,
         rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
         save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
-        clock: row.clock ?? null, press: row.press ?? null
+        clock: row.clock ?? null, press: row.press ?? null, activity: row.activity ?? null,
+        paidBySave: !!pick.paidBySave, poolUuid: pick.poolUuid ?? null
       });
     }
     if ( !out.length ) return;
@@ -319,7 +379,7 @@ async function runConsequences(damageMessage, record) {
 /** One pick's consequences: its save at the target, its sweep card. */
 async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits, tokens, item, notes }) {
   if ( hm.save ) {
-    const act = activityOfType(item, "save");
+    const act = hm.activity ? activityNamed(item, hm.activity) : activityOfType(item, "save");
     if ( act ) {
       await repairTransferEffects(attacker);
       // A linked effect the item lost is pressed on the failure from the compendium copy (same id).
@@ -327,7 +387,8 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
       const source = missing.length ? await compendiumCopyOf(item) : null;
       const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
       if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
-      const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
+      // The save pays only when it IS the cost (Stunning Strike's Focus Point); a maneuver's die paid already.
+      const results = await withTargets(tokens, () => act.use(hm.paidBySave ? {} : { consume: false }, { configure: false }, {}));
       const card = results?.message;
       if ( card instanceof ChatMessage ) {
         // The follow-up's effect: a condition the pack left on the ITEM, unlinked (Trip's Prone).
@@ -364,7 +425,8 @@ async function settleHitEffects(message) {
       if ( hm.effects ) {
         // The shared path (effect-riders.js), also used by the clock riders' `effects` rows.
         const attacker = resolveUuid(record.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
-        await applyActivityEffectsOnHit(message, item ? activityOfType(item, "damage") : null, hits,
+        const act = item ? (hm.activity ? activityNamed(item, hm.activity) : activityOfType(item, "damage")) : null;
+        await applyActivityEffectsOnHit(message, act, hits,
           { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
       }
       if ( hm.press ) await pressOnHit(message, { ...hm, sourceUuid: record.sourceUuid ?? null }, hits, item, Array.isArray(record.picks) ? index : null);

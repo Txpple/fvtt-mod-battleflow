@@ -12,12 +12,14 @@ import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choic
 import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
-import { EMANATIONS, tableIndex } from "../decide/registry.js";
+import { EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../decide/registry.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
 import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
 import { listen } from "../dispatch.js";
+
+const SAVE_PRESS_ROWS = tableIndex(SAVE_PRESSES);
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -182,9 +184,13 @@ async function stampSaveDemand(activity, message, results) {
     const entries = (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
     // An EMANATION's effect is the region's STANDING effect: the verdict never applies it.
     const emanation = !!emanationRowFor(activity);
+    // A SAVE_PRESSES `success` row moves the named effects to the success (Stunning Strike's Slowed).
+    const success = new Set((SAVE_PRESS_ROWS.rowFor(activity.item)?.success ?? []).map(n => n.toLowerCase()));
+    const onSuccess = e => success.has(String(e.effect?.name ?? "").toLowerCase());
     const effectNames = emanation ? { fail: [], always: [] } : {
-      fail: entries.filter(e => !e.onSave).map(e => e.effect.name),
-      always: entries.filter(e => e.onSave).map(e => e.effect.name)
+      fail: entries.filter(e => !e.onSave && !onSuccess(e)).map(e => e.effect.name),
+      always: entries.filter(e => e.onSave && !onSuccess(e)).map(e => e.effect.name),
+      ...(success.size ? { success: entries.filter(onSuccess).map(e => e.effect.name) } : {})
     };
 
     // ⚠ `onSave: "full"` marks rider damage the save does NOT modulate (Web's burn): no auto-roll,
@@ -211,7 +217,7 @@ async function stampSaveDemand(activity, message, results) {
       // WHAT THE SAVE IS AGAINST, read by save-side auras when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         abilities,
-        statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))],
+        statuses: [...new Set(entries.filter(e => !e.onSave && !onSuccess(e)).flatMap(e => [...(e.effect?.statuses ?? [])]))],
         sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,

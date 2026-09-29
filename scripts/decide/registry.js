@@ -65,6 +65,12 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     types: Object.freeze(["bludgeoning", "piercing", "slashing"]), anyType: "Deflect Energy", atZero: "Redirect",
     rule: Object.freeze({ item: "Deflect Attacks", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkDeflectAtt" }),
     from: "Monk 3" }),
+  // A2 — Protective Field (keyed by its item, as every row): yourself on any damage (Stone's Endurance's `any`),
+  // another within 30 ft on an attack's (Interception's guard). The Soulknife's Psionic Power carries no such activity.
+  "Psionic Power": Object.freeze({ activity: "Protective Field", pool: true, any: true, ally: 30,
+    eyebrow: "Reaction", spend: "Psionic Energy Die", hit: "attack", by: "a Psionic Energy Die plus your Intelligence modifier (at least 1)",
+    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Protective Field" }),
+    from: "Fighter — Psi Warrior 3" }),
   // The GM's side (Deflect Attacks' shape, ranged only): the redirect at 0 is the sheet's Save.
   "Deflect Missile": Object.freeze({ activity: "Reduce Damage", pool: true, ranged: true,
     eyebrow: "Reaction", spend: "use", hit: "ranged attack", by: "1d10",
@@ -485,8 +491,12 @@ export const CARD_CHIPS = Object.freeze({
  * out: Sleep and Flesh to Stone (carried), Elemental Attunement and Mind Spike.
  *   word   a press behind the CASTER's word (Command): `ask` and `options` the choice, `presses` the one
  *          option that lands `status`, `default` what the clock chooses (saves/choices.js, kind `word`)
+ *   success  the activity's OWN effects by name that land on a SUCCESS, never a failure (no `status`): the
+ *          pack marks Stunning Strike's Slowed failure-only (A2)
  */
 export const SAVE_PRESSES = Object.freeze({
+  "Stunning Strike": Object.freeze({ success: Object.freeze(["Slowed"]),
+    rule: Object.freeze({ item: "Stunning Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkStunningSt" }) }),
   // Grovel alone lands a condition; Approach, Flee and Halt move or hold the token, the table's.
   "Command": Object.freeze({ status: "prone", onFail: true,
     word: Object.freeze({ ask: "Which word did you speak?", options: Object.freeze(["Approach", "Flee", "Grovel", "Halt"]), presses: "Grovel", default: "Halt" }),
@@ -612,8 +622,16 @@ export function tableIndex(table, keyOf = null) {
  *   press    a status pressed with NO save, never over one the target has (the activity may be a utility)
  *   maxSize  the largest size reached; a larger target greys the row, an unreadable size does not
  *   line     the card's words for a consequence the table plays;  melee  melee attacks only
+ *   activity the option's own activity BY NAME (several options on one item: Open Hand Technique's three)
+ *   label    the row's words when several options share a feature;  noDie  no die: the pool (or nothing) pays
+ *   oncePerTurn  a per-OPTION turn chit (the rider chit, keyed by the option); greyed "used this turn"
+ *   unarmed  an Unarmed Strike only;  weapons "monk"  a Monk weapon or an Unarmed Strike;  weapon  a weapon only
+ *   only     "flurry" — an Unarmed Strike after Flurry of Blows THIS turn (its use writes a chit; out of combat
+ *            every Unarmed Strike, the caveat said) | "own" — the attack is the feature's OWN activity
+ *   ownType  the option's die keeps its own damage type (a shared-pool group's dice otherwise take the weapon's)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
- * (one shared pool) | "option" (each option's own uses); `max` picks; the rest are the card's words.
+ * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid); `max` picks; `ownDice` each
+ * option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
  * Membership: the Hit Menu list (option names). Precision Attack and Riposte are folds.
  */
 export const HIT_GROUPS = Object.freeze({
@@ -623,7 +641,20 @@ export const HIT_GROUPS = Object.freeze({
   // Hill's Tumble only (Fire and Frost are CLOCK_RIDERS); no feature: the text-only parent may be missing.
   "giant-ancestry": Object.freeze({ feature: null, pool: "option", label: "Giant Ancestry", max: 1,
     dieLabel: "use", eyebrow: "Giant Ancestry", heading: "Giant Ancestry", per: "one boon per hit", from: "Goliath",
-    rule: Object.freeze({ item: "Goliath", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspGoliath0000", benefit: "Giant Ancestry" }) })
+    rule: Object.freeze({ item: "Goliath", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspGoliath0000", benefit: "Giant Ancestry" }) }),
+  // A2: every option its own once-per-turn feature, so both may ride one hit (`max` 2).
+  "monks-focus": Object.freeze({ feature: "Monk's Focus", pool: "feature", ownDice: true, label: "Monk's Focus", max: 2,
+    dieLabel: "Focus Point", eyebrow: "Monk", heading: "Monk's Focus", per: "each once per turn", from: "Monk 2",
+    rule: Object.freeze({ item: "Monk's Focus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkMonksFocus" }) }),
+  "open-hand-technique": Object.freeze({ feature: "Open Hand Technique", pool: "free", label: "Open Hand Technique", max: 1,
+    dieLabel: "use", eyebrow: "Monk", heading: "Open Hand Technique", per: "one per Flurry of Blows hit", from: "Monk — Warrior of the Open Hand 3",
+    rule: Object.freeze({ item: "Open Hand Technique", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkOpenHandTe" }) }),
+  "elemental-attunement": Object.freeze({ feature: "Elemental Attunement", pool: "free", label: "Elemental Attunement", max: 1,
+    dieLabel: "use", eyebrow: "Monk", heading: "Elemental Attunement", per: "on an Elemental Strike hit", from: "Monk — Warrior of the Elements 3",
+    rule: Object.freeze({ item: "Elemental Attunement", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkElementalA" }) }),
+  "psionic-power": Object.freeze({ feature: "Psionic Power", pool: "feature", ownDice: true, label: "Psionic Power", max: 1,
+    dieLabel: "Psionic Energy Die", eyebrow: "Psi Warrior", heading: "Psionic Power", per: "once per turn", from: "Fighter — Psi Warrior 3",
+    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow" }) })
 });
 
 export const HIT_OPTIONS = Object.freeze({
@@ -648,7 +679,31 @@ export const HIT_OPTIONS = Object.freeze({
     rule: Object.freeze({ item: "Sweeping Attack", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvSweepingAt" }) }),
   // Any attack roll that hits and deals damage — weapon, unarmed or spell. No die: the press is the boon.
   "hills-tumble": Object.freeze({ feature: "Hill's Tumble", group: "giant-ancestry", press: "prone", maxSize: "lg",
-    rule: Object.freeze({ item: "Hill's Tumble", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptHillsTumbl" }) })
+    rule: Object.freeze({ item: "Hill's Tumble", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptHillsTumbl" }) }),
+  // A2 — the Monk. Stunning Strike's save activity is the cost (1 Focus Point); the save's success half is
+  // SAVE_PRESSES' `success` (the pack marks Slowed failure-only).
+  "stunning-strike": Object.freeze({ feature: "Stunning Strike", group: "monks-focus", save: true, noDie: true, oncePerTurn: true, weapons: "monk",
+    rule: Object.freeze({ item: "Stunning Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkStunningSt" }) }),
+  "hand-of-harm": Object.freeze({ feature: "Hand of Harm", group: "monks-focus", oncePerTurn: true, unarmed: true, ownType: true,
+    rule: Object.freeze({ item: "Hand of Harm", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkHandOfHarm" }) }),
+  "open-hand-addle": Object.freeze({ feature: "Open Hand Technique", group: "open-hand-technique", activity: "Addle", label: "Addle",
+    effects: true, noDie: true, only: "flurry",
+    rule: Object.freeze({ item: "Open Hand Technique", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkOpenHandTe", benefit: "Addle" }) }),
+  "open-hand-push": Object.freeze({ feature: "Open Hand Technique", group: "open-hand-technique", activity: "Push", label: "Push",
+    save: true, noDie: true, only: "flurry",
+    line: "Played at the table: on a failed save, the target is pushed up to 15 feet away from you.",
+    rule: Object.freeze({ item: "Open Hand Technique", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkOpenHandTe", benefit: "Push" }) }),
+  "open-hand-topple": Object.freeze({ feature: "Open Hand Technique", group: "open-hand-technique", activity: "Topple", label: "Topple",
+    save: true, noDie: true, only: "flurry",
+    rule: Object.freeze({ item: "Open Hand Technique", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkOpenHandTe", benefit: "Topple" }) }),
+  "elemental-attunement": Object.freeze({ feature: "Elemental Attunement", group: "elemental-attunement", activity: "Elemental Save",
+    label: "Push or pull", save: true, noDie: true, only: "own",
+    line: "Played at the table: on a failed save, the target is pushed or pulled up to 10 feet (move the token).",
+    rule: Object.freeze({ item: "Elemental Attunement", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkElementalA" }) }),
+  // A2 — the Psi Warrior: a Psionic Energy Die as Force, once per turn, on a weapon hit.
+  "psionic-strike": Object.freeze({ feature: "Psionic Power", group: "psionic-power", activity: "Psionic Strike", label: "Psionic Strike",
+    oncePerTurn: true, weapon: true, ownType: true,
+    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Psionic Strike" }) })
 });
 
 
@@ -2241,7 +2296,7 @@ export const INTERRUPTS = Object.freeze([
   row("Illusory Self", "ac"), row("Glorious Defense", "roll"), row("Parry", "ac"), row("Counterattack", "ac"),
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
-  row("Interception", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
+  row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
   row("Combat Inspiration", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
@@ -2289,7 +2344,7 @@ export const reminderEntries = () => everyRow(REMINDER_KINDS);
 export const conditionEntries = () => everyRow(CONDITION_KEYS);
 export const effectEntries = () => everyRow(EFFECT_KEYS);
 export const clockRiderEntries = () => everyRow(Object.values(CLOCK_RIDERS).map(r => r.feature));
-export const hitMenuEntries = () => everyRow(Object.values(HIT_OPTIONS).map(r => r.feature));
+export const hitMenuEntries = () => everyRow([...new Set(Object.values(HIT_OPTIONS).map(r => r.feature))]);   // several options share a feature (A2)
 export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
 export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));

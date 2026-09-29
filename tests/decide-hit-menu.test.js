@@ -34,14 +34,23 @@ describe("the table", () => {
     expect(by("combat-superiority")).toHaveLength(8);
     // Fire's Burn and Frost's Chill are clock riders (user, 2026-09-24: "yes you should switch").
     expect(by("giant-ancestry")).toEqual(["Hill's Tumble"]);
-    expect(rows).toHaveLength(9);
+    // A2: the Monk's four options (Open Hand Technique's three share one item) and the Psi Warrior's.
+    expect(by("monks-focus")).toEqual(["Stunning Strike", "Hand of Harm"]);
+    expect(by("open-hand-technique")).toEqual([
+      "Open Hand Technique",
+      "Open Hand Technique",
+      "Open Hand Technique"
+    ]);
+    expect(by("elemental-attunement")).toEqual(["Elemental Attunement"]);
+    expect(by("psionic-power")).toEqual(["Psionic Power"]);
+    expect(rows).toHaveLength(16);
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);
       expect(row.rule.item).toBe(row.feature);
     }
     for (const [key, g] of Object.entries(reg.HIT_GROUPS)) {
-      expect(["feature", "option"], key).toContain(g.pool);
+      expect(["feature", "option", "free"], key).toContain(g.pool);
       expect(g.eyebrow && g.heading && g.per && g.dieLabel, key).toBeTruthy();
     }
     expect(reg.HIT_OPTIONS["sweeping-attack"]).toMatchObject({ mode: "sweep", melee: true });

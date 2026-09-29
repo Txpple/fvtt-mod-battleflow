@@ -7,18 +7,21 @@
 
 /**
  * The menu for one hit: each group whose feature stands with a resolved pool, and its listed options
- * in table order. `pool: "option"` pays per OPTION; `fits` false greys a row, null leaves it open.
+ * in table order. `pool: "option"` pays per OPTION, `"free"` pays nothing; `fits` false greys a row, null leaves it open.
  * @param {{groups: Readonly<Record<string, any>>, options: Readonly<Record<string, any>>,
  *          listed: Iterable<string>, features: Iterable<string>, melee?: boolean,
  *          pools: Record<string, {left: number, max?: number, die: string|null, type?: string|null}|null|undefined>,
- *          fits?: Record<string, boolean|null|undefined>}} facts
- *        `pools` keyed by group (by option for an option-pool group); null when unreadable
- * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number, rule: object|string|null,
- *            perOption: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
+ *          fits?: Record<string, boolean|null|undefined>, eligible?: Record<string, boolean|undefined>,
+ *          used?: Record<string, boolean|undefined>, dice?: Record<string, {die: string|null, type?: string|null}|undefined>}} facts
+ *        `pools` keyed by group (by option for an option-pool group); null when unreadable. `eligible` false: the
+ *        hit's facts rule the option out (not this weapon, no Flurry) — no row. `used` true: its once-per-turn chit
+ *        stands — greyed. `dice` an `ownDice` group's option's own die.
+ * @returns {{groups: {key: string, label: string, max: number, die: string|null, left: number|null, rule: object|string|null,
+ *            perOption: boolean, free: boolean, ownDice: boolean, heading: string, per: string, eyebrow: string, dieLabel: string,
  *            rows: {key: string, feature: string, label: string, cost: string, mode: string, save: boolean,
  *                   line: string|null, caveat: string|null, rule: object|string|null, affordable: boolean}[]}[]}}
  */
-export function hitMenu({ groups, options, listed, features, melee = true, pools, fits = {} }) {
+export function hitMenu({ groups, options, listed, features, melee = true, pools, fits = {}, eligible = {}, used = {}, dice = {} }) {
   const lower = (s) => String(s ?? "").toLowerCase();
   const admits = new Set([...listed].map(lower));
   const have = new Set([...features].map(lower));
@@ -26,41 +29,64 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
   for ( const [gkey, group] of Object.entries(groups ?? {}) ) {
     if ( group.feature && !have.has(lower(group.feature)) ) continue;
     const perOption = group.pool === "option";
-    const shared = perOption ? null : pools?.[gkey];
-    if ( !perOption && !shared ) continue;
+    const free = group.pool === "free";
+    const ownDice = !!group.ownDice;
+    const shared = (perOption || free) ? null : pools?.[gkey];
+    if ( !perOption && !free && !shared ) continue;
     const rows = [];
-    let left = perOption ? 0 : Math.max(0, Number(shared?.left) || 0);
+    let left = perOption ? 0 : free ? null : Math.max(0, Number(shared?.left) || 0);
     for ( const [key, row] of Object.entries(options ?? {}) ) {
       if ( row.group !== gkey ) continue;
       if ( !admits.has(lower(row.feature)) || !have.has(lower(row.feature)) ) continue;
       if ( row.melee && !melee ) continue;
-      const pool = perOption ? pools?.[key] : shared;
+      if ( eligible?.[key] === false ) continue;
+      const pool = perOption ? pools?.[key] : free ? { left: 1, die: null } : shared;
       if ( !pool ) continue;
       const rowLeft = Math.max(0, Number(pool.left) || 0);
-      if ( perOption ) left += rowLeft;
+      if ( perOption ) left = (left ?? 0) + rowLeft;
       // The size judge (`maxSize`, Hill's Tumble): only a MEASURED misfit greys the row.
       const tooLarge = !!row.maxSize && (fits?.[key] === false);
       const unknownSize = !!row.maxSize && ((fits?.[key] === null) || (fits?.[key] === undefined));
+      const spent = !!row.oncePerTurn && !!used?.[key];
+      const own = ownDice ? (dice?.[key] ?? null) : null;
       const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${group.dieLabel}${(Number(pool.max) || rowLeft) === 1 ? "" : "s"} left`;
       const cost = perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
-        : `${pool.die ?? "1 die"} ${group.dieLabel}`;
+        : free ? "free"
+          : ownDice ? `${own?.die ? `${own.die}${own.type ? ` ${own.type}` : ""} · ` : ""}1 ${group.dieLabel}`
+            : `${pool.die ?? "1 die"} ${group.dieLabel}`;
+      // A die option's die must read; a no-die option (a save, an effect, a press) pays with the pool alone.
+      const payable = row.noDie || !!row.press || (ownDice ? !!own?.die : !!pool.die);
       rows.push({
-        key, feature: row.feature, label: row.feature,
-        cost: tooLarge ? "too large" : cost,
+        key, feature: row.feature, label: row.label ?? row.feature,
+        cost: tooLarge ? "too large" : spent ? "used this turn" : cost,
         mode: row.mode ?? "ride", save: !!row.save,
         line: row.line ?? null,
         caveat: tooLarge ? "the target is larger than Large" : unknownSize ? "the target's size could not be read" : (row.caveat ?? null),
         rule: row.rule,
-        affordable: (rowLeft > 0) && (!!pool.die || !!row.press) && !tooLarge
+        affordable: (rowLeft > 0) && payable && !tooLarge && !spent
       });
     }
     if ( !rows.length ) continue;
-    out.push({ key: gkey, label: group.label, max: group.max ?? 1, die: perOption ? null : (shared?.die ?? null), left, rule: group.rule,
-      perOption, heading: group.heading ?? group.label, per: group.per ?? "one pick per hit",
+    out.push({ key: gkey, label: group.label, max: group.max ?? 1, die: (perOption || ownDice) ? null : (shared?.die ?? null), left, rule: group.rule,
+      perOption, free, ownDice, heading: group.heading ?? group.label, per: group.per ?? "one pick per hit",
       eyebrow: group.eyebrow ?? "Maneuver", dieLabel: group.dieLabel, rows });
   }
   return { groups: out };
+}
+
+/**
+ * Is this hit one the option reaches? The facts are read off the sheet and the card by the caller.
+ * @param {{row: any, unarmed: boolean, weapon: boolean, monkWeapon: boolean, own: boolean, flurry: boolean|null}} facts
+ *        `flurry` null: no turn to read it in (out of combat) — the option stands, its caveat says so
+ */
+export function optionReaches({ row, unarmed, weapon, monkWeapon, own, flurry }) {
+  if ( row.unarmed && !unarmed ) return false;
+  if ( row.weapon && !weapon ) return false;
+  if ( (row.weapons === "monk") && !(unarmed || monkWeapon) ) return false;
+  if ( (row.only === "own") && !own ) return false;
+  if ( row.only === "flurry" ) return unarmed && (flurry !== false);
+  return true;
 }
 
 /**

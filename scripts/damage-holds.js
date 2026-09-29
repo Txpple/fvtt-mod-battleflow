@@ -62,6 +62,8 @@ function interceptorsFor(defender, attacker) {
       const item = itemNamed(actor, key);
       const found = item ? reductionFor(item, key) : null;
       if ( !found || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
+      // A paid guard (Protective Field's Psionic Energy Dice) with none left is never asked.
+      if ( row.pool && !(Number(poolOf(actor, found.activity)?.system?.uses?.value ?? 0) > 0) ) continue;
       guards.push({ actorUuid: actor.uuid, actorName: token.document?.name ?? actor.name, itemId: item.id,
         activityId: found.activity.id, formula: found.formula, passed: false });
     }

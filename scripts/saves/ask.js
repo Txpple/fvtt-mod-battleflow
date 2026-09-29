@@ -116,6 +116,8 @@ function drawSaveDemand(app, element, demand) {
       : "The damage lands either way.");
   if ( flag.effectNames?.fail?.length ) stakes.push(
     `A failure also applies: <strong>${flag.effectNames.fail.join(", ")}</strong>.`);
+  if ( flag.effectNames?.success?.length ) stakes.push(
+    `A success applies: <strong>${flag.effectNames.success.join(", ")}</strong>.`);
   if ( flag.effectNames?.always?.length ) stakes.push(
     `Applies either way: <strong>${flag.effectNames.always.join(", ")}</strong>.`);
   const host = document.createElement("div");

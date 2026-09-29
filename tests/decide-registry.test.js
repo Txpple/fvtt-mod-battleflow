@@ -306,6 +306,7 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
       "Grease",
       "Poisoner",
       "Sleet Storm",
+      "Stunning Strike",
       "Web"
     ]);
   });
@@ -343,6 +344,13 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
       "unconscious"
     ]);
     for (const [name, row] of Object.entries(reg.SAVE_PRESSES)) {
+      expectPointer(row.rule, name);
+      // A2: a `success` row moves the activity's own effects to the success; it presses nothing.
+      if (row.success) {
+        expect(row.status, name).toBeUndefined();
+        expect(row.success.length, name).toBeGreaterThan(0);
+        continue;
+      }
       expect(STANDARD.has(row.status), name).toBe(true);
       expect(row.onFail, name).toBe(true);
       expectPointer(row.rule, name);

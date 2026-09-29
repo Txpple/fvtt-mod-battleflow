@@ -80,6 +80,8 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Combat Inspiration**'s Defense and **Glorious Defense**: a bonus to the target's AC "against that attack", when an attack roll hits | offered after the hit shows (Shield's row); the bonus is played as the attack roll's MINUS against that one target — the same arithmetic — and Glorious Defense's "creature you can see within 10 feet of you" is every paladin on the target's side within 10 ft of it (the bystanders' row) | the AC is the defender's number the hold reads; a minus on this roll touches no other attack (`hold/lookup.js` `bystandersOf`, `reach: "target"`) | 2026-09-29 |
 | **Hunter's Prey**: the option is the character's, changeable after a Short or Long Rest | asked ONCE on the damage offer ("which option did you take?") and kept on the feature; the card's *Change* forgets it and the next hit asks again — the rest is the table's | the pack ships one item for both options and records neither (`clock-riders.js` `option`; the user, 2026-09-29) | 2026-09-29 |
 | **Deflect Attacks**' Redirect: "if you reduce the damage to 0" | offered on the damage card once the reduced damage has LANDED at 0, as the pack's own save activity at the attacker; the range and the Focus Point are the activity's | the reduction is rolled at the answer and the damage lands later; only the receipt knows it came to 0 (`hold/views.js` `atZero`) | 2026-09-29 |
+| **Open Hand Technique**: "whenever you hit a creature with an attack granted by your Flurry of Blows" | offered on an Unarmed Strike hit after Flurry of Blows was USED this turn (the use writes a turn chit); out of combat, on every Unarmed Strike hit, the caveat said | the pack's Flurry of Blows is a utility on Monk's Focus: the strikes that follow are plain Unarmed Strikes, and no card records which were granted by it (`hit-menu.js` `FLURRY`) | 2026-09-29 |
+| **Protective Field**: "when you or another creature you can see within 30 feet of you takes damage" | yourself on any damage the module applies; another creature only on an ATTACK's damage (Interception's guard) | the guard hold (`damage-holds.js`) is asked on an attack's damage alone — a save's or an aura's damage to an ally is not held for a guard (Interception's rule) | 2026-09-29 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -1692,6 +1694,52 @@ Inspiration's damage die is offered UNTICKED** (the die is the ally's to spend).
 | Sacred Weapon | the paladin's token lights 20/40; deleting the weapon's enchantment puts it out |
 | Glorious Defense, an ally beside the paladin hit by 2 | the paladin's popup "−3"; Answer: MISS, then "Strike the Bugbear with Longsword?" |
 | Deflect Attacks, a 7-damage hit | the monk's popup, the reduction rolled; at 0, the damage card offers "Redirect" |
+
+## The PHB classes — A2 (2026-09-29, Session 0 stage A2)
+
+**The hit menu's next groups — five rows, no new kind, no new file; BUILT, unit-tested, its live suite owed.**
+The plan's §3 A2, read off the pack (`dnd-players-handbook.classes`, dnd5e 6.0.5). Built in rapid mode on calls the
+plan left open — **each is the user's to overrule**:
+
+1. **Monk's Focus is ONE group of two picks** (`max: 2`): Stunning Strike and Hand of Harm are separate once-per-turn
+   features, and the rules let both ride one hit; the plan's "one pick per group" would have forbidden it. Each
+   option shows its own die beside the one Focus Point (`ownDice`).
+2. **Open Hand Technique and Elemental Attunement are FREE groups of their own** (`pool: "free"`), not rows in the
+   Focus group: they cost nothing and ride beside a Focus pick (Stunning Strike + Topple on one Flurry hit).
+3. **"A Flurry of Blows hit" is a turn chit** written when Flurry of Blows is used (the pack's strikes carry no
+   mark) — a bend row. Out of combat every Unarmed Strike offers it.
+4. **Stunning Strike's success half is fixed at the SAVE**, not the menu: the pack marks Slowed failure-only, so a
+   failure landed Stunned AND Slowed and a success nothing — from the sheet too. `SAVE_PRESSES` gains a `success`
+   facet (the named activity effects land on a success, never a failure); the save's card says both halves.
+5. **Protective Field is keyed by its item** (`INTERRUPT_REDUCTIONS["Psionic Power"]`, `activity: "Protective
+   Field"`): Stone's Endurance's `any` for yourself, Interception's guard (`ally: 30`) for another — a bend row
+   (the guard is asked on an attack's damage only); a guard with no Psionic Energy Dice left is never asked.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Stunning Strike | `HIT_OPTIONS` `noDie`, `save`, `oncePerTurn`, `weapons: "monk"` + `SAVE_PRESSES` `success` | on a Monk weapon or Unarmed Strike hit, once per turn: the save activity used at the target IS the cost (1 Focus Point, `paidBySave`); Stunned on a failure, Slowed on a success |
+| Hand of Harm | `HIT_OPTIONS` `ownType`, `oncePerTurn`, `unarmed` | 1 Focus Point on an Unarmed Strike hit: the Martial Arts die + Wis necrotic rides the roll |
+| Open Hand Technique | `HIT_OPTIONS` × 3 (`activity` Addle / Push / Topple, `label`, `only: "flurry"`) in a free group | one pick: Addle's effect lands on the hit; Push and Topple through their saves (Topple's Toppled is the save's own effect) |
+| Elemental Attunement | `HIT_OPTIONS` (`activity: "Elemental Save"`, `only: "own"`, a line) in a free group | on an Elemental Strike hit (the feature's own attack): the Strength save; the push or pull a card line |
+| Psionic Power — Psionic Strike | `HIT_OPTIONS` (`activity`, `ownType`, `oncePerTurn`, `weapon`) in the `psionic-power` group | a Psionic Energy Die + Int as Force on a weapon hit, once per turn |
+| Psionic Power — Protective Field | `INTERRUPT_REDUCTIONS` `pool`, `any`, `ally: 30` | the die + Int (at least 1) off the damage, yourself or an ally within 30 ft; the pool spent at the answer |
+
+**Owed in the code (known, small):** a Legendary Resistance flip of a failed Stunning Strike unwinds Stunned but
+lands no Slowed (`saves/verdict.js` `unwindFailedConsequences` re-applies damage only); Physician's Touch's
+Poisoned rider is B4's.
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Stunning Strike, an Unarmed Strike hit | the hit menu: "Monk's Focus · N Focus Points left", "Stunning Strike — 1 Focus Point"; the Constitution save after the damage; a failure Stunned, a success Slowed |
+| Stunning Strike, the second hit this turn | the row greyed "used this turn" |
+| Stunning Strike + Hand of Harm on one Unarmed Strike | both ticked; the die rides, two Focus Points spent |
+| Open Hand Technique after Flurry of Blows | the group "Open Hand Technique · free": Addle / Push / Topple, one pick; a plain Unarmed Strike (no Flurry this turn) shows none |
+| Hand of Harm | "Hand of Harm — 1d8 + 3 necrotic · 1 Focus Point" rides the damage |
+| Elemental Attunement, an Elemental Strike hit | "Push or pull — free"; the Strength save; the card's line says the table moves the token |
+| Psionic Strike, a weapon hit | "Psionic Strike — 1d8 + 3 force · 1 Psionic Energy Die"; the pool spent |
+| Protective Field, an ally within 30 ft hit | the guard's popup to the Psi Warrior; the damage lands short by the roll |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

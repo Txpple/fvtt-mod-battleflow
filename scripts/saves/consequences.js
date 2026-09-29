@@ -84,8 +84,11 @@ async function applySaveEffects(card, flag, entry) {
   // Through the CARD: the use may have deleted the item (a thrown vial, a scroll's last use).
   const activity = cardActivity(card, flag.activityUuid);
   if ( !activity ) return;
+  // A SAVE_PRESSES `success` row's effects land on a success and never on a failure (Stunning Strike's Slowed).
+  const success = new Set((SAVE_PRESS_INDEX.rowFor(activity.item)?.success ?? []).map(n => n.toLowerCase()));
   const toApply = (await applicableProfiles(activity))
-    .filter(({ profile }) => (entry.outcome === "failed") || profile.onSave)
+    .filter(({ profile, effect }) => success.has(String(effect?.name ?? "").toLowerCase())
+      ? (entry.outcome !== "failed") : ((entry.outcome === "failed") || profile.onSave))
     .map(({ effect }) => effect);
   // No pack effect for a failure the text names (Web's Restrained): press the standard status. A press
   // behind the caster's WORD (Command) lands only when the word answered is the pressing one.

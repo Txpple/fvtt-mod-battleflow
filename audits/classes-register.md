@@ -11,7 +11,7 @@
 > held for its first player. **Band**: the level band (A 1–5 · B 6–10 · C 11–16 · D 17–20) — the plan builds a band ahead of the party. **Stage**:
 > the plan's stage that builds it ([plans/session-0-classes.md](plans/session-0-classes.md)). **Bend**: a row in RULINGS' two registers names it.
 
-**419 rows: 99 NATIVE · 83 MODULE · 98 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
+**419 rows: 99 NATIVE · 88 MODULE · 93 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
 
 ## By class
 
@@ -21,8 +21,8 @@
 | Bard | 23 | 4 | 3 | 6 | 2 | 1 | 0 | 7 | 0 |
 | Cleric | 27 | 7 | 4 | 8 | 0 | 0 | 0 | 8 | 0 |
 | Druid | 29 | 10 | 2 | 6 | 0 | 0 | 0 | 11 | 0 |
-| Fighter | 32 | 11 | 2 | 11 | 0 | 1 | 0 | 7 | 0 |
-| Monk | 36 | 12 | 2 | 9 | 2 | 1 | 0 | 10 | 0 |
+| Fighter | 32 | 11 | 3 | 10 | 0 | 1 | 0 | 7 | 0 |
+| Monk | 36 | 12 | 6 | 5 | 2 | 1 | 0 | 10 | 0 |
 | Paladin | 30 | 6 | 6 | 9 | 0 | 1 | 0 | 8 | 0 |
 | Ranger | 30 | 8 | 6 | 7 | 0 | 0 | 0 | 9 | 0 |
 | Rogue | 30 | 6 | 10 | 6 | 0 | 0 | 0 | 8 | 0 |
@@ -30,7 +30,7 @@
 | Warlock | 28 | 5 | 3 | 9 | 0 | 0 | 0 | 11 | 0 |
 | Wizard | 26 | 4 | 1 | 7 | 1 | 0 | 0 | 12 | 1 |
 | Options | 67 | 11 | 33 | 5 | 0 | 0 | 0 | 18 | 0 |
-| **all** | **419** | **99** | **83** | **98** | **7** | **5** | **0** | **126** | **1** |
+| **all** | **419** | **99** | **88** | **93** | **7** | **5** | **0** | **126** | **1** |
 
 ## By stage
 
@@ -195,7 +195,7 @@
 | Fighter | Eldritch Knight | 10 | B | **Eldritch Strike** | ROW | `CLOCK_RIDERS` · Frost's Chill (`effects` on the hit) + `EFFECT_BENDS` · Magic Resistance (`saves`, `spells: "source"`) | B2 | the hit lands the pack's effect on the target (the effect-riders seam); the gate reads the effect: Disadvantage on saves against the FIGHTER's spells — `spells: "source"` (the demand knows its caster) | — |
 | Fighter | Eldritch Knight | 15 | C | **Arcane Charge** | OUT | — | — | a teleport — movement | — |
 | Fighter | Eldritch Knight | 18 | D | **Improved War Magic** | ROW | `BONUS_SWINGS` · War Magic | D1 | the same reminder, two attacks replaced | — |
-| Fighter | Psi Warrior | 3 | A | **Psionic Power** | ROW | `INTERRUPT_REDUCTIONS` · Interception (`ally`, `reach: 30`, `pool`) + `HIT_OPTIONS` · a Psionic group (`pool: "feature"`, once per turn) | A2 | Protective Field: the die + Int off any creature's damage within 30 ft (the guard's shape, the Psionic pool); Psionic Strike: a hit-menu row (the die as force, once per turn, the pool the Psionic Energy Dice); Telekinetic Movement: OUT (movement) | — |
+| Fighter | Psi Warrior | 3 | A | **Psionic Power** | MODULE | `HIT_OPTIONS` · psionic-strike (group `psionic-power`, `ownDice`, `oncePerTurn`, `weapon`) + `INTERRUPT_REDUCTIONS` · Psionic Power (`activity: Protective Field`, `pool`, `any`, `ally: 30`) | A2 | `INTERRUPT_REDUCTIONS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) — BUILT 2026-09-29 (A2, unproven live): Psionic Strike a hit-menu row (the die + Int as Force, once per turn, a weapon hit, the Psionic Energy Dice); Protective Field the die + Int off your own damage (any) or an ally's attack damage within 30 ft (the guard); Telekinetic Movement OUT (movement) | — |
 | Fighter | Psi Warrior | 7 | B | **Telekinetic Adept** | ROW | `HIT_OPTIONS` · Trip Attack (`save`, `onFail: prone`) as a FOLLOW-UP on Psionic Strike | B4 | Telekinetic Thrust: on a Psionic Strike, the target's Strength save or Prone / pushed — the option's save activity used after the damage (Trip's path); Psi-Powered Leap: OUT (movement) | — |
 | Fighter | Psi Warrior | 10 | B | **Guarded Mind** | ROW | `TURN_GRANTS` · Heroic Warrior — `grant: "end"` (`statuses: [charmed, frightened]`, `pool`) | B4 | at the turn start, an OFFER to spend a Psionic die and end Charmed or Frightened (the effect deleted, receipted); the resistance is the pack's | — |
 | Fighter | Psi Warrior | 15 | C | **Bulwark of Force** | NATIVE | — | — | measured 2026-09-29 (M0) with Nature's Sanctuary: the effect carries `coverHalf`, dnd5e's `ac.cover` reads it, the measure respects it as carried cover; the picks are the use's own targets | — |
@@ -206,7 +206,7 @@
 | Monk |  | 2 | A | **Uncanny Metabolism** | TABLE | `INITIATIVE_GRANTS` · Persistent Rage — `heal: "Martial Arts die + level"` | A6 | at Initiative, once per Long Rest: every Focus Point back and the heal rolled — an OFFER (it is once per Long Rest, the player may keep it), Persistent Rage's table | — |
 | Monk |  | 3 | A | **Deflect Attacks** | MODULE | `INTERRUPT_REDUCTIONS` · Deflect Attacks (`types`, `anyType`, `atZero: Redirect`) | A1 | `INTERRUPT_REDUCTIONS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) — BUILT 2026-09-29 (A1): rolled at the answer (Parry's path; before, reduce by hand), B/P/S hits unless Deflect Energy; the Redirect offered on the damage card when it lands at 0 | bend |
 | Monk |  | 4 | A | **Slow Fall** | OUT | — | — | falling damage — the table's | — |
-| Monk |  | 5 | A | **Stunning Strike** | ROW | `HIT_OPTIONS` · Trip Attack (`save`) in a new `HIT_GROUPS` group · Monk's Focus (`pool` the Focus Points, `dieLabel: "Focus Point"`, once per turn) | A2 | 1 Focus Point on a Monk weapon or Unarmed Strike hit, the activity's Constitution save; a success lands the pack's half effect (Advantage on the next attack — the effect-riders seam); Stunned on the failure is the activity's | — |
+| Monk |  | 5 | A | **Stunning Strike** | MODULE | `HIT_OPTIONS` · stunning-strike (group `monks-focus`, `save`, `noDie`, `oncePerTurn`, `weapons: monk`) + `SAVE_PRESSES` `success` | A2 | `SAVE_PRESSES` (saves/; RULINGS *Rulings the code carried · Save demands*) — BUILT 2026-09-29 (A2, unproven live): on a Monk weapon or Unarmed Strike hit, once per turn; the save activity is the cost (1 Focus Point); Stunned on a failure, Slowed on a success (the pack marks Slowed failure-only — `success` moves it, the sheet path too) | — |
 | Monk |  | 6 | B | **Empowered Strikes** | NATIVE | — | — | the type choice is the attack's own | — |
 | Monk |  | 7 | B | **Evasion** | MODULE | `EVASIONS` · Evasion | — | `EVASIONS` (saves/consequences.js; RULINGS *The GM's side — the five shapes*) — the verdict outcome | — |
 | Monk |  | 9 | B | **Acrobatic Movement** | OUT | — | — | movement | — |
@@ -217,7 +217,7 @@
 | Monk |  | 15 | C | **Perfect Focus** | TABLE | `INITIATIVE_GRANTS` · Uncanny Metabolism (`unless: uncanny-metabolism`) | C1 | Focus Points back to 4 at Initiative when Uncanny Metabolism is not used — the same card, one line | — |
 | Monk |  | 18 | D | **Superior Defense** | NATIVE | — | — | the pack's effect (resistances) at a turn-start use | — |
 | Monk |  | 20 | D | **Body and Mind** | OUT | — | — | ability scores | — |
-| Monk | Warrior of Mercy | 3 | A | **Hand of Harm** | ROW | `HIT_OPTIONS` · Psionic Strike (the Monk group, `pool` the Focus Points, once per turn, unarmed only) | A2 | 1 Focus Point on an Unarmed Strike hit: the Martial Arts die + Wis necrotic rides the roll; Physician's Touch adds Poisoned at 6 (the option's effect, the effect-riders seam) | — |
+| Monk | Warrior of Mercy | 3 | A | **Hand of Harm** | MODULE | `HIT_OPTIONS` · hand-of-harm (group `monks-focus`, `ownType`, `oncePerTurn`, `unarmed`) | A2 | BUILT 2026-09-29 (A2, unproven live): 1 Focus Point on an Unarmed Strike hit, the Martial Arts die + Wis necrotic rides; Physician's Touch's Poisoned is B4's | — |
 | Monk | Warrior of Mercy | 3 | A | **Hand of Healing** | NATIVE | — | — | the pack's heal | — |
 | Monk | Warrior of Mercy | 3 | A | **Implements of Mercy** | OUT | — | — | proficiencies | — |
 | Monk | Warrior of Mercy | 6 | B | **Physician's Touch** | ROW | `HIT_OPTIONS` · Hand of Harm (`effects`, `level: 6`) | B4 | Hand of Harm also lands Poisoned until the end of the monk's next turn; Hand of Healing also ends a condition — the heal's own card, a pick (asked) | — |
@@ -227,12 +227,12 @@
 | Monk | Warrior of Shadow | 6 | B | **Shadow Step** | ROW | `USE_CHIPS` · Steady Aim (`bend: advantage`, `window: steadyAim`, `melee`) | B4 | the teleport's use arms Advantage on the next melee attack this turn — the pack ships no effect, the chip is the module's; the teleport itself is the table's move | — |
 | Monk | Warrior of Shadow | 11 | C | **Improved Shadow Step** | OUT | — | — | the light clause and the free strike — the table's | — |
 | Monk | Warrior of Shadow | 17 | D | **Cloak of Shadows** | NATIVE | — | — | the pack's Invisible effect | — |
-| Monk | Warrior of the Elements | 3 | A | **Elemental Attunement** | ROW | `HIT_OPTIONS` · Pushing Attack (`save`, a line) in the Monk group (no cost) | A2 | Reach and the damage type are the pack's; the push / pull on an Unarmed Strike hit is a hit-menu row with the activity's Strength save, the 10 feet a card line (the table moves the token) | — |
+| Monk | Warrior of the Elements | 3 | A | **Elemental Attunement** | MODULE | `HIT_OPTIONS` · elemental-attunement (free group, `activity: Elemental Save`, `only: own`, a line) | A2 | BUILT 2026-09-29 (A2, unproven live): on an Elemental Strike hit (the feature's own attack), the Strength save; the push or pull a card line | — |
 | Monk | Warrior of the Elements | 3 | A | **Manipulate Elements** | OUT | — | — | a cantrip | — |
 | Monk | Warrior of the Elements | 6 | B | **Elemental Burst** | NATIVE | — | — | the pack: a save, damage | — |
 | Monk | Warrior of the Elements | 11 | C | **Stride of the Elements** | OUT | — | — | movement | — |
 | Monk | Warrior of the Elements | 17 | D | **Elemental Epitome** | ROW | `CLOCK_RIDERS` · Divine Fury (`when: oncePerTurn`, `while: attuned`) | D1 | Empowered Strikes: the Martial Arts die once per turn on an Unarmed Strike hit while attuned; the resistance is the pack's effect; Destructive Stride is OUT (movement) | — |
-| Monk | Warrior of the Open Hand | 3 | A | **Open Hand Technique** | ROW | `HIT_OPTIONS` · Trip Attack (`save`, `onFail: prone`) in the Monk group — an `only: "flurry"` facet | A2 | on a Flurry of Blows hit (the attack activity Flurry's own — the fact read off the card): Addle (the pack's no-Reactions effect, no save), Push (the save, a line), Topple (the save, Prone) — one pick | — |
+| Monk | Warrior of the Open Hand | 3 | A | **Open Hand Technique** | MODULE | `HIT_OPTIONS` · Addle / Push / Topple (free group, `activity` each, `only: flurry`) | A2 | BUILT 2026-09-29 (A2, unproven live): one pick on an Unarmed Strike after Flurry of Blows this turn (the use writes a turn chit; out of combat every Unarmed Strike); Addle's effect lands, Push and Topple through their saves | — |
 | Monk | Warrior of the Open Hand | 6 | B | **Wholeness of Body** | NATIVE | — | — | the pack's heal | — |
 | Monk | Warrior of the Open Hand | 11 | C | **Fleet Step** | OUT | — | — | action economy | — |
 | Monk | Warrior of the Open Hand | 17 | D | **Quivering Palm** | NATIVE | — | — | the pack: the save and the damage from the sheet | — |
