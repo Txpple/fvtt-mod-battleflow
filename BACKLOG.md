@@ -6,9 +6,10 @@
 > **What it is NOT:** a to-do list. Nothing here blocks a release, a deploy or a battery. If an
 > item becomes owed it leaves this file for a commission the user hands the next session. There
 > is no standing handoff file, by user call: a commission is written when there is one and
-> retired when it is delivered. **None is open** (the last, the Monster Manual's waiting rows, was
-> retired 2026-09-28 night — RULINGS *The Monster Manual — the waiting rows built*). A closed item
-> leaves too; its record, like every retired commission's, is git history.
+> retired when it is delivered. **One is open: [HANDOFF.md](HANDOFF.md), the pick-up point after
+> the Monster Manual (2026-09-28, late night)** — the state, the unreleased stack, and the user's next
+> call (the release, the walks, or Session 0). A closed item leaves too; its record, like every retired
+> commission's, is git history.
 >
 > Three files, three jobs: this file is *not now, and here is why*; [DESIGN.md](DESIGN.md) §8
 > is *no, and here is what would change the answer*; [ARCHITECTURE.md](ARCHITECTURE.md) §10 is

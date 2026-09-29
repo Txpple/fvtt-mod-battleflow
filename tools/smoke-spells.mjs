@@ -559,6 +559,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `rays=${rays2.length} ray=${JSON.stringify(r2 && { colour: r2.colour, type: r2.type })} saves=${JSON.stringify(rs2 && { cast: rs2.activityUuid === castAct.uuid, abilities: rs2.abilities, hasDamage: rs2.hasDamage })} formula=${dmg2?.rolls?.[0]?.formula} type=${dmg2?.rolls?.[0]?.options?.type}`);
       await waitFor(() => scene.regions.get(region2.id) ? null : true, 8000);
       await scene.regions.get(region2.id)?.delete().catch(() => {});
+      // ⚠ The red ray's damage lands a few seconds after its verdict: wait for the application, or it lands in §9 (2026-09-28: 12 fire off the Victim's pool there).
+      await waitFor(() => game.messages.get(rays2[0]?.id)?.getFlag(MOD, 'saves')?.targets?.every(x => x.applied) ? true : null, 15000);
+      await sleep(500);
       CONFIG.Dice.randomUniform = () => 1 - ((5 - 0.5) / 20);
       await victim.update({ 'system.abilities.con.save.roll.bonus': priorCon });
       await clearVictim();
