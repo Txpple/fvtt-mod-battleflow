@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { expectPointer } from "./rule-pointer.js";
 
 /**
- * DECISION-layer: the spells slice (HANDOFF.md, 2026-09-28; the drawing audits/drawings/spells.md) —
+ * DECISION-layer: the spells slice (the commission of 2026-09-28; the drawing audits/drawings/spells.md) —
  * Tier 1's rows on the tables that exist, the `abilities` scope of the saves facet, the roll at its
  * maximum, and Tier 2's REPEAT_SAVES table with the arithmetic of decide/repeat-saves.js and the
  * turn-start grant's of decide/turn-grants.js. No Foundry stub on purpose.

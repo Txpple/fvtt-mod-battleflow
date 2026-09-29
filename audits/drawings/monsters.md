@@ -82,7 +82,8 @@ machine's already), 60 are casts ("casts Fear", "casts Misty Step" — the spell
 register), the rest senses, movement, telepathies, restorations and Multiattack. **What the silence
 hid: eleven shapes with monster customers, every one on a machine that exists** — none is a new kind, and
 none is built here; each waits for its monster to come to the table (the register's WAITS, the DMG's
-word). The shapes, largest first:
+word). The shapes, largest first — **and, the same night, BUILT** (RULINGS *The Monster Manual — the waiting
+rows built*; the charge turned out native, the moving ring and three one-customer rows out):
 
 | Shape | Customers in the book | Lands on |
 | --- | --- | --- |
@@ -138,50 +139,19 @@ carries them. `| **Row** | OUT / TEXT / NATIVE / MODULE / WAITS | why |`.
 | **Elemental Flail** | NATIVE | the damage type is the roll dialog's pick |
 | **Otherworldly Strike** | NATIVE | the damage type is the roll dialog's pick |
 | **Psychic Warp** | NATIVE | the GM applies the one effect it chose |
-| **Pacifying Spores** | WAITS | `REPEAT_SAVES` — Hold Person's kind on a monster's own activity (the pack ships no repeat): the Stunned repeating at the turn end, a `match: "feature"` row like Regeneration's; four customers with Paralysis Gas, Scare and Spores |
-| **Paralysis Gas** | WAITS | `REPEAT_SAVES` — Pacifying Spores' shape: the Paralyzed repeating at the turn end |
-| **Scare** | WAITS | `REPEAT_SAVES` — Pacifying Spores' shape: the Frightened repeating at the turn end |
-| **Spores** | WAITS | `REPEAT_SAVES` — Pacifying Spores' shape: the Poisoned repeating at the turn end |
-| **Petrifying Bite** | WAITS | `REPEAT_SAVES` — Hold Person's kind with an escalation: the first failure's Restrained repeating at the turn end, the second failure Petrified (the second consequence is new vocabulary); three customers with Petrifying Breath and Petrifying Gaze |
-| **Petrifying Breath** | WAITS | `REPEAT_SAVES` — Petrifying Bite's shape |
-| **Petrifying Gaze** | WAITS | `REPEAT_SAVES` — Petrifying Bite's shape |
-| **Barbed Hide** | WAITS | `TURN_GRANTS` — a damage, not a heal, at the bearer's turn start to the creature it grapples (Regeneration's trigger with a `grappled` judge); five customers with Constricting Vine, Suffocate, Smother and Swarm of Proboscises |
-| **Constricting Vine** | WAITS | `TURN_GRANTS` — the grappled creature's damage at the bearer's turn start (Barbed Hide's shape) |
-| **Suffocate** | WAITS | `TURN_GRANTS` — the grappled creature's damage at the bearer's turn start (Barbed Hide's shape); the suffocation the effect's |
-| **Smother** | WAITS | `TURN_GRANTS` — the grappled creature's damage at the bearer's turn start (Barbed Hide's shape); the Blinded and Restrained the effect's |
-| **Swarm of Proboscises** | WAITS | `TURN_GRANTS` — the grappled creature's damage at the bearer's turn start (Barbed Hide's shape) |
-| **Infernal Glaive** | WAITS | `TURN_GRANTS` — the wound's loss at the WOUNDED creature's turn start, read off the applied effect (Heroism's machine, a damage instead of a grant); the wound's save the activity's |
-| **Gore** | WAITS | `RIDERS` — the charge: the bearer's straight movement this turn read off the token (Polearm Master's reading), the extra damage and the Prone on the hit; four customers with Tusk, Avalanche Slam and Ravage |
-| **Tusk** | WAITS | `RIDERS` — the charge (Gore's shape) |
-| **Avalanche Slam** | WAITS | `RIDERS` — the charge (Gore's shape) |
-| **Ravage** | WAITS | `RIDERS` — the charge (Gore's shape) |
-| **Life Drain** | WAITS | `RIDERS` — a hit rider off the receipt: the target's Hit Point maximum lowered by the damage dealt; three customers with Proboscis and Draining Swipe |
-| **Proboscis** | WAITS | `RIDERS` — the maximum lowered by the Necrotic damage dealt (Life Drain's shape) |
-| **Draining Swipe** | WAITS | `RIDERS` — the Strength score lowered by 1d4 on the hit (Life Drain's shape, a score instead of the maximum); the Shadow that rises the GM's |
-| **Fire Aura** | WAITS | `EMANATIONS` — the bearer's turn-end pulse (Celestial Revelation's ring), the damage the activity's; three customers with Flame Aura and Heat Aura |
-| **Flame Aura** | WAITS | `EMANATIONS` — the bearer's turn-end pulse (Fire Aura's shape) |
-| **Heat Aura** | WAITS | `EMANATIONS` — the bearer's turn-end pulse (Fire Aura's shape) |
-| **Fire Form** | WAITS | `EMANATIONS` — the enter trigger on the bearer's own space (Spirit Guardians' move-in), the damage once a turn; Blazing Movement shares it |
-| **Blazing Movement** | WAITS | `EMANATIONS` — the enter trigger as the ring moves with the bearer (Fire Form's shape) |
-| **Gibbering** | WAITS | `EMANATIONS` — `trigger.on: "turnStart"` (Stench's row): the save when a creature starts its turn within reach, the effect the activity's |
-| **Chaos Blade** | WAITS | `RAY_TABLES` — Prismatic Spray's shape at the hit: the d4 rolled, the one condition it names landed until the bearer's next turn; three customers with Chaos Claw and Chaos Staff |
-| **Chaos Claw** | WAITS | `RAY_TABLES` — Chaos Blade's shape |
-| **Chaos Staff** | WAITS | `RAY_TABLES` — Chaos Blade's shape |
-| **Misty Escape** | WAITS | `DROP_TO_ONE` — the `died` seam's notice (Death Throes' trigger): the card that says the vampire becomes mist, the Shape-Shift the GM's |
-| **Shadow Escape** | WAITS | `DROP_TO_ONE` — Misty Escape's shape: the notice at the drop, the teleport home the GM's |
-| **Spiteful Escape** | WAITS | `DROP_TO_ONE` — Relentless Endurance's row: held at 1 at the drop; the teleport and the anathema clause the GM's |
-| **Cursed Touch** | WAITS | `REST_GRANTS` — Resourceful's machine reversed: the rest card's line when the cursed creature finishes a rest, nothing granted; two customers with Restless Touch |
-| **Restless Touch** | WAITS | `REST_GRANTS` — Cursed Touch's shape, Short Rests only |
-| **Corrosive Form** | WAITS | `DAMAGE_SHIELDS` — Fire Shield's row: the melee attacker takes the damage on its hit; the weapon's penalty the GM's |
-| **Sacred Weapon** | WAITS | `EFFECT_CHOICES` — Fire Shield's table for the TARGET: its pick offered on the hit, the Stun or the extra damage |
-| **Reflective Carapace** | WAITS | `INTERRUPT_ROLLS` — Limited Foresight's row for a spell attack alone (and Magic Missile's cast): the d6 rolled by the dice (R1), 1–5 unaffected, the 6's reflection the GM's |
-| **Object Slam** | WAITS | `EFFECT_BENDS` — Pack Tactics' judge on the map: Advantage when the target is inside the bearer's space |
-| **Sun Sickness** | WAITS | `EFFECT_BENDS` — Sunlight Weakness's row (Disadvantage on D20 Tests in sunlight); the hour's death clock the GM's |
-| **Reactive Heads** | WAITS | `REACTION_RESETS` — Reactive's table: extra Reaction chips, Opportunity Attacks only |
-| **Incite Rampage** | WAITS | `INTERRUPTS` — Commander's Strike's shape: the target's Reaction spent on an attack the bearer drives |
-| **Haunted Zone** | WAITS | `the cast-triggered kind` — SWEEP §7's reaction at a hostile's cast (the drawing's seven, now eight): the save demanded of a caster inside the bearer's space, the spell lost on a failure |
-| **Redirect Attack** | WAITS | `INTERRUPTS` — Interception reversed: the hit moved to another creature within 5 feet, a `redirect` kind (RULINGS *The GM's side — the reaction rows*) |
-| **Fiendish Blood** | WAITS | `REBUKES` — `on: "damaged"` with a type judge (Elemental Absorption's row; RULINGS *The GM's side — the reaction rows*) |
+| **Suffocate** | NATIVE | no per-turn damage: the *suffocating* status is the effect's own (re-read against the pack) |
+| **Infernal Glaive** | OUT | the pack ships no wound effect to hang the clock on — the wound is the table's; a copy carrying one would be a TURN_GRANTS `deals` row |
+| **Gore** | NATIVE | the pack ships the charge as its own "Moving Attack" activity (the extra dice, the Prone) — the GM's pick when it charged; the movement is not read |
+| **Tusk** | NATIVE | the pack's own "Moving Attack" activity — the GM's pick (Gore's reading) |
+| **Avalanche Slam** | NATIVE | the pack's own "Moving Attack" activity — the GM's pick (Gore's reading) |
+| **Ravage** | NATIVE | the pack's own "Moving Attack" activity — the GM's pick (Gore's reading) |
+| **Fire Form** | OUT | a ring that exists only while the bearer moves — a standing ring would burn every turn; the damage is the GM's click at each creature entered |
+| **Blazing Movement** | OUT | a ring that exists only during one move (Fire Form's reading); the GM's click at each creature passed |
+| **Sacred Weapon** | OUT | the TARGET's pick after a hit — no machine offers the defender a choice on the hit; the Stun is the effect's, the alternate damage the GM's |
+| **Reactive Heads** | OUT | extra Reaction chips for Opportunity Attacks alone — the chip is one boolean; a count is new arithmetic for one customer, the tracker's |
+| **Incite Rampage** | OUT | Commander's Strike's machine is the Battle Master's words and die; the target's Reaction attack is its own sheet's |
+| **Haunted Zone** | WAITS | `the cast-triggered kind` — SWEEP §7's reaction at a hostile's cast; a kind held for the player customer (RULINGS *The GM's side — the reaction rows*) |
+| **Redirect Attack** | WAITS | `INTERRUPTS` — Interception reversed, a `redirect` kind with one customer; held by ruling (RULINGS *The GM's side — the reaction rows*) |
 | **Spell Reflection** | WAITS | `the cast-triggered kind` — one hold at a hostile's cast serves the seven (SWEEP §7); waits for the player customer (RULINGS *The GM's side — the reaction rows*) |
 | **Magical Backlash** | WAITS | `the cast-triggered kind` — Spell Reflection's shape |
 | **Mind Corrosion** | WAITS | `the cast-triggered kind` — Spell Reflection's shape |
@@ -189,15 +159,11 @@ carries them. `| **Row** | OUT / TEXT / NATIVE / MODULE / WAITS | why |`.
 | **Counterspell** | WAITS | `the cast-triggered kind` — Spell Reflection's shape; the spell itself is native by the user's ruling (the spells register) |
 | **Psionic Defense** | WAITS | `the cast-triggered kind` — Spell Reflection's shape |
 | **Tongue Twister** | WAITS | `the cast-triggered kind` — Spell Reflection's shape |
-| **Eye Rays** | WAITS | `RAY_TABLES` — Prismatic Spray's shape: the random ray per target (the drawing: held) |
-| **Divine Beam** | WAITS | `RAY_TABLES` — Prismatic Spray's shape: the random ray per target (the drawing: held) |
-| **Burst of Ingenuity** | WAITS | `INTERRUPT_ROLLS` — Cutting Words' and Bend Luck's rows, the monster side: another creature's roll bent |
-| **Portent** | WAITS | `INTERRUPT_ROLLS` — Burst of Ingenuity's shape |
-| **Maneuver** | WAITS | `INTERRUPT_ROLLS` — Burst of Ingenuity's shape |
-| **Watery Rebuke** | WAITS | `EMANATIONS` — the `alert` on a creature's move-in or turn start (Polearm Master's shape), the response the activity's |
-| **Pursuit** | WAITS | `EMANATIONS` — Watery Rebuke's shape |
-| **Shriek** | WAITS | `EMANATIONS` — Watery Rebuke's shape |
-| **Unnerving Gaze** | WAITS | `EMANATIONS` — Watery Rebuke's shape |
+| **Eye Rays** | WAITS | `RAY_TABLES` — a random ray per picked target, each ray its own save and damage: a kind of its own, held (RULINGS *The GM's side — the reaction rows*) |
+| **Divine Beam** | NATIVE | a plain save with damage (the drawing had lent it Eye Rays' effects); the disintegration is text |
+| **Burst of Ingenuity** | WAITS | `INTERRUPT_ROLLS` — another creature's roll bent by the bearer's Reaction: Cutting Words' and Bend Luck's kind, not built; held for the player customer |
+| **Portent** | WAITS | `INTERRUPT_ROLLS` — Burst of Ingenuity's kind, not built; held for the player customer |
+| **Maneuver** | OUT | an ally's Reaction move — nothing to bend, the table's |
 | **Life Suppression** | OUT | a `noHealing` area facet the healing machine would read — no customer at the table (the drawing: out for now) |
 | **Negative Energy Cone** | OUT | Life Suppression's shape — out for now |
 | **Split** | OUT | a summon at a slashing hit while Large or bigger — the GM's |

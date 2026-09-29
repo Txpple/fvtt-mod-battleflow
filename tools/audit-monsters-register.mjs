@@ -37,10 +37,17 @@ const hand = handVerdicts(drawing, WORDS);
 const SECTIONS = [
   ["## The GM's side — the five shapes", "the five shapes"],
   ["## The GM's side — the aura rows and the attack bends", "the aura rows"],
-  ["## The GM's side — the reaction rows", "the reaction rows"]
+  ["## The GM's side — the reaction rows", "the reaction rows"],
+  ["## The Monster Manual — the waiting rows built", "the waiting rows"]
 ];
 
-/** name (lower) → the GM's-side section label whose walk table names it (the first cell, split on commas). */
+/** The pack's names, lower — a cell's part counts as a trait only when it is one. */
+const PACK_NAMES = new Set(classified.filter(x => x.pack === PACK).map(x => lower(x.name)));
+/** The trait names a table cell carries: its parts split on commas, middots and "and", each a pack name. */
+const namesInCell = cell => cell.replace(/\*\*|`/g, "").split(/,\s*|\s·\s|\s+and\s+|;\s*/)
+  .map(s => s.replace(/\s*\(.*$/, "").trim()).filter(s => s && PACK_NAMES.has(lower(s)));
+
+/** name (lower) → the GM's-side section label whose walk table names it (any cell, the first cell first). */
 const walked = new Map();
 /** name (lower) → the section label, for every trait a section's tables name (the RULINGS pointer a MODULE row prints). */
 const sectionOf = new Map();
@@ -51,23 +58,14 @@ const sectionOf = new Map();
     if ( i < 0 ) continue;
     const block = rulings.slice(headings[i].index, headings[i + 1]?.index);
     const walkAt = block.indexOf("### The walk table");
-    for ( const line of block.split("\n") ) {
-      if ( !line.startsWith("| ") || line.startsWith("| Trait") || line.startsWith("| ---") ) continue;
-      const cell = line.split("|")[1].replace(/\*\*/g, "").trim();
-      for ( const part of cell.split(/,\s*|\s·\s/) ) {
-        const name = part.replace(/\s*\(.*$/, "").trim();
-        if ( !name || (name.length > 40) ) continue;
-        if ( !sectionOf.has(lower(name)) ) sectionOf.set(lower(name), label);
-      }
+    const rowsOf = text => text.split("
+").filter(l => l.startsWith("| ") && !l.startsWith("| Trait") && !l.startsWith("| ---") && !l.startsWith("| Stage") && !l.startsWith("| Shape"));
+    for ( const line of rowsOf(block) ) {
+      for ( const cell of line.split("|").slice(1, -1) ) for ( const name of namesInCell(cell) ) if ( !sectionOf.has(lower(name)) ) sectionOf.set(lower(name), label);
     }
     if ( walkAt < 0 ) continue;
-    for ( const line of block.slice(walkAt).split("\n") ) {
-      if ( !line.startsWith("| ") || line.startsWith("| Trait") || line.startsWith("| ---") ) continue;
-      const cell = line.split("|")[1].replace(/\*\*/g, "").trim();
-      for ( const part of cell.split(/,\s*|\s·\s/) ) {
-        const name = part.replace(/\s*\(.*$/, "").trim();
-        if ( name && (name.length <= 40) && !walked.has(lower(name)) ) walked.set(lower(name), label);
-      }
+    for ( const line of rowsOf(block.slice(walkAt)) ) {
+      for ( const name of namesInCell(line.split("|")[1] ?? "") ) if ( !walked.has(lower(name)) ) walked.set(lower(name), label);
     }
   }
 }
@@ -76,7 +74,9 @@ const sectionOf = new Map();
 function howCell(tables, name) {
   const cell = whereCell(tables);
   const section = sectionOf.get(lower(name));
-  return section ? cell.replace(/RULINGS \*[^*]*\*/g, `RULINGS *The GM's side — ${section}*`) : cell;
+  if ( !section ) return cell;
+  const heading = (section === "the waiting rows") ? "The Monster Manual — the waiting rows built" : `The GM's side — ${section}`;
+  return cell.replace(/RULINGS \*[^*]*\*/g, `RULINGS *${heading}*`);
 }
 
 /* --- the kind: what the row is on the stat block ---------------------------------------------------- */

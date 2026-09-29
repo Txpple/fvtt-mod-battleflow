@@ -585,6 +585,21 @@ The GM's side (RULINGS *The GM's side — the five shapes*, 2026-09-28 night) ad
 | `REBUKES` | `on: "miss"` · `types` · `self` | a rebuke on a melee weapon attack that MISSED the bearer, stamped by the elect off the attack card (Sticky Shield); the damage's types the row answers to, an unreadable card counting (Elemental Absorption); a row aimed at nobody, no reach measured (Ink Cloud) |
 | `REACTION_RESETS` (new) | `every: "turn"` | the Reaction back on every turn of combat (Reactive) — the chip's arithmetic in `decide/chips.js` `reactionStandsEveryTurn` |
 
+The Monster Manual's waiting rows (RULINGS *The Monster Manual — the waiting rows built*, 2026-09-28 night) added facets and one table, no kinds:
+
+| Table | Word | What it says |
+| --- | --- | --- |
+| `REPEAT_SAVES` | `count.swap` | the pressed status REPLACES the effect (the medusa's Petrified instead of Restrained); a monster's own activity is the same row keyed by the trait, the demand marked not a spell |
+| `TURN_GRANTS` | `deals` · `on: "turnEnd"` · `deals: "grappled"` | a damage instead of a heal, on the bearer of the effect at its turn start or end (the grappled creature's), rolled on the origin's numbers; a feature row's damage to what the bearer grapples (`geometry.js` `grappledBy`, Unarmed Fighting's finder shared) |
+| `EMANATIONS` | `pulse.activity: null` · `alert.on: "turnStart"` | the pulse off the first damage activity (the fire auras); the turn-start region event raises alerts (Unnerving Gaze) |
+| `CLOCK_RIDERS` | `self` · `random` | the rider is the attack's own item, due on that attack alone; one of its numbered effects by the die, when the damage lands (`effect-riders.js` `applyActivityEffectsOnHit` takes an `only` pick and returns what landed) |
+| `DRAINS` (new; `drains.js`, `decide/drains.js`) | `what` · `type` · `ability` · `amount: "text"` | Vampiric Touch's seam: the target's maximum lowered by what landed (the module's `hp.tempmax` effect, one copy refreshed), or a score by the text's die (the pack's own effect). Not a kind |
+| `DROP_TO_ONE` | `notice` | a died row with no activity: the card says the GM's move |
+| `REST_GRANTS` | `block` · `effect` | the rest grants nothing while the pack's Cursed from this item stands: the rest result's update and item updates emptied at `preRestCompleted`, the `restBlock` line |
+| `DAMAGE_SHIELDS` | `match: "feature"` · `range` | the defender's own trait strikes, its first damage activity; the reach where the activity carries none |
+| `EFFECT_BENDS` | `attack` · `judge: "targetInSpace"` | the attack's own item is the carrier (`scope.item`); the target's footprint overlaps the attacker's (`geometry.js` `tokensOverlap`, `decide/geometry.js` `rectsOverlap`) |
+| `DUPLICATES` | `match: "feature"` · `only: "rangedSpellAttack"` · `reflectAt` | the defender's own trait as one duplicate never destroyed, for the hits the row names (`hold/lookup.js` `attackFactsOf`); the face that also reflects |
+
 Tier 3 (the same day, ruled off `prototypes/spells-slice.html`) moved one more kind — `area` on the
 emanations (§6's tripwire 38 → 39) — and added two tables that are not kinds:
 

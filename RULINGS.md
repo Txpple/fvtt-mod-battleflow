@@ -25,6 +25,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | --- | --- | --- | --- |
 | **Shield**: "when you are hit" (2024: hit by an attack roll) — and every AC reaction beside it | offered after the roll shows a hit, before the damage | the defender's client cannot pause the attacker's roll: `dnd5e.preRollAttack` runs synchronously on the attacker's client, so the hold is stamped on the hit (`hold/trigger.js`) | 2026-08-15 (Phase 1.5, v1.1.0 — the hold's birth, `hold/index.js`) |
 | **Lucky**: Disadvantage "when a creature rolls a d20 for an attack roll against you" | offered after the hit, before the damage — a second d20, the lower standing | the same | 2026-09-24 |
+| **Fire Aura, Flame Aura, Heat Aura**: nonmagical fire at the bearer's turn end | the pulse lands its damage as MAGICAL (Inner Radiance's `mgc` property on every pulse) | one pulse for the ring's rows; a Resistance to nonmagical damage would not apply to it — the platform reads the property, not the source | 2026-09-28 |
 | **Warding Flare**: light flares "before it hits or misses" | offered after the hit | the same | 2026-09-24 |
 | **Shadowy Dodge**: "when a creature makes an attack roll against you" | offered after the hit | the same | 2026-09-24 |
 | **Protection** (the Fighting Style): "when a creature you can see attacks a target other than you" | offered to the guard after the roll shows a HIT, before the damage — the second d20, the lower standing (ruled R1, 2026-09-26); a miss asks nothing | the same (`hold/trigger.js` stamps the guards on the held target) | 2026-09-26 |
@@ -1686,6 +1687,18 @@ changed on the way is recorded below (*Re-read against the pack*).
 | 1 | **the repeating save on a monster's own activity** | Pacifying Spores, Paralysis Gas, Scare, Spores | `REPEAT_SAVES` (Hold Person's kind) — the same row keyed by the trait: the pack's effect on the target names the trait's activity as its origin (the tray's copy), the trait's save activity is the repeat's; the demand is marked as NOT a spell (`demand.spell` reads the item's type — Magic Resistance never bends a myconid's spores) | nothing new on the machine: the match never had a spell gate |
 | 1 | **the escalation** — "First Failure: Restrained … Second Failure: Petrified instead" | Petrifying Bite, Petrifying Breath, Petrifying Gaze | `REPEAT_SAVES` `count: { saves: 1, fails: 1, press: "petrified", swap: true }` — the pack's "Second Save" activity is the repeat's (`activity`) | **`count.swap`**: the pressed status REPLACES the effect (Flesh to Stone's press keeps it under the Petrified); the card says "Petrified instead" |
 | 2 | **the grappled creature's own turn** — "until the grapple ends, the target takes N damage at the start (end) of each of its turns" | Constricting Vine, Smother, Spores' *Damage While Poisoned* (the start); Swarm of Proboscises (the end) | `TURN_GRANTS` (Heroism's shape: the pack's Grappled on the target names the attack as its origin; the grappler's "Damage: Grappled" activity rolled on the GRAPPLER's numbers, landed on the bearer, receipted) | **`deals: true`** (a damage, not a heal — the card "takes N type damage", tone bad) and **`on: "turnEnd"`** (the swarm): the machine now pays the combatant whose turn just ENDED its `turnEnd` rows |
+| 3 | **the bearer's turn-end pulse** — "at the end of each of its turns, each creature in the Emanation takes…" | Fire Aura, Flame Aura, Heat Aura | `EMANATIONS` `pulse` (Inner Radiance's) | `pulse.activity: null` rolls the item's first damage activity; Fire Aura's "of its choice" reads as its enemies (`reach: "harmful"`), the other two reach all |
+| 3 | **the turn-start ring** | Gibbering | `EMANATIONS` `trigger.on: "turnStart"` (Stench's row), off while Incapacitated | nothing new; the failure's d8 is the GM's |
+| 3 | **the alerts** — a creature moving within reach (Pursuit 120 ft, Shriek 30, Watery Rebuke 5), or starting its turn within it (Unnerving Gaze 30) | Pursuit, Shriek, Watery Rebuke, Unnerving Gaze | `EMANATIONS` `alert` (Polearm Master's) at the trigger's range | **`alert.on: "turnStart"`**: the turn-start region event raises alerts too, once per turn; the card names a Trait and says "started its turn within"; the Reaction's response is the activity's, from the sheet |
+| 4 | **the random condition on a hit** — "roll 1d4: on a 1 Charmed…" | Chaos Blade, Chaos Claw, Chaos Staff | `CLOCK_RIDERS` (the hit's riders) | **`self`** (the rider is the attack's own item, whatever the pack typed it — a weapon; due on that attack alone, no extra dice) and **`random: { die }`** (rolled as the damage lands, the effect named by the face — "1: Charmed" — landed, the face and the name on the record); the attack's own application of all four steps aside |
+| 5 | **the drain** — the maximum by what landed, a score by the text's die | Life Drain, Proboscis (the Necrotic alone), Draining Swipe (Strength, 1d4) | **`DRAINS`**, a new table on Vampiric Touch's seam (`drains.js`, `dnd5e.applyDamage`) | the module's own effect for the maximum (`hp.tempmax`, one copy per row refreshed with the total, found by its flag); the pack's "Hit: STR Score −N" for the score, the die read off the item's text (`amount: "text"`, never copied), the deepest step standing past −4; receipted on the drain's card, the dealing card latched per creature |
+| 6 | **the vampire's drop** | Spiteful Escape (held at 1, killed outright too — Death Ward's row with no effect); Misty Escape, Shadow Escape (the death's side) | `DROP_TO_ONE` | **`notice`**: a `died` row with no activity — the card says the GM's move (the mist, the teleport home), nothing used |
+| 6 | **the curse on a rest** — "gains no benefit from finishing a Short or Long Rest" | Cursed Touch (both rests), Restless Touch (Short) | `REST_GRANTS` | **`block`**: the pack's Cursed on the rester, its origin the touch — the rest's own update and its item updates are emptied before they land, the card's block line says why (`restBlock`) |
+| 6 | **the defender's own shield** — "a creature that hits it with a melee attack takes…" | Corrosive Form | `DAMAGE_SHIELDS` (Fire Shield's) | **`match: "feature"`**: the defender's own trait, no effect to find, its first damage activity strikes; `range` where the activity carries none; the weapon's cumulative −1 is the table's |
+| 6 | **a typed self rebuke** | Fiendish Blood | `REBUKES` (Elemental Absorption's row) | data: `types` piercing and slashing, the Save activity; the Emanation's creatures of its choice are the template's, placed from the card |
+| 6 | **the bend in sunlight** | Sun Sickness | `EFFECT_BENDS` (Sunlight Weakness's row) | data, listed not counted |
+| 6 | **the attack's own bend, judged on the map** — "with Advantage if the target is inside its space" | Object Slam | `EFFECT_BENDS` | **`attack`**: the attack's own item is the carrier, no sheet read; **`judge: "targetInSpace"`**: the target's footprint overlaps the attacker's (`geometry.js` `tokensOverlap`, Pack Tactics' map reading); a Claw from the same space reads nothing |
+| 6 | **the shell that turns spells aside** — "targeted by a spell that requires a ranged attack roll: roll a d6; 1–5 unaffected; 6 unaffected and reflected" | Reflective Carapace | `DUPLICATES` (Mirror Image's hold) | **`match: "feature"`**: the defender's own trait as one duplicate never destroyed, **`only: "rangedSpellAttack"`** (`hold/lookup.js` `attackFactsOf`, shared by the trigger and the continue), **`reflectAt`**: the face that also reflects — the hit is `absorbed` on the hold, the words say the spell is turned aside, and reflected (the caster the target, the table's) |
 | 2 | **the grappler's own turn start** — "deals N damage to any creature grappled by it" | Barbed Hide | `TURN_GRANTS` `match: "feature"` (Regeneration's trigger) | **`deals: "grappled"`**: the bearer's damage activity rolled once, landed on every creature it grapples — Unarmed Fighting's finder, lifted to `geometry.js` (`grappledBy`: a Grappled the module's stamp or the origin traces to the bearer); a grapple it cannot trace is the table's (the caveat); no card when it holds no one |
 
 **Re-read against the pack** (the drawing's shapes that the pack data settled differently):
@@ -1698,6 +1711,39 @@ changed on the way is recorded below (*Re-read against the pack*).
 - **Infernal Glaive**: the pack ships no wound effect to hang the clock on (a save and a "Damage: Infernal
   Wound" activity, no effect) — the wound is the table's. OUT; a copy carrying a wound effect would be a
   `deals` row.
+- **Divine Beam**: a plain save with damage (the drawing had lent it Eye Rays' nine effects). NATIVE.
+
+**Ruled OUT, no machine fits** (the register's *Why not*): **Fire Form** and **Blazing Movement** (a ring that
+exists only while the bearer moves — a standing ring would burn every turn; the GM's click at each creature
+passed); **Sacred Weapon** (the TARGET's pick after a hit — no machine offers the defender a choice on the
+hit; the Stun is the effect's, the alternate damage the GM's); **Reactive Heads** (extra Reaction chips for
+Opportunity Attacks alone — the chip is one boolean, a count is new arithmetic for one customer; the hydra's
+are the tracker's); **Incite Rampage** (Commander's Strike's machine is the Battle Master's words and die;
+the target's Reaction attack is its own sheet's); **Maneuver** (an ally's Reaction move — nothing to bend).
+
+**Still waiting, by the earlier rulings** (kinds held for a player customer — RULINGS *The GM's side — the
+reaction rows*): the cast-triggered reaction (Spell Reflection, Magical Backlash, Mind Corrosion, Protective
+Magic, Counterspell, Psionic Defense, Tongue Twister, and Haunted Zone), Redirect Attack (a redirect
+interrupt), Burst of Ingenuity and Portent (another creature's roll bent by a reaction — Cutting Words' and
+Bend Luck's kind), Eye Rays (a random ray per target with its own save and damage — a kind of its own).
+
+**The suite:** `tools/smoke-monsters.mjs`, fifteen sections, BF Test Monster lent each trait by name and the
+Victim's own token beside it (`COVERS` the eleven machines touched). ⚠ The pinned d20 (a 5) makes a d8 a 2 —
+the sections assert the drop equals the total, never a face; the range is shared (a stray token inside a
+ring is not the Victim); another session's bridge blocks the preflight — retry.
+
+### The walk table (deferred — rapid mode)
+
+| Trait | Setup | What you should see |
+| --- | --- | --- |
+| Pacifying Spores, Petrifying Bite | lent to a monster, used at a PC (the save failed) | the Stunned / Restrained repeats at the PC's turn END; a success ends it; the bite's second failure turns the Restrained into Petrified — the card says "instead" |
+| Constricting Vine, Swarm of Proboscises, Barbed Hide | the pack's Grappled on a PC from the attack | the PC takes the vine's damage at its own turn start (the swarm's at its end), receipted; Barbed Hide deals at the MONSTER's turn start to what it holds |
+| Flame Aura, Gibbering, Watery Rebuke, Unnerving Gaze | lent; a PC inside / moving in / starting its turn inside | the fire at the monster's turn end; the Wisdom save at the turn start; the reminder cards for the Reactions |
+| Chaos Blade | a hit on a PC | one of the four conditions, by the d4; the card names the face |
+| Life Drain, Draining Swipe | a hit on a PC | the maximum down by what landed (the effect on the sheet, stacking); the Strength down by the d4 (the pack's effect) |
+| Spiteful Escape, Misty Escape | the monster dropped | held at 1 with a card; the notice at 0 |
+| Cursed Touch | Cursed on a PC, a Long Rest | nothing regained, the rest card's block line |
+| Corrosive Form, Fiendish Blood, Object Slam, Reflective Carapace | a PC's melee hit; slashing damage; a PC inside the mimic's space; a ranged spell attack at the tarrasque | the acid back; the Reaction offered; Advantage in the gate; the spell turned aside on the hold |
 
 ## Rulings the code carried
 
