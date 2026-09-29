@@ -69,7 +69,7 @@
 | trait | **Fetid Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The GM's side — the aura rows*) | — | — |
 | trait | **Fiendish Restoration** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Fire Absorption** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| trait | **Fire Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *Emanations · The spells slice — Tier 3 · the held spells*) | bend | — |
+| trait | **Fire Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | bend | — |
 | trait | **Fire Form** | OUT | — | a ring that exists only while the bearer moves — a standing ring would burn every turn; the damage is the GM's click at each creature entered | — | — |
 | trait | **Flame Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | bend | the waiting rows |
 | trait | **Flyby** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -78,7 +78,7 @@
 | trait | **Gibbering** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | — | the waiting rows |
 | trait | **Greater Magic Resistance** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The GM's side — the five shapes*) | bend | the five shapes |
 | trait | **Haunted Zone** | WAITS | the cast-triggered kind | SWEEP §7's reaction at a hostile's cast; a kind held for the player customer (RULINGS *The GM's side — the reaction rows*) | — | — |
-| trait | **Heat Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *Emanations · The spells slice — Tier 3 · the held spells*) | bend | — |
+| trait | **Heat Aura** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | bend | — |
 | trait | **Hellish Restoration** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Hold Breath** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Ice Walk** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -117,7 +117,7 @@
 | trait | **Running Leap** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Running Water** | OUT | — | terrain — the damage the GM's when the water is met | — | — |
 | trait | **Sense Magic** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| trait | **Shadow Escape** | MODULE | — | `DROP_TO_ONE` (drop-to-one.js; RULINGS *The species walk, continued*) | — | — |
+| trait | **Shadow Escape** | MODULE | — | `DROP_TO_ONE` (drop-to-one.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | trait | **Shark Telepathy** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Shielded Mind** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Sickening Vapors** | NATIVE | — | measured and left native: a save the BEARER uses at its turn end (RULINGS *The GM's side — the aura rows and the attack bends*) | — | — |
@@ -136,7 +136,7 @@
 | trait | **Standing Leap** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | trait | **Stench** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The GM's side — the aura rows*) | — | the aura rows |
 | trait | **Succubus Form** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| trait | **Sun Sickness** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
+| trait | **Sun Sickness** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | trait | **Sunlight** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | trait | **Sunlight Hypersensitivity** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | trait | **Sunlight Sensitivity** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
@@ -224,8 +224,8 @@
 | action | **Chain** | NATIVE | — | the pack resolves it: 1 effect [grappled, restrained], an attack | — | — |
 | action | **Channel Negative Energy** | NATIVE | — | the pack resolves it: an attack | — | — |
 | action | **Chaos Blade** | MODULE | — | `CLOCK_RIDERS` (clock-riders.js; RULINGS *The Monster Manual — the waiting rows built*) | — | the waiting rows |
-| action | **Chaos Claw** | MODULE | — | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
-| action | **Chaos Staff** | MODULE | — | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
+| action | **Chaos Claw** | MODULE | — | `CLOCK_RIDERS` (clock-riders.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
+| action | **Chaos Staff** | MODULE | — | `CLOCK_RIDERS` (clock-riders.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Charge** | OUT | — | movement, then an attack the GM makes | — | — |
 | action | **Charged Tendril** | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | action | **Charging Horn** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -472,14 +472,14 @@
 | action | **Pacifying Spores** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | the waiting rows |
 | action | **Pact Axe** | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | action | **Pact Blade** | NATIVE | — | the pack resolves it: an attack, damage | — | — |
-| action | **Paralysis Gas** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
+| action | **Paralysis Gas** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Paralyzing Breath** | NATIVE | — | the pack resolves it: 2 effects [incapacitated, paralyzed], a save | — | — |
 | action | **Paralyzing Tentacles** | NATIVE | — | the pack resolves it: 1 effect [paralyzed, poisoned], a save | — | — |
 | action | **Paralyzing Touch** | NATIVE | — | the pack resolves it: 1 effect [paralyzed], an attack | — | — |
 | action | **Pesky Swarm** | NATIVE | — | the pack resolves it: 1 effect | — | — |
 | action | **Petrifying Bite** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | the waiting rows |
-| action | **Petrifying Breath** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
-| action | **Petrifying Gaze** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
+| action | **Petrifying Breath** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
+| action | **Petrifying Gaze** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Phantasms** | NATIVE | — | a cast — the spell's own machine; its verdict is the spells register's | — | — |
 | action | **Pincer** | NATIVE | — | the pack resolves it: 1 effect [grappled], an attack | — | — |
 | action | **Pincer Staff** | NATIVE | — | the pack resolves it: 1 effect [grappled], an attack | — | — |
@@ -523,7 +523,7 @@
 | action | **Reel** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | action | **Rend** | NATIVE | — | the pack resolves it: an attack | — | — |
 | action | **Repulsion Breath** | NATIVE | — | the pack resolves it: 1 effect [prone], a save | — | — |
-| action | **Restless Touch** | MODULE | — | `REST_GRANTS` (rest-grants.js; RULINGS *The PHB feats — groups 1–3*) | — | — |
+| action | **Restless Touch** | MODULE | — | `REST_GRANTS` (rest-grants.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Restraining Glob** | NATIVE | — | the pack resolves it: 1 effect [restrained], a save, damage | — | — |
 | action | **Ritual Sickle** | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | action | **Roar** | NATIVE | — | the pack resolves it: 3 effects [frightened, paralyzed, prone], a save, damage, uses | — | — |
@@ -537,7 +537,7 @@
 | action | **Sacred Weapon** | OUT | — | the TARGET's pick after a hit — no machine offers the defender a choice on the hit; the Stun is the effect's, the alternate damage the GM's | — | — |
 | action | **Sanguine Drain** | NATIVE | — | the pack resolves it: a save, damage | — | — |
 | action | **Sap** | NATIVE | — | the pack resolves it: 1 effect | — | — |
-| action | **Scare** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
+| action | **Scare** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Scorching Sands** | NATIVE | — | the pack resolves it: 1 effect, a save, damage | — | — |
 | action | **Scratch** | NATIVE | — | the pack resolves it: an attack | — | — |
 | action | **Screech** | NATIVE | — | the pack resolves it: 1 effect [incapacitated], a save, damage, uses | — | — |
@@ -571,7 +571,7 @@
 | action | **Smelting Charge** | NATIVE | — | the pack resolves it: 2 effects [grappled, restrained, prone], a save, damage, uses | — | — |
 | action | **Smite** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | action | **Smoke Bomb** | NATIVE | — | the pack resolves it: 1 effect [blinded], a save, damage, uses | — | — |
-| action | **Smother** | MODULE | — | `TURN_GRANTS` (turn-grants.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
+| action | **Smother** | MODULE | — | `TURN_GRANTS` (turn-grants.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Snake Hair** | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | action | **Sonic Boom** | NATIVE | — | a cast — the spell's own machine; its verdict is the spells register's | — | — |
 | action | **Spectral Claw** | NATIVE | — | the pack resolves it: 1 effect [prone], an attack | — | — |
@@ -580,7 +580,7 @@
 | action | **Spirit Wail** | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, damage, uses | — | — |
 | action | **Spiritual Weapon** | NATIVE | — | a cast — the spell's own machine; its verdict is the spells register's | — | — |
 | action | **Spore Bomb** | NATIVE | — | the pack resolves it: 1 effect [poisoned], a save, damage, uses | — | — |
-| action | **Spores** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*); `TURN_GRANTS` (turn-grants.js; RULINGS *The spells slice — Tiers 1 and 2*) | — | — |
+| action | **Spores** | MODULE | — | `REPEAT_SAVES` (repeat-saves.js; RULINGS *The Monster Manual — the waiting rows built*); `TURN_GRANTS` (turn-grants.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | action | **Steal Body** | NATIVE | — | the pack resolves it: 2 effects [coverTotal], a save | — | — |
 | action | **Steam Breath** | NATIVE | — | the pack resolves it: a save, damage, uses | — | — |
 | action | **Stench Spray** | NATIVE | — | the pack resolves it: 1 effect [poisoned], a save, uses | — | — |
@@ -684,11 +684,11 @@
 | reaction | **Parry** | MODULE | — | `INTERRUPT_REDUCTIONS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) | — | — |
 | reaction | **Portent** | WAITS | INTERRUPT_ROLLS | Burst of Ingenuity's kind, not built; held for the player customer | — | — |
 | reaction | **Protection** | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*); `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) | bend | — |
-| reaction | **Pursuit** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *Emanations · The spells slice — Tier 3 · the held spells*) | — | — |
+| reaction | **Pursuit** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | reaction | **Redirect Attack** | WAITS | INTERRUPTS | Interception reversed, a `redirect` kind with one customer; held by ruling (RULINGS *The GM's side — the reaction rows*) | — | — |
 | reaction | **Reflexive Antennae** | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | reaction | **Riposte** | NATIVE | — | the pack resolves it: 1 effect | — | — |
-| reaction | **Shriek** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *Emanations · The spells slice — Tier 3 · the held spells*) | — | — |
+| reaction | **Shriek** | MODULE | — | `EMANATIONS` (emanations.js; RULINGS *The Monster Manual — the waiting rows built*) | — | — |
 | reaction | **Spell Reflection** | WAITS | the cast-triggered kind | one hold at a hostile's cast serves the seven (SWEEP §7); waits for the player customer (RULINGS *The GM's side — the reaction rows*) | — | — |
 | reaction | **Split** | OUT | — | a summon at a slashing hit while Large or bigger — the GM's | — | — |
 | reaction | **Sticky Shield** | MODULE | — | `REBUKES` (rebukes.js; RULINGS *The GM's side — the reaction rows*) | — | the reaction rows |

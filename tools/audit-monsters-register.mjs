@@ -58,8 +58,7 @@ const sectionOf = new Map();
     if ( i < 0 ) continue;
     const block = rulings.slice(headings[i].index, headings[i + 1]?.index);
     const walkAt = block.indexOf("### The walk table");
-    const rowsOf = text => text.split("
-").filter(l => l.startsWith("| ") && !l.startsWith("| Trait") && !l.startsWith("| ---") && !l.startsWith("| Stage") && !l.startsWith("| Shape"));
+    const rowsOf = text => text.split("\n").filter(l => l.startsWith("| ") && !l.startsWith("| Trait") && !l.startsWith("| ---") && !l.startsWith("| Stage") && !l.startsWith("| Shape"));
     for ( const line of rowsOf(block) ) {
       for ( const cell of line.split("|").slice(1, -1) ) for ( const name of namesInCell(cell) ) if ( !sectionOf.has(lower(name)) ) sectionOf.set(lower(name), label);
     }
