@@ -14,6 +14,7 @@ export const COVERS = [
   'hold/views.js',          // the bystander's popup, the card's quiet row, the bent card
   'hold/continue.js',       // the verdict retaken with the bent roll; the damage half announced
   'hold/dice.js',           // the bent roll's chips
+  'bystanders.js',          // the bystander on a demanded save (the withhold) and on a check (the arithmetic)
   'chip-spend.js'           // the mute swept with the combat
 ];
 
@@ -26,7 +27,10 @@ const SECTIONS = {
   6: '"Not this combat": in a running combat the popup\'s third button mutes Cutting Words on the Bard (an effect), the hit lands; the next hit asks nobody; the combat\'s end sweeps the mute',
   7: 'Guided Strike for an ally: BF Test PC Attacker misses by 7 within 30 ft of the Cleric — the Cleric\'s popup "+10 · a Reaction"; Answer turns the miss into a HIT and the damage rolls and lands',
   8: 'Guided Strike on the Cleric\'s own miss: its own popup, "No Reaction"; the +10 turns it, the guard entry marked self',
-  9: 'Restore Balance on a Disadvantage miss (18 then 3): the Sorcerer\'s popup beside the Cleric\'s; Answer stands the 18 — a HIT, the Cleric\'s popup closes'
+  9: 'Restore Balance on a Disadvantage miss (18 then 3): the Sorcerer\'s popup beside the Cleric\'s; Answer stands the 18 — a HIT, the Cleric\'s popup closes',
+  10: 'Restore Balance on a DEMANDED save: the Attacker\'s Sacred Flame, the Halfling\'s Dexterity save rolled with Disadvantage failing on its lower die — the verdict waits; the Sorcerer\'s popup; Answer stands the first die: SAVED, the roll\'s card says so',
+  11: 'Cutting Words on a hostile\'s CHECK: the Attacker\'s Athletics; the Bard\'s popup says no DC is known; Answer takes the d8 (5) off — the card states the arithmetic and "ask your DM"',
+  12: 'a check everyone passes: an Advantage Athletics asks the Bard and the Sorcerer; both pass, the offer resolves as a pass, the card says nothing'
 };
 const DEPENDS = {};
 
@@ -293,9 +297,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const own = await waitFor(rescuePopup, 6000);
       const quiet = (holdOf(msg)?.targets?.[0]?.guards ?? []).find(g => g.uuid === bard.uuid);
       const row = await waitFor(() => cardEl(msg?.id)?.querySelector?.('[data-bf-bystander^="Cutting Words|"]'), 6000);
-      ok('3a. the Halfling\'s Lucky holds the hit; Cutting Words rides QUIET (no popup), its row on the card with Answer and "Not this combat"',
+      ok('3a. the Halfling\'s Lucky holds the hit; Cutting Words rides QUIET (no popup), its row on the card with Answer (out of combat, no "Not this combat")',
         !!own && quiet?.quiet === true && quiet?.passed === true && !bystanderPopup() && !!row
-          && /off the damage/.test(textOf(row)) && /Not this combat/.test(textOf(row)),
+          && /off the damage/.test(textOf(row)) && /Answer/.test(textOf(row)) && !/Not this combat/.test(textOf(row)),
         `own=${!!own} quiet=${JSON.stringify(quiet)} row=${textOf(row)}`);
       faces([[3, 8]]);
       [...(row?.querySelectorAll?.('button') ?? [])].find(b => b.textContent === 'Answer')?.click();
@@ -416,6 +420,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     };
     const popupTitled = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && re.test(textOf(app.element))) ?? null;
     const refillDivinity = async () => { const cd = divinity(); if (cd) await cd.update({ 'system.uses.spent': 0 }); };
+    const rollPopup = re => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander-roll"]') && re.test(textOf(app.element))) ?? null;
+    const rollFlag = m => game.messages.get(m?.id)?.getFlag(MOD, 'bystanderRoll') ?? null;
 
     // ---- 7. Guided Strike for an ally
     if (want(7) && missSide) {
@@ -474,6 +480,84 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       ok('9b. the 18 stands: a HIT, rescue Restore Balance; the Cleric\'s popup closed', (t?.verdict === 'hit') && (t?.rescue === 'Restore Balance')
         && (t?.bent?.stood === 18) && !popupTitled(/Guided Strike/),
         JSON.stringify({ verdict: t?.verdict, rescue: t?.rescue, bent: t?.bent, gs: !!popupTitled(/Guided Strike/) }));
+    }
+
+    // ---- 10. Restore Balance on a demanded save
+    if (want(10)) {
+      await closeDialogs(); await balance.update({ 'system.uses.spent': 0 });
+      let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+      if (!flameId) {
+        const src = await findPHB('Sacred Flame', 'spell');
+        const data = src?.toObject();
+        if (data) { data.system.prepared = 1; data.system.method = 'atwill'; const [it] = await attacker.createEmbeddedDocuments('Item', [data]); flameId = it.id; lentBy.set(attacker, [...(lentBy.get(attacker) ?? []), it.id]); }
+      }
+      const flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+      if (!flameAct) log.push('§10 skipped: no Sacred Flame save activity');
+      else {
+        await healFull();
+        attackerToken.control({ releaseOthers: true });
+        halflingToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+        const card = use?.message ?? null;
+        await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+        const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
+        faces([[10, 20]]);
+        const probeSave = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, { create: false });
+        const smod = Number(probeSave?.[0]?.total) - 10;
+        const hi = Math.min(20, Math.max(1, dc - smod + 2)), lo = Math.max(1, dc - smod - 6);
+        await sleep(600);
+        faces([[hi, 20], [lo, 20]]);
+        const rolls = await halfling.rollSavingThrow({ ability: 'dex', disadvantage: true }, { configure: false }, {});
+        const rollMsg = rolls?.[0]?.parent ?? null;
+        const pop = await waitFor(() => rollPopup(/Restore Balance/), 8000);
+        const entry0 = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid);
+        ok('10a. the failed save is WITHHELD while the Sorcerer is asked: "Restore Balance — BF Test Halfling\'s saving throw", the first d20 named',
+          !!pop && new RegExp(`first d20 \\(${hi}\\)`).test(textOf(pop?.element)) && (rollFlag(rollMsg)?.status === 'pending') && !entry0?.done,
+          `dc=${dc} mod=${smod} faces=${hi},${lo} pop=${textOf(pop?.element).slice(0, 200)} flag=${rollFlag(rollMsg)?.status} done=${entry0?.done}`);
+        pop?.element?.querySelector('button[data-action="answer"]')?.click();
+        const entry = await waitFor(() => { const e = card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === halfling.uuid); return e?.done ? e : null; }, 10000);
+        await sleep(600);
+        ok('10b. the first die stands: SAVED at the bent total; the roll\'s card names Restore Balance',
+          (entry?.outcome === 'saved') && (entry?.total === hi + smod) && /Restore Balance \(BF Test Sorcerer\)/.test(cardText(rollMsg?.id)),
+          `entry=${JSON.stringify({ outcome: entry?.outcome, total: entry?.total })} card=${cardText(rollMsg?.id).slice(0, 200)}`);
+      }
+    }
+
+    // ---- 11. Cutting Words on a hostile's check
+    if (want(11)) {
+      await closeDialogs(); await refillInspiration();
+      faces([[14, 20]]);
+      const rolls = await attacker.rollSkill({ skill: 'ath' }, { configure: false }, {});
+      const msg = rolls?.[0]?.parent ?? null;
+      const pop = await waitFor(() => rollPopup(/Cutting Words/), 8000);
+      ok('11a. the Bard\'s popup: "Cutting Words — BF Test Attacker\'s check", no DC known', !!pop && /No DC is known/.test(textOf(pop?.element)),
+        textOf(pop?.element).slice(0, 220));
+      faces([[5, 8]]);
+      pop?.element?.querySelector('button[data-action="answer"]')?.click();
+      const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
+      await sleep(600);
+      ok('11b. the d8 (5) off: the card states the arithmetic and "ask your DM"', (flag?.answer === 'roll') && (flag?.bent?.add === -5)
+        && /Cutting Words \(BF Test Bard\) −5/.test(cardText(msg?.id)) && /ask your DM/.test(cardText(msg?.id)),
+        `flag=${JSON.stringify({ answer: flag?.answer, bent: flag?.bent?.add })} card=${cardText(msg?.id).slice(-200)}`);
+    }
+
+    // ---- 12. everyone passes
+    if (want(12)) {
+      await closeDialogs(); await refillInspiration(); await balance.update({ 'system.uses.spent': 0 });
+      faces([[6, 20], [14, 20]]);   // the FIRST die the lower: cancelling the Advantage changes the roll
+      const rolls = await attacker.rollSkill({ skill: 'ath', advantage: true }, { configure: false }, {});
+      const msg = rolls?.[0]?.parent ?? null;
+      const a = await waitFor(() => rollPopup(/Cutting Words/), 8000);
+      const b = await waitFor(() => rollPopup(/Restore Balance/), 4000);
+      ok('12a. both asked on an Advantage check', !!a && !!b, `cw=${!!a} rb=${!!b} guards=${JSON.stringify((rollFlag(msg)?.guards ?? []).map(g => g.row))}`);
+      a?.element?.querySelector('button[data-action="pass"]')?.click();
+      await sleep(400);
+      b?.element?.querySelector('button[data-action="pass"]')?.click();
+      const flag = await waitFor(() => (rollFlag(msg)?.status === 'resolved') ? rollFlag(msg) : null, 8000);
+      await sleep(500);
+      ok('12b. resolved as a pass; nothing on the card', (flag?.answer === 'pass') && !/Reaction — /.test(cardText(msg?.id)),
+        `answer=${flag?.answer} card=${cardText(msg?.id).slice(-160)}`);
     }
 
     return { log, results, skips };

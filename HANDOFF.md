@@ -43,6 +43,9 @@
   https://claude.ai/artifact/JAVoC3knLQjXeDvP9JoTb7) packages three options, measured in a live noise meter (the plan
   §4a table): **A recommended** (margin + Reaction + mute, Portent narrowed to saves and crits), B (ask always, mute by
   hand), C (a quiet toast). A3 is built as ruled.
+- **3. A3 BUILT** (the user ruled A + Portent narrowed): Cutting Words, Guided Strike, Restore Balance on attacks (the
+  hold), demanded saves and checks (`scripts/bystanders.js`); "Not this combat"; RULINGS *The bystander's bend — built*.
+  smoke-classes 12 sections + smoke-twoclient §bystander green; the full battery (a spine stage) is the push gate.
 
 ## Next — in this order, each on the user's go
 

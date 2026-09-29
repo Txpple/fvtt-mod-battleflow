@@ -11,26 +11,26 @@
 > held for its first player. **Band**: the level band (A 1–5 · B 6–10 · C 11–16 · D 17–20) — the plan builds a band ahead of the party. **Stage**:
 > the plan's stage that builds it ([plans/session-0-classes.md](plans/session-0-classes.md)). **Bend**: a row in RULINGS' two registers names it.
 
-**419 rows: 99 NATIVE · 68 MODULE · 113 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
+**419 rows: 99 NATIVE · 71 MODULE · 110 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
 
 ## By class
 
 | Class | Rows | NATIVE | MODULE | ROW | TABLE | KIND | TEXT | OUT | WAITS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Barbarian | 34 | 10 | 4 | 11 | 1 | 1 | 0 | 7 | 0 |
-| Bard | 23 | 4 | 1 | 8 | 2 | 1 | 0 | 7 | 0 |
-| Cleric | 27 | 7 | 2 | 10 | 0 | 0 | 0 | 8 | 0 |
+| Bard | 23 | 4 | 2 | 7 | 2 | 1 | 0 | 7 | 0 |
+| Cleric | 27 | 7 | 3 | 9 | 0 | 0 | 0 | 8 | 0 |
 | Druid | 29 | 10 | 1 | 7 | 0 | 0 | 0 | 11 | 0 |
 | Fighter | 32 | 11 | 2 | 11 | 0 | 1 | 0 | 7 | 0 |
 | Monk | 36 | 12 | 2 | 9 | 2 | 1 | 0 | 10 | 0 |
 | Paladin | 30 | 6 | 5 | 10 | 0 | 1 | 0 | 8 | 0 |
 | Ranger | 30 | 8 | 5 | 8 | 0 | 0 | 0 | 9 | 0 |
 | Rogue | 30 | 6 | 10 | 6 | 0 | 0 | 0 | 8 | 0 |
-| Sorcerer | 27 | 5 | 2 | 9 | 1 | 0 | 0 | 10 | 0 |
+| Sorcerer | 27 | 5 | 3 | 8 | 1 | 0 | 0 | 10 | 0 |
 | Warlock | 28 | 5 | 2 | 10 | 0 | 0 | 0 | 11 | 0 |
 | Wizard | 26 | 4 | 1 | 7 | 1 | 0 | 0 | 12 | 1 |
 | Options | 67 | 11 | 31 | 7 | 0 | 0 | 0 | 18 | 0 |
-| **all** | **419** | **99** | **68** | **113** | **7** | **5** | **0** | **126** | **1** |
+| **all** | **419** | **99** | **71** | **110** | **7** | **5** | **0** | **126** | **1** |
 
 ## By stage
 
@@ -106,7 +106,7 @@
 | Bard | College of Glamour | 6 | B | **Mantle of Majesty** | ROW | `EFFECT_BENDS` · Trance (`saves.succeeds`) mirrored: `saves.fails` | B2 | while Mantle of Majesty stands, a creature CHARMED BY THE BARD fails Command's save — a `fails` facet keyed to the spell and the Charmed's provenance (the module's stamp) | — |
 | Bard | College of Glamour | 14 | C | **Unbreakable Majesty** | ROW | `DUPLICATES` · Reflective Carapace (`match: "feature"`, a save for the die) | C1 | after a HIT stands, the attacker's Charisma save (the pack's activity); a failure turns the hit into a miss (`absorbed`), and the row is spent for that attacker's turn — NOT Sanctuary's before-the-roll shape (the 2024 text puts the save after the hit) | — |
 | Bard | College of Lore | 3 | A | **Bonus Proficiencies** | OUT | — | — | proficiencies | — |
-| Bard | College of Lore | 3 | A | **Cutting Words** | ROW | `INTERRUPT_ROLLS` · Warding Flare (`roll`, uses) + `INTERRUPT_REDUCTIONS` · Parry (`pool`) — the BYSTANDER facets (`bystander: 60`, `tests: [attack, check]`, `die: -inspiration`) | A3 | UI-shaped, prototype: the enemy's ATTACK roll against anyone within 60 ft — the hold's popup to the bard after the roll shows a hit (the register's timing bend); its CHECK half the rescue-window offer; the damage half rides the hold's reduction (`pool`: the Bardic die). A d20 subtracted is an `add` fold, never Disadvantage | — |
+| Bard | College of Lore | 3 | A | **Cutting Words** | MODULE | `INTERRUPT_ROLLS` · Cutting Words (the bystander facets: `bystander: 60`, `tests: [attack, check]`, `bend: die`, `sign: -1`, `damage`) | A3 | `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) — BUILT 2026-09-29 (A3): a hostile's hit on anyone within 60 ft of the bard, asked when a Bardic die can turn it (the margin gate); quiet otherwise — the card's die off the damage; a hostile's check (no DC: the arithmetic, the DM rules); "Not this combat" (RULINGS *The bystander's bend — built*) | bend |
 | Bard | College of Lore | 6 | B | **Magical Discoveries** | OUT | — | — | spell selection | — |
 | Bard | College of Lore | 14 | C | **Peerless Skill** | ROW | `D20_FOLDS` · Tactical Mind (`tactical`: an item's uses) with `tests: [attack, check]` | C1 | the bard's OWN failed check or attack roll: the Bardic die added, paid from Bardic Inspiration's uses — the `tactical` spend widened by a `tests` facet | — |
 | Bard | College of Valor | 3 | A | **Combat Inspiration** | ROW | `D20_FOLDS` · Inspired (`bardic`) + `CLOCK_RIDERS` (a damage die from a chip) + `INTERRUPT_ROLLS` · Shield's `ac` shape | A1 | the attack half IS the `bardic` fold today (an Inspired creature's attack); the damage half a ticked die on the offer paid from the Inspired effect; the AC half an `ac` interrupt (+die) paid from the holder's own Inspired effect — the hold's popup to the HOLDER | — |
@@ -134,7 +134,7 @@
 | Cleric | Trickery Domain | 3 | A | **Trickery Domain Spells** | OUT | — | — | a spell list — each spell's verdict is the spells register's | — |
 | Cleric | Trickery Domain | 6 | B | **Trickster's Transposition** | OUT | — | — | a teleport — movement | — |
 | Cleric | Trickery Domain | 17 | D | **Improved Duplicity** | ROW | `EFFECT_BENDS` · Invoke Duplicity (`allies: true`) | D1 | Shared Distraction: the bend serves allies too; the heal when the illusion ends is OUT (the illusion is not a token the module reads) | — |
-| Cleric | War Domain | 3 | A | **Guided Strike** | ROW | `D20_FOLDS` · Precision Attack's shape (+10 after a miss) with `bystander: 30` (Cutting Words' facets) | A3 | UI-shaped, prototype: the cleric's own miss — a rescue row paid by Channel Divinity; an ALLY's miss within 30 ft — the bystander's popup to the cleric, the +10 folded as `add` | — |
+| Cleric | War Domain | 3 | A | **Guided Strike** | MODULE | `INTERRUPT_ROLLS` · Guided Strike (`on: miss`, `bonus: 10`, `self` with no Reaction) | A3 | `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) — BUILT 2026-09-29 (A3): the cleric's own miss or an ally's within 30 ft, held on the miss when +10 reaches the AC; the turned miss rolls its damage at the resolve | bend |
 | Cleric | War Domain | 3 | A | **War Domain Spells** | OUT | — | — | a spell list — each spell's verdict is the spells register's | — |
 | Cleric | War Domain | 3 | A | **War Priest** | ROW | `BONUS_SWINGS` · Pole Strike (`when: "attack"`, uses) | A1 | after the Attack action, Hew's reminder: one weapon attack as a Bonus Action, the uses shown — the swing from the sheet | — |
 | Cleric | War Domain | 6 | B | **War God's Blessing** | NATIVE | — | — | Shield of Faith cast from the feature — the spell's own row | — |
@@ -339,7 +339,7 @@
 | Sorcerer | Aberrant Sorcery | 14 | C | **Revelation in Flesh** | NATIVE | — | — | the pack's effects | — |
 | Sorcerer | Aberrant Sorcery | 18 | D | **Warping Implosion** | NATIVE | — | — | the pack: a save, damage; the teleport is the table's | — |
 | Sorcerer | Clockwork Sorcery | 3 | A | **Clockwork Spells** | OUT | — | — | a spell list — each spell's verdict is the spells register's | — |
-| Sorcerer | Clockwork Sorcery | 3 | A | **Restore Balance** | ROW | `INTERRUPT_ROLLS` · Cutting Words' bystander facets — a `neutralise` outcome (both Advantage and Disadvantage cancelled) | A3 | UI-shaped, prototype: a creature within 60 ft about to roll with Advantage or Disadvantage — the seam is BEFORE the roll (the gate's section on any roll dialog the module sees, a bystander tick); the sorcerer's Reaction | — |
+| Sorcerer | Clockwork Sorcery | 3 | A | **Restore Balance** | MODULE | `INTERRUPT_ROLLS` · Restore Balance (`bend: neutralise`, `on: both`, `tests: [attack, save, check]`) | A3 | `INTERRUPT_ROLLS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) — BUILT 2026-09-29 (A3): an attack, a DEMANDED save (the verdict withheld) or a check rolled with Advantage or Disadvantage within 60 ft, asked when the first d20 flips it; after the roll, the first d20 standing — a RULE OF COOL (*Bent by choice*) | rule of cool |
 | Sorcerer | Clockwork Sorcery | 6 | B | **Bastion of Law** | TABLE | `WARD_POOLS` · Arcane Ward (the damage-absorbing pool at `dnd5e.preCalculateDamage`) | B4 | a ward of 1–5 d8s on a creature the sorcerer picks (the pack's effect), spent on damage — the pool's second customer; "you can expend" is one sensible answer, so automatic (R1) | — |
 | Sorcerer | Clockwork Sorcery | 14 | C | **Trance of Order** | ROW | `EFFECT_BENDS` · Elusive (`noAdvantage`) + `D20_FOLDS` · the `floor` fold (Starry Form's Dragon) on every D20 Test | C1 | for 1 minute: attacks against the sorcerer cannot have Advantage; its own D20 Tests treat a 9 or lower as 10 — both facets built by their first customers | — |
 | Sorcerer | Clockwork Sorcery | 18 | D | **Clockwork Cavalcade** | OUT | — | — | a heal, repairs and dispels in a cube — the table's | — |

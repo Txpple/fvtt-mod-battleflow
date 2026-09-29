@@ -68,6 +68,11 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Wall of Fire**: "within 10 feet of that side" of a 1-foot wall | the region is WIDENED by 10 feet on one side — away from the caster by default, flipped on the cast's card by compass name; the ring burns outside as a 10-foot ring, inside as the disc | a region knows only who stands inside it: the burning band has to BE the region (`decide/emanations.js` `bandShape`); "selected by you when you cast" has no seam before the placement, so the default is the far side and the card is the pick | 2026-09-28 |
 | **Warding Bond**: the caster takes "the same amount of damage"; the spell ends "if you and the target become separated by more than 60 feet" or at a re-cast | the same NUMBER, applied untyped (no second resistance); beyond 60 feet at the moment damage lands nothing is shared and the card says so, but the bond STANDS — its end by distance, and by a re-cast on either creature, is the table's (delete Bonded); the caster's drop to 0 ends it | the applier knows the amount that landed, not why; nothing watches two tokens' distance between damages, and a re-cast lands a second Bonded the pack does not tie to the first (`damage-shares.js`) | 2026-09-28 |
 | **Prismatic Spray**, the violet ray: "makes a Wisdom saving throw at the start of your next turn … on a failed save the creature teleports to another plane" | the ray's Blinded lands on a failed Wisdom save (the ray's own activity); the LATER save is the table's | the pack clocks Teleporting (Violet) to end at the caster's next turn start — dnd5e's own expiry, judged on the same combat edge the repeat would need, and the effect may be gone before a demand could name it; a plane shift is nothing the module plays (`RAY_TABLES`) | 2026-09-28 |
+| **Cutting Words** ("makes a damage roll or succeeds on an ability check or attack roll") and **Guided Strike** ("misses with an attack roll") — another creature's roll | offered after the roll shows its verdict, before the damage; a hit or a miss is held for the bystander (`hold/trigger.js`), a check is offered on its own card | the roller's client cannot be paused by another player's Reaction (Shield's row) | 2026-09-29 |
+| **Every bystander's "a creature you can see within N feet"** (Cutting Words, Guided Strike, Restore Balance) | every creature on the right side of the table (token disposition) within the feet of the ROLLER, not Incapacitated, its Reaction free and a use left, is asked; sight is not judged | nothing the module reads says who sees whom; the side and the distance are the facts it can read (Protection's row) | 2026-09-29 |
+| **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
+| **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
+| **A bystander's bend on a SAVE** | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered | only a demand carries the DC and a verdict to withhold (`registerWithhold`) | 2026-09-29 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
@@ -83,6 +88,7 @@ as its code.**
 | **Interpose Shield** (Shield Master): a Reaction when "subjected to an effect that allows you to make a Dexterity saving throw to take only half damage" — taken before the save is known | offered only AFTER the save SUCCEEDS (a Dexterity half-damage save, a Shield held, the Reaction free): Use turns the half into none and spends the Reaction; a failed save never asks (`saves/choices.js`, kind `interpose`) | the Reaction is never wasted on a save that fails, and the ask comes with the good news (ruled "B", 2026-09-26; built so since walk-5 (y)) | 2026-09-26 (built earlier; recorded as a choice this day) |
 | **Poisoner's Apply Poison**: a dose applied to ONE weapon or piece of ammunition, potent for 1 minute or until that item deals damage | the use puts a **Poison Coating** on the CHARACTER (no weapon picked — the pack's drop-a-weapon card is not drawn): a Bonus Action said on its own card, a dose spent, "+(Poison Coating)" floated; the NEXT weapon hit spends it — the feat's own save at the creatures struck, 2d8 and Poisoned (until the end of the Poisoner's next turn, `sourceEnd`) on a failure; a miss spends nothing (`use-chips.js` COATINGS; the switch is the Fighting Styles list's Poisoner) | no weapon bookkeeping, and the poison always meets the next thing the Poisoner hits (the user, 2026-09-26: *"make it a buff applied to the actor"*) | 2026-09-26 |
 | **Chef**'s Bolstering Treats: cooked "with 1 hour of work or when you finish a Long Rest", they last 8 hours, and "a creature can use a Bonus Action to eat one" for Temporary Hit Points equal to the Proficiency Bonus | after the Chef's Long Rest a popup hands them out: up to the Proficiency Bonus creatures on the scene (the Chef too) gain that many Temporary Hit Points at once — no treat to carry, no Bonus Action (`REST_GRANTS` "Bolstering Treats", `rest-grants.js`) | no treat bookkeeping, and the party starts the day with them (the user, 2026-09-26: Bolstering Treats as temp HP handed out after the Long Rest) | 2026-09-27 (ruled 2026-09-26) |
+| **Restore Balance**: "is about to roll a d20 with Advantage or Disadvantage" — before the roll | offered AFTER the roll, both faces shown; answered, the FIRST d20 stands (the register's arithmetic for a cancelled Advantage), on an attack, a demanded save or a check (`decide/rescue-hit.js` `neutraliseOutcome`) | the sorcerer chooses with the faces in hand, which is more fun than guessing; the seam before the roll does not exist on another client (ruled Q3, 2026-09-29: *"yes we will have to rule of cool the restore balance that way"*) | 2026-09-29 |
 | **Counterspell**: "you attempt to interrupt a creature in the process of casting a spell" — a Reaction at the moment of the cast | the caster TARGETS the creature and uses Counterspell; the saves machine demands its Constitution save as for any targeted save, and the verdict stands on the card — nothing watches for a cast, no hold is raised, no spell is stopped by the module; the rest is the table's | the drawing's cast-triggered hold (a reaction at a hostile's cast, prototype-first, cost 2) was traded for the table's own timing: the player says "Counterspell" as the spell is declared, the module answers with the save (the user, 2026-09-28: *"the user can just target intended counterspell actor, and force them to make the con save per the spell. the rest can be handled at table"*) | 2026-09-28 |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
@@ -1590,6 +1596,48 @@ faerun, ravenloft). caveat: we will prioritize work if the table needs something
   would flip gets the card button only. No setting; no new kind. The measurement (plan §4a): 20 popups ungated →
   9, every chance the players want still taken; the alternatives (B, ask always + mute; C, a quiet toast) stand
   in the prototype as history.
+
+## The bystander's bend — built (2026-09-29, Session 0 stage A3)
+
+**Q2 as ruled (option A), built and proved by the suites — unwalked (rapid mode).** Another creature's D20 Test
+bent by someone who is neither the roller nor its target: vocabulary on the `roll` interrupt, not a kind.
+
+| Test | Where it rides | Rows | What the player sees |
+| --- | --- | --- | --- |
+| **an attack that HITS** | the reaction hold — the bystanders stamped beside the guards (`hold/lookup.js` `bystandersOf`) | Cutting Words (−Bardic die), Restore Balance (the first d20) | a popup titled "Cutting Words — the Bugbear's attack at Gren", the situation line with the margin ("A d8 can turn it: 17 − 8 = 9"), one tick row, Answer / Pass / **Not this combat**; the attack card: "Cutting Words (Salyth) −5 — 17 → 12, MISS" |
+| **an attack that MISSES** | a hold of its own on the miss (`stampMissHoldIfBystanders`), one judged target; a turned miss rolls its damage at the resolve | Guided Strike (+10; the cleric's own miss with no Reaction), Restore Balance | the same popup, "You missed …" on the cleric's own roll; "Guided Strike (Thomas) +10 — 13 → 23, HIT" |
+| **a DEMANDED save** | the save's verdict WITHHELD (`bystanders.js`, `registerWithhold`); the bent roll REPLACES the total (`SAVE_FOLDS`) | Restore Balance | "Restore Balance — the Halfling's saving throw"; the verdict lands after the answer; the roll's card names the bend |
+| **a check** | an offer on the check's own card (`bystanders.js`), nothing withheld | Cutting Words (a hostile's check), Restore Balance | the popup says no DC is known; the card: "Cutting Words (Salyth) −5: 15 → 10 — ask your DM whether it still succeeds" |
+
+- **The margin gate**: asked only when the bend can change the verdict (a die up to its maximum across the AC or
+  DC, the first d20 across it). A check has no DC, so it asks. With "Hold Shows the Math" off, a die bend is asked
+  on every hit but a natural 20 or 1 (the gate would leak the AC — `holdWouldMatter`'s rule).
+- **The quiet road**: a bystander the gate is silent on, whose row has a damage half (Cutting Words), rides a hold
+  that already stands, on the attack card only and only on its own client — "Cutting Words (Salyth) — −d8 off
+  the damage [Answer] [Not this combat]". It never opens a hold of its own (the register's row).
+- **"Not this combat"**: on the popup and on the card row, only while a combat runs; an effect on the bearer
+  ("Cutting Words — muted this combat", flag `bystanderMute`), listed by the effect view, swept when the combat
+  ends (`chip-spend.js`), deleted to unmute.
+- **The pools** are each activity's own consumption (`poolOf`); a pool named by the pack's uuid on a sheet whose
+  copy carries no source (an imported Bardic Inspiration) is found by the pack index's name.
+- **Two clients**: the hold's answer relays as the bystander's own message (`respondsTo`, `by`); a save's or
+  check's as `bystanderRollAnswer`, folded by the roll's keeper (`smoke-twoclient` §bystander).
+- **Deferred to their stages**: Bend Luck and Cosmic Omen (B4, the same facets), Portent (A7 — narrowed to saves
+  and critical hits by the ruling).
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Cutting Words, a Bugbear hits Gren by 2, Salyth within 60 ft of the Bugbear | Salyth's popup with "A d8 can turn it"; Answer: the die rolls, "Cutting Words (Salyth) −5 … MISS" on the attack card, a Bardic Inspiration spent |
+| The same Bugbear hits by 9 | nobody asked, the damage lands |
+| A hit that holds for someone else (Gren's Lucky) and Cutting Words can't turn it | no popup for Salyth; her row on the attack card, "−d8 off the damage" — Answer lands the hit 1d8 lighter |
+| Restore Balance, the Bugbear hits with Advantage, its first die a miss | the sorcerer's popup naming the first d20; Answer: a MISS |
+| Guided Strike, an ally misses by 7 within 30 ft of the cleric | the cleric's popup "+10 · a Reaction"; Answer: HIT, the damage rolls |
+| Guided Strike, the cleric misses | its own popup, "No Reaction" |
+| Restore Balance on a demanded Dexterity save rolled with Disadvantage | the save waits; Answer: the first d20 stands, SAVED |
+| Cutting Words on a Bugbear's Athletics | the popup says no DC is known; the card states the arithmetic and "ask your DM" |
+| "Not this combat" in a fight | the popup closes, the bearer shows "Cutting Words — muted this combat"; nobody asks again until the combat ends |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

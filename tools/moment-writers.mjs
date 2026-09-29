@@ -186,6 +186,7 @@ const WORLD_WRITERS = {
   "bash-offer.js": ["bashOffer"],
   "hew.js": "a reminder's card and its notice latch — presentation; the extra attack is a real roll with its own card",
   "d20-folds.js": ["d20fold", "tacticalRefund", "poolSpend"],
+  "bystanders.js": ["bystanderRoll", "poolSpend"],   // a bystander's bend on a save or a check; its use is the poolSpend record
   "metamagic.js": ["metamagic", "poolSpend"],
   "dice-changers.js": ["diceChange", "poolSpend"],   // the dice changers (Savage's and Empowered's rows): the patched rolls land with the record; Empowered's point is the poolSpend record; a damage already applied moves through auto-apply.js's receipt
   "area-ask.js": ["metamagic", "areaChoice", "saves"],   // the ask at the area: its answer writes the metamagic record, a chosen area's choice and the demand it fills

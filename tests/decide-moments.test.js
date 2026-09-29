@@ -219,6 +219,17 @@ describe("the moment registry — shape", () => {
         dc: 15,
         cunning: [{ key: "trip" }]
       },
+      bystanderRoll: {
+        status: "resolved",
+        answer: "roll",
+        testKind: "save",
+        rollerUuid: "Actor.h",
+        by: "Actor.s",
+        rescue: "Restore Balance",
+        baseTotal: 9,
+        dc: 14,
+        bent: { how: "neutralised", total: 17 }
+      },
       d20fold: {
         actorUuid: "Actor.b",
         status: "resolved",

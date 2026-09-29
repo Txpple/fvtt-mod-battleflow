@@ -130,6 +130,12 @@ export const SAVE_FOLDS = [
     flag: "d20fold",
     entries: flag => flag?.spends ?? [],
     contribute: (_flag, spend) => contributionOf(spend)
+  },
+  {
+    // A BYSTANDER's bend on a demanded save (Restore Balance — Q2 option A): the bent roll REPLACES the total.
+    flag: "bystanderRoll",
+    entries: flag => (Number.isFinite(flag?.bent?.total) ? [flag.bent] : []),
+    contribute: (_flag, bent) => ({ replace: { total: bent.total, isCritical: false, isFumble: false } })
   }
 ];
 

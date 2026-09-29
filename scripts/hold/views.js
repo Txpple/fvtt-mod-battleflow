@@ -3,7 +3,7 @@
  * Battle Flow — the reaction hold: THE VIEWS. The durable card row (with the reload resumes) and the
  * popups. The row renders below ui.js's damage-offer bar (dispatch.js ORDER).
  */
-import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient } from "../core.js";
+import { MODULE_ID, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
 import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
@@ -217,7 +217,9 @@ function appendBystanderRows(block, message, target) {
     line.append(label);
     const small = { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" };
     if ( guard.quiet && row?.damage ) line.append(momentButton("Answer", () => void bystanderReaction(message, target, guard, { onDamage: true }), small));
-    line.append(momentButton("Not this combat", () => { line.remove(); void muteAndPass(message, target, guard); }, small));
+    // "Not this combat" only where a combat runs: out of one there is nothing to mute.
+    if ( activeCombatFor(who) ) line.append(momentButton("Not this combat", () => { line.remove(); void muteAndPass(message, target, guard); }, small));
+    if ( line.childElementCount < 2 ) continue;
     block.append(line);
   }
 }
@@ -274,7 +276,7 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
         void bystanderReaction(attackMessage, target, guard);
       } },
       { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) },
-      { action: "mute", label: "Not this combat", callback: () => muteAndPass(attackMessage, target, guard) }
+      ...(activeCombatFor(byActor) ? [{ action: "mute", label: "Not this combat", callback: () => muteAndPass(attackMessage, target, guard) }] : [])
     ]
   });
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;

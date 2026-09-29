@@ -9,6 +9,8 @@
 //   §close  — `closeAnsweredHoldPopups` runs on EVERY client: the GM's BUZZER resolves a hold and
 //            the PLAYER's popup must close on its own client on seeing the flag.
 //   §ack    — a player's OK on the GM's reminder card reaches the card.
+//   §bystander — a BYSTANDER on another client (Q2 option A): the player's Restore Balance bends the GM's
+//            attack (the hold's relay, `by`) and the GM's check (bystanders.js's own relay).
 //
 // ⚠ THIS SUITE MUTATES (check-popup-routing.mjs is the read-only two-client check).
 //
@@ -32,13 +34,15 @@ export const COVERS = [
   'hold/continue.js',
   'hold/views.js',
   'mastery.js',             // ack — a player's OK on the mastery notice reaches the GM's card
-  'emanations.js'           // pull — a scene a player is on is live
+  'emanations.js',          // pull — a scene a player is on is live
+  'bystanders.js'           // bystander — a check bent from the player's client, relayed to the roll's keeper
 ];
 
 const SECTIONS = {
   relay: "the hold's RELAYED answer — the player writes its own message, the elect folds it",
   close: "the hold's popup CLOSES on the other client when the buzzer answers it",
   ack: "a PLAYER's OK on a GM-authored notice reaches the GM's card (the relayed ack)",
+  bystander: "a BYSTANDER on the player's client: Restore Balance on the GM's attack (the hold's relay) and on the GM's check (bystanders.js's relay) — each answer the player's own message, folded by the GM",
   pull: "a scene the PLAYER is on is live: the Paladin's aura stands there though another scene is active and the GM is elsewhere, and comes down when the player leaves; the GM's own preview, a player connected, raises nothing"
 };
 // Each section stands its own attack up on the shared fixture and cleans up after itself.
@@ -427,6 +431,163 @@ if (want('ack')) {
     (landed.acked === true) && (landed.envelopes === 0), JSON.stringify(landed));
 } else {
   out.skips.push(`§ack ${SECTIONS.ack}`);
+}
+
+/* --- §bystander: the player's Restore Balance on the GM's rolls -------------------------------- */
+
+if (want('bystander')) {
+  const setupB = await gm.evaluate(async () => {
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const st = globalThis.__bf2c;
+    const scene = game.scenes.getName('Battle Flow Test Range');
+    const attacker = game.actors.getName('BF Test Attacker');
+    const shielder = game.actors.get(st.shielderId);
+    let src = null;
+    for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+      const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === 'Restore Balance') && (e.type === 'feat'));
+      if (hit) { src = await pack.getDocument(hit._id); break; }
+    }
+    if (!src) return { fatal: 'the PHB ships no Restore Balance this box can find' };
+    const [rb] = await shielder.createEmbeddedDocuments('Item', [src.toObject()]);
+    await rb.update({ 'system.uses.max': '3', 'system.uses.spent': 0 });
+    const tok = scene.tokens.get(st.tokenId);
+    st.bystander = { shielderDisposition: tok.disposition };
+    await tok.update({ disposition: 1 });
+    let atk = scene.tokens.find(x => x.actorId === attacker.id);
+    if (!atk) {
+      [atk] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(attacker.prototypeToken.toObject(),
+        { x: 1600, y: 1000, actorId: attacker.id, actorLink: true, disposition: -1 }, { inplace: false })]);
+      st.bystander.attackerTokenId = atk.id;
+    }
+    for (let i = 0; i < 40 && !(canvas.ready && canvas.tokens.get(atk.id)); i++) await sleep(250);
+    st.bystander.rollerTokenId = atk.id;   // ⚠ an unlinked token's actor is its own: the check rolls from the TOKEN
+    return { ok: true, ac: shielder.system.attributes.ac.value };
+  }, null);
+  if (setupB.fatal) ok('bystander/0. fixtures', false, setupB.fatal);
+  else {
+    // The GM's attack with Advantage, the FIRST die a miss and the second a hit (the PRNG pinned on the GM).
+    const atk = await gm.evaluate(async () => {
+      const MOD = 'fvtt-mod-battleflow';
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const st = globalThis.__bf2c;
+      const attacker = game.actors.getName('BF Test Attacker');
+      const token = canvas.tokens.get(st.tokenId);
+      const act = attacker.items.get(st.weaponId).system.activities.find(a => a.type === 'attack');
+      const real = CONFIG.Dice.randomUniform;
+      const queue = [2, 19, 3, 3].map(n => 1 - ((n - 0.5) / 20));
+      let i = 0;
+      CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
+      try {
+        token.setTarget(true, { releaseOthers: true });
+        const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
+        const rolls = await act.rollAttack({ advantage: true }, { configure: false }, { data: { 'system.origin': usage?.message?.id } });
+        const msg = rolls?.[0]?.parent;
+        for (let w = 0; w < 40; w++) { if (game.messages.get(msg?.id)?.getFlag(MOD, 'hold')) break; await sleep(150); }
+        const hold = game.messages.get(msg?.id)?.getFlag(MOD, 'hold');
+        return { id: msg?.id, total: rolls?.[0]?.total, guards: (hold?.targets?.[0]?.guards ?? []).map(g => `${g.row}:${g.quiet ? 'quiet' : 'asked'}`) };
+      } finally { CONFIG.Dice.randomUniform = real; }
+    }, null);
+    ok('bystander/1. the GM\'s Advantage hit (2 and 19) holds for the player\'s Restore Balance', (atk.guards ?? []).includes('Restore Balance:asked'), JSON.stringify(atk));
+    const answered = await player.evaluate(async ({ id }) => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      let dlg = null;
+      for (let i = 0; i < 40 && !dlg; i++) {
+        dlg = [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+          && /Restore Balance/i.test(a.options?.window?.title ?? ''));
+        if (!dlg) await sleep(200);
+      }
+      if (!dlg) return { found: false };
+      const before = new Set(game.messages.contents.map(m => m.id));
+      let caught = null;
+      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && (m.author?.id === game.user.id) && m.getFlag('fvtt-mod-battleflow', 'respondsTo')) caught = m; });
+      dlg.element.querySelector('button[data-action="answer"]')?.click();
+      for (let i = 0; i < 40 && !caught; i++) await sleep(200);
+      Hooks.off('createChatMessage', hook);
+      return { found: true, title: dlg.options?.window?.title, isOwner: game.messages.get(id)?.isOwner ?? null,
+        msg: caught ? { respondsTo: caught.getFlag('fvtt-mod-battleflow', 'respondsTo'), by: caught.getFlag('fvtt-mod-battleflow', 'by') ?? null,
+          rescue: caught.getFlag('fvtt-mod-battleflow', 'rescue') ?? null } : null };
+    }, { id: atk.id });
+    ok('bystander/2. the popup opened on the PLAYER\'s client and its answer travelled as the player\'s own message (respondsTo, by)',
+      answered.found && (answered.isOwner === false) && (answered.msg?.respondsTo === atk.id) && !!answered.msg?.by && (answered.msg?.rescue === 'Restore Balance'),
+      JSON.stringify(answered));
+    const folded = await gm.evaluate(async ({ id }) => {
+      for (let i = 0; i < 60; i++) {
+        const h = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold');
+        if (h?.status === 'resolved') { const t = h.targets[0]; return { verdict: t.verdict, answer: t.answer, rescue: t.rescue, by: t.guardedBy?.name ?? null, stood: t.bent?.stood ?? null }; }
+        await new Promise(r => setTimeout(r, 250));
+      }
+      return { status: game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'hold')?.status ?? null };
+    }, { id: atk.id });
+    ok('bystander/3. the GM folded it: the first d20 (2) stands — a MISS, answered by the player\'s creature',
+      (folded.verdict === 'miss') && (folded.rescue === 'Restore Balance') && (folded.stood === 2), JSON.stringify(folded));
+
+    // The GM's CHECK with Advantage (3 then 18): bystanders.js's relay.
+    const chk = await gm.evaluate(async () => {
+      const MOD = 'fvtt-mod-battleflow';
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const attacker = game.actors.getName('BF Test Attacker');
+      const real = CONFIG.Dice.randomUniform;
+      const queue = [3, 18].map(n => 1 - ((n - 0.5) / 20));
+      let i = 0;
+      CONFIG.Dice.randomUniform = () => queue[Math.min(i++, queue.length - 1)];
+      try {
+        const roller = canvas.tokens.get(globalThis.__bf2c.bystander.rollerTokenId)?.actor ?? attacker;
+        const rolls = await roller.rollSkill({ skill: 'ath', advantage: true }, { configure: false }, {});
+        const msg = rolls?.[0]?.parent;
+        for (let w = 0; w < 40; w++) { if (game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll')) break; await sleep(150); }
+        const f = game.messages.get(msg?.id)?.getFlag(MOD, 'bystanderRoll');
+        // Diagnostics for a miss: what the reader sees.
+        const L = await import(`/modules/${MOD}/scripts/lookup.js`);
+        const G = await import(`/modules/${MOD}/scripts/geometry.js`);
+        const shielder = game.actors.get(globalThis.__bf2c.shielderId);
+        const aTok = G.tokenForUuid(roller.uuid), sTok = G.tokenForUuid(shielder.uuid);
+        const rbItem = shielder.items.find(x => x.name === 'Restore Balance');
+        const diag = { rows: L.bystanderRows('check'), aTok: aTok ? [aTok.document.x, aTok.document.y, aTok.document.disposition] : null,
+          sTok: sTok ? [sTok.document.x, sTok.document.y, sTok.document.disposition] : null, feet: (aTok && sTok) ? G.nearestFeet(sTok, aTok) : null,
+          rb: rbItem ? `${rbItem.system.uses?.value}/${rbItem.system.uses?.max}` : null, isAuthor: msg?.isAuthor ?? null,
+          mode: L.d20FactsOf(rolls?.[0]), hp: shielder.system.attributes.hp.value };
+        return { id: msg?.id, status: f?.status ?? null, guards: (f?.guards ?? []).map(g => g.row), diag };
+      } finally { CONFIG.Dice.randomUniform = real; }
+    }, null);
+    ok('bystander/4. the GM\'s Advantage check stamps the offer for the player\'s Restore Balance', (chk.status === 'pending') && chk.guards.includes('Restore Balance'), JSON.stringify(chk));
+    const answered2 = await player.evaluate(async () => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      let dlg = null;
+      for (let i = 0; i < 40 && !dlg; i++) {
+        dlg = [...foundry.applications.instances.values()].find(a => (a instanceof foundry.applications.api.DialogV2) && a.rendered
+          && /Restore Balance/i.test(a.options?.window?.title ?? '') && /check/i.test(a.options?.window?.title ?? ''));
+        if (!dlg) await sleep(200);
+      }
+      if (!dlg) return { found: false };
+      const before = new Set(game.messages.contents.map(m => m.id));
+      let caught = null;
+      const hook = Hooks.on('createChatMessage', m => { if (!caught && !before.has(m.id) && m.getFlag('fvtt-mod-battleflow', 'bystanderRollAnswer')) caught = m; });
+      dlg.element.querySelector('button[data-action="answer"]')?.click();
+      for (let i = 0; i < 40 && !caught; i++) await sleep(200);
+      Hooks.off('createChatMessage', hook);
+      return { found: true, envelope: caught?.getFlag('fvtt-mod-battleflow', 'bystanderRollAnswer') ?? null, author: caught?.author?.name ?? null };
+    }, null);
+    ok('bystander/5. the check\'s answer travelled as the player\'s own message (a bystanderRollAnswer envelope)',
+      answered2.found && (answered2.envelope?.answer === 'roll') && (answered2.author === who.name), JSON.stringify(answered2));
+    const folded2 = await gm.evaluate(async ({ id }) => {
+      for (let i = 0; i < 60; i++) {
+        const f = game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'bystanderRoll');
+        if (f?.status === 'resolved') return { answer: f.answer, rescue: f.rescue, stood: f.bent?.stood ?? null, total: f.bent?.total ?? null };
+        await new Promise(r => setTimeout(r, 250));
+      }
+      return { status: game.messages.get(id)?.getFlag('fvtt-mod-battleflow', 'bystanderRoll')?.status ?? null };
+    }, { id: chk.id });
+    ok('bystander/6. the GM folded it: the first d20 (3) stands on the check', (folded2.answer === 'roll') && (folded2.stood === 3), JSON.stringify(folded2));
+  }
+  await gm.evaluate(async () => {
+    const st = globalThis.__bf2c;
+    const scene = game.scenes.getName('Battle Flow Test Range');
+    if (st.bystander?.attackerTokenId && scene.tokens.get(st.bystander.attackerTokenId)) await scene.deleteEmbeddedDocuments('Token', [st.bystander.attackerTokenId]);
+    const tok = scene.tokens.get(st.tokenId);
+    if (tok && (st.bystander?.shielderDisposition !== undefined)) await tok.update({ disposition: st.bystander.shielderDisposition });
+  }, null);
+} else {
+  out.skips.push(`§bystander ${SECTIONS.bystander}`);
 }
 
 /* --- §pull: the scene a player was pulled to ------------------------------------------------ */

@@ -65,6 +65,7 @@ export const ORDER = Object.freeze([
   "drains",             // the target's fall on the damage that landed — the same seam (Life Drain)
   "damage-holds",
   "d20-folds",          // the d20 fold row directly below the maneuver rows
+  "bystanders",         // a bystander's bend on a save or a check, below the roller's own folds
   "concentration",
   "cast",
   "volleys",            // the volley row above the saves rows; its multiplier after every rider's part

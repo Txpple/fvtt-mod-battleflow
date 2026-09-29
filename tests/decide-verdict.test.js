@@ -625,8 +625,20 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
   // through the fold path while the arithmetic was provably unchanged. v1.23.0 is the seam
   // paying off: the d20 folds land as ONE SPEC and the resolver in saves.js was not touched to
   // admit them. What is worth pinning now is that property, not the emptiness.
-  it("the save seam carries the d20 folds and nothing else", () => {
-    expect(v.SAVE_FOLDS.map(s => s.flag)).toEqual(["d20fold"]);
+  it("the save seam carries the d20 folds and the bystander's bend, and nothing else", () => {
+    expect(v.SAVE_FOLDS.map(s => s.flag)).toEqual(["d20fold", "bystanderRoll"]);
+  });
+
+  it("a bystander's bent save REPLACES the total (Restore Balance's first d20)", () => {
+    const folds = v.foldsFrom(
+      k => (k === "bystanderRoll" ? { bent: { total: 17 } } : null),
+      v.SAVE_FOLDS
+    );
+    expect(v.foldedSave({ total: 9, dc: 14, folds })).toMatchObject({
+      total: 17,
+      outcome: "saved",
+      replaced: true
+    });
   });
 
   /**

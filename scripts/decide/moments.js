@@ -301,6 +301,16 @@ export const MOMENT_RECORDS = Object.freeze({
     }
   },
 
+  bystanderRoll: {
+    events: ["fold"],
+    means: "a bystander bent another creature's save or check — Restore Balance, Cutting Words (bystanders.js, Q2 option A); resolved when the offer leaves pending: the bend, or everyone passed",
+    resolved: (r, ctx) => (r?.status === "resolved") ? whole(["fold"], {
+      actor: r.by ?? r.rollerUuid ?? ctx.actorUuid, itemName: r.rescue ?? null, ability: r.rescue ?? null,
+      details: { testKind: r.testKind ?? null, answer: r.answer ?? null, roller: r.rollerUuid ?? null,
+        baseTotal: r.baseTotal ?? null, total: r.bent?.total ?? null, dc: r.dc ?? null, timedOut: !!r.timedOut }
+    }) : []
+  },
+
   tacticalRefund: {
     events: ["fold"],
     means: "Tactical Mind's refund was asked and answered — kept or refunded (d20-folds.js); resolved when `status` leaves pending",
@@ -720,6 +730,7 @@ export const STATE_KEYS = Object.freeze({
   mealFed: "an ACTOR flag — a Chef's meal an eater still resting carries to its own rest's end (the PHB feats, group 5); the meal's card is the record, the restSong flag the resolve",
   grappleDamageAnswer: "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
+  bystanderRollAnswer: "a message flag — a bystander's answer to another creature's save or check, relayed to the roll's keeper (bystanders.js); the envelope, the roll's `bystanderRoll` is the resolve",
   bystanderMute: "an ActiveEffect flag — \"Not this combat\" (Q2 option A, 2026-09-29): the bystander feature its bearer muted, with the combat it lasts for; a player's preference, swept with the combat, no resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",

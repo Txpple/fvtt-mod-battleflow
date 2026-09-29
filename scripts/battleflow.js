@@ -56,6 +56,7 @@ import "./heal-on-hit.js";
 import "./drains.js";
 import "./damage-holds.js";
 import "./d20-folds.js";
+import "./bystanders.js";
 import "./concentration.js";
 import "./cast.js";
 import "./volleys.js";
