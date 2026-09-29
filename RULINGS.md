@@ -1830,6 +1830,56 @@ view does not yet list the ward's hit points (they stand on the sheet's uses).
 | damage applied from the card's own buttons | the ward takes it the same way |
 | a Shield cast (level 1) | "Arcane Ward — +2 (6 of 12)" |
 
+## The PHB classes — A6 (2026-09-29, Session 0 stage A6)
+
+**The grants on Initiative and at the turn — a new table (`INITIATIVE_GRANTS`) and its machine
+(`scripts/initiative-grants.js`), two `TURN_GRANTS` rows; no new kind; BUILT and PROVEN (`smoke-classes` §37–38),
+unwalked.** Measured on the pack first (`dnd-players-handbook.classes`, dnd5e 6.0.5); the plan's drawing was wrong in
+three places and the pack's text rules. Calls the plan left open — **each is the user's to overrule**:
+
+1. **Circle Forms is NATIVE** — nothing built. dnd5e's own `wildshape` transformation preset carries the Moon's
+   numbers: `tempFormula: max(@classes.druid.levels, @subclasses.moon.levels * 3)` and the `minimumAC` of 13 + Wis.
+   The plan's `on: "transform"` trigger word is not needed.
+2. **Vitality Surge fires when the Rage is USED, not at every turn start** (the pack's text: "When you activate your
+   Rage"): a `TURN_GRANTS` feature row `on: "use"`, `of: "Rage"` — the Barbarian level in Temporary Hit Points, a card.
+   **Life-Giving Force is at the turn START** (the plan said the end): each raging turn start rolls (Rage Damage)d6
+   and asks the barbarian who gets it — ONE other creature on its side within 10 ft (an allied NPC or summon counts).
+   The pick is the rest song's popup (`askHandOut`, rest-grants.js — one picker for every Temporary Hit Point
+   hand-out); it has no clock (nothing waits on it). The Temporary Hit Points vanishing when the Rage ends is the
+   table's (the row's caveat; the pack's own note says it does not remove them either).
+3. **The Initiative grants read each combatant as ITS OWN Initiative lands** ("when you roll Initiative"), not after
+   everyone has rolled (Alert's swap waits for all — it needs the others' numbers). Once per combat, re-armed by a
+   reset. **Never burnt on nothing:** Persistent Rage happens automatically (R1) only when a Rage use is expended;
+   Uncanny Metabolism is offered only when a Focus Point is spent or a Hit Point missing — its popup says what comes
+   back ("regain 3 Focus Points and 1d8 + 5 Hit Points? (once per Long Rest)"), the clock answers No. The feature's
+   own use (once per Long Rest) is spent with it; the heal is receipted on the card.
+4. **Persistent Rage silences the Rage's turn-end reminder** (`unlessFeature`): the Rage lasts 10 minutes without
+   being extended.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Persistent Rage | `INITIATIVE_GRANTS` `regain: "Rage"` | at Initiative, every expended Rage use back, its own use spent — "Persistent Rage — Rage uses regained (3 of 3)" |
+| Uncanny Metabolism | `INITIATIVE_GRANTS` `regain: "Monk's Focus"`, `heal`, `ask` | at Initiative, offered: every Focus Point back and the Martial Arts die + Monk level healed, receipted |
+| Vitality Surge | `TURN_GRANTS` `match: "feature"`, `feature`, `on: "use"`, `of: "Rage"` | the Rage used: the Barbarian level in Temporary Hit Points |
+| Life-Giving Force | `TURN_GRANTS` `feature`, `while: "raging"`, `to: "ally"`, `reach: 10` | a raging turn start: (Rage Damage)d6 Temporary Hit Points to one creature the barbarian picks |
+| Rage | `TURN_GRANTS` `unlessFeature: "Persistent Rage"` | the turn-end reminder is never posted for a Persistent Rage |
+| Circle Forms | NATIVE | dnd5e's Wild Shape preset gives the Moon's temp HP and AC |
+
+**Found in the build:** the moments scan resolves a `[CONST]` flag key through EVERY file's constants, so two
+machines naming different keys by the same constant name collide (`GRANT_FLAG` was already turn-grants.js's
+`turnGrant`) — the new machine's constants carry its own prefix.
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Persistent Rage, Initiative rolled with a Rage use spent | a card "Persistent Rage — Rage uses regained (3 of 3)"; with none spent, nothing |
+| Uncanny Metabolism, Initiative rolled with Focus spent | the popup "Uncanny Metabolism — regain N Focus Points and 1d8 + 5 Hit Points? (once per Long Rest)"; Yes: the sheet moves, the card says both; No: "kept for later" |
+| Vitality Surge, the Rage used | "Vitality Surge — (name) gains N Temporary Hit Points" |
+| Life-Giving Force, a raging turn start | the dice on a card and the popup "Who gets N Temporary Hit Points?" — creatures on your side within 10 ft, one pick; OK: the card names who got them |
+| Persistent Rage, a raging turn with no attack | no "it ends now unless you extended it" card |
+| Circle Forms, Wild Shape | the form lands with 3 × the Druid level in temp HP (dnd5e's own) |
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):

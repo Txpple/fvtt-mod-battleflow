@@ -146,6 +146,16 @@ describe("the moment registry — shape", () => {
         from: 11,
         to: 19
       },
+      initiativeGrant: {
+        status: "resolved",
+        row: "Uncanny Metabolism",
+        actorUuid: "Actor.mk",
+        actorName: "Monk",
+        answer: "yes",
+        applied: true,
+        regained: 3,
+        healed: 9
+      },
       grappleDamage: {
         status: "resolved",
         row: "Unarmed Fighting",

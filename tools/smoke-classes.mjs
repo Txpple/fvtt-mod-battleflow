@@ -8,6 +8,8 @@
 // each section lends its class features (there is no Barbarian/Warlock/Monk/Paladin/Druid fixture) and takes them back.
 // §A4 (32–34) — the healing seam and the caster's rows (RULINGS *The PHB classes — A4*): Potent Cantrip lent to the
 // Attacker, Disciple of Life to the Cleric, Psychic Spells (and a Warlock's Chill Touch) to the Sorcerer.
+// §A5 (36) — Arcane Ward lent to the Sorcerer. §A6 (37–38) — the Initiative grants (Persistent Rage to the PC Attacker,
+// Uncanny Metabolism to the Halfling) and Vitality of the Tree (the PC Attacker; the gift to a creature within 10 ft).
 import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
@@ -44,7 +46,10 @@ export const COVERS = [
   'precision.js',           // the miss wait's synchronous half (Potent Cantrip's miss)
   // §A5 (36)
   'ward-pools.js',          // Arcane Ward: the take at preApplyDamage, the pop, the cast's create and refill
-  'receipts.js'             // the revert gives the ward its take back
+  'receipts.js',            // the revert gives the ward its take back
+  // §A6 (37–38)
+  'initiative-grants.js',   // Persistent Rage and Uncanny Metabolism at Initiative
+  'rest-grants.js'          // the song's hand-out outside a rest: Life-Giving Force's pick
 ];
 
 const SECTIONS = {
@@ -83,7 +88,9 @@ const SECTIONS = {
   33: 'Disciple of Life (the Cleric): Cure Wounds at level 2 heals "+4[Disciple of Life]" more — the card says "Disciple of Life — +4 healing", the healing lands with it; at level 1 +3; cast innately, nothing',
   34: 'Psychic Spells (lent to the Sorcerer): Fire Bolt\'s window greys it "not a Warlock spell"; a Warlock\'s Chill Touch shows "Psychic Spells · free" beside the Metamagic rows, its tick greys none of them; cast ticked, the card says "the damage is psychic" and the damage roll is psychic; cast unticked, necrotic',
   35: 'Potent Cantrip on a MISS (BF Test PC Attacker\'s Fire Bolt at the Victim, AC 30): the damage rolls and half lands — "missed — Potent Cantrip, half damage"; without the feature nothing rolls; with Heroic Inspiration the rescue window opens first and nothing rolls until Pass — then half lands; the Heroic reroll turning it lands the FULL roll, never a share',
-  36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing'
+  36: 'Arcane Ward (lent to the Sorcerer, 12 HP): the first Abjuration cast from a slot (Mage Armor) creates it — "Arcane Ward — created, 12 hit points (of 12)"; 5 damage applied straight to the actor (the card buttons\' road) lands on the ward, HP untouched; a hit through the module with the ward at 2: "Arcane Ward took 2 — N landed", the revert gives both back; a level-2 cast refills +4; at 0 it takes nothing',
+  37: 'the Initiative grants: Persistent Rage (lent to the PC Attacker, Rage 1 of 3) regains every Rage use at Initiative, automatically — "Persistent Rage — Rage uses regained (3 of 3)"; Uncanny Metabolism (lent to the Halfling) asks, Yes lands Focus 3 of 3 and 1d8 + 5 (9) Hit Points, its use spent; rerolled with both spent, nothing; No keeps the use; with Persistent Rage a quiet raging turn is never reminded',
+  38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked'
 };
 const DEPENDS = {};
 
@@ -2467,6 +2474,186 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       } finally {
         if (armor) await unlend(sorcerer, armor);
         if (ward) await unlend(sorcerer, ward);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ================================================ §A6 — the grants on Initiative and at the turn (RULINGS *The PHB classes — A6*)
+    // A healing activity's custom formula pinned on the lent copy (the fixtures carry no class scales or levels).
+    const pinHeal = async (item, name, formula) => {
+      const a = actNamed(item, name);
+      if (a) await item.update({ [`system.activities.${a.id}.healing.custom`]: { enabled: true, formula } });
+    };
+    const grantCards = (actor, row) => game.messages.contents.filter(m => (m.timestamp >= suiteStart)
+      && (m.getFlag(MOD, 'initiativeGrant')?.actorUuid === actor.uuid) && (m.getFlag(MOD, 'initiativeGrant')?.row === row));
+    const grantLine = async m => (await waitFor(() => cardEl(m?.id)?.querySelector('.bf-initiative-grant-line'), 5000))?.textContent?.trim() ?? '';
+    const titled = re => popups().find(app => re.test(titleOf(app))) ?? null;
+
+    // ---- 37. the Initiative grants: Persistent Rage (automatic), Uncanny Metabolism (offered); the Rage reminder silenced
+    if (want(37)) {
+      await closeA1();
+      await dropFx(pcAttacker, RAGE_FX);
+      hgKeep(halfling, { 'system.attributes.hp.value': halfling.system._source.attributes.hp.value,
+        'system.attributes.hp.max': halfling.system._source.attributes.hp.max });
+      const rage = await hgLend(pcAttacker, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 2 });
+      const persistent = await hgLend(pcAttacker, 'Persistent Rage', 'feat');
+      const focus = await hgLend(halfling, "Monk's Focus", 'feat', { 'system.uses.max': '3', 'system.uses.spent': 3 });
+      const uncanny = await hgLend(halfling, 'Uncanny Metabolism', 'feat');
+      if (uncanny) await pinHeal(uncanny, 'Uncanny Metabolism', '1d8 + 5');
+      const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(combat.id);
+      const spentOf = (actor, item) => Number(actor.items.get(item?.id)?.system?.uses?.spent ?? NaN);
+      const hhp = () => Number(halfling.system.attributes.hp.value);
+      try {
+        if (!rage || !persistent || !focus || !uncanny) log.push(`§37 skipped: rage=${!!rage} persistent=${!!persistent} focus=${!!focus} uncanny=${!!uncanny}`);
+        else {
+          await halfling.update({ 'system.attributes.hp.max': 60, 'system.attributes.hp.value': 30 });
+          // ⚠ The created combatants do not come back in the order asked: find each by its actor.
+          await combat.createEmbeddedDocuments('Combatant', [
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id },
+            { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id }]);
+          const pcC = combat.combatants.find(c => c.actorId === pcAttacker.id);
+          const hC = combat.combatants.find(c => c.actorId === halfling.id);
+          // a. Persistent Rage: automatic — the Rage uses back, its own use spent, the card
+          await combat.setInitiative(pcC.id, 18);
+          const pr = await waitFor(() => { const m = grantCards(pcAttacker, 'Persistent Rage')[0]; return m?.getFlag(MOD, 'initiativeGrant')?.applied ? m : null; }, 8000);
+          ok('37a. Persistent Rage at Initiative: Rage 3 of 3, its own use spent, the card "Persistent Rage — Rage uses regained (3 of 3)"',
+            !!pr && (spentOf(pcAttacker, rage) === 0) && (spentOf(pcAttacker, persistent) === 1) && /Persistent Rage — Rage uses regained \(3 of 3\)/.test(await grantLine(pr)),
+            `card=${!!pr} rageSpent=${spentOf(pcAttacker, rage)} own=${spentOf(pcAttacker, persistent)} line="${await grantLine(pr)}" all=${JSON.stringify(grantCards(pcAttacker, 'Persistent Rage').map(m => m.getFlag(MOD, 'initiativeGrant')))} read=${JSON.stringify(combat.getFlag(MOD, 'initiativeGrantRead') ?? null)} rages=${JSON.stringify(pcAttacker.items.filter(i => /rage/i.test(i.name)).map(i => [i.name, i.system.uses?.max, i.system.uses?.spent]))} init=${pcC.initiative}`);
+          // b. Uncanny Metabolism: offered; Yes — the Focus Points back, the heal rolled and landed, its use spent
+          faces([[4, 8]]);
+          await combat.setInitiative(hC.id, 12);
+          const um = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism')[0] ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
+          ok('37b. Uncanny Metabolism at Initiative asks: "regain 3 Focus Points and 1d8 + 5 Hit Points? (once per Long Rest)"',
+            !!pop && /regain 3 Focus Points and 1d8 \+ 5 Hit Points\? \(once per Long Rest\)/.test(textOf(pop?.element)),
+            `card=${!!um} popup=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
+          pop?.element?.querySelector('button[data-action="yes"]')?.click();
+          const done = await waitFor(() => um?.getFlag(MOD, 'initiativeGrant')?.applied ? um : null, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const healed = Number(done?.getFlag(MOD, 'initiativeGrant')?.healed ?? NaN);
+          ok('37c. Yes: Focus 3 of 3, the heal (4 + 5 = 9) lands, its use spent; the line says both',
+            (spentOf(halfling, focus) === 0) && (spentOf(halfling, uncanny) === 1) && (healed === 9) && (hhp() === 39)
+              && /Focus Points regained \(3 of 3\), 9 Hit Points regained/.test(await grantLine(done)),
+            `focus=${spentOf(halfling, focus)} own=${spentOf(halfling, uncanny)} healed=${healed} hp=${hhp()} line="${await grantLine(done)}"`);
+          // d. rerolled: both spent — nothing is posted again
+          const before = grantCards(pcAttacker, 'Persistent Rage').length + grantCards(halfling, 'Uncanny Metabolism').length;
+          await rage.update({ 'system.uses.spent': 1 });
+          await combat.resetAll();
+          await sleep(600);
+          await combat.setInitiative(pcC.id, 17);
+          await combat.setInitiative(hC.id, 11);
+          await sleep(2000);
+          ok('37d. rerolled with both uses spent: no second card', (grantCards(pcAttacker, 'Persistent Rage').length + grantCards(halfling, 'Uncanny Metabolism').length) === before,
+            `cards=${grantCards(pcAttacker, 'Persistent Rage').length + grantCards(halfling, 'Uncanny Metabolism').length} before=${before}`);
+          // e. No keeps the use: nothing written
+          await uncanny.update({ 'system.uses.spent': 0 });
+          await focus.update({ 'system.uses.spent': 2 });
+          await combat.resetAll();
+          await sleep(600);
+          await combat.setInitiative(hC.id, 10);
+          const pop2 = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
+          pop2?.element?.querySelector('button[data-action="no"]')?.click();
+          const um2 = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.getFlag(MOD, 'initiativeGrant')?.answer === 'no') ?? null, 6000);
+          await sleep(600);
+          ok('37e. No: the use kept, Focus untouched, the line "Uncanny Metabolism — kept for later"',
+            !!um2 && (spentOf(halfling, uncanny) === 0) && (spentOf(halfling, focus) === 2) && /Uncanny Metabolism — kept for later/.test(await grantLine(um2)),
+            `card=${!!um2} own=${spentOf(halfling, uncanny)} focus=${spentOf(halfling, focus)} line="${await grantLine(um2)}" read=${JSON.stringify(combat.getFlag(MOD, 'initiativeGrantRead') ?? null)} inits=${JSON.stringify(combat.combatants.map(c => c.initiative))} cards=${grantCards(halfling, 'Uncanny Metabolism').length}`);
+          // f. Persistent Rage silences the Rage's turn-end reminder
+          await combat.setInitiative(pcC.id, 20);
+          await combat.startCombat();
+          await sleep(400);
+          const toTurnOf = async actor => { for (let i = 0; (i < 4) && (combat.combatant?.actorId !== actor.id); i++) { await combat.nextTurn(); await sleep(300); } };
+          await toTurnOf(pcAttacker);
+          await useFeature(pcToken, rage);
+          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          await combat.nextTurn();
+          await toTurnOf(pcAttacker);
+          const r2 = combat.round;
+          await combat.nextTurn();
+          await sleep(2500);
+          const reminded = game.messages.contents.some(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'turnGrant')?.remind === 'extend')
+            && String(m.getFlag(MOD, 'turnGrant')?.place ?? '').startsWith(`${combat.id}|${r2}|`));
+          ok('37f. with Persistent Rage a quiet raging turn ends with no reminder', !!fxNamed(pcAttacker, ['Rage'])[0] && !reminded,
+            `rage=${!!fxNamed(pcAttacker, ['Rage'])[0]} reminded=${reminded}`);
+        }
+      } finally {
+        await closeA1();
+        await hgClose(/^Uncanny Metabolism — /);
+        if (game.combats.get(combat.id)) await combat.delete();
+        await dropFx(pcAttacker, RAGE_FX);
+        for (const [actor, it] of [[pcAttacker, rage], [pcAttacker, persistent], [halfling, focus], [halfling, uncanny]]) if (it) await unlend(actor, it);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 38. Vitality of the Tree: Vitality Surge at the Rage; Life-Giving Force at a raging turn start
+    if (want(38)) {
+      await closeA1();
+      await dropFx(pcAttacker, RAGE_FX);
+      hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes.hp.temp ?? 0 });
+      hgKeep(cleric, { 'system.attributes.hp.temp': cleric.system._source.attributes.hp.temp ?? 0 });
+      hgKeep(halfling, { 'system.attributes.hp.temp': halfling.system._source.attributes.hp.temp ?? 0 });
+      const rage = await hgLend(pcAttacker, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const vitality = await hgLend(pcAttacker, 'Vitality of the Tree', 'feat');
+      if (vitality) { await pinHeal(vitality, 'Vitality Surge', '7'); await pinHeal(vitality, 'Life-Giving Force', '2d6'); }
+      const temp = actor => Number(actor.system.attributes.hp.temp ?? 0);
+      const songs = () => game.messages.contents.filter(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong')?.table === 'turn')
+        && (m.getFlag(MOD, 'restSong')?.actorUuid === pcAttacker.uuid));
+      let combat = null;
+      try {
+        if (!rage || !vitality) log.push(`§38 skipped: rage=${!!rage} vitality=${!!vitality}`);
+        else {
+          for (const a of [pcAttacker, cleric, halfling]) await a.update({ 'system.attributes.hp.temp': 0 });
+          // a. the Rage used: Vitality Surge's 7 temp HP, a card
+          const since = Date.now();
+          await useFeature(pcToken, rage);
+          const surge = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MOD, 'turnGrant')?.key === 'Vitality Surge')) ?? null, 6000);
+          await waitFor(() => temp(pcAttacker) === 7, 4000);
+          ok('38a. the Rage used: "Vitality Surge — BF Test PC Attacker gains 7 Temporary Hit Points", temp 7',
+            !!surge && (temp(pcAttacker) === 7) && /Vitality Surge — .+ gains 7 Temporary Hit Points/.test(cardText(surge?.id)),
+            `card=${cardText(surge?.id).slice(0, 160)} temp=${temp(pcAttacker)}`);
+          // b. a raging turn start: the gift is asked — one creature within 10 ft; OK gives it
+          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat.id);
+          faces([[3, 6], [4, 6]]);
+          await combat.createEmbeddedDocuments('Combatant', [
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
+            { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
+          await combat.startCombat();
+          const ask = await waitFor(() => songs()[0] ?? null, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const flag = ask?.getFlag(MOD, 'restSong');
+          const pop = await waitFor(() => titled(/^Life-Giving Force — /), 6000);
+          const names = (flag?.candidates ?? []).map(c => c.name);
+          ok('38b. the raging turn start asks "Who gets 7 Temporary Hit Points?" — creatures on its side within 10 ft, never itself or the enemy',
+            !!pop && (flag?.amount === 7) && (flag?.cap === 1) && /Who gets 7 Temporary Hit Points\?/.test(textOf(pop?.element))
+              && names.length > 0 && !names.includes(pcToken.document.name) && !names.includes(victimToken.document.name),
+            `amount=${flag?.amount} cap=${flag?.cap} candidates=${JSON.stringify(names)} popup=${!!pop}`);
+          const picked = pop?.element?.querySelector('input[name="bf-rest-song"]:checked')?.value ?? null;
+          pop?.element?.querySelector('button[data-action="ok"]')?.click();
+          const landed = await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied ? ask : null, 8000);
+          const target = picked ? fromUuidSync(picked) : null;
+          ok('38c. OK: the one ticked creature gains the 7 temp HP; the card names it', !!landed && !!target && (temp(target) === 7)
+            && (landed.getFlag(MOD, 'restSong')?.given ?? []).length === 1,
+            `picked=${target?.name ?? null} temp=${target ? temp(target) : null} given=${JSON.stringify(landed?.getFlag(MOD, 'restSong')?.given ?? null)}`);
+          // c. the Rage ended: the next turn start asks nothing
+          const asked = songs().length;
+          await dropFx(pcAttacker, RAGE_FX);
+          await combat.nextTurn(); await sleep(300);
+          await combat.nextTurn();
+          await sleep(2000);
+          ok('38d. not raging: the turn start asks nothing', songs().length === asked, `asks=${songs().length} before=${asked}`);
+        }
+      } finally {
+        await closeA1();
+        await hgClose(/^Life-Giving Force — /);
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await dropFx(pcAttacker, RAGE_FX);
+        for (const it of [rage, vitality]) if (it) await unlend(pcAttacker, it);
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

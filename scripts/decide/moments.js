@@ -201,6 +201,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  initiativeGrant: {
+    events: ["choice"],
+    means: "an Initiative grant — Persistent Rage's uses back (automatic), or Uncanny Metabolism's offer answered (the PHB classes, A6, initiative-grants.js); resolved at No, or when the sheet is written",
+    resolved: (r) => ((r?.answer === "no") || r?.applied) ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: r.actorUuid ? [{ uuid: r.actorUuid, name: r.actorName ?? null }] : [],
+        details: { answer: r.answer ?? null, regained: r.regained ?? null, healed: r.healed ?? null, timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   grappleDamage: {
     events: ["choice"],
     means: "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (fighting-styles.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
@@ -698,6 +709,8 @@ export const STATE_KEYS = Object.freeze({
   deathThroes: "the demand card a `died` row raised at the corpse (Death Throes, drop-to-one.js) — beside the saves record, which is the resolve",
   kitTendAnswer: "an envelope — a player's kit-tending answer; the fold onto the kitTend flag, landed by the elect, is the resolve",
   kitTendFor: "a back-link — the heal a kit's tending drove, pointing at the kit's card; the kitTend flag there is the resolve",
+  initiativeGrantAnswer: "an envelope — a player's answer to an Initiative grant's offer; the fold onto the initiativeGrant flag, landed by the GM, is the resolve",
+  initiativeGrantRead: "a combat flag — the once-per-combat latch of which combatants' Initiative grants were read; initiativeGrant on the card is the resolve",
   initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
   initiativeSwapAsked: "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
   restSongAnswer: "an envelope — a player's picks for a rest song; the fold onto the restSong flag, landed by the elect, is the resolve",

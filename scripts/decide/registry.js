@@ -1860,6 +1860,25 @@ export const WARD_POOLS = Object.freeze({
     from: "Wizard — Abjurer 3" })
 });
 
+/**
+ * THE INITIATIVE GRANTS (the PHB classes, A6; initiative-grants.js): what a feature gives back "when you roll
+ * Initiative" — read as each combatant's Initiative lands (the swap's seam), once per combat, on the GM. Keyed by
+ * the feature; the feature's OWN uses pay (once per Long Rest) and are spent with it.
+ *   regain   the item whose expended uses all come back (Rage; Monk's Focus);  unit  what the card calls them
+ *   heal     the feature's heal activity, rolled on the owner's numbers and landed with a receipt
+ *   ask      true — OFFERED (the use is the player's to keep): a Yes/No popup, the clock answers No; else it
+ *            simply happens (R1) and a card says so — never when nothing would come back
+ * ⚠ NOT A KIND — one table, one machine; Superior Inspiration, Perfect Focus, Tandem Footwork are rows (B4 / C1 / D1).
+ */
+export const INITIATIVE_GRANTS = Object.freeze({
+  "Persistent Rage": Object.freeze({ regain: "Rage", unit: "Rage uses",
+    rule: Object.freeze({ item: "Persistent Rage", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbPersistent" }),
+    from: "Barbarian 15" }),
+  "Uncanny Metabolism": Object.freeze({ regain: "Monk's Focus", unit: "Focus Points", heal: "Uncanny Metabolism", ask: true,
+    rule: Object.freeze({ item: "Uncanny Metabolism", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkUncannyMet" }),
+    from: "Monk 2" })
+});
+
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
  * combat (initiative-swap.js). ⚠ NOT A KIND — a second customer is a row. */
 export const INITIATIVE_SWAPS = Object.freeze({
@@ -2098,7 +2117,14 @@ export const REPEAT_SAVES = Object.freeze({
  *   remind    "extend" — pays nothing: at the bearer's turn END a card says the effect ends now unless the turn
  *             extended it (Rage: an attack roll at an enemy or a save forced on one, read off the turn's cards,
  *             or a Bonus Action nothing records) — never an end (RULINGS *Where the table bends the rule*);
- *             the turn the effect began is never reminded
+ *             the turn the effect began is never reminded; `unlessFeature` — a feature on the bearer that
+ *             silences it (Persistent Rage: the Rage lasts without extending)
+ *   feature   a `match: "feature"` row that is ONE BENEFIT of a feature: the sheet's item is this name, the row
+ *             key the benefit (Vitality of the Tree's two)
+ *   on: "use" + of   the bearer's OWN use of the named item (`of`: the Rage) pays the row (Vitality Surge)
+ *   while     "raging" — the bearer wears its Rage
+ *   to: "ally" the row's amount is GIVEN to one creature within `reach` feet — the owner picks (the rest song's
+ *             popup, rest-grants.js); `self` false: another creature (Life-Giving Force)
  * The GM's side: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const TURN_GRANTS = Object.freeze({
@@ -2129,10 +2155,19 @@ export const TURN_GRANTS = Object.freeze({
     caveat: "a grapple the module cannot trace to the bearer is the table's",
     rule: Object.freeze({ item: "Barbed Hide", uuid: "Compendium.dnd-monster-manual.features.Item.mmBarbedHide0000" }),
     from: "monsters (barbed devil)" }),
-  "Rage": Object.freeze({ effect: "Rage", on: "turnEnd", remind: "extend",
+  "Rage": Object.freeze({ effect: "Rage", on: "turnEnd", remind: "extend", unlessFeature: "Persistent Rage",
     says: "an attack roll against an enemy, a saving throw forced on one, or a Bonus Action to extend it",
     rule: Object.freeze({ item: "Rage", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbRage000000", benefit: "Duration" }),
-    from: "Barbarian 1" })
+    from: "Barbarian 1" }),
+  // Vitality of the Tree's two benefits (the PHB classes, A6): the surge at the Rage, the gift at each raging turn start.
+  "Vitality Surge": Object.freeze({ match: "feature", feature: "Vitality of the Tree", activity: "Vitality Surge", on: "use", of: "Rage",
+    rule: Object.freeze({ item: "Vitality of the Tree", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbVitalityOf", benefit: "Vitality Surge" }),
+    from: "Barbarian — Path of the World Tree 3" }),
+  "Life-Giving Force": Object.freeze({ match: "feature", feature: "Vitality of the Tree", activity: "Life-Giving Force", on: "turnStart",
+    while: "raging", to: "ally", reach: 10, self: false,
+    caveat: "the Temporary Hit Points vanishing when the Rage ends is the table's",
+    rule: Object.freeze({ item: "Vitality of the Tree", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbVitalityOf", benefit: "Life-Giving Force" }),
+    from: "Barbarian — Path of the World Tree 3" })
 });
 
 /**
@@ -2382,6 +2417,7 @@ export const hitMenuEntries = () => everyRow([...new Set(Object.values(HIT_OPTIO
 export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
 export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
+export const initiativeGrantEntries = () => everyRow(Object.keys(INITIATIVE_GRANTS));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));

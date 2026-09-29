@@ -73,6 +73,7 @@ export const LAYER_OF = {
   "advantage-buys.js": "machines",
   "rest-grants.js": "machines",
   "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled
+  "initiative-grants.js": "machines", // what a feature gives back as its owner's Initiative lands (Persistent Rage, Uncanny Metabolism)
   "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll
   "kit-tend.js": "machines",        // Healer's Battle Medic on the kit's use
   "unarmed-dice.js": "machines",    // Tavern Brawler's die on the plain Unarmed Strike
@@ -128,6 +129,7 @@ export const LAYER_OF = {
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set
   "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries
   "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count
+  "decide/initiative-grants.js": "decision", // the Initiative grant due, its card line
   "decide/ward-pools.js": "decision",        // the ward's take, the HP split after it, the refill
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
@@ -185,6 +187,12 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
  * ------------------------------------------------------------------------------------------- */
 
 const ALLOW = [
+  {
+    from: "turn-grants.js", to: "rest-grants.js", disposition: "BY DESIGN",
+    why: "machine → machine: Life-Giving Force's gift at the turn start is the rest song's hand-out "
+      + "(`askHandOut`: the pick of a creature within reach, the record, the GM's landing) — one picker for "
+      + "every Temporary Hit Point hand-out; a second popup would drift (2026-09-29, the PHB classes A6)"
+  },
   {
     from: "dice-changers.js", to: "metamagic.js", disposition: "BY DESIGN",
     why: "machine → machine: Empowered Spell's row asks metamagic.js whether the caster can take it on "

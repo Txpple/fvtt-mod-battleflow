@@ -11,7 +11,7 @@
 > held for its first player. **Band**: the level band (A 1–5 · B 6–10 · C 11–16 · D 17–20) — the plan builds a band ahead of the party. **Stage**:
 > the plan's stage that builds it ([plans/session-0-classes.md](plans/session-0-classes.md)). **Bend**: a row in RULINGS' two registers names it.
 
-**419 rows: 99 NATIVE · 88 MODULE · 93 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
+**419 rows: 100 NATIVE · 88 MODULE · 92 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
 
 ## By class
 
@@ -20,7 +20,7 @@
 | Barbarian | 34 | 10 | 7 | 8 | 1 | 1 | 0 | 7 | 0 |
 | Bard | 23 | 4 | 3 | 6 | 2 | 1 | 0 | 7 | 0 |
 | Cleric | 27 | 7 | 4 | 8 | 0 | 0 | 0 | 8 | 0 |
-| Druid | 29 | 10 | 2 | 6 | 0 | 0 | 0 | 11 | 0 |
+| Druid | 29 | 11 | 2 | 5 | 0 | 0 | 0 | 11 | 0 |
 | Fighter | 32 | 11 | 3 | 10 | 0 | 1 | 0 | 7 | 0 |
 | Monk | 36 | 12 | 6 | 5 | 2 | 1 | 0 | 10 | 0 |
 | Paladin | 30 | 6 | 6 | 9 | 0 | 1 | 0 | 8 | 0 |
@@ -30,7 +30,7 @@
 | Warlock | 28 | 5 | 3 | 9 | 0 | 0 | 0 | 11 | 0 |
 | Wizard | 26 | 4 | 1 | 7 | 1 | 0 | 0 | 12 | 1 |
 | Options | 67 | 11 | 33 | 5 | 0 | 0 | 0 | 18 | 0 |
-| **all** | **419** | **99** | **88** | **93** | **7** | **5** | **0** | **126** | **1** |
+| **all** | **419** | **100** | **88** | **92** | **7** | **5** | **0** | **126** | **1** |
 
 ## By stage
 
@@ -41,7 +41,7 @@
 | A3 | 3 | A | Cutting Words (Bard — College of Lore 3) · Guided Strike (Cleric — War Domain 3) · Restore Balance (Sorcerer — Clockwork Sorcery 3) |
 | A4 | 3 | A | Disciple of Life (Cleric — Life Domain 3) · Psychic Spells (Warlock — Great Old One Patron 3) · Potent Cantrip (Wizard — Evoker 3) |
 | A5 | 1 | A | Arcane Ward (Wizard — Abjurer 3) |
-| A6 | 4 | A C | Persistent Rage (Barbarian 15) · Vitality of the Tree (Barbarian — Path of the World Tree 3) · Circle Forms (Druid — Circle of the Moon 3) · Uncanny Metabolism (Monk 2) |
+| A6 | 3 | A C | Persistent Rage (Barbarian 15) · Vitality of the Tree (Barbarian — Path of the World Tree 3) · Uncanny Metabolism (Monk 2) |
 | A7 | 3 | A | Inspiring Smite (Paladin — Oath of Glory 3) · Wild Magic Surge (Sorcerer — Wild Magic Sorcery 3) · Portent (Wizard — Diviner 3) |
 | B1 | 3 | B | Fanatical Focus (Barbarian — Path of the Zealot 6) · Countercharm (Bard 7) · Indomitable (Fighter 9) |
 | B2 | 7 | B | Mantle of Majesty (Bard — College of Glamour 6) · Eldritch Strike (Fighter — Eldritch Knight 10) · Beguiling Twist (Ranger — Fey Wanderer 7) · Magical Ambush (Rogue — Arcane Trickster 9) · Psychic Defenses (Sorcerer — Aberrant Sorcery 6) · Beguiling Defenses (Warlock — Archfey Patron 10) · Eldritch Hex (Warlock — Great Old One Patron 10) |
@@ -80,7 +80,7 @@
 | Barbarian | Path of the Wild Heart | 6 | B | **Aspect of the Wilds** | NATIVE | — | — | the pack resolves it: 3 effects | — |
 | Barbarian | Path of the Wild Heart | 10 | B | **Nature Speaker** | OUT | — | — | an out-of-combat cast | — |
 | Barbarian | Path of the Wild Heart | 14 | C | **Power of the Wilds** | ROW | `EMANATIONS` · Reactive Strike's ring (`quiet`) + `CLOCK_RIDERS` · Hill's Tumble's press | C1 | Lion: a ring whose members' attacks NOT at the rager roll at Disadvantage (`EFFECT_BENDS` on the member effect, `except: source`); Ram: a no-save Prone press on a hit once per turn; Falcon: NATIVE (fly) | — |
-| Barbarian | Path of the World Tree | 3 | A | **Vitality of the Tree** | ROW | `TURN_GRANTS` · Heroism (`grant: temphp`, `while: raging`) | A6 | temp HP = the Rage Damage bonus at the Rage's start and at each turn start while raging; Life-Giving Force (an ally within 10 ft at the turn's end) is the same row `on: turnEnd`, `to: ally` — a pick, so asked | — |
+| Barbarian | Path of the World Tree | 3 | A | **Vitality of the Tree** | ROW | `TURN_GRANTS` · Heroism (`on: use` of the Rage; `while: raging`, `to: ally`) | A6 | measured (A6): Vitality Surge — temp HP = the Barbarian level when the Rage is USED (not each turn); Life-Giving Force — at the START of each raging turn, (Rage Damage)d6 temp HP given to another creature within 10 ft, a pick, so asked (the rest song's popup) | — |
 | Barbarian | Path of the World Tree | 6 | B | **Branches of the Tree** | ROW | `EMANATIONS` · Unnerving Gaze (`alert.on: "turnStart"`, 30 ft) | B5 | a hostile starting its turn within 30 ft while raging raises the reminder; the Reaction's save and the teleport are the activity's, from the sheet | — |
 | Barbarian | Path of the World Tree | 10 | B | **Battering Roots** | NATIVE | — | — | the pack resolves it: 1 effect | — |
 | Barbarian | Path of the World Tree | 14 | C | **Travel Along the Tree** | OUT | — | — | a teleport — movement (DESIGN §4) | — |
@@ -153,7 +153,7 @@
 | Druid | Circle of the Land | 6 | B | **Natural Recovery** | OUT | — | — | a free cast — the sheet's | — |
 | Druid | Circle of the Land | 10 | B | **Nature's Ward** | NATIVE | — | — | the pack resolves it: 4 effects | — |
 | Druid | Circle of the Land | 14 | C | **Nature's Sanctuary** | NATIVE | — | — | measured 2026-09-29 (M0): the four Nature's Ward effects carry the `coverHalf` STATUS; dnd5e folds it into `ac.cover`, which the cover measure already reads as the CARRIED cover (reminders.js `coverOf`, the measure raises only above it) — nothing to build; the cube's placement and which allies stand in it are the table's | — |
-| Druid | Circle of the Moon | 3 | A | **Circle Forms** | ROW | `TURN_GRANTS` · Heroism (`grant: temphp`) with `on: "transform"` (dnd5e's transformation hook) | A6 | temp HP = three × the level as the Wild Shape lands — a new trigger word for the grant machine (`on: transform`), no choice (R1); the CR and AC are the pack's | — |
+| Druid | Circle of the Moon | 3 | A | **Circle Forms** | NATIVE | — | — | measured (A6): dnd5e's `wildshape` transformation preset carries it — `tempFormula: max(@classes.druid.levels, @subclasses.moon.levels * 3)` and `minimumAC: (13 + Wis) × sign(moon levels)`; the CR is the pack's profile | — |
 | Druid | Circle of the Moon | 3 | A | **Circle of the Moon Spells** | OUT | — | — | a spell list — each spell's verdict is the spells register's | — |
 | Druid | Circle of the Moon | 6 | B | **Improved Circle Forms** | NATIVE | — | — | the pack's effect (radiant option) | — |
 | Druid | Circle of the Moon | 10 | B | **Moonlight Step** | MODULE | — | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — |

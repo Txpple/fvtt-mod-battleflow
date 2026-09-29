@@ -27,17 +27,20 @@ export function grantRowFor({ table, item, effectName, listed = null, answers, o
 
 /**
  * THE FEATURE ROWS (`match: "feature"`, Regeneration): the bearer's OWN trait pays, on its own numbers — no
- * effect, no caster. Each row answered by one of `features` (the sheet's feat items, `answers` the matcher).
+ * effect, no caster. Each row answered by one of `features` (the sheet's feat items, `answers` the matcher) — the
+ * row's `feature` when it is one benefit of it (Vitality of the Tree's two), else its key. `on` narrows to the
+ * rows of that moment (a row's own `on`, "turnStart" by default); null takes every row.
  * @param {{table: Readonly<Record<string, any>>, features: any[], listed?: Set<string>|null,
- *          answers: (key: string, item: any) => boolean}} facts
+ *          answers: (key: string, item: any) => boolean, on?: string|null}} facts
  * @returns {{key: string, row: any, item: any}[]}
  */
-export function featureGrantRows({ table, features, listed = null, answers }) {
+export function featureGrantRows({ table, features, listed = null, answers, on = null }) {
   const out = [];
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     if ( row?.match !== "feature" ) continue;
+    if ( on && ((row.on ?? "turnStart") !== on) ) continue;
     if ( listed && !listed.has(key.toLowerCase()) ) continue;
-    const item = (features ?? []).find(i => answers(key, i)) ?? null;
+    const item = (features ?? []).find(i => answers(row.feature ?? key, i)) ?? null;
     if ( item ) out.push({ key, row, item });
   }
   return out;

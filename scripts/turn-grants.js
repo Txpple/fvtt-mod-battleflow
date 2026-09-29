@@ -9,9 +9,12 @@
  * A `deals` row (the GM's side) is a DAMAGE: the grappled creature's own turn start or end pays the grappler's
  * "Damage: Grappled" rolled on the grappler's numbers (Constricting Vine, the swarm); a feature row's
  * `deals: "grappled"` pays the bearer's damage to what it grapples at its own turn start (Barbed Hide).
+ * The PHB classes (A6): a feature row `on: "use"` pays as its bearer uses the named item (Vitality Surge at the
+ * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
+ * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
 import { MODULE_ID, TITLE, drivesMomentFor, statContext } from "./core.js";
-import { activityNamed, activityOfType, cardActivity } from "./lookup.js";
+import { activityNamed, activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
 import { chitStampOf, effectSourceOf } from "./shared.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
@@ -21,6 +24,7 @@ import { grantRowFor, grantDue, grantTitle, featureGrantRows, blockingTypes, dam
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, ruleLine } from "./decide/present.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { askHandOut } from "./rest-grants.js";
 import { listen } from "./dispatch.js";
 
 const GRANT_FLAG = "turnGrant";
@@ -45,6 +49,7 @@ function payEffects(actor, combat, { on, round, turn, why }) {
     const place = `${combat.id}|${round}|${turn}|${on === "turnEnd" ? "end|" : ""}${effect.uuid}`;
     const due = grantDue({ paid, place: settledAt(place) ? null : place });
     if ( !due.due ) continue;
+    if ( row.unlessFeature && featureNamed(actor, row.unlessFeature) ) continue;   // Persistent Rage: nothing to extend
     paid.add(place);
     if ( row.remind ) { void remindExtend({ effect, row, item, actor, place, combat, round, turn }); continue; }
     void pay({ effect, row, item, actor, place, why: why ?? due.why, on });
@@ -105,9 +110,10 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
     payEffects(actor, combat, { on: "turnStart", round: combat.round, turn: combat.turn, why: null });
     // The bearer's OWN traits (Regeneration, Barbed Hide): no effect to find, the sheet is the row.
     const listed = listedNames(turnGrantEntries());
-    for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: actor.items.filter(i => i.type === "feat"), listed, answers }) ) {
+    for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: actor.items.filter(i => i.type === "feat"), listed, answers, on: "turnStart" }) ) {
       if ( (row.while === "aboveZero") && !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) continue;
-      const place = `${combat.id}|${combat.round}|${combat.turn}|${item.uuid}`;
+      if ( (row.while === "raging") && !raging(actor) ) continue;
+      const place = `${combat.id}|${combat.round}|${combat.turn}|${item.uuid}${row.feature ? `|${key}` : ""}`;
       const due = grantDue({ paid, place: settledAt(place) ? null : place });
       if ( !due.due ) continue;
       if ( row.deals === "grappled" ) {
@@ -119,6 +125,7 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
         continue;
       }
       paid.add(place);
+      if ( row.to === "ally" ) { void giveToAlly({ row: { key, ...row }, item, actor }); continue; }
       const block = row.unless?.damagedBy ? blockedBy(actor, item, combat) : null;
       if ( block ) { void blockedCard({ row: { key, ...row }, item, actor, place, block }); continue; }
       void pay({ effect: null, row: { key, ...row }, item, actor, place, why: due.why, on: "turnStart" });
@@ -127,6 +134,43 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
     console.error(`${TITLE} | Turn-start grant failed — apply it by hand.`, err);
   }
 });
+
+/** The bearer wears its Rage — an enabled effect of that name, the actor's own or its item's transferred copy. */
+const raging = actor => (actor.appliedEffects ?? actor.effects?.contents ?? []).some(e => !e.disabled && (lower(e.name) === "rage"));
+
+// A feature row `on: "use"` (Vitality Surge): the bearer's OWN use of the named item pays it, on the using client.
+listen("dnd5e.postUseActivity", "turn-grants", (activity, _usageConfig, results) => {
+  try {
+    const actor = activity?.actor;
+    const used = activity?.item;
+    if ( !(actor instanceof Actor) || !used || !actor.isOwner ) return;
+    const listed = listedNames(turnGrantEntries());
+    for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: actor.items.filter(i => i.type === "feat"), listed, answers, on: "use" }) ) {
+      if ( !row.of || !answers(row.of, used) ) continue;
+      const place = `use|${results?.message?.id ?? activity.uuid}|${key}`;
+      if ( paid.has(place) ) continue;
+      paid.add(place);
+      void pay({ effect: null, row: { key, ...row }, item, actor, place, why: `${used.name} used`, on: "use" });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | A grant on the use could not be read — apply it by hand.`, err);
+  }
+});
+
+/** A `to: "ally"` row (Life-Giving Force): the amount rolled on the bearer's numbers, then GIVEN — the rest song's pick. */
+async function giveToAlly({ row, item, actor }) {
+  try {
+    const activity = row.activity ? activityNamed(item, row.activity) : activityOfType(item, "heal");
+    const h = activity?.healing ?? null;
+    const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+    if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no healing part on "${row.activity}" — give it by hand.`); return; }
+    const roll = await new Roll(raw, activity.getRollData?.() ?? item.getRollData?.() ?? {}).evaluate();
+    if ( !(roll.total > 0) ) return;
+    await askHandOut(actor, { name: row.key, row, item, amount: roll.total, roll });
+  } catch(err) {
+    console.error(`${TITLE} | ${row?.key ?? "The gift"} could not be asked — give it by hand.`, err);
+  }
+}
 
 /** A `deals` row's damage part: the row's activity, else the item's first damage activity. */
 function damagePartOf(item, row) {
@@ -202,7 +246,7 @@ async function pay({ effect, row, item, actor, place, why, on = "turnStart" }) {
     const card = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: caster ?? actor }),
       rolls: deals ? [roll] : [],
-      content: bfCard({ img: item.img ?? null, eyebrow: on === "turnEnd" ? "Turn end" : "Turn start", tone: deals ? "bad" : "good",
+      content: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? (row.of ?? "Use") : (on === "turnEnd") ? "Turn end" : "Turn start", tone: deals ? "bad" : "good",
         title: grantTitle({ spell: row.key, bearer: actor.name, total: roll.total, type, deals }),
         subtitle: effect ? `${effect.name} stands on ${actor.name} — ${why}` : `${actor.name}'s own ${row.key} — ${why}`,
         lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${row.caveat}</span>` : null] }),

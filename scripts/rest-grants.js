@@ -8,7 +8,7 @@ import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext
 import { lower, activityNamed, asiAssigned, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, listedNames, restGrantEntries } from "./decide/registry.js";
 import { bfCard, esc, popupKey, foldedRuleHTML } from "./decide/present.js";
-import { REST_GRANTS } from "./decide/registry.js";
+import { REST_GRANTS, TURN_GRANTS } from "./decide/registry.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { holdsTemp, mealStanding } from "./decide/rest-grants.js";
@@ -209,7 +209,33 @@ function candidateNote(grant, c) {
   return c.has ? "has it" : "";
 }
 
-/** The allies the map puts within reach of the owner's token — characters on its side, one row per actor. */
+/** The row a song record answers — a rest's, or a turn's hand-out (`table: "turn"`, Life-Giving Force). */
+const songRowOf = flag => ((flag?.table === "turn") ? TURN_GRANTS : REST_GRANTS)[flag?.row] ?? null;
+
+/**
+ * THE HAND-OUT outside a rest (TURN_GRANTS `to: "ally"` — Life-Giving Force): the amount already rolled (its dice on
+ * the card), given to one creature on the owner's side within the row's reach — the song's popup and landing.
+ * No card when nobody could take it.
+ */
+export async function askHandOut(actor, { name, row, item, amount, roll = null }) {
+  const grantRow = { ...row, grant: "temphp" };
+  const base = { status: "pending", row: name, table: "turn", grant: "temphp", itemId: item.id, actorUuid: actor.uuid, actorName: actor.name,
+    cap: 1, reach: Number.isFinite(row.reach) ? row.reach : null, amount, formula: roll?.formula ?? null, restAt: Date.now(),
+    ...statContext(actor.uuid) };
+  const candidates = songCandidates(actor, grantRow, base);
+  if ( !candidates.some(c => !c.has) ) return null;
+  const flag = { ...base, candidates };
+  return ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor }), rolls: roll ? [roll] : [],
+    content: bfCard({ img: item.img, eyebrow: name, tone: "pending", title: `${name} — ${grantText(flag)} for another creature` }),
+    flags: { [MODULE_ID]: { [SONG_FLAG]: flag } }
+  });
+}
+
+/**
+ * The allies the map puts within reach of the owner's token — characters on its side, one row per actor; a turn's
+ * hand-out (`to: "ally"`) takes any creature on its side (a summon, an allied NPC).
+ */
 function songCandidates(actor, row, flag, ownRest = null) {
   const own = tokenOfActor(actor);
   if ( !own ) return [];
@@ -217,7 +243,7 @@ function songCandidates(actor, row, flag, ownRest = null) {
   const out = [];
   for ( const t of canvas.tokens?.placeables ?? [] ) {
     const a = t.actor;
-    if ( !a || (a.type !== "character") || seen.has(a.uuid) ) continue;
+    if ( !a || seen.has(a.uuid) || ((row.to !== "ally") && (a.type !== "character")) ) continue;
     if ( t.document.disposition !== own.document.disposition ) continue;
     const feet = (a.uuid === actor.uuid) ? 0 : nearestFeet(own, t);
     if ( feet === null ) continue;
@@ -475,7 +501,7 @@ async function showSongPopup(message) {
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(flag.actorUuid);
   if ( !actor ) return;
-  const row = REST_GRANTS[flag.row] ?? null;
+  const row = songRowOf(flag);
   const what = grantText(flag);
   // Sorted Party first, nearest first (songCandidates): the first `cap` who lack it start ticked.
   const ticked = new Set(flag.candidates.filter(c => !c.has).slice(0, flag.cap).map(c => c.uuid));
@@ -487,7 +513,7 @@ async function showSongPopup(message) {
   const group = (title, list) => list.length ? `<div style="margin:0.3rem 0;"><div style="font-size:var(--font-size-11,11px);letter-spacing:0.08em;text-transform:uppercase;opacity:0.7;margin:0.2rem 0;">${title}</div>${list.map(rowOf).join("")}</div>` : "";
   const party = flag.candidates.filter(c => c.party), others = flag.candidates.filter(c => !c.party);
   const reach = Number.isFinite(flag.reach) ? `within ${flag.reach} ft` : "on the scene";
-  const cap = (row?.cap === "prof") ? `up to ${flag.cap} (your Proficiency Bonus)` : `up to ${flag.cap}`;
+  const cap = (row?.cap === "prof") ? `up to ${flag.cap} (your Proficiency Bonus)` : (flag.cap === 1) ? "one creature" : `up to ${flag.cap}`;
   const dialog = await openMomentPopup(message, SONG_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: (flag.grant === "inspiration") ? "fa-solid fa-music" : "fa-solid fa-heart", width: 420,
     content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: flag.row, tone: "pending",
