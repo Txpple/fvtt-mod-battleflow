@@ -873,10 +873,11 @@ async function adoptChoices(region, row, casterTok) {
       next.picked = askDefaults(row.ask);
       out.picks = { what: row.ask.what, label: row.ask.label, options: [...row.ask.options], picked: [...next.picked] };
     }
-    if ( row.band || row.ask ) {
-      await region.setFlag(MODULE_ID, FLAG, next);
-      if ( next.band ) await region.update({ shapes: [bandShape(next.band.base, next.band.side, row.band.feet * pxPerUnit(region.parent))] });
-    }
+    // One update: the flag and the widened shape land together, so no reader sees the band without its width.
+    if ( row.band || row.ask ) await region.update({
+      [`flags.${MODULE_ID}.${FLAG}`]: next,
+      ...(next.band ? { shapes: [bandShape(next.band.base, next.band.side, row.band.feet * pxPerUnit(region.parent))] } : {})
+    });
   } catch(err) { console.warn(`${TITLE} | ${row?.key ?? "An area"}'s band or picks could not be set — edit the region by hand.`, err); }
   return out;
 }
