@@ -1715,6 +1715,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
         clearTargets();
         if (priorActive && (priorActive.id !== scene.id)) { await priorActive.activate().catch(() => {}); await sleep(1000); }
+        // ⚠ Activating the prior scene moves this page's canvas off the range: every later section needs it back.
+        if (canvas.scene?.id !== scene.id) { await scene.view(); for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === scene.id); i++) await sleep(250); await sleep(500); }
       }
     }
 
