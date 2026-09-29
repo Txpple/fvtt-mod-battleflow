@@ -205,7 +205,8 @@ async function rollDuplicates(attackMessage, target) {
     // A feature row's one "duplicate" is never destroyed (the carapace stands); a face at `reflectAt` also reflects.
     const took = (outcome.absorbed && !live.feature) ? { id: live.ids.at(-1), name: live.names.at(-1) } : null;
     const left = (outcome.absorbed && !live.feature) ? live.count - 1 : live.count;
-    const reflected = !!live.feature && Number.isFinite(live.reflectAt) && faces.some(f => f >= live.reflectAt);
+    const reflectAt = Number(live.reflectAt ?? Number.NaN);
+    const reflected = !!live.feature && Number.isFinite(reflectAt) && faces.some(f => f >= reflectAt);
     const words = duplicateWords({ key: live.key, die: live.die, at: live.at }, outcome, { took: took?.name ?? null, left, of: live.of, feature: !!live.feature, reflected });
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: live.feature ? `${live.key} — a d${live.die}` : `${live.key} — a d${live.die} for each duplicate` });
     target.duplicates = { ...d, faces, winner: outcome.winner, absorbed: outcome.absorbed, took, left, of: live.of, at: live.at, die: live.die,

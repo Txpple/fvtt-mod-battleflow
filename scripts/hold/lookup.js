@@ -150,7 +150,7 @@ export function attackFactsOf(attackMessage) {
 /**
  * THE DUPLICATES standing on a defender (DUPLICATES, Mirror Image), read against this attacker: the row, the
  * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
- * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null}|null}
+ * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null, feature?: boolean, reflectAt?: number|null}|null}
  */
 export function duplicatesOf(defender, attacker, { ranged = false, spellAttack = false } = {}) {
   if ( !defender ) return null;
