@@ -108,6 +108,11 @@ export const ORDER = [
     name: "smoke-spells", note: "the spells slice — Heroism's temp HP at the bearer's turn start; the repeating save: Hold Person's Paralyzed demanded at the bearer's turn end, a success removing it through the cast's receipt with the card line, a failure keeping it; a damaged trigger; the action offer",
     needs: ["fixture-suite"]
   },
+  // BF Test Monster is lent the Monster Manual's traits by name; the Victim's own token beside it.
+  {
+    name: "smoke-monsters", note: "the Monster Manual's waiting rows — a monster's own activity repeating at the target's turn end and the petrifying escalation; the grappled target's damage at its own turn start or end; the grappler's own turn start",
+    needs: ["fixture-suite"]
+  },
   // BF Test Cleric is lent Sanctuary and Sacred Flame, BF Test Sorcerer Mirror Image; BF Test Attacker swings.
   {
     name: "smoke-wards", note: "the spells slice's Tier 3 — Sanctuary's gate before the attack roll and before a damaging spell's cast (the save demanded of the attacker; a failure turns it aside, a success makes the use again; the ward ends on its bearer's own attack), and Mirror Image's duplicates rolled on a hit that stands (a duplicate destroyed, the hit absorbed; the hit through; the last one ends it; Blindsight sees through)",

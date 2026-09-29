@@ -1,65 +1,41 @@
-# HANDOFF.md — after Slice B (2026-09-28, late night)
+# HANDOFF.md — the Monster Manual's waiting rows (2026-09-28, night)
 
-> **What this is:** the pick-up point for a session that starts cold, written at the user's word
-> (*"make a handoff to pick up in new"*). It is retired when what it hands over is done. The next
-> BUILD in the order is **Session 0 — the classes** (BACKLOG *The long-term order*, row 5), but it is
-> gated on the user: the party's actual kit one level band ahead of play, never the corpus blind.
-> **Do nothing until the user says go, and do not re-ask about the walks or the release.**
+> **What this is:** the commission for the rows the Monster Manual register left WAITS on machines that
+> exist ([audits/monsters-register.md](audits/monsters-register.md), the drawing's *The rows the scan gave
+> no family*). The user's word: *"we need to finish what's applicable in MM … finish this autonomously,
+> and then confirm that the MM is a wrap (except for the walk)."* Rapid mode: build, prove with the
+> suites, push; every walk deferred. Retired when the stages below are delivered and the register shows
+> no WAITS row that a machine of ours could take.
 
-## State
+## Out of scope, by earlier rulings (not re-opened)
 
-- **Prod is v2.6.0** (the refactor). Main is **33cd6b2**, pushed, clean tree, world settings CLEAN.
-- **UNRELEASED on main since v2.6.0**, in order: the review fix pass (c941553), the spells slice end to end
-  (Tiers 1–4, `audits/spells-register.md`), the DMG register (`audits/dmg-register.md`, the DMG RULED OUT),
-  and **Slice B — the GM's side**, delivered 2026-09-28 night in three commits: Stage 1 7a06c7f, Stage 2
-  b0fe20e, Stage 3 33cd6b2 (RULINGS *The GM's side — the five shapes*, *— the aura rows and the attack
-  bends*, *— the reaction rows*).
-- **UNWALKED, by the user's mode** (rapid deployment, 2026-09-28: build, prove with the suites, push; every
-  walk deferred to be walked together later): Tiers 1–4 of the spells slice (`tools/content/place-spells-walk.mjs`,
-  the four RULINGS tables) and Slice B's three walk tables (each RULINGS section carries one).
-- **The release** goes out only on the user's word: the full battery (`node tools/battery.mjs`, ~30 suites,
-  the sandbox deployed first) is the floor, then a pushed annotated tag — CI builds and publishes the zip
-  (`.github/workflows/release.yml`, `tools/build-release.mjs`). Nothing is owed until the word.
+- **The cast-triggered reaction kind** (Spell Reflection, Magical Backlash, Mind Corrosion, Protective
+  Magic, Counterspell, Psionic Defense, Tongue Twister, Haunted Zone): waits for the player customer
+  (RULINGS *The GM's side — the reaction rows*; Counterspell native by the user's ruling).
+- **Redirect Attack**: a new interrupt kind with one customer (the same ruling).
 
-## What Slice B settled (do not re-open)
+## The stages, by machine
 
-| Finding | Where |
-| --- | --- |
-| Legendary Resistance is NATIVE — dnd5e's `resistSave` button on the failed save, the saves machine's `forced` flip; no row, never a second entry path | registry.js `SAVE_SUCCEEDS` doc; RULINGS *the five shapes* |
-| `EVASION` is the table `EVASIONS` (Evasion on Dexterity, Avoidance on every save; the entry stamps `evasionBy`) | `saves/consequences.js`, `decide/verdict.js` |
-| The lists were retired 2026-09-27: a new row is simply on; verify-settings carries no list defaults | RULINGS *The settings* |
-| New vocabulary: `DROP_TO_ONE` `save` and `on: "died"`; `EMANATIONS` `trigger.on: "turnStart"` and `trigger.types`; `EFFECT_BENDS` `judge: "notIncapacitated"`; `INTERRUPT_REDUCTIONS` `ranged`; `REBUKES` `on: "miss"`, `types`, `self`; `TURN_GRANTS` `match: "feature"`, `while`, `unless.damagedBy`; the table `REACTION_RESETS` | ARCHITECTURE §the GM's side table |
-| Fiendish Blood, Redirect Attack, the cast-triggered seven, Eye Rays, Divine Beam: the register's, not owed; Arcana Unleashed's bestiary out | RULINGS *the reaction rows* |
+| Stage | Shape | Customers | Lands on | Vocabulary |
+| --- | --- | --- | --- | --- |
+| 1 | the repeating save on a monster's own activity; the escalation | Pacifying Spores, Paralysis Gas, Scare, Spores; Petrifying Bite, Petrifying Breath, Petrifying Gaze | `REPEAT_SAVES` (Hold Person's kind; the origin item answers by name or identifier, no type gate) | `count.swap` — the pressed status REPLACES the effect (Petrified instead of Restrained) |
+| 2 | the turn-start damage: the grappler's, and the wound's on its wearer | Barbed Hide, Constricting Vine, Suffocate, Smother, Swarm of Proboscises; Infernal Glaive, Spores' "Damage While Poisoned" | `TURN_GRANTS` (Regeneration's trigger) | `deals: "grappled"` (a damage activity at the creatures the bearer grapples — Unarmed Fighting's finder), `match: "effect"` with a damage activity (the wearer's turn start) |
+| 3 | the bearer's turn-end pulse; the moving ring; the turn-start ring; the alert | Fire Aura, Flame Aura, Heat Aura; Fire Form, Blazing Movement; Gibbering; Watery Rebuke, Pursuit, Shriek, Unnerving Gaze | `EMANATIONS` (Inner Radiance's `pulse`, Flaming Sphere's `enter`, Stench's `turnStart`, Polearm Master's `alert`) | none expected; `alert.on: "turnStart"` if Unnerving Gaze needs it |
+| 4 | the random condition on a hit; the random ray | Chaos Blade, Chaos Claw, Chaos Staff; Eye Rays | `RAY_TABLES` (Prismatic Spray's shape) | a hit-seam ray table (`on: "hit"`), the effects named "1: …" |
+| 5 | the drain; the charge | Life Drain, Proboscis, Draining Swipe; Gore, Tusk, Avalanche Slam, Ravage | a post-damage rider (Vampiric Touch's `dnd5e.applyDamage` seam) for the drain; `CLOCK_RIDERS` `judge: "charged"` for the charge, the offer's checkbox carrying the judgment where the movement cannot be read | `DRAINS` table (max or a score, off the receipt); `charged` judge |
+| 6 | the vampire's drop; the curse on a rest; the rest of the one-customer rows | Misty Escape, Shadow Escape, Spiteful Escape; Cursed Touch, Restless Touch; Corrosive Form, Sacred Weapon, Reflective Carapace, Object Slam, Sun Sickness, Reactive Heads, Incite Rampage, Fiendish Blood, Burst of Ingenuity, Portent | `DROP_TO_ONE`, `REST_GRANTS`, `DAMAGE_SHIELDS`, `EFFECT_CHOICES`/the hit seam, `INTERRUPT_ROLLS`, `EFFECT_BENDS`, `REACTION_RESETS`, `INTERRUPTS`, `REBUKES` | per row, the smallest facet that fits |
 
-## The box (the local sandbox, Foundry 14 / dnd5e 6.0.5)
-
-- **BF Test Monster** is a fixture (`tools/fixture-suite.mjs`): a bare GM NPC, 50 HP, Con 14, `legres` 3, its
-  token at (1300, 1000) on the range; suites lend Monster Manual traits by name from
-  `dnd-monster-manual.features` per section and take them back. The fixture resets it every run.
-- Suites touched this session: `smoke-drop` §6–§9, `smoke-saves` §31, `smoke-spells` §9, `smoke-emanations`
-  §24–§25, `smoke-goliath` §6–§8. Unit tests: `tests/decide-slice-b.test.js`.
-- ⚠ Lessons that cost time: a token update mixing position and `disposition` is dropped — two updates;
-  `tokenForUuid` finds the FIRST token of an actor — move the other creature, never place a second Monster
-  token; a stale ACTIVE combat on the box fails "out of combat" sections — list `game.combats` and delete
-  strays; the Victim's fixture token wanders under walks — place your own beside the corpse; a stray
-  "Gren" token sits at (1300, 1000) on the range (a walk's), harmless.
-- After any run: `node tools/verify-settings.mjs` (the scenes' `noCover` flags drift under the cover suite;
-  `--fix` restores).
-
-## Next — the user's call, in this order of likelihood
-
-1. **The release** (the user's word): deploy `--local`, the full battery, `npm run verify`, bump
-   (`tools/bump-version.mjs`), an annotated tag pushed — CI publishes. Prod is never touched by hand.
-2. **The walks**, when the mode changes back: the spells slice's four tiers, then Slice B's three tables.
-3. **Session 0 — the classes** ([audits/drawings/classes.md](audits/drawings/classes.md)): the party's kit one
-   band ahead; the shapes with three or more customers are tables (the reroll kind first, with its first
-   customer); the UI-shaped items ruled off a prototype before a line ([prototypes/](prototypes/)).
+Each stage: the rows and their vocabulary in `scripts/decide/registry.js`, the machine's change, its unit
+test in `tests/decide-monsters.test.js`, its sections in the new suite `tools/smoke-monsters.mjs` (BF
+Test Monster lent the traits by name from `dnd-monster-manual.features`, taken back after), `npm run
+verify` green, the suite green on the deployed copy, one commit. The docs recut at the end: RULINGS
+*The Monster Manual — the waiting rows built* with the walk table, the drawing's verdicts flipped, the
+register regenerated, BACKLOG row 4b, ARCHITECTURE's GM's-side table if vocabulary joined.
 
 ## Ground rules (unchanged)
 
 - Every row names its precedent; a platform-forced bend goes in RULINGS *Where the table bends the rule* in
   the same commit; a bend by choice in *Bent by choice*; a new flag key is classified in `decide/moments.js`.
-- A change runs its own suites (`node tools/battery.mjs --changed --list`, then the feature's own — a FULL
-  verdict for a feature still means its own suites); deploy `--local` first; launch detached.
-- `npm run verify` green on every commit; `biome --write` on named files only; ⚠ heredocs mangle
-  backslashes and quotes — write edit scripts to a file.
+- A change runs its own suites; deploy `--local` first; launch detached; after a kill: `verify-settings --fix`,
+  `reset-fixture-state`, `fixture-suite`.
+- `biome --write` on named files only; heredocs mangle backslashes — write edit scripts to a file.

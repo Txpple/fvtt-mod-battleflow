@@ -1624,10 +1624,15 @@ export const REPEAT_TRIGGERS = new Set(["turnEnd", "damaged", "action"]);
  *              is the cast's; the repeat's success takes none)
  *   count      { saves, fails?, press? } — the tally on the effect: `saves` successes end it, `fails` failures
  *              stop the asking (Contagion) or press `press` (Flesh to Stone's Petrified)
+ *              — `swap: true` (the GM's side): the pressed status REPLACES the effect (the medusa's second
+ *              failure is Petrified INSTEAD OF Restrained)
  *   item       the spell, where the key must differ from it (a second row on one spell — Prismatic Spray's rays)
  *   activity   the save activity by NAME, where the spell's first save activity is not the repeat's
  *              (Prismatic Spray's "Indigo Save (Con)" — the Cast is a Dexterity save)
  *   caveat     what the rule leaves to the table, said on the card
+ * A MONSTER's own activity (the GM's side, RULINGS *The Monster Manual — the waiting rows built*): the same
+ * row, keyed by the trait — the pack's effect on the target names the trait's activity as its origin, and
+ * the trait's save activity is the repeat's. The pack ships no repeat.
  * Membership: every row. Left out on purpose: Eyebite's Asleep (ends on damage, no save — the table's);
  * Prismatic Spray's violet ray (its save is at the CASTER's next turn start, when the pack's own clock ends
  * the Blinded anyway — the plane shift is the table's).
@@ -1692,7 +1697,40 @@ export const REPEAT_SAVES = Object.freeze({
     on: Object.freeze(["turnEnd"]), count: Object.freeze({ saves: 3, fails: 3, press: "petrified" }),
     caveat: "three failures press Petrified until freed by Greater Restoration or the like — the table's",
     rule: Object.freeze({ item: "Prismatic Spray", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPrismaticS" }),
-    from: "Sorcerer / Wizard spell, level 7 (instantaneous; the ray's Restrained lasts until the saves decide it)" })
+    from: "Sorcerer / Wizard spell, level 7 (instantaneous; the ray's Restrained lasts until the saves decide it)" }),
+  // The GM's side — a monster's own activity, the pack's effect on the target (RULINGS *The Monster Manual — the waiting rows built*).
+  "Pacifying Spores": Object.freeze({ effect: "Stunned", on: Object.freeze(["turnEnd"]),
+    caveat: "after 1 minute it succeeds automatically — the effect's own clock",
+    rule: Object.freeze({ item: "Pacifying Spores", uuid: "Compendium.dnd-monster-manual.features.Item.mmPacifyingSpore" }),
+    from: "monsters (myconid sovereign)" }),
+  "Paralysis Gas": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]),
+    caveat: "after 1 minute it succeeds automatically — the effect's own clock",
+    rule: Object.freeze({ item: "Paralysis Gas", uuid: "Compendium.dnd-monster-manual.features.Item.mmParalysisGas00" }),
+    from: "monsters" }),
+  "Scare": Object.freeze({ effect: "Frightened", on: Object.freeze(["turnEnd"]),
+    caveat: "after 1 minute it succeeds automatically — the effect's own clock",
+    rule: Object.freeze({ item: "Scare", uuid: "Compendium.dnd-monster-manual.features.Item.mmScare000000000" }),
+    from: "monsters" }),
+  "Spores": Object.freeze({ effect: "Poisoned", on: Object.freeze(["turnEnd"]),
+    caveat: "Holy Water ending it early is the table's; the damage while Poisoned is TURN_GRANTS' row",
+    rule: Object.freeze({ item: "Spores", uuid: "Compendium.dnd-monster-manual.features.Item.mmSpores00000000" }),
+    from: "monsters (violet fungus)" }),
+  // The escalation: the first failure's Restrained repeats at the turn end; the second failure is Petrified INSTEAD.
+  "Petrifying Bite": Object.freeze({ effect: "Restrained", activity: "Second Save", on: Object.freeze(["turnEnd"]),
+    count: Object.freeze({ saves: 1, fails: 1, press: "petrified", swap: true }),
+    caveat: "freed by Greater Restoration or the like — the table's",
+    rule: Object.freeze({ item: "Petrifying Bite", uuid: "Compendium.dnd-monster-manual.features.Item.mmPetrifyingBite" }),
+    from: "monsters (cockatrice)" }),
+  "Petrifying Breath": Object.freeze({ effect: "Restrained", on: Object.freeze(["turnEnd"]),
+    count: Object.freeze({ saves: 1, fails: 1, press: "petrified", swap: true }),
+    caveat: "the pack's one save carries both effects — the tray lands Restrained first; freed by Greater Restoration or the like — the table's",
+    rule: Object.freeze({ item: "Petrifying Breath", uuid: "Compendium.dnd-monster-manual.features.Item.mmPetrifyingBrea" }),
+    from: "monsters (gorgon)" }),
+  "Petrifying Gaze": Object.freeze({ effect: "Restrained", activity: "Second Save", on: Object.freeze(["turnEnd"]),
+    count: Object.freeze({ saves: 1, fails: 1, press: "petrified", swap: true }),
+    caveat: "the medusa's own reflection is the table's; freed by Greater Restoration or the like — the table's",
+    rule: Object.freeze({ item: "Petrifying Gaze", uuid: "Compendium.dnd-monster-manual.features.Item.mmPetrifyingGaze" }),
+    from: "monsters (medusa)" })
 });
 
 /**
@@ -1707,6 +1745,13 @@ export const REPEAT_SAVES = Object.freeze({
  *   unless    { damagedBy: "text" } — the block read off the BEARER's copy of the trait ("takes Acid or Fire
  *             damage"): dealt any named type since its last turn started (the receipts), it pays nothing and a
  *             card says why. The pack's item names no type; each monster's copy names its own
+ *   on        "turnStart" (the default) | "turnEnd" — the bearer's turn END (the swarm's grappled target)
+ *   deals     true — the activity is a DAMAGE landed on the bearer of the effect, rolled on the ORIGIN's numbers
+ *             (the grappled creature's own turn: Constricting Vine's "Damage: Grappled"; Spores' "Damage While
+ *             Poisoned"); a feature row's `deals: "grappled"` deals its damage activity, at the bearer's own turn
+ *             start, to the creatures the bearer GRAPPLES (Barbed Hide — Unarmed Fighting's finder, the grapples
+ *             it can trace to the bearer only; the rest are the table's)
+ * The GM's side: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const TURN_GRANTS = Object.freeze({
   "Heroism": Object.freeze({ effect: "Bravery", activity: "Heal", on: "turnStart",
@@ -1716,7 +1761,26 @@ export const TURN_GRANTS = Object.freeze({
     unless: Object.freeze({ damagedBy: "text" }),
     caveat: "a block that is not a damage type (the vampire's sunlight, running water) is the table's",
     rule: Object.freeze({ item: "Regeneration", uuid: "Compendium.dnd-monster-manual.features.Item.mmRegeneration00" }),
-    from: "monsters (trolls, hydras, vampires)" })
+    from: "monsters (trolls, hydras, vampires)" }),
+  // The grappled creature's own turn: the grappler's damage activity, its Grappled the effect (the tray's copy names the attack).
+  "Constricting Vine": Object.freeze({ effect: "Grappled", activity: "Damage: Grappled", on: "turnStart", deals: true,
+    rule: Object.freeze({ item: "Constricting Vine", uuid: "Compendium.dnd-monster-manual.features.Item.mmConstrictingVi" }),
+    from: "monsters (vine blight)" }),
+  "Smother": Object.freeze({ effect: "Grappled + Other Conditions", activity: "Grappled: Damage", on: "turnStart", deals: true,
+    caveat: "the rug halving its own damage and passing it to the smothered is the table's",
+    rule: Object.freeze({ item: "Smother", uuid: "Compendium.dnd-monster-manual.features.Item.mmSmother0000000" }),
+    from: "monsters (rug of smothering)" }),
+  "Swarm of Proboscises": Object.freeze({ effect: "Grappled", activity: "Damage: Grappled", on: "turnEnd", deals: true,
+    rule: Object.freeze({ item: "Swarm of Proboscises", uuid: "Compendium.dnd-monster-manual.features.Item.mmSwarmOfProbosc" }),
+    from: "monsters (swarm of stirges)" }),
+  "Spores": Object.freeze({ effect: "Poisoned", activity: "Damage While Poisoned", on: "turnStart", deals: true,
+    rule: Object.freeze({ item: "Spores", uuid: "Compendium.dnd-monster-manual.features.Item.mmSpores00000000" }),
+    from: "monsters (violet fungus)" }),
+  // The grappler's own turn start: its damage to what it holds.
+  "Barbed Hide": Object.freeze({ match: "feature", effect: null, activity: null, on: "turnStart", deals: "grappled",
+    caveat: "a grapple the module cannot trace to the bearer is the table's",
+    rule: Object.freeze({ item: "Barbed Hide", uuid: "Compendium.dnd-monster-manual.features.Item.mmBarbedHide0000" }),
+    from: "monsters (barbed devil)" })
 });
 
 /**

@@ -8,14 +8,16 @@ const lower = (/** @type {unknown} */ s) => String(s ?? "").toLowerCase();
 /**
  * THE ROW a landed effect answers: its ORIGIN item answers the row's key and its name is the row's effect.
  * `answers` is the registry's row matcher.
+ * `on` is the moment asking — the bearer's turn start (the default) or its turn end; a row answers its own.
  * @param {{table: Readonly<Record<string, any>>, item: any, effectName: string|null|undefined, listed?: Set<string>|null,
- *          answers: (key: string, item: any) => boolean}} facts
+ *          answers: (key: string, item: any) => boolean, on?: "turnStart"|"turnEnd"}} facts
  * @returns {any|null}   the row spread over `{ key }`
  */
-export function grantRowFor({ table, item, effectName, listed = null, answers }) {
+export function grantRowFor({ table, item, effectName, listed = null, answers, on = "turnStart" }) {
   if ( !item || !effectName ) return null;
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     if ( listed && !listed.has(key.toLowerCase()) ) continue;
+    if ( (row.on ?? "turnStart") !== on ) continue;
     if ( !answers(key, item) ) continue;
     if ( lower(row.effect) !== lower(effectName) ) continue;
     return { key, ...row };
@@ -96,11 +98,12 @@ export function grantDue({ paid, place }) {
 }
 
 /**
- * The card's title.
- * @param {{spell: string, bearer: string, total: number, type: string}} facts
+ * The card's title — a grant regains or gains; a `deals` row takes.
+ * @param {{spell: string, bearer: string, total: number, type: string, deals?: boolean}} facts
  */
-export function grantTitle({ spell, bearer, total, type }) {
+export function grantTitle({ spell, bearer, total, type, deals = false }) {
   const n = Number(total) || 0;
+  if ( deals ) return `${spell} — ${bearer} takes ${n} ${type} damage`;
   if ( type === "temphp" ) return `${spell} — ${bearer} gains ${n} Temporary Hit Point${n === 1 ? "" : "s"}`;
   return `${spell} — ${bearer} regains ${n} Hit Point${n === 1 ? "" : "s"}`;
 }

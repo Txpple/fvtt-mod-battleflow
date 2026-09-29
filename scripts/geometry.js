@@ -82,6 +82,35 @@ export function feetOf(n, units) {
   return Number.isFinite(feet) ? feet : null;
 }
 
+/** Who put this Grappled on its bearer: the module's source stamp, else the origin's actor, or null. */
+export function grapplerOf(effect) {
+  const stamped = effect?.getFlag?.(MODULE_ID, "sourceUuid");
+  if ( stamped ) return stamped;
+  let origin = null;
+  try { origin = effect?.origin ? fromUuidSync(effect.origin) : null; } catch { origin = null; }
+  return (origin instanceof Actor) ? origin.uuid : (origin?.actor?.uuid ?? null);
+}
+
+/**
+ * The creatures this one grapples — `[{ uuid, tokenUuid, name, certain }]`: a Grappled the module or the
+ * origin traces to the actor is certain; an untraceable grappler within 5 feet counts, uncertain.
+ * @param {Actor} actor
+ * @param {Token|null} token   the grappler's token, for the 5-foot guess
+ */
+export function grappledBy(actor, token) {
+  const out = [];
+  for ( const other of (canvas.tokens?.placeables ?? []) ) {
+    const a = other.actor;
+    if ( !a || (a.uuid === actor.uuid) || !a.statuses?.has?.("grappled") ) continue;
+    const effects = [...(a.effects ?? [])].filter(e => e.active && e.statuses?.has?.("grappled"));
+    const by = effects.map(grapplerOf);
+    const certain = by.includes(actor.uuid);
+    const unknown = !certain && by.some(x => !x) && token && ((nearestFeet(token, other) ?? Infinity) <= 5);
+    if ( certain || unknown ) out.push({ uuid: a.uuid, tokenUuid: other.document.uuid, name: other.document.name ?? a.name, certain });
+  }
+  return out;
+}
+
 /** The shortest grid distance between two tokens' squares, IN FEET; null when unreadable.
  * ⚠ `measurePath` answers in the SCENE's units (a 1.5 m grid reads "3"). */
 export function nearestFeet(a, b) {

@@ -63,8 +63,9 @@ export function repeatBend(row, cause, spell) {
 
 /**
  * WHAT THE VERDICT DOES: a plain row ends on a success and holds on a failure; a `count` row tallies —
- * `saves` successes end it, `fails` failures lock it (no more saves) and press `press` if the row has one.
- * @param {{effect: string|readonly string[], count?: {saves: number, fails?: number, press?: string}}} row
+ * `saves` successes end it, `fails` failures lock it (no more saves) and press `press` if the row has one —
+ * or, with `swap`, END it and press `press` in its place (the medusa's Petrified instead of Restrained).
+ * @param {{effect: string|readonly string[], count?: {saves: number, fails?: number, press?: string, swap?: boolean}}} row
  * @param {"saved"|"failed"|string|null} outcome
  * @param {{saves?: number, fails?: number}|null} tally   the tally so far, off the effect
  * @returns {{ends: boolean, locks: boolean, press: string|null, tally: {saves: number, fails: number}|null, says: string}}
@@ -85,6 +86,8 @@ export function repeatVerdict(row, outcome, tally) {
   next.fails += 1;
   if ( count.fails && (next.fails >= count.fails) ) {
     const press = count.press ?? null;
+    if ( press && count.swap ) return { ends: true, locks: false, press, tally: next,
+      says: `${name} ended — the ${ordinal(count.fails)} failure: ${statusName(press)} instead` };
     return { ends: false, locks: true, press, tally: next,
       says: `${name} holds — the ${ordinal(count.fails)} failure: ${press ? statusName(press) : "no more saves"}` };
   }

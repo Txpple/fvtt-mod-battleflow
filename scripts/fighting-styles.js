@@ -16,7 +16,7 @@ import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
 import { withTargets, resolveAttackMessage } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
-import { nearestFeet, tokenForUuid } from "./geometry.js";
+import { grappledBy, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
   registerRelay } from "./ui.js";
 import { listen, listenOnce } from "./dispatch.js";
@@ -529,28 +529,7 @@ const GRAPPLE_FLAG = "grappleDamage";
 const grappleTimers = new Map();
 const grappleAsked = new Set();
 
-/** Who put this Grappled on its bearer (the module's source stamp, else the origin's actor), or null. */
-function grapplerOf(effect) {
-  const stamped = effect.getFlag?.(MODULE_ID, "sourceUuid");
-  if ( stamped ) return stamped;
-  const origin = effect.origin ? resolveUuid(effect.origin) : null;
-  return (origin instanceof Actor) ? origin.uuid : (origin?.actor?.uuid ?? null);
-}
-
-/** The creatures this one grapples — `[{ uuid, tokenUuid, name, certain }]`; an unknown grappler within 5 feet counts, uncertain. */
-function grappledBy(actor, token) {
-  const out = [];
-  for ( const other of (canvas.tokens?.placeables ?? []) ) {
-    const a = other.actor;
-    if ( !a || (a.uuid === actor.uuid) || !a.statuses?.has?.("grappled") ) continue;
-    const effects = [...(a.effects ?? [])].filter(e => e.active && e.statuses?.has?.("grappled"));
-    const by = effects.map(grapplerOf);
-    const certain = by.includes(actor.uuid);
-    const unknown = !certain && by.some(x => !x) && token && ((nearestFeet(token, other) ?? Infinity) <= 5);
-    if ( certain || unknown ) out.push({ uuid: a.uuid, tokenUuid: other.document.uuid, name: other.document.name ?? a.name, certain });
-  }
-  return out;
-}
+// The grapple finder (grapplerOf, grappledBy) is geometry.js's: Barbed Hide's turn start reads it too.
 
 /** The feat's own grapple-damage activity: its bare damage activity. */
 const grappleActivityOf = feature => [...(feature?.system?.activities ?? [])].find(a => a.type === "damage") ?? null;

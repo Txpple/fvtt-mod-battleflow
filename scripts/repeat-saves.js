@@ -131,7 +131,7 @@ async function raiseRepeat(effect, row, cause, why) {
           effectNames: { fail: [], always: [] }, effectsHandled: "repeat",
           // ⚠ Pinned: the area adoption keys on the activity this card shares with the cast and would rewrite the targets.
           pinnedTargets: true,
-          demand: { spell: true, abilities, statuses: [...(effect.statuses ?? [])], sleep: false, ...(bend ? { bend } : {}) },
+          demand: { spell: item.type === "spell", abilities, statuses: [...(effect.statuses ?? [])], sleep: false, ...(bend ? { bend } : {}) },
           activityUuid: activity.uuid, templateType: null, templated: false,
           durationUnits: item.system?.duration?.units ?? null,
           item: { name: item.name, img: item.img ?? null }, casterName: caster?.name ?? null,

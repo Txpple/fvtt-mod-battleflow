@@ -1673,6 +1673,32 @@ reaction, generated, never edited. 680 rows: 433 NATIVE · 55 MODULE · 60 WAITS
 | **Walked** | the three GM's-side walk tables, read off their plain first cells (the registers' shared reader expects bold names; the GM's side wrote plain ones — the generator reads both) |
 | **The first drawing's deferred rows restated** | Redirect Attack, Fiendish Blood, the cast-triggered seven, Eye Rays and Divine Beam, Burst of Ingenuity / Portent / Maneuver, Watery Rebuke / Pursuit / Shriek / Unnerving Gaze — WAITS with their shape; Life Suppression and Negative Energy Cone, Rampage and its kin, Swarm, Antimagic Cone — OUT, as drawn |
 
+## The Monster Manual — the waiting rows built (2026-09-28, night; HANDOFF.md)
+
+**The commission** (HANDOFF.md, the user's word: *"finish what's applicable in MM … autonomously"*): the
+register's WAITS rows whose shape sits on a machine that exists ([audits/monsters-register.md](audits/monsters-register.md),
+the drawing's *The rows the scan gave no family*) are built, in rapid mode — proved by `tools/smoke-monsters.mjs`
+(BF Test Monster lent each trait by name), not walked. Every row names its precedent. What the pack data
+changed on the way is recorded below (*Re-read against the pack*).
+
+| Stage | Shape | Rows | Lands on | What was built |
+| --- | --- | --- | --- | --- |
+| 1 | **the repeating save on a monster's own activity** | Pacifying Spores, Paralysis Gas, Scare, Spores | `REPEAT_SAVES` (Hold Person's kind) — the same row keyed by the trait: the pack's effect on the target names the trait's activity as its origin (the tray's copy), the trait's save activity is the repeat's; the demand is marked as NOT a spell (`demand.spell` reads the item's type — Magic Resistance never bends a myconid's spores) | nothing new on the machine: the match never had a spell gate |
+| 1 | **the escalation** — "First Failure: Restrained … Second Failure: Petrified instead" | Petrifying Bite, Petrifying Breath, Petrifying Gaze | `REPEAT_SAVES` `count: { saves: 1, fails: 1, press: "petrified", swap: true }` — the pack's "Second Save" activity is the repeat's (`activity`) | **`count.swap`**: the pressed status REPLACES the effect (Flesh to Stone's press keeps it under the Petrified); the card says "Petrified instead" |
+| 2 | **the grappled creature's own turn** — "until the grapple ends, the target takes N damage at the start (end) of each of its turns" | Constricting Vine, Smother, Spores' *Damage While Poisoned* (the start); Swarm of Proboscises (the end) | `TURN_GRANTS` (Heroism's shape: the pack's Grappled on the target names the attack as its origin; the grappler's "Damage: Grappled" activity rolled on the GRAPPLER's numbers, landed on the bearer, receipted) | **`deals: true`** (a damage, not a heal — the card "takes N type damage", tone bad) and **`on: "turnEnd"`** (the swarm): the machine now pays the combatant whose turn just ENDED its `turnEnd` rows |
+| 2 | **the grappler's own turn start** — "deals N damage to any creature grappled by it" | Barbed Hide | `TURN_GRANTS` `match: "feature"` (Regeneration's trigger) | **`deals: "grappled"`**: the bearer's damage activity rolled once, landed on every creature it grapples — Unarmed Fighting's finder, lifted to `geometry.js` (`grappledBy`: a Grappled the module's stamp or the origin traces to the bearer); a grapple it cannot trace is the table's (the caveat); no card when it holds no one |
+
+**Re-read against the pack** (the drawing's shapes that the pack data settled differently):
+- **The charge** (Gore, Tusk, Avalanche Slam, Ravage): the pack ships the charge as its OWN attack activity
+  ("Moving Attack", the extra dice and the Prone on it) — the GM's pick when it charged. NATIVE, no row; the
+  movement is not read (the module reads no token's movement history — Lunging Attack's precedent).
+- **Suffocate**: no per-turn damage — the *suffocating* status is the effect's own. NATIVE.
+- **Constricting Vine, Smother**: "its turns" are the TARGET's, not the grappler's (the drawing had read them
+  as Barbed Hide's shape); the Swarm of Proboscises at the target's turn END.
+- **Infernal Glaive**: the pack ships no wound effect to hang the clock on (a save and a "Damage: Infernal
+  Wound" activity, no effect) — the wound is the table's. OUT; a copy carrying a wound effect would be a
+  `deals` row.
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code
