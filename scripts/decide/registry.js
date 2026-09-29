@@ -44,7 +44,8 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *            the defender holds the `anyType` feature (Deflect Energy)
  *   atZero   the feature's activity of that name is OFFERED on the damage card when the reduction took the
  *            damage to 0 — Deflect Attacks' Redirect, the pack's own save activity used at the attacker
- *   eyebrow / spend / hit / by   the card's and popup's words
+ *   eyebrow / spend / hit / by   the card's and popup's words;  label  the name shown when the row is keyed by its
+ *            item (Protective Field on Psionic Power);  verb  a guard's answer ("intercept" by default)
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -67,7 +68,7 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     from: "Monk 3" }),
   // A2 — Protective Field (keyed by its item, as every row): yourself on any damage (Stone's Endurance's `any`),
   // another within 30 ft on an attack's (Interception's guard). The Soulknife's Psionic Power carries no such activity.
-  "Psionic Power": Object.freeze({ activity: "Protective Field", pool: true, any: true, ally: 30,
+  "Psionic Power": Object.freeze({ activity: "Protective Field", label: "Protective Field", verb: "reduce", pool: true, any: true, ally: 30,
     eyebrow: "Reaction", spend: "Psionic Energy Die", hit: "attack", by: "a Psionic Energy Die plus your Intelligence modifier (at least 1)",
     rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Protective Field" }),
     from: "Fighter — Psi Warrior 3" }),

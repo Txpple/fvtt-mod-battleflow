@@ -124,7 +124,7 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
     : { actorUuid: actor.uuid, actorName: target.name ?? actor.name, itemId: found.item.id, activityId: found.activity.id, formula: found.formula };
   const flag = {
     status: "pending", ...who,
-    reaction: found.name,
+    reaction: found.name, label: found.row?.label ?? found.name,
     receiptId: receiptMessage.id, target: { uuid: target.uuid, name: target.name ?? actor.name },
     damages: packDamages(damages), multiplier, note: note ?? null, amount,
     sourceName: source?.name ?? null, answer: null, reduceBy: 0, applied: false,
@@ -137,7 +137,7 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
     content: bfCard({ img: guarded ? (resolveUuid(found.guards[0].actorUuid)?.items?.get(found.guards[0].itemId)?.img ?? null) : found.item.img,
       eyebrow: `Reaction — ${found.name}`, tone: "pending",
       title: `${target.name ?? actor.name} is about to take ${amount} damage`,
-      subtitle: guarded ? `${guardNames} may intercept${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer") }),
+      subtitle: guarded ? `${guardNames} may ${found.row?.verb ?? "intercept"}${source ? ` · from ${source.name}` : ""}` : (source ? `from ${source.name}` : "the damage waits for the answer") }),
     flags: { [MODULE_ID]: { [HOLD_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
@@ -202,18 +202,18 @@ async function answerHold(message, answer, who = null) {
       const activity = item?.system?.activities?.get(mine.activityId) ?? null;
       const pool = activity ? poolOf(actor, activity) : null;
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
-        ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.reaction} left.`);
+        ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.label ?? flag.reaction} left.`);
         answer = "pass";
       } else {
         try {
           const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();
           // A reaction that modifies a roll: the dice rise off the reducer toward the protected.
           const rise = reductionRise({ roll: roll.toJSON(), from: actor.uuid, to: flag.target?.uuid ?? null });
-          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.reaction} — the die, plus the modifier`,
+          await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.label ?? flag.reaction} — the die, plus the modifier`,
             ...(rise ? { flags: { [MODULE_ID]: { diceRise: rise } } } : {}) });
           reduceBy = Math.max(0, Number(roll.total) || 0);
         } catch(err) {
-          console.error(`${TITLE} | ${flag.reaction}'s reduction could not be rolled — reduce by hand.`, err);
+          console.error(`${TITLE} | ${flag.label ?? flag.reaction}'s reduction could not be rolled — reduce by hand.`, err);
         }
         if ( pool ) poolSpend = await spendSuperiorityDie(actor, pool, flag.reaction).catch(() => null);
         await spendReaction(actor, { origin: item?.uuid ?? null, what: flag.reaction });
@@ -226,9 +226,9 @@ async function answerHold(message, answer, who = null) {
     const name = mine.actorName ?? actor?.name ?? "";
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
-      content: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`,
+      content: bfCard({ img: actor?.items.get(mine.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`,
         tone: (answer === "cast") ? "good" : "neutral",
-        title: (answer === "cast") ? `${flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}`
+        title: (answer === "cast") ? `${flag.label ?? flag.reaction} — ${name} reduces the damage${guard ? ` to ${flag.target?.name}` : ""} by ${reduceBy}`
           : guard ? `${name} lets it land` : `${name} takes it` }),
       flags: { [MODULE_ID]: { damageHoldAnswer: { messageId: message.id, answer, reduceBy, poolSpend, ...(who ? { who } : {}) } } }
     });
@@ -266,7 +266,7 @@ async function landHeld(message) {
     if ( multiplier !== 1 ) damages = damages.map(d => ({ ...d, value: Math.floor((Number(d.value) || 0) * multiplier) }));
     damages = reduceDamages(damages, by);
     applyMultiplier = 1;
-    note = `${note ? `${note} · ` : ""}${flag.reaction}${flag.guards?.length ? ` (${flag.actorName})` : ""} — reduced by ${by}`;
+    note = `${note ? `${note} · ` : ""}${flag.label ?? flag.reaction}${flag.guards?.length ? ` (${flag.actorName})` : ""} — reduced by ${by}`;
   }
   try {
     await applyDamagesWithReceipt(receipt, [flag.target], damages, { multiplier: applyMultiplier, ...(note ? { note } : {}), held: true });
@@ -283,6 +283,9 @@ registerResumable(HOLD_FLAG, {
 
 /* --- the popup and the card ------------------------------------------------------------------- */
 
+/** A guard's button: the row's verb (Protective Field "Reduce"), Interception's "Intercept" by default. */
+const verbLabel = row => { const v = row?.verb ?? "intercept"; return v.charAt(0).toUpperCase() + v.slice(1); };
+
 /** A guard's own popup, keyed apart, closed by any intercept or its own pass. */
 async function showGuardPopup(message, guard) {
   const flag = message.getFlag(MODULE_ID, HOLD_FLAG);
@@ -290,14 +293,14 @@ async function showGuardPopup(message, guard) {
   const actor = resolveUuid(guard.actorUuid);
   const row = INTERRUPT_REDUCTIONS[flag.reaction];
   await openMomentPopup(message, `${HOLD_FLAG}|${guard.actorUuid}`, actor, {
-    title: `Reaction — ${flag.reaction}`, icon: "fa-solid fa-shield-halved",
-    content: bfCard({ img: actor?.items.get(guard.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`, tone: "pending",
-      title: `${flag.sourceName ?? "An attacker"} hits ${flag.target?.name} for ${flag.amount} — intercept?`,
-      subtitle: `${flag.target?.name} is beside you · a Reaction`,
+    title: `Reaction — ${flag.label ?? flag.reaction}`, icon: "fa-solid fa-shield-halved",
+    content: bfCard({ img: actor?.items.get(guard.itemId)?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`, tone: "pending",
+      title: `${flag.sourceName ?? "An attacker"} hits ${flag.target?.name} for ${flag.amount} — ${row?.verb ?? "intercept"}?`,
+      subtitle: `${flag.target?.name} is ${(Number(row?.ally) > 5) ? `within ${row.ally} ft of you` : "beside you"} · a Reaction${row?.pool ? ` · a ${row.spend}` : ""}`,
       lines: [ruleLine(row?.rule ?? ""), `Reduce by ${esc(row?.by ?? guard.formula)}.`] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "cast", label: "Intercept", default: true, callback: () => { void answerHold(message, "cast", guard.actorUuid); } },
+      { action: "cast", label: verbLabel(row), default: true, callback: () => { void answerHold(message, "cast", guard.actorUuid); } },
       { action: "pass", label: "Pass", callback: () => { void answerHold(message, "pass", guard.actorUuid); } }
     ]
   });
@@ -315,14 +318,14 @@ async function showPopup(message) {
   const pool = actor?.items.get(flag.itemId);
   const left = Number(pool?.system?.uses?.value ?? 0), max = Number(pool?.system?.uses?.max ?? 0);
   await openMomentPopup(message, HOLD_FLAG, actor, {
-    title: `Reaction — ${flag.reaction}`, icon: "fa-solid fa-shield-halved",
-    content: bfCard({ img: pool?.img ?? null, eyebrow: `Reaction — ${flag.reaction}`, tone: "pending",
-      title: `${flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage`,
+    title: `Reaction — ${flag.label ?? flag.reaction}`, icon: "fa-solid fa-shield-halved",
+    content: bfCard({ img: pool?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`, tone: "pending",
+      title: `${flag.label ?? flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage`,
       subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}a Reaction${max > 0 ? ` · ${left} of ${max} uses left` : ""}`,
       lines: [ruleLine(row?.rule ?? ""), `Reduce by ${esc(row?.by ?? flag.formula)}.`] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "cast", label: flag.reaction, default: true, callback: () => { void answerHold(message, "cast"); } },
+      { action: "cast", label: flag.label ?? flag.reaction, default: true, callback: () => { void answerHold(message, "cast"); } },
       { action: "pass", label: "Take it", callback: () => { void answerHold(message, "pass"); } }
     ]
   });
@@ -332,10 +335,10 @@ async function showPopup(message) {
 function holdLine(flag) {
   const guarded = !!flag.guards?.length;
   const to = guarded ? ` to ${flag.target?.name}` : "";
-  if ( flag.answer === "cast" ) return `${flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}`;
+  if ( flag.answer === "cast" ) return `${flag.label ?? flag.reaction} — ${flag.actorName} reduces the damage${to} by ${flag.reduceBy}`;
   if ( flag.answer === "pass" ) return `${guarded ? flag.target?.name : flag.actorName} takes the damage${flag.timedOut ? " (timer)" : ""}`;
-  if ( guarded ) return `${flag.reaction} — ${flag.guards.filter(g => !g.passed).map(g => g.actorName).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
-  return `${flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;
+  if ( guarded ) return `${flag.label ?? flag.reaction} — ${flag.guards.filter(g => !g.passed).map(g => g.actorName).join(" or ")} may reduce ${flag.amount} damage${to}; it waits for the answer`;
+  return `${flag.label ?? flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage; it waits for the answer`;
 }
 
 listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
@@ -347,7 +350,7 @@ listen("dnd5e.renderChatMessage", "damage-holds", (message, html) => {
     const div = document.createElement("div");
     div.className = "bf-damage-hold-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
-    div.innerHTML = `<i class="fa-solid fa-shield-halved" data-tooltip="${esc(flag.reaction)}"></i> ${esc(holdLine(flag))}`;
+    div.innerHTML = `<i class="fa-solid fa-shield-halved" data-tooltip="${esc(flag.label ?? flag.reaction)}"></i> ${esc(holdLine(flag))}`;
     if ( flag.status === "pending" ) {
       div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
       const actor = resolveUuid(flag.actorUuid);
