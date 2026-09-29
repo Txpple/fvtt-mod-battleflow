@@ -6,6 +6,11 @@
 
 ## FIRST — the one thing in flight
 
+⚠⚠ **NO `--local` DEPLOY AND NO LIVE SUITE until the battery below has FINISHED** (its run directory holds a file
+for `smoke-nogm`, the last row, or the old session's log ends with the battery's summary). Deploying mid-run changes the
+code under test and poisons the push gate. Until then: offline work only — A1's code, unit tests, `npm run verify`,
+docs, commits (the user, 2026-09-29: start A1 in the new session while the battery runs).
+
 **A3 is committed LOCALLY, NOT PUSHED** — `98ebef8` + `25bceeb` on `main`, ahead of `origin/main` by two. A3 touches the
 spine (the hold, `auto-apply.js`, `auto-damage.js`, `shared.js`, the save seam), so **the FULL battery is the push gate**.
 A battery was launched 2026-09-29 13:28 UTC (09:28 local) from the old session: `dist/battery/2026-09-29T13-28-46/`
