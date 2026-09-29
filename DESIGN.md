@@ -93,8 +93,11 @@ Combat should move. Every design choice is weighed against whether it makes the 
   sweeping the official compendia, not by asking what the party owns. A spell that exists and
   fits a shipped feature belongs on the list whether or not anyone has cast it. The 2014 packs
   are ignored (SWEEP §5).
-- **Dogfooding is the development method, and the table sets priority.** Nothing ships that
-  has not been played. What the table needs decides *order of work* — never *bounds of scope*.
+- **The goal is a fully functional release for everything official, book by book** (the user,
+  2026-09-29): the 2024 PHB, DMG and Monster Manual first, then the splat books (Arcana Unleashed,
+  Heroes of Faerûn, Ravenloft). The work is no longer paced by what the table meets next — it is
+  paced by the books. **The one caveat: when the table needs something for itself, that jumps the
+  queue.** Dogfooding stays the proof (a walk before a release), never the pacing.
 - **Batteries included: every machine is always on**, and a DM gets a few configs (ten settings,
   RULINGS *The settings*). A table that wants to configure everything wants midi. The shipped
   defaults are the reference table in `tools/verify-settings.mjs`.

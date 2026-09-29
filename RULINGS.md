@@ -1551,6 +1551,35 @@ each is a machine change or a new reader for a found item no one holds. The regi
 of where each row lands the day an item is in a player's hands; that day is a new commission on the user's
 word, never owed. The order moves on to Slice B.
 
+## The full release — the order (2026-09-29)
+
+**The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all
+characters, and we'll work on this independently … we are no longer building as the table progresses. we are
+building toward a fully functional release for all things. phb, dmg and mm first. then splat books (arcana,
+faerun, ravenloft). caveat: we will prioritize work if the table needs something for itself."*
+
+- **The pacing changes, the bounds do not.** Every band of every PHB class is in the pass — not one band
+  ahead of a party. The order inside the pass stays shape-first (a table with three or more customers before
+  its rows), the band only a sequence. DESIGN §3 carries the frame; BACKLOG *The long-term order* the steps.
+- **The DMG is back in scope** for the full release (its 2026-09-28 ruling-out, *The DMG register* above,
+  stands as history): built on its register's precedents after the PHB classes, before the splat books.
+- **The splat books follow** — Arcana Unleashed, Heroes of Faerûn, Ravenloft — scanned, drawn and registered
+  the way the three core books were.
+- **The caveat is the only priority rule:** a thing the table needs for itself jumps the queue. Nothing else does.
+
+**The same morning, Q2 and Q3 of the plan:**
+
+- **Q2 — the bystander's bend, the FULL way** (*"this gate type is what we need"*): one popup for another
+  creature's attack, save or check — vocabulary on the `roll` interrupt (`bystander`, `tests`, `die`), the hold
+  for attacks, the save withhold for demanded saves, the rescue window for checks; not a kind. **With a noise
+  gate, to brainstorm before it is built** (*"without being super annoying to the player getting a popup every
+  turn"*): the plan's §4a lists the candidates (a margin gate on the futile-skip precedent, the Reaction gate,
+  once per turn, a "not this combat" mute, the card's Answer button as the quiet road) — ruled off the
+  prototype's next revision.
+- **Q3 — Restore Balance after the roll, the first d20 standing, AS A RULE OF COOL** (*"yes we will have to rule
+  of cool the restore balance that way, and mark it in the rule of cool"*): its row goes in *Bent by choice*
+  when it is built, not the platform register — the sorcerer sees both faces before choosing.
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):

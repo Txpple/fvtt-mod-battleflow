@@ -253,8 +253,9 @@ tables rather than inventing a mechanism per feature ([[examples-are-classes]]).
 
 **Scoped since 2026-09-24 by slice, not by item** (BACKLOG *The long-term order*): Slice A (species and origin
 feats, §6) takes items 1, 2, 3 and 5 with real content behind them; Slice B (the GM's side)
-takes the kill moment; session 0 of the next campaign sets Slice C onward from the party's own
-kit.
+takes the kill moment; the PHB classes come next as a whole (every band — the user, 2026-09-29:
+the goal is a full release book by book, PHB / DMG / MM then the splat books; BACKLOG *The long-term
+order*).
 
 ## 5. The three questions — all RULED 2026-09-03
 

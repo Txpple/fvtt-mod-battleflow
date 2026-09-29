@@ -8,8 +8,11 @@
 > in build order, each with its machines, keys, suites, walk table and size, (4) the ten questions only you can
 > rule, each with a recommended answer, (5) the risks. The UI-shaped items are drawn in
 > [prototypes/session-0-classes.html](../../prototypes/session-0-classes.html) — rule off the prototype, then
-> say go. **What you must rule before anything starts:** the party (Q1) and the two structural shapes (Q2, Q3);
-> the rest can be ruled stage by stage. No module code, no sandbox, no prod was touched; the local sandbox ran
+> say go. **Ruled 2026-09-29 morning — Q1: the pass is for ALL characters, every band** (RULINGS *The full release —
+> the order*: a full release book by book, PHB / DMG / MM then the splat books; the table's own need jumps the
+> queue). **Q2 and Q3 ruled the same morning:** the bystander's bend the FULL way (one popup for attacks, saves and checks), with a noise gate
+> to brainstorm before A3 is built (§4a); Restore Balance offered after the roll as a RULE OF COOL row. Q4–Q10 are ruled stage by stage.
+> **Nothing starts until you say go on M0 / A1.** No module code, no sandbox, no prod was touched; the local sandbox ran
 > the v2.7.0 release battery all night and this plan stayed off it (the `M0` measurements wait for it).
 
 ---
@@ -39,19 +42,20 @@ as data behind other verdicts: `REROLLS` (the reroll kind's rows, counted as KIN
 (Wild Magic Surge, Inspiring Smite, Smite of Protection — rows on `cast.js`, counted as ROW). None is a kind:
 one machine, rows of data.
 
-**The order is the band's, then the party's.** Session 0 seats a level 1–3 party, so the plan builds **band A
-(levels 1–5) for all twelve classes first** — 30 rows (29 in band A, plus Persistent Rage as its table's first customer) and the tables their customers sit on, in seven stages —
-and only then the seated classes' band B. Every band-A row is a real first-session moment: Stunning Strike,
-Cutting Words, Guided Strike, Hunter's Prey, Frenzy, Disciple of Life, Arcane Ward, Portent, Wild Magic Surge,
-Repelling Blast, Dark One's Blessing. Fourteen rows are `M0` — a measurement on the sandbox before a verdict
-(a pack effect that may already carry the number), the first thing to run once the battery box is free.
+**The order is shape-first, the band a sequence — and the whole book is the pass** (Q1, ruled: every band of
+every class, not one band ahead of a party). Band A (levels 1–5, all twelve classes) goes first because its
+tables carry the most customers — 30 rows in seven stages: Stunning Strike, Cutting Words, Guided Strike,
+Hunter's Prey, Frenzy, Disciple of Life, Arcane Ward, Portent, Wild Magic Surge, Repelling Blast, Dark One's
+Blessing — then B1–B5, C1 and D1 straight on, no wait for a party to reach them. Fourteen rows are `M0` — a
+measurement on the sandbox before a verdict (a pack effect that may already carry the number), the first thing
+to run now that the battery box is free.
 
 **Four prototypes, one file:** the bystander's bend, Brutal Strike's gate box, Portent's stored dice, the cast
 riders (Wild Magic Surge, Inspiring Smite). Every tick row is name + dice, then "the rule ▸"; canvas dice only
 where a reaction or a spend changes a roll.
 
-**Size, honestly:** band A ≈ 4 sessions in rapid mode (build → suites → push; the walks batched later), band B
-≈ 3, bands C–D ≈ 2 more when a party reaches them. The measured-costs appendix says every estimate here runs
+**Size, honestly:** the whole pass ≈ 9 sessions in rapid mode (build → suites → push; the walks batched
+later) — band A ≈ 4, band B ≈ 3, bands C–D ≈ 2. The measured-costs appendix says every estimate here runs
 high and the surprise comes from elsewhere — the seams (§5).
 
 ---
@@ -552,9 +556,8 @@ register; a stage's "vocabulary" line is the facets that do not exist yet.** The
 gets its RULINGS register row in the same commit, a bend by choice its *Bent by choice* row; a new suite declares
 `COVERS` and joins `tools/coverage-map.mjs`'s `ORDER`.
 
-**Bands:** A = levels 1–5 · B = 6–10 · C = 11–16 · D = 17–20. The party's kit comes one band ahead: with a
-Session 0 party at level 1–3, band A is the floor and band B the next commission for the classes actually
-seated (Q1).
+**Bands:** A = levels 1–5 · B = 6–10 · C = 11–16 · D = 17–20 — a sequence, not a gate (Q1, ruled): the stages
+run A1 → D1 for every class; a band-A table takes its later-band customers as rows when their stage comes.
 
 ### The fixtures the stages share
 
@@ -1100,13 +1103,16 @@ Arcana Unleashed's eight subclasses (PHB only, the user's rule).
 
 ## 4. The questions only you can rule
 
-Each with the recommended answer first. Q1–Q3 gate the first stage; the rest are ruled at their stage.
+Each with the recommended answer first. **Q1 is RULED (2026-09-29, RULINGS *The full release — the order*):**
+all classes, every band, toward a full release book by book. **Q2 RULED: the full way** ("this gate type is what we need" — with the noise
+brainstorm in §4a before A3 is built). **Q3 RULED: yes, as a rule of cool** — Restore Balance after the roll, the first d20
+standing, its row in RULINGS *Bent by choice*, not the platform register. Q4–Q10 are ruled at their stage.
 
 | # | Question | Recommended | The alternative, and its cost |
 | --- | --- | --- | --- |
-| **Q1** | **Which classes and subclasses does Session 0 seat, at what level?** The plan orders by band and cannot know the party. | Build band A for ALL twelve first (A1–A7: any party draws from it, 30 rows + the tables), then band B for the seated classes only — the drawing's "one band ahead". | Wait for the party and build only its kit: cheaper by ~⅓ of band A, but Session 1 is the walk and a class not seated stays untested until a later campaign. |
-| **Q2** | **The bystander's bend (Cutting Words, Guided Strike, Bend Luck, Cosmic Omen, Restore Balance, Portent-on-others): vocabulary on the `roll` interrupt plus a save-withhold seam and the check offer, or a new kind?** | The long-term shape: ONE popup (the hold's) for all three tests, the `roll` interrupt grown with `bystander` / `tests` / `die` — not a kind (it still changes the roll itself); the withhold and the rescue window are the seams the saves and checks already have. One machine to walk, six PHB customers plus the Monster Manual's two waiting rows (Burst of Ingenuity, Portent). | The cheap cut: attacks only, on the hold (Cutting Words and Guided Strike's attack halves) — half a session less, and Bend Luck / Cosmic Omen / Restore Balance on saves and checks wait for a second pass that re-opens the same files. |
-| **Q3** | **Restore Balance is "when a creature is about to roll with Advantage or Disadvantage" — before the roll, which the platform cannot pause on another client. Offer it AFTER the roll, the first d20 standing (the register's existing arithmetic for a cancelled Advantage)?** | Yes — a bend row beside Shield's; the sorcerer sees the roll and the faces before answering (the same information a real-time table has, and Lucky's precedent). | Not built (a `WAITS` row): the only honest alternative; the seam does not exist. |
+| **Q1** | ~~Which classes and subclasses does Session 0 seat, at what level?~~ | **RULED: the pass is for all characters, every band** — the party is unknown and the work no longer waits on one; the table's own need, when it has one, jumps the queue. | — |
+| **Q2** | ~~The bystander's bend: vocabulary on the `roll` interrupt plus a save-withhold seam and the check offer, or a new kind?~~ **RULED: the full way.** | The long-term shape: ONE popup (the hold's) for all three tests, the `roll` interrupt grown with `bystander` / `tests` / `die` — not a kind (it still changes the roll itself); the withhold and the rescue window are the seams the saves and checks already have. One machine to walk, six PHB customers plus the Monster Manual's two waiting rows (Burst of Ingenuity, Portent). | The cheap cut: attacks only, on the hold (Cutting Words and Guided Strike's attack halves) — half a session less, and Bend Luck / Cosmic Omen / Restore Balance on saves and checks wait for a second pass that re-opens the same files. |
+| **Q3** | ~~Restore Balance after the roll, the first d20 standing?~~ **RULED: yes — a RULE OF COOL row** (*Bent by choice*), since the sorcerer sees the faces before choosing. | Yes — a bend row beside Shield's; the sorcerer sees the roll and the faces before answering (the same information a real-time table has, and Lucky's precedent). | Not built (a `WAITS` row): the only honest alternative; the seam does not exist. |
 | **Q4** | **Brutal Strike's forgo-Advantage: a tick in the attack dialog beside the Reckless box (before the roll), the hit menu's group opening only on a hit whose attack recorded the forgo?** | Yes (the prototype's group D) — the trade is decided BEFORE the roll as the rules say; a roll with no dialog cannot forgo, said on the card. | A hit-menu row that cancels the Advantage after the fact — refused by DESIGN §4 (never rewrite a rolled d20) and by the "no rescue" ruling. |
 | **Q5** | **The flat spell-damage bonuses (Potent Spellcasting ×2, Elemental Affinity, Radiant Soul, Empowered Evocation): rows on `FIGHTING_STYLES` (the damage-rules table Elemental Adept and Great Weapon Master already sit on, a `bonus` per roll with a scope), or a new `SPELL_DAMAGE_BONUS` table?** | Rows on `FIGHTING_STYLES` with `spells` / `school` / `types` / `once` facets — the precedent is exact (a face effect on the character, the number at `preRollDamage`, the dice that rise); rename the table `DAMAGE_RULES` in a later chore, never inside this slice. | A new table: the same machine copied with a different name — a second entry path for one shape. M0 first: the pack may carry three of the five. |
 | **Q6** | **Portent's reach: the rule says any roll "you can see" — the wizard's own, an ally's, an enemy's. Offer it on every D20 Test the module sees on the scene (sight not judged), as a bystander row (after the roll) and a gate tick (its own, before)?** | Yes — the scene is the reach, sight is never judged (the register's line for every bystander); the popup opens only for the diviner's owner, one row per stored die; a die used is gone. Greater Portent is `dice: 3`. | The wizard's own rolls only: half the feature's value at the table (Portent on the dragon's breath save is the point of it). |
@@ -1115,13 +1121,30 @@ Each with the recommended answer first. Q1–Q3 gate the first stage; the rest a
 | **Q9** | **Eldritch Smite's cost is a Pact spell slot — a new cost branch in the hit menu's `poolOf` (`pool: "pactSlot"`, the lowest slot by default, a slot picker on the row). Build it in B4, or hold it (WAITS) for a Blade warlock?** | Build it in B4: a `poolOf` branch is not an R4 kind, and Eldritch Blast warlocks are common; the slot picker is one select on the row (the prototype's group D shows the row). | WAITS — saves half a session now, costs the same later. |
 | **Q10** | **The regain-on-Initiative rows: automatic where the rule leaves no choice (Persistent Rage, Superior Inspiration, Perfect Focus) and OFFERED where it spends something once per rest (Uncanny Metabolism, Tandem Footwork)?** | Yes — the line R1 draws; Uncanny Metabolism's popup has the clock's default "No" (a once-per-Long-Rest resource is never spent by a timer). | All automatic — one popup fewer, but a Focus-Point refill at the first combat of the day on a full monk is a wasted rest resource. |
 
+### 4a. Q2's brainstorm — the noise gate (to rule before A3 is built)
+
+The user's worry: a Lore Bard, a War Cleric or a Diviner getting a popup on EVERY enemy roll, every turn. The
+shapes the module already has, and what each would cut, for the prototype's next revision:
+
+| Gate | What it does | Precedent | Cuts |
+| --- | --- | --- | --- |
+| **Margin gate** (recommended default) | ask only when the bend CAN change the outcome: Cutting Words when the hit's margin over AC is ≤ the die's maximum (a 17 vs AC 15 with a d8 — yes; a 25 — no), Guided Strike when the miss is short by ≤ 10, Bend Luck ≤ 4, Portent when a stored face would flip the verdict; a save's margin against its DC the same | `holdSkipped` — the futile-skip gate that already declines a hopeless Shield | most of the noise: on a typical round two of five enemy attacks are within a d8 of the AC |
+| **Reaction gate** | nothing while the bystander's Reaction chip is spent this round (already the hold's rule); Portent has no Reaction, so its gate is the margin's alone | `reactionStands` | one popup per round at most per bystander |
+| **Once per turn** | a bystander is asked once per turn — the first qualifying roll; later rolls the same turn show a quiet card line | the rider chit (`TURN_CHITS`) | multi-attack monsters |
+| **"Not this combat" button** | a third button on the popup: mute the feature until the combat ends (a chip on the bystander, swept with the combat); the effect view lists it so it is never a mystery | the mastery chips' combat sweep; R5 (an icon never a mystery) | everything, by the player's own hand |
+| **Card, not popup** | the quiet shape: no popup at all, the hold's card carries an Answer button (the card bar already does) — the bystander plays it from the log when they care | the hold's card bar; the Savage Attacker "Answer" button on the damage card | all interruptions; costs the proactive reminder N3 wants |
+| **A setting** | a per-client "bystander popups: margin / always / never" | the Effect Bar client settings | — but DESIGN says ten settings and no switches; the last resort |
+
+Recommended: **margin gate + Reaction gate + the "Not this combat" button**, the card's Answer button underneath
+as the quiet road — no setting. The prototype's group A gets a scene for each before A3 is built; you rule there.
+
 ---
 
 ## 5. The risks
 
-1. **The party is unknown, and the table proves everything.** Band A for all twelve is the hedge; a seated class
-   is still unwalked until Session 1 (the standing rule: nothing is done until a character built from it has
-   played). The walks are batched (rapid mode) — the walk tables above are what the batch runs.
+1. **Nothing here has been played.** The pass builds every band of every class ahead of any party (Q1), so the
+   walk tables above are the whole proof until a table sits down — batched, in rapid mode; a class a table
+   never plays stays walked-by-hand only.
 2. **Three stages touch the spine** (A3's bystander seams in `hold/` and the withhold; A5's `preCalculateDamage`
    pool; A7's cast riders in `cast.js`): each is the FULL battery, not its own suites (ARCHITECTURE §11 rule 5).
    Budget a battery per spine stage — three overnight runs — and read the hook-coverage and claim-proof readings.
@@ -1154,7 +1177,7 @@ Each with the recommended answer first. Q1–Q3 gate the first stage; the rest a
 | Rage ends early with no attack and no damage taken | a reminder at the turn end, never an end | nothing records the Bonus Action that keeps it | A1 |
 | Dark One's Blessing "when you reduce an enemy to 0" | pays on a drop the module's applier or a card's buttons landed | a sheet edit names no dealer (the rebukes' floor) | A1 |
 | Cutting Words / Guided Strike / Bend Luck / Cosmic Omen "when … makes/rolls" | offered after the roll shows, before the damage or the verdict | the roller's client cannot be paused (Shield's row) | A3 |
-| Restore Balance "about to roll" | offered after the roll; the first d20 stands | the same; the cancelled-Advantage arithmetic (the register) | A3 (Q3) |
+| Restore Balance "about to roll" | offered after the roll; the first d20 stands — **a *Bent by choice* row** (ruled Q3: the sorcerer sees both faces before choosing, more fun) | the platform cannot pause the roller; the choice with the faces in hand is the table's | A3 (Q3) |
 | Every bystander's "you can see" | the side and the distance are read; sight is not | nothing the module reads says who sees whom (Protection's row) | A3 |
 | Arcane Ward / Bastion of Law absorb "when you take damage" | damage typed on a sheet goes around the ward | a sheet edit carries no damage (Heavy Armor Master's row) | A5 |
 | Wild Magic Surge "you can roll 1d20" | rolled by the module, always | one sensible answer (the dice changers' rule) — by choice | A7 (Q7) |
