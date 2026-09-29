@@ -165,7 +165,7 @@ effects actually carry — the `SAVE_PRESSES` candidates) · `audit-spells-regis
 MODULE / TEXT / OUT — joined with the registry, RULINGS' walk tables and bend registers, and the
 drawing's *Register verdicts*; writes `audits/spells-register.md`). Its siblings `audit-dmg-register.mjs` (writes `audits/dmg-register.md`) and
 `audit-monsters-register.mjs` (writes `audits/monsters-register.md`; the WAITS word, the GM's-side walk
-tables, a "casts X" row native) share their readers through `register-shared.mjs`. `probe-steady-aim-live.mjs` reads a
+tables, a "casts X" row native) share their readers through `register-shared.mjs`; `audit-classes-register.mjs` (2026-09-29, the Session 0 plan) needs NO corpus file — it reads the measured class files under `audits/classes/` and `audits/options.md`, the registry, RULINGS and the classes drawing's *Register verdicts* (with the precedent and the stage per row), writes `audits/classes-register.md` and, with `--plan`, the same rows into the plan between its markers. `probe-steady-aim-live.mjs` reads a
 live table's Steady Aim chip and attack records without touching anything;
 `probe-conditions.mjs` presses each 2024 status on a fixture and reads what the platform applies
 (NOTES §2 *What the platform applies for a 2024 condition*), restoring the fixture in `finally`.
