@@ -214,3 +214,196 @@ describe("the grants that are not a roll — Tandem Footwork, Heroic Warrior, Gu
     expect(tg.endOptionsOf(["paralyzed"], effects)[0].label).toBe("Paralyzed");
   });
 });
+
+describe("the hit menu, the riders, the heal, ward, hold and drop rows (B4)", () => {
+  it("Eldritch Smite: a pact-slot group, the option on the pact weapon, Prone pressed on Huge or smaller", () => {
+    expect(reg.HIT_GROUPS["eldritch-smite"]).toMatchObject({
+      feature: "Eldritch Smite",
+      pool: "pactSlot",
+      ownDice: true,
+      max: 1,
+      dieLabel: "Pact slot"
+    });
+    expect(reg.HIT_OPTIONS["eldritch-smite"]).toMatchObject({
+      group: "eldritch-smite",
+      activity: "Smite",
+      oncePerTurn: true,
+      weapon: true,
+      pact: "Pact of the Blade",
+      press: "prone",
+      maxSize: "huge"
+    });
+    expectPointer(reg.HIT_OPTIONS["eldritch-smite"].rule);
+  });
+  it("Psionic Strike follows with Telekinetic Thrust; Hand of Harm also lands Physician's Touch's Poisoned", () => {
+    expect(reg.HIT_OPTIONS["psionic-strike"].follow).toMatchObject({
+      feature: "Telekinetic Adept",
+      activity: "Telekinetic Thrust"
+    });
+    expect(reg.HIT_OPTIONS["hand-of-harm"].also).toMatchObject({
+      feature: "Physician's Touch",
+      activity: "Hand of Harm",
+      clock: "vex"
+    });
+  });
+  it("Lifedrinker and Relentless Avenger are clock riders: the pact bond judged by another feature, the heal offered; Halt's shape", () => {
+    expect(reg.CLOCK_RIDERS.lifedrinker).toMatchObject({
+      feature: "Lifedrinker",
+      activity: "Damage",
+      when: "oncePerTurn",
+      weapon: true,
+      enchantBy: "Pact of the Blade"
+    });
+    expect(reg.CLOCK_RIDERS.lifedrinker.offers.activity).toBe("Heal (Largest Hit Die)");
+    expect(reg.CLOCK_RIDERS["relentless-avenger"]).toMatchObject({
+      feature: "Relentless Avenger",
+      when: "any",
+      judge: "opportunity",
+      clock: "halt"
+    });
+    expect(reg.CLOCK_RIDERS["relentless-avenger"].lands).toMatchObject({
+      name: "Relentless Avenger",
+      from: "Relentless Avenger"
+    });
+    for (const key of ["lifedrinker", "relentless-avenger"])
+      expectPointer(reg.CLOCK_RIDERS[key].rule);
+  });
+  it("Blessed Healer heals the cleric itself; Improved Warding Flare rides Warding Flare's answer", () => {
+    expect(reg.HEAL_REROLLS["Blessed Healer"]).toMatchObject({ self: "2 + @slot", slotCast: true });
+    expect(reg.INTERRUPT_ROLLS["Warding Flare"].heal).toBe("Improved Warding Flare");
+  });
+  it("Bastion of Law is the ward pool's effect customer; Projected Ward a guard drawing on the Arcane Ward on any damage", () => {
+    expect(reg.WARD_POOLS["Bastion of Law"]).toMatchObject({
+      pool: "effect",
+      effect: "Warded by Law",
+      create: "Create Shield",
+      die: 8
+    });
+    expect(reg.INTERRUPT_REDUCTIONS["Projected Ward"]).toMatchObject({
+      activity: "Project Ward",
+      pool: "ward",
+      of: "Arcane Ward",
+      any: true,
+      ally: 30
+    });
+    expect(reg.INTERRUPTS).toContainEqual({ name: "Projected Ward", kind: "damage" });
+  });
+  it("Gift of the Protectors is a named drop row on the warlock's page, its Protect activity the once", () => {
+    expect(reg.DROP_TO_ONE["Gift of the Protectors"]).toMatchObject({
+      ask: false,
+      named: true,
+      activity: "Protect",
+      outright: false
+    });
+    expectPointer(reg.DROP_TO_ONE["Gift of the Protectors"].rule);
+  });
+});
+
+describe("the reminders and the bends (B4)", () => {
+  it("War Magic is a bonus-swing reminder on the Attack action; Shadow Step and Multiattack Defense are use chips with their bend rows", () => {
+    expect(reg.BONUS_SWINGS["War Magic"]).toMatchObject({
+      when: "attack",
+      label: "War Magic",
+      ranged: true
+    });
+    expect(reg.MANEUVER_FOLDS).toContainEqual({ name: "War Magic", kind: "hew" });
+    expect(reg.USE_CHIPS["Shadow Step"]).toMatchObject({
+      key: "shadowStep",
+      bend: "advantage",
+      window: "steadyAim",
+      melee: true
+    });
+    expect(reg.EFFECT_BENDS["Shadow Step"]).toMatchObject({
+      attacker: "advantage",
+      scope: "melee",
+      spend: "attack"
+    });
+    expect(reg.USE_CHIPS["Defensive Tactics"]).toMatchObject({
+      key: "multiattackDefense",
+      chipName: "Multiattack Defense",
+      on: "hit",
+      holder: "target",
+      against: true,
+      window: "halt"
+    });
+    expect(reg.EFFECT_BENDS["Multiattack Defense"]).toMatchObject({
+      plus: -4,
+      against: "attacker"
+    });
+    expect(reg.EFFECT_BENDS["Escape the Horde"]).toMatchObject({
+      match: "feature",
+      named: "Defensive Tactics",
+      target: "disadvantage",
+      scope: "melee",
+      judge: "opportunity"
+    });
+  });
+  it("Misty Escape is a self rebuke casting Misty Step, its Steps to follow; Sculpt Spells a free Careful-asking row on Evocation", () => {
+    expect(reg.REBUKES["Misty Escape"]).toMatchObject({
+      activity: "Misty Step",
+      self: true,
+      follow: ["Disappearing Step", "Dreadful Step"]
+    });
+    expect(reg.METAMAGIC["Sculpt Spells"]).toMatchObject({
+      key: "sculpt",
+      free: true,
+      asks: "careful",
+      classes: ["wizard"],
+      school: "evo",
+      when: "save"
+    });
+  });
+  it("the gate: a negative plus rides only the named attacker's roll; the opportunity judge reads an off-turn melee attack", async () => {
+    const rm = await import("../scripts/decide/reminders.js");
+    const table = {
+      "Multiattack Defense": reg.EFFECT_BENDS["Multiattack Defense"],
+      "Escape the Horde": reg.EFFECT_BENDS["Escape the Horde"]
+    };
+    const chip = { id: "e1", name: "Multiattack Defense — vs Ogre", against: "Actor.ogre" };
+    const at = uuid =>
+      rm.effectSources({
+        attacker: { uuid, effects: [], features: [], offTurnMelee: true },
+        target: { uuid: "Actor.r", effects: [chip], features: ["Defensive Tactics"] },
+        enabled: Object.keys(table),
+        table,
+        scope: { type: "melee" },
+        attackerName: "Ogre",
+        targetName: "Ranger"
+      });
+    const ogre = at("Actor.ogre");
+    expect(ogre.find(s => s.plus === -4)?.label).toMatch(/−4 to this attack roll/);
+    expect(ogre.some(s => /Defensive Tactics/.test(s.label) && s.bend === "disadvantage")).toBe(
+      true
+    ); // a feature row says the feature's name
+    const other = at("Actor.wolf");
+    expect(other.some(s => s.plus === -4)).toBe(false);
+    const onTurn = rm.effectSources({
+      attacker: { uuid: "Actor.ogre", effects: [], features: [], offTurnMelee: false },
+      target: { uuid: "Actor.r", effects: [], features: ["Defensive Tactics"] },
+      enabled: Object.keys(table),
+      table,
+      scope: { type: "melee" }
+    });
+    expect(onTurn.some(s => /Defensive Tactics/.test(s.label))).toBe(false);
+  });
+  it("metamagicFits: Sculpt Spells fits a wizard Evocation save spell and nothing else", async () => {
+    const mm = await import("../scripts/decide/metamagic.js");
+    const row = reg.METAMAGIC["Sculpt Spells"];
+    expect(mm.metamagicFits(row, { save: true, sourceClass: "wizard", school: "evo" })).toBe(true);
+    expect(mm.metamagicFits(row, { save: true, sourceClass: "wizard", school: "nec" })).toBe(false);
+    expect(mm.metamagicFits(row, { save: false, sourceClass: "wizard", school: "evo" })).toBe(
+      false
+    );
+    expect(mm.metamagicFits(row, { save: true, sourceClass: "sorcerer", school: "evo" })).toBe(
+      false
+    );
+    expect(mm.carefulKind("sculpt")).toBe(true);
+    expect(
+      mm.metamagicCardLine({
+        key: "sculpt",
+        feature: "Sculpt Spells",
+        protected: [{ name: "Gren" }]
+      })
+    ).toBe("Sculpt Spells — Gren spared: no save, no damage");
+  });
+});

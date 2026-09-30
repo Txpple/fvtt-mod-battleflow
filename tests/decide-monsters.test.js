@@ -264,6 +264,7 @@ describe("the one-row facets — the vampire's drop, the curse on a rest, the de
     }
     expect(reg.dropToOneEntries().map(e => e.kind)).toEqual([
       "death ward",
+      "gift of the protectors", // B4
       "relentless endurance",
       "undead fortitude",
       "death throes",

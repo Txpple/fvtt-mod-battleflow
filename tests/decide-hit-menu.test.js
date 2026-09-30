@@ -50,14 +50,14 @@ describe("the table", () => {
       "Improved Brutal Strike",
       "Improved Brutal Strike"
     ]);
-    expect(rows).toHaveLength(20);
+    expect(rows).toHaveLength(21); // + Eldritch Smite (B4)
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);
       expect(row.rule.item).toBe(row.feature);
     }
     for (const [key, g] of Object.entries(reg.HIT_GROUPS)) {
-      expect(["feature", "option", "free"], key).toContain(g.pool);
+      expect(["feature", "option", "free", "pactSlot"], key).toContain(g.pool); // pactSlot: Eldritch Smite (B4)
       expect(g.eyebrow && g.heading && g.per && g.dieLabel, key).toBeTruthy();
     }
     expect(reg.HIT_OPTIONS["sweeping-attack"]).toMatchObject({ mode: "sweep", melee: true });

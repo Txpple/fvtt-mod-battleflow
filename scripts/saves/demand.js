@@ -7,7 +7,7 @@ import { MODULE_ID, TITLE, S, setting, statContext, decisionWindow } from "../co
 import { applicableProfiles, resolveUuid, itemNamed, namesAnswering } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
-import { METAMAGIC_FLAG, metamagicRuleText } from "../decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicRuleText, carefulKind } from "../decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choiceCapFrom, choiceRuleFrom, chosenByDefault, choiceNeedsAsk } from "../decide/area-ask.js";
 import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
@@ -48,12 +48,12 @@ function casterFactsOf(activity) {
  */
 export async function metamagicForDemand(card, activity, contained) {
   const mm = card?.getFlag(MODULE_ID, METAMAGIC_FLAG);
-  const pendingAsk = !!mm && ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen;
+  const pendingAsk = !!mm && (carefulKind(mm.key) || (mm.key === "heightened")) && !mm.chosen;
   const none = { protectedUuids: new Set(), heightened: null, hold: false, pendingAsk };
   if ( !mm || !Array.isArray(contained) ) return none;
   const facts = casterFactsOf(activity);
   // THE ASK AT THE AREA: a pick not yet made is asked of the area's creatures; the demand WAITS.
-  if ( ((mm.key === "careful") || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
+  if ( (carefulKind(mm.key) || (mm.key === "heightened")) && !mm.chosen && contained.length ) {
     const ask = card.getFlag(MODULE_ID, AREA_ASK_FLAG);
     if ( ask?.status !== "pending" && card.canUserModify?.(game.user, "update") ) {
       await raiseAsk(card, newAsk({ kind: mm.key, feature: mm.feature, cap: mm.cap ?? 1, rule: mm.rule ?? null,
@@ -61,7 +61,7 @@ export async function metamagicForDemand(card, activity, contained) {
     }
     return { ...none, hold: true };
   }
-  if ( mm.key === "careful" ) {
+  if ( carefulKind(mm.key) ) {
     const list = carefulProtects({ contained, ...facts, cap: mm.cap ?? 1, chosen: mm.chosen ? (mm.protected ?? []).map(p => p.uuid) : null });
     // ⚠ Only a DEFAULT list is written back: a bare cast's empty reach would erase a player's ticks.
     const same = JSON.stringify(list) === JSON.stringify(mm.protected ?? null);

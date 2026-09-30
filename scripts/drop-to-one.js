@@ -48,10 +48,33 @@ function rowFor(actor, { outright }) {
       if ( effect ) return { name, row, effect };
       continue;
     }
+    // B4 — a `named` row (Gift of the Protectors): ANOTHER character's feature whose description names this creature.
+    if ( row.named ) {
+      const keeper = namedKeeperOf(actor, name, row);
+      if ( keeper ) return { name, row, ...keeper };
+      continue;
+    }
     const item = featureNamed(actor, name);
     if ( !item ) continue;
     if ( row.uses && !(Number(item.system?.uses?.value ?? 0) > 0) ) continue;
     return { name, row, item };
+  }
+  return null;
+}
+
+/** The character whose copy of the feature names this creature, its activity's uses standing: `{ item, keeper, activity }`. */
+function namedKeeperOf(actor, name, row) {
+  const wanted = lower(actor?.name ?? "").trim();
+  if ( !wanted ) return null;
+  for ( const keeper of game.actors.filter(a => a.type === "character") ) {
+    const item = featureNamed(keeper, name);
+    if ( !item ) continue;
+    const activity = row.activity ? activityNamed(item, row.activity) : null;
+    if ( row.activity && !activity ) continue;
+    if ( activity && !(Number(activity.uses?.value ?? 0) > 0) ) continue;
+    const page = lower(String(item.system?.description?.value ?? "").replace(/<[^>]*>/g, " "));
+    if ( !page.includes(wanted) ) continue;
+    return { item, keeper, activity };
   }
   return null;
 }
@@ -129,10 +152,15 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, options) 
 async function settle(actor, found, { amount, source }) {
   try { if ( found.effect && actor.effects.get(found.effect.id) ) await found.effect.delete(); }
   catch(err) { console.warn(`${TITLE} | ${found.name}'s effect could not be removed — end it by hand.`, err); }
+  // B4 — a named row's activity pays (Protect's once per Long Rest), on the keeper's item.
+  if ( found.activity && found.item ) {
+    await found.item.update({ [`system.activities.${found.activity.id}.uses.spent`]: Number(found.activity.uses?.spent ?? 0) + 1 })
+      .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
+  }
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: found.effect?.img ?? found.item?.img ?? null, eyebrow: found.name, tone: "good",
-      title: `${actor.name} drops to 1 Hit Point instead`, subtitle: found.row.ends ? "the spell ends" : "",
+      title: `${actor.name} drops to 1 Hit Point instead`, subtitle: found.row.ends ? "the spell ends" : found.keeper ? `${found.keeper.name}'s ${found.name} — its name is on the page` : "",
       lines: [ruleLine(found.row.rule), found.row.caveat ? `<span style="opacity:0.8;">${found.row.caveat}</span>` : null] }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: "auto", row: found.name, actorUuid: actor.uuid,
       actorName: actor.name, amount, applied: true, ...statContext(source?.uuid ?? null) } } }

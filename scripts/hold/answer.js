@@ -11,7 +11,9 @@ import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, guardSign, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
-import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption } from "../lookup.js";
+import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption, featureNamed } from "../lookup.js";
+import { riderPartFormula } from "../decide/clock.js";
+import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
 import { setOutcome } from "../decide/stored-dice.js";
 import { registerRelay, openMomentPopup } from "../ui.js";
@@ -286,7 +288,23 @@ export async function rescueReaction(attackMessage, target, name) {
     .catch(err => { console.warn(`${TITLE} | Could not spend a use of ${key}.`, err); return null; });
   if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: key });
   const bent = await bendTheRoll(attackMessage, actor, key);
+  // B4 — a `heal` row (Improved Warding Flare): the named feature's heal activity lands on the flared creature with the answer.
+  if ( row.heal ) void landRowHeal(attackMessage, actor, row.heal).catch(err => console.error(`${TITLE} | ${row.heal} could not land — apply it by hand.`, err));
   return answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key });
+}
+
+/** The feature's first heal activity rolled on the answerer's numbers and landed on it, receipted on the attack card. */
+async function landRowHeal(attackMessage, actor, featureName) {
+  const feature = featureNamed(actor, featureName);
+  if ( !feature ) return;
+  const activity = [...(feature.system?.activities ?? [])].find(a => a.type === "heal") ?? null;
+  const h = activity?.healing ?? null;
+  const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+  if ( !raw ) { console.warn(`${TITLE} | ${featureName}: no healing part on the sheet — apply it by hand.`); return; }
+  const roll = await new Roll(raw, activity.getRollData?.() ?? feature.getRollData?.() ?? {}).evaluate();
+  const type = [...(h.types ?? [])][0] ?? "healing";
+  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${featureName} — ${type === "temphp" ? "Temporary Hit Points" : "healing"} with the Flare` });
+  await applyDamagesWithReceipt(attackMessage, [{ uuid: actor.uuid, name: actor.name }], [{ value: Math.max(0, Number(roll.total) || 0), type, properties: new Set() }], { note: featureName });
 }
 
 /**

@@ -399,7 +399,9 @@ describe("CHECK_BENDS — the check table (user go 2026-09-03)", () => {
 
 describe("tableIndex — one access to a name-keyed table (the machine-tier pass, Stage 1)", () => {
   it("derives the closed name set from the keys, or from a named column", () => {
-    expect(reg.tableIndex(reg.USE_CHIPS).names).toEqual(new Set(["steady aim", "studied attacks"]));
+    expect(reg.tableIndex(reg.USE_CHIPS).names).toEqual(
+      new Set(["steady aim", "studied attacks", "shadow step", "defensive tactics"])
+    ); // + B4
     expect(reg.tableIndex(reg.CLOCK_RIDERS, r => r.feature).names.has("dread ambusher")).toBe(true);
     expect(reg.tableIndex(reg.DAMAGE_SHIELDS).names).toEqual(
       new Set(Object.keys(reg.DAMAGE_SHIELDS).map(k => k.toLowerCase()))

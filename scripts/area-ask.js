@@ -44,6 +44,8 @@ export function askCandidates(contained) {
  */
 export function newAsk({ kind, feature, spell = null, cap = null, rule = null, itemImg = null, heightened = null, candidates, caster }) {
   const window = decisionWindow();
+  // B4 — Sculpt Spells asks Careful's question (the same popup, the same outcome); the feature's name stays its own.
+  if ( kind === "sculpt" ) kind = "careful";
   return {
     status: "pending", kind, feature, ...(spell ? { spell } : {}), cap, rule: rule ?? null, ...(itemImg ? { itemImg } : {}), ...(heightened ? { heightened } : {}),
     candidates,

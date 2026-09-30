@@ -6,7 +6,7 @@
  * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
 import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, resolveUuid, reductionFor, holdsFor } from "./lookup.js";
+import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
 import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
@@ -49,27 +49,38 @@ function anyReductionOf(actor) {
  * THE GUARDS (Interception): allies within the row's `ally` reach able to reduce for the defender —
  * `{ name, row, guards: [{ actorUuid, actorName, itemId, activityId, formula, passed }] }` or null.
  */
-function interceptorsFor(defender, attacker) {
+function interceptorsFor(defender, attacker, { attackDamage = true } = {}) {
   const guarded = tokenForUuid(defender?.uuid);
   if ( !guarded ) return null;
   for ( const entry of interruptEntries() ) {
     const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(entry.name));
     const row = key ? INTERRUPT_REDUCTIONS[key] : null;
     if ( !row?.ally ) continue;
+    if ( !attackDamage && !row.any ) continue;   // a plain guard answers an attack's hit alone
     const guards = [];
     for ( const token of alliesWithin(guarded, row.ally, [attacker?.uuid]) ) {
       const actor = token.actor;
       const item = itemNamed(actor, key);
       const found = item ? reductionFor(item, key) : null;
       if ( !found || reactionSpent(actor) || !holdsFor(actor, row.holding) ) continue;
+      // B4 — a WARD guard (Projected Ward): the guard's own ward pool must hold hit points.
+      const ward = (row.pool === "ward") ? wardPoolOf(actor, row.of) : null;
+      if ( (row.pool === "ward") && !(ward?.left > 0) ) continue;
       // A paid guard (Protective Field's Psionic Energy Dice) with none left is never asked.
-      if ( row.pool && !(Number(poolOf(actor, found.activity)?.system?.uses?.value ?? 0) > 0) ) continue;
+      if ( row.pool && (row.pool !== "ward") && !(Number(poolOf(actor, found.activity)?.system?.uses?.value ?? 0) > 0) ) continue;
       guards.push({ actorUuid: actor.uuid, actorName: token.document?.name ?? actor.name, itemId: item.id,
-        activityId: found.activity.id, formula: found.formula, passed: false });
+        activityId: found.activity.id, formula: found.formula, passed: false, ...(ward ? { ward } : {}) });
     }
     if ( guards.length ) return { name: key, row, guards };
   }
   return null;
+}
+
+/** B4 — a guard's ward pool (WARD_POOLS `uses`): `{ itemId, left, max }` or null. */
+function wardPoolOf(actor, featureName) {
+  const item = featureNamed(actor, featureName);
+  if ( !item || !(Number(item.system?.uses?.max) > 0) ) return null;
+  return { itemId: item.id, left: Number(item.system.uses.value ?? 0), max: Number(item.system.uses.max) };
 }
 
 /** The damage's plain, serializable shape — and back. */
@@ -92,8 +103,8 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   const heldByAttack = !!attack?.getFlag(MODULE_ID, "hold")?.targets?.some(t => t.uuid === target.uuid);
   const found = (own && !reactionSpent(actor) && !heldByAttack) ? anyReductionOf(actor) : null;
   if ( !found ) {
-    // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer.
-    const guards = (guarded && attack) ? interceptorsFor(actor, attack.getAssociatedActor?.() ?? null) : null;
+    // An ATTACK's damage to a creature with a guard beside it is held for the guards to answer (an `any` guard on any damage).
+    const guards = guarded ? interceptorsFor(actor, attack?.getAssociatedActor?.() ?? receiptMessage.getAssociatedActor?.() ?? null, { attackDamage: !!attack }) : null;
     if ( !guards ) return false;
     claimedShares.set(key, Date.now());
     void stampHold(receiptMessage, target, actor, damages, { multiplier, note }, guards, { guarded: true })
@@ -204,6 +215,17 @@ async function answerHold(message, answer, who = null) {
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
         ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.label ?? flag.reaction} left.`);
         answer = "pass";
+      } else if ( mine.ward ) {
+        // B4 — the WARD absorbs (Projected Ward): as much of the share as the ward holds, spent from the ward's item.
+        const wardItem = actor.items.get(mine.ward.itemId);
+        const held = Number(wardItem?.system?.uses?.value ?? 0);
+        const share = Math.floor(unpackDamages(flag.damages).reduce((n, d) => n + (Number(d.value) || 0), 0) * Number(flag.multiplier ?? 1));
+        reduceBy = Math.max(0, Math.min(held, share));
+        if ( reduceBy > 0 && wardItem ) {
+          await wardItem.update({ "system.uses.spent": Number(wardItem.system.uses.spent ?? 0) + reduceBy });
+          poolSpend = { pool: wardItem.name, spent: reduceBy, left: Math.max(0, held - reduceBy), max: Number(wardItem.system.uses.max ?? 0), ability: flag.reaction, actorUuid: actor.uuid, at: Date.now() };
+        }
+        await spendReaction(actor, { origin: item?.uuid ?? null, what: flag.reaction });
       } else {
         try {
           const roll = await new Roll(Roll.replaceFormulaData(String(mine.formula), actor.getRollData())).evaluate();

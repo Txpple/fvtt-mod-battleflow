@@ -62,6 +62,22 @@ export function namesAnswering(items, keys) {
     ?? byName.get(lower(item?.name)) ?? item?.name ?? "");
 }
 
+/** B4 — the item carries the named feature's ENCHANTMENT (a copy on the item, never the feature's own source
+ * effect): the pact weapon bonded through Pact of the Blade, the cantrip Repelling Blast was chosen for. */
+export const carriesEnchantmentOf = (item, feature) => !!item && !!feature && (item.id !== feature.id)
+  && [...(item.effects ?? [])].some(e => (e.type === "enchantment") && (lower(e.name) === lower(feature.name)));
+
+/** B4 — the PACT WEAPON judge: the attack's item bonded through the named feature; with NO bonded weapon anywhere on the
+ * sheet, any weapon counts and `caveat` says so (the data cannot settle it — never a guessed exemption).
+ * @returns {{fits: boolean, caveat: string|null}} */
+export function pactWeaponFits(actor, item, featureName) {
+  const feature = featureNamed(actor, featureName);
+  if ( !feature ) return { fits: true, caveat: `${featureName} is not on the sheet — the pact weapon is the table's call` };
+  if ( carriesEnchantmentOf(item, feature) ) return { fits: true, caveat: null };
+  const anywhere = [...(actor?.items ?? [])].some(i => carriesEnchantmentOf(i, feature));
+  return anywhere ? { fits: false, caveat: null } : { fits: true, caveat: `no weapon bonded through ${featureName} — the pact weapon is the table's call` };
+}
+
 /** The damage types an attack deals, before its dice: its parts plus any weapon base damage taken. */
 export function dealtTypesOf(activity) {
   const out = new Set();
@@ -272,6 +288,8 @@ export function reductionFor(item, reactionName) {
     ?? activities.find(a => (a.type === "heal") && !a._source?.name)
     ?? null;
   const h = activity?.healing;
+  // B4 — a `pool: "ward"` row (Projected Ward): the reduction is the ward's hit points, no formula of its own.
+  if ( row.pool === "ward" ) return activity ? { row, activity, formula: "ward" } : null;
   const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
   if ( !activity || !formula ) return null;
   return { row, activity, formula };

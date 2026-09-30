@@ -10,6 +10,7 @@ import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEff
 import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
 import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
+import { pactWeaponFits } from "./lookup.js";
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
@@ -80,9 +81,13 @@ function menuFor(attackMessage, activity) {
       const paying = die ?? (row.noDie ? (named ?? activityOfType(feat, row.save ? "save" : "utility"))
         : row.press ? activityOfType(feat, "utility") : null);
       if ( !paying ) continue;
-      eligible[key] = optionReaches({ row, ...facts, own: activity.item?.id === feat.id });
+      // B4 — `pact`: the pact weapon (bonded through the named feature); none bonded, any weapon with the caveat.
+      const pact = row.pact ? pactWeaponFits(attacker, activity.item, row.pact) : null;
+      eligible[key] = optionReaches({ row, ...facts, own: activity.item?.id === feat.id }) && (pact?.fits !== false);
       used[key] = !!row.oncePerTurn && turnChitStands(attacker, "rider", key);
-      const pool = free ? null : poolOf(attacker, paying);
+      // B4 — `pactSlot`: the Pact Magic slots are the pool (every slot one level: no picker), spent at the ride.
+      const pactSlot = (group.pool === "pactSlot") ? (attacker.system?.spells?.pact ?? null) : null;
+      const pool = (free || pactSlot) ? null : poolOf(attacker, paying);
       const formula = die ? dieFormulaOf(attacker, die) : null;
       // An option-pool group's damage type is the boon's own, as is an `ownType` option's (Hand of Harm's
       // necrotic). ⚠ Only there: a maneuver's die part lists several types (the die takes the weapon's).
@@ -90,9 +95,16 @@ function menuFor(attackMessage, activity) {
       const saveActivity = row.save ? ((named?.type === "save") ? named : activityOfType(feat, "save")) : null;
       const effectActivity = row.effects ? (named ?? activityOfType(feat, "damage")) : null;
       edge[key] = { item: feat, dieActivity: die, saveActivity, effectActivity, pool, formula, type: partType,
-        paidBySave: !!row.noDie && !!row.save && (paying === saveActivity) };
+        paidBySave: !!row.noDie && !!row.save && (paying === saveActivity),
+        ...(pactSlot ? { pactSlot: true } : {}), ...(pact?.caveat ? { caveat: pact.caveat } : {}),
+        // `follow` / `also`: another feature's follow-up save or landed effects, only when that feature is on the sheet.
+        ...(row.follow && featureNamed(attacker, row.follow.feature) ? { follow: row.follow } : {}),
+        ...(row.also && featureNamed(attacker, row.also.feature) ? { also: row.also } : {}) };
       if ( perOption ) pools[key] = pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: formula, type: partType } : null;
-      else if ( !free ) {
+      else if ( pactSlot ) {
+        pools[gkey] ??= { left: Number(pactSlot.value ?? 0), max: Number(pactSlot.max ?? 0), die: group.ownDice ? null : formula };
+        if ( group.ownDice ) dice[key] = { die: formula, type: partType };
+      } else if ( !free ) {
         pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: group.ownDice ? null : formula } : null;
         if ( pools[gkey] && !group.ownDice && !pools[gkey].die && formula ) pools[gkey].die = formula;
         if ( group.ownDice ) dice[key] = { die: formula, type: partType };
@@ -280,7 +292,9 @@ registerOfferPart({
           const facts = edge[p.row.key];
           return { key: p.row.key, group: p.group, feature: p.row.feature, label: p.row.label, mode: p.row.mode,
             formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null,
-            activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave, ...(facts.standIn ? { standIn: facts.standIn } : {}) };
+            activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave, ...(facts.standIn ? { standIn: facts.standIn } : {}),
+            ...(facts.pactSlot ? { pactSlot: true } : {}), ...(facts.caveat ? { caveat: facts.caveat } : {}),
+            ...(facts.follow ? { follow: facts.follow } : {}), ...(facts.also ? { also: facts.also } : {}) };
         });
         try {
           await attackMessage.setFlag(MODULE_ID, "hitPick", records.length ? { picks: records } : { key: null });
@@ -324,10 +338,17 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
       // THE STAND-IN (Relentless): the pool still empty, the d8 rode in the die's place — nothing spent, the turn's chit written.
       const standIn = (pick.standIn && pool && !(Number(pool.system?.uses?.value ?? 0) > 0))
         ? superiorityStandIn(attacker, pool, k => turnChitStands(attacker, "rider", k)) : null;
-      const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - (standIn ? 0 : 1)) : null;
+      // B4 — a Pact slot (Eldritch Smite): the sheet's `spells.pact.value`, one less; the record in the pool-spend shape.
+      const pact = pick.pactSlot ? (attacker.system?.spells?.pact ?? null) : null;
+      const left = pact ? Math.max(0, Number(pact.value ?? 0) - 1) : pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - (standIn ? 0 : 1)) : null;
       // The one spend path (shared.js `spendSuperiorityDie`); the card, flash and subtitle read its record.
-      const poolSpend = pool ? { pool: pool.name, spent: standIn ? 0 : 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now(),
-        ...(standIn ? { standIn: standIn.feature, die: standIn.die } : {}) } : null;
+      const poolSpend = pact ? { pool: `Pact slot (level ${pact.level ?? "?"})`, spent: 1, left, max: Number(pact.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() }
+        : pool ? { pool: pool.name, spent: standIn ? 0 : 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now(),
+          ...(standIn ? { standIn: standIn.feature, die: standIn.die } : {}) } : null;
+      if ( pact && (Number(pact.value ?? 0) > 0) ) {
+        void attacker.update({ "system.spells.pact.value": Number(pact.value) - 1 })
+          .catch(err => console.warn(`${TITLE} | Could not spend the Pact slot.`, err));
+      }
       if ( standIn ) {
         void noteSuperiorityStandIn(attacker, standIn).catch(err => console.warn(`${TITLE} | Could not mark ${standIn.feature} this turn.`, err));
       } else if ( pool ) {
@@ -348,7 +369,8 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
         rule: row.rule, line: row.line ?? null, caveat: row.caveat ?? null, poolLeft: left, poolSpend,
         save: !!row.save, onFail: row.onFail ?? null, effects: !!row.effects, itemUuid: pick.itemUuid,
         clock: row.clock ?? null, press: row.press ?? null, activity: row.activity ?? null,
-        paidBySave: !!pick.paidBySave, poolUuid: pick.poolUuid ?? null
+        paidBySave: !!pick.paidBySave, poolUuid: pick.poolUuid ?? null,
+        ...(pick.caveat ? { caveat: pick.caveat } : {}), ...(pick.follow ? { follow: pick.follow } : {}), ...(pick.also ? { also: pick.also } : {})
       });
     }
     if ( !out.length ) return;
@@ -424,6 +446,20 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
       }
     } else notes.push(`${hm.feature}: no save activity on the sheet`);
   }
+  // B4 — `follow` (Telekinetic Thrust after Psionic Strike): another feature's save activity used at the hit target.
+  if ( hm.follow ) {
+    const feat = featureNamed(attacker, hm.follow.feature);
+    const act = feat ? usableNamed(feat, hm.follow.activity) : null;
+    if ( act ) {
+      const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
+      const card = results?.message;
+      if ( card instanceof ChatMessage ) {
+        await card.setFlag(MODULE_ID, "hitManeuverCard", { ...statContext(attacker.uuid), attackId: attackMessage.id,
+          damageId: damageMessage.id, key: hm.key, feature: hm.follow.feature, rule: hm.rule, line: hm.follow.line ?? null, attackerName: attacker.name,
+          onFail: null, effectUuid: null, pressUuids: [], applied: [] });
+      }
+    } else notes.push(`${hm.follow.feature}: no ${hm.follow.activity} on the sheet — resolve it by hand`);
+  }
   if ( hm.mode === "sweep" ) await postSweepCard(damageMessage, hm, attackMessage, attacker, hits, item);
 }
 
@@ -431,7 +467,7 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
 
 async function settleHitEffects(message) {
   const record = message.getFlag(MODULE_ID, "hitManeuver");
-  const picks = picksOf(record).map((p, index) => ({ p, index })).filter(({ p }) => p.effects || p.press);
+  const picks = picksOf(record).map((p, index) => ({ p, index })).filter(({ p }) => p.effects || p.press || p.also);
   if ( !picks.length || record.effectsApplied ) return;
   if ( !drivesMomentFor(record.sourceUuid ?? null) ) return;
   try {
@@ -455,6 +491,13 @@ async function settleHitEffects(message) {
           { clock: hm.clock ?? null, attacker, source: statSourceOf(message) });
       }
       if ( hm.press ) await pressOnHit(message, { ...hm, sourceUuid: record.sourceUuid ?? null }, hits, item, Array.isArray(record.picks) ? index : null);
+      // B4 — `also` (Physician's Touch's Poisoned with Hand of Harm): another feature's activity's effects land with the ride.
+      if ( hm.also ) {
+        const attacker = resolveUuid(record.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
+        const feat = attacker ? featureNamed(attacker, hm.also.feature) : null;
+        const act = feat ? usableNamed(feat, hm.also.activity) : null;
+        if ( act ) await applyActivityEffectsOnHit(message, act, hits, { clock: hm.also.clock ?? null, attacker, source: statSourceOf(message) });
+      }
     }
   } catch(err) {
     console.error(`${TITLE} | The maneuver's effect failed to apply.`, err);
@@ -678,7 +721,7 @@ async function settleSweep(card) {
 
 // Effects resume on arrival and reload (never an update); follow-ups and the sweep on the answer.
 registerResumable("hitManeuver", {
-  pending: (flag, _message, cause) => (cause !== "update") && picksOf(flag).some(p => p.effects || p.press) && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && picksOf(flag).some(p => p.effects || p.press || p.also) && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleHitEffects
 });

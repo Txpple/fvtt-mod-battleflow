@@ -102,7 +102,7 @@ listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
     const attacker = activity.item?.actor;
     if ( !(attacker instanceof Actor) || !reminderEntries().length ) return;
     const judged = judgeRoll(attacker, { activity, attackMode: config.attackMode, rangeFeet: distantRangeOn(message) });
-    const plus = (judged?.sources ?? []).filter(s => Number(s.plus) > 0);
+    const plus = (judged?.sources ?? []).filter(s => Number.isFinite(Number(s.plus)) && (Number(s.plus) !== 0));
     if ( !plus.length ) return;
     const roll = config.rolls?.[0];
     if ( !Array.isArray(roll?.parts) ) return;
@@ -493,6 +493,12 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     notActed: targetNotActed(attacker, actor)
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
+  // B4 — an Opportunity Attack as the gate can read it (Halt's fact): a melee attack off the attacker's turn in a running combat.
+  if ( attackerSheet ) {
+    const combat = game.combat;
+    attackerSheet.offTurnMelee = !!(combat?.started && combat.combatant && (combat.combatant.actor?.uuid !== attacker.uuid)
+      && (scope.type === "melee") && combat.combatants.some(c => c.actor?.uuid === attacker.uuid));
+  }
 
   if ( enabled.has("sap") ) {
     for ( const e of attacker.effects ) {

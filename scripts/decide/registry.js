@@ -57,6 +57,9 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *            damage to 0 — Deflect Attacks' Redirect, the pack's own save activity used at the attacker
  *   eyebrow / spend / hit / by   the card's and popup's words;  label  the name shown when the row is keyed by its
  *            item (Protective Field on Psionic Power);  verb  a guard's answer ("intercept" by default)
+ *   pool "ward" + of  (B4, Projected Ward): the reduction is the guard's WARD (WARD_POOLS `of`, its uses the hit points) —
+ *            as much of the damage as the ward holds, spent from it; `any` with `ally`: a guard asked on ANY damage to the
+ *            creature beside it, not an attack's alone
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -71,6 +74,11 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Proficiency Bonus", ally: 5, holding: "shieldOrWeapon",
     rule: Object.freeze({ item: "Interception", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstIntercepti" }),
     from: "Fighting Style feat" }),
+  // B4 — Projected Ward: the wizard's Arcane Ward absorbs a creature's damage within 30 ft, a Reaction (the ward's own pool).
+  "Projected Ward": Object.freeze({ activity: "Project Ward", pool: "ward", of: "Arcane Ward", any: true, ally: 30, verb: "absorb",
+    eyebrow: "Reaction", spend: "Reaction", hit: "any damage, not only an attack", by: "your Arcane Ward's hit points",
+    rule: Object.freeze({ item: "Projected Ward", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdProjectedW" }),
+    from: "Wizard — Abjurer 6" }),
   // A1: rolled, as Parry's; before, "reduce by hand" (RULINGS *The PHB classes — A1*).
   "Deflect Attacks": Object.freeze({ activity: "Reduce", pool: false,
     eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10 plus your Dexterity modifier and Monk level",
@@ -97,13 +105,15 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
  *   reaction / uses   takes the Reaction / spends one of the item's uses;  point  what a use is called
  *   activity  the pack activity that IS this answer (a use from the sheet answers the hold)
  *   after     what the table still does once the roll is bent — a card line
+ *   heal      B4 — a FEATURE whose heal activity lands on the flared creature with the answer (Improved Warding Flare's
+ *             Temporary Hit Points), rolled on the answerer's numbers, receipted; absent from the sheet, nothing
  * ⚠ The 2014 Halfling "Lucky" shares the name with no uses: the lookup demands the item's own uses.
  */
 export const INTERRUPT_ROLLS = Object.freeze({
   "Lucky": Object.freeze({ reaction: false, uses: true, point: "Luck Point", activity: "Disadvantage",
     rule: Object.freeze({ item: "Lucky", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftLucky000000", benefit: "Disadvantage" }),
     from: "Origin feat" }),
-  "Warding Flare": Object.freeze({ reaction: true, uses: true, point: null, activity: "Flare",
+  "Warding Flare": Object.freeze({ heal: "Improved Warding Flare", reaction: true, uses: true, point: null, activity: "Flare",
     rule: Object.freeze({ item: "Warding Flare", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcWardingFla" }),
     from: "Cleric — Light Domain 3" }),
   "Shadowy Dodge": Object.freeze({ reaction: true, uses: false, point: null, activity: "Shadowy Dodge",
@@ -268,6 +278,11 @@ export const BONUS_SWINGS = Object.freeze({
     swing: "A Bonus Action: one attack with a weapon or an Unarmed Strike — use <strong>War Priest</strong> from the sheet (it spends the use), then swing.",
     rule: Object.freeze({ item: "War Priest", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcWarPriest0" }),
     from: "Cleric — War Domain 3" }),
+  // B4 — War Magic: a reminder alone — one of the Attack action's attacks may be a cantrip (cast from the sheet).
+  "War Magic": Object.freeze({ when: "attack", label: "War Magic", ranged: true,
+    swing: "One of this Attack action's attacks may be a <strong>cantrip</strong> instead — cast it from the sheet (Improved War Magic at 18: any spell of level 1 or 2).",
+    rule: Object.freeze({ item: "War Magic", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrWarMagic00" }),
+    from: "Fighter — Eldritch Knight 7" }),
   // Not a Bonus Action: the extra attack is the option's own, once per turn, from the sheet.
   "Hunter's Prey": Object.freeze({ when: "attack", label: "Horde Breaker", ranged: true, option: "Horde Breaker", near: 5,
     swing: "One more attack with the same weapon at a different creature within 5 feet of the original target, one you haven't attacked this turn — make it from the sheet.",
@@ -423,8 +438,12 @@ export const DEATH_STRIKE = Object.freeze({
  *   random    `{ die }` — one of the activity's effects, named "N: …", lands by the die (the GM's side:
  *             "roll 1d4: on a 1 Charmed, on a 2 Frightened…"), the pack's own duration; a `clock` may pin it
  *   label / says / caveat   the offer's and card's words
+ *   enchantBy B4 — the enchantment judged is ANOTHER feature's (Lifedrinker's pact weapon: Pact of the Blade's bond); none
+ *             bonded on the sheet, any weapon counts and the card says so (lookup.js pactWeaponFits)
+ *   offers    B4 — after the rider rides, the damage card OFFERS the feature's named activity as a button, used at the
+ *             attacker (Lifedrinker's heal: a Hit Point Die spent, the sheet's own heal activity — "you can")
  * Left out: choices the sheet does not record or judgments the module cannot make (Brutal Strike, Hand of
- * Harm, Eldritch Smite, Lifedrinker's heal, Foe Slayer). Death Strike: DEATH_STRIKE.
+ * Harm, Eldritch Smite, Foe Slayer). Death Strike: DEATH_STRIKE.
  */
 export const CLOCK_RIDERS = Object.freeze({
   // THE GM'S SIDE — the random condition on a hit (RULINGS *The Monster Manual — the waiting rows built*): the
@@ -535,13 +554,30 @@ export const CLOCK_RIDERS = Object.freeze({
     lands: Object.freeze({ name: "Struck", from: "Struck", id: "bfStruck00000000" }), clock: "vex",
     says: "Disadvantage on its next saving throw against a spell you cast, until the end of your next turn",
     rule: Object.freeze({ item: "Eldritch Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrEldritchSt" }),
-    from: "Fighter — Eldritch Knight 10" })
+    from: "Fighter — Eldritch Knight 10" }),
+  // B4 — Lifedrinker: 1d6 once per turn on a pact-weapon hit, the type the activity's first (necrotic — the rider ruling; psychic
+  // or radiant by hand); the heal (a Hit Point Die, the pack's own activities) OFFERED on the damage card.
+  "lifedrinker": Object.freeze({ feature: "Lifedrinker", activity: "Damage", when: "oncePerTurn", weapon: true, enchantBy: "Pact of the Blade",
+    offers: Object.freeze({ activity: "Heal (Largest Hit Die)", label: "Heal — spend a Hit Point Die" }),
+    caveat: "the type is the activity's first (necrotic) — psychic or radiant by hand",
+    rule: Object.freeze({ item: "Lifedrinker", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvLifedrinke" }),
+    from: "Eldritch Invocation (Warlock 9)" }),
+  // B4 — Relentless Avenger: Sentinel's Halt on the paladin's Opportunity Attack hit — the pack's own speed-0 effect for the
+  // rest of the current turn (the `halt` clock); the paladin's free move is the table's.
+  "relentless-avenger": Object.freeze({ feature: "Relentless Avenger", activity: null, label: "Relentless Avenger", when: "any", judge: "opportunity",
+    lands: Object.freeze({ name: "Relentless Avenger", from: "Relentless Avenger", id: "bfRelentlessAvg0" }), clock: "halt",
+    says: "Speed 0 for the rest of the current turn; you may move up to half your Speed as part of the Reaction (the table's)",
+    caveat: "only on an Opportunity Attack",
+    rule: Object.freeze({ item: "Relentless Avenger", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnRelentless" }),
+    from: "Paladin — Oath of Vengeance 7" })
 });
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
  * as the feature, EFFECT_BENDS reads it, the roll spends it. `window` a CHIP_WINDOWS key; `changes` the
  * sheet changes; `on: "miss"` + `against` — written by a MISS, one chip per missed creature, carrying its uuid
- * (Studied Attacks, B3). Membership: Effect Sources. */
+ * (Studied Attacks, B3). B4: `on: "hit"` + `holder: "target"` — written by a HIT on the feature's bearer, the chip
+ * on the BEARER against the attacker (`chipName` its name: Multiattack Defense on Defensive Tactics); `melee` is
+ * the bend row's scope (Shadow Step: the next melee attack). Membership: Effect Sources. */
 export const USE_CHIPS = Object.freeze({
   "Steady Aim": Object.freeze({ key: "steadyAim", bend: "advantage", window: "steadyAim",
     rule: Object.freeze({ item: "Steady Aim", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSteadyAim0" }),
@@ -551,7 +587,16 @@ export const USE_CHIPS = Object.freeze({
   // attacker, `against` that creature (EFFECT_BENDS "Studied Attacks" reads the chip only at that target; the roll spends it).
   "Studied Attacks": Object.freeze({ key: "studiedAttacks", bend: "advantage", window: "vex", on: "miss", against: true,
     rule: Object.freeze({ item: "Studied Attacks", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrStudiedAtt" }),
-    note: "the next attack roll against that creature spends it, before the end of your next turn" })
+    note: "the next attack roll against that creature spends it, before the end of your next turn" }),
+  // B4 — Shadow Step: the teleport's use arms Advantage on the next MELEE attack this turn (the pack ships no effect).
+  "Shadow Step": Object.freeze({ key: "shadowStep", bend: "advantage", window: "steadyAim", melee: true,
+    rule: Object.freeze({ item: "Shadow Step", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkShadowStep" }),
+    note: "the next melee attack roll this turn spends it; the teleport is the table's move" }),
+  // B4 — Defensive Tactics' Multiattack Defense: once a creature hits the ranger, +4 AC against that creature's later attacks this
+  // turn — a chip on the RANGER against the attacker; EFFECT_BENDS "Multiattack Defense" pushes −4 onto that attacker's rolls.
+  "Defensive Tactics": Object.freeze({ key: "multiattackDefense", chipName: "Multiattack Defense", bend: null, window: "halt", on: "hit", holder: "target", against: true,
+    rule: Object.freeze({ item: "Defensive Tactics", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrDefensiveT", benefit: "Multiattack Defense" }),
+    note: "+4 AC against that creature's attacks for the rest of the current turn" })
 });
 
 /**
@@ -742,8 +787,15 @@ export function tableIndex(table, keyOf = null) {
  *   dieFrom  the die is ANOTHER feature's damage activity (Improved Brutal Strike's blows ride Brutal Strike's die)
  *   requires { forgo } — the group opens only on a hit whose attack recorded that forgo (Brutal Strike, B3)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
- * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid); `max` picks; `ownDice` each
- * option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
+ * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid) | "pactSlot" (B4, Eldritch Smite: a
+ * Pact Magic slot — `system.spells.pact`, every slot one level, so no picker; Q9's `poolOf` branch); `max` picks;
+ * `ownDice` each option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
+ *   pact     B4 — the attack's weapon must be the PACT WEAPON (lookup.js pactWeaponFits: bonded through Pact of the Blade;
+ *            none bonded on the sheet, any weapon with the caveat)
+ *   follow   B4 — a FOLLOW-UP after the option rides: another feature's save activity used at the hit target
+ *            (`{ feature, activity }` — Telekinetic Adept's Telekinetic Thrust after Psionic Strike, Trip's path)
+ *   also     B4 — ANOTHER feature's damage activity whose effects land with the option's ride (`{ feature, activity,
+ *            clock }` — Physician's Touch's Poisoned on Hand of Harm), when that feature is on the sheet
  * Membership: the Hit Menu list (option names). Precision Attack and Riposte are folds.
  */
 export const HIT_GROUPS = Object.freeze({
@@ -772,7 +824,11 @@ export const HIT_GROUPS = Object.freeze({
   // (`@scale.barbarian.brutal-strike`, the weapon's type), one effect per hit (`max` 1; level 17's two is D1's).
   "brutal-strike": Object.freeze({ feature: "Brutal Strike", pool: "free", ownDice: true, requires: Object.freeze({ forgo: "Brutal Strike" }),
     label: "Brutal Strike", max: 1, dieLabel: "die", eyebrow: "Barbarian", heading: "Brutal Strike", per: "one effect per hit — the forgone Advantage paid for it", from: "Barbarian 9",
-    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri" }) })
+    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri" }) }),
+  // B4 — Eldritch Smite: a Pact slot the cost (`pool: "pactSlot"`), the die the pack's Smite activity ((1 + pact level)d8 force).
+  "eldritch-smite": Object.freeze({ feature: "Eldritch Smite", pool: "pactSlot", ownDice: true, label: "Eldritch Smite", max: 1,
+    dieLabel: "Pact slot", eyebrow: "Warlock", heading: "Eldritch Smite", per: "once per turn, on a pact-weapon hit", from: "Eldritch Invocation (Warlock 5)",
+    rule: Object.freeze({ item: "Eldritch Smite", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvEldritchSm" }) })
 });
 
 export const HIT_OPTIONS = Object.freeze({
@@ -802,7 +858,10 @@ export const HIT_OPTIONS = Object.freeze({
   // SAVE_PRESSES' `success` (the pack marks Slowed failure-only).
   "stunning-strike": Object.freeze({ feature: "Stunning Strike", group: "monks-focus", save: true, noDie: true, oncePerTurn: true, weapons: "monk",
     rule: Object.freeze({ item: "Stunning Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkStunningSt" }) }),
+  // B4 — Physician's Touch: its own Hand of Harm activity carries "Poisoned (Hand of Harm)"; it lands with the ride until the
+  // end of the monk's next turn (the `vex` window) when the feature is on the sheet.
   "hand-of-harm": Object.freeze({ feature: "Hand of Harm", group: "monks-focus", oncePerTurn: true, unarmed: true, ownType: true,
+    also: Object.freeze({ feature: "Physician's Touch", activity: "Hand of Harm", clock: "vex" }),
     rule: Object.freeze({ item: "Hand of Harm", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkHandOfHarm" }) }),
   "open-hand-addle": Object.freeze({ feature: "Open Hand Technique", group: "open-hand-technique", activity: "Addle", label: "Addle",
     effects: true, noDie: true, only: "flurry",
@@ -819,8 +878,12 @@ export const HIT_OPTIONS = Object.freeze({
     line: "Played at the table: on a failed save, the target is pushed or pulled up to 10 feet (move the token).",
     rule: Object.freeze({ item: "Elemental Attunement", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkElementalA" }) }),
   // A2 — the Psi Warrior: a Psionic Energy Die as Force, once per turn, on a weapon hit.
+  // B4 — Telekinetic Adept's Telekinetic Thrust follows the Strike: the Strength save (Prone on a failure, the activity's own
+  // effect); the 10-foot push is the table's.
   "psionic-strike": Object.freeze({ feature: "Psionic Power", group: "psionic-power", activity: "Psionic Strike", label: "Psionic Strike",
     oncePerTurn: true, weapon: true, ownType: true,
+    follow: Object.freeze({ feature: "Telekinetic Adept", activity: "Telekinetic Thrust",
+      line: "Played at the table: on a failed save you may instead push it up to 10 feet in a straight line (move the token)." }),
     rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Psionic Strike" }) }),
   // B3 — the Brutal Strike effects. Forceful Blow is the table's (a line); Hamstring Blow lands the pack's Hamstrung (the
   // damage activity's effect); Improved's two ride the SAME die (`dieFrom` — their item carries utility activities alone):
@@ -837,7 +900,12 @@ export const HIT_OPTIONS = Object.freeze({
     rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Staggering Blow" }) }),
   "sundering-blow": Object.freeze({ feature: "Improved Brutal Strike", group: "brutal-strike", activity: "Sundering Blow", label: "Sundering Blow",
     weapon: true, effects: true, clock: "slow", dieFrom: "Brutal Strike",
-    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) })
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) }),
+  // B4 — Eldritch Smite: on a pact-weapon hit, once per turn, (1 + pact level)d8 force and Prone if Huge or smaller (a press,
+  // no save); the Pact slot the cost. The pact weapon is the one bonded through Pact of the Blade (`pact`).
+  "eldritch-smite": Object.freeze({ feature: "Eldritch Smite", group: "eldritch-smite", activity: "Smite", label: "Eldritch Smite",
+    oncePerTurn: true, weapon: true, pact: "Pact of the Blade", ownType: true, press: "prone", maxSize: "huge",
+    rule: Object.freeze({ item: "Eldritch Smite", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvEldritchSm" }) })
 });
 
 
@@ -1332,12 +1400,19 @@ export const REST_GRANTS = Object.freeze({
  *             and nothing held it; `activity` (null: the first save) is used AT THE CORPSE against every
  *             creature within the activity's Emanation, one demand card, the saves machine from there
  *   notice    a `died` row with no activity to use — the card's words for the GM's move (Misty Escape: the mist)
+ *   named     B4 (Gift of the Protectors): the feature is ANOTHER creature's — the warlock's, whose copy's description
+ *             names the dropped creature (the tome's page, read as data); `activity` the one whose own uses pay (Protect,
+ *             once per Long Rest); it simply happens (`ask: false`), the card names the keeper
  * The GM's side, the waiting rows: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const DROP_TO_ONE = Object.freeze({
   "Death Ward": Object.freeze({ ask: false, effect: "Protection from Death", ends: true, outright: true,
     rule: Object.freeze({ item: "Death Ward", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplDeathWard0" }),
     from: "PHB, level 4 (8 hours)" }),
+  "Gift of the Protectors": Object.freeze({ ask: false, named: true, activity: "Protect", outright: false,
+    caveat: "the names on the page are the feature's description on the warlock's sheet — write them there",
+    rule: Object.freeze({ item: "Gift of the Protectors", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvGiftoftheP" }),
+    from: "Eldritch Invocation (Warlock 9)" }),
   "Relentless Endurance": Object.freeze({ ask: true, uses: true, outright: false,
     rule: Object.freeze({ item: "Orc", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspOrc00000000", benefit: "Relentless Endurance" }),
     from: "Orc" }),
@@ -1379,6 +1454,8 @@ export const DROP_TO_ONE = Object.freeze({
  *   types     the damage's types the row answers to (Elemental Absorption); a damage card the module cannot
  *             read counts the row — never a guessed exemption
  *   self      the answer is aimed at nobody (a heal on self, a cloud) — no reach is measured
+ *   follow    B4 — activities of the feature OFFERED on the card once the answer is driven (Misty Escape's Disappearing
+ *             Step or Dreadful Step after the teleport), each a button, the pick the player's
  * A spell answers at the lowest slot held — no picker in a Reaction's window.
  */
 export const REBUKES = Object.freeze({
@@ -1420,7 +1497,13 @@ export const REBUKES = Object.freeze({
     rule: Object.freeze({ item: "Elemental Absorption", uuid: "Compendium.dnd-monster-manual.features.Item.mmElementalAbsor" }) }),
   "Ink Cloud": Object.freeze({ activity: "Expend Use", self: true, from: "monsters",
     caveat: "\"while underwater\", the Cube and the swim are the table's",
-    rule: Object.freeze({ item: "Ink Cloud", uuid: "Compendium.dnd-monster-manual.features.Item.mmInkCloud000000" }) })
+    rule: Object.freeze({ item: "Ink Cloud", uuid: "Compendium.dnd-monster-manual.features.Item.mmInkCloud000000" }) }),
+  // B4 — Misty Escape (the warlock's, Archfey 6): a Reaction on taking damage, Misty Step cast without a slot (the feature's
+  // own Cast activity), then one of its Steps offered. ⚠ The Monster Manual's Misty Escape is a DROP_TO_ONE `died` row.
+  "Misty Escape": Object.freeze({ activity: "Misty Step", self: true, from: "Warlock — Archfey Patron 6",
+    follow: Object.freeze(["Disappearing Step", "Dreadful Step"]),
+    caveat: "the teleport itself is the table's move; Dreadful Step's creatures within 5 feet are your targets",
+    rule: Object.freeze({ item: "Misty Escape", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkMistyEscap" }) })
 });
 
 /**
@@ -1632,15 +1715,18 @@ export const CHECK_BENDS = Object.freeze({
  *   spend     "save" — the save the row bends spends the effect (Struck), as "attack" does the next attack roll
  *   against   the carrier chip names the ONE creature it is against (`flags.<module>.against`): read at that target alone
  *   plus      a flat bonus to an attack roll AT the bearer (Sundered's +5), pushed onto the roll's parts by the gate —
- *             a listed source (no bend), `except: "source"` keeps it from the placer's own roll
+ *             a listed source (no bend), `except: "source"` keeps it from the placer's own roll; NEGATIVE with
+ *             `against: "attacker"` (B4, Multiattack Defense's −4): only the roll of the creature the bearer's chip names
+ *   judge "opportunity" (B4, Escape the Horde): a melee attack off the attacker's combat turn — read as an Opportunity
+ *             Attack (Halt's fact), the caveat said; out of combat, never
  *   attack    the bend rides ONE attack alone — the item making it (Object Slam, the GM's side): the attack
  *             itself is the carrier, no feature or effect is read;  judge "targetInSpace": the target's
  *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace", spend?: "attack"|"save", attack?: string,
- *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean, plus?: number, rule: object|string|null, from: string}>>>}
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity", spend?: "attack"|"save", attack?: string,
+ *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean|"attacker", plus?: number, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
   // --- A. standing, no caveat: the row is the whole truth ---------------------------------
@@ -1870,6 +1956,18 @@ export const EFFECT_BENDS = Object.freeze({
   "Steady Aim": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack",
     rule: Object.freeze({ item: "Steady Aim", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSteadyAim0" }),
     from: "Rogue 3 (a use chip)" }),
+  // B4 — the use chips: Shadow Step (the next melee attack), Multiattack Defense (the chip on the RANGER, −4 to the named
+  // attacker's rolls for the rest of the turn); Escape the Horde: the ranger's own feature, Opportunity Attacks at Disadvantage.
+  "Shadow Step": Object.freeze({ attacker: "advantage", target: null, scope: "melee", spend: "attack",
+    rule: Object.freeze({ item: "Shadow Step", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkShadowStep" }),
+    from: "Monk — Warrior of Shadow 6 (a use chip)" }),
+  "Multiattack Defense": Object.freeze({ attacker: null, target: null, scope: "any", plus: -4, against: "attacker",
+    rule: Object.freeze({ item: "Defensive Tactics", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrDefensiveT", benefit: "Multiattack Defense" }),
+    from: "Ranger — Hunter 7 (a use chip)" }),
+  "Escape the Horde": Object.freeze({ match: "feature", named: "Defensive Tactics", attacker: null, target: "disadvantage", scope: "melee", judge: "opportunity",
+    caveat: "counted — Opportunity Attacks only: a melee attack off the attacker's turn in combat is read as one",
+    rule: Object.freeze({ item: "Defensive Tactics", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrDefensiveT", benefit: "Escape the Horde" }),
+    from: "Ranger — Hunter 7" }),
   "Assassinate": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any",
     judge: "targetNotActed",
     rule: Object.freeze({ item: "Assassinate", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeAssasinate", benefit: "Surprising Strikes" }),
@@ -1998,7 +2096,11 @@ export const METAMAGIC = Object.freeze({
   // tick stands beside a Metamagic pick. `fixed` the damage type every damage roll of the cast takes; `classes`
   // the spell's own class (its `sourceClass`). The components half is out (a card line would police nothing).
   "Psychic Spells":   { key: "psychic",    moment: "cast",   when: "damageRoll", picks: null, free: true, fixed: "psychic", classes: ["warlock"],
-    apply: "the cast's damage rolls are psychic" }
+    apply: "the cast's damage rolls are psychic" },
+  // B4 — Sculpt Spells: Careful's ask at the area as a FREE class-feature row (`asks: "careful"` — the same popup, the same
+  // outcome: the spared succeed and take nothing), up to 1 + the slot level (`cap`), on the wizard's Evocation spells (`school`).
+  "Sculpt Spells":    { key: "sculpt",     moment: "cast",   when: "save",       picks: "protect", free: true, asks: "careful", classes: ["wizard"], school: "evo",
+    unless: "choosesTargets", cap: "1 + @slot", apply: "up to 1 + the slot level creatures are spared: no save, no damage" }
 });
 /** The damage types Transmuted Spell trades between — the option's own list. */
 export const TRANSMUTED_TYPES = Object.freeze(["acid", "cold", "fire", "lightning", "poison", "thunder"]);
@@ -2038,6 +2140,8 @@ export const DAMAGE_EITHER = Object.freeze({
  *             the caster or a creature on its side `within` feet, while `while` stands and the form chip
  *             (EFFECT_CHOICES `chip`) reads `form`; the pick uses the activity at that creature
  *   bonus / slotCast   the owner's levelled spell heals `bonus` more (`@slot` the cast's level), a part on the roll
+ *   self      B4 (Blessed Healer): after the owner's slot-cast healing spell lands on ANOTHER creature, the owner regains
+ *             `self` (`@slot` the cast's level) — its own card and receipt, once per cast
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
@@ -2053,6 +2157,9 @@ export const HEAL_REROLLS = Object.freeze({
   "Disciple of Life": Object.freeze({ bonus: "2 + @slot", slotCast: true,
     rule: Object.freeze({ item: "Disciple of Life", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcDiscipleOf" }),
     from: "Cleric — Life Domain 3" }),
+  "Blessed Healer": Object.freeze({ self: "2 + @slot", slotCast: true,
+    rule: Object.freeze({ item: "Blessed Healer", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcBlessedHea" }),
+    from: "Cleric — Life Domain 6" }),
   "Starry Form": Object.freeze({ also: "Chalice", while: "Starry Form", form: "chalice", within: 30,
     rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm", benefit: "Chalice" }),
     from: "Druid — Circle of the Stars 3" })
@@ -2065,12 +2172,19 @@ export const HEAL_REROLLS = Object.freeze({
  *            activities write them); the maximum is the item's
  *   create   the feature's activity whose use creates the ward (full) once per Long Rest, on the first cast
  *   refill   `{ school, per }`: a spell of that school cast from a slot restores `per` × the slot level
+ *   pool "effect" (B4, Bastion of Law): the hit points live on the pack's `effect` landed on the WARDED creature (the
+ *            sorcerer's pick — the targeted token, else itself), written at the `create` activity's use: `die` per Sorcery
+ *            Point spent (the use's scaling), the whole pool spent as damage lands, the effect gone at 0
  * ⚠ NOT A KIND — one table, one machine; Bastion of Law is the second customer (B4).
  */
 export const WARD_POOLS = Object.freeze({
   "Arcane Ward": Object.freeze({ pool: "uses", create: "Create Ward", refill: Object.freeze({ school: "abj", per: 2 }),
     rule: Object.freeze({ item: "Arcane Ward", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdArcaneWard" }),
-    from: "Wizard — Abjurer 3" })
+    from: "Wizard — Abjurer 3" }),
+  "Bastion of Law": Object.freeze({ pool: "effect", effect: "Warded by Law", create: "Create Shield", die: 8,
+    caveat: "the ward lasts until the sorcerer uses the feature again or finishes a Long Rest — the effect's own clock",
+    rule: Object.freeze({ item: "Bastion of Law", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrBastionOfL" }),
+    from: "Sorcerer — Clockwork Sorcery 6" })
 });
 
 /**
@@ -2692,7 +2806,7 @@ export const INTERRUPTS = Object.freeze([
   row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
   row("Combat Inspiration", "roll"), row("Portent", "roll"), row("Countercharm", "roll"),
   row("Beguiling Twist", "roll"), row("Beguiling Defenses", "damage"),
-  row("Bend Luck", "roll"), row("Cosmic Omen", "roll"),
+  row("Bend Luck", "roll"), row("Cosmic Omen", "roll"), row("Projected Ward", "damage"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
@@ -2701,7 +2815,7 @@ export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", rea
 export const MANEUVER_FOLDS = Object.freeze([
   row("Precision Attack", "precision"), row("Riposte", "riposte"), row("Shield Master", "interpose"),
   row("Shield Master", "bash"), row("Great Weapon Master", "hew"), row("Commander's Strike", "command"),
-  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew"), row("War Priest", "hew"),
+  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew"), row("War Priest", "hew"), row("War Magic", "hew"),
   row("Hunter's Prey", "hew")
 ]);
 export const D20_FOLDS = Object.freeze([

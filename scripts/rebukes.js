@@ -83,7 +83,8 @@ function offersFor(actor, source, { ward = false, attackHit = false, miss = fals
     out.push({ name, itemId: item.id, activityId: activity?.id ?? null, img: item.img, reach,
       attack: row.attack ?? null, advantage: !!row.advantage, free, handUse: free && !pool,
       ...(row.opportunity ? { opportunity: true } : {}), ...(row.ward ? { ward: true } : {}),
-      cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }) });
+      cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }),
+      ...(row.follow?.length ? { follow: [...row.follow] } : {}) });
   }
   return { distance, options: out };
 }
@@ -320,6 +321,31 @@ listen("dnd5e.renderChatMessage", "rebukes", (message, html) => {
     div.className = "bf-rebuke-line";
     div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
     div.innerHTML = `<i class="fa-solid fa-bolt" data-tooltip="Reaction"></i> ${esc(rebukeLine(flag))}`;
+    // B4 — `follow` (Misty Escape's Steps): once the answer is driven, the feature's follow-up activities as buttons, the pick the owner's.
+    const used = (flag.status === "resolved") && (flag.answer === "use") ? (flag.options ?? []).find(o => o.name === flag.choice) : null;
+    if ( used?.follow?.length && !flag.followed ) {
+      const actor = resolveUuid(flag.actorUuid);
+      const item = actor?.items?.get(used.itemId) ?? null;
+      if ( item && canAnswerFor(actor) ) {
+        const row = document.createElement("div");
+        row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.3rem;flex-wrap:wrap;";
+        const label = document.createElement("span");
+        label.style.opacity = "0.8";
+        label.textContent = `${used.name} — then:`;
+        row.appendChild(label);
+        for ( const name of used.follow ) {
+          const act = activityNamed(item, name);
+          if ( !act ) continue;
+          row.appendChild(momentButton(name, () => void (async () => {
+            await act.use({}, { configure: false }, {});
+            if ( message.canUserModify?.(game.user, "update") ) await message.setFlag(MODULE_ID, REBUKE_FLAG, { ...message.getFlag(MODULE_ID, REBUKE_FLAG), followed: name });
+          })().catch(err => console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err))));
+        }
+        div.appendChild(row);
+      }
+    } else if ( flag.followed ) {
+      div.insertAdjacentHTML("beforeend", ` · ${esc(flag.followed)}`);
+    }
     if ( flag.status === "pending" ) {
       div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
       const actor = resolveUuid(flag.actorUuid);

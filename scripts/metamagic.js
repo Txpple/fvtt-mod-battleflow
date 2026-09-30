@@ -11,7 +11,7 @@ import { poolOf, spendPoolUses, isPartyMember } from "./shared.js";
 import { feetOf, tokenOfActor, tokensInRegions } from "./geometry.js";
 import { bfCard, foldedRuleHTML, esc } from "./decide/present.js";
 import { METAMAGIC, TRANSMUTED_TYPES, TWINNED_EXCEPTIONS, tableIndex } from "./decide/registry.js";
-import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom } from "./decide/metamagic.js";
+import { METAMAGIC_FLAG, metamagicMenu, metamagicPick, metamagicRuleText, metamagicCardLine, distantRange, scalesTargetsFrom, carefulKind } from "./decide/metamagic.js";
 import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, askWords, heightenedMark, choiceCapFrom, choiceRuleFrom, choiceNeedsAsk } from "./decide/area-ask.js";
 import { newAsk, registerAskAnswerPart } from "./area-ask.js";
 import { raiseHold, releaseHold, isHeld } from "./holds.js";
@@ -99,7 +99,8 @@ function spellFactsOf(activity) {
     // Whose spell it is (a `classes` row): the item's own class (dnd5e 6 `sourceItem`, resolved when the class is
     // on the sheet, else read off its "class:" key), else the caster's one class.
     sourceClass: sys.classIdentifier || (String(sys.sourceItem ?? "").startsWith("class:") ? String(sys.sourceItem).slice(6) : "")
-      || ((Object.keys(activity?.actor?.classes ?? {}).length === 1) ? Object.keys(activity.actor.classes)[0] : null)
+      || ((Object.keys(activity?.actor?.classes ?? {}).length === 1) ? Object.keys(activity.actor.classes)[0] : null),
+    school: lower(sys.school ?? "")
   };
 }
 
@@ -177,6 +178,14 @@ listen("renderActivityUsageDialog", "metamagic", (app, element) => {
         .map(b => menu.find(r => r.key === b.value)).filter(r => r?.eligible)
         .map(r => ({ key: r.key, feature: r.feature, type: r.fixed ?? null, at: Date.now() }));
       if ( ticked.length ) freePending.set(activity.uuid, ticked); else freePending.delete(activity.uuid);
+      // B4 — a free row that ASKS at the area (Sculpt Spells): the one-per-cast record carries it (no cost, no pool),
+      // unless a paid pick stands; its cap is set at the card's birth, off the slot cast.
+      const asker = ticked.map(r => METAMAGIC[menu.find(m => m.key === r.key)?.feature ?? ""] ? r : null).find(r => r && METAMAGIC[r.feature]?.asks);
+      const held = pending.get(activity.uuid);
+      if ( asker && (!held || held.free) ) {
+        pending.set(activity.uuid, { key: asker.key, feature: asker.feature, cost: 0, free: true, itemUuid: known.get(asker.feature)?.uuid ?? null,
+          actorUuid: actor.uuid, at: Date.now(), spellUuid: activity.item?.uuid ?? null, activityUuid: activity.uuid, spellName: activity.item?.name ?? null, poolId: null });
+      } else if ( !asker && held?.free ) pending.delete(activity.uuid);
     };
     for ( const b of freeBoxes ) b.addEventListener("change", syncFree);
     syncFree();
@@ -356,7 +365,9 @@ listen("preCreateChatMessage", "metamagic", doc => {
     // THE DEFERRED CARD: a Careful/Heightened cast waiting on its area cancels the birth and keeps
     // the data; the real card (the one animations key on) is posted on the answer.
     const activity = resolveUuid(uuid);
-    const areaComing = ((record.key === "careful") || (record.key === "heightened")) && !record.chosen && !!activity?.target?.template?.type;
+    // B4 — Sculpt Spells' cap: 1 + the slot the card was cast at.
+    if ( record.key === "sculpt" ) record.cap = 1 + (Number(doc.system?.spellLevel ?? doc.system?.level) || Number(activity?.item?.system?.level) || 0);
+    const areaComing = (carefulKind(record.key) || (record.key === "heightened")) && !record.chosen && !!activity?.target?.template?.type;
     if ( areaComing ) {
       const data = doc.toObject();
       data.flags = foundry.utils.mergeObject(data.flags ?? {}, flags);
@@ -490,6 +501,7 @@ async function postDeferredCard(held, record, answer, templateIds, extra = null)
 }
 
 async function spendForPick(activity, pick, message) {
+  if ( pick?.free || !(Number(pick?.cost) > 0) ) return;   // B4 — a free row (Sculpt Spells) spends nothing
   const actor = activity?.actor;
   const pool = pick.poolId ? actor?.items?.get(pick.poolId) : null;
   if ( !pool ) { console.warn(`${TITLE} | ${pick.feature}: no Sorcery Points pool on ${actor?.name} — nothing spent.`); return; }

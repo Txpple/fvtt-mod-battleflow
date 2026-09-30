@@ -24,7 +24,7 @@ describe("WARD_POOLS — Arcane Ward", () => {
       refill: { school: "abj", per: 2 }
     });
     expectPointer(row.rule);
-    expect(reg.wardPoolEntries().map(e => e.kind)).toEqual(["arcane ward"]);
+    expect(reg.wardPoolEntries().map(e => e.kind)).toEqual(["arcane ward", "bastion of law"]); // B4
   });
 });
 

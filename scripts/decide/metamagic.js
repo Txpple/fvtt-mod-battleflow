@@ -10,7 +10,7 @@ export const METAMAGIC_FLAG = "metamagic";
  * A row's `when` predicate over the spell's facts; an unknown name fits nothing.
  * @typedef {{save: boolean, rangeFeet: number|null, touch: boolean, minutes: number,
  *            action: boolean, damageTypes: string[], damageRoll: boolean, spellAttack: boolean,
- *            scalesTargets: boolean, choosesTargets?: boolean, sourceClass?: string|null}} SpellFacts
+ *            scalesTargets: boolean, choosesTargets?: boolean, sourceClass?: string|null, school?: string|null}} SpellFacts
  */
 const WHEN = {
   any: () => true,
@@ -46,6 +46,10 @@ const WHY_UNLESS = {
 
 /** A row's `classes`: the spell is one of those classes' own (its `sourceClass`). */
 const classFits = (row, facts) => !row?.classes?.length || row.classes.includes(String(facts?.sourceClass ?? ""));
+/** A row's `school` (B4, Sculpt Spells): the spell's school. */
+const schoolFits = (row, facts) => !row?.school || (String(facts?.school ?? "").toLowerCase() === String(row.school).toLowerCase());
+/** B4 — the keys that ask Careful's question at the area (Careful Spell; Sculpt Spells, the free row). */
+export const carefulKind = key => (key === "careful") || (key === "sculpt");
 
 /**
  * @param {{when: string, unless?: string, classes?: readonly string[]}} row
@@ -53,7 +57,7 @@ const classFits = (row, facts) => !row?.classes?.length || row.classes.includes(
  * @param {{transmutedTypes?: readonly string[]}} [opts]
  */
 export function metamagicFits(row, facts, { transmutedTypes = [] } = {}) {
-  if ( !classFits(row, facts) ) return false;
+  if ( !classFits(row, facts) || !schoolFits(row, facts) ) return false;
   const test = WHEN[row?.when];
   if ( !test?.(facts ?? {}, transmutedTypes) ) return false;
   const not = UNLESS[row?.unless];
@@ -140,9 +144,10 @@ export function metamagicCardLine(record) {
     case "subtle": return `${name} — cast without components`;
     case "quickened": return `${name} — a Bonus Action this casting`;
     case "distant": return `${name} — range ${record.rangeFeet ?? "doubled"}${record.rangeFeet ? " ft" : ""} this casting`;
-    case "careful": {
+    case "careful":
+    case "sculpt": {
       const names = (record.protected ?? []).map(p => p.name).filter(Boolean);
-      return names.length ? `${name} — ${names.join(", ")} protected: no save, no damage` : `${name} — nobody to protect`;
+      return names.length ? `${name} — ${names.join(", ")} ${record.key === "sculpt" ? "spared" : "protected"}: no save, no damage` : `${name} — nobody to ${record.key === "sculpt" ? "spare" : "protect"}`;
     }
     case "heightened": return record.target?.name ? `${name} — ${record.target.name} saves with Disadvantage` : `${name} — no target marked`;
     case "extended": return `${name} — duration doubled; concentration saves with Advantage`;

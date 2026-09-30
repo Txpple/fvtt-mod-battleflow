@@ -796,6 +796,8 @@ export const STATE_KEYS = Object.freeze({
   metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
+  wardPool: "an ActiveEffect flag on the WARDED creature — an effect ward's hit points (Bastion of Law, B4: `{ feature, left, max }`), lowered as damage lands, the effect gone at 0; the wardAbsorb record on the bearer's update is the resolve",
+  healSelf: "a card — a `self` heal-reroll row's own healing (Blessed Healer, B4) after the owner's slot-cast heal landed on another creature; the receipt on the same card is the resolve",
   wardAbsorb: "an actor field — the ward's take on its bearer's damage update, for the pop on every client; the receipt is the resolve",
   wardRefill: "a usage card's line — the ward created or refilled by an Abjuration cast; the item's uses are the state",
   metamagicFree: "a free class-feature tick in the casting window (Psychic Spells) - no spend, no answer; the damage roll's type is the result",

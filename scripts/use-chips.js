@@ -9,7 +9,7 @@ import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
-import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
+import { chipData, placeOf, hitTargets, withTargets, turnPlace } from "./shared.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, cardChipRowKey, chipsLeft, coatSaveAbility, dosesLeft } from "./decide/chips.js";
@@ -85,6 +85,52 @@ listen("createChatMessage", "use-chips", message => {
     console.error(`${TITLE} | The miss chip failed — note the Advantage by hand.`, err);
   }
 });
+
+/* B4 — A HIT ON THE BEARER ARMS A CHIP (USE_CHIPS `on: "hit"`, `holder: "target"` — Multiattack Defense): read as rolled on
+ * the attack card, one chip on the HIT creature carrying the attacker's uuid (`against`), for the rest of the current turn
+ * (the `halt` clock); the bearer's driver writes it, a fresh hit by the same attacker refreshes the one copy. */
+const HIT_ROWS = Object.entries(USE_CHIPS).filter(([, r]) => (r.on === "hit") && (r.holder === "target"));
+
+listen("createChatMessage", "use-chips", message => {
+  try {
+    if ( !HIT_ROWS.length || !isCard(message, CARD.attack) ) return;
+    const attacker = messageActivity(message)?.item?.actor ?? null;
+    if ( !attacker ) return;
+    const listed = listedNames(effectEntries());
+    for ( const t of hitTargets(message) ) {
+      const bearer = resolveUuid(t.uuid);
+      if ( !(bearer instanceof Actor) || (bearer.uuid === attacker.uuid) || !drivesMomentFor(bearer.uuid) ) continue;
+      for ( const [key, row] of HIT_ROWS ) {
+        // The bend row is named as the chip (Multiattack Defense), the feature as the USE_CHIPS key (Defensive Tactics).
+        if ( !listed.has(lower(row.chipName ?? key)) ) continue;
+        const item = featureNamed(bearer, key);
+        if ( !item ) continue;
+        void writeHitChip(bearer, item, row, attacker, message);
+      }
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The hit chip failed — note the AC by hand.`, err);
+  }
+});
+
+async function writeHitChip(bearer, item, row, attacker, message) {
+  const name = row.chipName ?? item.name;
+  const stale = bearer.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key)
+    && (e.getFlag(MODULE_ID, "against") === attacker.uuid));
+  if ( stale.length ) await bearer.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+  const clock = chipClock(row.window, turnPlace() ?? placeOf(bearer));
+  await ActiveEffect.implementation.create({
+    name: `${name} — vs ${attacker.name}`, img: item.img ?? "icons/svg/shield.svg",
+    description: `${await ruleHTML(row.rule)}<p>Written by Battle Flow when ${esc(attacker.name)} hit ${esc(bearer.name)}; ${esc(row.note ?? "it ends with the turn")}.</p>`,
+    origin: item.uuid, disabled: false, transfer: false, changes: [],
+    ...(clock ? chipData(clock) : {}),
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, against: attacker.uuid } }
+  }, { parent: bearer });
+  if ( message.canUserModify?.(game.user, "update") ) {
+    await message.setFlag(MODULE_ID, "useChip", { ...statContext(bearer.uuid), effectId: null, name, rule: row.rule, bend: row.bend ?? null,
+      note: `on ${bearer.name} against ${attacker.name} — ${row.note ?? "the rest of the turn"}` }).catch(() => {});
+  }
+}
 
 async function writeMissChips(actor, item, row, missed, message) {
   const against = new Set(missed.map(t => t.uuid));

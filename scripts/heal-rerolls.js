@@ -8,7 +8,8 @@ import { lower, featureNamed, resolveUuid, activityNamed, cardActivity } from ".
 import { healRerollEntries, listedNames } from "./decide/registry.js";
 import { rebuildRolls, withTargets } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
-import { CARD, isCard, originData } from "./decide/card.js";
+import { CARD, isCard, originData, originIdOf, targetsOf } from "./decide/card.js";
+import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { HEAL_REROLLS } from "./decide/registry.js";
 import { healDiceOf, slotBonus, stripRerollOnes, rerollFaces } from "./decide/damage-dice.js";
 import { rerollRise } from "./decide/dice-chips.js";
@@ -92,8 +93,50 @@ listen("dnd5e.preRollDamage", "heal-rerolls", (config, _dialog, message) => {
 
 listen("dnd5e.rollDamage", "heal-rerolls", rolls => {
   const message = rolls?.[0]?.parent;
-  if ( message instanceof ChatMessage ) void promote(message);
+  if ( message instanceof ChatMessage ) { void promote(message); void selfHeals(message, rolls); }
 });
+
+/* --- B4 — the `self` rows (Blessed Healer): the owner regains after its slot-cast heal lands on another --------- */
+
+const selfHealed = new Set();
+
+/** A `self` row's due: the caster's own, a slot-cast healing spell, aimed at at least one OTHER creature. */
+async function selfHeals(message, rolls) {
+  try {
+    if ( !message?.isAuthor || selfHealed.has(message.id) ) return;
+    if ( !(rolls ?? []).some(r => (r?.options?.type ?? null) === "healing") ) return;
+    const activity = cardActivity(message);
+    const item = activity?.item;
+    const actor = activity?.actor;
+    if ( !(actor instanceof Actor) || (item?.type !== "spell") || !(Number(item.system?.level) > 0) ) return;
+    if ( activity.consumption?.spellSlot === false ) return;
+    const listed = listedNames(healRerollEntries());
+    const rows = Object.entries(HEAL_REROLLS).filter(([name, row]) => row.self && listed.has(lower(name)) && featureNamed(actor, name));
+    if ( !rows.length ) return;
+    const others = targetsOf(message).filter(t => t.uuid && (t.uuid !== actor.uuid));
+    if ( !others.length ) return;
+    const usage = game.messages.get(originIdOf(message) ?? "") ?? null;
+    const slot = Number(usage?.system?.spellLevel ?? usage?.system?.level) || Number(item.system.level) || 1;
+    selfHealed.add(message.id);
+    for ( const [name, row] of rows ) {
+      if ( row.slotCast && SLOTLESS_METHODS.has(String(item.system?.method ?? "")) ) continue;
+      const amount = slotBonus(row.self, slot);
+      if ( !(amount > 0) ) continue;
+      const feature = featureNamed(actor, name);
+      const card = await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor }),
+        content: bfCard({ img: feature?.img ?? null, eyebrow: name, tone: "good",
+          title: `${name} — ${actor.name} regains ${amount} Hit Points`,
+          subtitle: `${item.name} at level ${slot} healed ${others.map(t => t.name).join(", ")}`,
+          lines: [ruleLine(row.rule)] }),
+        flags: { [MODULE_ID]: { healSelf: { ...statContext(actor.uuid), feature: name, amount, slot, spell: item.name, healed: others.map(t => t.name), forId: message.id } } }
+      });
+      if ( card ) await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: amount, type: "healing", properties: new Set() }], { note: name });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | Blessed Healer's own healing could not land — apply it by hand.`, err);
+  }
+}
 
 listen("updateChatMessage", "heal-rerolls", message => {
   const flag = message.getFlag(MODULE_ID, HEAL_FLAG);

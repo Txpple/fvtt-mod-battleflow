@@ -350,7 +350,7 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
 /** The `EFFECT_BENDS` rows either sheet carries for this roll. Facets: `judge`, `counted: false`,
  * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`, `member` (the Wolf).
  * `allyNear` is three-valued: only a measured false skips — never guess an exemption.
- * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean},
+ * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, offTurnMelee?: boolean|null},
  *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null, item?: string|null},
@@ -381,6 +381,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       case "allyNearTarget": return target.allyNear !== false;
       case "notIncapacitated": return !target.incapacitated;    // Displacement: off while the bearer is Incapacitated
       case "targetInSpace": return !!target.inSpace;             // Object Slam: the target stands inside the attacker's space
+      case "opportunity": return attacker.offTurnMelee === true;  // B4, Escape the Horde: an off-turn melee attack in combat
       default: return true;
     }
   };
@@ -419,10 +420,13 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       }
     }
     // `plus` (Sundered): a flat bonus to attack rolls AT the bearer — a listed source the gate pushes onto the roll.
-    if ( Number(row.plus) > 0 && targetRowHere && judged(row) ) {
+    // Negative with `against: "attacker"` (Multiattack Defense, B4): the bearer's chip names the ONE attacker it counts against.
+    if ( (Number(row.plus) !== 0) && Number.isFinite(Number(row.plus)) && targetRowHere && judged(row) ) {
       for ( const e of carriers(target, row) ) {
         if ( exceptedFor(row, e, attacker.uuid) || notOnlyFor(row, e, attacker.uuid) ) continue;
-        out.push(Object.assign(reminderSource("effect", null, `${targetName} is ${row.named ? (e?.name ?? row.named) : key} — +${row.plus} to this attack roll`, row.rule),
+        if ( (row.against === "attacker") && (!attacker?.uuid || (e?.against !== attacker.uuid)) ) continue;
+        const signed = `${Number(row.plus) < 0 ? "−" : "+"}${Math.abs(Number(row.plus))}`;
+        out.push(Object.assign(reminderSource("effect", null, `${targetName} is ${(row.named || row.against) ? (e?.name ?? row.named ?? key) : key} — ${signed} to this attack roll`, row.rule),
           { plus: Number(row.plus) }, e.id ? { effectId: e.id } : {}, row.spend ? { spend: row.spend } : {}));
       }
     }

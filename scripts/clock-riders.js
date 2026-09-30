@@ -3,9 +3,9 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
-import { grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit } from "./shared.js";
+import { grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
@@ -165,7 +165,11 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key),
       fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
       enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false });
+    // B4 — `enchantBy` (Lifedrinker): the pact weapon bonded through ANOTHER feature; none bonded, any weapon with the caveat.
+    const pact = row.enchantBy ? pactWeaponFits(attacker, item, row.enchantBy) : null;
+    if ( pact && !pact.fits ) { judged.due = false; judged.why = `not the weapon bonded through ${row.enchantBy}`; }
     out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged, unpicked,
+      ...(pact?.caveat ? { pactCaveat: pact.caveat } : {}),
       ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}),
       // an effect-only row (no dice: Hamstring, a crit's mark, Piercer's extra die) says what it does
       says: (!raw && row.says) ? row.says : null,
@@ -301,7 +305,8 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         ...(r.inspired ? { spent: `${r.inspired.bard}'s Inspired die spent` } : {}),
         ...(r.row.option ? { option: r.row.option, featureUuid: r.feature.uuid, optionOf: r.feature.name } : {}),
         ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
-        ...(r.row.caveat ? { caveat: r.row.caveat } : {}),
+        ...(r.row.caveat ? { caveat: r.pactCaveat ? `${r.row.caveat}; ${r.pactCaveat}` : r.row.caveat } : (r.pactCaveat ? { caveat: r.pactCaveat } : {})),
+        ...(r.row.offers ? { offers: { activity: r.row.offers.activity, label: r.row.offers.label ?? r.row.offers.activity }, featureUuid: r.feature.uuid } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
         // the activity's own effects land once the damage message exists (settleRiderEffects)
         ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
@@ -488,6 +493,41 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
   } catch(err) {
     console.warn(`${TITLE} | Could not offer the spell's extra damage — add it by hand.`, err);
   }
+});
+
+// B4 — a rider's OFFER (Lifedrinker's heal): a button on the damage card, the feature's named activity used at the attacker
+// (the sheet's own consumption — a Hit Point Die); the owner's, once per card.
+listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
+  try {
+    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const offered = (cr?.riders ?? []).filter(r => r.offers && !r.offerUsed);
+    if ( !offered.length ) return;
+    const attacker = resolveUuid(cr.sourceUuid ?? null);
+    if ( !(attacker instanceof Actor) || !attacker.isOwner ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-rider-offer") ) return;
+    for ( const r of offered ) {
+      const feature = resolveUuid(r.featureUuid ?? null);
+      const act = feature ? activityNamed(feature, r.offers.activity) : null;
+      if ( !act ) continue;
+      const row = document.createElement("div");
+      row.className = "bf-rider-offer";
+      row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;font-size:var(--font-size-11,11px);";
+      const label = document.createElement("span");
+      label.style.opacity = "0.8";
+      label.textContent = `${r.label} — ${r.offers.label}:`;
+      row.appendChild(label);
+      row.appendChild(momentButton("Use it", () => void (async () => {
+        const token = attacker.getActiveTokens?.()?.[0] ?? null;
+        await withTargets(token ? [token] : [], () => act.use({}, { configure: false }, {}));
+        const current = message.getFlag(MODULE_ID, "clockRiders");
+        if ( current && message.canUserModify?.(game.user, "update") ) {
+          await message.setFlag(MODULE_ID, "clockRiders", { ...current, riders: current.riders.map(x => (x.key === r.key) ? { ...x, offerUsed: true } : x) });
+        }
+      })().catch(err => console.error(`${TITLE} | ${r.offers.activity} could not be used — use it from the sheet.`, err))));
+      content.appendChild(row);
+    }
+  } catch(err) { console.warn(`${TITLE} | The rider's offer could not draw.`, err); }
 });
 
 /** The caster's pick, on the spell's damage card (the caster rolled it — the caster may write it). */

@@ -51,6 +51,7 @@ describe("DROP_TO_ONE — the kill moment's two sides", () => {
     expectPointer(row.rule);
     expect(reg.dropToOneEntries().map(e => e.kind)).toEqual([
       "death ward",
+      "gift of the protectors", // B4
       "relentless endurance",
       "undead fortitude",
       "death throes",
