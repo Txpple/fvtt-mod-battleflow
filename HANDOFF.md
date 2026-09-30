@@ -21,6 +21,9 @@
   is on the user's word of 2026-09-30 (*"push/release to prod"*) — see the last message of that session, or
   `FOUNDRY_HOST=molten node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow --check` to read
   where prod stands (an all-identical hash = a half-awake box; wake it with get-world-info first).
+- **The version frame (the user, 2026-09-30):** the 2.x releases carry the PHB, DMG and MM work; **v3.0.0 is the release
+  where the PHB, the DMG and the MM are ALL done, before any walkthrough**; the 3.x releases are the walkthroughs and the
+  supplement books (Arcana Unleashed, Heroes of Faerun, Ravenloft). Bump minor per letter series / book stage until then.
 - **A battery status update is the progress bar**: `node tools/battery-status.mjs` (the user's rule, 2026-09-30;
   NOTES §5, tools/README *The progress bar*). Never a paragraph.
 - ⚠ **Launch a battery DETACHED** — `Start-Process node -ArgumentList "tools/battery.mjs" -RedirectStandardOutput <log>`

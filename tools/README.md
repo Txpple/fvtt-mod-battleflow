@@ -244,7 +244,9 @@ the user's word.
 1. **The floor.** `npm run verify` green, and the full battery unattended
    (`node tools/battery.mjs --snapshot`), then `node tools/verify-settings.mjs` (`--fix` on drift).
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
-   `--check` is part of `verify`.
+   `--check` is part of `verify`. **The frame (the user, 2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
+   per letter series or book stage; **v3.0.0 is the release where the PHB, the DMG and the MM are all done, before any
+   walkthrough**; 3.x is the walkthroughs and the supplement books.
 3. **The commits.** The change commit(s) — code, its suites and its docs together — then a
    `release vX.Y.Z: …` commit carrying only the bump. Commit bodies are **ASCII** — the log
    mangles non-ASCII punctuation.
