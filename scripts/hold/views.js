@@ -144,7 +144,7 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
         const label = by ? `${rescue} (${by.name})` : rescue;
         const { headline, detail } = bentLines({ rescue: label, bent: target.bent, verdict: target.verdict, ac: target.acAtVerdict ?? null });
         const guardImg = by ? (resolveUuid(by.uuid)?.items?.get(by.itemId)?.img ?? null) : null;
-        const how = ((target.bent.how === "die") || (target.bent.how === "neutralised")) ? label : `Disadvantage · ${label}`;
+        const how = ["die", "neutralised", "set"].includes(target.bent.how) ? label : `Disadvantage · ${label}`;
         block.innerHTML = bfCard({
           img: guardImg ?? reactionImg(actor, rescue, {}), eyebrow: `Attack — ${how}`,
           title: rescue, subtitle: target.name, tone: (target.verdict === "miss") ? "good" : "bad",
@@ -244,10 +244,15 @@ function appendBystanderRows(block, message, target) {
       marginTop: "0.3rem", fontSize: "var(--font-size-12,12px)" });
     const label = document.createElement("span");
     label.style.opacity = "0.85";
-    label.textContent = guard.quiet ? `${guard.row} (${guard.name}) — −${guard.die ?? "a die"} off the damage` : `${guard.row} (${guard.name})`;
+    label.textContent = (guard.quiet && (row?.bend === "set")) ? `${guard.row} (${guard.name}) — replace the d20:`
+      : guard.quiet ? `${guard.row} (${guard.name}) — −${guard.die ?? "a die"} off the damage` : `${guard.row} (${guard.name})`;
     line.append(label);
     const small = { flex: "0 0 auto", margin: "0", padding: "0 0.4rem", fontSize: "inherit", lineHeight: "1.4" };
     if ( guard.quiet && row?.damage ) line.append(momentButton("Answer", () => void bystanderReaction(message, target, guard, { onDamage: true }), small));
+    // A stored face's quiet row (Portent on an ordinary hit): a button per face that turns it.
+    if ( guard.quiet && (row?.bend === "set") ) {
+      for ( const face of (guard.faces ?? []) ) line.append(momentButton(`the ${face}`, () => void bystanderReaction(message, target, guard, { face }), small));
+    }
     // "Not this combat" only where a combat runs: out of one there is nothing to mute.
     if ( activeCombatFor(who) ) line.append(momentButton("Not this combat", () => { line.remove(); void muteAndPass(message, target, guard); }, small));
     if ( line.childElementCount < 2 ) continue;
@@ -259,6 +264,10 @@ function appendBystanderRows(block, message, target) {
 function bystanderSituation(row, roll, ac, guard, miss = false) {
   const facts = d20FactsOf(roll);
   const reveal = setting(S.holdReveal);
+  if ( row?.bend === "set" ) {
+    const head = roll?.isCritical ? "<strong>natural 20</strong> — a critical hit." : `<strong>${roll.total}</strong>${reveal ? ` vs AC <strong>${ac}</strong>` : ""} — a ${miss ? "miss" : "hit"}.`;
+    return `${head} A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
+  }
   if ( row?.bend === "neutralise" ) {
     const o = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
@@ -290,7 +299,12 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const tag = [(row?.reaction && (!guard.self || guard.hitSelf)) ? "a Reaction" : null, row?.uses ? `${poolWord}${left} left` : null,
     guard.inspired ? "the Inspired die" : null].filter(Boolean).join(" · ");
   const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
-  const rows = [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
+  const facts = d20FactsOf(roll);
+  const modifier = Number(roll?.total) - Number(facts.kept);
+  const rows = (row?.bend === "set")
+    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `${guard.row} — replace the ${facts.kept} with the ${face}`,
+        dice: `${face} ${modifier < 0 ? "−" : "+"} ${Math.abs(modifier)} = ${face + modifier}`, tag: "a stored die · no Reaction", off: null, rule: row?.rule ?? "" }))
+    : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
   const miss = !!hold?.miss;
   const self = miss ? !!guard.self : (guard.uuid === target.uuid);
   const whose = (miss && self) ? "your" : `${attacker}'s`;
@@ -299,23 +313,29 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
     title: `${guard.row} — ${whose} attack at ${at}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? byActor?.img ?? null, eyebrow: `${(row?.reaction && (!guard.self || guard.hitSelf)) ? "Reaction" : "No Reaction"} — ${guard.row}`, tone: "pending",
       title: `${(miss && self) ? "You" : attacker} ${miss ? "missed" : "hits"} ${at}`,
-      subtitle: `${weapon}${self ? "" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
+      subtitle: `${weapon}${self ? "" : (row?.bystander === "sight") ? " · on the scene" : ` · within ${row?.bystander ?? "?"} ft of ${(row?.reach === "target") ? target.name : "you"}`}${guard.inspired ? ` · ${guard.inspired.bard}'s Inspired die` : ""}` })
       + holdBarHTML(hold) + `<div style="padding:0.4rem 0.1rem;">${bystanderSituation(row, roll, ac, guard, miss)}</div>`
       + tickRowsHTML({ name: "bf-bystander", rows }),
     buttons: [
       { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
-        if ( !button?.form?.querySelector?.('input[name="bf-bystander"]:checked') ) return;
-        void bystanderReaction(attackMessage, target, guard);
+        const picked = button?.form?.querySelector?.('input[name="bf-bystander"]:checked');
+        if ( !picked ) return;
+        const face = (row?.bend === "set") ? Number(String(picked.value).split("|")[1]) : null;
+        void bystanderReaction(attackMessage, target, guard, { face });
       } },
       { action: "pass", label: "Pass", callback: () => answerHold(attackMessage, target.uuid, "pass", { by: guard.uuid }) },
       ...(activeCombatFor(byActor) ? [{ action: "mute", label: "Not this combat", callback: () => muteAndPass(attackMessage, target, guard) }] : [])
     ]
   });
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const box = form?.querySelector?.('input[name="bf-bystander"]') ?? null;
+  const boxes = [...(form?.querySelectorAll?.('input[name="bf-bystander"]') ?? [])];
   const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
-  if ( box ) box.checked = true;
-  box?.addEventListener("change", () => { if ( answer ) answer.disabled = !box.checked; });
+  if ( boxes[0] ) boxes[0].checked = true;
+  // One tick at a time (a stored face each); Answer lights while one stands.
+  for ( const box of boxes ) box.addEventListener("change", () => {
+    if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;
+    if ( answer ) answer.disabled = !boxes.some(b => b.checked);
+  });
 }
 
 /** A maneuver reaction's popup (Parry): Riposte's shape — the card, the cost, the rule, the clock. */

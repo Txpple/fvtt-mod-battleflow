@@ -6,6 +6,7 @@ import { MODULE_ID, TITLE, activeCombatFor, canApplyTo, combatStamp } from "./co
 import { CHIP_FLAG, chipClock, chitStamp, reactionStands, reactionStandsEveryTurn } from "./decide/chips.js";
 import { REACTION_RESETS, identifierOf } from "./decide/registry.js";
 import { foldsFrom, hitsAmong } from "./decide/verdict.js";
+import { storedChipName, withoutFace } from "./decide/stored-dice.js";
 import { CARD, describeTarget, isCard, targetsOf } from "./decide/card.js";
 
 
@@ -265,6 +266,37 @@ export async function spendReaction(actor, { origin = null, what = "a Reaction" 
     ...chipData(clock),
     flags: { [MODULE_ID]: { [CHIP_FLAG]: "reaction" } }
   }, { parent: actor });
+}
+
+/* --- THE STORED DICE (STORED_DICE — Portent): the chip on the bearer that keeps the faces ------------- */
+
+/** The chip's flag key: `{ key, faces, turn }`. */
+export const STORED_FLAG = "storedDice";
+
+/** This combat turn's key (`combat:round:turn`), or null out of combat. */
+const storedTurnNow = () => { const c = game.combat; return c?.started ? `${c.id}:${c.round}:${c.turn}` : null; };
+
+/** The bearer's chip for a STORED_DICE row, or null. */
+export const storedChipOf = (actor, key) => actor?.effects?.find?.(e => e.getFlag(MODULE_ID, STORED_FLAG)?.key === key) ?? null;
+
+/** May a face be spent now? One left, and (`oncePerTurn`) none spent this combat turn. */
+export function storedFacesUsable(chip, row) {
+  const f = chip?.getFlag?.(MODULE_ID, STORED_FLAG);
+  if ( !f?.faces?.length ) return false;
+  const now = storedTurnNow();
+  return !(row?.oncePerTurn && now && (f.turn === now));
+}
+
+/** Spend one face: struck off the chip (renamed to what is left, deleted when empty), the turn stamped. */
+export async function spendStoredFace(actor, key, face) {
+  const chip = storedChipOf(actor, key);
+  const f = chip?.getFlag(MODULE_ID, STORED_FLAG);
+  if ( !chip || !f ) return false;
+  const faces = withoutFace(f.faces, face);
+  if ( faces.length === f.faces.length ) return false;
+  if ( !faces.length ) { await chip.delete(); return true; }
+  await chip.update({ name: storedChipName(key, faces), [`flags.${MODULE_ID}.${STORED_FLAG}`]: { key, faces, turn: storedTurnNow() } });
+  return true;
 }
 
 /* --- "Not this combat": a bystander's feature muted until the combat ends (Q2, option A) ------- */

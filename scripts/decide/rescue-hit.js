@@ -305,6 +305,11 @@ export function bentLines({ rescue, bent, verdict, ac }) {
     return { headline: `${rescue} ${signed} — ${bent.firstTotal} → ${bent.total}, ${word}`,
       detail: `d20 ${bent.first} (${bent.firstTotal}) ${signed} = ${bent.total}${vs2}` };
   }
+  if ( bent.how === "set" ) {
+    const vs2 = Number.isFinite(ac) ? ` vs AC ${ac}` : "";
+    return { headline: `${rescue} — ${bent.first} → ${bent.stood}, ${bent.firstTotal} → ${bent.total}, ${word}`,
+      detail: `the stored ${bent.stood} replaces the d20 (${bent.first}): ${bent.total}${vs2}` };
+  }
   if ( bent.how === "neutralised" ) {
     const vs2 = Number.isFinite(ac) ? ` vs AC ${ac}` : "";
     return { headline: `${rescue} — no Advantage or Disadvantage, ${bent.firstTotal} → ${bent.total}, ${word}`,

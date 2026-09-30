@@ -47,6 +47,7 @@ import "./kit-tend.js";
 import "./initiative-swap.js";
 import "./initiative-grants.js";
 import "./cast-riders.js";
+import "./stored-dice.js";
 // precision.js before d20-folds.js: its rescue slice sits above the d20 fold's in the one window.
 import "./precision.js";
 import "./riposte.js";

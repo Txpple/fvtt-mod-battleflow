@@ -8,12 +8,13 @@
  * message, `bystanderRoll`; a bystander who does not own the roll answers through the relay.
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
-import { INTERRUPT_ROLLS } from "./decide/registry.js";
+import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
 import { bystanderMatters, dieMaxOf, dieOutcome, neutraliseOutcome } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
-import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander } from "./shared.js";
+import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable } from "./shared.js";
+import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { armAskTimer, cardRow, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
 
@@ -52,10 +53,21 @@ function bystandersFor(roller, roll, testKind, dc) {
       const friendly = side === rollerSide;
       if ( (row.bend === "die") && (friendly === ((row.sign ?? 1) < 0)) ) continue;
       const feet = nearestFeet(other, token);
-      if ( (feet === null) || (feet > row.bystander) ) continue;
+      if ( (feet === null) || (Number.isFinite(row.bystander) && (feet > row.bystander)) ) continue;
       const item = featureNamed(actor, key);
       const activity = item ? activityNamed(item, row.activity) : null;
-      if ( !item || !activity ) continue;
+      if ( !item || (!activity && !row.stored) ) continue;
+      // A STORED face (Portent): asked when a face in hand turns the verdict (a known DC; a check has none — not asked).
+      if ( row.bend === "set" ) {
+        const chip = storedChipOf(actor, row.stored);
+        if ( !known || !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) || bystanderMuted(actor, key) ) continue;
+        const faces = facesThatTurn({ faces: chip.getFlag(MODULE_ID, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total,
+          target: Number(dc), want: friendly ? "pass" : "fail" });
+        if ( !faces.length ) continue;
+        out.push({ uuid: actor.uuid, name: other.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,
+          want: friendly ? "pass" : "fail", passed: false, die: null, faces });
+        continue;
+      }
       if ( row.reaction && reactionSpent(actor) ) continue;
       const pool = poolOf(actor, activity) ?? item;
       if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
@@ -175,8 +187,14 @@ async function sendAnswer(message, envelope, actor) {
   });
 }
 
-/** The bystander's answer: the cost paid by hand, the bend rolled in the open (a die) or read (neutralise). */
-async function bystanderAnswer(message, guard, choice) {
+/**
+ * The bystander's answer: the cost paid by hand, the bend rolled in the open (a die), read (neutralise) or stored (set).
+ * @param {ChatMessage} message
+ * @param {any} guard
+ * @param {string} choice
+ * @param {number|null} [face]  the stored face picked (Portent)
+ */
+async function bystanderAnswer(message, guard, choice, face = null) {
   const flag = message.getFlag(MODULE_ID, KEY);
   if ( flag?.status !== "pending" ) return;
   const actor = resolveUuid(guard.uuid);
@@ -206,6 +224,15 @@ async function bystanderAnswer(message, guard, choice) {
   const roll = message.rolls?.[0];
   const facts = d20FactsOf(roll);
   if ( !roll || !Number.isFinite(facts.kept) ) return;
+  if ( row.bend === "set" ) {
+    const pick = Number.isFinite(Number(face)) ? Number(face) : Number(guard.faces?.[0]);
+    if ( !Number.isFinite(pick) || !(await spendStoredFace(actor, row.stored, pick)) ) {
+      ui.notifications.warn(`${TITLE}: ${guard.name} no longer holds a ${guard.row} ${pick}.`);
+      return;
+    }
+    const bent = setOutcome({ kept: Number(facts.kept), total: Number(roll.total), face: pick, critAt: 99, fumbleAt: 0 });
+    return sendAnswer(message, { ...base, answer: "roll", bent, poolSpend: null }, actor);
+  }
   const poolSpend = row.uses ? await spendPoolUses(actor, pool, guard.row, 1, (pool === item) ? null : pool.name)
     .catch(err => { console.warn(`${TITLE} | Could not spend a use for ${guard.row}.`, err); return null; }) : null;
   if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: guard.row });
@@ -263,6 +290,9 @@ function situation(flag, roll, guard, row) {
   const facts = d20FactsOf(roll);
   const vs = Number.isFinite(flag.dc) ? ` vs DC <strong>${flag.dc}</strong>` : "";
   const test = TEST_WORD[flag.testKind] ?? "roll";
+  if ( row?.bend === "set" ) {
+    return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
+  }
   if ( row?.bend === "neutralise" ) {
     const o = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll?.total), critAt: 99, fumbleAt: 0 });
     return `${esc(flag.rollerName)}'s ${test}, rolled with <strong>${facts.mode === "advantage" ? "Advantage" : "Disadvantage"}</strong>: `
@@ -286,16 +316,24 @@ async function showPopup(message, flag, guard) {
   const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const test = TEST_WORD[flag.testKind] ?? "roll";
   const self = guard.uuid === flag.rollerUuid;
+  const roll = message.rolls?.[0];
+  const facts = d20FactsOf(roll);
+  const modifier = Number(roll?.total) - Number(facts.kept);
+  const rows = (row?.bend === "set")
+    ? (guard.faces ?? []).map(face => ({ key: `${guard.row}|${face}`, name: `${guard.row} — replace the ${facts.kept} with the ${face}`,
+        dice: `${face} ${modifier < 0 ? "−" : "+"} ${Math.abs(modifier)} = ${face + modifier}`, tag: "a stored die · no Reaction", off: null, rule: row?.rule ?? "" }))
+    : [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }];
   const dialog = await openMomentPopup(message, `${KEY}|${guard.uuid}`, actor, {
     title: `${guard.row} — ${self ? "your" : `${flag.rollerName}'s`} ${test}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: `Reaction — ${guard.row}`, tone: "pending",
-      title: `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`, subtitle: `within ${row?.bystander ?? "?"} ft of you` })
+      title: `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`, subtitle: (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
       + holdBarHTML(flag) + `<div style="padding:0.4rem 0.1rem;">${situation(flag, message.rolls?.[0], guard, row)}</div>`
-      + tickRowsHTML({ name: "bf-bystander-roll", rows: [{ key: guard.row, name: guard.row, dice, tag, off: null, rule: row?.rule ?? "" }] }),
+      + tickRowsHTML({ name: "bf-bystander-roll", rows }),
     buttons: [
       { action: "answer", label: "Answer", default: true, callback: (_event, button) => {
-        if ( !button?.form?.querySelector?.('input[name="bf-bystander-roll"]:checked') ) return;
-        void bystanderAnswer(message, guard, "roll");
+        const picked = button?.form?.querySelector?.('input[name="bf-bystander-roll"]:checked');
+        if ( !picked ) return;
+        void bystanderAnswer(message, guard, "roll", (row?.bend === "set") ? Number(String(picked.value).split("|")[1]) : null);
       } },
       { action: "pass", label: "Pass", callback: () => bystanderAnswer(message, guard, "pass") },
       // Only where a combat runs: out of one there is nothing to mute.
@@ -303,10 +341,13 @@ async function showPopup(message, flag, guard) {
     ]
   });
   const form = dialog?.element?.querySelector?.("form") ?? dialog?.element ?? null;
-  const box = form?.querySelector?.('input[name="bf-bystander-roll"]') ?? null;
+  const boxes = [...(form?.querySelectorAll?.('input[name="bf-bystander-roll"]') ?? [])];
   const answer = form?.querySelector?.('button[data-action="answer"]') ?? null;
-  if ( box ) box.checked = true;
-  box?.addEventListener("change", () => { if ( answer ) answer.disabled = !box.checked; });
+  if ( boxes[0] ) boxes[0].checked = true;
+  for ( const box of boxes ) box.addEventListener("change", () => {
+    if ( box.checked ) for ( const other of boxes ) if ( other !== box ) other.checked = false;
+    if ( answer ) answer.disabled = !boxes.some(b => b.checked);
+  });
 }
 
 /** The line a bent check or save carries: who bent it, and the arithmetic (a check's verdict is the DM's). */
@@ -314,7 +355,8 @@ function bentLine(flag) {
   const b = flag.bent;
   if ( !b ) return "";
   const who = `${esc(flag.rescue)} (${esc(flag.byName ?? "")})`;
-  const change = (b.how === "neutralised") ? `no Advantage or Disadvantage — the first d20 (${b.stood}) stands`
+  const change = (b.how === "set") ? `the stored ${b.stood} replaces the d20 (${b.first})`
+    : (b.how === "neutralised") ? `no Advantage or Disadvantage — the first d20 (${b.stood}) stands`
     : `${Number(b.add) < 0 ? "−" : "+"}${Math.abs(Number(b.add) || 0)}`;
   const tail = (flag.testKind === "check") ? " — ask your DM whether it still succeeds" : Number.isFinite(flag.dc) ? ` vs DC ${flag.dc}` : "";
   return `<strong>${who}</strong> ${change}: ${b.firstTotal} → <strong>${b.total}</strong>${tail}`;

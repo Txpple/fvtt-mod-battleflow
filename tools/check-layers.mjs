@@ -73,6 +73,7 @@ export const LAYER_OF = {
   "advantage-buys.js": "machines",
   "rest-grants.js": "machines",
   "initiative-swap.js": "machines", // Alert's swap once Initiative is rolled
+  "stored-dice.js": "machines",     // Portent: the rest's dice, the chip, the own roll's tick before the roll
   "cast-riders.js": "machines",     // what a feature does right after its bearer casts (Wild Magic Surge, Inspiring Smite)
   "initiative-grants.js": "machines", // what a feature gives back as its owner's Initiative lands (Persistent Rage, Uncanny Metabolism)
   "heal-rerolls.js": "machines",    // Healer's 1s on a healing roll
@@ -130,6 +131,7 @@ export const LAYER_OF = {
   "decide/damage-dice.js": "decision",   // the damage-dice folds' patch — Empowered per die, Savage per set
   "decide/dice-chips.js": "decision",   // a roll as the chips dice-rise.js draws; the record a roll message carries
   "decide/fighting-styles.js": "decision",   // the fighting styles' holding, gates and floor count
+  "decide/stored-dice.js": "decision",      // a stored face's outcome, which faces turn a verdict, the chip's name
   "decide/cast-riders.js": "decision",      // whose spell, a slot cast, the surge's outcome and line, a divided hand-out
   "decide/initiative-grants.js": "decision", // the Initiative grant due, its card line
   "decide/ward-pools.js": "decision",        // the ward's take, the HP split after it, the refill

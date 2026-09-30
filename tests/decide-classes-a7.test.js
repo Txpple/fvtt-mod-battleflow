@@ -125,3 +125,82 @@ describe("a divided hand-out", () => {
     expect(cr.distribution({ total: 12, picks: [] })).toEqual([]);
   });
 });
+
+describe("STORED_DICE and the Portent bystander row (A7b)", () => {
+  /** @type {typeof import("../scripts/decide/stored-dice.js")} */
+  let sd;
+  beforeAll(async () => {
+    sd = await import("../scripts/decide/stored-dice.js");
+  });
+  it("the table row: two d20s at a Long Rest, own attacks, saves and checks, once per turn", () => {
+    const row = reg.STORED_DICE.Portent;
+    expect(Object.isFrozen(row)).toBe(true);
+    expect(row).toMatchObject({
+      dice: 2,
+      rests: ["long"],
+      tests: ["attack", "save", "check"],
+      oncePerTurn: true
+    });
+    expectPointer(row.rule);
+    expect(reg.storedDiceEntries().map(e => e.kind)).toEqual(["portent"]);
+  });
+  it("the bystander row: a stored face, the scene the reach, attacks and saves, a popup only for a crit on an attack", () => {
+    expect(reg.INTERRUPT_ROLLS.Portent).toMatchObject({
+      reaction: false,
+      uses: false,
+      stored: "Portent",
+      bystander: "sight",
+      tests: ["attack", "save"],
+      bend: "set",
+      on: "both",
+      ask: "crit"
+    });
+    expect(reg.INTERRUPTS.some(r => r.name === "Portent" && r.kind === "roll")).toBe(true);
+  });
+  it("a face replaces the d20: the modifiers stand, the face's own crit and fumble", () => {
+    expect(sd.setOutcome({ kept: 20, total: 25, face: 2 })).toMatchObject({
+      how: "set",
+      stood: 2,
+      total: 7,
+      isCritical: false,
+      wasCritical: true,
+      changed: true
+    });
+    expect(sd.setOutcome({ kept: 4, total: 9, face: 20 })).toMatchObject({
+      total: 25,
+      isCritical: true
+    });
+    expect(sd.setOutcome({ kept: 4, total: 9, face: 20, critAt: 99 }).isCritical).toBe(false);
+  });
+  it("only the faces that turn the verdict the way it is wanted", () => {
+    // a foe's hit (18 + 5 = 23 vs AC 15) — a 3 or a 9 turns it, a 17 does not
+    expect(
+      sd.facesThatTurn({ faces: [17, 3, 9], kept: 18, total: 23, target: 15, want: "miss" })
+    ).toEqual([3, 9]);
+    // a friend's failed save (1 + 3 = 4 vs DC 10) — the 18 turns it, the 2 does not
+    expect(
+      sd.facesThatTurn({ faces: [18, 2], kept: 1, total: 4, target: 10, want: "pass" })
+    ).toEqual([18]);
+    // a crit on an attack stands against any AC: any non-20 face whose total misses turns it
+    expect(
+      sd.facesThatTurn({
+        faces: [2, 19],
+        kept: 20,
+        total: 25,
+        target: 15,
+        want: "miss",
+        critAt: 20,
+        fumbleAt: 1
+      })
+    ).toEqual([2]);
+    expect(
+      sd.facesThatTurn({ faces: [2], kept: 5, total: 10, target: null, want: "miss" })
+    ).toEqual([]);
+  });
+  it("the chip's name and a face spent", () => {
+    expect(sd.storedChipName("Portent", [17, 3])).toBe("Portent — 17 · 3");
+    expect(sd.storedChipName("Portent", [])).toBeNull();
+    expect(sd.withoutFace([17, 3, 3], 3)).toEqual([17, 3]);
+    expect(sd.withoutFace([17], 5)).toEqual([17]);
+  });
+});

@@ -142,6 +142,13 @@ export const INTERRUPT_ROLLS = Object.freeze({
     only: "self", reach: "target", bystander: 5, tests: Object.freeze(["attack"]), bend: "die", sign: -1, on: "hit",
     rule: Object.freeze({ item: "Combat Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCombatInsp", benefit: "Defense" }),
     from: "Bard — College of Valor 3" }),
+  // A7: a STORED face replaces the d20 (`bend: "set"`, `stored` the STORED_DICE row that keeps the faces); `bystander:
+  // "sight"` — the scene is the reach, sight is never judged (Q6); no Reaction, no pool. `ask: "crit"` — on an attack a
+  // popup only for a critical hit, else the card's quiet row (the noise gate's narrowing, Q2 option A); saves ask.
+  "Portent": Object.freeze({ reaction: false, uses: false, point: null, activity: null, stored: "Portent",
+    bystander: "sight", tests: Object.freeze(["attack", "save"]), bend: "set", on: "both", ask: "crit",
+    rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
+    from: "Wizard — Diviner 3" }),
   // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
@@ -1900,6 +1907,21 @@ export const CAST_RIDERS = Object.freeze({
     from: "Paladin — Oath of Glory 3" })
 });
 
+/**
+ * THE STORED DICE (the PHB classes, A7; stored-dice.js): d20s rolled at a rest and kept as faces on a chip on the
+ * bearer ("Portent — 17 · 3", the effect view lists it), each spent once to REPLACE a D20 Test's d20.
+ *   dice     how many d20s the rest rolls (Greater Portent: 3, C1);  rests  which rests roll them (the old faces go)
+ *   tests    the bearer's OWN rolls a face may replace, ticked in the roll's dialog BEFORE the roll (the rule's order)
+ *   oncePerTurn  one replacement per turn, whoever's roll (a stamp on the chip)
+ * Another creature's roll is the bystander's row (INTERRUPT_ROLLS "Portent", `bend: "set"`), after the roll.
+ * ⚠ NOT A KIND — one table, one machine; the replacement is a bend on the `roll` interrupt and a pinned die.
+ */
+export const STORED_DICE = Object.freeze({
+  "Portent": Object.freeze({ dice: 2, rests: Object.freeze(["long"]), tests: Object.freeze(["attack", "save", "check"]), oncePerTurn: true,
+    rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
+    from: "Wizard — Diviner 3" })
+});
+
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
  * combat (initiative-swap.js). ⚠ NOT A KIND — a second customer is a row. */
 export const INITIATIVE_SWAPS = Object.freeze({
@@ -2387,7 +2409,7 @@ export const INTERRUPTS = Object.freeze([
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
   row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
-  row("Combat Inspiration", "roll"),
+  row("Combat Inspiration", "roll"), row("Portent", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
@@ -2440,6 +2462,7 @@ export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
 export const initiativeGrantEntries = () => everyRow(Object.keys(INITIATIVE_GRANTS));
 export const castRiderEntries = () => everyRow(Object.keys(CAST_RIDERS));
+export const storedDiceEntries = () => everyRow(Object.keys(STORED_DICE));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
 export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));

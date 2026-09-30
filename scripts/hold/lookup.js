@@ -5,14 +5,15 @@
  */
 import { MODULE_ID, TITLE, S, setting } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, answers, duplicateEntries, listedNames } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf } from "../lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
-import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor } from "../shared.js";
+import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor, STORED_FLAG, storedChipOf, storedFacesUsable } from "../shared.js";
+import { facesThatTurn } from "../decide/stored-dice.js";
 import { chipClock } from "../decide/chips.js";
 import { applyEffectsTo } from "../effect-riders.js";
 
@@ -251,12 +252,25 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( row.inspired && !inspired ) continue;
       const item = inspired ? null : featureNamed(actor, key);
       const activity = item ? activityNamed(item, (self && row.selfActivity) ? row.selfActivity : row.activity) : null;
-      if ( !inspired && (!item || !activity) ) continue;
+      if ( !inspired && (!item || (!activity && !row.stored)) ) continue;
       // A `self` answer on your own roll takes no Reaction (Guided Strike); a hit creature's own answer does.
       if ( row.reaction && (!self || hitSelf) && reactionSpent(actor) ) continue;
       const pool = activity ? (poolOf(actor, activity) ?? item) : null;
       if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
       if ( bystanderMuted(actor, key) ) continue;
+      // A STORED face (Portent): the faces in hand that turn the verdict; asked on a critical hit, else the card's row.
+      let faces = null;
+      if ( row.bend === "set" ) {
+        const chip = storedChipOf(actor, row.stored);
+        if ( !chip || !storedFacesUsable(chip, STORED_DICE[row.stored]) ) continue;
+        faces = facesThatTurn({ faces: chip.getFlag(MODULE_ID, STORED_FLAG)?.faces ?? [], kept: Number(facts.kept), total: Number(roll.total),
+          target: Number(ac), want, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
+        if ( !faces.length ) continue;
+        const asked = (row.ask !== "crit") || !!roll.isCritical;
+        out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item.id, activityId: null,
+          passed: !asked, bystander: true, ...(asked ? {} : { quiet: true }), ...(hitSelf ? { hitSelf: true } : {}), die: null, faces });
+        continue;
+      }
       const die = (row.bend !== "die") ? null : inspired ? inspired.die : formulaBonusOf(actor, row) ?? bystanderDie(actor, row);
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;   // a die nobody can read is never guessed
       // ⚠ The margin gate judges the AC: with the math hidden it would leak it (holdWouldMatter's rule),

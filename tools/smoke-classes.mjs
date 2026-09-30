@@ -51,7 +51,9 @@ export const COVERS = [
   'initiative-grants.js',   // Persistent Rage and Uncanny Metabolism at Initiative
   'rest-grants.js',         // the song's hand-out outside a rest: Life-Giving Force's pick, Inspiring Smite's division
   // §A7 (39–40)
-  'cast-riders.js'          // Wild Magic Surge (the d20, the table, Tides of Chaos), Inspiring Smite's ask
+  'cast-riders.js',         // Wild Magic Surge (the d20, the table, Tides of Chaos), Inspiring Smite's ask
+  // §A7 (41)
+  'stored-dice.js'          // Portent: the rest's dice, the chip, its own roll's tick before the roll
 ];
 
 const SECTIONS = {
@@ -94,7 +96,8 @@ const SECTIONS = {
   37: 'the Initiative grants: Persistent Rage (lent to the PC Attacker, Rage 1 of 3) regains every Rage use at Initiative, automatically — "Persistent Rage — Rage uses regained (3 of 3)"; Uncanny Metabolism (lent to the Halfling) asks, Yes lands Focus 3 of 3 and 1d8 + 5 (9) Hit Points, its use spent; rerolled with both spent, nothing; No keeps the use; with Persistent Rage a quiet raging turn is never reminded',
   38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked',
   39: 'Wild Magic Surge (lent to the Sorcerer with Tides of Chaos; Mage Armor marked a Sorcerer spell): a slot cast rolls the d20 — "d20: 14, nothing"; a 20 rolls the table and its card posts; Tides of Chaos spent: the table at once and Tides regained; a Wizard spell rolls nothing; in a combat, once per turn',
-  40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin'
+  40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin',
+  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody'
 };
 const DEPENDS = {};
 
@@ -1013,6 +1016,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           dealt.some(x => BPS.includes(x)) && !!pop && (t0?.reaction === 'Deflect Attacks') && (t0?.kind === 'damage') && !!t0?.reduce?.formula
             && /Deflect Attacks/.test(textOf(pop?.element)),
           `dealt=${dealt} formula="${t0?.reduce?.formula}" pack="${packFormula}" pop="${textOf(pop?.element).slice(0, 200)}"`);
+        // ⚠ The hit's damage is rolled while the hold waits: let it land on swing's pinned 1 before the d10 is pinned
+        // (a cold server rolled it AFTER this pin — the d8 took the 10, the d10 the 1).
+        await waitFor(() => damageFor(msg?.id), 8000);
         const since = Date.now();
         faces([[10, 10], [1, 6]]);   // the d10 at 10; the damage die after it at 1 — the damage lands at 0
         await answerDeflect(pop);
@@ -2498,8 +2504,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(37)) {
       await closeA1();
       await dropFx(pcAttacker, RAGE_FX);
+      const hMax = halfling.system._source.attributes.hp.max;   // restored at this section's end: §41's swing heals to 400
       hgKeep(halfling, { 'system.attributes.hp.value': halfling.system._source.attributes.hp.value,
-        'system.attributes.hp.max': halfling.system._source.attributes.hp.max });
+        'system.attributes.hp.max': hMax });
       const rage = await hgLend(pcAttacker, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 2 });
       const persistent = await hgLend(pcAttacker, 'Persistent Rage', 'feat');
       const focus = await hgLend(halfling, "Monk's Focus", 'feat', { 'system.uses.max': '3', 'system.uses.spent': 3 });
@@ -2587,6 +2594,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await hgClose(/^Uncanny Metabolism — /);
         if (game.combats.get(combat.id)) await combat.delete();
         await dropFx(pcAttacker, RAGE_FX);
+        await halfling.update({ 'system.attributes.hp.max': hMax });
         for (const [actor, it] of [[pcAttacker, rage], [pcAttacker, persistent], [halfling, focus], [halfling, uncanny]]) if (it) await unlend(actor, it);
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
@@ -2800,6 +2808,116 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await hgClose(/^Inspiring Smite — /);
         for (const it of [smite, divineSmite]) if (it) await unlend(cleric, it);
         if (cd) await cd.update({ 'system.uses.spent': 0 });
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 41. Portent: the rest's dice, the own roll's tick, an ally's demanded save, an enemy's critical hit
+    if (want(41)) {
+      await closeA1(); await spendLuck();
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells),
+        'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value });
+      const portent = await hgLend(sorcerer, 'Portent', 'feat');
+      const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Portent') ?? null;
+      const facesNow = () => chip()?.getFlag(MOD, 'storedDice')?.faces ?? [];
+      const setFaces = async f => chip()?.update({ name: `Portent — ${f.join(' · ')}`, [`flags.${MOD}.storedDice`]: { key: 'Portent', faces: f, turn: null } });
+      try {
+        if (!portent) log.push('§41 skipped: no Portent in the PHB');
+        else {
+          // a. the Long Rest rolls two d20s and keeps them on a chip
+          const t0 = Date.now();
+          faces([[17, 20], [3, 20]]);
+          await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          await waitFor(() => chip(), 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const restCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'storedRolled')) ?? null, 6000);
+          const restLine = (await waitFor(() => cardEl(restCard?.id)?.querySelector('.bf-stored-line'), 4000))?.textContent?.trim() ?? '';
+          ok('41a. the Long Rest: the chip "Portent — 17 · 3", the rest card "Portent — 17 and 3 kept"',
+            (chip()?.name === 'Portent — 17 · 3') && /Portent — 17 and 3 kept/.test(restLine), `chip=${chip()?.name ?? null} line="${restLine}"`);
+          // b. its own save, the dialog: "use the 17" ticked — the d20 IS the 17, the face gone
+          const p = sorcerer.rollSavingThrow({ ability: 'wis' }, {}, {});
+          const dlg = await waitFor(rollDialog, 6000);
+          await waitFor(() => dlg?.element?.querySelector('[data-bf-stored]'), 3000);
+          const tick = [...(dlg?.element?.querySelectorAll('input[name="bf-stored"]') ?? [])].find(i => /use the 17/.test(textOf(i.closest('label'))));
+          const boxText = textOf(dlg?.element?.querySelector('[data-bf-stored]'));
+          if (tick) { tick.checked = true; tick.dispatchEvent(new Event('change', { bubbles: true })); }
+          await sleep(200);
+          dlg?.element?.querySelector('button[data-action="normal"]')?.click();
+          const rolls = await p;
+          const r0 = rolls?.[0];
+          const lineB = (await waitFor(() => cardEl(r0?.parent?.id)?.querySelector('.bf-stored-line'), 4000))?.textContent?.trim() ?? '';
+          await waitFor(() => facesNow().length === 1, 4000);
+          ok('41b. its own save: the dialog offers "use the 17" / "use the 3"; ticked, the d20 is the 17, the chip "Portent — 3", the card says so',
+            /use the 17/.test(boxText) && /use the 3/.test(boxText) && (Number(r0?.d20?.total) === 17) && (chip()?.name === 'Portent — 3') && /Portent — the d20 is the 17/.test(lineB),
+            `box="${boxText.slice(0, 120)}" d20=${r0?.d20?.total} formula=${r0?.formula} chip=${chip()?.name ?? null} line="${lineB}"`);
+          // c. an ally's demanded save the stored 18 turns: the popup to the diviner; Answer → SAVED
+          await setFaces([18, 2]);
+          let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+          if (!flameId) {
+            const src = await findPHB('Sacred Flame', 'spell');
+            const data = src?.toObject();
+            if (data) { data.system.prepared = 1; data.system.method = 'atwill'; const [it] = await attacker.createEmbeddedDocuments('Item', [data]); flameId = it.id; lentBy.set(attacker, [...(lentBy.get(attacker) ?? []), it.id]); }
+          }
+          const flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+          if (!flameAct) log.push('§41c skipped: no Sacred Flame save activity');
+          else {
+            // ⚠ §28 on leave saveRolls at 'auto' (restored at teardown): the demanded save would roll ITSELF, unpinned.
+            await set('saveRolls', 'prompt');
+            await healFull();
+            attackerToken.control({ releaseOthers: true });
+            halflingToken.setTarget(true, { releaseOthers: true });
+            await sleep(100);
+            const tFlame = Date.now();
+            const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+            const card = use?.message ?? null;
+            await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+            const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
+            faces([[10, 20]]);
+            const probeSave = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, { create: false });
+            const smod = Number(probeSave?.[0]?.total) - 10;
+            await sleep(600);
+            faces([[1, 20]]);   // a natural 1 fails; 18 + mod passes the DC
+            const rolls2 = await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
+            CONFIG.Dice.randomUniform = realPRNG;
+            const rollMsg = rolls2?.[0]?.parent ?? null;
+            const pop = await waitFor(() => rollPopup(/Portent/), 8000);
+            const rowsText = textOf(pop?.element);
+            ok('41c. an ally\'s failed save a stored 18 turns: the diviner\'s popup "Portent — replace the 1 with the 18", the 2 not offered',
+              !!pop && /replace the 1 with the 18/.test(rowsText) && !/with the 2\b/.test(rowsText) && (18 + smod >= dc),
+              `pop=${!!pop} dc=${dc} mod=${smod} text="${rowsText.slice(0, 220)}" rolled=${JSON.stringify(rolls2?.[0]?.d20?.results?.map(r => r.result))} saves=${JSON.stringify(game.messages.contents.filter(m => (m.timestamp >= tFlame) && m.rolls?.length).map(m => [m.speaker?.alias, m.flavor?.slice(0, 40), m.rolls[0]?.total, m.id === rollMsg?.id]))}`);
+            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 10000);
+            ok('41d. Answer: SAVED, the chip "Portent — 2"', !!entry && /save|success/i.test(String(entry?.outcome ?? entry?.verdict ?? '')) && (chip()?.name === 'Portent — 2'),
+              `entry=${JSON.stringify(entry && { outcome: entry.outcome, verdict: entry.verdict, total: entry.total })} chip=${chip()?.name ?? null} roll=${JSON.stringify(rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null)}`);
+            clearTargets();
+          }
+          // e. an enemy's critical hit on the Halfling: the diviner asked, "replace the 20 with the 2" — a MISS, the chip gone
+          const msg = await swing({ d20: [20] });
+          const bpop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Portent/.test(textOf(app.element))) ?? null, 8000);
+          ok('41e. a critical hit on an ally: the diviner\'s popup "Portent — replace the 20 with the 2"', !!bpop && /replace the 20 with the 2/.test(textOf(bpop?.element)),
+            `pop=${!!bpop} guards=${JSON.stringify(holdOf(msg)?.targets?.[0]?.guards?.map(g => [g.name, g.row, g.faces, g.quiet ?? false]) ?? null)}`);
+          bpop?.element?.querySelector('button[data-action="answer"]')?.click();
+          const t = await resolvedTarget(msg);
+          await sleep(600);
+          ok('41f. Answer: a MISS, the card "Portent (BF Test Sorcerer) — 20 → 2 …", no damage, the chip gone',
+            (t?.verdict === 'miss') && (t?.bent?.how === 'set') && /Portent \(BF Test Sorcerer\) — 20 → 2/.test(cardText(msg?.id)) && (hp() === 400) && !chip(),
+            `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} hp=${hp()} chip=${chip()?.name ?? null} card=${cardText(msg?.id).slice(0, 200)}`);
+          // g. an ordinary hit a face would turn: no popup (the noise gate) — the card's row only
+          await sorcerer.longRest({ dialog: false, chat: false, newDay: false });
+          await waitFor(() => chip(), 6000);
+          await setFaces([2]);
+          const msg2 = await swing({ d20: [12] });
+          await sleep(1500);
+          const asked = popups().some(app => /Portent/.test(textOf(app.element)));
+          const quiet = holdOf(msg2)?.targets?.[0]?.guards?.find(g => g.row === 'Portent') ?? null;
+          ok('41g. an ordinary hit: no Portent popup (asked on saves and critical hits only)', !asked, `asked=${asked} quiet=${JSON.stringify(quiet)} hold=${!!holdOf(msg2)}`);
+        }
+      } finally {
+        await closeA1();
+        const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
+        if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
+        if (portent) await unlend(sorcerer, portent);
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

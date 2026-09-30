@@ -71,6 +71,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Cutting Words** ("makes a damage roll or succeeds on an ability check or attack roll") and **Guided Strike** ("misses with an attack roll") — another creature's roll | offered after the roll shows its verdict, before the damage; a hit or a miss is held for the bystander (`hold/trigger.js`), a check is offered on its own card | the roller's client cannot be paused by another player's Reaction (Shield's row) | 2026-09-29 |
 | **Every bystander's "a creature you can see within N feet"** (Cutting Words, Guided Strike, Restore Balance) | every creature on the right side of the table (token disposition) within the feet of the ROLLER, not Incapacitated, its Reaction free and a use left, is asked; sight is not judged | nothing the module reads says who sees whom; the side and the distance are the facts it can read (Protection's row) | 2026-09-29 |
 | **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
+| **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
 | **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
 | **A bystander's bend on a SAVE** | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered | only a demand carries the DC and a verdict to withhold (`registerWithhold`) | 2026-09-29 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
@@ -1885,7 +1886,7 @@ machines naming different keys by the same constant name collide (`GRANT_FLAG` w
 ## The PHB classes — A7 (2026-09-29, Session 0 stage A7)
 
 **The cast riders — a new table (`CAST_RIDERS`) and its machine (`scripts/cast-riders.js`); no new kind; BUILT and
-PROVEN (`smoke-classes` §39–40), unwalked.** Measured on the pack first (`dnd-players-handbook.classes`, dnd5e 6.0.5).
+PROVEN (`smoke-classes` §39–40), unwalked. Then Portent (below, §41).** Measured on the pack first (`dnd-players-handbook.classes`, dnd5e 6.0.5).
 Calls the plan left open — **each is the user's to overrule**:
 
 1. **Wild Magic Surge's d20 is rolled by the module** after every Sorcerer spell cast with a slot, once per turn in a
@@ -1907,10 +1908,38 @@ Calls the plan left open — **each is the user's to overrule**:
 | Wild Magic Surge | `CAST_RIDERS` `spellClass`, `surgeOn`, `table`, `tides` | after a Sorcerer slot cast, once per turn: the d20; a 20 rolls the surge table; Tides of Chaos spent: the table at once, Tides back |
 | Inspiring Smite | `CAST_RIDERS` `after: "Divine Smite"`, `handOut`, `activity`, `reach`, `self` | after Divine Smite: 2d8 + level Temporary Hit Points divided among creatures within 30 ft; the Channel Divinity paid when given |
 
+**Portent — a new table (`STORED_DICE`) and its machine (`scripts/stored-dice.js`), a bystander row with `bend: "set"`;
+NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the user's to overrule**:
+
+4. **No `set` kind** (the plan asked for one on the d20 folds; the tripwire stays at 39). A face replacing a d20 is a
+   bend on the `roll` interrupt (`bend: "set"`, beside "die" and "neutralise") for another creature's roll, and a
+   pinned die for the diviner's own: the shape already has its homes, so the kind would name nothing new (R4).
+5. **The faces live on a chip on the wizard** ("Portent — 17 · 3", an effect the effect view lists), written at the
+   Long Rest (the rest card: "Portent — 17 and 3 kept"), renamed as a face is spent, deleted when none is left; the
+   pack's description text is not written. Once per turn is a stamp on the chip.
+6. **Its own roll, before the roll** (the rule's order): the roll dialog carries "Battle Flow — before the roll" with a
+   tick per face; ticked, the d20 term ROLLS that face (its own result, so the crit, the fumble and every reader
+   agree; the formula stays "1d20 + 5"), the face is spent, the card says "Portent — the d20 is the 17". A roll with no
+   dialog (a demanded save that rolls itself) is the bystander road below, on its own roll.
+7. **Another creature's roll, after it** (a platform bend, the register's row): a demanded save that a face turns
+   asks the diviner — "Portent — replace the 1 with the 18", only the faces that turn it, whichever side (a friend's
+   failure to a success, a foe's success to a failure); an attack asks only on a CRITICAL HIT ("replace the 20 with
+   the 2"), an ordinary hit keeps the card's row where a hold already stands (the ruled noise gate); a check (no DC)
+   is never offered. Sight is not judged: the scene is the reach. No Reaction, no pool.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Portent | `STORED_DICE` `dice: 2`, `rests`, `tests`, `oncePerTurn` + `INTERRUPT_ROLLS` `bend: "set"`, `stored`, `bystander: "sight"`, `ask: "crit"` | two d20s at the Long Rest kept on a chip; one replaces a D20 Test's d20 — the wizard's own before the roll, another's save or critical hit after it |
+
 **The walk table** (for the batched walk):
 
 | Trait | What you should see |
 | --- | --- |
+| Portent after a Long Rest | the rest card "Portent — 17 and 3 kept"; the effect view's "Portent — 17 · 3" |
+| Portent on the wizard's own save (the dialog) | "Battle Flow — before the roll": "Portent — use the 17" / "use the 3"; ticked, the d20 is the 17, "Portent — the d20 is the 17", the chip "Portent — 3" |
+| Portent on an ally's failed demanded save | the popup "Portent — replace the 1 with the 18" (only the faces that save it); Answer: SAVED |
+| Portent on a Bugbear's critical hit at an ally | the popup "Portent — replace the 20 with the 2"; Answer: "Portent (name) — 20 → 2 …, MISS" |
+| a Bugbear's ordinary hit | no Portent popup |
 | Wild Magic Surge, a slot cast | the cast card's line "Wild Magic Surge — d20: 14, nothing"; on a 20 "a SURGE — …" and the table's card |
 | Wild Magic Surge, a second cast the same turn | no line |
 | Tides of Chaos spent, a slot cast | "Tides of Chaos spent: the surge rolls — …; Tides of Chaos regained"; the sheet's Tides back |

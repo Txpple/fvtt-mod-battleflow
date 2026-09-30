@@ -37,6 +37,7 @@ export const ORDER = Object.freeze([
   "wards",              // the ward's veto before the gate draws (a false stops the chain); the ward ends before cast.js lands its effect
   "reminders",          // the gate draws its section and writes its record first
   "advantage-buys",     // then the buy box joins the section and its record overwrites the gate's
+  "stored-dice",        // Portent's ticks below the gate's section; the face pinned before the roll
   "rest-grants",
   "ward-pools",         // the ward takes its share of the HP update before drop-to-one reads it
   "drop-to-one",

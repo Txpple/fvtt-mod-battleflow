@@ -12,7 +12,8 @@ import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption } from "../lookup.js";
-import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets } from "../shared.js";
+import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
+import { setOutcome } from "../decide/stored-dice.js";
 import { registerRelay, openMomentPopup } from "../ui.js";
 import { tokenForUuid } from "../geometry.js";
 import { originData } from "../decide/card.js";
@@ -323,9 +324,9 @@ export async function protectReaction(attackMessage, target, guard) {
  * @param {ChatMessage} attackMessage
  * @param {object} target  the hit creature's entry
  * @param {object} guard   the bystander's entry
- * @param {{onDamage?: boolean}} [opts]
+ * @param {{onDamage?: boolean, face?: number|null}} [opts]  `face`: the stored face picked (Portent)
  */
-export async function bystanderReaction(attackMessage, target, guard, { onDamage = false } = {}) {
+export async function bystanderReaction(attackMessage, target, guard, { onDamage = false, face = null } = {}) {
   const actor = await fromUuid(guard.uuid);
   const found = rollRow(guard.row);
   const item = actor?.items.get(guard.itemId) ?? null;
@@ -377,6 +378,14 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
   } else if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),
       critAt: facts.critAt, fumbleAt: facts.fumbleAt, faces: facts.faces });
+  } else if ( row.bend === "set" ) {
+    // A stored face (Portent): struck off the bearer's chip, the d20 replaced — nothing rolled.
+    const pick = Number.isFinite(Number(face)) ? Number(face) : Number(guard.faces?.[0]);
+    if ( !Number.isFinite(pick) || !(await spendStoredFace(actor, row.stored, pick)) ) {
+      ui.notifications.warn(`${TITLE}: ${guard.name} no longer holds a ${key} ${pick}.`);
+      return;
+    }
+    bent = setOutcome({ kept: Number(facts.kept), total: Number(roll.total), face: pick, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
   }
   const settled = await answerHold(attackMessage, target.uuid, "roll", { poolSpend, bent, rescue: key, by: guard.uuid, reduceBy });
   // `turned: "strike"` — the bend turned the hit to a miss against the live AC: one weapon attack at the attacker.

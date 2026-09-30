@@ -350,8 +350,12 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
       expect(typeof row.uses, name).toBe("boolean");
       expectPointer(row.rule, name);
       expect(row.rule.item, name).toBe(name);
-      // an `inspired` row pays with the answerer's Inspired effect, no activity (A1, Combat Inspiration)
-      expect(row.activity || row.inspired, name).toBeTruthy();
+      // an `inspired` row pays with the answerer's Inspired effect, no activity (A1, Combat Inspiration); a `stored`
+      // row with a face off its STORED_DICE chip (A7, Portent)
+      expect(
+        row.activity || row.inspired || (row.stored && reg.STORED_DICE[row.stored]),
+        name
+      ).toBeTruthy();
     }
     expect(reg.INTERRUPT_ROLLS.Lucky).toMatchObject({
       reaction: false,
