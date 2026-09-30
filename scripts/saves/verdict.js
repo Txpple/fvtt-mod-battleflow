@@ -10,7 +10,7 @@ import { registerDemand, demandAnsweredBy, registerWithheld, withholds } from ".
 import { revertEffect } from "../effect-riders.js";
 import { revertTarget } from "../receipts.js";
 import { disarmSaveTimer } from "./ask.js";
-import { applySaveConsequences, casterHalfFor, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
+import { applySaveConsequences, applySaveEffects, casterHalfFor, evasionApplies, noneOnSuccessFor, saveDamageMessages, applyOneSaveDamage } from "./consequences.js";
 
 /**
  * THE FOLD WITHOUT A DIE: a save the rules fail before the roll, recorded as a failure. The buzzer
@@ -220,6 +220,8 @@ async function unwindFailedConsequences(card, entry) {
     if ( e.reverted || keep.has(e.name) ) continue;
     await revertEffect(card, entry.uuid, e.id);
   }
+  // What only a SUCCESS grants (SAVE_PRESSES `success` — Stunning Strike's Slowed) never landed: land it now.
+  if ( flag?.effectNames?.success?.length ) await applySaveEffects(card, flag, entry, { successOnly: true });
   // Revert the damage, then re-apply at the success multiplier DIRECTLY (the deliberate exception to
   // the reconcile guard).
   for ( const dmg of saveDamageMessages(card) ) {

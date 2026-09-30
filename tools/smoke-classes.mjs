@@ -84,7 +84,7 @@ const SECTIONS = {
   25: 'Rage of the Wilds: with Rage and Rage of the Wilds lent, the Rage\'s card asks "Rage of the Wilds — Bear, Eagle or Wolf?" and the Rage lands at once; Wolf uses the feature\'s own Wolf activity ("Rage of the Wolf" on the barbarian); the enemy within 5 ft wears the quiet ring\'s member copy; the Cleric attacking it sees Advantage from "Rage of the Wolf" in the gate, the barbarian\'s own attack does not',
   26: 'Tides of Chaos: an attack, a save and a check dialog carry the buy box "Tides of Chaos — 1 use · 1 left"; ticked and pressed, the save rolls at Advantage, the use spent and recorded; with none left the box is greyed "no uses left", no tick',
   27: 'Commanding Presence: BF Test Fighter\'s Persuasion, Intimidation and Performance checks offer the superiority die (the scoped tactical fold); Athletics does not; accepted on Persuasion, a die spent and the total patched',
-  28: 'Stunning Strike and Hand of Harm (the Monk\'s Focus group): a Longsword hit offers neither; an Unarmed Strike both; Stunning Strike alone costs ONE point (its save\'s use), Stunned on a failure, Slowed on a success; both ride one hit; in a combat the second hit greys Stunning Strike',
+  28: 'Stunning Strike and Hand of Harm (the Monk\'s Focus group): a Longsword hit offers neither; an Unarmed Strike both; Stunning Strike alone costs ONE point (its save\'s use), Stunned on a failure, Slowed on a success (and a Legendary Resistance flip of the failure swaps Stunned for Slowed); both ride one hit; in a combat the second hit greys Stunning Strike',
   29: 'Open Hand Technique: out of combat every Unarmed Strike offers Addle / Push / Topple; in a combat only after Flurry of Blows (its turn chit); one pick; Topple\'s failed save lands Prone; a Longsword hit none',
   30: 'Psionic Power: Psionic Strike\'s force die on the menu (a die spent); Protective Field asks the Psi Warrior when an ally within 30 ft is hit ("Reduce"), the die + Int off; none left, never asked',
   31: 'Elemental Attunement: its own Elemental Strike only; "Push or pull — free"; the Strength save and the card\'s line',
@@ -1952,6 +1952,20 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('28c. Stunning Strike, the save failed: Stunned lands, Slowed does not; ONE Focus Point spent (the save\'s own use is the cost)',
             (outcomeOn(c1) === 'failed') && fx().includes('Stunned') && !fx().includes('Slowed') && (spent() === 1),
             `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} spent=${spent()}`);
+          // The legendary-resistance flip (2026-09-30): the failure unwinds AND the success half lands.
+          if (typeof victim.system.resistSave !== 'function') log.push('28c-lr skipped: BF Test Victim is not NPC-typed');
+          else {
+            const priorLR = { max: victim.system.resources?.legres?.max ?? 0, spent: victim.system.resources?.legres?.spent ?? 0 };
+            await victim.update({ 'system.resources.legres.max': 1, 'system.resources.legres.spent': 0 });
+            const e1 = c1.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid);
+            const rollMsg = game.messages.get(e1?.rollMessageId);
+            if (rollMsg) await victim.system.resistSave(rollMsg);
+            await waitFor(() => (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'), 8000); await sleep(400);
+            ok('28c-lr. Legendary Resistance flips the failure: Stunned unwinds, Slowed (the success half) lands',
+              (outcomeOn(c1) === 'saved') && fx().includes('Slowed') && !fx().includes('Stunned'),
+              `outcome=${outcomeOn(c1)} fx=${JSON.stringify(fx())} roll=${!!rollMsg}`);
+            await victim.update({ 'system.resources.legres.max': priorLR.max, 'system.resources.legres.spent': priorLR.spent });
+          }
           await dropVictimFx();
 
           const t2 = Date.now();

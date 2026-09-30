@@ -43,8 +43,9 @@
 1. **B2** (the save bends by name: Mantle of Majesty, Eldritch Strike, Beguiling Twist, Magical Ambush, Psychic
    Defenses, Eldritch Hex, Beguiling Defenses) → **B3** → **B4** → **B5** (the full battery after B5), **C1** (full),
    **D1** (full) — the plan is audits/plans/session-0-classes.md.
-2. **Owed small:** a Legendary Resistance flip of a failed Stunning Strike lands no Slowed (`saves/verdict.js`);
-   Physician's Touch's Poisoned is B4's; the `.claude/worktrees/a2-live` worktree can be removed.
+2. **Owed small:** Physician's Touch's Poisoned is B4's. (Done 2026-09-30: the Legendary Resistance flip now lands the
+   `success` effects — Stunning Strike's Slowed — `saves/verdict.js` + `applySaveEffects({ successOnly })`, §28 asserts it;
+   the a2-live worktree was already gone.)
 3. Then **the DMG**, then **the splat books**; **the prod deploy** (v2.7.0 + everything since) and **the walks**
    whenever the user says.
 

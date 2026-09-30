@@ -75,8 +75,10 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
 }
 
 /** The activity's effects by verdict: all on a failure, on a success only `onSave` entries (stored
- * by the system, read by nothing native). The concentration origin keeps the dependentOn cascade. */
-async function applySaveEffects(card, flag, entry) {
+ * by the system, read by nothing native). The concentration origin keeps the dependentOn cascade.
+ * `successOnly`: the SAVE_PRESSES `success` effects alone (Stunning Strike's Slowed) — the legendary-resistance
+ * flip lands them after the failure is unwound (the `always` ones it kept, the failure's it reverted). */
+export async function applySaveEffects(card, flag, entry, { successOnly = false } = {}) {
   // A bash ANSWER replaces the generic pass (announceBashOutcome owns it).
   if ( (entry.choice?.kind === "bash") && entry.choice.answer ) return;
   // A triggered demand's effect is the area's STANDING effect — never doubled. Damage still lands.
@@ -86,13 +88,14 @@ async function applySaveEffects(card, flag, entry) {
   if ( !activity ) return;
   // A SAVE_PRESSES `success` row's effects land on a success and never on a failure (Stunning Strike's Slowed).
   const success = new Set((SAVE_PRESS_INDEX.rowFor(activity.item)?.success ?? []).map(n => n.toLowerCase()));
+  const onSuccess = effect => success.has(String(effect?.name ?? "").toLowerCase());
   const toApply = (await applicableProfiles(activity))
-    .filter(({ profile, effect }) => success.has(String(effect?.name ?? "").toLowerCase())
-      ? (entry.outcome !== "failed") : ((entry.outcome === "failed") || profile.onSave))
+    .filter(({ profile, effect }) => onSuccess(effect)
+      ? (entry.outcome !== "failed") : (!successOnly && ((entry.outcome === "failed") || profile.onSave)))
     .map(({ effect }) => effect);
   // No pack effect for a failure the text names (Web's Restrained): press the standard status. A press
   // behind the caster's WORD (Command) lands only when the word answered is the pressing one.
-  if ( !toApply.length && (entry.outcome === "failed") ) {
+  if ( !toApply.length && (entry.outcome === "failed") && !successOnly ) {
     const press = SAVE_PRESS_INDEX.rowFor(activity.item);
     const spoken = !press?.word || ((entry.choice?.kind === "word") && (entry.choice.answer === press.word.presses));
     if ( press?.onFail && spoken ) await pressSaveStatus(card, flag, entry, press);
