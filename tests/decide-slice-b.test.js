@@ -57,7 +57,12 @@ describe("DROP_TO_ONE — the kill moment's two sides", () => {
       "death throes",
       "spiteful escape",
       "misty escape",
-      "shadow escape"
+      "shadow escape",
+      // C1
+      "relentless rage",
+      "undying sentinel",
+      "rage of the gods",
+      "searing vengeance"
     ]);
   });
 });
@@ -195,7 +200,12 @@ describe("EFFECT_BENDS — Magic Resistance and Greater Magic Resistance on the 
 
 describe("EVASIONS — Evasion's shape as a table: Evasion on Dexterity, Avoidance on every save", () => {
   it("two rows, keyed by the feature; the verdict names the row", () => {
-    expect(Object.keys(reg.EVASIONS)).toEqual(["Evasion", "Avoidance", "Potent Cantrip"]);
+    expect(Object.keys(reg.EVASIONS)).toEqual([
+      "Evasion",
+      "Avoidance",
+      "Potent Cantrip",
+      "Leading Evasion"
+    ]);
     expect(reg.EVASIONS.Evasion.ability).toBe("dex");
     expect(reg.EVASIONS.Avoidance.ability).toBeNull();
     for (const row of Object.values(reg.EVASIONS)) {

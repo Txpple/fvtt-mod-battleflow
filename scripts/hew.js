@@ -43,7 +43,7 @@ async function postHewReminder(attacker, featItem, weapon, why, row = null, offe
       attackerUuid: attacker.uuid, itemName: featItem.name, itemImg: featItem.img,
       weaponName: weapon?.name ?? null, why,
       ...(row ? { label, rule: row.rule, swing: row.swing ?? null } : {}),
-      ...(row?.when === "attack" ? { stamp: combatStamp() } : {}),
+      ...(((row?.when === "attack") || (row?.when === "cast")) ? { stamp: combatStamp() } : {}),
       ...(offer ? { offer } : {}),
       ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
     } } }
@@ -266,8 +266,30 @@ async function maybeSwingReminder(attackMessage) {
   }
 }
 
+// C1 — THE CAST trigger (`when: "cast"`, Battle Magic): a spell cast as an action (its usage card) earns the reminder, once
+// per the owner's own turn in combat; the Bonus Action weapon attack is the sheet's.
+async function maybeCastReminder(message) {
+  try {
+    const activity = cardActivity(message);
+    const item = activity?.item;
+    if ( (item?.type !== "spell") || (activity.activation?.type !== "action") ) return;
+    const attacker = message.getAssociatedActor?.();
+    if ( !(attacker instanceof Actor) ) return;
+    for ( const entry of maneuverFoldEntries().filter(e => (e.kind === "hew") && (whenOf(e.name) === "cast")) ) {
+      const row = swingRowOf(entry.name);
+      const found = foldEntryFor(attacker, "hew", [entry]);
+      if ( !found || !swingTurnOpen(attacker, row) ) continue;
+      await postHewReminder(attacker, found.item, null, `${item.name} cast as an action`, row, null);
+      return;
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The cast's bonus swing reminder failed.`, err);
+  }
+}
+
 listen("createChatMessage", "hew", message => {
   if ( !isActiveGM() ) return;
+  if ( isCard(message, CARD.usage) ) { void maybeCastReminder(message); return; }
   if ( isCard(message, CARD.attack) ) {
     if ( !hitTargets(message).length ) void maybeSwingReminder(message);
     return;

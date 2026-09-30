@@ -92,6 +92,12 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Misty Escape**: "immediately after you take damage" | offered only when the damage names its dealer (the rebukes' floor); a self answer, no reach measured | damage with no card behind it names nobody | 2026-09-30 |
 | **Eldritch Smite, Lifedrinker**: "your pact weapon" | the weapon bonded through Pact of the Blade's enchantment; with NONE bonded on the sheet, any weapon counts and the card says so | the sheet cannot say which weapon is the pact weapon until the bond is made; a guessed exemption is never made | 2026-09-30 |
 | **Branches of the Tree, Inspiring Movement, Wrath of the Sea**: "a creature you can see" | the side and the ring are judged; sight is not — the reminder is raised, the pick offered, for a creature the bearer might not see | the module reads no line of sight for a reminder or an offer (the gate's own judgement is the table's; RULINGS *Emanations*) | 2026-09-30 |
+| **Searing Vengeance**: "when you or an ally within 60 feet of you is about to make a Death Saving Throw" | the offer is raised AS the Death Saving Throw rolls, the roll standing; Yes then heals half the maximum (a creature above 0 keeps no death-save tally) | dnd5e 6 fires no pre-roll hook for a Death Saving Throw (`dnd5e.rollDeathSave` is after the dice); the roll cannot be paused | 2026-09-30 |
+| **Relentless Rage**: "you can make a DC 10 Constitution saving throw… if you succeed, your Hit Points instead change to 2 × level" | held at 1 while the save rolls; a success heals 2 × level on top of the 1 (2 × level + 1) | Undead Fortitude's seam: the 1 is written in the damage's own update before any roll can be made; the heal lands after (the platform applies healing to what stands) | 2026-09-30 |
+| **Unbreakable Majesty**: "hits you with an attack roll… must succeed on a Charisma saving throw or the attack misses instead" | the attacker's save is rolled INSIDE the hold once the hit stands, by the elect on the attacker's numbers (no dialog) | a save the attacker's client would roll cannot be awaited inside the hold; the elect rolls it flat (the save gate's bends are not read for it) | 2026-09-30 |
+| **Leading Evasion**: "creatures within 5 feet of you… who can see or hear you" | the reach alone is judged; sight and hearing are not | the module reads no line of sight or sound for a shared verdict | 2026-09-30 |
+| **Versatile Trickster**: "if the hand is within 5 feet of the target" | the box is offered on the turn a Trip or Withdraw was used; the Mage Hand's position is the table's — the tick is the player's | the Mage Hand is a summon the module does not track; a guessed judgement is never made | 2026-09-30 |
+| **Superior Hunter's Prey**: "once per turn when you deal damage to a creature marked by your Hunter's Mark" | offered on the damage card once the damage LANDED (the receipt), the pick's die rolled at the pick | the candidates within 30 ft of the marked creature are read off the map after the landing; the spell-pick road (Celestial Revelation's) | 2026-09-30 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -2311,6 +2317,128 @@ Aura of Devotion the effect "Devoted" with NO change — Aura of Courage's exact
 | Wrath of the Sea manifested | the card "Wrath of the Sea — <druid> — 5-foot Emanation · once on each of your turns, one creature inside is yours to choose" |
 | Wrath of the Sea, two creatures in the ring at the druid's turn start | the card "choose one creature inside" with a button each; the pick's demand card "<name> is chosen inside <druid>'s Wrath of the Sea — Constitution save DC N · once on each of your turns", the cold rolled, the push line; the card then reads "Chosen: <name>" |
 | Aura of Devotion | allies inside wear "Devoted — <paladin>" in the effect view; the hostile nothing |
+
+## The PHB classes — C1 (2026-09-30, Session 0 stage C1)
+
+**Thirty band-C rows on the shapes the table has — no new kind (40), no new file (131), two new tables that are not kinds
+(`CONCENTRATION_EXEMPTS`, `D20_FLOORS`) and a dozen new facets; BUILT and PROVEN (`smoke-classes` §64–§91), unwalked.**
+Measured on the pack first (`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5): Relentless Rage a Save activity whose DC is
+`10 + (@item.uses.spent * 5)` consuming its own use and a Heal of `2 × level`; Undying Sentinel a Heal of `3 × level` once per Long
+Rest; **Rage of the Gods ships Revivification** — a 30-ft Reaction consuming a Rage use whose roll is the barbarian's level (the
+register's "Protective Wings" was a misread: the pack's data is the row); Searing Vengeance a Damage activity (2d8 + Cha radiant, a
+30-ft Emanation, Blinded) once per Long Rest with no heal activity; Power of the Wilds three bare utilities (Ram's carries the Prone
+effect, Lion's nothing); Unbreakable Majesty a Bonus Action landing "Majestic Presence" and a Recoil Save (Charisma, the bard's DC);
+Peerless Skill a utility consuming Bardic Inspiration with the scale as its roll; Oceanic Gift two save activities landing "Stormborn"
+on the target; Superior Hunter's Defense a Reaction with thirteen typed Resistance effects; Stalker's Flurry a Mass Fear save with a
+10-ft Emanation (the data's 10 over the text's 15, N1) and no Sudden Strike activity; Trance of Order two utilities landing a bare
+effect; Deflect Energy and Envenom Weapons already built (A1's `anyType`, the Poison option's `upgrade`) — marked BUILT, nothing added.
+The calls made in the build, **each the user's to overrule**:
+
+- **The kill moment.** Relentless Rage is Undead Fortitude's save while raging, the DC the activity's own (`dc: "activity"` — it climbs
+  as the uses spend), the use spent by the roll itself, a success healing the pack's Heal on top of the 1; held at 1 while the dice
+  roll (the bends register). Undying Sentinel is Relentless Endurance's ask with a `heal`. **Rage of the Gods' Revivification is an
+  `ally` keeper row**: the barbarian within 30 ft wearing "Rage of the Gods" is asked, its Rage use pays, the creature drops to the
+  activity's roll (its level) instead of 1 — Gift of the Protectors' keeper shape with a reach. **Searing Vengeance rides the death
+  save** (`on: "deathSave"`): the platform has no pre-roll hook for a Death Saving Throw, so the offer is raised AS the save rolls,
+  never before it (the bends register); Yes regains half the maximum and the burst lands on every enemy within its Emanation of the
+  creature, Blinded until the end of the turn; "can then stand up" is the table's.
+- **The rings.** Power of the Wilds is a pick at the Rage kept as a CHIP (the pack lands nothing on the barbarian for Lion or Ram):
+  Lion is Rage of the Wolf's ring with a module-MADE member effect (`made` — the pack ships none) read by EFFECT_BENDS `except:
+  "source"` (the enemies inside attack anyone but the rager at Disadvantage); Ram is a clock rider landing the pack's Prone on a melee
+  hit once per turn while raging; Falcon is the pack's flight. **Oceanic Gift is Wrath of the Sea's ring around ANOTHER creature**
+  (`bearer`): the token wearing the manifest's "Stormborn" (its origin the druid's feature) is the ring's centre, the druid its source
+  — the scale, the DC and the turn-start pick are the druid's. Smite of Protection is a CAST rider: after Divine Smite the paladin and
+  the members of its Aura of Protection ring wear the pack's effect (Half Cover, the cover measure reads the status) until the start of
+  the paladin's next turn.
+- **The folds.** Disciplined Survivor is the `reroll` kind paying from the pool its activity consumes (a Focus Point), no bonus. Peerless
+  Skill is a tactical fold on the feature's own activity (the Bardic die, a Bardic Inspiration use). **Trance of Order builds two
+  facets**: `cancel: "advantage"` on the effect table (every Advantage source struck in the gate, Brutal Strike's forgo shape, a
+  listed line says why) and the **D20 floor** — the platform's own `options.minimum` on the roll (Reliable Talent's knob), a d20 below
+  10 counting as 10 on the bearer's own D20 Tests; Starry Form's Dragon takes the same table (Int/Wis checks, the Concentration save).
+  Versatile Trickster is a FREE tick in the attack dialog on a turn a Trip or Withdraw was used; whether the Mage Hand stands within
+  5 ft of the target is the table's — the box is offered, the tick the player's.
+- **The riders.** Lunar Form reads the platform's transformation flag (`judge: "wildShape"`). **Bestial Fury and Create Thrall are
+  riders on a SUMMON** (`owner: "summoner"`): the feature and its dice are the summoner's, read through the platform's summon origin;
+  the hit target must wear the summoner's mark. Superior Hunter's Prey is the spell-pick shape on ANY damage card (`spread`): the mark's
+  damage to one other creature within 30 ft of the marked one, a button each, its own card and receipt, the die rolled at the pick.
+  Superior Hunter's Defense is Uncanny Dodge's half on any damage (the hold for an attack's, `damage-holds` for the rest) landing the
+  pack's typed Resistance for the turn. Stalker's Flurry is a `follow` on Dreadful Strike: the damage card offers Sudden Strike (a
+  reminder) or Mass Fear (the pack's save used at every enemy within its Emanation of the ranger). Improved Blessed Strikes is the
+  rest song's one-creature pick when the cleric's cantrip lands damage.
+- **The reminders and the rest.** Battle Magic is Hew's reminder on an action-cast spell's usage card. Soul of Vengeance is Sentinel's
+  bystander shape keyed to the Vow's mark, on the attack card hit or miss. Leading Evasion shares the bard's verdict with every other
+  target of the same demand within 5 ft (the consequences pass reads the map; "see or hear" is not judged). Unbreakable Majesty is a
+  `save` duplicate: the ATTACKER's Charisma save inside the hold once the hit stands, a failure the `absorbed` verdict, once per turn
+  per attacker (a stamp on the effect), never destroyed. Relentless Hunter is the ask machine's first exempt row (a card, no demand).
+  Perfect Focus regains Focus Points up to 4 at Initiative, automatically; with Uncanny Metabolism's ask pending it rides that card as
+  the fallback landed on its No. Controlled Chaos rolls the surge table twice and the sorcerer picks on the card. Greater Portent is a
+  `more` facet on Portent's row. Spell Resistance is Magic Resistance's row on a PC feature (the Resistance to spell damage is the
+  table's). Hurl Through Hell is Stunning Strike's hit-menu shape, the save activity the cost.
+
+**The rows:**
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Relentless Rage | `DROP_TO_ONE` (`save.activity`, `dc: "activity"`, `while: "raging"`, `uses`, `heal`) | held at 1 while the Constitution save rolls at the climbing DC; a success heals 2 × level; a failure lands 0 |
+| Undying Sentinel | `DROP_TO_ONE` (`ask`, `uses`, `heal`) | drop to 1 instead and regain 3 × level, once per Long Rest |
+| Rage of the Gods | `DROP_TO_ONE` (`ally: 30`, `while`, `activity`, `to: "roll"`) | a creature within 30 ft held while the raging Zealot is asked; a Rage use, the creature drops to the barbarian's level |
+| Searing Vengeance | `DROP_TO_ONE` (`on: "deathSave"`, `ally: 60`, `heal: "halfMax"`) | the offer as a death save rolls; half the maximum back, the burst and Blinded on the enemies around |
+| Power of the Wilds | `EFFECT_CHOICES` (`chip`) · `EMANATIONS` (`made`) + `EFFECT_BENDS` · `CLOCK_RIDERS` (`forms`, `melee`, `lands`) | the pick at the Rage; Lion's ring (enemies inside attack others at Disadvantage); Ram's Prone on a melee hit once per turn |
+| Oceanic Gift | `EMANATIONS` (`bearer`) | Wrath of the Sea's ring around the creature wearing Stormborn, the druid's pick and DC |
+| Smite of Protection | `CAST_RIDERS` (`aura`, `effect`, `clock: "slow"`) | after Divine Smite, Half Cover on the aura's members until the paladin's next turn start |
+| Lunar Form | `CLOCK_RIDERS` (`judge: "wildShape"`) | 2d10 radiant once per turn in Wild Shape |
+| Bestial Fury · Create Thrall | `CLOCK_RIDERS` (`owner: "summoner"`, `marked`) | the summon's hit on the summoner's Hunter's Mark / Hex rides the summoner's dice |
+| Superior Hunter's Prey | `CLOCK_RIDERS` (`spread: 30`, `marked`) | the mark's damage to one other creature within 30 ft of the marked one — a pick, its own card |
+| Superior Hunter's Defense | `INTERRUPT_MULTIPLIERS` (`any`, `effects: "type"`) | half of any damage as a Reaction; the typed Resistance for the turn |
+| Stalker's Flurry | `CLOCK_RIDERS` (`follow` on Dread Ambusher) | Sudden Strike's reminder or Mass Fear's save, one pick on the damage card |
+| Improved Blessed Strikes | `HEAL_ON_HIT` (`on: "damage"`, `pick`) | 2 × Wis Temporary Hit Points to one creature within 60 ft when a cleric cantrip lands damage |
+| Battle Magic | `BONUS_SWINGS` (`when: "cast"`) | Hew's reminder after an action-cast spell |
+| Soul of Vengeance | `REBUKES` (`on: "attack"`, `mark`) | the paladin within 5 ft offered a melee attack when the Vow's creature attacks |
+| Leading Evasion | `EVASIONS` (`share: 5`) | the bard's Evasion shared with the demand's other targets within 5 ft |
+| Unbreakable Majesty | `DUPLICATES` (`save`) | the attacker's Charisma save inside the hold; a failure turns the hit aside, once per turn per attacker |
+| Peerless Skill | `TACTICAL_FOLDS` | the Bardic die on the bard's own failed check or attack, a Bardic Inspiration use |
+| Disciplined Survivor | `REROLLS` (`activity`) | a failed save rerolled for a Focus Point |
+| Trance of Order | `EFFECT_BENDS` (`cancel: "advantage"`) + `D20_FLOORS` | no Advantage against the sorcerer; its own d20 floor of 10 |
+| Versatile Trickster | `ADVANTAGE_BUYS` (`free`, `when: "cunning-strike"`) | a free Advantage tick after a Trip or Withdraw this turn |
+| Perfect Focus | `INITIATIVE_GRANTS` (`upTo: 4`, `unless`) | Focus Points back up to 4 at Initiative when Uncanny Metabolism is not used |
+| Controlled Chaos | `CAST_RIDERS` (`twice` on Wild Magic Surge) | the table rolled twice, the sorcerer picks |
+| Greater Portent | `STORED_DICE` (`more`) | three dice at the rest |
+| Spell Resistance | `EFFECT_BENDS` | Advantage on saves against spells |
+| Relentless Hunter | `CONCENTRATION_EXEMPTS` | no Concentration save for Hunter's Mark — a card |
+| Hurl Through Hell | `HIT_GROUPS` + `HIT_OPTIONS` | the Charisma save on a hit, once per turn, the feature's use |
+| Deflect Energy · Envenom Weapons | — | already built (A1, the sneak machine): marked BUILT |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Relentless Rage, raging, dropped to 0 | the card "held at 1" then "saves (N vs DC 10) — it drops to 1 Hit Point instead", the heal receipt (2 × level); the next drop's DC 15 |
+| Undying Sentinel, dropped to 0 | the popup "drops to 0 Hit Points — drop to 1 Hit Point instead? · and the heal"; Yes: 1 + 3 × level |
+| Rage of the Gods, an ally within 30 ft drops | the Zealot's popup "drop to @classes.barbarian.levels Hit Points instead? · a Rage use"; Yes: the ally at the level |
+| Searing Vengeance, an ally rolls a death save | the warlock's popup "rolls a Death Saving Throw — Searing Vengeance?"; Yes: half the maximum back, the enemies within 30 ft take the radiant and are Blinded |
+| Power of the Wilds, the Rage | "Falcon, Lion or Ram?"; Lion: enemies within 5 ft wear "Power of the Wilds: Lion — <rager>", their attacks at others read Disadvantage; Ram: a melee hit's rider knocks the target Prone |
+| Oceanic Gift manifested on an ally | the ring "Oceanic Gift [<ally>]" around the ally; at the druid's turn start the pick card names who stands inside |
+| Smite of Protection, Divine Smite cast | the cast card's line "Smite of Protection — Smite of Protection (Half Cover) on <members> until the start of your next turn" |
+| Lunar Form in Wild Shape | the offer's ticked rider "Lunar Form — 2d10 radiant" |
+| Bestial Fury / Create Thrall | the companion's hit on the marked creature: the rider row with the ranger's / warlock's die |
+| Superior Hunter's Prey | the damage card's row "+1d6 force to one other creature within 30 ft of the marked target" with a button each; the pick's own card |
+| Superior Hunter's Defense | the hold popup on any hit; Cast halves it and lands "Hunter's Defense: <type>"; a spell's damage asks through the damage hold |
+| Stalker's Flurry | the damage card's row "Stalker's Flurry — one of: Sudden Strike / Mass Fear"; Mass Fear's save card at the enemies within 10 ft |
+| Improved Blessed Strikes | after a cleric cantrip's damage lands: "Improved Blessed Strikes — N Temporary Hit Points for another creature", the pick |
+| Battle Magic | after an action-cast spell: "Battle Magic — <bard> can attack again" |
+| Soul of Vengeance | when the Vow's creature attacks: the paladin's popup "<creature> attacked — under your Vow of Enmity"; Strike |
+| Leading Evasion | an ally within 5 ft failing the Dexterity save takes half: the entry "Evasion (Leading Evasion (<bard>))" |
+| Unbreakable Majesty | a hit inside the presence: the attacker's Charisma save card; a failure "the attack misses instead" |
+| Peerless Skill | a failed check or attack: the rescue window's "Peerless Skill" row (the Bardic die) |
+| Disciplined Survivor | a failed save: the rescue window's reroll row "Disciplined Survivor" (1 Focus Point) |
+| Trance of Order | the gate "attack rolls against it cannot have Advantage — cancelled (Trance of Order)"; its own roll's line "the d20's 3 counts as 10" |
+| Versatile Trickster | the next attack dialog after a Trip: the box "Versatile Trickster — free · the Mage Hand within 5 feet of the target — the table's" |
+| Perfect Focus | at Initiative: "Perfect Focus — Focus Points back up to 4"; under Uncanny Metabolism's No, the same line on that card |
+| Controlled Chaos | the surge line "Controlled Chaos — pick one:" with the two results as buttons |
+| Greater Portent | the Long Rest's chip "Portent — a · b · c" |
+| Spell Resistance | the save gate lists "Spell Resistance" against a spell |
+| Relentless Hunter | damage while concentrating on Hunter's Mark: the card "Relentless Hunter — no save for Hunter's Mark", no ask |
+| Hurl Through Hell | the hit menu's group "Hurl Through Hell — 1 use"; the Charisma save card |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

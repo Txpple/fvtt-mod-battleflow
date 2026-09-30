@@ -199,15 +199,37 @@ async function rollDuplicates(attackMessage, target) {
     const live = duplicatesOf(actor, attacker, attackFactsOf(attackMessage));   // re-read: a duplicate may have gone since the stamp
     const d = target.duplicates;
     if ( !live || live.seenThrough || !live.count ) { target.duplicates = { ...d, faces: [], absorbed: false, left: live?.count ?? 0, gone: true }; return null; }
+    // C1 — a `save` row (Unbreakable Majesty): the ATTACKER's save against the defender's DC; a failure turns the hit aside.
+    if ( live.save ) {
+      const s = live.save;
+      let total = null;
+      try {
+        const rolls = await attacker.rollSavingThrow({ ability: s.ability, target: s.dc }, { configure: false },
+          { data: { flags: { [MODULE_ID]: { duplicatesSave: { key: live.key, defenderUuid: actor.uuid, attackerUuid: attacker.uuid, dc: s.dc } } } } });
+        const t = Number(rolls?.[0]?.total);
+        total = Number.isFinite(t) ? t : null;
+      } catch(err) { console.error(`${TITLE} | ${live.key}'s save did not roll — judge the hit by hand.`, err); }
+      const absorbed = (total !== null) && (total < s.dc);
+      const effect = actor.effects.get(s.effectId);
+      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(effect.getFlag(MODULE_ID, "recoiled") ?? {}), [attacker.uuid]: s.turn }).catch(() => {});
+      target.duplicates = { ...d, faces: [], winner: null, absorbed, took: null, left: 1, of: 1, at: null, die: null, feature: true,
+        save: { ability: s.ability, dc: s.dc, total } };
+      if ( absorbed ) target.verdict = "absorbed";
+      const label = CONFIG.DND5E.abilities[s.ability]?.label ?? s.ability;
+      return bfCard({ img: live.img, eyebrow: live.key, title: absorbed ? `${live.key} — the attack misses instead` : `${live.key} — the hit stands`,
+        subtitle: target.name, tone: absorbed ? "good" : "bad",
+        lines: [`${esc(attacker.name)}'s ${esc(label)} save: ${(total === null) ? "unrolled" : `${total} vs DC ${s.dc}`} — ${absorbed ? "<strong>failed</strong>, the attack recoils" : "<strong>made</strong>"}`,
+          "once per turn per attacker; the Majestic Presence stands"] });
+    }
     const roll = await new Roll(`${live.count}d${live.die}`).evaluate();
     const faces = roll.dice[0]?.results?.map(r => Number(r.result)) ?? [];
-    const outcome = duplicateOutcome({ at: live.at }, faces);
+    const outcome = duplicateOutcome({ at: Number(live.at) }, faces);
     // A feature row's one "duplicate" is never destroyed (the carapace stands); a face at `reflectAt` also reflects.
     const took = (outcome.absorbed && !live.feature) ? { id: live.ids.at(-1), name: live.names.at(-1) } : null;
     const left = (outcome.absorbed && !live.feature) ? live.count - 1 : live.count;
     const reflectAt = Number(live.reflectAt ?? Number.NaN);
     const reflected = !!live.feature && Number.isFinite(reflectAt) && faces.some(f => f >= reflectAt);
-    const words = duplicateWords({ key: live.key, die: live.die, at: live.at }, outcome, { took: took?.name ?? null, left, of: live.of, feature: !!live.feature, reflected });
+    const words = duplicateWords({ key: live.key, die: Number(live.die), at: Number(live.at) }, outcome, { took: took?.name ?? null, left, of: live.of, feature: !!live.feature, reflected });
     await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: live.feature ? `${live.key} — a d${live.die}` : `${live.key} — a d${live.die} for each duplicate` });
     target.duplicates = { ...d, faces, winner: outcome.winner, absorbed: outcome.absorbed, took, left, of: live.of, at: live.at, die: live.die,
       ...(live.feature ? { feature: true, reflected } : {}) };

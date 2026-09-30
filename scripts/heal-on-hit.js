@@ -14,6 +14,7 @@ import { healOnHitAmount, healOnHitTitle, killPays } from "./decide/heal-on-hit.
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { askHandOut } from "./rest-grants.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -28,15 +29,52 @@ listen("dnd5e.applyDamage", "heal-on-hit", (actor, amount, options) => {
     if ( !(origin instanceof ChatMessage) ) return;
     if ( !listedNames(healOnHitEntries()).size ) return;
     const activity = cardActivity(origin);
+    const caster = activity?.item?.actor ?? activity?.actor ?? null;
+    // C1 — an `on: "damage"` row keyed by a FEATURE on the caster (Improved Blessed Strikes): the card's spell must fit.
+    if ( (caster instanceof Actor) && caster.isOwner ) void offerOnDamage({ activity, caster, origin });
     const row = activity?.item ? rowFor(activity.item) : null;
     if ( !row || row.on || !listedNames(healOnHitEntries()).has(row.key.toLowerCase()) ) return;
-    const caster = activity.item.actor ?? activity.actor ?? null;
     if ( !(caster instanceof Actor) || (caster.uuid === actor.uuid) ) return;
     void heal({ row, activity, caster, target: actor, taken: Number(amount), origin });
   } catch(err) {
     console.error(`${TITLE} | The heal on hit failed — heal the caster by hand.`, err);
   }
 });
+
+/* --- C1 — the temp HP offered when the bearer's spell lands damage (Improved Blessed Strikes) -------------------- */
+
+const offered = new Set();
+/** Once per dealing card: the feature's heal activity's Temporary Hit Points, the rest song's pick popup for one creature. */
+async function offerOnDamage({ activity, caster, origin }) {
+  try {
+    const item = activity?.item;
+    if ( (item?.type !== "spell") || offered.has(origin.id) ) return;
+    const listed = listedNames(healOnHitEntries());
+    for ( const [key, row] of Object.entries(HEAL_ON_HIT) ) {
+      if ( (row.on !== "damage") || !listed.has(lower(key)) ) continue;
+      if ( (row.spell === "cantrip") && (Number(item.system?.level) !== 0) ) continue;
+      if ( row.spellClass ) {
+        const cls = item.system?.classIdentifier ?? (String(item.system?.sourceItem ?? "").startsWith("class:") ? String(item.system.sourceItem).slice(6) : null)
+          ?? ((Object.keys(caster.classes ?? {}).length === 1) ? Object.keys(caster.classes)[0] : null);
+        if ( lower(cls ?? "") !== lower(row.spellClass) ) continue;
+      }
+      const feature = featureNamed(caster, key);
+      if ( !feature ) continue;
+      const heal = row.activity ? [...(feature.system?.activities ?? [])].find(a => a.name === row.activity) : activityOfType(feature, "heal");
+      const h = heal?.healing;
+      const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+      if ( !raw ) { console.warn(`${TITLE} | ${key}: no healing part on its activity — give it by hand.`); continue; }
+      const roll = await new Roll(raw, heal.getRollData?.() ?? caster.getRollData()).evaluate();
+      if ( !(roll.total > 0) ) continue;
+      offered.add(origin.id);
+      await askHandOut(caster, { name: key, row: { ...row, reach: row.within ?? null, self: !!row.self }, item: feature, amount: roll.total, roll,
+        table: "cast", distribute: false });
+      return;
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The temp HP offer failed — give them by hand.`, err);
+  }
+}
 
 /** The heal: claimed on the dealing card per creature, rolled from what landed, receipted on that card. */
 async function heal({ row, activity, caster, target, taken, origin }) {

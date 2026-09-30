@@ -8,29 +8,35 @@
  * the attacker's combat turn), or null. `targetDamaged` / `fits`: true, false, or null when the target
  * cannot be read (a size the table judges; an unread HP is never "damaged"). `enchanted`: the attack's
  * item carries the row's enchantment, or — none on the sheet — it is the row's `spell`.
- * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string, weapon?: boolean,
- *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean}} row
+ * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string|readonly string[], weapon?: boolean,
+ *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean, melee?: boolean, marked?: string}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, reckless?: boolean, targetDamaged?: boolean|null, weapon?: boolean,
  *          form?: string|null, dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null,
- *          fits?: boolean|null, enchanted?: boolean}} facts
+ *          fits?: boolean|null, enchanted?: boolean, melee?: boolean, wildShape?: boolean, marked?: boolean|null}} facts
  * @returns {{due: boolean, why: string}} */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
   sneakArmed = false, raging = false, reckless = false, targetDamaged = null, weapon = false, form = null, dealt = [],
-  critical = false, opportunity = null, fits = null, enchanted = false } = {}) {
+  critical = false, opportunity = null, fits = null, enchanted = false, melee = false, wildShape = false, marked = null } = {}) {
+  // C1 — `judge` may list several (Power of the Wilds' Ram: raging AND the form chip); every one must stand.
+  const judges = new Set(/** @type {string[]} */ ([]).concat(row.judge ?? []));
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
+  if ( row.melee && !melee ) return { due: false, why: "not a melee attack" };
   if ( row.enchant && !enchanted ) return { due: false, why: "not the cantrip it was chosen for" };
   if ( row.maxSize && (fits === false) ) return { due: false, why: "the target is too large" };
   if ( row.dealt && !(dealt ?? []).includes(row.dealt) ) return { due: false, why: `no ${row.dealt} damage` };
   if ( row.crit && !critical ) return { due: false, why: "not a Critical Hit" };
   if ( (row.requires === "sneak") && !sneakArmed ) return { due: false, why: "no Sneak Attack armed on this hit" };
-  if ( ((row.judge === "raging") || (row.judge === "reckless")) && !raging ) return { due: false, why: "not raging" };
-  if ( (row.judge === "reckless") && !reckless ) return { due: false, why: "no Reckless Attack this turn" };
-  if ( (row.judge === "targetDamaged") && (targetDamaged !== true) ) {
+  // C1 — `marked`: the hit target must wear the bearer's mark (Bestial Fury, Superior Hunter's Prey).
+  if ( row.marked && (marked !== true) ) return { due: false, why: `the target is not under your ${row.marked}` };
+  if ( (judges.has("raging") || judges.has("reckless")) && !raging ) return { due: false, why: "not raging" };
+  if ( judges.has("reckless") && !reckless ) return { due: false, why: "no Reckless Attack this turn" };
+  if ( judges.has("targetDamaged") && (targetDamaged !== true) ) {
     return { due: false, why: (targetDamaged === false) ? "the target is at its Hit Point maximum" : "the target's Hit Points cannot be read" };
   }
-  if ( (row.judge === "transformed") && !form ) return { due: false, why: "not transformed" };
-  if ( row.judge === "opportunity" ) {
+  if ( judges.has("transformed") && !form ) return { due: false, why: "not transformed" };
+  if ( judges.has("wildShape") && !wildShape ) return { due: false, why: "not in Wild Shape" };
+  if ( judges.has("opportunity") ) {
     if ( opportunity === "driven" ) return { due: true, why: "an Opportunity Attack" };
     if ( opportunity === "offTurn" ) return { due: true, why: "a melee attack off your turn" };
     return { due: false, why: "not an Opportunity Attack" };
@@ -45,8 +51,10 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( chitStands ) return { due: false, why: "already used this turn" };
       if ( form ) return { due: true, why: inCombat ? `${form} — once this turn` : `${form} — out of combat, every hit` };
       const why = inCombat ? "once this turn" : "out of combat — every hit";
-      if ( row.judge === "reckless" ) return { due: true, why: `raging and reckless — ${why}` };
-      if ( row.judge === "targetDamaged" ) return { due: true, why: `the target is damaged — ${why}` };
+      if ( judges.has("reckless") ) return { due: true, why: `raging and reckless — ${why}` };
+      if ( judges.has("targetDamaged") ) return { due: true, why: `the target is damaged — ${why}` };
+      if ( judges.has("wildShape") ) return { due: true, why: `in Wild Shape — ${why}` };
+      if ( row.marked ) return { due: true, why: `under your ${row.marked} — ${why}` };
       return { due: true, why };
     }
     // Every hit, uses permitting (Fire's Burn): the use is the only clock.
@@ -54,6 +62,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( row.crit ) return { due: true, why: `a Critical Hit that deals ${row.dealt ?? "damage"}` };
       if ( row.enchant ) return { due: true, why: "every hit with the chosen cantrip" };
       if ( row.inspired ) return { due: true, why: "your Bardic Inspiration die, if you spend it" };
+      if ( row.marked ) return { due: true, why: `the target is under your ${row.marked}` };
       return { due: true, why: "on any hit, while its uses last" };
     default:
       return { due: false, why: `an unknown clock "${row.when}"` };

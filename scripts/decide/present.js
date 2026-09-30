@@ -186,18 +186,19 @@ export function sneakBoxHTML({ dice, rule, checked = false, used = null }) {
 /**
  * THE BUY BOX: the Sneak Attack box's shape for Advantage bought with an item's use
  * (`ADVANTAGE_BUYS`). No uses left: greyed, no tick.
- * @param {{name: string, point: string, left: number, rule: object|string|null, checked?: boolean}} view
+ * @param {{name: string, point: string|null, left: number|null, rule: object|string|null, checked?: boolean, free?: boolean, says?: string}} view
  */
-export function buyBoxHTML({ name, point, left, rule, checked = false }) {
-  const out = !(Number(left) > 0);
+export function buyBoxHTML({ name, point, left, rule, checked = false, free = false, says = "" }) {
+  // C1 — a FREE box (Versatile Trickster): no counter, nothing spent; `says` names the judgement that is the table's.
+  const out = !free && !(Number(left) > 0);
   const control = out ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" ${checked ? "checked" : ""} style="margin:0;"> <span>Advantage</span></label>`;
+        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" ${free ? "data-bf-free" : ""} ${checked ? "checked" : ""} style="margin:0;"> <span>Advantage</span></label>`;
   return `
       <div data-bf-buy style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
                   margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${out ? "opacity:0.6;" : ""}
                   background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
                   border-left:3px solid ${out ? TONE.neutral : TONE.pending};">
-        <div style="font-weight:bold;">${attr(name)} — 1 ${attr(point)} · ${Math.max(0, Number(left) || 0)} left</div>
+        <div style="font-weight:bold;">${attr(name)} — ${free ? `free${says ? ` · ${attr(says)}` : ""}` : `1 ${attr(point)} · ${Math.max(0, Number(left) || 0)} left`}</div>
         ${control}
         ${out ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">no ${attr(point)}s left</div>` : ""}
         ${foldedRuleHTML(rule)}

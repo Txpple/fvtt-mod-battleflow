@@ -16,6 +16,7 @@ import { saveNoneOnSuccess } from "../decide/reminders.js";
 import { effectEntries, reminderEntries } from "../decide/registry.js";
 import { applyDamagesWithReceipt } from "../auto-apply.js";
 import { applyEffectsWithReceipt } from "../effect-riders.js";
+import { nearestFeet, tokenOfActor } from "../geometry.js";
 
 import { gateSaveChoice, announceBashOutcome, announceWordOutcome, settleInterpose } from "./choices.js";
 import { cleanupSpentTemplates } from "./areas.js";
@@ -147,6 +148,22 @@ export function evasionApplies(actor, flag) {
     if ( row.side === "caster" ) continue;   // the caster's mirror (Potent Cantrip) — casterHalfFor
     if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
     if ( featureNamed(actor, key) ) return key;
+  }
+  // C1 — a `share` row (Leading Evasion): ANOTHER target of the same demand holds it within `share` feet of this one,
+  // and is not Incapacitated; the verdict is shared for this save alone. The card names the sharer.
+  const own = tokenOfActor(actor);
+  if ( !own ) return null;
+  for ( const [key, row] of Object.entries(EVASIONS) ) {
+    if ( !row.share || (row.side === "caster") ) continue;
+    if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
+    for ( const t of (flag.targets ?? []) ) {
+      if ( t.uuid === actor.uuid ) continue;
+      const other = resolveUuid(t.uuid);
+      if ( !(other instanceof Actor) || other.statuses?.has?.("incapacitated") || !featureNamed(other, key) ) continue;
+      const tok = tokenOfActor(other);
+      const feet = tok ? nearestFeet(own, tok) : null;
+      if ( (feet !== null) && (feet <= row.share) ) return `${key} (${other.name})`;
+    }
   }
   return null;
 }

@@ -17,6 +17,26 @@ import { REMINDER_FLAG, forgoOff, forgoneSources, netMode, reminderRecord, remin
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
+/** When the running combat's turn began on this client (the `when: "cunning-strike"` window); out of combat, two minutes. */
+let turnStartedAt = 0;
+listen("updateCombat", "advantage-buys", (_combat, changes) => {
+  if ( ("turn" in (changes ?? {})) || ("round" in (changes ?? {})) ) turnStartedAt = Date.now();
+});
+
+/** C1 — did this actor use a Trip or Withdraw Cunning Strike this turn? The sneak record on its attack cards says. */
+function cunningStrikeThisTurn(actor) {
+  const since = game.combat?.started ? turnStartedAt : (Date.now() - 120_000);
+  const log = game.messages.contents;
+  for ( let i = log.length - 1, n = 0; (i >= 0) && (n < 60); i--, n++ ) {
+    const m = log[i];
+    if ( m.timestamp < since ) return false;
+    const sneak = m.getFlag(MODULE_ID, "sneak");
+    if ( !sneak?.cunning?.length || (m.getAssociatedActor?.()?.uuid !== actor.uuid) ) continue;
+    if ( sneak.cunning.some(k => (k === "trip") || (k === "withdraw")) ) return true;
+  }
+  return false;
+}
+
 /** The rows this actor can buy on this kind of test — every held row, spent ones greyed (the box says why). */
 function buysFor(actor, testKind) {
   if ( !(actor instanceof Actor) ) return [];
@@ -30,6 +50,13 @@ function buysFor(actor, testKind) {
     if ( !item ) continue;
     // A FORGO row (Brutal Strike, B3): nothing spent; the box is off unless the roll carries Advantage and no Disadvantage.
     if ( row.forgo ) { out.push({ name, forgo: true, ability: row.ability ?? null, point: null, rule: row.rule, itemId: item.id, left: null, max: 0 }); continue; }
+    // C1 — a FREE row (Versatile Trickster): nothing spent; `when: "cunning-strike"` offers it only on a turn a Trip or
+    // Withdraw Cunning Strike was used (the sneak record on this turn's attack cards); the tick is the player's.
+    if ( row.free ) {
+      if ( (row.when === "cunning-strike") && !cunningStrikeThisTurn(actor) ) continue;
+      out.push({ name, free: true, says: row.says ?? "", point: null, rule: row.rule, itemId: item.id, left: null, max: 0 });
+      continue;
+    }
     out.push({ name, point: row.point, rule: row.rule, itemId: item.id,
       left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max: Number(item.system?.uses?.max ?? 0) });
   }
@@ -74,7 +101,7 @@ const gateOf = holder => holder?.bfReminder ?? holder?.bfSaveGate ?? holder?.bfC
 
 /** The source the ticked box adds to the net, in the gate's own vocabulary. */
 function buySource(actorName, row) {
-  return reminderSource("buy", "advantage", `${actorName} — ${row.name} (1 ${row.point})`, row.rule);
+  return reminderSource("buy", "advantage", row.free ? `${actorName} — ${row.name} (${row.says || "free"})` : `${actorName} — ${row.name} (1 ${row.point})`, row.rule);
 }
 
 /** The dialogs standing with a box in them — redrawn after the gate's own re-target redraw. */
@@ -105,7 +132,7 @@ function drawBuy(app) {
     box.innerHTML = row.forgo
       ? forgoBoxHTML({ name: row.name, rule: row.rule, checked: buy.armed === row.name, off: forgoOff(row, gate, buy.ability ?? null), says: "the hit offers its effects",
         struck: (buy.armed === row.name) ? forgoneSources(gate?.sources ?? [], row.name).filter(s => s.forgone).map(s => s.label) : [] })
-      : buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name });
+      : buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name, free: !!row.free, says: row.says ?? "" });
     fieldset.appendChild(box.firstElementChild);
   }
   // One tick at a time — Advantage does not stack, so a second buy would only spend twice.
@@ -176,6 +203,17 @@ listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog,
       foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
         ...reminderRecord({ sources: forgoneSources(gate?.sources ?? [], row.name), net: buy.net, mode, answeredAt: Date.now() }),
         forgo: row.name, ...statContext(actor?.uuid ?? buy.actorUuid)
+      });
+      return;
+    }
+    // C1 — a FREE row (Versatile Trickster): nothing spent; the tick is a listed source on the record.
+    if ( row?.free ) {
+      rolls[0].options.bfBought = row.name;
+      if ( !message ) return;
+      const gate = gateOf(config);
+      foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+        ...reminderRecord({ sources: [...(gate?.sources ?? []), buySource(actor?.name ?? "", row)], net: buy.net, mode, answeredAt: Date.now() }),
+        ...statContext(actor?.uuid ?? buy.actorUuid)
       });
       return;
     }

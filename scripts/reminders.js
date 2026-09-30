@@ -4,7 +4,7 @@
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
-import { featureNamed, namesAnswering, resolveUuid } from "./lookup.js";
+import { featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
@@ -20,7 +20,7 @@ import { feetOf, measuredCoverBetween, nearestFeet, tokenForUuid, tokenOfActor, 
 import { COVER_DEGREES, coverAtTheAttack } from "./decide/cover.js";
 import { SURFACES } from "./surfaces.js";
 import { REMINDER_FLAG, checkGate, checkSources, conditionSources, sightOf, demandBendSources, effectCheckSources, effectSaveSources, effectSources, modeSources, modeTitle, netMode, proneSources, rangeSources,
-  reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover } from "./decide/reminders.js";
+  reminderRecord, reminderSource, reminderView, rolledWith, saveGate, saveSources, rangeFeatsFor, reachedRange, acWithoutCover, forgoneSources } from "./decide/reminders.js";
 import { listen } from "./dispatch.js";
 
 /** The names a sheet's feats are read in: the feature rows of the effect table, and the range feats. */
@@ -599,6 +599,26 @@ function hpFraction(actor) {
   return Math.max(0, Number(hp?.value) || 0) / max;
 }
 
+/** C1 — a `cancel: "advantage"` row (Trance of Order) on an aimed target: every Advantage source is struck (Brutal Strike's
+ * forgo shape — listed, no vote) and a listed source says why; Disadvantage stands. Pure over the sources once the target is read. */
+function cancelAdvantage(attacker, sources, targets) {
+  const rows = Object.entries(EFFECT_BENDS).filter(([, r]) => r.cancel === "advantage");
+  if ( !rows.length || !reminderEntries().some(e => e.kind === "effect") ) return sources;
+  const on = new Set(effectEntries().map(e => e.kind));
+  for ( const token of (targets ?? []) ) {
+    const target = token?.actor;
+    if ( !target || (target.uuid === attacker.uuid) ) continue;
+    for ( const [key, row] of rows ) {
+      if ( !on.has(lower(key)) ) continue;
+      if ( !target.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(key))) ) continue;
+      const name = token.document?.name ?? target.name;
+      const struck = forgoneSources(sources, key).map(s => s.forgone ? { ...s, label: s.label.replace(/ — forgone \(.*\)$/, ` — cancelled (${key})`) } : s);
+      return [...struck, reminderSource("effect", null, `${name} is in a ${key} — attack rolls against it cannot have Advantage`, row.rule)];
+    }
+  }
+  return sources;
+}
+
 /**
  * THE JUDGE before the dice: sources, net, view; a volley calls it per ray with the chips spent so far.
  * @param {Actor} attacker
@@ -609,7 +629,7 @@ function hpFraction(actor) {
 export function judgeRoll(attacker, { activity = null, attackMode = null, targets = null, spent = null, spendNote = "", rangeFeet = null } = {}) {
   const enabled = new Set(reminderEntries().map(e => e.kind));
   if ( !enabled.size ) return null;
-  const sources = sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote, rangeFeet });
+  const sources = cancelAdvantage(attacker, sourcesFor(attacker, enabled, { activity, attackMode, targets, spent, spendNote, rangeFeet }), targets ?? game.user.targets);
   const net = netMode(sources);
   const sneak = enabled.has("sneak") ? sneakFactsFor(attacker, activity, attackMode, net, targets ?? game.user.targets) : null;
   // ⚠ Only what the rules SPEND carries forward through a volley; a standing effect stands for every ray.

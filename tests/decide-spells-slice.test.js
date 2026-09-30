@@ -653,13 +653,18 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
   });
 
   it("Vampiric Touch: the one HEAL_ON_HIT row — half the necrotic damage; the amount by the parts' proportion, floored", () => {
-    expect(Object.keys(reg.HEAL_ON_HIT)).toEqual(["Vampiric Touch", "Dark One's Blessing"]);
+    expect(Object.keys(reg.HEAL_ON_HIT)).toEqual([
+      "Vampiric Touch",
+      "Dark One's Blessing",
+      "Improved Blessed Strikes"
+    ]);
     const row = reg.HEAL_ON_HIT["Vampiric Touch"];
     expect(row).toMatchObject({ share: 0.5, type: "necrotic" });
     expectPointer(row.rule);
     expect(reg.healOnHitEntries()).toEqual([
       { kind: "vampiric touch" },
-      { kind: "dark one's blessing" }
+      { kind: "dark one's blessing" },
+      { kind: "improved blessed strikes" } // C1
     ]);
     expect(
       hh.healOnHitAmount(row, { taken: 11, parts: [{ value: 11, type: "necrotic" }] })

@@ -9,12 +9,15 @@
  * Is the grant due? The feature's own use must stand, and something must come back — an expended use of the
  * regained item, or (a healing row) a missing Hit Point: a once-per-Long-Rest use is never burnt on nothing.
  * @param {{own: {value: number, max: number}|null, regain: {spent: number, max: number}|null, heals?: boolean,
- *          hp?: {value: number, max: number}|null}} facts
+ *          hp?: {value: number, max: number}|null, upTo?: number|null}} facts
  * @returns {{due: boolean, why: string}}
  */
-export function initiativeGrantDue({ own, regain, heals = false, hp = null }) {
+export function initiativeGrantDue({ own, regain, heals = false, hp = null, upTo = null }) {
   if ( own && (Number(own.max) > 0) && !(Number(own.value) > 0) ) return { due: false, why: "used since the last Long Rest" };
-  const back = Math.max(0, Math.min(Number(regain?.spent) || 0, Number(regain?.max) || 0));
+  // C1 — `upTo` (Perfect Focus): only what is missing below the ceiling comes back.
+  const value = Math.max(0, (Number(regain?.max) || 0) - (Number(regain?.spent) || 0));
+  const back = upTo ? Math.max(0, Math.min(Number(upTo) - value, Number(regain?.spent) || 0))
+    : Math.max(0, Math.min(Number(regain?.spent) || 0, Number(regain?.max) || 0));
   const hurt = heals && hp ? (Number(hp.value) || 0) < (Number(hp.max) || 0) : false;
   if ( !back && !hurt ) return { due: false, why: "nothing to regain" };
   return { due: true, why: back ? `${back} expended` : "Hit Points missing" };
@@ -24,11 +27,20 @@ export function initiativeGrantDue({ own, regain, heals = false, hp = null }) {
  * The card's line for a grant, by its state.
  * @param {{row: string, status?: string, answer?: string|null, applied?: boolean, timedOut?: boolean, unit?: string,
  *          regained?: number, max?: number, healed?: number|null, formula?: string|null, back?: number, actorName?: string,
- *          give?: boolean, given?: {name: string, from: number, to: number}[], rolled?: number, due?: string[], reach?: number}} flag
+ *          give?: boolean, given?: {name: string, from: number, to: number}[], rolled?: number, due?: string[], reach?: number,
+ *          upTo?: number|null, fallback?: {row: string, upTo: number|null, unit?: string|null}|null, fallbackApplied?: boolean, fallbackRegained?: number}} flag
  */
 export function initiativeGrantLine(flag) {
   const unit = flag.unit ?? "uses";
+  // C1 — the fallback row landed on the host's No (Perfect Focus under Uncanny Metabolism).
+  if ( (flag.answer === "no") && flag.fallback ) {
+    const kept = `${flag.row} — kept for later${flag.timedOut ? " (timer)" : ""}`;
+    if ( flag.fallbackApplied ) return `${kept}; ${flag.fallback.row} — ${flag.fallback.unit ?? unit} back up to ${flag.fallback.upTo}${Number.isFinite(flag.fallbackRegained) ? ` (${flag.fallbackRegained} regained)` : ""}`;
+    return `${kept}; ${flag.fallback.row} — regaining…`;
+  }
   if ( flag.answer === "no" ) return `${flag.row} — kept for later${flag.timedOut ? " (timer)" : ""}`;
+  if ( flag.upTo && flag.applied ) return `${flag.row} — ${unit} back up to ${flag.upTo} (${Number(flag.regained) || 0} regained)`;
+  if ( flag.upTo ) return `${flag.row} — ${unit} back up to ${flag.upTo}`;
   // B4 — a `to: "allies"` row (Tandem Footwork): one roll, added to every ally's Initiative within reach.
   if ( flag.give ) {
     if ( flag.applied ) {

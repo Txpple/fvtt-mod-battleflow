@@ -123,6 +123,19 @@ describe("the moment registry — shape", () => {
         amount: 30,
         answer: "use"
       },
+      deathSaveOffer: {
+        status: "resolved",
+        row: "Searing Vengeance",
+        keeperUuid: "Actor.w",
+        keeperName: "Warlock",
+        actorUuid: "Actor.h",
+        actorName: "Halfling",
+        answer: "use",
+        applied: true,
+        healed: 20,
+        burst: 12,
+        victims: ["Goblin"]
+      },
       healReroll: {
         status: "used",
         feature: "Healer",

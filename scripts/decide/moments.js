@@ -190,6 +190,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  deathSaveOffer: {
+    events: ["use"],
+    means: "the death save's side (Searing Vengeance, the PHB classes C1): a keeper offered its feature as a creature rolled a Death Saving Throw — answered use (half the maximum back, the burst landed) or pass (drop-to-one.js)",
+    resolved: (r) => (r?.answer && ((r.answer !== "use") || r.applied)) ? [{
+      marker: "message", events: ["use"],
+      facts: { actor: r.keeperUuid ?? null, ability: r.row ?? null,
+        targets: r.actorUuid ? [{ uuid: r.actorUuid, name: r.actorName ?? null }] : [],
+        details: { answer: r.answer, healed: r.healed ?? null, burst: r.burst ?? null, victims: r.victims ?? [], timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   initiativeSwap: {
     events: ["choice"],
     means: "an Initiative swap was answered — Alert's pick of an ally, swapped in the tracker by the elect, or no swap (initiative-swap.js, the origin feats 2026-09-25); resolved at No, or when the swap is applied",
@@ -846,6 +857,12 @@ export const STATE_KEYS = Object.freeze({
   areaNotice: "the card an area's ban posts as a creature moves in or out (emanations.js, Magic Circle and Forcecage) — a notice, the move never paused; presentation",
   areaMove: "the card an area's move damage posts (emanations.js, Spike Growth) — the receipt on the same card is the resolve",
   emanationPickAnswer: "an envelope — the caster's band side or type pick on an area's card; the fold onto emanationCard is the resolve, and the region follows it",
+  // the PHB classes, C1
+  concentrationExempt: "presentation — the card for a Concentration save the ask machine did not demand (Relentless Hunter: damage never breaks Hunter's Mark; concentration.js); nothing was rolled, nothing to resolve",
+  deathSaveOfferAnswer: "an envelope — a keeper's answer to the death save's offer (Searing Vengeance); the fold onto deathSaveOffer is the resolve",
+  duplicatesSave: "provenance — the attacker's save a `save` duplicate demanded inside the hold (Unbreakable Majesty, hold/continue.js); the hold's verdict is the resolve",
+  recoiled: "an ActiveEffect field — which attacker the Majestic Presence has already turned aside this turn, by combat turn (Unbreakable Majesty's once per turn per attacker)",
+  auraRider: "presentation — the aura rider's line on the usage card (Smite of Protection's members); the effect receipts on the same card are the resolve",
   areas: "an ActiveEffect field on a concentration effect — the uuids of the regions its cast placed, the sweep's tie (emanations.js, 2026-09-19)",
   saveFor: "an envelope field beside respondsTo — the saves channel's target uuid"
 });

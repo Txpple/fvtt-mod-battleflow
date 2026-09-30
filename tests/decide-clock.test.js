@@ -200,7 +200,8 @@ describe("the registry's clock-rider data", () => {
       else if (row.activity === null && !row.inspired)
         expect(row.lands?.name || row.bonusDice || row.random || row.enchant, key).toBeTruthy();
       else if (!row.inspired) expect(row.activity, key).toBeTruthy();
-      if (row.judge === "transformed") expect(row.forms?.length, key).toBeGreaterThan(0);
+      if ([].concat(row.judge ?? []).includes("transformed"))
+        expect(row.forms?.length, key).toBeGreaterThan(0);
       // `any` (Slice A, 2026-09-24): every hit, uses permitting — the Goliath's boons.
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
       // …or a Critical Hit's own (the PHB feats, group 3: Slasher, Crusher, Piercer): the crit is the limit.
@@ -214,10 +215,13 @@ describe("the registry's clock-rider data", () => {
             row.self === true ||
             row.enchant === true ||
             row.inspired === true ||
+            // C1: a summon's rider on the summoner's mark (Bestial Fury, Create Thrall) — the mark is the limit.
+            !!row.marked ||
             (!!row.lands?.name && !row.amount && !row.bonusDice),
           key
         ).toBe(true);
-      if (row.effects || row.lands)
+      // A landed effect with NO clock (C1, Power of the Wilds' Ram: Prone stands until the creature rises) rides the pack's own duration.
+      if ((row.effects || row.lands) && row.clock !== undefined)
         expect(Object.keys(chips.CHIP_WINDOWS), key).toContain(row.clock);
       expectPointer(row.rule, key);
       expect(row.rule.item, key).toBe(row.feature);

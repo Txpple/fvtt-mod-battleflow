@@ -50,7 +50,7 @@ describe("the table", () => {
       "Improved Brutal Strike",
       "Improved Brutal Strike"
     ]);
-    expect(rows).toHaveLength(21); // + Eldritch Smite (B4)
+    expect(rows).toHaveLength(22); // + Eldritch Smite (B4), Hurl Through Hell (C1)
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);

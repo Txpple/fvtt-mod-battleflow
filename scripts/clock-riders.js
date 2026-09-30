@@ -13,6 +13,7 @@ import { CLOCK_RIDERS, answers } from "./decide/registry.js";
 import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { creaturesWithin, feetOf, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -26,6 +27,22 @@ function usesOf(attacker, activity, row) {
   const pool = (row.uses && activity) ? poolOf(attacker, activity) : null;
   const read = riderUsesFrom({ activity: activity?.uses ?? null, item: pool?.system?.uses ?? null, uses: !!row.uses });
   return read ? { ...read, item: (read.on === "item") ? pool : null } : null;
+}
+
+/** C1 — the actor that summoned this one (the platform's summon origin: the activity, its item's actor), or null. */
+function summonerOf(actor) {
+  try {
+    const origin = actor?.getFlag?.("dnd5e", "summon")?.origin ?? null;
+    const doc = origin ? resolveUuid(origin) : null;
+    const owner = doc?.actor ?? doc?.item?.actor ?? doc?.parent?.actor ?? null;
+    return (owner instanceof Actor) && (owner.uuid !== actor?.uuid) ? owner : null;
+  } catch { return null; }
+}
+
+/** C1 — does this creature wear `name` (Hunter's Mark, Hex) placed by `bearer`? The effect's origin leads to the bearer. */
+function wearsMarkOf(target, bearer, name) {
+  if ( !(target instanceof Actor) || !bearer ) return false;
+  return target.effects.some(e => e.active && (lower(e.name) === lower(name)) && (grantingActor(e)?.uuid === bearer.uuid));
 }
 
 /** The flag a form chip wears — the transformation a `transformed` row reads (Necrotic Shroud). */
@@ -135,14 +152,23 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
         && (activity?.attack?.type?.value === "melee")) ? "offTurn" : null
   };
   const out = [];
+  // C1 — the facts the band-C rows read: a melee attack, the attacker in Wild Shape (the platform's transformation flag).
+  facts.melee = activity?.attack?.type?.value === "melee";
+  facts.wildShape = !!(attacker.getFlag?.("dnd5e", "isPolymorphed") || attacker.isPolymorphed || attacker.getFlag?.("dnd5e", "transformed") || attacker.getFlag?.("dnd5e", "originalActor"));
+  const summoner = summonerOf(attacker);
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;
     // An `inspired` row's feature is the granting BARD's; its die rides on the attacker's own Inspired effect.
     const inspired = row.inspired ? inspiredFrom(attacker, row.feature) : null;
     if ( row.inspired && !inspired ) continue;
+    // C1 — an `owner: "summoner"` row (Bestial Fury): the feature, its dice and its mark are the SUMMONER's.
+    const bearer = (row.owner === "summoner") ? summoner : attacker;
+    if ( !bearer ) continue;
     // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
-    const feature = inspired ? inspired.feature : row.self ? itemNamed(attacker, row.feature) : featureNamed(attacker, row.feature);
+    const feature = inspired ? inspired.feature : row.self ? itemNamed(attacker, row.feature) : featureNamed(bearer, row.feature);
     if ( !feature ) continue;
+    // C1 — `marked`: every hit target wears the bearer's mark of that name (its origin the bearer's own spell).
+    const marked = row.marked ? (hits.length ? hits.every(h => wearsMarkOf(resolveUuid(h.uuid), bearer, row.marked)) : null) : null;
     // An `option` row rides only the option the character took; none recorded yet, the offer asks.
     const option = row.option ? optionOf(feature) : null;
     if ( option && (lower(option) !== lower(row.option)) ) continue;
@@ -155,20 +181,22 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const raw = row.self ? null : inspired ? inspired.die : riderFormulaOf(row, act);
     let formula = null;
     try {
-      const resolved = raw ? Roll.replaceFormulaData(raw, attacker.getRollData()) : null;
+      const resolved = raw ? Roll.replaceFormulaData(raw, bearer.getRollData()) : null;
       formula = (resolved && Roll.validate(resolved)) ? resolved : null;
     } catch { formula = null; }
     const form = formOn(attacker, row);
     const type = (row.type === "weapon") ? weaponType : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
-    const uses = usesOf(attacker, act, row);
+    const uses = usesOf(bearer, act, row);
     const usesLeft = uses ? uses.left : null;
-    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key),
+    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked,
       fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
       enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false });
     // B4 — `enchantBy` (Lifedrinker): the pact weapon bonded through ANOTHER feature; none bonded, any weapon with the caveat.
     const pact = row.enchantBy ? pactWeaponFits(attacker, item, row.enchantBy) : null;
     if ( pact && !pact.fits ) { judged.due = false; judged.why = `not the weapon bonded through ${row.enchantBy}`; }
-    out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged, unpicked,
+    // C1 — `follow` (Stalker's Flurry): the follow-up offered once the rider rides, when its feature is on the sheet.
+    const follow = (row.follow && featureNamed(attacker, row.follow.feature)) ? row.follow : null;
+    out.push({ key, row, feature, activity: act, formula, type, usesLeft, uses, ...judged, unpicked, bearer, ...(follow ? { follow } : {}),
       ...(pact?.caveat ? { pactCaveat: pact.caveat } : {}),
       ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}),
       // an effect-only row (no dice: Hamstring, a crit's mark, Piercer's extra die) says what it does
@@ -180,7 +208,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
 
 /** Is any listed clock rider due on this hit, or an option to ask? The offer opens for it whatever the auto-damage setting. */
 function clockRidersDue(attackMessage, activity) {
-  return clockRidersFor(attackMessage, activity).some(r => r.due || r.unpicked);
+  // A `spread` row (Superior Hunter's Prey) is a pick on the damage card, never a die on the roll.
+  return clockRidersFor(attackMessage, activity).some(r => (r.due && !r.row.spread) || r.unpicked);
 }
 
 /** The option asks among these riders, one per feature: every option its rows name, and what it does now. */
@@ -207,7 +236,7 @@ function optionAsks(riders) {
  */
 function clockRiderOfferParts(attackMessage, activity) {
   const all = clockRidersFor(attackMessage, activity);
-  const due = all.filter(r => r.due && !r.unpicked);
+  const due = all.filter(r => r.due && !r.unpicked && !r.row.spread);
   const asks = optionAsks(all);
   if ( !due.length && !asks.length ) return null;
   const chosen = new Set(due.filter(r => (r.formula || r.says) && !r.row.unticked).map(r => r.key));
@@ -274,7 +303,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
     const picked = Array.isArray(pick) ? new Set(pick) : null;
     const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
       critical: (config.isCritical === true) || (config.rolls?.[0]?.options?.isCritical === true) })
-      .filter(r => r.due && !r.unpicked && (picked ? picked.has(r.key) : !r.row.unticked));
+      .filter(r => r.due && !r.unpicked && !r.row.spread && (picked ? picked.has(r.key) : !r.row.unticked));
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];
@@ -307,6 +336,8 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
         ...(r.row.caveat ? { caveat: r.pactCaveat ? `${r.row.caveat}; ${r.pactCaveat}` : r.row.caveat } : (r.pactCaveat ? { caveat: r.pactCaveat } : {})),
         ...(r.row.offers ? { offers: { activity: r.row.offers.activity, label: r.row.offers.label ?? r.row.offers.activity }, featureUuid: r.feature.uuid } : {}),
+        // C1 — `follow` (Stalker's Flurry): the follow-up's options, offered on the damage card once the rider rode.
+        ...(r.follow ? { follow: { feature: r.follow.feature, rule: r.follow.rule ?? null, options: r.follow.options.map(o => ({ label: o.label, says: o.says ?? null, activity: o.activity ?? null, radius: !!o.radius })), picked: null } } : {}),
         ...(r.usesLeft !== null ? { usesLeft: r.usesLeft - 1 } : {}),
         // the activity's own effects land once the damage message exists (settleRiderEffects)
         ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
@@ -427,6 +458,65 @@ async function writeFormChip(actor, activity, key, row, form) {
 
 /* --- a spell's damage with no attack roll: the ONE target is the caster's pick ------------------ */
 
+/* --- C1 — `follow` (Stalker's Flurry): one follow-up after the rider rode, the attacker's pick on the damage card ---- */
+
+listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
+  try {
+    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const rows = (cr?.riders ?? []).filter(r => r.follow);
+    if ( !rows.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-rider-follow") ) return;
+    const attacker = resolveUuid(cr.sourceUuid ?? null);
+    for ( const r of rows ) {
+      const row = document.createElement("div");
+      row.className = "bf-rider-follow";
+      row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;font-size:var(--font-size-11,11px);";
+      const label = document.createElement("span");
+      label.style.opacity = "0.8";
+      if ( r.follow.picked ) {
+        label.textContent = `${r.follow.feature} — ${r.follow.picked.label}${r.follow.picked.says ? `: ${r.follow.picked.says}` : ""}`;
+        row.appendChild(label);
+        content.appendChild(row);
+        continue;
+      }
+      if ( !(attacker instanceof Actor) || !attacker.isOwner ) continue;
+      label.textContent = `${r.follow.feature} — one of:`;
+      row.appendChild(label);
+      for ( const o of r.follow.options ) row.appendChild(momentButton(o.label, () => void pickThen(message, r.key, o, attacker)));
+      content.appendChild(row);
+    }
+  } catch(err) { console.warn(`${TITLE} | The rider's follow-up could not draw.`, err); }
+});
+
+/** The pick: a `says` option is the reminder (the card says it); an `activity` option is used at the enemies within its
+ * Emanation of the attacker (`radius`) — the saves machine takes the usage card from there. Recorded on the rider. */
+async function pickThen(message, key, option, attacker) {
+  let won = false;
+  await queueFlagWrite(message, "clockRiders", current => {
+    const row = current.riders?.find(x => x.key === key);
+    if ( !row?.follow || row.follow.picked ) return false;
+    row.follow.picked = { label: option.label, says: option.says ?? null };
+    won = true;
+  });
+  if ( !won || !option.activity ) return;
+  try {
+    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const r = cr.riders.find(x => x.key === key);
+    const feature = featureNamed(attacker, r.follow.feature);
+    const act = feature ? activityNamed(feature, option.activity) : null;
+    if ( !act ) { ui.notifications?.warn(`${TITLE}: ${r.follow.feature} — no "${option.activity}" on the sheet; use it by hand.`); return; }
+    const own = tokenOfActor(attacker);
+    const feet = feetOf(Number(act.target?.template?.size), act.target?.template?.units || "ft");
+    const targets = (own && option.radius && (feet > 0))
+      ? creaturesWithin(own, feet).filter(t => (t.actor?.uuid !== attacker.uuid) && (t.document.disposition !== own.document.disposition))
+      : [];
+    await withTargets(targets, () => act.use({ subsequentActions: false, create: { measuredTemplate: false } }, { configure: false }, {}));
+  } catch(err) {
+    console.error(`${TITLE} | ${option.label} could not be used — use it from the sheet.`, err);
+  }
+}
+
 /**
  * A `spells` row on a spell with NO attack roll: the extra goes to ONE creature, the caster's pick (R1) —
  * a button per creature damaged on the spell's card. A pick lands on its OWN card (a keyed entry in the
@@ -435,26 +525,41 @@ async function writeFormChip(actor, activity, key, row, form) {
 const SPELL_FLAG = "spellRider";
 
 /** The listed `spells` rows due for this caster now, each with its form, value and type. */
-function spellRidersFor(caster) {
+function spellRidersFor(caster, damaged = []) {
   if ( !caster ) return [];
   const listed = listedNames(clockRiderEntries());
   const combat = activeCombatFor(caster);
   const out = [];
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
-    if ( !row.spells || !listed.has(lower(row.feature)) ) continue;
+    if ( !(row.spells || row.spread) || !listed.has(lower(row.feature)) ) continue;
     const feature = featureNamed(caster, row.feature);
     if ( !feature ) continue;
     const form = formOn(caster, row);
-    const raw = riderFormulaOf(row, row.activity ? activityNamed(feature, row.activity) : null);
+    const act = row.activity ? activityNamed(feature, row.activity) : null;
+    const raw = riderFormulaOf(row, act);
     let value = null;
+    let formula = null;
     try {
       const resolved = raw ? Roll.replaceFormulaData(raw, caster.getRollData()) : null;
-      value = (resolved && Roll.validate(resolved)) ? Roll.safeEval(resolved) : null;
-    } catch { value = null; }
+      formula = (resolved && Roll.validate(resolved)) ? resolved : null;
+      value = formula && !/d\d/i.test(formula) ? Roll.safeEval(formula) : null;
+    } catch { value = null; formula = null; }
+    // C1 — a `spread` row (Superior Hunter's Prey): a damaged creature under the caster's mark; the candidates are the other
+    // creatures within `spread` feet of it. The dice roll at the pick (the scale is a die, not a number).
+    let candidates = null;
+    if ( row.spread ) {
+      const marked = damaged.find(t => wearsMarkOf(resolveUuid(t.uuid), caster, row.marked));
+      const at = marked ? tokenForUuid(marked.uuid) : null;
+      if ( !at ) continue;
+      candidates = creaturesWithin(at, row.spread).filter(t => t.actor && (t.actor.uuid !== marked.uuid) && (t.actor.uuid !== caster.uuid))
+        .map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
+      if ( !candidates.length ) continue;
+    }
     const judged = riderDue(row, { inCombat: !!combat, round: combat?.round ?? null, form: form?.form ?? null,
-      chitStands: turnChitStands(caster, "rider", key) });
-    if ( !judged.due || !(Number(value) > 0) ) continue;
-    out.push({ key, row, feature, form, value: Number(value), type: form?.type ?? null, why: judged.why, label: row.label ?? row.feature });
+      chitStands: turnChitStands(caster, "rider", key), marked: row.spread ? true : null });
+    if ( !judged.due || !(formula || (Number(value) > 0)) ) continue;
+    const type = form?.type ?? ([...(act?.damage?.parts?.[0]?.types ?? [])][0] ?? null);
+    out.push({ key, row, feature, form, value: Number(value) || null, formula, type, why: judged.why, label: row.label ?? row.feature, candidates });
   }
   return out;
 }
@@ -476,18 +581,19 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
     const damaged = [...new Map((receipt?.targets ?? []).filter(t => !t.reverted && (Number(t.taken) > 0)).map(t => [t.uuid, t])).values()];
     if ( !damaged.length ) return;
     const activity = cardActivity(message);
-    if ( (activity?.item?.type !== "spell") || (activity.type === "attack") ) return;
-    const caster = activity.actor ?? null;
+    const caster = activity?.actor ?? message.getAssociatedActor?.() ?? null;
     if ( !canAnswerFor(caster) ) return;
-    for ( const r of spellRidersFor(caster) ) {
-      if ( picked[r.key] ) continue;
+    // A `spells` row reads a no-attack spell's card alone; a `spread` row any damage card of the bearer's.
+    const spellCard = (activity?.item?.type === "spell") && (activity.type !== "attack");
+    for ( const r of spellRidersFor(caster, damaged) ) {
+      if ( picked[r.key] || (!r.row.spread && !spellCard) ) continue;
       const row = document.createElement("div");
       row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
       const label = document.createElement("span");
       label.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.8;";
-      label.textContent = `${r.label} — +${r.value}${r.type ? ` ${r.type}` : ""} to one target (${r.why}):`;
+      label.textContent = `${r.label} — +${r.formula ?? r.value}${r.type ? ` ${r.type}` : ""} to one ${r.row.spread ? `other creature within ${r.row.spread} ft of the marked target` : "target"} (${r.why}):`;
       row.appendChild(label);
-      for ( const t of damaged ) row.appendChild(momentButton(t.name, () => void pickSpellRider(message, r, t, caster)));
+      for ( const t of (r.candidates ?? damaged) ) row.appendChild(momentButton(t.name, () => void pickSpellRider(message, r, t, caster)));
       html.querySelector(SURFACES.messageContent)?.appendChild(row);
     }
   } catch(err) {
@@ -532,7 +638,7 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
 
 /** The caster's pick, on the spell's damage card (the caster rolled it — the caster may write it). */
 async function pickSpellRider(message, r, target, caster) {
-  const entry = { ...statContext(caster.uuid), key: r.key, label: r.label, value: r.value, type: r.type, why: r.why, rule: r.row.rule,
+  const entry = { ...statContext(caster.uuid), key: r.key, label: r.label, value: r.value, formula: r.formula ?? null, type: r.type, why: r.why, rule: r.row.rule,
     featureUuid: r.feature?.uuid ?? null, targetUuid: target.uuid, targetName: target.name, applied: false };
   await queueFlagWrite(message, SPELL_FLAG, current => {
     if ( current[r.key] ) return false;   // one pick per card
@@ -553,16 +659,23 @@ async function driveSpellRider(message) {
     if ( !claimed ) continue;
     const caster = resolveUuid(p.sourceUuid);
     const feature = resolveUuid(p.featureUuid);
+    // C1 — a `spread` pick carries a die (the mark's scale): rolled here, in the open, on the pick's own card.
+    let value = Number(p.value) || 0;
+    let roll = null;
+    if ( p.formula && !(value > 0) ) {
+      try { roll = await new Roll(p.formula).evaluate(); value = Number(roll.total) || 0; } catch { roll = null; }
+    }
     const card = await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: caster ?? undefined }),
+      ...(roll ? { rolls: [roll] } : {}),
       content: bfCard({ img: feature?.img ?? null, eyebrow: "Clock rider", tone: "good",
-        title: `${p.label} — +${p.value}${p.type ? ` ${p.type}` : ""} to ${p.targetName}`,
-        subtitle: `${p.why} · with the spell's damage`, lines: [ruleLine(p.rule)] }),
+        title: `${p.label} — +${value}${p.type ? ` ${p.type}` : ""} to ${p.targetName}`,
+        subtitle: `${p.why} · ${p.formula && roll ? `${p.formula} rolled` : "with the spell's damage"}`, lines: [ruleLine(p.rule)] }),
       flags: { [MODULE_ID]: { spellRiderCard: { ...statContext(p.sourceUuid ?? null), key: p.key, label: p.label,
-        value: p.value, type: p.type, targetUuid: p.targetUuid, spellMessageId: message.id } } }
+        value, type: p.type, targetUuid: p.targetUuid, spellMessageId: message.id } } }
     });
-    if ( card ) await applyDamagesWithReceipt(card, [{ uuid: p.targetUuid, name: p.targetName }],
-      [{ value: p.value, type: p.type ?? "radiant", properties: new Set(["mgc"]) }], { note: p.label });
+    if ( card && (value > 0) ) await applyDamagesWithReceipt(card, [{ uuid: p.targetUuid, name: p.targetName }],
+      [{ value, type: p.type ?? "radiant", properties: new Set(["mgc"]) }], { note: p.label });
     if ( caster && (CLOCK_RIDERS[p.key]?.when === "oncePerTurn") ) {
       await writeTurnChit(caster, "rider", { name: `${p.label} — used this turn`, img: feature?.img ?? null,
         description: `${p.label} has ridden a spell's damage this turn. Once per turn; this chit ends with the turn.`,

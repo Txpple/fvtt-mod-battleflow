@@ -6,13 +6,14 @@
  * held (RULINGS *Where the table bends the rule*). Order: save multiplier, reduction, resistances.
  */
 import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed } from "./lookup.js";
+import { lower, itemNamed, resolveUuid, reductionFor, holdsFor, featureNamed, activityNamed } from "./lookup.js";
 import { alliesWithin, tokenForUuid } from "./geometry.js";
 import { interruptEntries } from "./decide/registry.js";
-import { INTERRUPT_REDUCTIONS } from "./decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS } from "./decide/registry.js";
+import { applyItemEffectOnHit } from "./effect-riders.js";
 import { reduceDamages } from "./decide/verdict.js";
 import { reductionRise } from "./decide/dice-chips.js";
-import { poolOf, reactionSpent, spendReaction, spendSuperiorityDie, resolveAttackMessage } from "./shared.js";
+import { poolOf, reactionSpent, spendReaction, spendSuperiorityDie, spendPoolUses, resolveAttackMessage } from "./shared.js";
 import { applyDamagesWithReceipt, registerDamageClaim } from "./auto-apply.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments,
@@ -34,15 +35,36 @@ function anyReductionOf(actor) {
     const name = entry.name;
     const key = Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(name));
     const row = key ? INTERRUPT_REDUCTIONS[key] : null;
-    if ( !row?.any ) continue;
-    const item = itemNamed(actor, key);
-    const found = item ? reductionFor(item, key) : null;
-    if ( !found ) continue;
-    const pool = row.pool ? poolOf(actor, found.activity) : null;
-    if ( row.pool && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
-    return { name: key, row, item, activity: found.activity, formula: found.formula, pool };
+    if ( row?.any ) {
+      const item = itemNamed(actor, key);
+      const found = item ? reductionFor(item, key) : null;
+      if ( !found ) continue;
+      const pool = row.pool ? poolOf(actor, found.activity) : null;
+      if ( row.pool && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
+      return { name: key, row, item, activity: found.activity, formula: found.formula, pool };
+    }
+    // C1 — a MULTIPLIER row on any damage (Superior Hunter's Defense): the share halved, no roll; the reaction activity is the item's.
+    const mKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(name));
+    const mRow = mKey ? INTERRUPT_MULTIPLIERS[mKey] : null;
+    if ( !mRow?.any ) continue;
+    const mItem = itemNamed(actor, mKey);
+    if ( !mItem ) continue;
+    const activity = (mRow.activity ? activityNamed(mItem, mRow.activity) : null)
+      ?? [...(mItem.system?.activities ?? [])].find(a => a.activation?.type === "reaction") ?? null;
+    if ( mRow.uses && !(Number(mItem.system?.uses?.value ?? 0) > 0) ) continue;
+    return { name: mKey, row: mRow, item: mItem, activity, formula: null, pool: null, halve: Number(mRow.multiplier) || 0.5 };
   }
   return null;
+}
+
+/** C1 — the pack's typed effect a multiplier row lands with its answer (`effects: "type"`): "Hunter's Defense: Fire" for fire. */
+function typedEffectFor(row, item, damages) {
+  if ( row?.effects !== "type" || !item ) return null;
+  const type = (damages ?? []).map(d => d.type).find(t => t && !NOT_DAMAGE.has(t)) ?? null;
+  if ( !type ) return null;
+  const want = lower(`${row.effectPrefix ?? ""}${type}`);
+  const effect = item.effects.find(e => lower(e.name) === want) ?? null;
+  return effect ? { name: effect.name, from: effect.name, id: `bfTypedRes${type.slice(0, 6).padEnd(6, "0")}` } : null;
 }
 
 /**
@@ -123,7 +145,8 @@ registerDamageClaim((receiptMessage, target, actor, damages, { multiplier = 1, n
   return true;
 });
 
-const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.any);
+const listed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.any
+  || INTERRUPT_MULTIPLIERS[Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(e.name))]?.any);
 const guardsListed = () => interruptEntries().some(e => INTERRUPT_REDUCTIONS[Object.keys(INTERRUPT_REDUCTIONS).find(k => lower(k) === lower(e.name))]?.ally);
 
 async function stampHold(receiptMessage, target, actor, damages, { multiplier, note }, found, { guarded = false } = {}) {
@@ -132,7 +155,9 @@ async function stampHold(receiptMessage, target, actor, damages, { multiplier, n
   const source = receiptMessage.getAssociatedActor?.() ?? null;
   // A guarded share has no reactor yet; the guard who intercepts becomes it at the answer.
   const who = guarded ? { actorUuid: null, actorName: null, itemId: null, activityId: null, formula: null, guards: found.guards }
-    : { actorUuid: actor.uuid, actorName: target.name ?? actor.name, itemId: found.item.id, activityId: found.activity.id, formula: found.formula };
+    : { actorUuid: actor.uuid, actorName: target.name ?? actor.name, itemId: found.item.id, activityId: found.activity?.id ?? null, formula: found.formula,
+      // C1 — a multiplier row on any damage (Superior Hunter's Defense): the share halved, the pack's typed effect landed with the answer.
+      ...(found.halve ? { halve: found.halve, uses: !!found.row.uses, lands: typedEffectFor(found.row, found.item, damages), clock: found.row.clock ?? null } : {}) };
   const flag = {
     status: "pending", ...who,
     reaction: found.name, label: found.row?.label ?? found.name,
@@ -215,6 +240,12 @@ async function answerHold(message, answer, who = null) {
       if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) {
         ui.notifications.warn(`${TITLE}: ${actor.name} has no uses of ${flag.label ?? flag.reaction} left.`);
         answer = "pass";
+      } else if ( mine.halve ) {
+        // C1 — the multiplier's answer (Superior Hunter's Defense): the share halved, no roll; the Reaction (and a use) spent.
+        const share = Math.floor(unpackDamages(flag.damages).reduce((n, d) => n + (Number(d.value) || 0), 0) * Number(flag.multiplier ?? 1));
+        reduceBy = Math.max(0, share - Math.floor(share * Number(mine.halve)));
+        if ( mine.uses && item ) await spendPoolUses(actor, item, flag.reaction).catch(() => null);
+        await spendReaction(actor, { origin: item?.uuid ?? null, what: flag.reaction });
       } else if ( mine.ward ) {
         // B4 — the WARD absorbs (Projected Ward): as much of the share as the ward holds, spent from the ward's item.
         const wardItem = actor.items.get(mine.ward.itemId);
@@ -292,6 +323,13 @@ async function landHeld(message) {
   }
   try {
     await applyDamagesWithReceipt(receipt, [flag.target], damages, { multiplier: applyMultiplier, ...(note ? { note } : {}), held: true });
+    // C1 — the multiplier's typed effect (Superior Hunter's Defense): the Resistance of that type on the reactor, for the turn.
+    if ( (flag.answer === "cast") && flag.lands ) {
+      const actor = resolveUuid(flag.actorUuid);
+      const item = actor?.items?.get(flag.itemId) ?? null;
+      if ( item ) await applyItemEffectOnHit(receipt, item, flag.lands, [flag.target], { clock: flag.clock ?? null, attacker: actor })
+        .catch(err => console.warn(`${TITLE} | ${flag.reaction}'s effect could not land — apply it by hand.`, err));
+    }
   } finally {
     await queueFlagWrite(message, HOLD_FLAG, current => { current.applied = true; current.applying = false; });
   }

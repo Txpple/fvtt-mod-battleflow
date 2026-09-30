@@ -34,7 +34,11 @@ describe("REROLLS — the table of the `reroll` kind", () => {
     expectPointer(ind.rule);
     expectPointer(fan.rule);
     // The bonus is a FORMULA on the roller, never a transcribed number (R4 / N1).
-    for (const row of Object.values(reg.REROLLS)) expect(row.bonus).toMatch(/^@/);
+    // A row with no bonus (C1, Disciplined Survivor) rerolls flat and pays from the pool its activity consumes.
+    for (const row of Object.values(reg.REROLLS)) {
+      if (row.bonus === null) expect(row.activity).toBeTruthy();
+      else expect(row.bonus).toMatch(/^@/);
+    }
   });
   it("is the `reroll` kind's table: the d20 folds ship each row by its feature's name", () => {
     expect(reg.D20_FOLD_KINDS.has("reroll")).toBe(true);

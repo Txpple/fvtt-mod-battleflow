@@ -553,7 +553,11 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
   it("the table is data with one shape: every row names a side, a scope, a rule and where it is from; feature rows never share a name with an effect", () => {
     for (const [key, row] of Object.entries(T())) {
       // A row bends an attack side, or a check, or a save (the `saves` facet, 2026-09-05), or adds a flat `plus` (B3).
-      expect(row.attacker || row.target || row.checks || row.saves || row.plus, key).toBeTruthy();
+      // …or cancels Advantage against the bearer (C1, Trance of Order: `cancel`).
+      expect(
+        row.attacker || row.target || row.checks || row.saves || row.plus || row.cancel,
+        key
+      ).toBeTruthy();
       expect(["any", "spell", "weapon", "melee", "ranged"], key).toContain(row.scope);
       // A row whose content the packs do not carry points at nothing.
       if (row.rule === null) expect(key).toBe("Cursed (Path to the Grave)");

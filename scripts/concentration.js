@@ -7,8 +7,9 @@
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
-import { damageRuleEntries, listedNames } from "./decide/registry.js";
-import { DAMAGE_RULES } from "./decide/registry.js";
+import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
+import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
+import { ruleLine } from "./decide/present.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy,
   registerWithheld, withholds } from "./ui.js";
@@ -88,8 +89,40 @@ listen("dnd5e.damageActor", "concentration", (actor, changes) => {
   const hp = actor.system.attributes?.hp;
   if ( !hp ) return;
   if ( !((changes.temp < 0) || (hp.value < hp.effectiveMax)) ) return;
+  // C1 — an exempt row (Relentless Hunter): every spell held is the row's, the feature on the sheet — no demand, a card.
+  const exempt = concentrationExemptFor(actor);
+  if ( exempt ) { void exemptCard(actor, exempt, changes); return; }
   void stampConcentrationAsk(actor, changes);
 });
+
+/** The CONCENTRATION_EXEMPTS row that spares this concentrator now: `{ key, row, item }` or null. */
+function concentrationExemptFor(actor) {
+  const on = listedNames(concentrationExemptEntries());
+  const names = concentratingOn(actor).map(lower);
+  if ( !names.length ) return null;
+  for ( const [key, row] of Object.entries(CONCENTRATION_EXEMPTS) ) {
+    if ( !on.has(lower(key)) ) continue;
+    if ( !names.every(n => n === lower(row.spell)) ) continue;
+    const item = featureNamed(actor, key);
+    if ( item ) return { key, row, item };
+  }
+  return null;
+}
+
+/** The card for a spared save: what was held, why nothing is asked (R5 — the record on the card). */
+async function exemptCard(actor, { key, row, item }, changes) {
+  try {
+    const damage = -changes.total;
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({ img: item.img ?? null, eyebrow: "Concentration check", tone: "good",
+        title: `${key} — no save for ${row.spell}`,
+        subtitle: `${actor.name} took ${damage} damage; its Concentration on ${row.spell} holds`,
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { concentrationExempt: { ...statContext(actor.uuid), key, spell: row.spell, actorUuid: actor.uuid, damage } } }
+    });
+  } catch(err) { console.warn(`${TITLE} | ${key}'s card could not post.`, err); }
+}
 
 // Incapacitated breaks concentration, no save; dnd5e does not end it when the status lands.
 function breakOnIncapacitated(effect) {

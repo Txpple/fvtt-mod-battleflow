@@ -59,7 +59,9 @@ export const COVERS = [
   // §B4 (50–63)
   'damage-rules.js',        // the spell-damage bonuses on one roll of the spell
   'rebukes.js',             // Misty Escape: the self rebuke, its Steps to follow
-  'drop-to-one.js'          // Gift of the Protectors: the named row on the warlock's page
+  'drop-to-one.js',         // Gift of the Protectors: the named row on the warlock's page
+  // §C1 (64–91)
+  'concentration.js'        // Relentless Hunter: the exempt row — the card, no demand
 ];
 
 const SECTIONS = {
@@ -127,7 +129,36 @@ const SECTIONS = {
   60: 'Blessed Healer (B4, the Cleric): Cure Wounds at level 2 on the Halfling posts "Blessed Healer — regains 4", the cleric 50 → 54; Improved Warding Flare (the Halfling): the Flare answered lands 2d6 + Wis Temporary Hit Points',
   61: 'Bastion of Law (B4, the Sorcerer): Create Shield with 3 points wards the Halfling for 12 on "Warded by Law (12)"; hits are absorbed until the effect goes; Projected Ward: the sorcerer\'s Arcane Ward absorbs the Halfling\'s next hit (Absorb)',
   62: 'Gift of the Protectors (B4, the Sorcerer\'s page names the Halfling): a drop to 0 is held at 1, the card names the sorcerer, Protect\'s use spent; spent, the next drop lands 0',
-  63: 'the reminders and the bends (B4): War Magic\'s reminder on an attack; Shadow Step\'s chip (a melee gate reads Advantage); Defensive Tactics — Escape the Horde off the attacker\'s turn (Disadvantage) and Multiattack Defense\'s −4 chip against the hitter; Misty Escape\'s rebuke casts Misty Step and offers its Steps; Sculpt Spells\' free row on Fireball\'s cast window'};
+  63: 'the reminders and the bends (B4): War Magic\'s reminder on an attack; Shadow Step\'s chip (a melee gate reads Advantage); Defensive Tactics — Escape the Horde off the attacker\'s turn (Disadvantage) and Multiattack Defense\'s −4 chip against the hitter; Misty Escape\'s rebuke casts Misty Step and offers its Steps; Sculpt Spells\' free row on Fireball\'s cast window',
+  // C1
+  64: 'Relentless Rage (C1, the Halfling a raging Barbarian 11): a drop to 0 is held at 1, the Constitution save rolls at DC 10 and SAVES — 1 + 22 healed, a use spent; the next drop\'s DC 15 FAILS — 0',
+  65: 'Undying Sentinel (C1, the Halfling a Paladin 15): the drop asks "drop to 1 Hit Point instead? · and the heal"; Yes: 1 + 45, the use spent',
+  66: 'Rage of the Gods (C1, the Sorcerer a raging Zealot 14 within 30 ft): the Halfling\'s drop asks the ZEALOT "drop to @classes.barbarian.levels Hit Points instead?"; Yes: the Halfling at 14, a Rage use spent',
+  67: 'Searing Vengeance (C1, the Sorcerer a Warlock 14): the Halfling\'s Death Saving Throw raises the offer; Yes: half the maximum back (200), the Attacker within 30 ft takes 2d8 + Cha radiant and is Blinded, the use spent',
+  68: 'Power of the Wilds (C1, the PC Attacker raging): the Rage asks "Falcon, Lion or Ram?"; Lion: the chip, the quiet ring, the Victim inside attacking the Halfling at Disadvantage, attacking the rager not; Ram: a melee hit\'s rider knocks the Victim Prone',
+  69: 'Lunar Form (C1, the PC Attacker transformed): the offer\'s rider "Lunar Form — 2d10 radiant"; not transformed, none',
+  70: 'Bestial Fury (C1, the Attacker the PC Attacker\'s summon, the Halfling under its Hunter\'s Mark): the companion\'s hit offers the ranger\'s force die; Create Thrall: the thrall\'s hit on the Hex offers 1d6 psychic',
+  71: 'Superior Hunter\'s Prey (C1, the PC Attacker a Ranger 11, the Victim marked): the damage card\'s pick — one other creature within 30 ft; the Attacker picked takes the die on its own card',
+  72: 'Stalker\'s Flurry (C1, the PC Attacker a Gloom Stalker): Dreadful Strike rides, the card offers Sudden Strike / Mass Fear; Sudden Strike recorded; Mass Fear\'s save demanded of the enemies within 10 ft',
+  73: 'Superior Hunter\'s Defense (C1, the Halfling): a hit\'s hold halves the damage and lands "Hunter\'s Defense: <type>"; a cantrip\'s damage asks through the damage hold and halves',
+  74: 'Versatile Trickster (C1, the PC Attacker): after a Trip this turn the attack dialog offers the free box; taken back, none',
+  75: 'Trance of Order (C1, the Sorcerer): the Reckless Attacker\'s gate at the sorcerer reads "cannot have Advantage", net Normal; the sorcerer\'s own save with a 3 counts as 10',
+  76: 'Controlled Chaos (C1, the Sorcerer): the surge rolls the table twice, the line offers the pick; the pick recorded',
+  77: 'Smite of Protection (C1, the Cleric a Paladin 15 with the aura): Divine Smite cast — the paladin and the Halfling inside wear "Smite of Protection" (Half Cover), the cast card\'s line',
+  78: 'Soul of Vengeance (C1, the Cleric 5 ft from the Attacker under its Vow): the Attacker\'s attack card raises the paladin\'s popup "attacked — strike?"',
+  79: 'Peerless Skill (C1, the Bard): a failed Athletics check offers the Bardic die; accepted, a Bardic Inspiration spent',
+  80: 'Disciplined Survivor (C1, the Halfling with Monk\'s Focus): a failed save offers the reroll; accepted, a Focus Point spent',
+  81: 'Perfect Focus (C1, the Halfling): under Uncanny Metabolism\'s No the Focus Points come back up to 4 on the same card; with Uncanny spent, its own card',
+  82: 'Greater Portent (C1, the Sorcerer): the Long Rest keeps three faces',
+  83: 'Spell Resistance (C1, the Sorcerer): the save gate against a spell lists it, net Advantage',
+  84: 'Relentless Hunter (C1, the Sorcerer concentrating on Hunter\'s Mark): damage posts "no save for Hunter\'s Mark", no Concentration ask',
+  85: 'Hurl Through Hell (C1, the PC Attacker a Warlock 14): the hit menu\'s group; ticked, the Charisma save demanded, the use spent',
+  86: 'Improved Blessed Strikes (C1, the Cleric): a cleric cantrip\'s damage lands — "N Temporary Hit Points for another creature"; OK gives the pick',
+  87: 'Battle Magic (C1, the Bard): a spell cast as an action posts "Battle Magic — BF Test Bard can attack again"',
+  88: 'Leading Evasion (C1, the Bard 5 ft from the Halfling): the Halfling fails a half-on-save Dexterity save and takes HALF — the bard\'s Evasion shared',
+  89: 'Unbreakable Majesty (C1, the Bard in its Majestic Presence): the Attacker\'s hit rolls its Charisma save inside the hold; a failure — the attack misses instead; the second hit that turn is not asked',
+  90: 'Oceanic Gift (C1, the Cleric a Sea Druid 14, Stormborn on the Halfling): the ring stands around the Halfling with the druid as its source; the druid\'s turn start asks the pick; the pick demands the druid\'s save',
+  91: 'the gate\'s flag for the death save (C1): a Death Saving Throw with nobody holding Searing Vengeance raises no offer'};
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -4331,6 +4362,1189 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       }
     }
 
+    // ================================================ §C1 — the band-C rows (RULINGS *The PHB classes — C1*)
+    /** Lucky spent whatever its maximum reads (a formula maximum hides it from `lucky()`): no rescue hold on the drops. */
+    const spendLuckC = async () => { for (const l of halfling.items.filter(i => i.name === 'Lucky')) await l.update({ 'system.uses.spent': 9 }); };
+    const refillLuckC = async () => { for (const l of halfling.items.filter(i => i.name === 'Lucky')) await l.update({ 'system.uses.spent': 0 }); };
+    const c1Cards = (since, key) => game.messages.contents.filter(m => (m.timestamp >= since) && m.getFlag(MOD, key));
+    const sorcTokC = () => canvas.tokens.placeables.find(t => t.actor?.id === sorcerer.id) ?? null;
+    const bardTokC = () => canvas.tokens.get(bardDoc.id) ?? null;
+    const dropCards = (since, row) => c1Cards(since, 'dropToOne').filter(m => m.getFlag(MOD, 'dropToOne')?.row === row);
+    /** The Attacker's hit on the Halfling at `hpTo` Hit Points (its damage 12: two dice at 6), the face queue continuing with `more`. */
+    const dropHalfling = async (hpTo, more = []) => {
+      await halfling.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
+      attackerToken.control({ releaseOthers: true });
+      halflingToken.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      faces([[19, 20], [6, 6], ...more]);   // one damage die: the goblin's weapon
+      const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+      const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+      const m = rolls?.[0]?.parent ?? null;
+      const d = await a1Damage(m);
+      log.push(`dropHalfling: total=${rolls?.[0]?.total} ac=${halfling.system.attributes.ac.value} hits=${JSON.stringify(m?.getFlag(MOD, 'hold')?.targets?.map(t => [t.verdict, t.reaction]) ?? null)} damage=${!!damageFor(m?.id)} receipt=${JSON.stringify(d?.getFlag(MOD, 'receipt')?.targets?.map(t => [t.name, t.taken]) ?? null)} hp=${hp()} max=${halfling.system.attributes.hp.max}`);
+      return m;
+    };
+    /** A hit by `actor` at `targetToken` with `activity` (d20 19), the damage offer back when it opens. */
+    const hitAt = async (token, activity, targetToken, { hpTo = null, actor = null } = {}) => {
+      if (hpTo !== null && actor) await actor.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
+      token.control({ releaseOthers: true });
+      targetToken.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const before = new Set(popups());
+      faces([[19, 20], [19, 20], [3, 6]]);
+      const usage = (activity.item?.type === 'spell') ? null : await activity.use({ subsequentActions: false }, { configure: false }, {});
+      const rolls = await activity.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+      const msg = rolls?.[0]?.parent ?? null;
+      const offer = await waitFor(() => offerApp(before), 4000);
+      return { msg, offer };
+    };
+    const rescueWindowC = text => [...document.querySelectorAll('.application')].find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
+    const clearDown = async actor => { for (const e of actor.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {}); };
+    /** An effect of `name` written on `actor`, its origin `origin` (a mark placed by another creature's item). */
+    const markOn = async (actor, name, origin, statuses = []) => {
+      const [e] = await actor.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', origin, transfer: false, disabled: false, statuses }]);
+      return e;
+    };
+    const dropNamed = async (actor, names) => { const ids = actor.effects.filter(e => names.includes(e.name)).map(e => e.id); if (ids.length) await actor.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); };
+    const activateRange = async () => {
+      const priorActive = game.scenes.active ?? null;
+      if (priorActive?.id !== scene.id) { priorActiveScene = priorActiveScene ?? priorActive; await scene.activate(); await sleep(1500); }
+    };
+    const backToRange = async () => {
+      if (canvas.scene?.id !== scene.id) { await scene.view(); for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === scene.id); i++) await sleep(250); await sleep(500); }
+    };
+    const regionKeyed = (key, tokenId) => scene.regions.find(r => { const fl = r.getFlag(MOD, 'emanation'); return (fl?.kind === 'feature') && (fl.key === key) && (fl.tokenId === tokenId); }) ?? null;
+
+    // ---- 64. Relentless Rage: the save at the climbing DC, the heal on a success, the 0 on a failure
+    if (want(64)) {
+      await closeA1(); await spendLuckC();
+      const barb = await hgLend(halfling, 'Barbarian', 'class', { 'system.levels': 11 });
+      const rr = await hgLend(halfling, 'Relentless Rage', 'feat', { 'system.uses.max': '20', 'system.uses.spent': 0 });
+      const rage = await markOn(halfling, 'Rage', rr?.uuid ?? null);
+      try {
+        if (!barb || !rr) log.push(`§64 skipped: barbarian=${!!barb} relentless=${!!rr}`);
+        else {
+          await sleep(300);
+          const spent = () => Number(halfling.items.get(rr.id)?.system?.uses?.spent ?? NaN);
+          const t0 = Date.now();
+          await dropHalfling(5, [[20, 20]]);   // the Constitution save's d20 a 20
+          const card = await waitFor(() => dropCards(t0, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, 10000);
+          await waitFor(() => hp() > 1, 8000);
+          await sleep(400);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const f = card?.getFlag(MOD, 'dropToOne');
+          ok('64a. raging, dropped to 0: held at 1, the Constitution save at DC 10 rolled and SAVED, a use spent, 22 healed on top (1 + 2 × 11 = 23)',
+            (f?.answer === 'saved') && (f?.save?.dc === 10) && (spent() === 1) && (hp() === 23),
+            `flag=${JSON.stringify(f && { answer: f.answer, save: f.save })} spent=${spent()} hp=${hp()} card="${cardText(card?.id).slice(0, 160)}"`);
+          const t1 = Date.now();
+          await dropHalfling(5, [[1, 20]]);   // the second save's d20 a 1: DC 15 fails
+          const card2 = await waitFor(() => dropCards(t1, 'Relentless Rage').find(m => m.getFlag(MOD, 'dropToOne')?.answer) ?? null, 10000);
+          await sleep(600);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const f2 = card2?.getFlag(MOD, 'dropToOne');
+          ok('64b. the next drop: the DC climbed to 15 (a use spent), the save FAILS, 0 lands', (f2?.answer === 'failed') && (f2?.save?.dc === 15) && (hp() === 0) && (spent() === 2),
+            `flag=${JSON.stringify(f2 && { answer: f2.answer, save: f2.save })} hp=${hp()} spent=${spent()}`);
+        }
+      } finally {
+        await closeA1();
+        await clearDown(halfling);
+        if (rage) await rage.delete().catch(() => {});
+        for (const it of [rr, barb]) if (it) await unlend(halfling, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 65. Undying Sentinel: the ask with a heal
+    if (want(65)) {
+      await closeA1(); await spendLuckC();
+      const pal = await hgLend(halfling, 'Paladin', 'class', { 'system.levels': 15 });
+      const us = await hgLend(halfling, 'Undying Sentinel', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      try {
+        if (!pal || !us) log.push(`§65 skipped: paladin=${!!pal} sentinel=${!!us}`);
+        else {
+          await sleep(300);
+          const t0 = Date.now();
+          await dropHalfling(5);
+          const pop = await waitFor(() => titled(/^Undying Sentinel — /), 8000);
+          const popText = textOf(pop?.element);
+          ok('65a. the drop asks: "drops to 0 Hit Points — drop to 1 Hit Point instead?" with the heal named, the Halfling held at 1',
+            !!pop && /drop to 1 Hit Point instead\?/.test(popText) && /and the heal/.test(popText) && (hp() === 1), `pop="${popText.slice(0, 200)}" hp=${hp()}`);
+          pop?.element?.querySelector('button[data-action="use"]')?.click();
+          const card = await waitFor(() => dropCards(t0, 'Undying Sentinel').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, 10000);
+          await waitFor(() => hp() > 1, 8000);
+          await sleep(400);
+          ok('65b. Yes: 1 + 3 × 15 = 46 Hit Points, the use spent, the card line "drops to 1 Hit Point instead"',
+            (hp() === 46) && (Number(halfling.items.get(us.id)?.system?.uses?.spent) === 1) && /drops to 1 Hit Point instead/.test(cardText(card?.id)),
+            `hp=${hp()} spent=${halfling.items.get(us.id)?.system?.uses?.spent} card="${cardText(card?.id).slice(0, 200)}"`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Undying Sentinel — /);
+        await clearDown(halfling);
+        for (const it of [us, pal]) if (it) await unlend(halfling, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 66. Rage of the Gods: the Zealot within 30 ft keeps an ally's drop
+    if (want(66)) {
+      await closeA1(); await spendLuckC();
+      const barb = await hgLend(sorcerer, 'Barbarian', 'class', { 'system.levels': 14 });
+      const rage = await hgLend(sorcerer, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const rog = await hgLend(sorcerer, 'Rage of the Gods', 'feat');
+      const raging = await markOn(sorcerer, 'Rage of the Gods', rog?.uuid ?? null);
+      try {
+        if (!barb || !rage || !rog) log.push(`§66 skipped: barbarian=${!!barb} rage=${!!rage} gods=${!!rog}`);
+        else {
+          await sleep(300);
+          const t0 = Date.now();
+          await dropHalfling(5);
+          const pop = await waitFor(() => titled(/^Rage of the Gods — /), 8000);
+          const popText = textOf(pop?.element);
+          const card0 = dropCards(t0, 'Rage of the Gods')[0] ?? null;
+          ok('66a. the Halfling\'s drop asks the ZEALOT (15 ft away): "drop to @classes.barbarian.levels Hit Points instead?", the Rage use named, the card "held at 1 until BF Test Sorcerer answers"',
+            !!pop && /drop to @classes\.barbarian\.levels Hit Points instead\?/.test(popText) && /Rage/.test(popText) && (card0?.getFlag(MOD, 'dropToOne')?.keeperUuid === sorcerer.uuid) && (hp() === 1),
+            `pop="${popText.slice(0, 220)}" keeper=${card0?.getFlag(MOD, 'dropToOne')?.keeperName ?? null} hp=${hp()}`);
+          pop?.element?.querySelector('button[data-action="use"]')?.click();
+          const card = await waitFor(() => dropCards(t0, 'Rage of the Gods').find(m => m.getFlag(MOD, 'dropToOne')?.applied) ?? null, 10000);
+          await waitFor(() => hp() > 1, 8000);
+          await sleep(400);
+          ok('66b. Yes: the Halfling at 14 Hit Points (the barbarian\'s level), a Rage use spent, the line names the keeper',
+            (hp() === 14) && (Number(sorcerer.items.get(rage.id)?.system?.uses?.spent) === 1) && /Rage of the Gods \(BF Test Sorcerer's\)/.test(cardText(card?.id)) && /drops to 14 Hit Points instead/.test(cardText(card?.id)),
+            `hp=${hp()} rageSpent=${sorcerer.items.get(rage.id)?.system?.uses?.spent} card="${cardText(card?.id).slice(0, 220)}"`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Rage of the Gods — /);
+        await clearDown(halfling);
+        if (raging) await raging.delete().catch(() => {});
+        for (const it of [rog, rage, barb]) if (it) await unlend(sorcerer, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 67. Searing Vengeance: the offer as a Death Saving Throw rolls
+    if (want(67)) {
+      await closeA1();
+      hgKeep(attacker, { 'system.attributes.hp.value': attacker.system._source.attributes.hp.value });
+      const wl = await hgLend(sorcerer, 'Warlock', 'class', { 'system.levels': 14 });
+      const sv = await hgLend(sorcerer, 'Searing Vengeance', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      try {
+        if (!wl || !sv) log.push(`§67 skipped: warlock=${!!wl} vengeance=${!!sv}`);
+        else {
+          await sleep(300);
+          await attacker.update({ 'system.attributes.hp.value': Number(attacker.system.attributes.hp.max) || 20 });
+          const ahp0 = Number(attacker.system.attributes.hp.value);
+          await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0 });
+          const t0 = Date.now();
+          faces([[10, 20]]);
+          await halfling.rollDeathSave({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const offer = await waitFor(() => c1Cards(t0, 'deathSaveOffer')[0] ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Searing Vengeance — /), 8000);
+          ok('67a. the Death Saving Throw raises the offer to the warlock (15 ft away): "rolls a Death Saving Throw — Searing Vengeance?"',
+            !!offer && !!pop && /rolls a Death Saving Throw — Searing Vengeance\?/.test(textOf(pop?.element)) && (offer.getFlag(MOD, 'deathSaveOffer')?.keeperUuid === sorcerer.uuid),
+            `offer=${!!offer} pop="${textOf(pop?.element).slice(0, 200)}"`);
+          faces([[4, 8], [4, 8]]);
+          pop?.element?.querySelector('button[data-action="use"]')?.click();
+          const done = await waitFor(() => offer?.getFlag(MOD, 'deathSaveOffer')?.applied ? offer.getFlag(MOD, 'deathSaveOffer') : null, 12000);
+          await sleep(600);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const cha = Number(sorcerer.getRollData()?.abilities?.cha?.mod ?? 0);
+          const blinded = attacker.effects.find(e => (e.name === 'Searing Vengeance') && e.statuses?.has?.('blinded')) ?? null;
+          ok('67b. Yes: the Halfling at half its maximum (200), the Attacker within 30 ft takes 2d8 + Cha radiant and is Blinded, the use spent',
+            (hp() === 200) && (done?.healed === 200) && (Number(attacker.system.attributes.hp.value) === ahp0 - (8 + cha)) && !!blinded
+              && (Number(sorcerer.items.get(sv.id)?.system?.uses?.spent) === 1) && (done?.victims ?? []).includes(attackerToken.document.name),
+            `hp=${hp()} record=${JSON.stringify(done && { healed: done.healed, burst: done.burst, victims: done.victims })} attacker=${attacker.system.attributes.hp.value} (from ${ahp0}, cha ${cha}) blinded=${!!blinded} spent=${sorcerer.items.get(sv.id)?.system?.uses?.spent}`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Searing Vengeance — /);
+        await clearDown(halfling);
+        await dropNamed(attacker, ['Searing Vengeance']); await dropVictimFx();
+        for (const it of [sv, wl]) if (it) await unlend(sorcerer, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 68. Power of the Wilds: the pick at the Rage; Lion's ring; Ram's press
+    if (want(68)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      await dropFx(pcAttacker, RAGE_FX);
+      await activateRange();
+      const rage = await hgLend(pcAttacker, 'Rage', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const wilds = await hgLend(pcAttacker, 'Power of the Wilds', 'feat');
+      const victimWeapon = weaponOf(victim);
+      const chipOn = () => pcAttacker.effects.find(e => e.getFlag(MOD, 'formChip')?.choice === 'Power of the Wilds') ?? null;
+      const memberOn = actor => actor.effects.find(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Power of the Wilds: Lion')) ?? null;
+      try {
+        if (!rage || !wilds || !pcWeapon || !victimWeapon) log.push(`§68 skipped: rage=${!!rage} wilds=${!!wilds} weapon=${!!pcWeapon} victimWeapon=${!!victimWeapon}`);
+        else {
+          const card = await useFeature(pcToken, rage);
+          const lion = await waitFor(() => hgPickButton('Lion'), 6000);
+          ok('68a. the Rage asks "Power of the Wilds — Falcon, Lion or Ram?"', !!lion && !!hgPickButton('Falcon') && !!hgPickButton('Ram') && (card?.getFlag(MOD, 'castApply')?.choice?.key === 'Power of the Wilds'),
+            `choice=${JSON.stringify(card?.getFlag(MOD, 'castApply')?.choice ?? null)}`);
+          lion?.click();
+          const chip = await waitFor(chipOn, 6000);
+          const region = await waitFor(() => regionKeyed('Power of the Wilds', pcToken.document.id), 10000);
+          const member = await waitFor(() => memberOn(victim), 8000);
+          ok('68b. Lion: the chip "Power of the Wilds: Lion" on the barbarian, the quiet ring, the Victim within 5 ft wears the made member copy',
+            (chip?.name === 'Power of the Wilds: Lion') && !!region && !!member && (member.changes?.length === 0),
+            `chip=${chip?.name ?? null} region=${!!region} member=${member?.name ?? null}`);
+          const other = await gateFor(victimToken, attackOf(victim, victimWeapon), halflingToken);
+          const atRager = await gateFor(victimToken, attackOf(victim, victimWeapon), pcToken);
+          ok('68c. the Victim attacking the Halfling: the gate lists "Power of the Wilds: Lion", net Disadvantage; attacking the rager: no row',
+            other.open && /Power of the Wilds: Lion/.test(other.text) && (other.net === 'disadvantage') && atRager.open && !/Power of the Wilds: Lion/.test(atRager.text),
+            `other=${other.net} "${other.text.slice(0, 160)}" rager=${atRager.net} "${atRager.text.slice(0, 120)}"`);
+          await closeA1();
+          // Ram: the pick kept as the chip, a melee hit's rider knocks the Victim Prone
+          await chip?.delete().catch(() => {});
+          await dropFx(pcAttacker, RAGE_FX);
+          const card2 = await useFeature(pcToken, rage);
+          const ram = await waitFor(() => hgPickButton('Ram'), 6000);
+          ram?.click();
+          await waitFor(() => chipOn()?.name === 'Power of the Wilds: Ram', 6000);
+          await waitFor(() => fxNamed(pcAttacker, ['Rage'])[0] ?? null, 6000);
+          await closeA1();
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('68d. Ram, raging: a melee hit offers the rider "Power of the Wilds — Ram" (it is knocked Prone)', !!riderBox(r1.offer, 'power-of-the-wilds-ram') && /knocked Prone/.test(riderRow(r1.offer, 'power-of-the-wilds-ram')),
+            `card2=${!!card2} chip=${chipOn()?.name ?? null} row="${riderRow(r1.offer, 'power-of-the-wilds-ram').slice(0, 140)}"`);
+          await a1Roll(r1.msg, r1.offer);
+          const landed = await waitFor(() => victimFx().find(e => e.name === 'Power of the Wilds: Ram') ?? null, 8000);
+          ok('68e. it rode: the pack\'s "Power of the Wilds: Ram" (Prone) lands on the Victim', !!landed && landed.statuses?.has?.('prone'), `fx=${JSON.stringify(victimFx().map(e => e.name))}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        await dropFx(pcAttacker, RAGE_FX);
+        const c = chipOn(); if (c) await c.delete().catch(() => {});
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [wilds, rage]) if (it) await unlend(pcAttacker, it);
+        const gone = await waitFor(() => !regionKeyed('Power of the Wilds', pcToken.document.id) && !memberOn(victim), 8000);
+        if (!gone) { const r = regionKeyed('Power of the Wilds', pcToken.document.id); if (r) await r.delete().catch(() => {}); const m = memberOn(victim); if (m) await m.delete().catch(() => {}); }
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 69. Lunar Form: the transformation flag
+    if (want(69)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx();
+      const lunar = await hgLend(pcAttacker, 'Lunar Form', 'feat');
+      try {
+        if (!lunar || !pcWeapon) log.push(`§69 skipped: lunar=${!!lunar} weapon=${!!pcWeapon}`);
+        else {
+          await pcAttacker.setFlag('dnd5e', 'isPolymorphed', true);
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('69a. transformed: the offer\'s ticked rider "Lunar Form — 2d10 radiant"', !!riderBox(r1.offer, 'lunar-form') && /2d10/.test(riderRow(r1.offer, 'lunar-form')) && /radiant/.test(riderRow(r1.offer, 'lunar-form')),
+            `offer=${!!r1.offer} row="${riderRow(r1.offer, 'lunar-form').slice(0, 120)}"`);
+          if (r1.offer) await a1Roll(r1.msg, r1.offer); else await a1Damage(r1.msg);
+          await dropEffects(pcAttacker, riderChits(pcAttacker));
+          await pcAttacker.unsetFlag('dnd5e', 'isPolymorphed');
+          const r2 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon), { offerWait: 2500 });
+          ok('69b. not transformed: no Lunar Form row', !riderBox(r2.offer, 'lunar-form'), `offer=${!!r2.offer} rows=${JSON.stringify(r2.offer ? [...r2.offer.element.querySelectorAll('[data-bf-rider-row]')].map(e => e.dataset.bfRiderRow) : null)}`);
+          if (r2.offer) await a1Roll(r2.msg, r2.offer);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        await pcAttacker.unsetFlag('dnd5e', 'isPolymorphed').catch(() => {});
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        if (lunar) await unlend(pcAttacker, lunar);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 70. Bestial Fury and Create Thrall: the riders on a summon
+    if (want(70)) {
+      await closeDialogs(); await spendLuckC();
+      const ranger = await hgLend(pcAttacker, 'Ranger', 'class', { 'system.levels': 11 });
+      const companion = await hgLend(pcAttacker, 'Primal Companion', 'feat');
+      const fury = await hgLend(pcAttacker, 'Bestial Fury', 'feat');
+      const mark = await hgLend(pcAttacker, "Hunter's Mark", 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const summonAct = companion ? [...(companion.system.activities ?? [])].find(a => a.type === 'summon') : null;
+      let marked = null;
+      try {
+        if (!ranger || !companion || !fury || !mark || !summonAct) log.push(`§70 skipped: ranger=${!!ranger} companion=${!!companion} fury=${!!fury} mark=${!!mark} summon=${!!summonAct}`);
+        else {
+          await sleep(300);
+          await attacker.setFlag('dnd5e', 'summon', { origin: summonAct.uuid });
+          marked = await markOn(halfling, "Hunter's Mark", mark.uuid, ['marked']);
+          const r1 = await hitAt(attackerToken, act(), halflingToken, { hpTo: 400, actor: halfling });
+          const scale = String(pcAttacker.getRollData()?.scale?.ranger?.mark ?? '');
+          ok('70a. the companion (the Attacker, the ranger\'s summon) hits the marked Halfling: the rider "Bestial Fury" with the ranger\'s force die',
+            !!riderBox(r1.offer, 'bestial-fury') && /force/.test(riderRow(r1.offer, 'bestial-fury')) && /d\d/.test(riderRow(r1.offer, 'bestial-fury')),
+            `offer=${!!r1.offer} row="${riderRow(r1.offer, 'bestial-fury').slice(0, 140)}" scale="${scale}"`);
+          if (r1.offer) await a1Roll(r1.msg, r1.offer); else await a1Damage(r1.msg);
+          await marked.delete().catch(() => {}); marked = null;
+          const r2 = await hitAt(attackerToken, act(), halflingToken, { hpTo: 400, actor: halfling });
+          ok('70b. the Halfling no longer marked: no Bestial Fury row', !riderBox(r2.offer, 'bestial-fury'), `offer=${!!r2.offer}`);
+          if (r2.offer) await a1Roll(r2.msg, r2.offer);
+          // Create Thrall: the same shape on the warlock's Hex (the companion stays lent: the Attacker's summon origin is its activity)
+          for (const it of [fury, mark, ranger]) await unlend(pcAttacker, it);
+          const warlock = await hgLend(pcAttacker, 'Warlock', 'class', { 'system.levels': 14 });
+          const thrall = await hgLend(pcAttacker, 'Create Thrall', 'feat');
+          const hex = await hgLend(pcAttacker, 'Hex', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+          try {
+            if (!warlock || !thrall || !hex) log.push(`§70c skipped: warlock=${!!warlock} thrall=${!!thrall} hex=${!!hex}`);
+            else {
+              marked = await markOn(halfling, 'Hex', hex.uuid);
+              const r3 = await hitAt(attackerToken, act(), halflingToken, { hpTo: 400, actor: halfling });
+              ok('70c. the thrall\'s hit on the Hexed Halfling: the rider "Create Thrall — 1d6 psychic"', !!riderBox(r3.offer, 'create-thrall') && /1d6/.test(riderRow(r3.offer, 'create-thrall')) && /psychic/.test(riderRow(r3.offer, 'create-thrall')),
+                `offer=${!!r3.offer} row="${riderRow(r3.offer, 'create-thrall').slice(0, 140)}"`);
+              if (r3.offer) await a1Roll(r3.msg, r3.offer); else await a1Damage(r3.msg);
+            }
+          } finally {
+            for (const it of [thrall, hex, warlock]) if (it) await unlend(pcAttacker, it);
+          }
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        await attacker.unsetFlag('dnd5e', 'summon').catch(() => {});
+        if (marked) await marked.delete().catch(() => {});
+        await dropNamed(halfling, ["Hunter's Mark", 'Hex']);
+        await dropEffects(attacker, riderChits(attacker));
+        for (const it of [fury, companion, mark, ranger]) if (it && pcAttacker.items.get(it.id)) await unlend(pcAttacker, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 71. Superior Hunter's Prey: the pick on the damage card
+    if (want(71)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx();
+      hgKeep(attacker, { 'system.attributes.hp.value': attacker.system._source.attributes.hp.value });
+      const ranger = await hgLend(pcAttacker, 'Ranger', 'class', { 'system.levels': 11 });
+      const prey = await hgLend(pcAttacker, "Superior Hunter's Prey", 'feat');
+      const mark = await hgLend(pcAttacker, "Hunter's Mark", 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      let marked = null;
+      try {
+        if (!ranger || !prey || !mark || !pcWeapon) log.push(`§71 skipped: ranger=${!!ranger} prey=${!!prey} mark=${!!mark} weapon=${!!pcWeapon}`);
+        else {
+          await sleep(300);
+          await attacker.update({ 'system.attributes.hp.value': Number(attacker.system.attributes.hp.max) || 20 });
+          const ahp0 = Number(attacker.system.attributes.hp.value);
+          marked = await markOn(victim, "Hunter's Mark", mark.uuid, ['marked']);
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('71a. the hit on the marked Victim: no rider on the roll (a pick, never a die)', !riderBox(r1.offer, 'superior-hunters-prey'), `offer=${!!r1.offer}`);
+          const d1 = r1.offer ? await a1Roll(r1.msg, r1.offer) : await a1Damage(r1.msg);
+          // The row is the label span's parent (the outer card div would match the text too).
+          const row = await waitFor(() => [...(cardEl(d1?.id)?.querySelectorAll?.('span') ?? [])].find(el => /^Superior Hunter's Prey — \+/.test(textOf(el)))?.parentElement ?? null, 8000);
+          const buttons = [...(row?.querySelectorAll?.('button') ?? [])].map(b => textOf(b));
+          const { creaturesWithin } = await import('/modules/fvtt-mod-battleflow/scripts/geometry.js');
+          const expected = creaturesWithin(victimToken, 30).filter(t => t.actor && (t.actor.uuid !== victim.uuid) && (t.actor.uuid !== pcAttacker.uuid)).length;
+          ok('71b. the damage card offers "Superior Hunter\'s Prey — +<die> force to one other creature within 30 ft of the marked target" with a button per candidate (every other creature within 30 ft of the Victim, the Attacker among them)',
+            !!row && /one other creature within 30 ft/.test(textOf(row)) && buttons.includes(attackerToken.document.name) && (buttons.length === expected),
+            `row="${textOf(row).slice(0, 200)}" buttons=${JSON.stringify(buttons)} expected=${expected}`);
+          const t0 = Date.now();
+          faces([[4, 6]]);
+          [...(row?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === attackerToken.document.name)?.click();
+          const pickCard = await waitFor(() => c1Cards(t0, 'spellRiderCard').find(m => m.getFlag(MOD, 'spellRiderCard')?.targetUuid === attacker.uuid) ?? null, 10000);
+          await waitFor(() => Number(attacker.system.attributes.hp.value) < ahp0, 6000);
+          await sleep(300);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const rec = pickCard?.getFlag(MOD, 'spellRiderCard');
+          ok('71c. the Attacker picked: its own card "+4 force to BF Test Attacker", the die rolled there, the damage landed',
+            !!pickCard && (rec?.value === 4) && (rec?.type === 'force') && (Number(attacker.system.attributes.hp.value) === ahp0 - 4),
+            `record=${JSON.stringify(rec && { value: rec.value, type: rec.type, target: rec.targetUuid === attacker.uuid })} hp=${attacker.system.attributes.hp.value} from ${ahp0}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (marked) await marked.delete().catch(() => {});
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [prey, mark, ranger]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 72. Stalker's Flurry: the follow-up after Dreadful Strike
+    if (want(72)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx(); await set('saveRolls', 'auto');
+      const ranger = await hgLend(pcAttacker, 'Ranger', 'class', { 'system.levels': 11 });
+      const ambusher = await hgLend(pcAttacker, 'Dread Ambusher', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const flurry = await hgLend(pcAttacker, "Stalker's Flurry", 'feat');
+      try {
+        if (!ranger || !ambusher || !flurry || !pcWeapon) log.push(`§72 skipped: ranger=${!!ranger} ambusher=${!!ambusher} flurry=${!!flurry} weapon=${!!pcWeapon}`);
+        else {
+          await sleep(300);
+          const followRow = d => cardEl(d?.id)?.querySelector('.bf-rider-follow') ?? null;
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('72a. the hit offers Dreadful Strike', !!riderBox(r1.offer, 'dread-ambusher'), `offer=${!!r1.offer} rows=${JSON.stringify(r1.offer ? [...r1.offer.element.querySelectorAll('[data-bf-rider-row]')].map(e => e.dataset.bfRiderRow) : null)}`);
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          const row1 = await waitFor(() => followRow(d1), 8000);
+          const labels = [...(row1?.querySelectorAll?.('button') ?? [])].map(b => textOf(b));
+          ok('72b. it rode: the damage card offers "Stalker\'s Flurry — one of: Sudden Strike / Mass Fear"', !!row1 && /Stalker's Flurry — one of/.test(textOf(row1)) && labels.includes('Sudden Strike') && labels.includes('Mass Fear'),
+            `row="${textOf(row1).slice(0, 160)}" labels=${JSON.stringify(labels)}`);
+          [...(row1?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === 'Sudden Strike')?.click();
+          const picked = await waitFor(() => ridersOf(game.messages.get(d1?.id)).find(r => r.key === 'dread-ambusher')?.follow?.picked ?? null, 6000);
+          await sleep(300);
+          ok('72c. Sudden Strike picked: recorded on the rider, the card says "one more attack … from the sheet"', (picked?.label === 'Sudden Strike') && /one more attack/.test(textOf(followRow(d1))),
+            `picked=${JSON.stringify(picked)} row="${textOf(followRow(d1)).slice(0, 160)}"`);
+          await dropEffects(pcAttacker, riderChits(pcAttacker));
+          // The first ride spent the lent copy's uses (its activity carries none of its own): reset for the second hit.
+          const dsAct = pcAttacker.items.get(ambusher.id)?.system?.activities?.find(a => a.name === 'Dreadful Strike');
+          await pcAttacker.items.get(ambusher.id)?.update({ 'system.uses.spent': 0, ...(dsAct ? { [`system.activities.${dsAct.id}.uses.spent`]: 0 } : {}) });
+          const t2 = Date.now();
+          const r2 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          const d2 = await a1Roll(r2.msg, r2.offer);
+          const row2 = await waitFor(() => followRow(d2), 8000);
+          faces([[1, 20], [1, 20]]);
+          [...(row2?.querySelectorAll?.('button') ?? [])].find(b => textOf(b) === 'Mass Fear')?.click();
+          const demand = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t2) && m.getFlag(MOD, 'saves') && (m.id !== d2?.id) && (m.getFlag(MOD, 'saves')?.item?.name === "Stalker's Flurry")) ?? null, 10000);
+          await sleep(600);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const targets = (demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.uuid);
+          const since = game.messages.contents.filter(m => m.timestamp >= t2).map(m => [m.type, m.getFlag('dnd5e', 'item')?.type ?? null, Object.keys(m.flags?.[MOD] ?? {}).join('+'), (m.content ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 60)]);
+          ok('72d. Mass Fear picked: the pack\'s Wisdom save demanded of the enemies within 10 ft of the ranger (the Victim, the Attacker), nobody else',
+            !!demand && targets.includes(victim.uuid) && !targets.includes(attacker.uuid),   // the pack's 10-ft Emanation of the ranger: everyone inside is asked (allies too), the Attacker at 11 ft not
+            `demand=${!!demand} targets=${JSON.stringify((demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))} picked=${JSON.stringify(ridersOf(game.messages.get(d2?.id)).find(r => r.key === 'dread-ambusher')?.follow?.picked ?? null)} since=${JSON.stringify(since.slice(-6))}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        await dropVictimFx(); await dropNamed(attacker, ['Frightened']); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [flurry, ambusher, ranger]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 73. Superior Hunter's Defense: the half on a hit (the hold) and on any damage (the damage hold), the typed effect
+    if (want(73)) {
+      await closeDialogs(); await spendLuckC(); await dropReactionChips(halfling); await set('saveRolls', 'auto');
+      const shd = await hgLend(halfling, "Superior Hunter's Defense", 'feat');
+      // The hit's hold opens the rescue window (Uncanny Dodge's shape): its row ticked, Answer casts.
+      const holdPopup = () => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && (app.element?.querySelector?.('[data-bf-ticks="bf-rescue"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null;
+      const answerHold = async pop => {
+        const box = [...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].find(x => x.value === "Superior Hunter's Defense");
+        if (box) { if (!box.checked) box.click(); await sleep(50); pop?.element?.querySelector('button[data-action="answer"]')?.click(); }
+        else pop?.element?.querySelector('button[data-action="cast"]')?.click();
+      };
+      const typed = () => halfling.effects.find(e => e.name.startsWith("Hunter's Defense: ")) ?? null;
+      try {
+        if (!shd) log.push('§73 skipped: no Superior Hunter\'s Defense in the PHB');
+        else {
+          const msg = await swing({ d20: [12], dmg: 6 });
+          const pop = await waitFor(holdPopup, 8000);
+          const t0 = holdOf(msg)?.targets?.find(x => x.uuid === halfling.uuid);
+          ok('73a. a hit is held for Superior Hunter\'s Defense (a damage interrupt, the half); the Halfling\'s popup', !!pop && (t0?.reaction === "Superior Hunter's Defense") && (t0?.kind === 'damage'),
+            `pop=${!!pop} target=${JSON.stringify(t0 && { reaction: t0.reaction, kind: t0.kind })}`);
+          await waitFor(() => damageFor(msg?.id), 8000);
+          await answerHold(pop);
+          const rt = await resolvedTarget(msg);
+          const dmg = await waitFor(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, 12000);
+          const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid);
+          const fx = await waitFor(typed, 8000);
+          ok('73b. Cast: the damage halved (12 → 6), the pack\'s typed Resistance ("Hunter\'s Defense: <type>") lands on the Halfling for the turn',
+            (rt?.answer === 'cast') && (Number(receipt?.taken) === 6) && !!fx && (hp() === 394), `answer=${rt?.answer} taken=${receipt?.taken} hp=${hp()} fx=${fx?.name ?? null}`);
+          await dropNamed(halfling, halfling.effects.filter(e => e.name.startsWith("Hunter's Defense: ")).map(e => e.name)); await dropReactionChips(halfling); await healFull();
+          // any damage: the Attacker's Sacred Flame fails — the damage hold asks, halves
+          let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+          if (!flameId) { const flame = await hgLend(attacker, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' }); flameId = flame?.id; }
+          const flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+          if (!flameAct) log.push('§73c skipped: no Sacred Flame save activity');
+          else {
+            const t1 = Date.now();
+            attackerToken.control({ releaseOthers: true });
+            halflingToken.setTarget(true, { releaseOthers: true });
+            await sleep(100);
+            faces([[1, 20], [4, 8]]);
+            await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+            const hold = await waitFor(() => c1Cards(t1, 'damageHold').find(m => m.getFlag(MOD, 'damageHold')?.reaction === "Superior Hunter's Defense") ?? null, 10000);
+            const pop2 = await waitFor(() => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && /about to take/.test(textOf(app.element))) ?? null, 6000);
+            ok('73c. a failed save\'s damage is held by the damage hold: "is about to take N damage", the popup', !!hold && !!pop2 && (hold.getFlag(MOD, 'damageHold')?.halve === 0.5),
+              `hold=${JSON.stringify(hold?.getFlag(MOD, 'damageHold') && { amount: hold.getFlag(MOD, 'damageHold').amount, halve: hold.getFlag(MOD, 'damageHold').halve })} pop=${!!pop2}`);
+            const amount = Number(hold?.getFlag(MOD, 'damageHold')?.amount ?? 0);
+            pop2?.element?.querySelector('button[data-action="cast"]')?.click();
+            const done = await waitFor(() => hold?.getFlag(MOD, 'damageHold')?.applied ? hold.getFlag(MOD, 'damageHold') : null, 12000);
+            await sleep(500);
+            CONFIG.Dice.randomUniform = realPRNG;
+            ok('73d. Cast: half the share lands, the typed Resistance (radiant) with it', (done?.answer === 'cast') && (Number(done?.reduceBy) === amount - Math.floor(amount / 2)) && (hp() === 400 - Math.floor(amount / 2)) && (typed()?.name === "Hunter's Defense: Radiant"),
+              `done=${JSON.stringify(done && { answer: done.answer, reduceBy: done.reduceBy, amount: done.amount })} hp=${hp()} fx=${typed()?.name ?? null}`);
+            clearTargets();
+          }
+        }
+      } finally {
+        await closeDialogs();
+        await dropNamed(halfling, halfling.effects.filter(e => e.name.startsWith("Hunter's Defense: ")).map(e => e.name)); await dropReactionChips(halfling);
+        if (shd) await unlend(halfling, shd);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 74. Versatile Trickster: the free box after a Trip this turn
+    if (want(74)) {
+      await closeA1(); await a1Victim();
+      const vt = await hgLend(pcAttacker, 'Versatile Trickster', 'feat');
+      try {
+        if (!vt || !pcWeapon) log.push(`§74 skipped: trickster=${!!vt} weapon=${!!pcWeapon}`);
+        else {
+          const m = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [19] });
+          await m?.setFlag(MOD, 'sneak', { armed: true, cunning: ['trip'], rolled: true });
+          await sleep(300);
+          const p = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
+          pcToken.control({ releaseOthers: true }); victimToken.setTarget(true, { releaseOthers: true });
+          const dlg = await waitFor(rollDialog, 6000);
+          await sleep(500);
+          const boxText = textOf(dlg?.element?.querySelector('[data-bf-buy]'));
+          const box = dlg?.element?.querySelector('input[name="bf-buy"][data-bf-free]');
+          ok('74a. after a Trip this turn: the attack dialog\'s box "Versatile Trickster — free · the Mage Hand within 5 feet of the target — the table\'s", tickable',
+            !!dlg && /Versatile Trickster — free/.test(boxText) && /Mage Hand/.test(boxText) && !!box, `dlg=${!!dlg} box="${boxText.slice(0, 160)}" input=${!!box}`);
+          if (box) { box.checked = true; box.dispatchEvent(new Event('change', { bubbles: true })); }
+          await sleep(200);
+          dlg?.element?.querySelector('button[data-action="advantage"]')?.click();
+          const rolls = await Promise.resolve(p).catch(() => null);
+          const rec = rolls?.[0]?.parent?.getFlag(MOD, 'reminder');
+          ok('74b. ticked and rolled with Advantage: the record lists "Versatile Trickster" as a buy source, nothing spent', !!rec && (rec.sources ?? []).some(s => (s.kind === 'buy') && /Versatile Trickster/.test(s.label)) && (rec.net === 'advantage'),
+            `record=${JSON.stringify(rec && { net: rec.net, sources: rec.sources?.map(s => [s.kind, s.label]) })}`);
+          await closeA1();
+          await unlend(pcAttacker, vt);
+          const p2 = attackOf(pcAttacker, pcWeapon).rollAttack({}, {}, {});
+          const dlg2 = await waitFor(rollDialog, 6000);
+          await sleep(400);
+          ok('74c. taken back: no box', !dlg2?.element?.querySelector('input[name="bf-buy"][data-bf-free]'), `dlg=${!!dlg2}`);
+          try { await dlg2?.close(); } catch { /* gone */ }
+          await Promise.resolve(p2).catch(() => {});
+        }
+      } finally {
+        await closeA1();
+        if (vt && pcAttacker.items.get(vt.id)) await unlend(pcAttacker, vt);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 75. Trance of Order: no Advantage against the sorcerer; its own d20 floor
+    if (want(75)) {
+      await closeA1();
+      const trance = await hgLend(sorcerer, 'Trance of Order', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      const reckless = await markOn(attacker, 'Reckless', null);
+      const sTok = sorcTokC();
+      try {
+        if (!trance || !sTok) log.push(`§75 skipped: trance=${!!trance} token=${!!sTok}`);
+        else {
+          await useFeature(sTok, trance, 'Enter Trance (Free)');
+          const fx = await waitFor(() => fxNamed(sorcerer, ['Trance of Order'])[0] ?? null, 6000);
+          const gate = await gateFor(attackerToken, act(), sTok);
+          ok('75a. the Reckless Attacker\'s gate at the sorcerer in its Trance: "attack rolls against it cannot have Advantage", Reckless cancelled, net Normal',
+            !!fx && gate.open && /cannot have Advantage/.test(gate.text) && /cancelled \(Trance of Order\)/.test(gate.text) && (gate.net === 'normal'),
+            `fx=${!!fx} net=${gate.net} text="${gate.text.slice(0, 260)}"`);
+          await closeA1();
+          faces([[10, 20]]);
+          const probe = await sorcerer.rollSavingThrow({ ability: 'wis' }, { configure: false }, { create: false });
+          const mod = Number(probe?.[0]?.total) - 10;
+          faces([[3, 20]]);
+          const rolls = await sorcerer.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const r0 = rolls?.[0];
+          const line = (await waitFor(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as 10/.test(el.textContent ?? '')), 5000))?.textContent?.trim() ?? '';
+          ok('75b. the sorcerer\'s own save with a 3 on the d20: the total counts it as 10 (the floor), the card "Trance of Order — the d20\'s 3 counts as 10"',
+            (Number(r0?.total) === 10 + mod) && /the d20's 3 counts as 10/.test(line), `total=${r0?.total} mod=${mod} minimum=${r0?.options?.minimum} line="${line}"`);
+        }
+      } finally {
+        await closeA1();
+        await dropFx(sorcerer, ['Trance of Order']);
+        if (reckless) await reckless.delete().catch(() => {});
+        if (trance) await unlend(sorcerer, trance);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 76. Controlled Chaos: the table twice, the pick
+    if (want(76)) {
+      await closeA1();
+      const sTok = sorcTokC();
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells) });
+      const wms = await hgLend(sorcerer, 'Wild Magic Surge', 'feat');
+      const tides = await hgLend(sorcerer, 'Tides of Chaos', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 1 });
+      const chaos = await hgLend(sorcerer, 'Controlled Chaos', 'feat');
+      const armor = await hgLend(sorcerer, 'Mage Armor', 'spell', { 'system.prepared': 1, 'system.method': 'spell', 'system.sourceItem': 'class:sorcerer' });
+      try {
+        if (!wms || !tides || !chaos || !armor || !sTok) log.push(`§76 skipped: wms=${!!wms} tides=${!!tides} chaos=${!!chaos} armor=${!!armor} token=${!!sTok}`);
+        else {
+          await sorcerer.update({ 'system.spells.spell1.value': 4 });
+          const tables0 = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag('core', 'RollTable')).length;
+          const c1 = await castSpell(sorcerer, sTok, armor, 1);
+          const line = await surgeLineOf(c1);
+          const rec = await waitFor(() => (c1?.getFlag(MOD, 'castRider')?.results?.length === 2) ? c1.getFlag(MOD, 'castRider') : null, 8000);
+          const buttons = [...(cardEl(c1?.id)?.querorAll?.('.bf-surge-line button') ?? cardEl(c1?.id)?.querySelectorAll?.('.bf-surge-line button') ?? [])].map(b => textOf(b));
+          const tables = game.messages.contents.filter(m => (m.timestamp >= suiteStart) && m.getFlag('core', 'RollTable')).length;
+          ok('76a. Tides spent, the surge rolls the table TWICE (two table cards), the line "Controlled Chaos — pick one:" with a button each',
+            !!rec && (tables - tables0 === 2) && /Controlled Chaos — pick one/.test(cardText(c1?.id)) && (buttons.length === 2),
+            `line="${line}" results=${JSON.stringify(rec?.results ?? null)} tables=${tables - tables0} buttons=${JSON.stringify(buttons)}`);
+          cardEl(c1?.id)?.querySelector('.bf-surge-line button')?.click();
+          const chosen = await waitFor(() => c1?.getFlag(MOD, 'castRider')?.chosen ?? null, 6000);
+          await sleep(300);
+          ok('76b. the pick recorded: "Controlled Chaos — chosen: …", the buttons gone', !!chosen && (chosen === rec?.results?.[0]) && /Controlled Chaos — chosen:/.test(cardText(c1?.id)) && !cardEl(c1?.id)?.querySelector('.bf-surge-line button'),
+            `chosen="${chosen}" card="${cardText(c1?.id).slice(-200)}"`);
+        }
+      } finally {
+        await closeA1();
+        for (const it of [wms, tides, chaos, armor]) if (it) await unlend(sorcerer, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 77. Smite of Protection: Half Cover on the aura's members after Divine Smite
+    if (want(77)) {
+      await closeA1(); await a1Victim();
+      await activateRange();
+      hgKeep(cleric, { 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
+      const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 15 });
+      const aura = await hgLend(cleric, 'Aura of Protection', 'feat');
+      const sop = await hgLend(cleric, 'Smite of Protection', 'feat');
+      const divineSmite = await hgLend(cleric, 'Divine Smite', 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const hx = halflingDoc.x, hy = halflingDoc.y;
+      const smiteFx = actor => actor.effects.find(e => (e.name === 'Smite of Protection') && !e.transfer) ?? null;
+      try {
+        if (!pal || !aura || !sop || !divineSmite) log.push(`§77 skipped: paladin=${!!pal} aura=${!!aura} smite=${!!sop} divineSmite=${!!divineSmite}`);
+        else {
+          await sleep(300);
+          await cleric.update({ 'system.spells.spell1.value': 4 });
+          await halflingDoc.update({ x: 1600, y: 2000 });   // 5 ft from the cleric: inside the 10-ft aura
+          await sleep(600);
+          const region = await waitFor(() => regionKeyed('Aura of Protection', clericToken.document.id), 12000);
+          await waitFor(() => halfling.effects.some(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Protected')), 10000);
+          const c = await castSpell(cleric, clericToken, divineSmite, 1, victimToken);
+          const onCleric = await waitFor(() => smiteFx(cleric), 10000);
+          const onHalfling = await waitFor(() => smiteFx(halfling), 8000);
+          const line = (await waitFor(() => cardEl(c?.id)?.querySelector('.bf-cast-rider-line'), 6000))?.textContent?.trim() ?? '';
+          ok('77a. Divine Smite cast inside the aura: the paladin and the Halfling wear "Smite of Protection" (the coverHalf status, a clock to the paladin\'s next turn); the Victim (an enemy) none; the cast card\'s line',
+            !!region && !!onCleric && !!onHalfling && onCleric.statuses?.has?.('coverHalf') && !smiteFx(victim) && /Smite of Protection — Smite of Protection \(Half Cover\) on/.test(line) && new RegExp(halflingToken.document.name).test(line),
+            `region=${!!region} cleric=${!!onCleric} halfling=${!!onHalfling} statuses=${JSON.stringify([...(onCleric?.statuses ?? [])])} victim=${!!smiteFx(victim)} line="${line}"`);
+        }
+      } finally {
+        await closeA1();
+        for (const a of [cleric, halfling, victim, pcAttacker]) await dropNamed(a, ['Smite of Protection']);
+        await halflingDoc.update({ x: hx, y: hy });
+        for (const it of [divineSmite, sop, aura, pal]) if (it) await unlend(cleric, it);
+        const gone = await waitFor(() => !regionKeyed('Aura of Protection', clericToken.document.id), 8000);
+        if (!gone) { const r = regionKeyed('Aura of Protection', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
+        for (const a of [halfling, pcAttacker]) await dropEffects(a, a.effects.filter(e => e.getFlag(MOD, 'emanation')).map(e => e.id));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 78. Soul of Vengeance: the Vow's creature attacks — the paladin within 5 ft is offered the strike
+    if (want(78)) {
+      await closeA1(); await spendLuckC(); await dropReactionChips(cleric);
+      const vow = await hgLend(cleric, 'Vow of Enmity', 'feat');
+      const soul = await hgLend(cleric, 'Soul of Vengeance', 'feat');
+      const cx = clericToken.document.x, cy = clericToken.document.y;
+      let marked = null;
+      try {
+        if (!vow || !soul || !clericWeapon) log.push(`§78 skipped: vow=${!!vow} soul=${!!soul} weapon=${!!clericWeapon}`);
+        else {
+          await clericToken.document.update({ x: 1500, y: 2000 });   // 5 ft (diagonal) from the Attacker
+          await sleep(400);
+          marked = await markOn(attacker, 'Vow of Enmity', vow.uuid);
+          const t0 = Date.now();
+          const msg = await swing({ d20: [12], dmg: 3 });
+          const card = await waitFor(() => c1Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.onAttack && (m.getFlag(MOD, 'rebuke')?.actorUuid === cleric.uuid)) ?? null, 8000);
+          const pop = await waitFor(() => popups().find(app => /Soul of Vengeance/.test(textOf(app.element)) && /attacked — strike\?/.test(textOf(app.element))) ?? null, 6000);
+          const f = card?.getFlag(MOD, 'rebuke');
+          ok('78a. the Attacker under the Vow makes an attack roll: the paladin\'s popup "BF Test Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BF Test Cleric\'s Vow of Enmity"',
+            !!msg && !!card && !!pop && (f?.options ?? []).some(o => o.name === 'Soul of Vengeance') && /Vow of Enmity/.test(cardText(card?.id)),
+            `card=${!!card} pop=${!!pop} options=${JSON.stringify((f?.options ?? []).map(o => o.name))} text="${cardText(card?.id).slice(0, 200)}"`);
+          pop?.element?.querySelector('button[data-action="pass"]')?.click();
+          await sleep(500);
+        }
+      } finally {
+        await closeA1(); await hgClose(/Soul of Vengeance|attacked/);
+        if (marked) await marked.delete().catch(() => {});
+        await clericToken.document.update({ x: cx, y: cy });
+        await dropReactionChips(cleric);
+        for (const it of [soul, vow]) if (it) await unlend(cleric, it);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 79. Peerless Skill: the Bardic die on the bard's own failed check
+    if (want(79)) {
+      await closeA1(); await refillInspiration();
+      const peerless = await hgLend(bard, 'Peerless Skill', 'feat');
+      try {
+        if (!peerless || !inspiration()) log.push(`§79 skipped: peerless=${!!peerless} inspiration=${!!inspiration()}`);
+        else {
+          const before = spentBI();
+          faces([[3, 20]]);
+          const rolls = await bard.rollSkill({ skill: 'ath' }, { configure: false }, {});
+          const m = rolls?.[0]?.parent ?? null;
+          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 4000);
+          const offer = (flag?.offers ?? []).find(o => o.label === 'Peerless Skill') ?? null;
+          ok('79a. a failed Athletics check offers "Peerless Skill" — the Bardic die (the tactical fold on the feature\'s own activity)', !!offer && /d\d/.test(String(offer?.dieFormula ?? '')),
+            `offers=${JSON.stringify((flag?.offers ?? []).map(o => o.label))} die=${offer?.dieFormula}`);
+          const win = await waitFor(() => rescueWindowC('Peerless Skill'), 6000);
+          faces([[6, 8], [6, 10], [6, 12]]);
+          win?.querySelector('[data-bf-rescue-action="tactical:Peerless Skill"]')?.click();
+          const done = await waitFor(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === 'Peerless Skill') && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, 10000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('79b. accepted: the die added to the total, a Bardic Inspiration use spent', (done?.spends?.[0]?.name === 'Peerless Skill') && (done?.foldedTotal > done?.baseTotal) && (spentBI() === before + 1),
+            `flag=${JSON.stringify(done && { spends: done.spends?.map(s => [s.name, s.die]), base: done.baseTotal, folded: done.foldedTotal })} spent ${before}→${spentBI()}`);
+        }
+      } finally {
+        await closeA1();
+        if (peerless) await unlend(bard, peerless);
+        await refillInspiration();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 80. Disciplined Survivor: the reroll paid from the Focus Points
+    if (want(80)) {
+      await closeA1(); await spendLuckC();
+      const focus = await hgLend(halfling, "Monk's Focus", 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const ds = await hgLend(halfling, 'Disciplined Survivor', 'feat');
+      try {
+        if (!focus || !ds) log.push(`§80 skipped: focus=${!!focus} survivor=${!!ds}`);
+        else {
+          const priorDialogs = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+          faces([[3, 20]]);
+          const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          const m = rolls?.[0]?.parent ?? null;
+          const base = Number(rolls?.[0]?.total);
+          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const offer = (flag?.offers ?? []).find(o => o.kind === 'reroll') ?? null;
+          ok('80a. a failed save from the sheet offers Disciplined Survivor: the `reroll` kind, no bonus, a Focus Point', !!offer && (offer.label === 'Disciplined Survivor') && (Number(offer.bonus) === 0),
+            `offers=${JSON.stringify(flag?.offers ?? null)}`);
+          const popup = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, 8000);
+          faces([[14, 20]]);
+          popup?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
+          const done = await waitFor(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 20000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const spent = Number(halfling.items.get(focus.id)?.system?.uses?.spent ?? NaN);
+          ok('80b. pressed: the d20 rerolled (14), the total 14 + mod, a Focus Point spent', (done?.spends?.[0]?.kind === 'reroll') && (Number(done?.spends?.[0]?.reroll?.total) === 14 + (base - 3)) && (spent === 1),
+            `base=${base} spends=${JSON.stringify(done?.spends ?? null)} focusSpent=${spent}`);
+        }
+      } finally {
+        await closeA1();
+        [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+        for (const it of [ds, focus]) if (it) await unlend(halfling, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 81. Perfect Focus: up to 4 at Initiative — under Uncanny Metabolism's No, and on its own
+    if (want(81)) {
+      await closeA1();
+      const focus = await hgLend(halfling, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 3 });
+      const perfect = await hgLend(halfling, 'Perfect Focus', 'feat');
+      const uncanny = await hgLend(halfling, 'Uncanny Metabolism', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      if (uncanny) await pinHeal(uncanny, 'Uncanny Metabolism', '1d8 + 5');
+      const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(combat.id);
+      const focusValue = () => Number(halfling.items.get(focus?.id)?.system?.uses?.value ?? NaN);
+      try {
+        if (!focus || !perfect || !uncanny) log.push(`§81 skipped: focus=${!!focus} perfect=${!!perfect} uncanny=${!!uncanny}`);
+        else {
+          await combat.createEmbeddedDocuments('Combatant', [{ tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id }]);
+          const hC = combat.combatants.find(c => c.actorId === halfling.id);
+          await combat.setInitiative(hC.id, 12);
+          const um = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism')[0] ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
+          ok('81a. at Initiative Uncanny Metabolism asks; Perfect Focus rides its card as the fallback, no card of its own', !!um && !!pop && (um.getFlag(MOD, 'initiativeGrant')?.fallback?.row === 'Perfect Focus') && (grantCards(halfling, 'Perfect Focus').length === 0),
+            `um=${!!um} fallback=${JSON.stringify(um?.getFlag(MOD, 'initiativeGrant')?.fallback ?? null)} own=${grantCards(halfling, 'Perfect Focus').length}`);
+          pop?.element?.querySelector('button[data-action="no"]')?.click();
+          const done = await waitFor(() => um?.getFlag(MOD, 'initiativeGrant')?.fallbackApplied ? um : null, 10000);
+          await sleep(400);
+          ok('81b. No: the Focus Points come back up to 4 (2 → 4), Uncanny kept, the line says both', (focusValue() === 4) && (Number(halfling.items.get(uncanny.id)?.system?.uses?.spent) === 0) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(done)),
+            `focus=${focusValue()} uncanny=${halfling.items.get(uncanny.id)?.system?.uses?.spent} line="${await grantLine(done)}"`);
+          // its own card: Uncanny spent
+          await uncanny.update({ 'system.uses.spent': 1 });
+          await focus.update({ 'system.uses.spent': 3 });
+          await combat.resetAll(); await sleep(600);
+          await combat.setInitiative(hC.id, 11);
+          const pf = await waitFor(() => grantCards(halfling, 'Perfect Focus').find(m => m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, 8000);
+          ok('81c. Uncanny Metabolism spent: Perfect Focus on its own card, automatic — 4 of 5', !!pf && (focusValue() === 4) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(pf)),
+            `card=${!!pf} focus=${focusValue()} line="${await grantLine(pf)}"`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Uncanny Metabolism — /);
+        if (game.combats.get(combat.id)) await combat.delete();
+        for (const it of [uncanny, perfect, focus]) if (it) await unlend(halfling, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 82. Greater Portent: three dice at the rest
+    if (want(82)) {
+      await closeA1();
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells), 'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value });
+      const portent = await hgLend(sorcerer, 'Portent', 'feat');
+      const greater = await hgLend(sorcerer, 'Greater Portent', 'feat');
+      const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Portent') ?? null;
+      try {
+        if (!portent || !greater) log.push(`§82 skipped: portent=${!!portent} greater=${!!greater}`);
+        else {
+          faces([[17, 20], [3, 20], [9, 20]]);
+          await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          await waitFor(chip, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('82a. the Long Rest with Greater Portent keeps three faces: "Portent — 17 · 3 · 9"', chip()?.name === 'Portent — 17 · 3 · 9', `chip=${chip()?.name ?? null} faces=${JSON.stringify(chip()?.getFlag(MOD, 'storedDice')?.faces ?? null)}`);
+        }
+      } finally {
+        await closeA1();
+        const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
+        if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
+        for (const it of [greater, portent]) if (it) await unlend(sorcerer, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 83. Spell Resistance: the save gate against a spell
+    if (want(83)) {
+      await closeA1(); await set('saveRolls', 'prompt');
+      const sr = await hgLend(sorcerer, 'Spell Resistance', 'feat');
+      const sTok = sorcTokC();
+      let flameLent = null;
+      try {
+        if (!sr || !sTok) log.push(`§83 skipped: resistance=${!!sr} token=${!!sTok}`);
+        else {
+          let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+          if (!flameId) { flameLent = await hgLend(attacker, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' }); flameId = flameLent?.id; }
+          const flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+          attackerToken.control({ releaseOthers: true });
+          sTok.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+          const card = use?.message ?? null;
+          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          const p = sorcerer.rollSavingThrow({ ability: 'dex' }, {}, {});
+          const dlg = await waitFor(rollDialog, 6000);
+          await sleep(500);
+          const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
+          const net = dlg?.options?.bfSaveGate?.net ?? null;
+          ok('83a. the sorcerer\'s save against the Attacker\'s Sacred Flame: the gate lists "Spell Resistance", net Advantage', !!dlg && /Spell Resistance/.test(text) && (net === 'advantage'),
+            `dlg=${!!dlg} net=${net} text="${text.slice(0, 200)}"`);
+          try { await dlg?.close(); } catch { /* gone */ }
+          await Promise.resolve(p).catch(() => {});
+          clearTargets();
+        }
+      } finally {
+        await closeA1();
+        if (flameLent) await unlend(attacker, flameLent);
+        if (sr) await unlend(sorcerer, sr);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 84. Relentless Hunter: damage never demands the save for Hunter's Mark
+    if (want(84)) {
+      await closeA1();
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells), 'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value, 'system.attributes.hp.max': sorcerer.system._source.attributes.hp.max });
+      const priorConc = game.settings.get(MOD, 'concMode');
+      const hunter = await hgLend(sorcerer, 'Relentless Hunter', 'feat');
+      const mark = await hgLend(sorcerer, "Hunter's Mark", 'spell', { 'system.prepared': 1, 'system.method': 'spell' });
+      const sTok = sorcTokC();
+      try {
+        if (!hunter || !mark || !sTok) log.push(`§84 skipped: hunter=${!!hunter} mark=${!!mark} token=${!!sTok}`);
+        else {
+          await set('concMode', 'ask');
+          await sorcerer.update({ 'system.spells.spell1.value': 4, 'system.attributes.hp.max': 100, 'system.attributes.hp.value': 100 });
+          const markAct = mark.system.activities.find(a => a.name === 'Mark Creature') ?? mark.system.activities.contents[0];
+          victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          await markAct.use({ spell: { slot: 'spell1' }, subsequentActions: false }, { configure: false }, {});
+          clearTargets();
+          const conc = await waitFor(() => sorcerer.effects.find(e => e.statuses?.has?.('concentrating')) ?? null, 8000);
+          const t0 = Date.now();
+          await sorcerer.applyDamage([{ value: 5, type: 'fire' }]);
+          const exempt = await waitFor(() => c1Cards(t0, 'concentrationExempt')[0] ?? null, 8000);
+          await sleep(1200);
+          const asked = c1Cards(t0, 'concentration').length;
+          ok('84a. concentrating on Hunter\'s Mark, 5 damage: the card "Relentless Hunter — no save for Hunter\'s Mark", no Concentration ask, the effect standing',
+            !!conc && !!exempt && (asked === 0) && /Relentless Hunter — no save for Hunter's Mark/.test(cardText(exempt?.id)) && !!sorcerer.effects.get(conc.id),
+            `conc=${!!conc} exempt=${!!exempt} asks=${asked} card="${cardText(exempt?.id).slice(0, 160)}"`);
+        }
+      } finally {
+        await closeA1();
+        await set('concMode', priorConc);
+        for (const e of sorcerer.effects.filter(e => e.statuses?.has?.('concentrating'))) await e.delete().catch(() => {});
+        await dropNamed(victim, ["Hunter's Mark"]);
+        for (const it of [mark, hunter]) if (it) await unlend(sorcerer, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 85. Hurl Through Hell: the hit menu's group, the save the cost
+    if (want(85)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx(); await set('saveRolls', 'auto');
+      const warlock = await hgLend(pcAttacker, 'Warlock', 'class', { 'system.levels': 14 });
+      const hurl = await hgLend(pcAttacker, 'Hurl Through Hell', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      try {
+        if (!warlock || !hurl || !pcWeapon) log.push(`§85 skipped: warlock=${!!warlock} hurl=${!!hurl} weapon=${!!pcWeapon}`);
+        else {
+          await sleep(300);
+          const t0 = Date.now();
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('85a. a hit: the group "Hurl Through Hell" with its one option (a Charisma save, the feature\'s use)', !!hitBox(r1.offer, 'hurl-through-hell') && /Hurl Through Hell/.test(groupText(r1.offer, 'hurl-through-hell')) && /1 .*use/.test(groupText(r1.offer, 'hurl-through-hell')),
+            `row="${hitRow(r1.offer, 'hurl-through-hell').slice(0, 120)}" group="${groupText(r1.offer, 'hurl-through-hell').slice(0, 140)}"`);
+          await tick(r1.offer, 'hurl-through-hell');
+          faces([[1, 20]]);
+          await a1Roll(r1.msg, r1.offer);
+          const c1 = await settledSave('hurl-through-hell', t0);
+          await sleep(600);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('85b. ticked: the Charisma save demanded of the Victim (failed), the use spent, the table\'s line on the card',
+            (outcomeOn(c1) === 'failed') && (Number(pcAttacker.items.get(hurl.id)?.system?.uses?.spent) === 1) && /Played at the table/.test(cardText(c1?.id)),
+            `outcome=${outcomeOn(c1)} spent=${pcAttacker.items.get(hurl.id)?.system?.uses?.spent} card="${cardText(c1?.id).slice(0, 200)}"`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [hurl, warlock]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 86. Improved Blessed Strikes: the temp HP offered when a cleric cantrip lands damage
+    if (want(86)) {
+      await closeA1(); await a1Victim(); await dropVictimFx(); await set('saveRolls', 'auto');
+      hgKeep(cleric, { 'system.attributes.hp.temp': cleric.system._source.attributes.hp.temp ?? 0 });
+      hgKeep(halfling, { 'system.attributes.hp.temp': halfling.system._source.attributes.hp.temp ?? 0 });
+      const ibs = await hgLend(cleric, 'Improved Blessed Strikes', 'feat');
+      const flame = await lendClassSpell(cleric, 'Sacred Flame', 'cleric');
+      const temp = actor => Number(actor.system.attributes.hp.temp ?? 0);
+      try {
+        if (!ibs || !flame) log.push(`§86 skipped: strikes=${!!ibs} flame=${!!flame}`);
+        else {
+          for (const a of [cleric, halfling]) await a.update({ 'system.attributes.hp.temp': 0 });
+          const wis = Number(cleric.getRollData()?.abilities?.wis?.mod ?? 0);
+          const flameAct = flame.system.activities.find(a => a.type === 'save');
+          clericToken.control({ releaseOthers: true });
+          victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          faces([[1, 20], [4, 8]]);
+          await flameAct.use({}, { configure: false }, {});
+          const ask = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= suiteStart) && (m.getFlag(MOD, 'restSong')?.row === 'Improved Blessed Strikes')) ?? null, 12000);
+          const pop = await waitFor(() => titled(/^Improved Blessed Strikes — /), 6000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const flag = ask?.getFlag(MOD, 'restSong');
+          ok(`86a. the cantrip's damage landed: "Improved Blessed Strikes — ${2 * wis} Temporary Hit Points for another creature", the cleric and the Halfling among the candidates`,
+            !!ask && !!pop && (flag?.amount === 2 * wis) && (flag?.cap === 1) && (flag?.candidates ?? []).some(c => c.uuid === cleric.uuid) && (flag?.candidates ?? []).some(c => c.uuid === halfling.uuid),
+            `ask=${!!ask} pop=${!!pop} amount=${flag?.amount} candidates=${JSON.stringify((flag?.candidates ?? []).map(c => c.name))}`);
+          const radio = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song"]') ?? [])].find(i => i.value === halfling.uuid);
+          if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); }
+          pop?.element?.querySelector('button[data-action="ok"]')?.click();
+          await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied, 8000);
+          await sleep(300);
+          ok('86b. OK: the Halfling gains the Temporary Hit Points', temp(halfling) === 2 * wis, `temp=${temp(halfling)} given=${JSON.stringify(ask?.getFlag(MOD, 'restSong')?.given ?? null)}`);
+          clearTargets();
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Improved Blessed Strikes — /);
+        for (const it of [flame, ibs]) if (it) await unlend(cleric, it);
+        await dropVictimFx();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 87. Battle Magic: Hew's reminder after an action-cast spell
+    if (want(87)) {
+      await closeA1();
+      hgKeep(bard, { 'system.spells': foundry.utils.deepClone(bard.system._source.spells) });
+      const bm = await hgLend(bard, 'Battle Magic', 'feat');
+      const cure = await lendClassSpell(bard, 'Cure Wounds', 'bard');
+      const bTok = bardTokC();
+      try {
+        if (!bm || !cure || !bTok) log.push(`§87 skipped: battleMagic=${!!bm} cure=${!!cure} token=${!!bTok}`);
+        else {
+          await bard.update({ 'system.spells.spell1.value': 4 });
+          const since = Date.now();
+          await castSpell(bard, bTok, cure, 1, halflingToken);
+          const notice = await waitFor(() => hewNotices(since, 'Battle Magic')[0] ?? null, 8000);
+          ok('87a. Cure Wounds cast as an action: "Battle Magic — BF Test Bard can attack again", the swing from the sheet', !!notice && /Battle Magic — BF Test Bard can attack again/.test(cardText(notice?.id)),
+            `notice=${!!notice} card="${cardText(notice?.id).slice(0, 160)}"`);
+          await ackHew('Battle Magic');
+        }
+      } finally {
+        await closeA1(); await ackHew('Battle Magic');
+        for (const it of [cure, bm]) if (it) await unlend(bard, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 88. Leading Evasion: the bard's Evasion shared with the demand's other targets within 5 ft
+    if (want(88)) {
+      await closeA1(); await set('saveRolls', 'prompt');
+      const le = await hgLend(bard, 'Leading Evasion', 'feat');
+      const bx = bardDoc.x, by = bardDoc.y;
+      let flameLent = null;
+      let priorOnSave = null;
+      let flameAct = null;
+      try {
+        if (!le) log.push('§88 skipped: no Leading Evasion in the PHB');
+        else {
+          await bardDoc.update({ x: 1600, y: 2100 });   // 5 ft from the Halfling
+          await sleep(400);
+          let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+          if (!flameId) { flameLent = await hgLend(attacker, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' }); flameId = flameLent?.id; }
+          flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+          priorOnSave = flameAct?.damage?.onSave ?? null;
+          await attacker.items.get(flameId).update({ [`system.activities.${flameAct.id}.damage.onSave`]: 'half' });   // a half-on-save demand, for the section
+          flameAct = attacker.items.get(flameId)?.system?.activities?.get(flameAct.id);
+          await healFull();
+          attackerToken.control({ releaseOthers: true });
+          halflingToken.setTarget(true, { releaseOthers: true });
+          bardTokC()?.setTarget(true, { releaseOthers: false });
+          await sleep(100);
+          faces([[4, 8]]);
+          const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+          const card = use?.message ?? null;
+          await waitFor(() => (card?.getFlag(MOD, 'saves')?.targets?.length ?? 0) >= 2, 8000);
+          faces([[1, 20]]);
+          await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
+          const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
+          await waitFor(() => hp() < 400, 8000);
+          await sleep(500);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('88a. the Halfling (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF: the entry "Evasion — Leading Evasion (BF Test Bard)"',
+            (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BF Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (hp() === 400 - 2),
+            `entry=${JSON.stringify(entry && { outcome: entry.outcome, evasion: entry.evasion, by: entry.evasionBy })} hp=${hp()} targets=${JSON.stringify((card?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))}`);
+          clearTargets();
+        }
+      } finally {
+        await closeA1();
+        if (flameAct && priorOnSave !== null) await flameAct.item?.update({ [`system.activities.${flameAct.id}.damage.onSave`]: priorOnSave }).catch(() => {});
+        await bardDoc.update({ x: bx, y: by });
+        if (flameLent) await unlend(attacker, flameLent);
+        if (le) await unlend(bard, le);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 89. Unbreakable Majesty: the attacker's Charisma save inside the hold
+    if (want(89)) {
+      await closeA1(); await spendLuckC();
+      const um = await hgLend(bard, 'Unbreakable Majesty', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      const bTok = bardTokC();
+      hgKeep(bard, { 'system.attributes.ac.override': bard.system._source.attributes.ac.override ?? null, 'system.attributes.hp.value': bard.system._source.attributes.hp.value, 'system.attributes.hp.max': bard.system._source.attributes.hp.max });
+      const bhp = () => Number(bard.system.attributes.hp.value);
+      let combat89 = null;
+      try {
+        if (!um || !bTok) log.push(`§89 skipped: majesty=${!!um} token=${!!bTok}`);
+        else {
+          await bard.update({ 'system.attributes.ac.override': AC, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
+          await useFeature(bTok, um, 'Assume Majestic Presence');
+          const presence = await waitFor(() => fxNamed(bard, ['Majestic Presence'])[0] ?? null, 6000);
+          [combat89] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat89.id);
+          await combat89.createEmbeddedDocuments('Combatant', [
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 20 },
+            { tokenId: bardDoc.id, sceneId: scene.id, actorId: bard.id, initiative: 10 }]);
+          await combat89.startCombat(); await sleep(400);
+          // the attack (d20 12 hits AC), the damage dice, then the attacker's Charisma save: a 1 — it fails
+          attackerToken.control({ releaseOthers: true });
+          bTok.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          faces([[12, 20], [3, 6], [3, 6], [1, 20]]);
+          const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+          const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const msg = rolls?.[0]?.parent ?? null;
+          const h = await waitFor(() => (holdOf(msg)?.status === 'resolved') ? holdOf(msg) : null, 15000);
+          await sleep(800);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const t = h?.targets?.find(x => x.uuid === bard.uuid);
+          const saveMsg = game.messages.contents.find(m => m.getFlag(MOD, 'duplicatesSave')?.defenderUuid === bard.uuid) ?? null;
+          ok('89a. the hit inside the Majestic Presence: the attacker\'s Charisma save rolled by the machine (a 1 — failed), the verdict ABSORBED, no damage to the bard, the effect stamped for this attacker\'s turn',
+            !!presence && (t?.verdict === 'absorbed') && (t?.duplicates?.save?.total !== null) && (t?.duplicates?.absorbed === true) && (bhp() === 400) && !!saveMsg
+              && !!bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled')?.[attacker.uuid],
+            `verdict=${t?.verdict} dup=${JSON.stringify(t?.duplicates ?? null)} hp=${bhp()} save=${!!saveMsg} recoiled=${JSON.stringify(bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled') ?? null)}`);
+          // the second hit this turn: no save, the hit stands
+          faces([[12, 20], [3, 6], [3, 6]]);
+          const usage2 = await act().use({ subsequentActions: false }, { configure: false }, {});
+          const rolls2 = await act().rollAttack({}, { configure: false }, usage2?.message?.id ? { data: { 'system.origin': usage2.message.id } } : {});
+          const msg2 = rolls2?.[0]?.parent ?? null;
+          await waitFor(() => damageFor(msg2?.id)?.getFlag(MOD, 'receipt'), 12000);
+          await sleep(500);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const t2 = holdOf(msg2)?.targets?.find(x => x.uuid === bard.uuid) ?? null;
+          ok('89b. the second hit that turn: once per turn per attacker — no save, the hit lands', !t2?.duplicates?.save && (bhp() < 400), `hold=${JSON.stringify(t2 && { verdict: t2.verdict, dup: t2.duplicates })} hp=${bhp()}`);
+        }
+      } finally {
+        await closeA1();
+        if (combat89 && game.combats.get(combat89.id)) await combat89.delete();
+        await dropFx(bard, ['Majestic Presence']);
+        if (um) await unlend(bard, um);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 90. Oceanic Gift: Wrath of the Sea's ring around another creature, the druid its source
+    if (want(90)) {
+      await closeA1();
+      await activateRange();
+      const druid = await hgLend(cleric, 'Druid', 'class', { 'system.levels': 14 });
+      const sea = await hgLend(cleric, 'Circle of the Sea', 'subclass');
+      const wrath = await hgLend(cleric, 'Wrath of the Sea', 'feat');
+      const gift = await hgLend(cleric, 'Oceanic Gift', 'feat');
+      let storm = null;
+      let combat90 = null;
+      try {
+        if (!druid || !sea || !wrath || !gift) log.push(`§90 skipped: druid=${!!druid} sea=${!!sea} wrath=${!!wrath} gift=${!!gift}`);
+        else {
+          await sleep(400);
+          storm = await markOn(halfling, 'Stormborn', gift.uuid);
+          const region = await waitFor(() => regionKeyed('Oceanic Gift', halflingToken.document.id), 12000);
+          const fl = region?.getFlag(MOD, 'emanation');
+          const beh = region?.behaviors?.contents?.[0] ?? null;
+          ok('90a. Stormborn (from the druid\'s Oceanic Gift) on the Halfling: the ring "Oceanic Gift" stands around the HALFLING, its source the druid\'s token, the range the druid\'s scale',
+            !!region && (fl?.sourceTokenId === clericToken.document.id) && (beh?.system?.source === clericToken.document.uuid) && (region.attachment?.token?.id === halflingToken.document.id),
+            `region=${!!region} flag=${JSON.stringify(fl ?? null)} source=${beh?.system?.source ?? null} radius=${region?.shapes?.[0]?.radius ?? null}`);
+          // the druid's turn start: the pick card names who stands inside the Halfling's ring (the Attacker, the Halfling itself)
+          [combat90] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat90.id);
+          await combat90.createEmbeddedDocuments('Combatant', [
+            { tokenId: clericToken.document.id, sceneId: scene.id, actorId: cleric.id, initiative: 20 },
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 10 }]);
+          const t0 = Date.now();
+          await combat90.startCombat();
+          const pick = await waitFor(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, 10000);
+          const cands = (pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => c.name);
+          ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BF Test Cleric\'s turn: choose one creature inside", the Attacker (5 ft from the Halfling) among the candidates, the druid not',
+            !!pick && cands.includes(attackerToken.document.name) && !cands.includes(clericToken.document.name) && /BF Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
+            `pick=${!!pick} candidates=${JSON.stringify(cands)} card="${cardText(pick?.id).slice(0, 200)}"`);
+          await set('saveRolls', 'prompt');
+          const button = await waitFor(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${attackerToken.document.id}"]`), 6000);
+          button?.click();
+          const demand = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, 10000);
+          const dc = Number(demand?.getFlag(MOD, 'saves')?.dc);
+          const druidDc = Number(cleric.system.attributes?.spell?.dc ?? cleric.system.attributes?.spelldc ?? 0);
+          ok('90c. the Attacker picked: the Constitution save demanded at the DRUID\'s DC on the druid\'s Wrath of the Sea', !!demand && (dc > 8) && ((druidDc === 0) || (dc === druidDc)) && (demand.getFlag(MOD, 'saves')?.targets ?? []).some(t => t.uuid === attacker.uuid),
+            `demand=${!!demand} dc=${dc} druidDc=${druidDc} targets=${JSON.stringify((demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))}`);
+        }
+      } finally {
+        await closeA1();
+        if (combat90 && game.combats.get(combat90.id)) await combat90.delete();
+        if (storm) await storm.delete().catch(() => {});
+        for (const it of [gift, wrath, sea, druid]) if (it) await unlend(cleric, it);
+        const gone = await waitFor(() => !regionKeyed('Oceanic Gift', halflingToken.document.id), 8000);
+        if (!gone) { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); if (r) await r.delete().catch(() => {}); }
+        await dropNamed(attacker, ['Frightened']);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 91. a Death Saving Throw with no keeper: no offer
+    if (want(91)) {
+      await closeA1();
+      try {
+        await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0 });
+        const t0 = Date.now();
+        faces([[10, 20]]);
+        await halfling.rollDeathSave({}, { configure: false }, {});
+        CONFIG.Dice.randomUniform = realPRNG;
+        await sleep(1500);
+        ok('91a. nobody within 60 ft holds Searing Vengeance: the Death Saving Throw raises no offer', c1Cards(t0, 'deathSaveOffer').length === 0, `offers=${c1Cards(t0, 'deathSaveOffer').length}`);
+      } finally {
+        await clearDown(halfling);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    await refillLuckC();
     return { log, results, skips };
   } catch (err) {
     return { fatal: `${err?.message || err}\n${err?.stack ?? ''}`, results, log, skips };

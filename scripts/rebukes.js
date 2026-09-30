@@ -9,7 +9,7 @@ import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOption
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
-import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets } from "./shared.js";
+import { poolOf, reactionSpent, resolveAttackMessage, spendReaction, withTargets, hitTargets, grantingActor } from "./shared.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { isActiveGM } from "./core.js";
 import { feetOf, nearestFeet, tokenForUuid } from "./geometry.js";
@@ -46,7 +46,7 @@ function reactionActivity(item, row) {
 
 /** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
  * bystander to the hit); `attackHit`: the damage came from an attack. */
-function offersFor(actor, source, { ward = false, attackHit = false, miss = false, damageTypes = [] } = {}) {
+function offersFor(actor, source, { ward = false, attackHit = false, miss = false, onAttack = false, damageTypes = [] } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
   const damager = tokenForUuid(source.uuid);
@@ -56,6 +56,9 @@ function offersFor(actor, source, { ward = false, attackHit = false, miss = fals
     if ( !listed.has(lower(name)) ) continue;
     if ( !!row.ward !== ward ) continue;
     if ( (row.on === "miss") !== miss ) continue;           // a miss row only on a miss, never on damage
+    if ( (row.on === "attack") !== onAttack ) continue;     // C1 — an attack row only on the marked creature's attack card
+    // C1 — `mark` (Soul of Vengeance): the attacker must wear the bearer's effect of that name.
+    if ( row.mark && !source.effects?.some?.(e => e.active && (lower(e.name) === lower(row.mark)) && (grantingActor(e)?.uuid === actor.uuid)) ) continue;
     if ( row.hit && !attackHit ) continue;
     if ( !rebukeTypesAdmit(row.types, damageTypes) ) continue;
     const item = itemNamed(actor, name);
@@ -115,8 +118,8 @@ function isAttackDamage(origin) {
   try { return !!resolveAttackMessage(origin); } catch { return false; }
 }
 
-async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, damageTypes = [] } = {}) {
-  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, damageTypes });
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, onAttack = false, damageTypes = [] } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, onAttack, damageTypes });
   if ( !options.length ) return;
   const window = decisionWindow();
   const flag = {
@@ -125,6 +128,7 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
     options, answer: null, choice: null,
     ...(ward ? { ward: true, targetUuid: ward.uuid, targetName: ward.name } : {}),
     ...(miss ? { miss: true } : {}),
+    ...(onAttack ? { onAttack: true } : {}),
     ...statContext(source.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
@@ -132,14 +136,40 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : `${source.name} damaged ${actor.name}`,
+      title: ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : onAttack ? `${source.name} attacked` : `${source.name} damaged ${actor.name}`,
       subtitle: ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
         : miss ? `a melee weapon attack${(distance !== null) ? ` · ${distance} ft away` : ""}`
+        : onAttack ? `under ${actor.name}'s ${options[0].name === "Soul of Vengeance" ? "Vow of Enmity" : "mark"}${(distance !== null) ? ` · ${distance} ft away` : ""}`
         : `${amount} damage${(distance !== null) ? ` · ${distance} ft away` : ""}` }),
     flags: { [MODULE_ID]: { [REBUKE_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
 }
+
+/* --- C1 — the attack (Soul of Vengeance): the creature under the bearer's mark makes an attack roll, hit or miss --------- */
+
+listen("createChatMessage", "rebukes", async message => {
+  try {
+    if ( !isActiveGM() || !isCard(message, CARD.attack) ) return;
+    if ( message.getFlag(MODULE_ID, "rebukeFor") ) return;            // a driven attack never chains re-offers
+    const listed = listedNames(rebukeEntries());
+    const rows = Object.entries(REBUKES).filter(([name, row]) => (row.on === "attack") && listed.has(lower(name)));
+    if ( !rows.length ) return;
+    const attacker = message.getAssociatedActor?.();
+    if ( !(attacker instanceof Actor) ) return;
+    // The bearers: whoever placed a listed row's mark on this attacker.
+    const bearers = new Map();
+    for ( const [, row] of rows ) {
+      for ( const e of attacker.effects.filter(e => e.active && (lower(e.name) === lower(row.mark))) ) {
+        const bearer = grantingActor(e);
+        if ( (bearer instanceof Actor) && (bearer.uuid !== attacker.uuid) ) bearers.set(bearer.uuid, bearer);
+      }
+    }
+    for ( const bearer of bearers.values() ) void stampRebuke(bearer, attacker, 0, message, { onAttack: true });
+  } catch(err) {
+    console.error(`${TITLE} | The attack rebuke offer failed — use the reaction from the sheet.`, err);
+  }
+});
 
 /* --- the miss (Sticky Shield): a melee weapon attack that MISSED the bearer, stamped by the elect ---- */
 
@@ -300,7 +330,7 @@ async function showPopup(message) {
   await openMomentPopup(message, REBUKE_FLAG, actor, {
     title: `Reaction — ${flag.actorName}`, icon: "fa-solid fa-bolt",
     content: bfCard({ img: flag.options[0]?.img ?? null, eyebrow: `Reaction — ${flag.options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: flag.ward ? `${flag.sourceName} hit ${flag.targetName} — strike?` : `${flag.sourceName} damaged you — answer?`,
+      title: flag.ward ? `${flag.sourceName} hit ${flag.targetName} — strike?` : flag.onAttack ? `${flag.sourceName} attacked — strike?` : `${flag.sourceName} damaged you — answer?`,
       subtitle: flag.ward ? `${flag.sourceName} is ${flag.distance} ft from you — an Opportunity Attack`
         : `${flag.amount} damage${(flag.distance !== null) ? ` · ${flag.distance} ft away` : ""}`, lines })
       + holdBarHTML(flag, "to answer"),

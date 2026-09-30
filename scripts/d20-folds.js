@@ -15,7 +15,7 @@ import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { ADVANTAGE_BUYS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS } from "./decide/registry.js";
+import { ADVANTAGE_BUYS, D20_FLOORS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS, d20FloorEntries } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
@@ -193,26 +193,31 @@ const REROLL = {
     const { key, row } = found;
     const item = featureNamed(actor, key);
     if ( !item ) return null;
-    const left = Number(item.system?.uses?.value ?? 0);
-    if ( row.uses && !(left > 0) ) return null;
+    // C1 — `activity` (Disciplined Survivor): the pool is what the feature's own activity consumes (Monk's Focus by uuid).
+    const poolActivity = row.activity ? activityNamed(item, row.activity) : null;
+    const pool = poolActivity ? poolOf(actor, poolActivity) : null;
+    if ( row.activity && !pool ) return null;
+    const left = Number((pool ?? item).system?.uses?.value ?? 0);
+    if ( (row.uses || pool) && !(left > 0) ) return null;
     let rage = null;
     if ( row.while === "raging" ) {
       rage = rageEffectOf(actor);
       if ( !rage ) return null;
       if ( (row.once === "rage") && (rage.getFlag(MODULE_ID, "rerollUsed") ?? []).includes(key) ) return null;
     }
-    const bonus = rerollBonus(actor, item, row);
+    // A row with no bonus (Disciplined Survivor) rerolls flat; a bonus the sheet cannot resolve keeps the fold off.
+    const bonus = (row.bonus === null) ? 0 : rerollBonus(actor, item, row);
     if ( bonus === null ) {
       warnOnce(`reroll|${key}|${actor.id}`, `${TITLE} | ${actor.name}'s ${key} bonus (${row.bonus}) could not be read off `
         + "the sheet, so the fold stays off rather than guessing a number.");
       return null;
     }
-    return { kind: "reroll", key, row, item, rage, bonus, left: row.uses ? left : null };
+    return { kind: "reroll", key, row, item, rage, bonus, pool: pool ?? null, left: (row.uses || pool) ? left : null };
   },
   die: () => null,                                        // a REROLL contributes no die; the bonus rides the entry
   spend: async (actor, marker, message) => {
-    if ( marker.row.uses ) {
-      const record = await spendPoolUses(actor, marker.item, marker.key, 1, null);
+    if ( marker.row.uses || marker.pool ) {
+      const record = await spendPoolUses(actor, marker.pool ?? marker.item, marker.key, 1, null);
       if ( !record ) return false;
       if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
     }
@@ -1330,4 +1335,62 @@ listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   } catch(err) {
     console.error(`${TITLE} | The refund ask failed to render.`, err);
   }
+}));
+
+/* --- THE D20 FLOORS (C1; D20_FLOORS): a d20 face below the floor reads as the floor ------------------------ */
+
+/** The listed floor rows standing on this roller for this test: `{ key, row }[]`. */
+function floorsFor(actor, { test, ability = null, concentration = false } = {}) {
+  if ( !(actor instanceof Actor) ) return [];
+  const on = listedNames(d20FloorEntries());
+  const out = [];
+  for ( const [key, row] of Object.entries(D20_FLOORS) ) {
+    if ( !on.has(lower(key)) || !row.tests.includes(test) ) continue;
+    if ( !actor.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(row.effect))) ) continue;
+    const abilities = row.abilities?.[test] ?? null;
+    if ( abilities && ability && !abilities.includes(lower(ability)) ) continue;
+    if ( (test === "save") && row.concentration && !concentration ) continue;
+    out.push({ key, row });
+  }
+  return out;
+}
+
+/** The platform's own knob: `options.minimum` on the roll configuration — a d20 below it counts as it. */
+function floorRolls(config, actor, facts) {
+  const rows = floorsFor(actor, facts);
+  if ( !rows.length || !Array.isArray(config?.rolls) ) return;
+  const minimum = Math.max(...rows.map(r => Number(r.row.minimum) || 0));
+  for ( const roll of config.rolls ) {
+    roll.options ??= {};
+    if ( !(Number(roll.options.minimum) >= minimum) ) roll.options.minimum = minimum;
+    roll.options.bfFloor = rows.map(r => r.key);
+  }
+}
+
+listen("dnd5e.preRollAttack", "d20-folds", config => {
+  try { floorRolls(config, config?.subject?.item?.actor ?? config?.subject?.actor ?? null, { test: "attack" }); }
+  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the attack.`, err); }
+});
+listen("dnd5e.preRollSavingThrow", "d20-folds", config => {
+  try { floorRolls(config, config?.subject ?? null, { test: "save", ability: config?.ability ?? null, concentration: !!config?.isConcentration }); }
+  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the save.`, err); }
+});
+listen("dnd5e.preRollAbilityCheck", "d20-folds", config => {
+  try { floorRolls(config, config?.subject ?? null, { test: "check", ability: config?.ability ?? null }); }
+  catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the check.`, err); }
+});
+
+// The card says it (R5): the floor that stood on the roll, when the d20 was lifted by it.
+listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
+  const roll = message.rolls?.[0];
+  const keys = roll?.options?.bfFloor;
+  if ( !keys?.length ) return;
+  const d20 = roll.dice?.[0];
+  const face = d20?.results?.find(r => r.active)?.result ?? d20?.total ?? null;
+  const minimum = Number(roll.options.minimum) || 0;
+  if ( !(face !== null && face < minimum) ) return;
+  const line = document.createElement("div");
+  line.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.85;margin-top:0.25rem;";
+  line.innerHTML = `<i class="fa-solid fa-arrow-up-from-bracket"></i> ${esc(keys.join(", "))} — the d20's ${face} counts as ${minimum}`;
+  host.appendChild(line);
 }));

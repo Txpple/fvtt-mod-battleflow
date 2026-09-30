@@ -192,6 +192,11 @@ export const groupOf = rel => (rel.includes("/") && GROUPS[rel.split("/")[0]]) ?
 
 const ALLOW = [
   {
+    from: "heal-on-hit.js", to: "rest-grants.js", disposition: "BY DESIGN",
+    why: "machine → machine: Improved Blessed Strikes' Temporary Hit Points to one creature within 60 ft are the rest "
+      + "song's hand-out too (`askHandOut`, one pick) — the same one picker (2026-09-30, the PHB classes C1)"
+  },
+  {
     from: "cast-riders.js", to: "rest-grants.js", disposition: "BY DESIGN",
     why: "machine → machine: Inspiring Smite's divided Temporary Hit Points are the rest song's hand-out "
       + "(`askHandOut` with `distribute`: the popup, the record, the GM's landing, the clock) — one picker "

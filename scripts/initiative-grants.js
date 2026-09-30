@@ -61,9 +61,17 @@ function grantsFor(actor) {
     if ( !regain ) continue;
     const heal = row.heal ? activityNamed(item, row.heal) : null;
     const hp = actor.system?.attributes?.hp ?? null;
-    const due = initiativeGrantDue({ own: usesOf(item), regain: usesOf(regain), heals: !!heal,
+    const due = initiativeGrantDue({ own: usesOf(item), regain: usesOf(regain), heals: !!heal, upTo: row.upTo ?? null,
       hp: hp ? { value: Number(hp.value) || 0, max: Number(hp.effectiveMax ?? hp.max) || 0 } : null });
     if ( due.due ) out.push({ name, row, item, regain, heal });
+  }
+  // C1 — `unless` (Perfect Focus): with the named row's ask due too, this row rides it as the FALLBACK (landed on its No);
+  // with none, it stands on its own.
+  for ( const g of out.filter(x => x.row.unless) ) {
+    const host = out.find(x => (lower(x.name) === lower(g.row.unless)) && x.row.ask);
+    if ( !host ) continue;
+    host.fallback = g;
+    out.splice(out.indexOf(g), 1);
   }
   return out;
 }
@@ -120,14 +128,18 @@ async function readFor(combat, combatant) {
   }
 }
 
-async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null }) {
+async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null, fallback = null }) {
   const r = usesOf(regain);
   const formula = give ? give.formula : heal ? healFormulaOf(actor, heal) : null;
   if ( heal && !formula ) console.warn(`${TITLE} | ${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
   const window = row.ask ? decisionWindow() : 0;
+  // C1 — `upTo` (Perfect Focus): what comes back is what is missing below the ceiling.
+  const back = row.upTo ? Math.max(0, Math.min(Number(row.upTo) - r.value, r.spent)) : Math.min(r.spent, r.max);
   const flag = { status: row.ask ? "pending" : "resolved", answer: row.ask ? null : "auto", row: name, unit: row.unit ?? null,
     actorUuid: actor.uuid, actorName: combatant.name ?? actor.name, itemId: item.id, regainId: regain?.id ?? null,
-    back: Math.min(r.spent, r.max), max: r.max, formula, combatId: combat.id, combatantId: combatant.id, ...statContext(actor.uuid),
+    back, max: r.max, formula, combatId: combat.id, combatantId: combatant.id, ...statContext(actor.uuid),
+    ...(row.upTo ? { upTo: Number(row.upTo) } : {}),
+    ...(fallback ? { fallback: { row: fallback.name, itemId: fallback.item.id, regainId: fallback.regain?.id ?? null, upTo: Number(fallback.row.upTo) || null, unit: fallback.row.unit ?? null } } : {}),
     ...(give ? { give: true, reach: row.reach ?? 30, activityId: give.activity.id, poolId: give.pool.id, poolName: give.pool.name } : {}),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
   await ChatMessage.create({
@@ -171,14 +183,42 @@ registerRelay("initiativeGrantAnswer", {
   fold: (current, a) => settle(current, a.answer)
 });
 
+/** C1 — the fallback row (Perfect Focus under Uncanny Metabolism's No): its own ceiling, landed on the host's card. */
+async function landFallback(message, flag) {
+  const record = {};
+  try {
+    const actor = resolveUuid(flag.actorUuid);
+    const regain = actor?.items?.get(flag.fallback.regainId);
+    if ( !(actor instanceof Actor) || !regain ) throw new Error("the feature left the sheet");
+    const r = usesOf(regain);
+    const upTo = Number(flag.fallback.upTo) || 0;
+    if ( r.value < upTo ) {
+      await regain.update({ "system.uses.spent": Math.max(0, r.max - upTo) });
+      record.fallbackRegained = Math.min(upTo, r.max) - r.value;
+    }
+  } catch(err) {
+    console.error(`${TITLE} | ${flag.fallback?.row} failed — check the sheet.`, err);
+  } finally {
+    await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => { Object.assign(current, record, { fallbackApplied: true }); });
+  }
+}
+
 /** The GM lands a Yes (or a plain row): the uses back, the heal rolled and receipted, the feature's use spent. */
 async function landGrant(message) {
   let claimed = false;
+  let fallback = false;
   await queueFlagWrite(message, INITIATIVE_GRANT_FLAG, current => {
-    if ( (current.status !== "resolved") || (current.answer === "no") || current.applied || current.applying ) return false;
+    if ( current.status !== "resolved" ) return false;
+    if ( (current.answer === "no") && current.fallback && !current.fallbackApplied && !current.fallbackApplying ) {
+      current.fallbackApplying = true;
+      fallback = true;
+      return;
+    }
+    if ( (current.answer === "no") || current.applied || current.applying ) return false;
     current.applying = true;
     claimed = true;
   });
+  if ( fallback ) return landFallback(message, message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG));
   if ( !claimed ) return;
   const flag = message.getFlag(MODULE_ID, INITIATIVE_GRANT_FLAG);
   const record = {};
@@ -191,6 +231,13 @@ async function landGrant(message) {
     const own = usesOf(item);
     if ( (own.max > 0) && !(own.value > 0) ) { record.spentAlready = true; return; }
     const r = usesOf(regain);
+    // C1 — `upTo` (Perfect Focus): back to the ceiling, never past it.
+    if ( flag.upTo ) {
+      if ( r.value < flag.upTo ) await regain.update({ "system.uses.spent": Math.max(0, r.max - Number(flag.upTo)) });
+      record.regained = Math.max(0, Math.min(Number(flag.upTo), r.max) - r.value);
+      record.max = r.max;
+      return;
+    }
     await regain.update({ "system.uses.spent": 0 });
     if ( own.max > 0 ) await item.update({ "system.uses.spent": own.spent + 1 });
     record.regained = Math.min(r.spent, r.max);
@@ -209,7 +256,8 @@ async function landGrant(message) {
 }
 
 registerResumable(INITIATIVE_GRANT_FLAG, {
-  pending: flag => (flag?.status === "resolved") && (flag.answer !== "no") && !flag.applied && !flag.applying,
+  pending: flag => (flag?.status === "resolved") && ((flag.answer !== "no") ? (!flag.applied && !flag.applying)
+    : (!!flag.fallback && !flag.fallbackApplied && !flag.fallbackApplying)),
   drives: () => isActiveGM(),
   drive: landGrant
 });

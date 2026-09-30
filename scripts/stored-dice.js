@@ -25,7 +25,10 @@ function rowsOf(actor) {
   for ( const [key, row] of Object.entries(STORED_DICE) ) {
     if ( !listed.has(lower(key)) ) continue;
     const item = featureNamed(actor, key);
-    if ( item ) out.push({ key, row, item });
+    if ( !item ) continue;
+    // C1 — `more` (Greater Portent): the named feature on the sheet raises the count.
+    const more = row.more && featureNamed(actor, row.more.feature) ? { ...row, dice: row.more.dice } : row;
+    out.push({ key, row: more, item });
   }
   return out;
 }

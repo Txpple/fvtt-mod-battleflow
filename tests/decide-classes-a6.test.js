@@ -36,7 +36,8 @@ describe("INITIATIVE_GRANTS", () => {
     expect(reg.initiativeGrantEntries().map(e => e.kind)).toEqual([
       "persistent rage",
       "uncanny metabolism",
-      "tandem footwork" // B4
+      "tandem footwork", // B4
+      "perfect focus" // C1
     ]);
   });
 });

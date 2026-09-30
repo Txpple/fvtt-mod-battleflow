@@ -128,6 +128,15 @@ listen("dnd5e.renderChatMessage", "hold/views", (message, html) => {
           ? "The reaction window closed — no answer, so the attack lands."
           : "Let it land — no reaction.");
       }
+      // C1 — a `save` duplicate (Unbreakable Majesty): the attacker's save, the hit turned aside or standing.
+      if ( target.duplicates?.save && (hold.status !== "pending") ) {
+        const d = target.duplicates;
+        const label = CONFIG.DND5E.abilities[d.save.ability]?.label ?? d.save.ability;
+        block.innerHTML = bfCard({ img: d.img ?? null, eyebrow: d.key, subtitle: target.name, tone: d.absorbed ? "good" : "bad",
+          title: d.absorbed ? `${d.key} — the attack misses instead` : `${d.key} — the hit stands`,
+          lines: [`the attacker's ${esc(label)} save: ${(d.save.total === null) ? "unrolled" : `${d.save.total} vs DC ${d.save.dc}`}`] });
+        return;
+      }
       // THE DUPLICATES rolled (Mirror Image): the dice, what they did, what stands.
       if ( target.duplicates?.faces?.length && (hold.status !== "pending") ) {
         const d = target.duplicates;

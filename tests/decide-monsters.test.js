@@ -270,7 +270,12 @@ describe("the one-row facets — the vampire's drop, the curse on a rest, the de
       "death throes",
       "spiteful escape",
       "misty escape",
-      "shadow escape"
+      "shadow escape",
+      // C1
+      "relentless rage",
+      "undying sentinel",
+      "rage of the gods",
+      "searing vengeance"
     ]);
   });
   it("REST_GRANTS: the two block rows name the pack's Cursed and their rests, and grant nothing", () => {

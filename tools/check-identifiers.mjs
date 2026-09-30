@@ -19,7 +19,8 @@ const NOT_CONTENT = new Map([
   ["Heroic Inspiration", "a boolean on the sheet, no document"],
   ["Absorb Elements", "Xanathar's; not in the installed packs, inert until a book carries it"],
   ["Attack and Save Disadvantage", "Ravenloft's Howl; not in the installed packs"],
-  ["Cursed (Path to the Grave)", "Ravenloft's Path to the Grave; not in the installed packs"]
+  ["Cursed (Path to the Grave)", "Ravenloft's Path to the Grave; not in the installed packs"],
+  ["Power of the Wilds: Lion", "the module-MADE member effect of the Lion's ring (EMANATIONS `made`): the pack ships no effect for it"]
 ]);
 
 /** The fields a row names its content in. */

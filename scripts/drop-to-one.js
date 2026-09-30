@@ -12,8 +12,13 @@
  * THE KEEPER of an ask is the client that applied the damage, or the GM once it has gone; any
  * other answer is relayed to it.
  */
-import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM } from "./core.js";
 import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles } from "./lookup.js";
+import { poolOf } from "./shared.js";
+import { nearestFeet } from "./geometry.js";
+import { riderPartFormula } from "./decide/clock.js";
+import { applyDamagesWithReceipt } from "./auto-apply.js";
+import { applyActivityEffectsOnHit } from "./effect-riders.js";
 import { dropToOneEntries, listedNames } from "./decide/registry.js";
 import { DROP_TO_ONE } from "./decide/registry.js";
 import { dropSaveDc, dropSaveExempt, dropSaveTitle, diedTitle } from "./decide/drop-to-one.js";
@@ -41,7 +46,7 @@ const dying = new Map();
 function rowFor(actor, { outright }) {
   const on = listedNames(dropToOneEntries());
   for ( const [name, row] of Object.entries(DROP_TO_ONE) ) {
-    if ( !on.has(lower(name)) || (row.on === "died") ) continue;
+    if ( !on.has(lower(name)) || (row.on === "died") || (row.on === "deathSave") ) continue;
     if ( outright && !row.outright ) continue;
     if ( row.effect ) {
       const effect = actor.effects.find(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(row.effect)));
@@ -54,10 +59,47 @@ function rowFor(actor, { outright }) {
       if ( keeper ) return { name, row, ...keeper };
       continue;
     }
+    // C1 — an `ally` row (Rage of the Gods): ANOTHER creature's feature within reach, its `while` effect standing on the keeper,
+    // its activity's consumption (a Rage use) able to pay.
+    if ( row.ally ) {
+      const keeper = allyKeeperOf(actor, name, row);
+      if ( keeper ) return { name, row, ...keeper };
+      continue;
+    }
     const item = featureNamed(actor, name);
     if ( !item ) continue;
+    // C1 — `while` on the bearer (Relentless Rage: raging).
+    if ( row.while && !wearsWhile(actor, row.while) ) continue;
     if ( row.uses && !(Number(item.system?.uses?.value ?? 0) > 0) ) continue;
     return { name, row, item };
+  }
+  return null;
+}
+
+/** C1 — does the actor wear the row's `while`? "raging" is the Rage effect or status; else an effect by name. */
+function wearsWhile(actor, name) {
+  if ( lower(name) === "raging" ) return actor.effects.some(e => e.active && ((lower(e.name) === "rage") || e.statuses?.has?.("raging")));
+  return actor.effects.some(e => e.active && (lower(e.name) === lower(name)));
+}
+
+/** C1 — the keeper of an `ally` row: a creature within `ally` feet holding the feature, wearing its `while`, its activity's pool
+ * with a use left: `{ item, keeper, activity, pool }` or null. */
+function allyKeeperOf(actor, name, row) {
+  const own = tokenOfActor(actor);
+  if ( !own ) return null;
+  for ( const token of (canvas.tokens?.placeables ?? []) ) {
+    const keeper = token.actor;
+    if ( !keeper || (keeper.uuid === actor.uuid) ) continue;
+    const item = featureNamed(keeper, name);
+    if ( !item ) continue;
+    if ( row.while && !wearsWhile(keeper, row.while) ) continue;
+    const feet = nearestFeet(own, token);
+    if ( (feet === null) || (feet > row.ally) ) continue;
+    const activity = row.activity ? activityNamed(item, row.activity) : null;
+    if ( row.activity && !activity ) continue;
+    const pool = activity ? poolOf(keeper, activity) : null;
+    if ( pool && !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
+    return { item, keeper, activity, pool };
   }
   return null;
 }
@@ -134,7 +176,10 @@ listen("dnd5e.preApplyDamage", "drop-to-one", (actor, amount, updates, options) 
       }
       updates[HP] = 1;                                                 // held at 1 while the dice roll
       asking.add(actor.uuid);
-      void rollDropSave(actor, found, { amount, source, dc: dropSaveDc(found.row.save.dc, amount) })
+      // C1 — `dc: "activity"` (Relentless Rage): the pack's own save activity computes it (10, +5 per use spent).
+      const saveAct = found.row.save.activity ? activityNamed(found.item, found.row.save.activity) : null;
+      const dc = (found.row.save.dc === "activity") ? (Number(saveAct?.save?.dc?.value) || dropSaveDc(null, amount)) : dropSaveDc(found.row.save.dc, amount);
+      void rollDropSave(actor, found, { amount, source, dc, saveAct })
         .catch(err => { asking.delete(actor.uuid); console.error(`${TITLE} | ${found.name}'s save failed — the creature stays at 1 HP; set it by hand.`, err); });
       return;
     }
@@ -184,8 +229,8 @@ async function exemptCard(actor, found, why, { amount, source }) {
 }
 
 /** The bearer's save, rolled here on the keeper with the computed DC; the verdict lands the 1 or the 0. */
-async function rollDropSave(actor, found, { amount, source, dc }) {
-  const ability = found.row.save.ability;
+async function rollDropSave(actor, found, { amount, source, dc, saveAct = null }) {
+  const ability = found.row.save.ability ?? [...(saveAct?.save?.ability ?? [])][0] ?? "con";
   let total = null;
   try {
     const rolls = await actor.rollSavingThrow({ ability, target: dc }, { configure: false },
@@ -196,6 +241,11 @@ async function rollDropSave(actor, found, { amount, source, dc }) {
     console.error(`${TITLE} | ${found.name}'s save did not roll — the creature stays at 1 HP; roll it by hand.`, err);
   }
   const saved = (total !== null) && (total >= dc);
+  // C1 — `uses` on a save row (Relentless Rage): the roll itself spends the use, saved or not (the DC climbs with it).
+  if ( found.row.uses && found.item && (total !== null) ) {
+    await found.item.update({ "system.uses.spent": Number(found.item.system.uses?.spent ?? 0) + 1 })
+      .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
+  }
   try {
     if ( !saved && (total !== null) && (Number(actor.system.attributes.hp.value) === 1) ) {
       // Only the 1 the roll held: a heal in between is left alone.
@@ -204,17 +254,34 @@ async function rollDropSave(actor, found, { amount, source, dc }) {
   } finally {
     asking.delete(actor.uuid);
   }
-  await ChatMessage.create({
+  const card = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: found.item?.img ?? null, eyebrow: found.name, tone: saved ? "good" : "bad",
       title: dropSaveTitle({ name: actor.name, saved, total, dc }),
-      subtitle: `Constitution save, DC 5 + ${Number(amount)} damage`,
+      subtitle: (found.row.save.dc === "activity") ? `${CONFIG.DND5E.abilities[ability]?.label ?? ability} save, DC ${dc} (rising 5 per use)` : `Constitution save, DC 5 + ${Number(amount)} damage`,
       lines: [ruleLine(found.row.rule)] }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: { status: "resolved", answer: (total === null) ? "unrolled" : saved ? "saved" : "failed",
       row: found.name, actorUuid: actor.uuid, actorName: actor.name, amount, applied: true,
       save: { ability, dc, total }, ...statContext(source?.uuid ?? null) } } }
   });
+  // C1 — `heal` on a success (Relentless Rage: 2 × level on top of the 1), receipted on the card.
+  if ( saved && found.row.heal && card ) await healOnHold(card, actor, found);
   if ( !saved && (total !== null) ) await landedZero(actor, { amount, source });
+}
+
+/** C1 — a row's `heal` (the feature's heal activity, rolled on its bearer): landed on the held creature with a receipt. */
+async function healOnHold(card, actor, found) {
+  try {
+    const item = found.item;
+    const activity = item ? activityNamed(item, found.row.heal) : null;
+    const h = activity?.healing;
+    const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+    if ( !raw ) { console.warn(`${TITLE} | ${found.name}: no healing part on "${found.row.heal}" — heal by hand.`); return; }
+    const owner = found.keeper ?? actor;
+    const roll = await new Roll(raw, activity.getRollData?.() ?? owner.getRollData()).evaluate();
+    if ( !(roll.total > 0) ) return;
+    await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: roll.total, type: "healing", properties: new Set() }], { note: found.name });
+  } catch(err) { console.error(`${TITLE} | ${found.name}'s heal failed — heal by hand.`, err); }
 }
 
 /* --- the `died` row: the death's side (Death Throes) --------------------------------------------- */
@@ -309,13 +376,15 @@ async function stampAsk(actor, found, { amount, source }) {
   const flag = {
     status: "pending", row: found.name, actorUuid: actor.uuid, actorName: actor.name, itemId: found.item.id,
     amount, sourceName: source?.name ?? null, answer: null, applied: false,
+    // C1 — an `ally` row's KEEPER (Rage of the Gods): the ask is theirs, their pool pays.
+    ...(found.keeper ? { keeperUuid: found.keeper.uuid, keeperName: found.keeper.name } : {}),
     ...statContext(source?.uuid ?? null),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
-      title: `${actor.name} drops to 0 Hit Points`, subtitle: "held at 1 until the answer" }),
+      title: `${actor.name} drops to 0 Hit Points`, subtitle: found.keeper ? `held at 1 until ${found.keeper.name} answers` : "held at 1 until the answer" }),
     flags: { [MODULE_ID]: { [DROP_FLAG]: flag } }
   });
   if ( message ) armTimer(message);
@@ -388,8 +457,22 @@ async function land(message) {
   try {
     if ( actor instanceof Actor ) {
       if ( flag.answer === "use" ) {
-        const item = actor.items.get(flag.itemId);
-        if ( item ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
+        // C1 — an `ally` row (Rage of the Gods): the KEEPER's activity pays (its pool — a Rage use); the creature drops to the
+        // activity's roll (`to: "roll"`, the barbarian's level) instead of 1. A `heal` row (Undying Sentinel) heals on top of the 1.
+        const keeper = flag.keeperUuid ? resolveUuid(flag.keeperUuid) : null;
+        const owner = (keeper instanceof Actor) ? keeper : actor;
+        const item = owner.items.get(flag.itemId);
+        const row = DROP_TO_ONE[flag.row];
+        const activity = (item && row?.activity) ? activityNamed(item, row.activity) : null;
+        const pool = activity ? poolOf(owner, activity) : null;
+        if ( pool ) await pool.update({ "system.uses.spent": Number(pool.system.uses?.spent ?? 0) + 1 });
+        else if ( item && row?.uses ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
+        if ( (row?.to === "roll") && activity?.roll?.formula && (Number(actor.system.attributes.hp.value) === 1) ) {
+          const to = Math.max(1, Math.floor(Number(Roll.safeEval(Roll.replaceFormulaData(String(activity.roll.formula), owner.getRollData()))) || 1));
+          await actor.update({ [HP]: Math.min(to, Number(actor.system.attributes.hp.max) || to) });
+          await queueFlagWrite(message, DROP_FLAG, current => { current.to = to; });
+        }
+        if ( row?.heal ) await healOnHold(message, actor, { name: flag.row, row, item, keeper: (keeper instanceof Actor) ? keeper : null });
       } else if ( Number(actor.system.attributes.hp.value) === 1 ) {
         // Only the 1 the ask held: a heal in between is left alone.
         await actor.update({ [HP]: 0 });
@@ -411,22 +494,28 @@ registerResumable(DROP_FLAG, {
 
 // The popup and the card.
 
+/** The ask's answerer: an `ally` row's keeper (Rage of the Gods), else the dropped creature. */
+const askerOf = flag => (flag?.keeperUuid ? resolveUuid(flag.keeperUuid) : null) ?? resolveUuid(flag?.actorUuid);
+
 async function showPopup(message) {
   const flag = message.getFlag(MODULE_ID, DROP_FLAG);
   if ( flag?.status !== "pending" ) return;
-  const actor = resolveUuid(flag.actorUuid);
+  const actor = askerOf(flag);
   const row = DROP_TO_ONE[flag.row];
   const item = actor?.items.get(flag.itemId);
-  const left = Number(item?.system?.uses?.value ?? 0), max = Number(item?.system?.uses?.max ?? 0);
+  const activity = (item && row?.activity) ? activityNamed(item, row.activity) : null;
+  const pool = activity ? poolOf(actor, activity) : item;
+  const left = Number(pool?.system?.uses?.value ?? 0), max = Number(pool?.system?.uses?.max ?? 0);
+  const to = (row?.to === "roll" && activity?.roll?.formula) ? `${activity.roll.formula} Hit Points` : "1 Hit Point";
   await openMomentPopup(message, DROP_FLAG, actor, {
     title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-heart-pulse",
     content: bfCard({ img: item?.img ?? null, eyebrow: flag.row, tone: "pending",
-      title: `${flag.actorName} drops to 0 Hit Points — drop to 1 instead?`,
-      subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}${max > 0 ? `${left} of ${max} ${(max === 1) ? "use" : "uses"} left` : ""}`,
+      title: `${flag.actorName} drops to 0 Hit Points — drop to ${to} instead?`,
+      subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}${max > 0 ? `${left} of ${max} ${pool && (pool.id !== item?.id) ? `${pool.name} ` : ""}${(max === 1) ? "use" : "uses"} left` : ""}${row?.heal ? " · and the heal" : ""}`,
       lines: [ruleLine(row?.rule ?? "")] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
-      { action: "use", label: "Drop to 1 HP", default: true, callback: () => { void answer(message, "use"); } },
+      { action: "use", label: `Drop to ${to}`, default: true, callback: () => { void answer(message, "use"); } },
       { action: "pass", label: "Drop to 0", callback: () => { void answer(message, "pass"); } }
     ]
   });
@@ -434,10 +523,11 @@ async function showPopup(message) {
 
 /** The card's line — source, then result (law 6). */
 function askLine(flag) {
-  if ( flag.answer === "use" ) return `${flag.row} — ${flag.actorName} drops to 1 Hit Point instead`;
+  const by = flag.keeperName ? ` (${flag.keeperName}'s)` : "";
+  if ( flag.answer === "use" ) return `${flag.row}${by} — ${flag.actorName} drops to ${flag.to ? `${flag.to} Hit Points` : "1 Hit Point"} instead`;
   if ( flag.answer === "pass" ) return `${flag.actorName} drops to 0${flag.timedOut ? " (timer)" : ""}`;
   if ( flag.answer === "auto" ) return "";
-  return `${flag.row} — ${flag.actorName} is held at 1 Hit Point; it waits for the answer`;
+  return `${flag.row}${by} — ${flag.actorName} is held at 1 Hit Point; it waits for the answer`;
 }
 
 /** The card IS the record for a row the dice or the damage settled: no line under it. */
@@ -455,7 +545,7 @@ listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
     div.innerHTML = `<i class="fa-solid fa-heart-pulse" data-tooltip="${esc(flag.row)}"></i> ${esc(askLine(flag))}`;
     if ( flag.status === "pending" ) {
       div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
-      const actor = resolveUuid(flag.actorUuid);
+      const actor = askerOf(flag);
       if ( canAnswerFor(actor) ) {
         const shown = popupKey(message.id, DROP_FLAG);
         if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showPopup(message); }
@@ -479,3 +569,234 @@ listen("updateChatMessage", "drop-to-one", message => {
 });
 
 listen("deleteChatMessage", "drop-to-one", message => { disarmDeadline(timers, message.id); });
+
+/* --- C1 — THE DEATH SAVE'S SIDE (`on: "deathSave"`, Searing Vengeance) ------------------------------------------------
+ * When a creature rolls a Death Saving Throw, every keeper within the row's `ally` reach (the creature itself too) holding the
+ * feature with a use left is OFFERED it: Yes regains half the creature's Hit Point maximum, rolls the pack's damage once and
+ * lands it on every enemy within its Emanation of the creature, the activity's effect with it for the turn. The offer rides
+ * the roll, never before it (RULINGS *Where the table bends the rule*). */
+
+const DEATH_OFFER_FLAG = "deathSaveOffer";
+const offeredFor = new Set();
+
+/** The `deathSave` rows' keepers for this creature: `{ name, row, keeper, item, activity }[]`. */
+function deathSaveKeepersOf(actor) {
+  const on = listedNames(dropToOneEntries());
+  const own = tokenOfActor(actor);
+  const out = [];
+  for ( const [name, row] of Object.entries(DROP_TO_ONE) ) {
+    if ( (row.on !== "deathSave") || !on.has(lower(name)) ) continue;
+    const seen = new Set();
+    for ( const token of (own ? (canvas.tokens?.placeables ?? []) : []) ) {
+      const keeper = token.actor;
+      if ( !keeper || seen.has(keeper.uuid) ) continue;
+      seen.add(keeper.uuid);
+      if ( (keeper.uuid !== actor.uuid) && (token.document.disposition !== own.document.disposition) ) continue;
+      const item = featureNamed(keeper, name);
+      if ( !item ) continue;
+      if ( row.uses && !(Number(item.system?.uses?.value ?? 0) > 0) ) continue;
+      const feet = (keeper.uuid === actor.uuid) ? 0 : nearestFeet(own, token);
+      if ( (feet === null) || (Number.isFinite(row.ally) && (feet > row.ally)) ) continue;
+      const activity = row.activity ? activityNamed(item, row.activity) : activityOfType(item, "damage");
+      if ( !activity ) continue;
+      out.push({ name, row, keeper, item, activity, feet });
+    }
+  }
+  return out;
+}
+
+listen("dnd5e.rollDeathSave", "drop-to-one", (rolls, ctx) => {
+  try {
+    if ( !isActiveGM() ) return;
+    const subject = ctx?.subject;
+    const actor = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
+    const message = rolls?.[0]?.parent ?? null;
+    if ( !(actor instanceof Actor) || !message?.id || offeredFor.has(message.id) ) return;
+    offeredFor.add(message.id);
+    for ( const found of deathSaveKeepersOf(actor) ) void stampDeathOffer(actor, found, message);
+  } catch(err) {
+    console.error(`${TITLE} | The death save's offer failed — use the feature by hand.`, err);
+  }
+});
+
+async function stampDeathOffer(actor, found, rollMessage) {
+  const window = decisionWindow();
+  const flag = { status: "pending", row: found.name, actorUuid: actor.uuid, actorName: actor.name,
+    keeperUuid: found.keeper.uuid, keeperName: found.keeper.name, itemId: found.item.id, activityId: found.activity.id,
+    rollMessageId: rollMessage.id, feet: found.feet, answer: null, applied: false,
+    ...statContext(found.keeper.uuid),
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
+  const message = await ChatMessage.create({
+    speaker: ChatMessage.getSpeaker({ actor: found.keeper }),
+    content: bfCard({ img: found.item.img, eyebrow: found.name, tone: "pending",
+      title: `${actor.name} rolls a Death Saving Throw`, subtitle: `${found.keeper.name} may answer${found.feet ? ` · ${found.feet} ft away` : ""}` }),
+    flags: { [MODULE_ID]: { [DEATH_OFFER_FLAG]: flag } }
+  });
+  if ( message ) armOfferTimer(message);
+}
+
+function armOfferTimer(message) {
+  const flag = message?.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  if ( (flag?.status !== "pending") || !flag.deadline || !keepsMessage(message) ) return;
+  armDeadline(timers, message.id, flag.deadline, async () => {
+    const live = game.messages.get(message.id);
+    if ( !live ) return;
+    await queueFlagWrite(live, DEATH_OFFER_FLAG, current => {
+      if ( current.status !== "pending" ) return false;
+      Object.assign(current, { status: "resolved", answer: "pass", timedOut: true, answeredAt: Date.now() });
+    });
+  });
+}
+
+async function answerOffer(message, choice) {
+  if ( answering.has(message.id) ) return;
+  answering.add(message.id);
+  try {
+    const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+    if ( flag?.status !== "pending" ) return;
+    if ( keepsMessage(message) ) {
+      await queueFlagWrite(message, DEATH_OFFER_FLAG, current => {
+        if ( current.status !== "pending" ) return false;
+        Object.assign(current, { status: "resolved", answer: choice, answeredAt: Date.now() });
+      });
+      return;
+    }
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.keeperUuid) }),
+      content: bfCard({ eyebrow: flag.row, tone: (choice === "use") ? "good" : "neutral",
+        title: (choice === "use") ? `${flag.keeperName} answers with ${flag.row}` : `${flag.keeperName} lets the save roll` }),
+      flags: { [MODULE_ID]: { deathSaveOfferAnswer: { messageId: message.id, answer: choice } } }
+    });
+  } finally {
+    answering.delete(message.id);
+  }
+}
+
+registerRelay("deathSaveOfferAnswer", {
+  flagKey: DEATH_OFFER_FLAG,
+  targetOf: a => a.messageId,
+  owns: (_flag, target) => keepsMessage(target),
+  fold: (current, a) => {
+    if ( current.status !== "pending" ) return false;
+    Object.assign(current, { status: "resolved", answer: a.answer, answeredAt: Date.now() });
+  }
+});
+
+/** The keeper lands a Yes: half the maximum back, the use spent, the burst rolled once and landed on the enemies around. */
+async function landOffer(message) {
+  let claimed = false;
+  await queueFlagWrite(message, DEATH_OFFER_FLAG, current => {
+    if ( (current.status !== "resolved") || current.applied || current.applying || (current.answer !== "use") ) return false;
+    current.applying = true;
+    claimed = true;
+  });
+  if ( !claimed ) return;
+  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  const record = {};
+  try {
+    const actor = resolveUuid(flag.actorUuid);
+    const keeper = resolveUuid(flag.keeperUuid);
+    const item = keeper?.items?.get(flag.itemId);
+    const activity = item?.system?.activities?.get(flag.activityId) ?? null;
+    const row = DROP_TO_ONE[flag.row];
+    if ( !(actor instanceof Actor) || !(keeper instanceof Actor) || !item || !activity || !row ) throw new Error("the feature left the sheet");
+    if ( row.uses ) await item.update({ "system.uses.spent": Number(item.system.uses?.spent ?? 0) + 1 });
+    // Half the maximum, as healing (a receipt on the card).
+    const max = Number(actor.system.attributes.hp.effectiveMax ?? actor.system.attributes.hp.max) || 0;
+    const heal = Math.max(1, Math.floor(max / 2) - Number(actor.system.attributes.hp.value || 0));
+    if ( row.heal === "halfMax" ) {
+      await applyDamagesWithReceipt(message, [{ uuid: actor.uuid, name: actor.name }], [{ value: heal, type: "healing", properties: new Set() }], { note: flag.row });
+      record.healed = heal;
+    }
+    // The burst: the activity's damage rolled once on the keeper, landed on every enemy of the creature within its Emanation.
+    const corpse = tokenOfActor(actor);
+    const feet = feetOf(Number(activity.target?.template?.size), activity.target?.template?.units || "ft");
+    const victims = (corpse && (feet > 0)) ? creaturesWithin(corpse, feet).filter(t => t.actor && (t.actor.uuid !== actor.uuid)
+      && (t.document.disposition !== corpse.document.disposition)) : [];
+    const rolls = await activity.rollDamage({}, { configure: false }, { create: false });
+    const damages = (rolls ?? []).map(r => ({ value: Number(r.total) || 0, type: r.options?.type ?? [...(r.options?.types ?? [])][0] ?? "radiant", properties: new Set(["mgc"]) }));
+    record.burst = damages.reduce((n, d) => n + d.value, 0);
+    record.victims = victims.map(t => t.document?.name ?? t.actor.name);
+    if ( victims.length && damages.length ) {
+      const targets = victims.map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
+      await applyDamagesWithReceipt(message, targets, damages, { note: flag.row });
+      await applyActivityEffectsOnHit(message, activity, targets, { clock: row.clock ?? null, attacker: keeper })
+        .catch(err => console.warn(`${TITLE} | ${flag.row}'s effect could not land — apply it by hand.`, err));
+    }
+  } catch(err) {
+    console.error(`${TITLE} | ${flag.row} failed part-way — check the sheets.`, err);
+  } finally {
+    await queueFlagWrite(message, DEATH_OFFER_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+  }
+}
+
+registerResumable(DEATH_OFFER_FLAG, {
+  pending: flag => (flag?.status === "resolved") && (flag.answer === "use") && !flag.applied && !flag.applying,
+  drives: (_flag, message) => keepsMessage(message),
+  drive: landOffer
+});
+
+async function showOfferPopup(message) {
+  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  if ( flag?.status !== "pending" ) return;
+  const keeper = resolveUuid(flag.keeperUuid);
+  const row = DROP_TO_ONE[flag.row];
+  const item = keeper?.items.get(flag.itemId);
+  const left = Number(item?.system?.uses?.value ?? 0), max = Number(item?.system?.uses?.max ?? 0);
+  await openMomentPopup(message, DEATH_OFFER_FLAG, keeper, {
+    title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-sun",
+    content: bfCard({ img: item?.img ?? null, eyebrow: flag.row, tone: "pending",
+      title: `${flag.actorName} rolls a Death Saving Throw — ${flag.row}?`,
+      subtitle: `half its Hit Point maximum back, the burst on the enemies around it${max > 0 ? ` · ${left} of ${max} ${(max === 1) ? "use" : "uses"} left` : ""}`,
+      lines: [ruleLine(row?.rule ?? ""), row?.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] })
+      + holdBarHTML(flag, "to answer"),
+    buttons: [
+      { action: "use", label: flag.row, default: true, callback: () => { void answerOffer(message, "use"); } },
+      { action: "pass", label: "Pass", callback: () => { void answerOffer(message, "pass"); } }
+    ]
+  });
+}
+
+function offerLine(flag) {
+  if ( flag.answer === "use" ) {
+    if ( !flag.applied ) return `${flag.row} — ${flag.keeperName} answers; landing…`;
+    const burst = flag.victims?.length ? `; ${flag.burst} radiant on ${flag.victims.join(", ")}, Blinded until the end of the turn` : "; nobody within its burst";
+    return `${flag.row} — ${flag.actorName} regains ${flag.healed ?? "half its maximum"} Hit Points${burst}`;
+  }
+  if ( flag.answer === "pass" ) return `${flag.row} — ${flag.keeperName} lets the save stand${flag.timedOut ? " (timer)" : ""}`;
+  return `${flag.row} — ${flag.keeperName} may answer ${flag.actorName}'s Death Saving Throw`;
+}
+
+listen("dnd5e.renderChatMessage", "drop-to-one", (message, html) => {
+  try {
+    const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+    if ( !flag ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-death-offer-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-death-offer-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    div.innerHTML = `<i class="fa-solid fa-sun" data-tooltip="${esc(flag.row)}"></i> ${esc(offerLine(flag))}`;
+    if ( flag.status === "pending" ) {
+      div.insertAdjacentHTML("beforeend", ` ${holdBarHTML(flag, "to answer")}`);
+      const keeper = resolveUuid(flag.keeperUuid);
+      if ( canAnswerFor(keeper) ) {
+        const shown = popupKey(message.id, DEATH_OFFER_FLAG);
+        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showOfferPopup(message); }
+        div.appendChild(momentButton("Answer", () => { void showOfferPopup(message); }));
+      }
+      scheduleBarSync(div);
+      armOfferTimer(message);
+    }
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The death save offer's line could not render.`, err); }
+});
+
+listen("updateChatMessage", "drop-to-one", message => {
+  const flag = message.getFlag(MODULE_ID, DEATH_OFFER_FLAG);
+  if ( !flag ) return;
+  if ( flag.status === "pending" ) { armOfferTimer(message); return; }
+  disarmDeadline(timers, message.id);
+  const open = livePopups.get(popupKey(message.id, DEATH_OFFER_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});

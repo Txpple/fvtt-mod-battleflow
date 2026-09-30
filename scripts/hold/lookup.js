@@ -156,7 +156,8 @@ export function attackFactsOf(attackMessage) {
 /**
  * THE DUPLICATES standing on a defender (DUPLICATES, Mirror Image), read against this attacker: the row, the
  * count, the effects in the row's order, and whether the attacker sees through them. Null with none.
- * @returns {{key: string, at: number, die: number, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null, feature?: boolean, reflectAt?: number|null}|null}
+ * @returns {{key: string, at: number|null, die: number|null, count: number, of: number, ids: string[], names: string[], img: string|null, seenThrough: string|null, feature?: boolean, reflectAt?: number|null,
+ *   save?: {ability: string, dc: number, activityUuid: string, effectId: string, turn: string|null}}|null}
  */
 export function duplicatesOf(defender, attacker, { ranged = false, spellAttack = false } = {}) {
   if ( !defender ) return null;
@@ -177,6 +178,19 @@ export function duplicatesOf(defender, attacker, { ranged = false, spellAttack =
     const item = effectSourceOf(effect)?.item ?? null;
     const row = repeatRowFor({ table: DUPLICATES, item, effectName: effect.name, listed, answers });
     if ( !row ) continue;
+    // C1 — a `save` row (Unbreakable Majesty): one "duplicate" that is never destroyed; the ATTACKER's save (the pack's
+    // activity on the defender's item) instead of a die, once per attacker per turn (a stamp on the effect).
+    if ( row.save ) {
+      const activity = item ? activityNamed(item, row.save) : null;
+      const dc = activity?.save?.dc?.value;
+      const ability = [...(activity?.save?.ability ?? [])][0] ?? null;
+      if ( !activity || !(dc > 0) || !ability ) continue;
+      const turn = game.combat?.started ? `${game.combat.id}:${game.combat.round}:${game.combat.turn}` : null;
+      const asked = effect.getFlag(MODULE_ID, "recoiled") ?? {};
+      if ( attacker?.uuid && turn && (asked[attacker.uuid] === turn) ) continue;
+      return { key: row.key, at: null, die: null, count: 1, of: 1, ids: [effect.id], names: [effect.name], img: item?.img ?? effect.img ?? null, seenThrough: null,
+        feature: true, save: { ability, dc, activityUuid: activity.uuid, effectId: effect.id, turn } };
+    }
     const standing = standingDuplicates(row, defender.effects.contents);
     if ( !standing.length ) return null;
     const seen = seesThrough(row, { statuses: attacker?.statuses ?? [], senses: attacker?.system?.attributes?.senses ?? {} });

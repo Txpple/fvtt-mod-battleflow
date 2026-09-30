@@ -32,7 +32,8 @@ describe("CAST_RIDERS", () => {
     expectPointer(smite.rule);
     expect(reg.castRiderEntries().map(e => e.kind)).toEqual([
       "wild magic surge",
-      "inspiring smite"
+      "inspiring smite",
+      "smite of protection" // C1
     ]);
   });
 });

@@ -19,7 +19,8 @@ import { setOutcome } from "../decide/stored-dice.js";
 import { registerRelay, openMomentPopup } from "../ui.js";
 import { tokenForUuid } from "../geometry.js";
 import { originData } from "../decide/card.js";
-import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg } from "./lookup.js";
+import { SPELL_ROW_TYPES, reactionItem, reactionItemFor, applyReactionEffect, reactionACArrived, reactionImg, attackFactsOf } from "./lookup.js";
+import { applyItemEffectOnHit } from "../effect-riders.js";
 import { listen } from "../dispatch.js";
 
 /**
@@ -518,6 +519,16 @@ export async function castReaction(attackMessage, target) {
   // No usage dialog (the lowest slot; upcast from the sheet); the module drives what follows.
   const cast = () => activity.use({ subsequentActions: false }, { configure: false }, data);
   await (aim ? withTargets([aim], cast) : cast());
+  // C1 — a multiplier row's typed effect (Superior Hunter's Defense): the pack's Resistance of the hit's damage type lands on
+  // the reactor until the end of the current turn; the hold halves the damage as Uncanny Dodge's does.
+  if ( (multiplierRow?.effects === "type") && actor ) {
+    const type = attackFactsOf(attackMessage).dealt?.[0] ?? null;
+    const item = actor.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
+    const effect = (type && item) ? item.effects.find(e => lower(e.name) === lower(`${multiplierRow.effectPrefix ?? ""}${type}`)) : null;
+    if ( effect ) await applyItemEffectOnHit(attackMessage, item, { name: effect.name, from: effect.name, id: `bfTypedRes${type.slice(0, 6).padEnd(6, "0")}` },
+      [{ uuid: actor.uuid, name: actor.name }], { clock: multiplierRow.clock ?? null, attacker: actor })
+      .catch(err => console.warn(`${TITLE} | ${target.reaction}'s effect could not land — apply it by hand.`, err));
+  }
 }
 
 /** Parry's answer: pool and Reaction spent, the reduction rolled in the open. */

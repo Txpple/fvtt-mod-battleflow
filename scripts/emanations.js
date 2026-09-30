@@ -526,7 +526,8 @@ listen("updateCombat", "emanations", (combat, changes) => {
     const scene = combat.scene ?? token?.parent ?? null;
     if ( !token || !scene ) return;
     const names = listed();
-    for ( const region of scene.regions.filter(r => ["spell", "feature"].includes(flagOf(r)?.kind) && (flagOf(r)?.tokenId === token.id)) ) {
+    // C1 — a `bearer` ring's source turn is its SOURCE token's (the druid's), not the bearer's it stands on.
+    for ( const region of scene.regions.filter(r => ["spell", "feature"].includes(flagOf(r)?.kind) && ((flagOf(r)?.sourceTokenId ?? flagOf(r)?.tokenId) === token.id)) ) {
       const row = rowNamed(flagOf(region).key);
       if ( !row || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
       if ( row.remind?.on === "sourceTurnStart" ) void remind(region, row, token);
@@ -801,7 +802,7 @@ async function forgetInitial(region, token) {
 }
 
 /** Make a Region this module's emanation: flagged (with who stood inside), given the behaviour, attached. */
-async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 0, effect = null, disabled = false }) {
+async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 0, effect = null, disabled = false, source = null }) {
   // ⚠ ORDER: the "asked at the cast" record goes down FIRST, before the behaviour and attachment
   // raise tokenEnter. Geometry, not `region.tokens`, which is still empty on a new region.
   const inside = (tokensInRegions([region]) ?? []).map(e => e.tokenId);
@@ -810,8 +811,9 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
     color: colorFor(reach), ...ringHidden(), highlightMode: "shapes",
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
+  // C1 — a `bearer` ring's SOURCE is another token (the druid's), the attachment the bearer's.
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
-    system: { key, source: tok?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
+    system: { key, source: (source ?? tok)?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
   if ( tok && (region.attachment?.token?.id !== tok.id) ) await region.update({ attachment: { token: tok.id } });
 }
 
@@ -862,9 +864,24 @@ function weaponReachOf(weapon) {
   return weapon?.system?.properties?.has?.("rch") ? 10 : 5;
 }
 
+/** C1 — a `bearer` row (Oceanic Gift): the ring stands on the token wearing the manifest's effect, whose origin is the SOURCE's
+ * feature (`bearer.of`); the source's token on the scene is where the pick and the scale come from. `{ actor, sourceTok }` or null. */
+function bearerSourceOf(tok, row) {
+  const worn = tok.actor.effects.find(e => e.active && (lower(e.name) === lower(row.bearer.effect)));
+  const origin = worn?.origin ? resolveUuid(worn.origin) : null;
+  const item = (origin instanceof Item) ? origin : (origin?.item instanceof Item) ? origin.item : null;
+  const source = item?.actor ?? null;
+  if ( !(source instanceof Actor) || (lower(item.name) !== lower(row.bearer.of)) || (source.uuid === tok.actor.uuid) ) return null;
+  const sourceTok = tok.parent?.tokens?.find(t => t.actor?.uuid === source.uuid) ?? null;
+  return sourceTok ? { actor: source, sourceTok } : null;
+}
+
 /** What a feature's emanation on this token should look like now, or null when it should not stand. */
 function featureSpec(tok, row) {
-  const actor = tok.actor;
+  // C1 — a `bearer` row reads the SOURCE's sheet for the item, the scale and the effect; the ring stands on `tok`.
+  const bearer = row.bearer ? bearerSourceOf(tok, row) : null;
+  if ( row.bearer && !bearer ) return null;
+  const actor = bearer ? bearer.actor : tok.actor;
   const item = itemNamed(actor, row.item ?? row.key);
   if ( !item ) return null;
   for ( const name of [].concat(row.while ?? []) ) {
@@ -877,16 +894,19 @@ function featureSpec(tok, row) {
   if ( row.activity && !act ) return null;
   const range = (row.range === "weaponReach") ? weaponReachOf(held) : emanationRange(row, rollData, activitySizeOf(item, rollData, act));
   if ( !range ) return null;
+  const sourceTok = bearer?.sourceTok ?? null;
+  const disabled = !!row.incapacitated && actor.statuses?.has?.("incapacitated");
   // A ring with no effect (a `pulse` row) is only the geometry the pulse reads; nobody wears it.
-  if ( row.effect === null ) return { tok, actor, item, row, range, effect: null,
-    disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
+  if ( row.effect === null ) return { tok, actor, item, row, range, effect: null, sourceTok, disabled };
+  // C1 — a `made` row (Power of the Wilds' Lion): the pack ships no member effect, so the module makes a bare one of that name.
+  if ( row.made ) return { tok, actor, item, row, range, sourceTok, disabled,
+    effect: { name: row.effect, img: item.img ?? null, description: null, changes: [] } };
   const effect = item.effects.find(e => lower(e.name) === lower(row.effect)) ?? null;
   if ( !effect ) return null;
   const { changes, unresolved } = resolveChanges(effect.changes.map(c => ({ key: c.key, mode: c.mode, value: c.value, priority: c.priority })), rollData);
   if ( unresolved.length ) { console.warn(`${TITLE} | ${row.key} on ${actor.name}: could not resolve ${unresolved.join(", ")} — the aura does not stand.`); return null; }
-  return { tok, actor, item, row, range,
-    effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes },
-    disabled: !!row.incapacitated && actor.statuses?.has?.("incapacitated") };
+  return { tok, actor, item, row, range, sourceTok, disabled,
+    effect: { name: effect.name, img: effect.img ?? item.img ?? null, description: null, changes } };
 }
 
 /** Debounced AND serialized per scene: ⚠ two overlapping sweeps each raise the same ring. */
@@ -956,10 +976,12 @@ async function reconcileScene(scene) {
         shapes: [emanationShapeData(standing(w.tok), w.range * pxPerUnit(scene))],
         attachment: { token: w.tok.id },
         ...ringHidden(), highlightMode: "shapes",
-        flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid } } }
+        flags: { [MODULE_ID]: { [FLAG]: { kind: "feature", key: w.row.key, tokenId: w.tok.id, itemUuid: w.item.uuid,
+          ...(w.sourceTok ? { sourceTokenId: w.sourceTok.id } : {}) } } }
       }], { dnd5e: { createActivityBehaviors: false } });
       if ( !region ) { console.error(`${TITLE} | ${w.row.key} around ${w.actor.name}: the region was not created.`); continue; }
-      await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled });
+      await adoptRegion(region, { kind: "feature", key: w.row.key, tok: w.tok, itemUuid: w.item.uuid, reach: w.row.reach, effect: w.effect, disabled: w.disabled,
+        source: w.sourceTok ?? null });
       await announce(w.row, w.actor, w.item, w.range, w.effect, "stands");
       await reconcileMembers(scene.regions.get(region.id) ?? region);
     } catch(err) {

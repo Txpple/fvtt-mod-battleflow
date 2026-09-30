@@ -21,7 +21,8 @@ describe("the table", () => {
     expect(Object.keys(reg.EFFECT_CHOICES)).toEqual([
       "Fire Shield",
       "Starry Form",
-      "Rage of the Wilds"
+      "Rage of the Wilds",
+      "Power of the Wilds" // C1
     ]);
     const row = reg.EFFECT_CHOICES["Fire Shield"];
     expect(row.effects).toEqual(["Warm Shield", "Chill Shield"]);
