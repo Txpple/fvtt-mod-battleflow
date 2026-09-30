@@ -55,7 +55,11 @@ export const COVERS = [
   // §A7 (39–40)
   'cast-riders.js',         // Wild Magic Surge (the d20, the table, Tides of Chaos), Inspiring Smite's ask
   // §A7 (41)
-  'stored-dice.js'          // Portent: the rest's dice, the chip, its own roll's tick before the roll
+  'stored-dice.js',         // Portent: the rest's dice, the chip, its own roll's tick before the roll
+  // §B4 (50–63)
+  'damage-rules.js',        // the spell-damage bonuses on one roll of the spell
+  'rebukes.js',             // Misty Escape: the self rebuke, its Steps to follow
+  'drop-to-one.js'          // Gift of the Protectors: the named row on the warlock's page
 ];
 
 const SECTIONS = {
@@ -108,7 +112,22 @@ const SECTIONS = {
   46: 'Brutal Strike (B3, lent to the PC Attacker with Improved, a Reckless effect on): the attack dialog lists Reckless and the box "Brutal Strike — forgo the Advantage"; ticked, "Reckless — forgone", Net Normal; the roll\'s record carries forgo; the damage offer\'s group Brutal Strike (four rows, 1d10 · free); Hamstring Blow rides the 1d10 and lands Hamstrung; a hit with no dialog offers no group',
   47: 'Studied Attacks (B3, lent to the Attacker): a MISS at the Halfling writes the chip "Studied Attacks — vs BF Test Halfling" against it; the next attack\'s gate at the Halfling reads it (Net Advantage), at the Victim nothing; the attack at the Halfling spends it (the chipSpend record)',
   48: 'Relentless (B3, lent to BF Test Fighter with no Superiority Dice left): a hit-menu maneuver still offered at "1d8 Superiority Die"; picked, the 1d8 rides, the record says Relentless stood in, nothing spent, the pool still 0; the card line',
-  49: 'Tactical Master (B3, NATIVE — lent to the PC Attacker): the weapon\'s masteryOptions read Push, Sap and Slow beside its own (dnd5e 6 fills the attack dialog\'s Mastery select); rolled with mastery "push", the attack message carries push and the module\'s Push ask follows'};
+  49: 'Tactical Master (B3, NATIVE — lent to the PC Attacker): the weapon\'s masteryOptions read Push, Sap and Slow beside its own (dnd5e 6 fills the attack dialog\'s Mastery select); rolled with mastery "push", the attack message carries push and the module\'s Push ask follows',
+  // B4
+  50: 'the spell-damage bonuses (B4): Potent Spellcasting +Wis on a cleric cantrip; Radiant Soul +Cha on a radiant roll once per turn; Empowered Evocation +Int and Elemental Affinity (Fire) +Cha on Fire Bolt; Ray of Frost takes Empowered alone; the faces',
+  51: 'Bend Luck (B4, lent to the Sorcerer with Font of Magic): a foe\'s hit on the Halfling by 2 asks "−1d4" (Answer: a MISS, a point spent); a friend\'s miss by 3 asks "+1d4" (Answer: a HIT, another point)',
+  52: 'Cosmic Omen (B4, lent to the Sorcerer): the Long Rest\'s d6 kept as "Cosmic Omen — Weal (4)"; a friend\'s miss asks "+1d6" (Weal (Even) the activity, a use spent); the face set odd, a foe\'s hit asks "−1d6" (Woe (Odd))',
+  53: 'Dark One\'s Own Luck (B4, lent to BF Test Fighter): an Athletics check offers the d10 (accepted: +7, a use spent, no refund line); a save offers it too; Homing Strikes (Soul Blades) is not offered on a Longsword miss',
+  54: 'Tandem Footwork (B4, lent to the Bard): the bard\'s Initiative asks "give 1d8 to allies within 30 ft?"; Yes rolls once (5): the bard and the Halfling +5, the foe untouched, the unrolled Sorcerer noted; it rolls later and lands +5',
+  55: 'the turn grants (B4, lent to the PC Attacker): Heroic Warrior writes Heroic Inspiration at the turn start; Guarded Mind asks to end Frightened (a Psionic die spent, the condition gone); Self-Restoration asks at the turn end to end Poisoned (free)',
+  56: 'Physician\'s Touch (B4): Hand of Harm\'s ride also lands "Poisoned (Hand of Harm)" on the Victim; Hand of Healing at a Blinded Halfling asks to end Blinded — gone',
+  57: 'Eldritch Smite (B4, lent to the PC Attacker, Pact slots 2 of 2 at level 2): a weapon hit\'s group "Eldritch Smite — 3d8 force · 1 Pact slot"; ticked, 3d8 force rides, a Pact slot spent, Prone pressed',
+  58: 'Telekinetic Thrust (B4): Psionic Strike\'s ride is followed by Telekinetic Adept\'s Strength save at the Victim; the failure lands Prone',
+  59: 'Lifedrinker (B4): a weapon hit\'s ticked rider "1d6 necrotic", the heal offered on the damage card; Relentless Avenger: in a combat off the paladin\'s turn the melee hit lands the pack\'s speed-0 effect (Halt\'s shape)',
+  60: 'Blessed Healer (B4, the Cleric): Cure Wounds at level 2 on the Halfling posts "Blessed Healer — regains 4", the cleric 50 → 54; Improved Warding Flare (the Halfling): the Flare answered lands 2d6 + Wis Temporary Hit Points',
+  61: 'Bastion of Law (B4, the Sorcerer): Create Shield with 3 points wards the Halfling for 12 on "Warded by Law (12)"; hits are absorbed until the effect goes; Projected Ward: the sorcerer\'s Arcane Ward absorbs the Halfling\'s next hit (Absorb)',
+  62: 'Gift of the Protectors (B4, the Sorcerer\'s page names the Halfling): a drop to 0 is held at 1, the card names the sorcerer, Protect\'s use spent; spent, the next drop lands 0',
+  63: 'the reminders and the bends (B4): War Magic\'s reminder on an attack; Shadow Step\'s chip (a melee gate reads Advantage); Defensive Tactics — Escape the Horde off the attacker\'s turn (Disadvantage) and Multiattack Defense\'s −4 chip against the hitter; Misty Escape\'s rebuke casts Misty Step and offers its Steps; Sculpt Spells\' free row on Fireball\'s cast window'};
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -3487,6 +3506,828 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await pcAttacker.update({ 'system.traits.weaponProf.mastery.value': priorMastery.value }).catch(() => {});
         if (w && pcAttacker.items.get(w.id)) await pcAttacker.items.get(w.id).update({ 'system.mastery': priorMastery.weapon }).catch(() => {});
         CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ================================================ §B4 — band B rows on tables that exist (RULINGS *The PHB classes — B4*)
+    const b4Card = (since, key) => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, key)) ?? null;
+    const b4Cards = (since, key) => game.messages.contents.filter(m => (m.timestamp >= since) && m.getFlag(MOD, key));
+    const styleFlag = m => m?.getFlag(MOD, 'fightingStyle') ?? null;
+    const abilityMod = (actor, ab) => Number(actor.system?.abilities?.[ab]?.mod ?? 0);
+    /** A spell lent to `actor` as that class's own, prepared, cast from a slot. */
+    const lendClassSpell = async (actor, name, cls, patch = {}) => hgLend(actor, name, 'spell', { 'system.prepared': 1, 'system.method': 'spell', 'system.sourceItem': `class:${cls}`, ...patch });
+    /** A spell's damage rolled at `targetToken` (or nobody), the dice pinned; the damage message. */
+    const spellDamage = async (actor, spell, targetToken = null, pins = [[3, 8], [3, 8], [3, 10], [3, 10]]) => {
+      clearTargets();
+      targetToken?.setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const a = actor.items.get(spell?.id)?.system?.activities?.find(x => x.damage?.parts?.length) ?? null;
+      faces(pins);
+      const rolls = await a?.rollDamage({}, { configure: false }, {});
+      CONFIG.Dice.randomUniform = realPRNG;
+      clearTargets();
+      return rolls?.[0]?.parent ?? null;
+    };
+    const statusOn = async (actor, status, active) => { await actor.toggleStatusEffect(status, { active }); await sleep(200); };
+    const hasStatus = (actor, status) => !!actor.statuses?.has?.(status);
+
+    // ---- 50. the spell-damage bonuses: Potent Spellcasting, Radiant Soul (once per turn), Empowered Evocation, Elemental Affinity (once per cast)
+    if (want(50)) {
+      await closeA1();
+      hgKeep(cleric, { 'system.abilities.wis.value': Number(cleric.system.abilities?.wis?.value ?? 10) });
+      hgKeep(sorcerer, { 'system.abilities.int.value': Number(sorcerer.system.abilities?.int?.value ?? 10), 'system.abilities.cha.value': Number(sorcerer.system.abilities?.cha?.value ?? 10),
+        'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells) });
+      const potent = await hgLend(cleric, 'Blessed Strikes: Potent Spellcasting', 'feat');
+      const flame = await lendClassSpell(cleric, 'Sacred Flame', 'cleric', { 'system.method': 'atwill' });
+      const soul = await hgLend(sorcerer, 'Radiant Soul', 'feat');
+      const evocation = await hgLend(sorcerer, 'Empowered Evocation', 'feat');
+      const affinity = await hgLend(sorcerer, 'Elemental Affinity', 'feat', { name: 'Elemental Affinity (Fire)' });
+      const bolt = await lendClassSpell(sorcerer, 'Fire Bolt', 'wizard', { 'system.method': 'atwill' });
+      const frost = await lendClassSpell(sorcerer, 'Ray of Frost', 'wizard', { 'system.method': 'atwill' });
+      const sorcFlame = await lendClassSpell(sorcerer, 'Sacred Flame', 'cleric', { 'system.method': 'atwill' });
+      let combat50 = null;
+      try {
+        if (!potent || !flame || !soul || !evocation || !affinity || !bolt || !frost || !sorcFlame) log.push(`§50 skipped: potent=${!!potent} flame=${!!flame} soul=${!!soul} evo=${!!evocation} affinity=${!!affinity} bolt=${!!bolt} frost=${!!frost} sorcFlame=${!!sorcFlame}`);
+        else {
+          await cleric.update({ 'system.abilities.wis.value': 16 });
+          await sorcerer.update({ 'system.abilities.int.value': 14, 'system.abilities.cha.value': 18 });
+          // a. Potent Spellcasting: a cleric cantrip's damage roll carries +Wis; the card's chip line
+          const m1 = await spellDamage(cleric, flame, halflingToken);
+          const f1 = styleFlag(m1);
+          ok('50a. Potent Spellcasting: Sacred Flame\'s damage roll carries "@abilities.wis.mod" (+3), the record names the row',
+            /abilities\.wis\.mod/.test(m1?.rolls?.[0]?.formula ?? '') || (f1?.styles?.[0]?.key === 'potent-spellcasting-cleric' && f1?.gain === 3),
+            `formula="${m1?.rolls?.[0]?.formula}" flag=${JSON.stringify(f1 && { styles: f1.styles.map(s => [s.key, s.gain]), gain: f1.gain })}`);
+          ok('50a-line. the damage card: "Blessed Strikes: Potent Spellcasting" with a +3 chip',
+            /Potent Spellcasting/.test(cardText(m1?.id)) && /\+3/.test(cardText(m1?.id)), `card="${cardText(m1?.id).slice(0, 200)}"`);
+          // b. Radiant Soul: +Cha to a radiant roll; once per turn in a combat
+          combat50 = await (async () => {
+            const [c] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+            created.combats.push(c.id);
+            await c.createEmbeddedDocuments('Combatant', [{ tokenId: sorcererDoc.id, sceneId: scene.id, actorId: sorcerer.id, initiative: 20 },
+              { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
+            await c.startCombat(); await sleep(400); return c;
+          })();
+          const m2 = await spellDamage(sorcerer, sorcFlame, victimToken);
+          const f2 = styleFlag(m2);
+          await sleep(600);
+          const m3 = await spellDamage(sorcerer, sorcFlame, victimToken);
+          ok('50b. Radiant Soul: the first radiant roll this turn carries +Cha (+4), the record "radiant-soul"; the second roll the same turn nothing (the turn chit)',
+            (f2?.styles?.some(s => (s.key === 'radiant-soul') && (s.gain === 4))) && !styleFlag(m3)?.styles?.some(s => s.key === 'radiant-soul')
+              && !!sorcerer.effects.find(e => e.getFlag(MOD, 'riderKey') === 'damage-rule:radiant-soul'),
+            `first=${JSON.stringify(f2?.styles?.map(s => [s.key, s.gain]))} second=${JSON.stringify(styleFlag(m3)?.styles?.map(s => [s.key, s.gain]) ?? null)} chit=${!!sorcerer.effects.find(e => e.getFlag(MOD, 'riderKey') === 'damage-rule:radiant-soul')}`);
+          // c. Empowered Evocation (+Int on a Wizard Evocation) and Elemental Affinity (Fire, +Cha) on Fire Bolt — one roll, both
+          const m4 = await spellDamage(sorcerer, bolt, victimToken);
+          const keys4 = (styleFlag(m4)?.styles ?? []).map(s => [s.key, s.gain]);
+          ok('50c. Fire Bolt (a Wizard Evocation, fire): Empowered Evocation +2 and Elemental Affinity (Fire) +4 both ride; Radiant Soul does not (no radiant, no fire… fire yes but the chit stands)',
+            keys4.some(([k, g]) => (k === 'empowered-evocation') && (g === 2)) && keys4.some(([k, g]) => (k === 'elemental-affinity') && (g === 4)),
+            `styles=${JSON.stringify(keys4)} formula="${m4?.rolls?.[0]?.formula}"`);
+          // d. Ray of Frost (cold): Empowered Evocation yes, Elemental Affinity (Fire) no
+          const m5 = await spellDamage(sorcerer, frost, victimToken);
+          const keys5 = (styleFlag(m5)?.styles ?? []).map(s => s.key);
+          ok('50d. Ray of Frost (cold): Empowered Evocation rides, Elemental Affinity (Fire) does not', keys5.includes('empowered-evocation') && !keys5.includes('elemental-affinity'),
+            `styles=${JSON.stringify(keys5)}`);
+          // e. the faces: the sorcerer wears "Elemental Affinity (Fire)" live, the cleric "Blessed Strikes: Potent Spellcasting"
+          const face = sorcerer.effects.find(e => e.getFlag(MOD, 'fightingStyle')?.key === 'elemental-affinity') ?? null;
+          ok('50e. the face: "Elemental Affinity (Fire)" live on the sorcerer, its word "fire"', !!face && !face.disabled && (face.getFlag(MOD, 'fightingStyle')?.word === 'fire'),
+            `face=${face?.name ?? null} disabled=${face?.disabled} flag=${JSON.stringify(face?.getFlag(MOD, 'fightingStyle') ?? null)}`);
+        }
+      } finally {
+        await closeA1();
+        if (combat50 && game.combats.get(combat50.id)) await combat50.delete();
+        for (const it of [potent, flame]) if (it) await unlend(cleric, it);
+        for (const it of [soul, evocation, affinity, bolt, frost, sorcFlame]) if (it) await unlend(sorcerer, it);
+        await dropEffects(sorcerer, riderChits(sorcerer));
+        await sleep(400);
+        for (const a of [cleric, sorcerer]) await dropEffects(a, a.effects.filter(e => e.getFlag(MOD, 'fightingStyle')).map(e => e.id));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 51. Bend Luck: −1d4 on a foe's hit, +1d4 on a friend's miss, a Sorcery Point each
+    if (want(51)) {
+      await closeA1(); await spendLuck();
+      const ownFont = sorcerer.items.find(i => (i.name === 'Font of Magic') && (Number(i.system?.uses?.max) > 0)) ?? null;
+      const font = ownFont ?? await hgLend(sorcerer, 'Font of Magic', 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
+      const fontSpentBefore = Number(font?.system?.uses?.spent ?? 0);
+      if (font) await font.update({ 'system.uses.spent': 0 });
+      const bend = await hgLend(sorcerer, 'Bend Luck', 'feat');
+      const points = () => Number(sorcerer.items.get(font?.id)?.system?.uses?.value ?? NaN);
+      const fontMax = () => Number(sorcerer.items.get(font?.id)?.system?.uses?.max ?? NaN);
+      try {
+        if (!font || !bend) log.push(`§51 skipped: font=${!!font} bend=${!!bend}`);
+        else {
+          await dropReactionChips(sorcerer);
+          // a. a foe's hit on the Halfling by 2: the sorcerer's popup "−1d4"
+          const msg = await swing({ d20: [12] });
+          const pop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, 8000);
+          const guard = holdOf(msg)?.targets?.[0]?.guards?.find(g => g.row === 'Bend Luck') ?? null;
+          ok('51a. the Attacker hits the Halfling by 2: the sorcerer\'s popup "Bend Luck — −1d4", the guard\'s sign −1',
+            !!pop && /−1d4/.test(textOf(pop?.element)) && (guard?.sign === -1) && !guard?.quiet, `pop=${!!pop} text="${textOf(pop?.element).slice(0, 160)}" guard=${JSON.stringify(guard && { sign: guard.sign, die: guard.die, quiet: guard.quiet })}`);
+          faces([[3, 4]]);
+          pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          const t = await resolvedTarget(msg);
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(900);   // the pool's spend lands after the answer
+          ok('51b. Answer: the d4 (3) off the attack — a MISS, a Sorcery Point spent (Font of Magic one down)',
+            (t?.verdict === 'miss') && (t?.bent?.add === -3) && (t?.rescue === 'Bend Luck') && (points() === fontMax() - 1),
+            `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} points=${points()}`);
+          await dropReactionChips(sorcerer);
+          // b. a friend's miss (the PC Attacker at the Victim by 3): "+1d4"
+          await a1Victim();
+          await victim.update({ 'system.attributes.ac.override': (await modOf(pcAttacker, pcWeapon)) + 13 });
+          const miss = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [10] });
+          const pop2 = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Bend Luck/.test(textOf(app.element))) ?? null, 8000);
+          const guard2 = holdOf(miss)?.targets?.[0]?.guards?.find(g => g.row === 'Bend Luck') ?? null;
+          ok('51c. the PC Attacker misses the Victim by 3: the sorcerer\'s popup "Bend Luck — +1d4", the guard\'s sign +1',
+            !!pop2 && /\+1d4/.test(textOf(pop2?.element)) && (guard2?.sign === 1), `pop=${!!pop2} text="${textOf(pop2?.element).slice(0, 160)}" guard=${JSON.stringify(guard2 && { sign: guard2.sign })} hold=${!!holdOf(miss)}`);
+          faces([[4, 4]]);
+          pop2?.element?.querySelector('button[data-action="answer"]')?.click();
+          const h2 = await waitFor(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, 12000);
+          const t2 = h2?.targets?.find(x => x.uuid === victim.uuid) ?? null;
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(900);
+          ok('51d. Answer: +4 — a HIT, another point (two down)', (t2?.verdict === 'hit') && (t2?.bent?.add === 4) && (points() === fontMax() - 2),
+            `verdict=${t2?.verdict} bent=${JSON.stringify(t2?.bent)} points=${points()}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        if (bend) await unlend(sorcerer, bend);
+        if (font && !ownFont) await unlend(sorcerer, font);
+        else if (font) await font.update({ 'system.uses.spent': fontSpentBefore }).catch(() => {});
+        await dropReactionChips(sorcerer);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 52. Cosmic Omen: the Long Rest's d6 kept as Weal or Woe; Weal +1d6 on a friend's miss, Woe −1d6 on a foe's hit
+    if (want(52)) {
+      await closeA1(); await spendLuck();
+      const omen = await hgLend(sorcerer, 'Cosmic Omen', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      const chip = () => sorcerer.effects.find(e => e.getFlag(MOD, 'storedDice')?.key === 'Cosmic Omen') ?? null;
+      const usesLeft = () => Number(sorcerer.items.get(omen?.id)?.system?.uses?.value ?? NaN);
+      hgKeep(sorcerer, { 'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value });
+      try {
+        if (!omen) log.push('§52 skipped: no Cosmic Omen in the PHB');
+        else {
+          await dropReactionChips(sorcerer);
+          faces([[4, 6]]);
+          await sorcerer.longRest({ dialog: false, chat: true, newDay: false });
+          await waitFor(() => chip(), 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('52a. the Long Rest rolls the d6: an even face (4) is Weal — the chip "Cosmic Omen — Weal (4)"', chip()?.name === 'Cosmic Omen — Weal (4)', `chip=${chip()?.name ?? null}`);
+          // b. Weal: a friend's miss within 30 ft — "+1d6"
+          await a1Victim();
+          await victim.update({ 'system.attributes.ac.override': (await modOf(pcAttacker, pcWeapon)) + 13 });
+          const miss = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [10] });
+          const pop = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, 8000);
+          const guard = holdOf(miss)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
+          ok('52b. the PC Attacker misses by 3: the druid\'s popup "Cosmic Omen — +1d6" (Weal), the guard\'s activity Weal (Even)',
+            !!pop && /\+1d6/.test(textOf(pop?.element)) && (guard?.sign === 1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard?.activityId)?.name === 'Weal (Even)'),
+            `pop=${!!pop} guard=${JSON.stringify(guard && { sign: guard.sign, activity: sorcerer.items.get(omen.id)?.system?.activities?.get(guard.activityId)?.name })}`);
+          faces([[5, 6]]);
+          pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          const h = await waitFor(() => (holdOf(miss)?.status === 'resolved') ? holdOf(miss) : null, 12000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(900);
+          const t = h?.targets?.find(x => x.uuid === victim.uuid) ?? null;
+          ok('52c. Answer: +5 — a HIT, a use of Cosmic Omen spent (2 of 3), the chip still Weal (4)', (t?.verdict === 'hit') && (t?.bent?.add === 5) && (usesLeft() === 2) && (chip()?.name === 'Cosmic Omen — Weal (4)'),
+            `verdict=${t?.verdict} bent=${JSON.stringify(t?.bent)} uses=${usesLeft()} chip=${chip()?.name ?? null}`);
+          await dropReactionChips(sorcerer);
+          // d. Woe: the face set odd — a foe's hit on the Halfling by 2 asks "−1d6"
+          await chip()?.update({ name: 'Cosmic Omen — Woe (3)', [`flags.${MOD}.storedDice`]: { key: 'Cosmic Omen', faces: [3], turn: null } });
+          const msg = await swing({ d20: [12] });
+          const pop2 = await waitFor(() => popups().find(app => app.element?.querySelector?.('[data-bf-ticks="bf-bystander"]') && /Cosmic Omen/.test(textOf(app.element))) ?? null, 8000);
+          const guard2 = holdOf(msg)?.targets?.[0]?.guards?.find(g => g.row === 'Cosmic Omen') ?? null;
+          ok('52d. Woe (3): the Attacker hits the Halfling by 2 — the popup "Cosmic Omen — −1d6", the activity Woe (Odd)',
+            !!pop2 && /−1d6/.test(textOf(pop2?.element)) && (guard2?.sign === -1) && (sorcerer.items.get(omen.id)?.system?.activities?.get(guard2?.activityId)?.name === 'Woe (Odd)'),
+            `pop=${!!pop2} guard=${JSON.stringify(guard2 && { sign: guard2.sign })}`);
+          pop2?.element?.querySelector('button[data-action="pass"]')?.click();
+          await resolvedTarget(msg);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
+        if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
+        if (omen) await unlend(sorcerer, omen);
+        await dropReactionChips(sorcerer);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 53. Dark One's Own Luck (a tactical fold on checks and saves, no refund) and Homing Strikes (a miss with the Psychic Blades)
+    if (want(53)) {
+      await closeA1();
+      const fighter = game.actors.getName('BF Test Fighter');
+      const luck = fighter ? await hgLend(fighter, "Dark One's Own Luck", 'feat', { 'system.uses.max': '2', 'system.uses.spent': 0 }) : null;
+      const labels = fl => (fl?.offers ?? []).map(o => o.label);
+      const rescueWindow = text => [...document.querySelectorAll('.application')].find(el => el.querySelector('[data-bf-rescue-row]') && (el.textContent ?? '').includes(text)) ?? null;
+      try {
+        if (!fighter || !luck) log.push(`§53 skipped: fighter=${!!fighter} luck=${!!luck}`);
+        else {
+          faces([[8, 20]]);
+          const rolls = await fighter.rollSkill({ skill: 'ath' }, { configure: false }, {});
+          const m = rolls?.[0]?.parent ?? null;
+          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 4000);
+          const offer = (flag?.offers ?? []).find(o => o.label === "Dark One's Own Luck") ?? null;
+          ok('53a. an Athletics check offers "Dark One\'s Own Luck" — a d10 (the tactical fold, the feature\'s own tests)', !!offer && /1d10/.test(String(offer?.dieFormula ?? '')),
+            `offers=${JSON.stringify(labels(flag))} die=${offer?.dieFormula}`);
+          const win = await waitFor(() => rescueWindow("Dark One's Own Luck"), 6000);
+          faces([[7, 10]]);
+          win?.querySelector('[data-bf-rescue-action="tactical:Dark One\'s Own Luck"]')?.click();
+          const done = await waitFor(() => { const fl = m?.getFlag(MOD, 'd20fold'); return (fl?.spends?.some(s => (s.name === "Dark One's Own Luck") && !s.pendingVerdict) && Number.isFinite(fl.foldedTotal)) ? fl : null; }, 10000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const left = Number(fighter.items.get(luck.id)?.system?.uses?.value ?? NaN);
+          ok('53b. accepted: the d10 (7) added, a use spent (1 of 2), no Second Wind refund line (the feature\'s own fold)',
+            (done?.spends?.[0]?.name === "Dark One's Own Luck") && (done?.foldedTotal === done?.baseTotal + 7) && (left === 1) && !/Second Wind/.test(cardText(m?.id)),
+            `flag=${JSON.stringify(done && { spends: done.spends, base: done.baseTotal, folded: done.foldedTotal })} left=${left} card="${cardText(m?.id).slice(0, 160)}"`);
+          await closeA1();
+          // c. a save from the sheet offers it too
+          faces([[6, 20]]);
+          const sr = await fighter.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          const sm = sr?.[0]?.parent ?? null;
+          const sflag = await waitFor(() => sm?.getFlag(MOD, 'd20fold') ?? null, 4000);
+          ok('53c. a saving throw offers it as well (tests: check, save)', labels(sflag).includes("Dark One's Own Luck"), `offers=${JSON.stringify(labels(sflag))}`);
+          await closeA1();
+          // d. Homing Strikes: the Psychic Blades alone
+          const blades = await hgLend(pcAttacker, 'Soul Blades', 'feat');
+          const psi = await (async () => { const src = await fromUuid('Compendium.dnd-players-handbook.classes.Item.phbrgePsionicPow'); if (!src) return null; const data = src.toObject(); foundry.utils.setProperty(data, '_stats.compendiumSource', src.uuid); const [it] = await pcAttacker.createEmbeddedDocuments('Item', [data]); lentBy.set(pcAttacker, [...(lentBy.get(pcAttacker) ?? []), it.id]); await it.update({ 'system.uses.max': '4', 'system.uses.spent': 0 }); return it; })();
+          if (!blades || !psi || !pcWeapon) log.push(`§53d skipped: blades=${!!blades} psi=${!!psi} weapon=${!!pcWeapon}`);
+          else {
+            await a1Victim();
+            await victim.update({ 'system.attributes.ac.override': 30 });
+            const missMsg = await swingAt(pcAttacker, pcToken, pcWeapon, { d20: [5] });
+            await sleep(1200);
+            const mflag = missMsg?.getFlag(MOD, 'd20fold') ?? null;
+            ok('53d. a Longsword miss (not the Psychic Blades): Homing Strikes is not offered', !labels(mflag).includes('Soul Blades'), `offers=${JSON.stringify(labels(mflag))}`);
+            await closeA1();
+          }
+        }
+      } finally {
+        await closeA1();
+        CONFIG.Dice.randomUniform = realPRNG;
+        if (luck) await unlend(fighter, luck);
+        for (const it of pcAttacker.items.filter(i => ['Soul Blades', 'Psionic Power'].includes(i.name) && (lentBy.get(pcAttacker) ?? []).includes(i.id))) await unlend(pcAttacker, it);
+        clearTargets();
+      }
+    }
+
+    // ---- 54. Tandem Footwork: at the bard's Initiative, one d8 to every ally within 30 ft; the late roller gets it as its lands
+    if (want(54)) {
+      await closeA1();
+      const tandem = await hgLend(bard, 'Tandem Footwork', 'feat');
+      await refillInspiration();
+      const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(combat.id);
+      const grants = () => b4Cards(suiteStart, 'initiativeGrant').filter(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Tandem Footwork');
+      try {
+        if (!tandem || !inspiration()) log.push(`§54 skipped: tandem=${!!tandem} inspiration=${!!inspiration()}`);
+        else {
+          await combat.createEmbeddedDocuments('Combatant', [
+            { tokenId: bardDoc.id, sceneId: scene.id, actorId: bard.id },
+            { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id },
+            { tokenId: sorcererDoc.id, sceneId: scene.id, actorId: sorcerer.id },
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id }]);
+          const cOf = actor => combat.combatants.find(c => c.actorId === actor.id);
+          await combat.setInitiative(cOf(halfling).id, 12);
+          await combat.setInitiative(cOf(attacker).id, 9);
+          await combat.setInitiative(cOf(bard).id, 18);
+          const card = await waitFor(() => grants()[0] ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Tandem Footwork — /), 6000);
+          ok('54a. the bard\'s Initiative lands: the popup "Tandem Footwork — give 1d8 to allies within 30 ft? · a use of Bardic Inspiration"',
+            !!card && !!pop && /give .*d8 to allies within 30 ft\?/.test(textOf(pop?.element)), `card=${!!card} pop=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
+          const biBefore = Number(inspiration()?.system?.uses?.spent ?? 0);
+          faces([[5, 8]]);
+          pop?.element?.querySelector('button[data-action="yes"]')?.click();
+          const done = await waitFor(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card.getFlag(MOD, 'initiativeGrant') : null, 10000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(500);
+          ok('54b. Yes: a 5 rolled once — the bard 18 → 23, the Halfling 12 → 17, the Attacker (a foe) untouched, the Sorcerer (unrolled) noted as due; a Bardic Inspiration use spent',
+            (done?.rolled === 5) && (cOf(bard).initiative === 23) && (cOf(halfling).initiative === 17) && (cOf(attacker).initiative === 9)
+              && (done?.due ?? []).includes(cOf(sorcerer).id) && (Number(inspiration()?.system?.uses?.spent) === biBefore + 1)
+              && !!combat.getFlag(MOD, 'initiativeBonusDue')?.[cOf(sorcerer).id],
+            `flag=${JSON.stringify(done && { rolled: done.rolled, given: done.given, due: done.due })} inits=${JSON.stringify(combat.combatants.map(c => [c.name, c.initiative]))} bi=${inspiration()?.system?.uses?.spent} noted=${JSON.stringify(combat.getFlag(MOD, 'initiativeBonusDue') ?? null)}`);
+          ok('54c. the card: "Tandem Footwork — +5 Initiative: … (1 still to roll)"', /\+5 Initiative/.test(await grantLine(card)) && /1 still to roll/.test(await grantLine(card)), `line="${await grantLine(card)}"`);
+          // d. the late roller
+          await combat.setInitiative(cOf(sorcerer).id, 10);
+          await waitFor(() => cOf(sorcerer).initiative === 15, 8000);
+          ok('54d. the Sorcerer rolls later: 10 → 15 as its Initiative lands, the note cleared',
+            (cOf(sorcerer).initiative === 15) && !combat.getFlag(MOD, 'initiativeBonusDue')?.[cOf(sorcerer).id],
+            `init=${cOf(sorcerer).initiative} noted=${JSON.stringify(combat.getFlag(MOD, 'initiativeBonusDue') ?? null)}`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Tandem Footwork — /);
+        if (game.combats.get(combat.id)) await combat.delete();
+        if (tandem) await unlend(bard, tandem);
+        await refillInspiration();
+        CONFIG.Dice.randomUniform = realPRNG;
+      }
+    }
+
+    // ---- 55. the turn grants: Heroic Warrior (Heroic Inspiration written), Guarded Mind (End Frightened, a die), Self-Restoration (End Poisoned at the turn end)
+    if (want(55)) {
+      await closeA1();
+      hgKeep(pcAttacker, { 'system.attributes.inspiration': pcAttacker.system._source.attributes.inspiration ?? false });
+      const heroic = await hgLend(pcAttacker, 'Heroic Warrior', 'feat');
+      const guarded = await hgLend(pcAttacker, 'Guarded Mind', 'feat');
+      const restoration = await hgLend(pcAttacker, 'Self-Restoration', 'feat');
+      const psi = await (async () => { const src = await fromUuid('Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow'); if (!src) return null; const data = src.toObject(); foundry.utils.setProperty(data, '_stats.compendiumSource', src.uuid); const [it] = await pcAttacker.createEmbeddedDocuments('Item', [data]); lentBy.set(pcAttacker, [...(lentBy.get(pcAttacker) ?? []), it.id]); await it.update({ 'system.uses.max': '4', 'system.uses.spent': 0 }); return it; })();
+      const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(combat.id);
+      const ends = () => b4Cards(suiteStart, 'conditionEnd').filter(m => m.getFlag(MOD, 'conditionEnd')?.actorUuid === pcAttacker.uuid);
+      try {
+        if (!heroic || !guarded || !restoration || !psi) log.push(`§55 skipped: heroic=${!!heroic} guarded=${!!guarded} restoration=${!!restoration} psi=${!!psi}`);
+        else {
+          await pcAttacker.update({ 'system.attributes.inspiration': false });
+          await statusOn(pcAttacker, 'frightened', true);
+          await statusOn(pcAttacker, 'poisoned', true);
+          await combat.createEmbeddedDocuments('Combatant', [
+            { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 20 },
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
+          await combat.startCombat();
+          await sleep(400);
+          const t0 = Date.now();
+          await combat.nextTurn();   // the PC Attacker's turn starts
+          const hw = await waitFor(() => b4Cards(t0, 'turnGrant').find(m => m.getFlag(MOD, 'turnGrant')?.grant === 'inspiration') ?? null, 8000);
+          ok('55a. the turn start: Heroic Warrior writes Heroic Inspiration (none was held) and posts its card',
+            !!hw && (pcAttacker.system.attributes.inspiration === true), `card=${!!hw} inspiration=${pcAttacker.system.attributes.inspiration}`);
+          const endCard = await waitFor(() => ends().find(m => m.getFlag(MOD, 'conditionEnd')?.row === 'Guarded Mind') ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Guarded Mind — /), 6000);
+          ok('55b. Guarded Mind: the popup "End a condition on BF Test PC Attacker?" with Frightened (1 Psionic Power die), the poisoned not listed',
+            !!endCard && !!pop && /Frightened/.test(textOf(pop?.element)) && !/Poisoned/.test(textOf(pop?.element)) && /Psionic Power/.test(textOf(pop?.element)),
+            `card=${!!endCard} pop=${!!pop} text="${textOf(pop?.element).slice(0, 220)}"`);
+          pop?.element?.querySelector('button[data-action="frightened"]')?.click();
+          const done = await waitFor(() => endCard?.getFlag(MOD, 'conditionEnd')?.applied ? endCard.getFlag(MOD, 'conditionEnd') : null, 12000);
+          await sleep(600);
+          ok('55c. End Frightened: the condition gone, a Psionic Energy Die spent (3 of 4), the card says so',
+            (done?.ended === 'frightened') && !hasStatus(pcAttacker, 'frightened') && (Number(pcAttacker.items.get(psi.id)?.system?.uses?.value) === 3) && /Frightened ended on/.test(cardText(endCard?.id)),
+            `flag=${JSON.stringify(done && { ended: done.ended, gone: done.gone, failed: done.failed })} frightened=${hasStatus(pcAttacker, 'frightened')} dice=${pcAttacker.items.get(psi.id)?.system?.uses?.value} card="${cardText(endCard?.id).slice(0, 160)}"`);
+          // d. the turn END: Self-Restoration offers Poisoned
+          const t1 = Date.now();
+          await combat.nextTurn();
+          const endCard2 = await waitFor(() => b4Cards(t1, 'conditionEnd').find(m => m.getFlag(MOD, 'conditionEnd')?.row === 'Self-Restoration') ?? null, 8000);
+          const pop2 = await waitFor(() => titled(/^Self-Restoration — /), 6000);
+          ok('55d. the turn end: Self-Restoration\'s popup with Poisoned, free', !!endCard2 && !!pop2 && /Poisoned/.test(textOf(pop2?.element)) && /free/.test(textOf(pop2?.element)),
+            `card=${!!endCard2} pop=${!!pop2} text="${textOf(pop2?.element).slice(0, 200)}"`);
+          pop2?.element?.querySelector('button[data-action="poisoned"]')?.click();
+          const done2 = await waitFor(() => endCard2?.getFlag(MOD, 'conditionEnd')?.applied ? endCard2.getFlag(MOD, 'conditionEnd') : null, 12000);
+          await sleep(600);
+          ok('55e. End Poisoned: gone, nothing spent', (done2?.ended === 'poisoned') && !hasStatus(pcAttacker, 'poisoned') && (Number(pcAttacker.items.get(psi.id)?.system?.uses?.value) === 3),
+            `flag=${JSON.stringify(done2 && { ended: done2.ended })} poisoned=${hasStatus(pcAttacker, 'poisoned')}`);
+        }
+      } finally {
+        await closeA1(); await hgClose(/^Guarded Mind — |^Self-Restoration — /);
+        if (game.combats.get(combat.id)) await combat.delete();
+        for (const s of ['frightened', 'poisoned']) if (hasStatus(pcAttacker, s)) await statusOn(pcAttacker, s, false);
+        for (const it of [heroic, guarded, restoration, psi]) if (it) await unlend(pcAttacker, it);
+      }
+    }
+
+    // ---- 56. Physician's Touch: Hand of Harm's ride lands Poisoned; Hand of Healing offers to end a condition on the healed
+    if (want(56)) {
+      await closeDialogs(); await a1Victim(); await set('saveRolls', 'auto');
+      const focus = await hgLend(pcAttacker, "Monk's Focus", 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
+      const hoh = await hgLend(pcAttacker, 'Hand of Harm', 'feat');
+      const touch = await hgLend(pcAttacker, "Physician's Touch", 'feat');
+      const healing = await hgLend(pcAttacker, 'Hand of Healing', 'feat');
+      const us = await lendUnarmed();
+      try {
+        if (!focus || !hoh || !touch || !healing || !us) log.push(`§56 skipped: focus=${!!focus} hoh=${!!hoh} touch=${!!touch} healing=${!!healing} unarmed=${!!us}`);
+        else {
+          await pinPart(hoh, hoh.system.activities.find(a => a.type === 'damage'), '1d8 + @abilities.wis.mod');
+          const usAct = () => pcAttacker.items.get(us.id).system.activities.find(a => a.type === 'attack');
+          const r1 = await a1Hit(pcAttacker, pcToken, usAct());
+          await tick(r1.offer, 'hand-of-harm');
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          const poisoned = await waitFor(() => victimFx().find(e => /Poisoned/.test(e.name)) ?? null, 8000);
+          ok('56a. Hand of Harm with Physician\'s Touch on the sheet: the necrotic die rides AND "Poisoned (Hand of Harm)" lands on the Victim',
+            typesOf(d1).includes('necrotic') && !!poisoned && (d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0]?.also?.feature === "Physician's Touch"),
+            `types=${JSON.stringify(typesOf(d1))} fx=${JSON.stringify(victimFx().map(e => e.name))} pick=${JSON.stringify(d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0]?.also ?? null)}`);
+          await dropVictimFx();
+          // b. Hand of Healing at the Halfling (Blinded): the offer to end it
+          await statusOn(halfling, 'blinded', true);
+          const healAct = pcAttacker.items.get(healing.id).system.activities.find(a => a.type === 'heal');
+          await pinHeal(healing, healAct.name, '1d8 + 3');
+          pcToken.control({ releaseOthers: true }); clearTargets(); halflingToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          const t0 = Date.now();
+          faces([[4, 8]]);
+          await healAct.use({ subsequentActions: false }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const endCard = await waitFor(() => b4Cards(t0, 'conditionEnd').find(m => m.getFlag(MOD, 'conditionEnd')?.row === "Physician's Touch") ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Physician's Touch — /), 6000);
+          ok('56b. Hand of Healing at the Halfling: the popup "End a condition on BF Test Halfling?" listing Blinded',
+            !!endCard && !!pop && /Blinded/.test(textOf(pop?.element)) && (endCard?.getFlag(MOD, 'conditionEnd')?.bearerUuid === halfling.uuid),
+            `card=${!!endCard} pop=${!!pop} text="${textOf(pop?.element).slice(0, 200)}"`);
+          pop?.element?.querySelector('button[data-action="blinded"]')?.click();
+          const done = await waitFor(() => endCard?.getFlag(MOD, 'conditionEnd')?.applied ? endCard.getFlag(MOD, 'conditionEnd') : null, 12000);
+          await sleep(600);
+          ok('56c. End Blinded: gone from the Halfling', (done?.ended === 'blinded') && !hasStatus(halfling, 'blinded'), `flag=${JSON.stringify(done && { ended: done.ended, gone: done.gone })} blinded=${hasStatus(halfling, 'blinded')}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs(); await hgClose(/^Physician's Touch — /);
+        if (hasStatus(halfling, 'blinded')) await statusOn(halfling, 'blinded', false);
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [focus, hoh, touch, healing, us]) if (it && pcAttacker.items.get(it.id)) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 57. Eldritch Smite: a Pact slot the cost, (1 + pact level)d8 force on the hit, Prone pressed
+    if (want(57)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx();
+      hgKeep(pcAttacker, { 'system.spells': foundry.utils.deepClone(pcAttacker.system._source.spells) });
+      const smite = await hgLend(pcAttacker, 'Eldritch Smite', 'feat');
+      // The Pact slots are DERIVED from the class: a Warlock at level 5 (pact level 3, two slots), taken back at the end.
+      const warlock = await hgLend(pcAttacker, 'Warlock', 'class', { 'system.levels': 5 });
+      try {
+        if (!smite || !pcWeapon || !warlock) log.push(`§57 skipped: smite=${!!smite} weapon=${!!pcWeapon} warlock=${!!warlock}`);
+        else {
+          await sleep(300);
+          await pcAttacker.update({ 'system.spells.pact.value': 2 });
+          await sleep(200);
+          const pact = () => pcAttacker.system.spells?.pact ?? {};
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('57a. a weapon hit (no Pact of the Blade bond on the sheet: any weapon, the caveat): the group "Eldritch Smite" with "4d8 force · 1 Pact slot", 2 Pact slots left',
+            !!hitBox(r1.offer, 'eldritch-smite') && /(\(1 \+ 3\)|4)d8 force/.test(hitRow(r1.offer, 'eldritch-smite')) && /Pact slot/.test(hitRow(r1.offer, 'eldritch-smite')) && /2 .*Pact slots? left/.test(groupText(r1.offer, 'eldritch-smite')),
+            `pact=${JSON.stringify({ value: pact().value, max: pact().max, level: pact().level })} row="${hitRow(r1.offer, 'eldritch-smite').slice(0, 140)}" group="${groupText(r1.offer, 'eldritch-smite').slice(0, 140)}"`);
+          await tick(r1.offer, 'eldritch-smite');
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          await waitFor(() => hasStatus(victim, 'prone'), 8000);
+          await sleep(400);
+          const pick = d1?.getFlag(MOD, 'hitManeuver')?.picks?.[0] ?? null;
+          ok('57b. ticked: 4d8 force rides, a Pact slot spent (1 of 2), Prone pressed on the Victim',
+            typesOf(d1).includes('force') && /^(\(1 \+ 3\)|4)d8$/.test(String(pick?.formula)) && (pick?.poolSpend?.spent === 1) && (Number(pact().value) === 1) && hasStatus(victim, 'prone'),
+            `types=${JSON.stringify(typesOf(d1))} pick=${JSON.stringify(pick && { formula: pick.formula, poolSpend: pick.poolSpend })} pact=${pact().value} prone=${hasStatus(victim, 'prone')}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (hasStatus(victim, 'prone')) await statusOn(victim, 'prone', false);
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        if (smite) await unlend(pcAttacker, smite);
+        if (warlock) await unlend(pcAttacker, warlock);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 58. Telekinetic Thrust: Psionic Strike's ride is followed by Telekinetic Adept's Strength save; a failure lands Prone
+    if (want(58)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx(); await set('saveRolls', 'auto');
+      const src = await fromUuid('Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow');
+      let pp = null;
+      if (src) { const data = src.toObject(); foundry.utils.setProperty(data, '_stats.compendiumSource', src.uuid); [pp] = await pcAttacker.createEmbeddedDocuments('Item', [data]); lentBy.set(pcAttacker, [...(lentBy.get(pcAttacker) ?? []), pp.id]); await pp.update({ 'system.uses.max': '4', 'system.uses.spent': 0 }); }
+      const adept = await hgLend(pcAttacker, 'Telekinetic Adept', 'feat');
+      try {
+        if (!pp || !adept || !pcWeapon) log.push(`§58 skipped: psionicPower=${!!pp} adept=${!!adept} weapon=${!!pcWeapon}`);
+        else {
+          await pinPart(pp, pp.system.activities.find(a => a.name === 'Psionic Strike'), '1d8 + @abilities.int.mod');
+          const t0 = Date.now();
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          await tick(r1.offer, 'psionic-strike');
+          faces([[1, 20]]);   // the Victim's Strength save fails
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          const card = await settledSave('psionic-strike', t0);
+          await waitFor(() => hasStatus(victim, 'prone'), 8000);
+          await sleep(400);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('58a. Psionic Strike ticked: the force die rides, then Telekinetic Thrust\'s Strength save card (the follow-up, keyed to the pick), the failure lands Prone',
+            typesOf(d1).includes('force') && !!card && (card.getFlag(MOD, 'hitManeuverCard')?.feature === 'Telekinetic Adept') && (outcomeOn(card) === 'failed') && hasStatus(victim, 'prone'),
+            `types=${JSON.stringify(typesOf(d1))} card=${JSON.stringify(card?.getFlag(MOD, 'hitManeuverCard') && { feature: card.getFlag(MOD, 'hitManeuverCard').feature, line: card.getFlag(MOD, 'hitManeuverCard').line?.slice(0, 60) })} outcome=${outcomeOn(card)} prone=${hasStatus(victim, 'prone')}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (hasStatus(victim, 'prone')) await statusOn(victim, 'prone', false);
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [pp, adept]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 59. Lifedrinker (the rider, the heal offered) and Relentless Avenger (Halt's shape on an off-turn melee hit)
+    if (want(59)) {
+      await closeDialogs(); await a1Victim(); await dropVictimFx();
+      const drinker = await hgLend(pcAttacker, 'Lifedrinker', 'feat');
+      const avenger = await hgLend(pcAttacker, 'Relentless Avenger', 'feat');
+      let combat59 = null;
+      try {
+        if (!drinker || !avenger || !pcWeapon) log.push(`§59 skipped: drinker=${!!drinker} avenger=${!!avenger} weapon=${!!pcWeapon}`);
+        else {
+          const r1 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('59a. a weapon hit (no Pact of the Blade bond: any weapon, the caveat): the offer\'s ticked rider "Lifedrinker — 1d6 necrotic"',
+            !!riderBox(r1.offer, 'lifedrinker') && /1d6/.test(riderRow(r1.offer, 'lifedrinker')) && /necrotic/.test(riderRow(r1.offer, 'lifedrinker')),
+            `offer=${!!r1.offer} row="${riderRow(r1.offer, 'lifedrinker').slice(0, 160)}"`);
+          const d1 = await a1Roll(r1.msg, r1.offer);
+          const rider = ridersOf(d1).find(r => r.key === 'lifedrinker') ?? null;
+          const button = await waitFor(() => cardEl(d1?.id)?.querySelector('.bf-rider-offer button') ?? null, 6000);
+          ok('59b. it rode (necrotic), the rider record carries the heal offer, and the damage card shows "Lifedrinker — Heal — spend a Hit Point Die: Use it"',
+            typesOf(d1).includes('necrotic') && (rider?.offers?.activity === 'Heal (Largest Hit Die)') && !!button && /spend a Hit Point Die/.test(textOf(cardEl(d1?.id)?.querySelector('.bf-rider-offer'))),
+            `types=${JSON.stringify(typesOf(d1))} rider=${JSON.stringify(rider && { offers: rider.offers, caveat: rider.caveat })} button=${!!button}`);
+          await dropEffects(pcAttacker, riderChits(pcAttacker));
+          // c. Relentless Avenger: a combat on the VICTIM's turn — the PC Attacker's melee hit is read as an Opportunity Attack
+          [combat59] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat59.id);
+          await combat59.createEmbeddedDocuments('Combatant', [
+            { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 20 },
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
+          await combat59.startCombat(); await sleep(400);
+          const r2 = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          ok('59c. off the paladin\'s turn: the offer\'s row "Relentless Avenger" (a melee attack off your turn)', !!riderBox(r2.offer, 'relentless-avenger') && /Relentless Avenger/.test(riderRow(r2.offer, 'relentless-avenger')),
+            `row="${riderRow(r2.offer, 'relentless-avenger').slice(0, 160)}"`);
+          await a1Roll(r2.msg, r2.offer);
+          const landed = await waitFor(() => victimFx().find(e => e.name === 'Relentless Avenger') ?? null, 8000);
+          ok('59d. the pack\'s "Relentless Avenger" (speed 0) lands on the Victim for the rest of the turn', !!landed && landed.changes.some(c => /movement/.test(c.key)),
+            `fx=${JSON.stringify(victimFx().map(e => e.name))} changes=${JSON.stringify(landed?.changes?.map(c => [c.key, c.value]) ?? null)}`);
+        }
+      } finally {
+        await closeOffers(); await closeDialogs();
+        if (combat59 && game.combats.get(combat59.id)) await combat59.delete();
+        await dropVictimFx(); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [drinker, avenger]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 60. Blessed Healer (the cleric's own heal after its slot-cast heal on another) and Improved Warding Flare (temp HP with the Flare)
+    if (want(60)) {
+      await closeDialogs(); await spendLuck();
+      const blessed = await hgLend(cleric, 'Blessed Healer', 'feat');
+      const cure = await lendClassSpell(cleric, 'Cure Wounds', 'cleric');
+      hgKeep(cleric, { 'system.attributes.hp.value': cleric.system._source.attributes.hp.value, 'system.attributes.hp.max': cleric.system._source.attributes.hp.max,
+        'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
+      const flare = await hgLend(halfling, 'Warding Flare', 'feat', { 'system.uses.max': '2', 'system.uses.spent': 0 });
+      const improved = await hgLend(halfling, 'Improved Warding Flare', 'feat');
+      try {
+        if (!blessed || !cure || !flare || !improved) log.push(`§60 skipped: blessed=${!!blessed} cure=${!!cure} flare=${!!flare} improved=${!!improved}`);
+        else {
+          await cleric.update({ 'system.attributes.hp.max': 100, 'system.attributes.hp.value': 50, 'system.spells.spell1.value': 3, 'system.spells.spell2.value': 3 });
+          await halfling.update({ 'system.attributes.hp.value': 1 });
+          const clericTok = canvas.tokens.get(clericToken.id);
+          clericTok?.control({ releaseOthers: true });
+          const t0 = Date.now();
+          faces([[3, 8], [5, 8]]);
+          const card = await castSpell(cleric, clericTok, cure, 2, halflingToken);
+          const cureAct = cleric.items.get(cure.id)?.system?.activities?.find(a => a.type === 'heal');
+          halflingToken.setTarget(true, { releaseOthers: true }); await sleep(80);
+          const rolls = await cureAct.rollDamage({ scaling: 1 }, { configure: false }, card?.id ? { data: { 'system.origin': card.id } } : {});
+          const self = await waitFor(() => b4Card(t0, 'healSelf'), 10000);
+          await waitFor(() => Number(cleric.system.attributes.hp.value) === 54, 8000);
+          CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+          ok('60a. Cure Wounds (level 2) at the Halfling: the card "Blessed Healer — BF Test Cleric regains 4 Hit Points", the cleric 50 → 54, receipted',
+            !!self && (self.getFlag(MOD, 'healSelf')?.amount === 4) && (Number(cleric.system.attributes.hp.value) === 54) && !!self.getFlag(MOD, 'receipt'),
+            `card=${!!self} flag=${JSON.stringify(self?.getFlag(MOD, 'healSelf') ?? null)} hp=${cleric.system.attributes.hp.value} rolls=${!!rolls}`);
+          // b. Improved Warding Flare: the Halfling flares the Attacker's hit — the temp HP land with the answer
+          await healFull(); await dropReactionChips(halfling);
+          const msg = await swing({ d20: [12] });
+          const pop = await waitFor(rescuePopup, 8000);
+          const box = [...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].find(b => b.value === 'Warding Flare');
+          ok('60b. the Halfling hit: its rescue popup offers Warding Flare', !!pop && !!box, `pop=${!!pop} rows=${JSON.stringify([...(pop?.element?.querySelectorAll?.('input[name="bf-rescue"]') ?? [])].map(b => b.value))}`);
+          faces([[2, 20], [4, 6], [3, 6]]);
+          if (box) { if (!box.checked) box.click(); await sleep(50); pop.element.querySelector('button[data-action="answer"]')?.click(); }
+          const t = await resolvedTarget(msg);
+          const temp = await waitFor(() => (Number(halfling.system.attributes.hp.temp) > 0) ? Number(halfling.system.attributes.hp.temp) : null, 10000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('60c. Warding Flare answered: the roll bent, and Improved Warding Flare\'s Temporary Hit Points (2d6 + Wis) land on the Halfling',
+            (t?.rescue === 'Warding Flare') && (temp >= 2 + abilityMod(halfling, 'wis')) && (temp <= 12 + abilityMod(halfling, 'wis')),
+            `rescue=${t?.rescue} temp=${temp} wis=${abilityMod(halfling, 'wis')} receipt=${JSON.stringify(msg?.getFlag(MOD, 'receipt')?.targets?.map(x => [x.name, x.taken, x.note]) ?? null)}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        for (const it of [blessed, cure]) if (it) await unlend(cleric, it);
+        for (const it of [flare, improved]) if (it) await unlend(halfling, it);
+        await dropReactionChips(halfling);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 61. Bastion of Law (the ward pool on the warded creature's effect) and Projected Ward (the wizard's ward absorbs an ally's damage)
+    if (want(61)) {
+      await closeDialogs(); await spendLuck(); await dropReactionChips(sorcerer);
+      const ownFont61 = sorcerer.items.find(i => (i.name === 'Font of Magic') && (Number(i.system?.uses?.max) > 0)) ?? null;
+      const font = ownFont61 ?? await hgLend(sorcerer, 'Font of Magic', 'feat', { 'system.uses.max': '5', 'system.uses.spent': 0 });
+      const fontSpent61 = Number(font?.system?.uses?.spent ?? 0);
+      if (font) await font.update({ 'system.uses.spent': 0 });
+      const bastion = await hgLend(sorcerer, 'Bastion of Law', 'feat');
+      const arcane = await hgLend(sorcerer, 'Arcane Ward', 'feat', { 'system.uses.max': '12', 'system.uses.spent': 4 });
+      let projected = null;   // lent for step d alone: its `any` guard would claim the Bastion hits
+      const lawFx = () => halfling.effects.find(e => e.getFlag(MOD, 'wardPool')) ?? null;
+      const arcaneLeft = () => Number(sorcerer.items.get(arcane?.id)?.system?.uses?.value ?? NaN);
+      try {
+        if (!font || !bastion || !arcane) log.push(`§61 skipped: font=${!!font} bastion=${!!bastion} arcane=${!!arcane}`);
+        else {
+          // a. Create Shield at the Halfling, 3 Sorcery Points (scaling 2): 3d8 pinned 4, 4, 4 → a 12-point ward on the Halfling
+          const create = sorcerer.items.get(bastion.id).system.activities.find(a => a.name === 'Create Shield');
+          const sorcTok = canvas.tokens.get(sorcererDoc.id);
+          sorcTok?.control({ releaseOthers: true }); clearTargets(); halflingToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          faces([[4, 8], [4, 8], [4, 8]]);
+          await create.use({ scaling: 2, subsequentActions: false }, { configure: false }, {});
+          const fx = await waitFor(lawFx, 8000);
+          CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+          ok('61a. Create Shield (3 points) at the Halfling: "Warded by Law (12)" on it, the pool 12 of 12',
+            !!fx && (fx.name === 'Warded by Law (12)') && (fx.getFlag(MOD, 'wardPool')?.left === 12) && (fx.getFlag(MOD, 'wardPool')?.feature === 'Bastion of Law'),
+            `fx=${fx?.name ?? null} pool=${JSON.stringify(fx?.getFlag(MOD, 'wardPool') ?? null)} font=${sorcerer.items.get(font.id)?.system?.uses?.value}`);
+          // b. the Attacker hits the Halfling for 8: the ward takes it, HP untouched, the effect renamed (4)
+          await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          const msg = await swing({ d20: [19], dmg: 4 });
+          const dmg = await a1Damage(msg);
+          await sleep(600);
+          const took1 = Number(dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid)?.ward?.took ?? NaN);
+          ok('61b. a hit: the ward takes it all — the Halfling\'s HP untouched, "Warded by Law (12 − took)" left, the receipt says what it took',
+            (hp() === 400) && (took1 > 0) && (lawFx()?.name === `Warded by Law (${12 - took1})`) && (lawFx()?.getFlag(MOD, 'wardPool')?.left === 12 - took1),
+            `hp=${hp()} took=${took1} fx=${lawFx()?.name ?? null} receipt=${JSON.stringify(dmg?.getFlag(MOD, 'receipt')?.targets?.map(x => [x.name, x.taken, x.ward ?? null]) ?? null)}`);
+          // c. a bigger hit: the rest of the ward goes, the remainder lands, the effect gone
+          const msg2 = await swing({ d20: [19], dmg: 6 });
+          const dmg2 = await a1Damage(msg2);
+          await waitFor(() => !lawFx(), 6000); await sleep(400);
+          const took2 = Number(dmg2?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid)?.ward?.took ?? NaN);
+          const total2 = (dmg2?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
+          ok('61c. a second hit: the last of the ward absorbed, the rest lands, the effect gone',
+            !lawFx() && (took2 === 12 - took1) && (hp() === 400 - Math.max(0, total2 - took2)), `hp=${hp()} took=${took2} total=${total2} fx=${lawFx()?.name ?? null}`);
+          // d. Projected Ward: the sorcerer (Arcane Ward 8 of 12) absorbs the Halfling's next hit
+          projected = await hgLend(sorcerer, 'Projected Ward', 'feat');
+          await dropReactionChips(sorcerer); await healFull();
+          const t3 = Date.now();
+          const msg3 = await swing({ d20: [19], dmg: 4 });
+          const pop = await waitFor(() => popups().find(app => /Projected Ward/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="cast"]')) ?? null, 8000);
+          ok('61d. the Halfling hit with the sorcerer within 30 ft: the guard popup "Projected Ward … within 30 ft of you · a Reaction", the button Absorb',
+            !!pop && /within 30 ft of you/.test(textOf(pop?.element)) && (textOf(pop?.element?.querySelector('button[data-action="cast"]')) === 'Absorb'),
+            `pop=${!!pop} text="${textOf(pop?.element).slice(0, 220)}"`);
+          pop?.element?.querySelector('button[data-action="cast"]')?.click();
+          const held = await waitFor(() => { const m = game.messages.contents.find(x => (x.timestamp >= t3) && (x.getFlag(MOD, 'damageHold')?.status === 'resolved')); return m?.getFlag(MOD, 'damageHold') ?? null; }, 12000);
+          await sleep(800);
+          const took = Number(held?.reduceBy);
+          ok('61e. Absorb: the whole share taken by the Arcane Ward (8 down by it), nothing lands on the Halfling',
+            (held?.answer === 'cast') && (took >= 1) && (arcaneLeft() === 8 - took) && (hp() === 400) && !!msg3,
+            `hold=${JSON.stringify(held && { answer: held.answer, reduceBy: held.reduceBy })} arcane=${arcaneLeft()} hp=${hp()}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        const fx = lawFx(); if (fx) await fx.delete().catch(() => {});
+        for (const it of [bastion, arcane, projected]) if (it) await unlend(sorcerer, it);
+        if (font && !ownFont61) await unlend(sorcerer, font);
+        else if (font) await font.update({ 'system.uses.spent': fontSpent61 }).catch(() => {});
+        await dropReactionChips(sorcerer);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 62. Gift of the Protectors: the creature named on the warlock's page drops to 1 instead of 0, once per Long Rest
+    if (want(62)) {
+      await closeDialogs(); await spendLuck();
+      const gift = await hgLend(sorcerer, 'Gift of the Protectors', 'feat');
+      try {
+        if (!gift) log.push('§62 skipped: no Gift of the Protectors in the PHB');
+        else {
+          const protect = () => sorcerer.items.get(gift.id).system.activities.find(a => a.name === 'Protect');
+          await gift.update({ 'system.description.value': `${gift.system.description.value}<p>Names on the page: BF Test Halfling</p>`, [`system.activities.${protect().id}.uses.spent`]: 0 });
+          const swingLow = async () => {   // `swing` heals to full first: this one leaves the 5 HP alone
+            await halfling.update({ 'system.attributes.hp.value': 5, 'system.attributes.hp.temp': 0 });
+            attackerToken.control({ releaseOthers: true });
+            halflingToken.setTarget(true, { releaseOthers: true });
+            await sleep(80);
+            faces([[19, 20], [6, 6], [6, 6]]);
+            const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+            const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+            const m = rolls?.[0]?.parent ?? null;
+            await a1Damage(m);
+            CONFIG.Dice.randomUniform = realPRNG;
+            return m;
+          };
+          const t0 = Date.now();
+          const msg = await swingLow();
+          const card = await waitFor(() => b4Cards(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Gift of the Protectors') ?? null, 8000);
+          await sleep(400);
+          ok('62a. the Halfling (named on the sorcerer\'s page) takes 12 at 5 HP: held at 1, the card "drops to 1 Hit Point instead … the sorcerer\'s Gift of the Protectors", Protect\'s use spent',
+            (hp() === 1) && !!card && /BF Test Sorcerer's Gift of the Protectors/.test(cardText(card?.id)) && (Number(protect()?.uses?.spent) === 1),
+            `hp=${hp()} card="${cardText(card?.id).slice(0, 200)}" spent=${protect()?.uses?.spent}`);
+          // b. the use spent: the next drop lands the 0
+          const msg2 = await swingLow();
+          await sleep(600);
+          ok('62b. with Protect spent, the next drop lands 0', (hp() === 0) && !!msg2 && !!msg, `hp=${hp()}`);
+        }
+      } finally {
+        await closeA1();
+        if (gift) await unlend(sorcerer, gift);
+        await healFull();
+        for (const e of halfling.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {});
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 63. the reminders and the bends: War Magic, Shadow Step, Defensive Tactics (Escape the Horde, Multiattack Defense), Misty Escape, Sculpt Spells
+    if (want(63)) {
+      await closeA1(); await a1Victim(); await spendLuck();
+      const warMagic = await hgLend(pcAttacker, 'War Magic', 'feat');
+      const shadow = await hgLend(pcAttacker, 'Shadow Step', 'feat');
+      const tactics = await hgLend(halfling, 'Defensive Tactics', 'feat');
+      const misty = await hgLend(sorcerer, 'Misty Escape', 'feat');
+      const step = await lendClassSpell(sorcerer, 'Misty Step', 'warlock');
+      const sculpt = await hgLend(sorcerer, 'Sculpt Spells', 'feat');
+      const fireball = await lendClassSpell(sorcerer, 'Fireball', 'wizard');
+      hgKeep(sorcerer, { 'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value, 'system.attributes.hp.max': sorcerer.system._source.attributes.hp.max,
+        'system.attributes.ac.override': sorcerer.system._source.attributes.ac.override ?? null, 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells) });
+      let combat63 = null;
+      try {
+        // a. War Magic: a weapon attack posts the reminder (the GM's)
+        if (!warMagic || !pcWeapon) log.push(`§63a skipped: warMagic=${!!warMagic} weapon=${!!pcWeapon}`);
+        else {
+          const t0 = Date.now();
+          const r = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, pcWeapon));
+          if (r.offer) await a1Roll(r.msg, r.offer); else await a1Damage(r.msg);
+          const notice = await waitFor(() => hewNotices(t0, 'War Magic')[0] ?? null, 8000);
+          ok('63a. War Magic: the attack posts the reminder "War Magic — … one of this Attack action\'s attacks may be a cantrip"', !!notice && /cantrip/.test(cardText(notice?.id)),
+            `notice=${!!notice} card="${cardText(notice?.id).slice(0, 200)}"`);
+          await ackHew('War Magic');
+          await unlend(pcAttacker, warMagic);
+        }
+        // b. Shadow Step: the use writes the chip; a melee gate reads Advantage, a ranged one nothing
+        if (!shadow || !pcWeapon) log.push(`§63b skipped: shadow=${!!shadow}`);
+        else {
+          await useFeature(pcToken, shadow, 'Shadow Step');
+          const chip = await waitFor(() => pcAttacker.effects.find(e => e.getFlag(MOD, 'useKey') === 'shadowStep') ?? null, 6000);
+          const g = await gateFor(pcToken, attackOf(pcAttacker, pcWeapon), victimToken);
+          ok('63b. Shadow Step used: the chip on the monk; the next melee attack\'s gate "Shadow Step", Net Advantage', !!chip && /Shadow Step/.test(g.text) && (g.net === 'advantage'),
+            `chip=${chip?.name ?? null} text="${g.text.slice(0, 160)}" net=${g.net}`);
+          if (chip) await chip.delete().catch(() => {});
+        }
+        // c. Defensive Tactics on the Halfling: in a combat off the Attacker's turn its melee attack is an Opportunity Attack (Disadvantage);
+        //    a hit writes the Multiattack Defense chip against the Attacker: its next gate at the Halfling reads −4
+        if (!tactics) log.push('§63c skipped: no Defensive Tactics');
+        else {
+          [combat63] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat63.id);
+          await combat63.createEmbeddedDocuments('Combatant', [
+            { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 20 },
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 10 }]);
+          await combat63.startCombat(); await sleep(400);   // the Halfling's turn: the Attacker's attack is off its turn
+          const g1 = await gateFor(attackerToken, act(), halflingToken);
+          ok('63c. off the Attacker\'s turn: the gate lists "Defensive Tactics" (Escape the Horde, Disadvantage) with the counted caveat', /Defensive Tactics/.test(g1.text) && (g1.net === 'disadvantage'),
+            `text="${g1.text.slice(0, 200)}" net=${g1.net}`);
+          const hit = await swing({ d20: [19, 19] });
+          await a1Damage(hit);
+          const chip = await waitFor(() => halfling.effects.find(e => e.getFlag(MOD, 'useKey') === 'multiattackDefense') ?? null, 8000);
+          const g2 = await gateFor(attackerToken, act(), halflingToken);
+          ok('63d. the hit writes "Multiattack Defense — vs BF Test Attacker" on the Halfling against the Attacker; the Attacker\'s next gate at it: "−4 to this attack roll"',
+            !!chip && (chip.getFlag(MOD, 'against') === attacker.uuid) && /Multiattack Defense/.test(g2.text) && /−4 to this attack roll/.test(g2.text),
+            `chip=${chip?.name ?? null} against=${chip?.getFlag(MOD, 'against')} text="${g2.text.slice(0, 220)}"`);
+          const g3 = await gateFor(pcToken, attackOf(pcAttacker, pcWeapon), halflingToken);
+          ok('63e. another attacker\'s gate at the Halfling shows no −4', !/−4 to this attack roll/.test(g3.text), `text="${g3.text.slice(0, 160)}"`);
+          if (chip) await chip.delete().catch(() => {});
+          await combat63.delete(); combat63 = null;
+        }
+        // f. Misty Escape: the Attacker damages the sorcerer — the rebuke's popup; Use casts Misty Step (no slot), then the Steps offered
+        if (!misty || !step) log.push(`§63f skipped: misty=${!!misty} step=${!!step}`);
+        else {
+          await dropReactionChips(sorcerer);
+          await sorcerer.update({ 'system.attributes.ac.override': 1, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.spells.spell2.value': 0, 'system.spells.pact.value': 0 });
+          const sorcTok = canvas.tokens.get(sorcererDoc.id);
+          attackerToken.control({ releaseOthers: true }); clearTargets(); sorcTok?.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          const t0 = Date.now();
+          faces([[15, 20], [3, 6], [3, 6]]);
+          const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+          await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const card = await waitFor(() => b4Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.actorUuid === sorcerer.uuid) ?? null, 12000);
+          const pop = await waitFor(() => popups().find(app => /Misty Escape/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action^="use"]')) ?? null, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('63f. the sorcerer damaged: the rebuke card and popup with Misty Escape (a self answer, no reach measured)',
+            !!card && !!pop && (card.getFlag(MOD, 'rebuke')?.options ?? []).some(o => (o.name === 'Misty Escape') && (o.follow?.length === 2)),
+            `card=${!!card} pop=${!!pop} options=${JSON.stringify(card?.getFlag(MOD, 'rebuke')?.options?.map(o => [o.name, o.cost, o.follow]) ?? null)}`);
+          const useBtn = [...(pop?.element?.querySelectorAll?.('button[data-action^="use"]') ?? [])].find(b => /Misty Escape|Use/.test(textOf(b))) ?? pop?.element?.querySelector?.('button[data-action^="use"]');
+          useBtn?.click();
+          const stepCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'rebukeFor') === card?.id)) ?? null, 10000);
+          await waitFor(() => card?.getFlag(MOD, 'rebuke')?.answer === 'use', 6000);
+          await sleep(800);
+          const buttons = [...(cardEl(card?.id)?.querySelectorAll?.('.bf-rebuke-line button') ?? [])].map(b => textOf(b));
+          ok('63g. Use: Misty Step cast without a slot (the usage card names the rebuke), the rebuke card then offers "Disappearing Step" and "Dreadful Step"',
+            !!stepCard && buttons.includes('Disappearing Step') && buttons.includes('Dreadful Step') && (Number(sorcerer.system.spells?.spell2?.value ?? 0) === 0),
+            `stepCard=${!!stepCard} buttons=${JSON.stringify(buttons)} slots=${sorcerer.system.spells?.spell2?.value}`);
+          clearTargets();
+        }
+        // h. Sculpt Spells: Fireball's cast window lists the free row; a Necromancy or non-wizard spell does not
+        if (!sculpt || !fireball) log.push(`§63h skipped: sculpt=${!!sculpt} fireball=${!!fireball}`);
+        else {
+          await sorcerer.update({ 'system.spells.spell3.value': 2 });
+          const fbAct = sorcerer.items.get(fireball.id)?.system?.activities?.contents?.[0] ?? null;
+          const p = fbAct?.use({}, {}, {});
+          const dlg = await waitFor(() => [...foundry.applications.instances.values()].find(app => app.rendered && app.element?.querySelector?.('[data-bf-metamagic-field]')) ?? null, 6000);
+          await sleep(300);
+          const rowText = textOf(dlg?.element?.querySelector('[data-bf-metamagic-row="sculpt"]'));
+          const box = dlg?.element?.querySelector('[data-bf-metamagic-row="sculpt"] input[name="bf-metamagic-free"]');
+          ok('63h. Fireball (a Wizard Evocation with a save): the cast window\'s free row "Sculpt Spells", tickable', !!dlg && /Sculpt Spells/.test(rowText) && !!box && !box.disabled,
+            `dlg=${!!dlg} row="${rowText.slice(0, 120)}" box=${!!box} disabled=${box?.disabled}`);
+          try { await dlg?.close(); } catch { /* gone */ }
+          await Promise.resolve(p).catch(() => {});
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await hgClose(/Misty Escape/);
+        if (combat63 && game.combats.get(combat63.id)) await combat63.delete();
+        for (const it of [shadow, misty, step, sculpt, fireball, tactics]) {
+          const owner = [pcAttacker, sorcerer, halfling].find(a => it && a.items.get(it.id));
+          if (owner && it) await unlend(owner, it);
+        }
+        for (const a of [pcAttacker, halfling]) await dropEffects(a, a.effects.filter(e => e.getFlag(MOD, 'useKey')).map(e => e.id));
+        await dropReactionChips(sorcerer); await dropEffects(pcAttacker, riderChits(pcAttacker));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
       }
     }
 

@@ -230,7 +230,10 @@ function effectFactsOf(bearer) {
   return [...seen.values()];
 }
 
-const statusLabels = () => Object.fromEntries(Object.entries(CONFIG.DND5E?.conditionTypes ?? {}).map(([k, v]) => [k, v?.label ?? k]));
+const statusLabels = () => Object.fromEntries(Object.entries(CONFIG.DND5E?.conditionTypes ?? {}).map(([k, v]) => {
+  const raw = game.i18n?.localize?.(String(v?.label ?? k)) ?? String(v?.label ?? k);
+  return [k, (/^[a-z]/.test(raw) || raw.includes(".")) ? (k.charAt(0).toUpperCase() + k.slice(1)) : raw];
+}));
 
 /** OFFER the end of one of the row's conditions the bearer wears; nothing worn, nothing said. */
 async function offerEnd({ row, item, actor, bearer, place, on, why }) {

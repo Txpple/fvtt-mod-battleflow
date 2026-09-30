@@ -87,6 +87,10 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Brutal Strike**: forgo Advantage on "one Strength-based attack roll of your choice" | the forgo is a TICK in the attack dialog before the roll; a roll with no dialog (a shift-click) cannot forgo, and the hit offers no group | the choice must be recorded before the d20; only the dialog is a place to make it | 2026-09-30 |
 | **Studied Attacks**: "if you make an attack roll against a creature and miss" | the chip is written as ROLLED on the attack card (Graze's row): a Shield or a Lucky that turns the verdict later does not re-open it | the miss is read where Graze reads it, before any reaction; the rescue machine does not replay the attack's riders | 2026-09-30 |
 | **Sundering Blow**: +5 to "the next attack roll made by another creature against the target" | the +5 is pushed onto the roll's parts at the dialog for the targets aimed at that moment; a re-target inside the dialog does not re-push it | the parts are fixed before the dialog renders (dnd5e's preRollAttack); the gate lists the source either way | 2026-09-30 |
+| **Cosmic Omen**: "whenever a creature you can see within 30 feet of you is about to make a D20 Test" | offered AFTER the roll, the die added or subtracted from the total (Restore Balance's road) | the platform cannot pause the roller; the Reaction's window is the roll's card | 2026-09-30 |
+| **Multiattack Defense**: "when a creature hits you with an attack roll" — every later attack it makes against you this turn | counts the hits the module SAW: the chip is written off the attack card, the −4 read on that attacker's rolls through the gate | a hit made outside the module's cards writes nothing; the gate is the one place the roll is bent | 2026-09-30 |
+| **Misty Escape**: "immediately after you take damage" | offered only when the damage names its dealer (the rebukes' floor); a self answer, no reach measured | damage with no card behind it names nobody | 2026-09-30 |
+| **Eldritch Smite, Lifedrinker**: "your pact weapon" | the weapon bonded through Pact of the Blade's enchantment; with NONE bonded on the sheet, any weapon counts and the card says so | the sheet cannot say which weapon is the pact weapon until the bond is made; a guessed exemption is never made | 2026-09-30 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -2127,9 +2131,135 @@ the user's to overrule**:
 is **`DAMAGE_RULES`** — `scripts/damage-rules.js`, `scripts/decide/damage-rules.js`, `tests/decide-damage-rules.test.js`,
 `tools/smoke-damage-rules.mjs`, `prototypes/damage-rules.html`, the dispatch and check-layers names with them. The
 table now holds every rule that is a NUMBER on a damage roll: the fighting styles, the damage feats and B4's
-spell-damage bonuses. Two names are persisted world data and stay as they are: the face effect's flag
-`fightingStyle` (renaming it would orphan every face on a live actor) and the world setting `fightingStyleList`
-(the list's stored value). The settings label still reads "Fighting Styles".
+spell-damage bonuses. One name is persisted world data and stays as it is: the face effect's flag `fightingStyle` (renaming it would
+orphan every face on a live actor). There is no world list for the table — every row is always listed (`everyRow`);
+the `fightingStyleList` key some suites still set is a stale setting the harness tolerates.
+
+
+**Thirty rows on tables that exist — no new kind (40), no new file (131); BUILT and PROVEN (`smoke-classes` §50–§63), unwalked.**
+Measured on the pack first (`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5): the five spell-damage bonuses ship separate Damage
+activities clicked by hand (Elemental Fury's Potent Spellcasting nothing at all); Tandem Footwork an Initiative Bonus utility
+consuming a Bardic Inspiration use with the scale as its roll; Cosmic Omen two Reaction utilities (Weal (Even), Woe (Odd), 1d6);
+Bend Luck a Reaction consuming Font of Magic; Guarded Mind an End Effects utility consuming Psionic Power; Physician's Touch its
+own Hand of Harm (with "Poisoned (Hand of Harm)") and Healing Hand; Eldritch Smite a Smite activity `(1 + @spells.pact.level)d8`
+consuming `spells.pact.value`; Gift of the Protectors a Protect activity (1/LR) beside Write Name / Erase Name; Lifedrinker a 1d6
+Damage and two Hit-Die heals; Telekinetic Adept a Telekinetic Thrust save (Prone); Bastion of Law a Create Shield utility (the
+"Warded by Law" effect, Font of Magic scaled by amount, 1d8); Projected Ward a Reaction consuming Arcane Ward by amount;
+Defensive Tactics a bare Multiattack Defense utility; Relentless Avenger a speed-0 effect; Misty Escape a Cast (Misty Step),
+Disappearing Step (Invisible) and Dreadful Step (a save); Warding Flare's Improved a temp-HP heal; Blessed Healer a
+`@scaling + 2` heal; Sculpt Spells, Heroic Warrior, War Magic, Self-Restoration, Elemental Fury, Blessed Strikes nothing.
+**Q5 and Q9 the user ruled at the check-in** (the rename now; the Pact-slot branch built). The calls made in the build —
+**each the user's to overrule**:
+
+1. **The spell-damage bonuses are `DAMAGE_RULES` rows** (`spells` / `classes` / `school` / `types` / `once`), the bonus pushed
+   onto ONE of the spell's damage rolls — the first whose type the row names (decide/damage-rules.js `spellRuleFits`). Potent
+   Spellcasting rides every cantrip roll; Elemental Affinity's type is read off the copy's NAME ("Elemental Affinity (Fire)",
+   Elemental Adept's road, the same type popup with its own words); Radiant Soul once per turn (a `rider` chit); Empowered
+   Evocation and Elemental Affinity once per CAST (a client-local mark on the cast card's id — the rolling client rolls every ray).
+   The faces wear the feature's own name (`feat: true` now reads "a feat or class feature").
+2. **Eldritch Smite's Pact slot is a `poolOf` branch, not a picker** (`HIT_GROUPS` `pool: "pactSlot"`): every Pact Magic slot is
+   one level, so the plan's "slot picker" had nothing to pick — the group reads `system.spells.pact`, the ride spends one, the
+   record is the pool-spend shape ("Pact slot (level 2)"). **The pact weapon** is the one bonded through Pact of the Blade's
+   enchantment (lookup.js `pactWeaponFits`, `pact` on the option, `enchantBy` on Lifedrinker's rider); with NO bonded weapon on the
+   sheet any weapon counts and the caveat says so — the data cannot settle it, and a guessed exemption is never made.
+3. **Bend Luck's sign follows the side** (`sign: "either"`, decide/rescue-hit.js `signFor`): a friend's roll +1d4, a foe's −1d4 —
+   R1, the one sensible answer; asked on a foe's hit and a friend's miss, a foe's success and a friend's failure. **Cosmic Omen's
+   d6 is a `STORED_DICE` chip the Long Rest rolls** ("Cosmic Omen — Weal (4)", never spent, `omen: true`); its parity is the
+   sign (`sign: "omen"`), the pack's Weal (Even) / Woe (Odd) activity picked by it, the item's uses the pool. "About to make a
+   D20 Test" is bent after the roll — Restore Balance's road (the platform register).
+4. **Dark One's Own Luck and Homing Strikes are `tactical` folds with their own tests** (`TACTICAL_FOLDS`: `tests`, `activity`,
+   `weapon` — the `tests` facet B1 held for its first customer; no new kind): a d10 on a check or save, the die on a MISS with
+   the Psychic Blades alone; neither carries Tactical Mind's refund clause (a feature's own fold is spent either way).
+5. **Tandem Footwork rolls ONCE** (`INITIATIVE_GRANTS` `to: "allies"`, `reach: 30`, offered): the number goes onto the Initiative of
+   the bard and every ally within 30 ft already rolled; those not yet rolled are noted on the combat (`initiativeBonusDue`) and get
+   it as theirs lands, with a card. The Bardic Inspiration use is the activity's consumption.
+6. **The grants that are not a roll** (`TURN_GRANTS` `grant`): Heroic Warrior WRITES Heroic Inspiration at the turn start when none
+   is held (a card; held already, nothing said — R1); Guarded Mind (a Psionic die, the pack's End Effects), Self-Restoration (free,
+   the turn END) and Physician's Touch's Hand of Healing (on the HEALED creature, `to: "target"`) OFFER a condition's end — a button
+   per condition worn, Keep the third, the clock keeps; the answer the owner's, the landing (a delete on the bearer, the activity's
+   use) the GM's.
+7. **Telekinetic Thrust is a `follow` on Psionic Strike** (Telekinetic Adept's save activity used at the hit target after the ride,
+   Prone the activity's own effect on a failure; the 10-foot push the table's). **Physician's Touch's Poisoned is an `also` on Hand
+   of Harm**: its own Hand of Harm activity's effect lands with the ride, the `vex` window (the end of the monk's next turn).
+8. **Lifedrinker's heal is OFFERED** on the damage card (`offers`): a Hit Point Die is a real choice, the pack's own heal activity
+   used at the attacker on the button. **Relentless Avenger is Halt's shape** (`judge: "opportunity"`, `lands` the pack's speed-0
+   effect, the `halt` clock); the free move is the table's.
+9. **Blessed Healer heals the cleric on its own card** after a slot-cast healing spell lands on ANOTHER creature (`HEAL_REROLLS`
+   `self: "2 + @slot"`, receipted, once per cast). **Improved Warding Flare's Temporary Hit Points land with the Flare's answer**
+   (`INTERRUPT_ROLLS` `heal` — the feature's heal activity rolled on the answerer, receipted on the attack card).
+10. **Bastion of Law's pool lives on the effect** (`WARD_POOLS` `pool: "effect"`): Create Shield's use rolls a d8 per Sorcery Point
+    (the use's scaling) and lands "Warded by Law (N)" on the TARGETED creature (else the sorcerer) with the pool in a flag; the
+    take renames it, at 0 it goes. **Projected Ward is a guard on ANY damage** (`INTERRUPT_REDUCTIONS` `any` + `ally: 30`,
+    `pool: "ward"`): the wizard's Arcane Ward absorbs as much of the share as it holds, spent from the ward's uses.
+11. **Gift of the Protectors reads the warlock's page** (`DROP_TO_ONE` `named: true`): the dropped creature's name in the
+    feature's DESCRIPTION on a character's sheet (the Write Name activity is the pack's bookkeeping; the names are text); it simply
+    happens (R1), Protect's activity uses the once, the card names the keeper.
+12. **The reminders and the bends.** War Magic is a `BONUS_SWINGS` reminder alone (`when: "attack"`, no drive). Shadow Step a use
+    chip with a `melee` bend row. Defensive Tactics: **Escape the Horde reads an off-turn melee attack in a running combat as an
+    Opportunity Attack** (the gate's `judge: "opportunity"`, the counted caveat); **Multiattack Defense is a chip on the RANGER
+    against the creature that hit it** (`USE_CHIPS` `on: "hit"`, `holder: "target"`, the `halt` clock) and its bend row pushes −4
+    onto THAT attacker's rolls at the ranger (Sundered's `plus`, negative, `against: "attacker"`) — the AC +4 as the roll's −4.
+    **Misty Escape is a self rebuke** (`REBUKES` `self`, the feature's own Cast activity — Misty Step without a slot) whose Steps
+    are offered on the card once driven (`follow`). **Sculpt Spells rides Careful's ask** (`METAMAGIC` `free`, `asks: "careful"`,
+    `school: "evo"`, `classes: [wizard]`): the same popup and outcome (the spared succeed and take nothing — the 2024 Careful),
+    the cap 1 + the slot level set at the card's birth.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Blessed Strikes: Potent Spellcasting · Elemental Fury: Potent Spellcasting | `DAMAGE_RULES` (`spells: "cantrip"`, `classes`) | +Wis on the class's cantrip damage rolls |
+| Elemental Affinity | `DAMAGE_RULES` (`typed`, `spells`, `once: "spell"`) | +Cha on one roll of the chosen type per cast; the type off the copy's name |
+| Radiant Soul | `DAMAGE_RULES` (`types: [radiant, fire]`, `once: "turn"`) | +Cha on one radiant or fire roll per turn |
+| Empowered Evocation | `DAMAGE_RULES` (`school: "evo"`, `classes: [wizard]`, `once: "spell"`) | +Int on one roll of a Wizard Evocation per cast |
+| Bend Luck | `INTERRUPT_ROLLS` (`bystander: 60`, `sign: "either"`, `die: "1d4"`, `on: "both"`) | ±1d4 after another creature's attack, save or check, a Sorcery Point |
+| Cosmic Omen | `STORED_DICE` (`die: 6`, `omen`) + `INTERRUPT_ROLLS` (`sign: "omen"`, `omen`, `stored`) | the rest's d6 kept; Weal +1d6 / Woe −1d6 within 30 ft, a use |
+| Dark One's Own Luck · Soul Blades (Homing Strikes) | `D20_FOLDS` tactical + `TACTICAL_FOLDS` (`tests`, `activity`, `weapon`) | a d10 on a check or save; the Psionic die on a miss with the Psychic Blades |
+| Tandem Footwork | `INITIATIVE_GRANTS` (`to: "allies"`, `reach: 30`, `ask`) | one roll onto every ally's Initiative within 30 ft, late rollers noted |
+| Heroic Warrior | `TURN_GRANTS` (`match: "feature"`, `grant: "inspiration"`) | Heroic Inspiration written at the turn start when none is held |
+| Guarded Mind · Self-Restoration · Physician's Touch (heal) | `TURN_GRANTS` (`grant: "end"`, `statuses`, `activity` / `on: "turnEnd"` / `on: "use"`, `to: "target"`) | a condition's end offered, the pack's activity paying where it has one |
+| Physician's Touch (harm) | `HIT_OPTIONS` hand-of-harm `also` | Poisoned (Hand of Harm) lands with the ride, the vex window |
+| Eldritch Smite | `HIT_GROUPS` (`pool: "pactSlot"`) + `HIT_OPTIONS` (`pact`, `press: "prone"`, `maxSize: "huge"`) | (1 + pact level)d8 force on a pact-weapon hit, a Pact slot, Prone |
+| Telekinetic Adept | `HIT_OPTIONS` psionic-strike `follow` | Telekinetic Thrust's Strength save after the Strike, Prone on a failure |
+| Lifedrinker | `CLOCK_RIDERS` (`enchantBy`, `offers`) | 1d6 necrotic once per turn on the pact weapon; the Hit-Die heal offered |
+| Relentless Avenger | `CLOCK_RIDERS` (`judge: "opportunity"`, `lands`, `clock: "halt"`) | the pack's speed-0 effect on an Opportunity Attack's hit |
+| Blessed Healer | `HEAL_REROLLS` (`self: "2 + @slot"`, `slotCast`) | the cleric regains 2 + the slot after healing another |
+| Improved Warding Flare | `INTERRUPT_ROLLS` Warding Flare `heal` | 2d6 + Wis Temporary Hit Points with the Flare's answer |
+| Bastion of Law | `WARD_POOLS` (`pool: "effect"`, `effect`, `create`, `die: 8`) | a d8-per-point ward on the picked creature's effect, spent as damage lands |
+| Projected Ward | `INTERRUPT_REDUCTIONS` (`pool: "ward"`, `of: "Arcane Ward"`, `any`, `ally: 30`) | the wizard's ward absorbs a creature's damage within 30 ft |
+| Gift of the Protectors | `DROP_TO_ONE` (`named`, `activity: "Protect"`) | a creature named on the warlock's page drops to 1 instead |
+| War Magic | `BONUS_SWINGS` (`when: "attack"`) + `MANEUVER_FOLDS` hew | the reminder that one attack may be a cantrip |
+| Shadow Step | `USE_CHIPS` (`melee`, `window: "steadyAim"`) + `EFFECT_BENDS` (`scope: "melee"`) | Advantage on the next melee attack this turn |
+| Defensive Tactics | `EFFECT_BENDS` Escape the Horde (`judge: "opportunity"`) + `USE_CHIPS` (`on: "hit"`, `holder: "target"`) + `EFFECT_BENDS` Multiattack Defense (`plus: -4`, `against: "attacker"`) | Opportunity Attacks at Disadvantage; +4 AC against the hitter's later attacks this turn |
+| Misty Escape | `REBUKES` (`self`, `activity: "Misty Step"`, `follow`) | the Reaction teleport on taking damage, its Steps offered after |
+| Sculpt Spells | `METAMAGIC` (`free`, `asks: "careful"`, `school`, `classes`, `cap`) | Careful's ask on the wizard's Evocation, up to 1 + the slot spared |
+| Blessed Strikes · Elemental Fury (the parents) | — (the option rows above; Divine / Primal Strike `CLOCK_RIDERS` already) | the parent names the pick |
+| Tactical Master (B3) · Danger Sense (B2) | NATIVE | — |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Potent Spellcasting, Sacred Flame's damage | the damage card's chip "+3" under "Blessed Strikes: Potent Spellcasting"; the dice rise |
+| Elemental Affinity, a new copy on the sheet | the popup "Choose your damage type" (Acid · Cold · Fire · Lightning · Poison) renaming it "Elemental Affinity (Fire)"; the face live |
+| Bend Luck, the Bugbear hits an ally by 2 | the sorcerer's popup "Bend Luck — −1d4 · a Reaction · Font of Magic N left"; Answer: the d4 off, a MISS |
+| Bend Luck, an ally misses by 3 | "Bend Luck — +1d4"; Answer: a HIT |
+| Cosmic Omen at the Long Rest | the chip "Cosmic Omen — Weal (4)" (even) or "Woe (3)" (odd); the rest card's line |
+| Dark One's Own Luck, a failed check | the rescue window's row "Dark One's Own Luck — 1d10 · 1 use"; accepted, the total patched, no refund ask |
+| Tandem Footwork at Initiative | the bard's popup "give 1d8 to allies within 30 ft? · a use of Bardic Inspiration"; Yes: every ally's Initiative up by the roll, the tracker re-ordered |
+| Heroic Warrior at the turn start | "Heroic Warrior — <fighter> gains Heroic Inspiration"; held already, nothing |
+| Guarded Mind, Frightened, at the turn start | the popup "End a condition on <fighter>? Frightened (Frightened) · 1 Psionic Power (N left)"; End Frightened: gone, a die spent |
+| Self-Restoration, Poisoned, at the turn END | the popup with Poisoned · free; End Poisoned |
+| Hand of Healing on a Blinded ally (Physician's Touch) | the popup "End a condition on <ally>? Blinded"; End Blinded |
+| Eldritch Smite, a pact-weapon hit | the offer's group "Eldritch Smite — 3d8 force · 1 Pact slot · 2 Pact slots left"; ticked: the force dice ride, a slot gone, Prone on a Huge-or-smaller target |
+| Psionic Strike with Telekinetic Adept | after the damage, "Telekinetic Adept — Telekinetic Thrust" save card at the target; a failure lands Prone |
+| Lifedrinker, a pact-weapon hit | the ticked rider "Lifedrinker — 1d6 necrotic"; the damage card's "Lifedrinker — Heal — spend a Hit Point Die: Use it" |
+| Blessed Healer, Cure Wounds (level 2) at an ally | "Blessed Healer — <cleric> regains 4 Hit Points", receipted |
+| Warding Flare with Improved | the Flare answered: "+7 Temporary Hit Points" on the flared creature's receipt |
+| Bastion of Law, Create Shield (3 points) at an ally | "Warded by Law (12)" on the ally; damage lands short by the ward, the effect renamed, gone at 0 |
+| Projected Ward, an ally within 30 ft hit | the wizard's popup "Projected Ward — <ally> is within 30 ft of you · a Reaction", Absorb; the damage lands short, the Arcane Ward down |
+| Gift of the Protectors, a named ally drops | "drops to 1 Hit Point instead — <warlock>'s Gift of the Protectors — its name is on the page" |
+| Sculpt Spells, Fireball | the cast window's free row "Sculpt Spells"; ticked, the area's ask "Who does the spell spare? Up to 4." (Careful's popup); the spared take nothing |
+| Defensive Tactics, a creature attacks off its turn | the gate "<ranger> is — Defensive Tactics (Disadvantage)"; once one hits, the next gate "<ranger> is Multiattack Defense — vs <it> — −4 to this attack roll" |
+| Misty Escape, the warlock takes damage | the rebuke's popup "Misty Escape"; Use casts Misty Step (no slot), then the card's buttons "Disappearing Step" / "Dreadful Step" |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

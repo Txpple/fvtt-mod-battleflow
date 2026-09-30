@@ -307,7 +307,7 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     // A reroll row: the feature's name, its bonus as a number, its cost in its own words (a use, or the Rage's once).
     const reroll = (entry.kind === "reroll") ? { label: marker.key, rule: marker.row.rule, bonus: marker.bonus, advantage: marker.row.advantage === true,
       cost: marker.row.uses ? `1 use · ${marker.left} left, the new roll stands` : (marker.row.once === "rage") ? "once this Rage, the new roll stands" : RESCUE_KINDS.reroll.cost } : {};
-    out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
+    out.push({ kind: entry.kind, name: entry.name, label: (scope || tacticalRowOf(entry)) ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
       dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy, ...succeed, ...reroll });
   }
   return out;

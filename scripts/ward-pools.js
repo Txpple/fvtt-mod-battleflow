@@ -39,7 +39,7 @@ function effectWardOf(actor) {
   const listed = listedNames(wardPoolEntries());
   for ( const [name, row] of Object.entries(WARD_POOLS) ) {
     if ( !listed.has(lower(name)) || (row.pool !== "effect") ) continue;
-    const effect = actor.effects.find(e => !e.disabled && (lower(e.name) === lower(row.effect)) && e.getFlag(MODULE_ID, POOL_FLAG));
+    const effect = actor.effects.find(e => !e.disabled && lower(e.name).startsWith(lower(row.effect)) && e.getFlag(MODULE_ID, POOL_FLAG));
     if ( effect ) return { name, row, effect, pool: effect.getFlag(MODULE_ID, POOL_FLAG) };
   }
   return null;
