@@ -162,7 +162,7 @@ export async function applyDamagesWithReceipt(receiptMessage, hits, damages, { n
       await actor.applyDamage(damages, applyOptions);
       const after = actor.system._source.attributes.hp;
       const ward = applyOptions.bfWard ?? null;
-      // fighting-styles.js's block and ignored Resistance.
+      // damage-rules.js's block and ignored Resistance.
       const block = calc?.bfArmorBlock;
       const ignored = (calc?.bfIgnored ?? []).map(i => `${i.feature} — ignores ${i.types.join(", ")} resistance`);
       const warded = ward?.took ? `${ward.feature} took ${ward.took}${ward.left ? ` — ${ward.left} landed` : ""}` : null;

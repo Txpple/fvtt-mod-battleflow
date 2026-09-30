@@ -59,7 +59,7 @@ function ownAuraOf(effect) {
   return listedNames(emanationEntries()).has(lower(row.key));
 }
 
-/** A fighting style's FACE (fighting-styles.js) reads as a worn passive — the panel, never the bar; the
+/** A fighting style's FACE (damage-rules.js) reads as a worn passive — the panel, never the bar; the
  * pack effect it took over is not shown at all. */
 const styleOf = effect => effect.getFlag?.(MODULE_ID, "fightingStyle") ?? null;
 const takenOver = effect => effect.getFlag?.(MODULE_ID, "fightingStyleTakenOver") === true;

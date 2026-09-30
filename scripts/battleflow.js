@@ -41,7 +41,7 @@ import "./metamagic.js";
 import "./dice-changers.js";
 import "./heal-rerolls.js";
 import "./unarmed-dice.js";
-import "./fighting-styles.js";
+import "./damage-rules.js";
 import "./ward-pools.js";
 import "./kit-tend.js";
 import "./initiative-swap.js";

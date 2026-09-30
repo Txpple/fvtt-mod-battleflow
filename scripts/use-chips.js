@@ -8,7 +8,7 @@ import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
-import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./decide/registry.js";
+import { effectEntries, cardChipEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { chipData, placeOf, hitTargets, withTargets } from "./shared.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { USE_CHIPS, CARD_CHIPS, COATINGS, answers, tableIndex } from "./decide/registry.js";
@@ -232,7 +232,7 @@ const COAT_USE = "coatUse";        // on the card the use posts
 const COAT_HIT = "coatHit";        // on the damage message that spends the chip
 
 /** The listed-names readers a row's `list` may name. */
-const COAT_LISTS = { fightingStyles: fightingStyleEntries };
+const COAT_LISTS = { damageRules: damageRuleEntries };
 
 /** The row whose vetoed activity this is, on a listed feature — `{ name, row }` or null. */
 function coatRowFor(activity) {

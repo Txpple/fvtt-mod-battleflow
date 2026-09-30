@@ -135,7 +135,7 @@ export const ORDER = [
   },
   // BF Test Fighter is lent the PHB's six styles and its gear; the float over BF Test Victim's own token.
   {
-    name: "smoke-styles", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
+    name: "smoke-damage-rules", note: "the fighting styles — the faces off the equipped boxes (Defense's AC, Dueling's second weapon), Great Weapon Fighting's floor, Thrown's and Dueling's +2, Two-Weapon's modifier, Unarmed Fighting's die, the line, the record, the float, the list",
     needs: ["fixture-suite"]
   },
   // Protection and Interception answering for the creature beside them; three tokens placed and removed.

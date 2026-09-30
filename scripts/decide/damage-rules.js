@@ -1,7 +1,8 @@
 /**
- * Battle Flow — DECISION (ARCHITECTURE.md §2): THE FIGHTING STYLES' arithmetic — what is held, a
- * face's state, whether a roll fits, what a floor raised. Rows: registry.js FIGHTING_STYLES;
- * RULINGS *The fighting styles*.
+ * Battle Flow — DECISION (ARCHITECTURE.md §2): THE DAMAGE RULES' arithmetic — what is held, a
+ * face's state, whether a roll fits, what a floor raised, a flat bonus's scope. Rows: registry.js
+ * DAMAGE_RULES (the fighting styles, the damage feats, the spell-damage bonuses); RULINGS *The
+ * fighting styles*, *The PHB classes — B4*.
  */
 
 const MELEE = new Set(["simpleM", "martialM"]);

@@ -214,7 +214,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   grappleDamage: {
     events: ["choice"],
-    means: "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (fighting-styles.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
+    means: "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (damage-rules.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
     resolved: (r) => (r?.status === "resolved") ? [{
       marker: "message", events: ["choice"],
       facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
@@ -225,7 +225,7 @@ export const MOMENT_RECORDS = Object.freeze({
 
   typePick: {
     events: ["choice"],
-    means: "a typed feat's damage type was chosen as it landed — Elemental Adept's copy renamed \"Elemental Adept (Fire)\" (fighting-styles.js, the PHB feats walk 2026-09-26); resolved when a type is chosen, at the popup or by a rename",
+    means: "a typed feat's damage type was chosen as it landed — Elemental Adept's copy renamed \"Elemental Adept (Fire)\" (damage-rules.js, the PHB feats walk 2026-09-26); resolved when a type is chosen, at the popup or by a rename",
     resolved: r => r?.chosen ? [{
       marker: "message", events: ["choice"],
       facts: { actor: r.sourceUuid ?? null, ability: r.row ?? null, targets: [],
@@ -756,9 +756,9 @@ export const STATE_KEYS = Object.freeze({
   rerollUsed: "an ActiveEffect flag on the RAGE effect — the `reroll` folds spent this Rage (Fanatical Focus, B1); gone with the Rage, the spend itself is the d20fold resolve",
   bystanderMute: "an ActiveEffect flag — \"Not this combat\" (Q2 option A, 2026-09-29): the bystander feature its bearer muted, with the combat it lasts for; a player's preference, swept with the combat, no resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
-  fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",
-  armorBlock: "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (fighting-styles.js, 2026-09-26)",
-  fightingStyleTakenOver: "an ActiveEffect flag — the pack's own ungated effect on a Fighting Style feat, switched off while the style's face carries the rule; bookkeeping, restored when the style is unlisted (fighting-styles.js, 2026-09-26)",
+  fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (damage-rules.js, 2026-09-26)",
+  armorBlock: "presentation — an actor flag riding the damage's own update: what Heavy Armor Master cut from an attack, for every client to pop \"−N\" over the armored creature; the damage receipt is the record (damage-rules.js, 2026-09-26)",
+  fightingStyleTakenOver: "an ActiveEffect flag — the pack's own ungated effect on a Fighting Style feat, switched off while the style's face carries the rule; bookkeeping, restored when the style is unlisted (damage-rules.js, 2026-09-26)",
   coverMeasured: "an attack card's line — the cover on every attack while it is measured (the 2024 DMG's corner lines; No Cover included, a hand-set status named when it wins) and put on the recorded AC; presentation, the AC rode the card's own recorded targets (reminders.js, 2026-09-27)",
   coverIgnored: "an attack card's line — the cover a feat ignored (Sharpshooter, Spell Sniper); presentation, the AC it took off rode the card's own recorded targets",
   unarmedDice: "a damage card's line — Tavern Brawler's die rolled in place of the flat Unarmed Strike; presentation, the formula rode the roll's own config",

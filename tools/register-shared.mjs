@@ -44,7 +44,7 @@ export const WHERE = {
   CLOCK_RIDERS: ["clock-riders.js", "Rulings the code carried · The hit's sequence"],
   COATINGS: ["use-chips.js", "Bent by choice — the rule of cool"],
   USE_CHIPS: ["use-chips.js", "The gate before the roll"],
-  FIGHTING_STYLES: ["fighting-styles.js", "The fighting styles"],
+  DAMAGE_RULES: ["damage-rules.js", "The fighting styles"],
   EVASIONS: ["saves/consequences.js", "The GM's side — the five shapes"],
   SAVE_SUCCEEDS: ["saves/", "The PHB feats — groups 4–6"],
   REACTION_RESETS: ["decide/chips.js", "The GM's side — the reaction rows"],

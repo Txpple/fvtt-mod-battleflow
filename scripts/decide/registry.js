@@ -549,7 +549,7 @@ export const USE_CHIPS = Object.freeze({
  */
 export const COATINGS = Object.freeze({
   "Poisoner": Object.freeze({ key: "poisoner", activity: "Apply Poison", chip: "Poison Coating", img: "icons/weapons/daggers/dagger-poisoned.webp", seconds: 60, dose: 1,
-    saves: Object.freeze({ dex: "Poison Save (Dexterity)", int: "Poison Save (Intelligence)" }), list: "fightingStyles",
+    saves: Object.freeze({ dex: "Poison Save (Dexterity)", int: "Poison Save (Intelligence)" }), list: "damageRules",
     rule: Object.freeze({ item: "Poisoner", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPoisoner000", benefit: "Brew Poison" }),
     from: "General feat" })
 });
@@ -2132,9 +2132,11 @@ export const KIT_TENDS = Object.freeze({
 });
 
 /**
- * A style or feat whose rule turns on what the owner HOLDS or WEARS (RULINGS *The fighting styles*):
- * fighting-styles.js keeps one FACE effect per style, live or greyed, read off the equipped items, and
- * applies its number to the roll it fits.
+ * THE DAMAGE RULES (RULINGS *The fighting styles*; renamed from FIGHTING_STYLES in B4, Q5 ruled): a style,
+ * feat or class feature whose rule is a NUMBER on a damage roll, or turns on what the owner HOLDS or WEARS.
+ * damage-rules.js keeps one FACE effect per row, live or greyed, read off the equipped items, and applies
+ * its number to the roll it fits. The persisted names stay: the face's flag `fightingStyle`, the world's
+ * `fightingStyleList` setting (a rename would orphan every face and list on a live world).
  *   gate       twoHanded | thrown | offhand (the Light extra attack) | oneHanded | armored | unarmed | heavy
  *              (on the owner's turn) | heavyArmor | offhandCrossbow | always (no equipment in the rule)
  *   minimum    the damage dice's floor;  bonus  "2" | "@mod" | "@prof" | "effect" (the pack effect's, N1)
@@ -2147,7 +2149,7 @@ export const KIT_TENDS = Object.freeze({
  *   breaks     "concentration" — creatures the owner damages save at Disadvantage (concentration.js)
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
-export const FIGHTING_STYLES = Object.freeze({
+export const DAMAGE_RULES = Object.freeze({
   "Great Weapon Fighting": Object.freeze({ key: "great-weapon-fighting", gate: "twoHanded", minimum: 3,
     rule: Object.freeze({ item: "Great Weapon Fighting", uuid: "Compendium.dnd-players-handbook.feats.Item.phbfstGreatWeapo" }),
     from: "Fighting Style feat" }),
@@ -2645,7 +2647,7 @@ export const initiativeGrantEntries = () => everyRow(Object.keys(INITIATIVE_GRAN
 export const castRiderEntries = () => everyRow(Object.keys(CAST_RIDERS));
 export const storedDiceEntries = () => everyRow(Object.keys(STORED_DICE));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));
-export const fightingStyleEntries = () => everyRow(Object.keys(FIGHTING_STYLES));
+export const damageRuleEntries = () => everyRow(Object.keys(DAMAGE_RULES));
 export const unarmedDiceEntries = () => everyRow(Object.keys(UNARMED_DICE));
 export const healRerollEntries = () => everyRow(Object.keys(HEAL_REROLLS));
 export const wardPoolEntries = () => everyRow(Object.keys(WARD_POOLS));

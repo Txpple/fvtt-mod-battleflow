@@ -32,7 +32,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Protection** and **Interception**: "a creature you can see" · "another creature within 5 feet of you" | every creature within 5 feet of the one hit, on ITS side of the table (token disposition), not Incapacitated, holding what the style demands, is asked; sight is not judged | nothing the module reads says who can see whom; the side is the fact it can read, and the owner who cannot see simply passes (`geometry.js` `alliesWithin`) | 2026-09-26 |
 | **Interception**: "reduce the damage dealt to the target" when an attack hits it | the attack's damage is held at the module's applier and each guard asked (P1); damage applied with the card's own buttons, or typed on a sheet, is not held | the applier's claim is the only seam where the damage waits (`damage-holds.js`, Stone's Endurance's shape) | 2026-09-26 |
 | **Dueling, Defense, Great Weapon Fighting, Two-Weapon Fighting, Unarmed Fighting, Protection, Interception, Heavy Armor Master**: what you are "holding" / "wearing" | read off the sheet's EQUIPPED boxes; a Versatile weapon's grip is the attack's own mode (one hand or two) | the sheet has no hands — Equipped is the one fact dnd5e keeps about what is held (ruled off the prototype, 2026-09-26: "gate it on what pc is holding") | 2026-09-26 |
-| **Unarmed Fighting**: "1d4 Bludgeoning damage to one creature Grappled by you" at the start of each of your turns | asked of the owner (ruled U1: Deal it / Skip), the clock dealing it; "grappled by you" is the Grappled effect's own provenance (the module's source stamp, else its origin's actor); a Grappled that names no grappler is OFFERED when it stands within 5 feet, and never dealt by the clock | the Grappled condition carries no grappler of its own — a status toggled from the token HUD says nothing about who holds it (`fighting-styles.js` `grapplerOf`) | 2026-09-26 |
+| **Unarmed Fighting**: "1d4 Bludgeoning damage to one creature Grappled by you" at the start of each of your turns | asked of the owner (ruled U1: Deal it / Skip), the clock dealing it; "grappled by you" is the Grappled effect's own provenance (the module's source stamp, else its origin's actor); a Grappled that names no grappler is OFFERED when it stands within 5 feet, and never dealt by the clock | the Grappled condition carries no grappler of its own — a status toggled from the token HUD says nothing about who holds it (`damage-rules.js` `grapplerOf`) | 2026-09-26 |
 | **Warding Flare** protects any creature the Cleric can see within 30 feet | protects its OWNER only | the hold is stamped per DEFENDER: only a hit target's own sheet is read for rows (`hold/lookup.js` `rollRescuesOf`) — a known gap, DESIGN §8 | 2026-09-24 |
 | **Stone's Endurance**: "when you take damage" (any damage) | ASKED in one popup, and on the click the damage lands reduced by the roll (user, 2026-09-25: "the popup for stones endurance should show up, and if hte person rolls, then the damage is auto reduced"): an attack hit asks at the hit (the hold); every other damage the MODULE applies is held at its applier until the answer (`damage-holds.js`); damage applied with the card's OWN buttons or typed on a sheet is reduced by hand | only the module's own applier can make a number wait: the card's buttons call `Actor#applyDamage` straight, and `dnd5e.preApplyDamage` is synchronous — no popup can be answered inside it (`auto-apply.js` `registerDamageClaim`) | 2026-09-24; widened 2026-09-25 |
 | **Powerful Build**: Advantage on "any ability check you make to end the Grappled condition" | while the Goliath IS Grappled, its Athletics and Acrobatics checks have Advantage, whatever they are for | nothing tells an escape check from any other check the module meets (`EFFECT_BENDS` `checksWhen`); the bearer's status and the escape's two skills are the facts it can read | 2026-09-25 |
@@ -51,8 +51,8 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Lucky**: Advantage "when you roll a d20 for a D20 Test" — chosen as you roll | in the roll dialog: a box with a tick, spent when the roll goes out ticked (`advantage-buys.js`). An initiative rolled with NO dialog (the carousel, Roll All) is offered it AFTER the roll — a second d20, the higher standing — so the player has seen the first die when choosing (ruled "After the roll", 2026-09-25) | `Combat#rollInitiative` rolls with no pause before its dice and no hook that can wait for an answer (`dnd5e.preConfigureInitiative` is synchronous), so no popup can come before that roll (`d20-folds.js` `ADVANTAGE`) | 2026-09-25 |
 | **Relentless Endurance** ("when you are reduced to 0 Hit Points") and **Death Ward** ("the first time the target would drop to 0 Hit Points") | caught on DAMAGE applied through the system's damage application — the module's applier and the card's own buttons: the Hit Points are written as 1 in that same update (Death Ward automatic, the effect removed; Relentless Endurance held at 1 while its popup asks, and the clock's pass lands the 0). Hit Points typed on a sheet, or a drop to 0 with no damage, are the table's | `dnd5e.preApplyDamage` is the one place a drop can be changed before it lands, and it is synchronous — the ask has to stand at 1, not at 0; a sheet edit carries no damage to read (`drop-to-one.js`) | 2026-09-25 |
 | **Celestial Revelation's extra damage** on a spell with no attack roll: dealt "when you deal damage to it", with the spell | offered on the spell's card once its damage has landed; the pick lands as its OWN damage (its own card and receipt) — a concentrating target makes a second Constitution save for it | the extra goes to ONE of the spell's targets, the caster's pick, and the spell's damage is one roll applied to all of them: it cannot ride the roll, and the spell's receipt is keyed by creature, so an entry there would overwrite the spell's own (`clock-riders.js`) | 2026-09-25 |
-| **Heavy Weapon Mastery** (Great Weapon Master): "as part of the Attack action on your turn" | +Proficiency Bonus on every damage roll of a Heavy weapon's attack on the owner's own turn — Hew's Bonus Action swing included; a combat that holds the owner on another's turn (an Opportunity Attack) adds nothing and the card says "off — not your turn" | nothing on a damage roll says which action the attack was part of: Hew's swing is the same weapon's same attack activity (`fighting-styles.js` `ownTurnOf`, the `heavy` gate) | 2026-09-26 |
-| **Heavy Armor Master**: "when you're hit by an attack" | the cut is taken on damage from an ATTACK's damage card (its activity an attack, or a card answering one), through the module's applier or the card's own buttons; a save's, an area's or a rider's damage is never cut, and neither is a number typed on the token bar or the sheet. "Any Bludgeoning, Piercing, and Slashing damage … is reduced by" one Proficiency Bonus in all, not one per type | the damage application knows only the card it came from (`originatingMessage`); a bare number carries none (`fighting-styles.js`, `dnd5e.preCalculateDamage`) | 2026-09-26 |
+| **Heavy Weapon Mastery** (Great Weapon Master): "as part of the Attack action on your turn" | +Proficiency Bonus on every damage roll of a Heavy weapon's attack on the owner's own turn — Hew's Bonus Action swing included; a combat that holds the owner on another's turn (an Opportunity Attack) adds nothing and the card says "off — not your turn" | nothing on a damage roll says which action the attack was part of: Hew's swing is the same weapon's same attack activity (`damage-rules.js` `ownTurnOf`, the `heavy` gate) | 2026-09-26 |
+| **Heavy Armor Master**: "when you're hit by an attack" | the cut is taken on damage from an ATTACK's damage card (its activity an attack, or a card answering one), through the module's applier or the card's own buttons; a save's, an area's or a rider's damage is never cut, and neither is a number typed on the token bar or the sheet. "Any Bludgeoning, Piercing, and Slashing damage … is reduced by" one Proficiency Bonus in all, not one per type | the damage application knows only the card it came from (`originatingMessage`); a bare number carries none (`damage-rules.js`, `dnd5e.preCalculateDamage`) | 2026-09-26 |
 | **Mage Slayer**'s Concentration Breaker: "When you damage a creature that is concentrating" | the concentration save is at Disadvantage when the damage came from a CARD whose speaker holds the feat — the module's applier or the card's own buttons; damage typed on a sheet names no dealer and breaks nothing | `dnd5e.preApplyDamage` knows the dealer only through `originatingMessage` (`concentration.js` `breakerFor`, the rebukes' floor) | 2026-09-27 |
 | **Sentinel**'s Guardian: "Immediately after a creature within 5 feet of you takes the Disengage action or hits a target other than you with an attack" | asked when the hit's DAMAGE lands, with the card it came from, of a bystander on another side of the map (token disposition); a hit that deals no damage, damage typed on a sheet, and a Disengage ask nothing; a friend's hit is not asked (ⓐ — noise) | the landing is where a hit is final (after any reaction that could still turn it) and where its card names the hitter (`rebukes.js` `stampWards`); nothing records a Disengage (NOTES §2) | 2026-09-27 |
 | **Sentinel**'s Halt: "When you hit a creature with an Opportunity Attack" | due on the Opportunity Attack the module drove (its cards say so) AND on any melee hit the Sentinel makes off its own turn in a running combat — ticked on the damage offer, with the caveat "only on an Opportunity Attack" | an Opportunity Attack made from the sheet is an ordinary attack roll: nothing marks it; off-turn melee is the fact the module can read (`clock-riders.js`, `judge: "opportunity"`) | 2026-09-27 |
@@ -794,19 +794,19 @@ Crafter and Skilled are native or out of combat. Proved by the full battery, 202
   Heroic Inspiration ticked up to the Proficiency Bonus, those with it greyed "(has it)"; OK ticks
   their boxes.
 
-## The fighting styles (2026-09-26, off `prototypes/fighting-styles.html`)
+## The fighting styles (2026-09-26, off `prototypes/damage-rules.html`)
 
 **Every PHB Fighting Style measured against the pack, and the gaps built on the user's go.** The
 rulings: *"one table"*; *"gate it on what pc is holding - not overall rule, we want flows to work,
 not editing items"*; *"the feats that do weapon mods should be effects on the player ... so itd
 show in the detailed buff bar"*; the notice **B**, the guards **P1**, Protection **R1**, Unarmed
-Fighting **U1**, *"truesight yes"*. `smoke-styles` (31 checks), `smoke-guards` (15),
-`tests/decide-fighting-styles.test.js`.
+Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-guards` (15),
+`tests/decide-damage-rules.test.js`.
 
 - **Native, nothing built:** Archery (the pack's +2 on ranged attacks — dnd5e counts a thrown
   melee weapon as ranged too, and that reading stands), Blessed Warrior, Druidic Warrior, Arcane
   Warrior (Arcana Unleashed).
-- **The Fighting Styles table and list** (`FIGHTING_STYLES`, `fighting-styles.js`): each listed
+- **The Fighting Styles table and list** (`DAMAGE_RULES`, `damage-rules.js`): each listed
   style keeps ONE effect on the character — its **face** — live, or disabled with the reason ("a
   second weapon held (Dagger)", "no armor worn"), read off the sheet's **Equipped** boxes (held =
   equipped, the register). The effect view's panel lists it (Passive when live, Unavailable with
@@ -896,10 +896,10 @@ the origin feats and styles were in already; of the PHB general feats, Great Wea
 Heavy Armor Master (Morgash), Shield Master (Invictus), Fey-Touched (Gren). The user: *"i cant
 beleive weve been missing damage on gwm!"*; *"heavy armor master should have that blocking damage
 like stones endurance / protectin does"*; *"great weapon master is also the situational bonus w
-damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-styles`
-§11–§12, `tests/decide-fighting-styles.test.js`.
+damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-damage-rules`
+§11–§12, `tests/decide-damage-rules.test.js`.
 
-- **Two rows on `FIGHTING_STYLES`** (the table's comment asked for it: a second customer is a row),
+- **Two rows on `DAMAGE_RULES`** (the table's comment asked for it: a second customer is a row),
   `feat: true` so the face and its float wear the feat's own name, not "Fighting Style:".
 - **Heavy Weapon Mastery** — gate `heavy`: the face is live with a Heavy weapon equipped; a Heavy
   weapon's damage on the owner's own turn gets +PB on the roll, "Great Weapon Master — +3" on the
@@ -978,7 +978,7 @@ one sensible answer, the way Great Weapon Fighting's does.
   a card to its owners and opens a popup — Acid, Cold, Fire, Lightning, Thunder, less the types its
   other copies already name, and Later. The answer renames the copy "Elemental Adept (Fire)"; the
   card's Choose type… button asks again; a rename by hand settles the card too; and a click on a
-  typeless feat on the sheet (its own card, `dnd5e.displayCard`) asks there as well (`fighting-styles.js`,
+  typeless feat on the sheet (its own card, `dnd5e.displayCard`) asks there as well (`damage-rules.js`,
   the row's `choices`).
 - **Healer rerolls every 1 as the dice land** — no popup; the healing waits for the new dice and
   lands once, the new die on its own card and over the healer on the canvas (`heal-rerolls.js`, the
@@ -1066,7 +1066,7 @@ above). The range feats keep no list of their own
 (the user: *"this is fine leave it to the table"*). Poisoner's Apply Poison became a Poison Coating on
 the character the same walk (*Bent by choice*).
 
-**Group 1 — the damage rules** (`fighting-styles.js`, two `FIGHTING_STYLES` rows, gate `always`).
+**Group 1 — the damage rules** (`damage-rules.js`, two `DAMAGE_RULES` rows, gate `always`).
 - **Elemental Adept**: the type is read off the feat's NAME — "Elemental Adept (Fire)", every copy
   adding its own (the user's ruling); a copy with no type is a greyed face that says how to rename
   it. A spell's damage of the type ignores Resistance — dnd5e's own `options.ignore.resistance`,
@@ -1075,7 +1075,7 @@ the character the same walk (*Bent by choice*).
   ignores fire resistance". Its 1s count as 2 — Great Weapon Fighting's floor at 2, ⓐ on that
   type's dice only (a spell dealing two types floors one), with the card line and the dice that rise.
 - **Poisoner**: Potent Poison — any Poison damage its owner deals ignores Resistance to Poison.
-- `smoke-styles` §13, `tests/decide-fighting-styles.test.js`.
+- `smoke-damage-rules` §13, `tests/decide-damage-rules.test.js`.
 
 **Group 2 — the range cancellers** (`reminders.js`, `RANGE_FEATS`).
 - A cancelled range row is **listed with the feat, never counted** ("Ranged attack within 5 feet of
@@ -1084,7 +1084,7 @@ the character the same walk (*Bent by choice*).
 - **Sharpshooter** (a Ranged weapon — ⓐ by its kind, so a dart thrown counts and a dagger thrown does
   not): long range, point-blank, cover. **Spell Sniper** (a spell's attack roll): point-blank, cover,
   +60 ft on a range of 10 ft or more. **Crossbow Expert** (the three crossbows): point-blank; its
-  Dual Wielding is a `FIGHTING_STYLES` row (gate `offhandCrossbow`), and beside Two-Weapon Fighting
+  Dual Wielding is a `DAMAGE_RULES` row (gate `offhandCrossbow`), and beside Two-Weapon Fighting
   the modifier is given back ONCE.
 - **Bypass Cover** is the one new seam: the attack RECORDS each target's AC without its cover bonus
   (`system.targets[].ac`, dialog or no dialog), so the card's hit and miss are right on every
@@ -1092,7 +1092,7 @@ the character the same walk (*Bent by choice*).
   An AC override carries no cover in dnd5e 6.0.5 and is left alone; Total Cover records no AC.
 - ⓐ No list of their own: the Reminder Sources' `range` kind is the switch (the data settles the
   rule — DESIGN R1).
-- `smoke-reminders` §13, `smoke-styles` §14, `tests/decide-reminders.test.js`.
+- `smoke-reminders` §13, `smoke-damage-rules` §14, `tests/decide-reminders.test.js`.
 
 **Group 3 — the on-hit riders** (`clock-riders.js`, `CLOCK_RIDERS`; `bash-offer.js`; `damage-either.js`).
 - **Slasher**: Hamstring rides a Slashing hit once per turn (a ticked row on the damage offer, "you
@@ -1124,7 +1124,7 @@ user was away are marked ⓐ; nothing here is walked yet.
 
 **Group 4 — the saves: Mage Slayer.** The pack ships one activity, Guard Mind (a utility that
 spends the item's one use, back on a Short or Long Rest), and nothing for the breaker.
-- **Concentration Breaker** — a `FIGHTING_STYLES` row (gate `always`, `feat`, `breaks:
+- **Concentration Breaker** — a `DAMAGE_RULES` row (gate `always`, `feat`, `breaks:
   "concentration"`): the feat's face, and the Fighting Styles list its switch, as Elemental
   Adept's and Poisoner's damage rules are. The precedent is Extended Spell's mark on a
   concentration save: the concentration ask RECORDS the damage's dealer (the card that dealt it
@@ -1225,7 +1225,7 @@ swung (`rebukes.js`).
     card. So the weapon's own +1, masteries and styles ride it (the user: *"then pole strike will
     actually carry enhancements like +1 and stuff too"*) — the pack's feat-borne Pole Strike activity
     would carry none. Great Weapon Master's +PB stays off it: a Bonus Action is not "part of the Attack
-    action" (`fighting-styles.js`, the `heavy` gate).
+    action" (`damage-rules.js`, the `heavy` gate).
     Every card of the swing is titled **"<weapon> — Pole Strike"** (the walk: *"needs suffix for attack
     and dmg cards too"*): the usage card's item snapshot is renamed at its birth; the attack and damage
     cards' header reads the LIVE item (`getAssociatedItem()`), so theirs is drawn at render
@@ -2120,6 +2120,16 @@ the user's to overrule**:
 | Studied Attacks, a miss then an attack at the same creature | after the miss: "Studied Attacks — vs Goblin" on the fighter; the next attack's gate "Morgash — Studied Attacks — vs Goblin", Net Advantage; against another creature nothing; the roll spends it |
 | Relentless, no dice left, a maneuver picked | the offer's group "Combat Superiority" with "1d8 Superiority Die"; the card: "Relentless — a 1d8 stood in for the Superiority Die; none spent"; the pool still 0 |
 | Tactical Master, a Longsword (Sap) attack | the attack dialog's Mastery select: Sap · Push · Slow; Push picked: the module's Push ask after the hit |
+
+## The PHB classes — B4 (2026-09-30, Session 0 stage B4)
+
+**The table renamed first** (Q5, the user: *"rename it now i hate deferred maintenance"*): `FIGHTING_STYLES`
+is **`DAMAGE_RULES`** — `scripts/damage-rules.js`, `scripts/decide/damage-rules.js`, `tests/decide-damage-rules.test.js`,
+`tools/smoke-damage-rules.mjs`, `prototypes/damage-rules.html`, the dispatch and check-layers names with them. The
+table now holds every rule that is a NUMBER on a damage roll: the fighting styles, the damage feats and B4's
+spell-damage bonuses. Two names are persisted world data and stay as they are: the face effect's flag
+`fightingStyle` (renaming it would orphan every face on a live actor) and the world setting `fightingStyleList`
+(the list's stored value). The settings label still reads "Fighting Styles".
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

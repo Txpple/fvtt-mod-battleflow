@@ -375,8 +375,8 @@ describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poi
     expect(row.seconds).toBe(60);
     expect(row.dose).toBe(1);
     expect(Object.keys(row.saves)).toEqual(["dex", "int"]);
-    expect(row.list).toBe("fightingStyles");
-    expect(Object.keys(reg.FIGHTING_STYLES)).toContain("Poisoner");
+    expect(row.list).toBe("damageRules");
+    expect(Object.keys(reg.DAMAGE_RULES)).toContain("Poisoner");
     expect(reg.SAVE_PRESSES.Poisoner.status).toBe("poisoned");
   });
 });

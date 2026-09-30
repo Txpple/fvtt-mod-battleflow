@@ -54,7 +54,7 @@ export const ORDER = Object.freeze([
   "dice-changers",      // after every rider's part: it reads none of them
   "heal-rerolls",
   "unarmed-dice",
-  "fighting-styles",
+  "damage-rules",
   "kit-tend",
   "initiative-swap",
   "initiative-grants",

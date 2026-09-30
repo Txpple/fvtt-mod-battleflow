@@ -170,7 +170,7 @@ const WORLD_WRITERS = {
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll
   "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect
   "ward-pools.js": "Arcane Ward's hit points are its feature's own uses: the take lands in the damage receipt the applier writes (its pop rides the bearer's damage update, wardAbsorb), the cast's line is state (wardRefill)",
-  "fighting-styles.js": ["grappleDamage"],   // Unarmed Fighting's turn-start damage; the faces are bookkeeping, the damage numbers ride the roll's own config (fightingStyle: state)
+  "damage-rules.js": ["grappleDamage"],   // Unarmed Fighting's turn-start damage; the faces are bookkeeping, the damage numbers ride the roll's own config (fightingStyle: state)
   "unarmed-dice.js": "the plain Unarmed Strike's damage formula swapped before it rolls — the damage message is the platform's and its receipt the resolve (unarmedDice: presentation)",
   "drop-to-one.js": ["dropToOne"],   // Relentless Endurance asked, Death Ward automatic
   "rest-grants.js": ["restSong"],   // Resourceful's own grant rides dnd5e's rest update (restGrant: presentation); Musician's song to allies is landed by the elect

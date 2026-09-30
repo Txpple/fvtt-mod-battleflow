@@ -292,13 +292,13 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
     expect(reg.D20_FOLDS).toContainEqual({ name: "Mage Slayer", kind: "succeed" });
   });
   it("Mage Slayer's Concentration Breaker is a feat row of the fighting-style table that `breaks` concentration", () => {
-    expect(reg.FIGHTING_STYLES["Mage Slayer"]).toMatchObject({
+    expect(reg.DAMAGE_RULES["Mage Slayer"]).toMatchObject({
       gate: "always",
       feat: true,
       breaks: "concentration"
     });
     expect(
-      Object.values(reg.FIGHTING_STYLES)
+      Object.values(reg.DAMAGE_RULES)
         .filter(r => r.breaks)
         .map(r => r.key)
     ).toEqual(["mage-slayer"]);

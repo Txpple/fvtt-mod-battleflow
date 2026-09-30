@@ -7,7 +7,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
-  'fighting-styles.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner; §14 Crossbow Expert's Dual Wielding; §15 Elemental Adept's type pick
+  'damage-rules.js',   // §1–§2 the faces off the equipped boxes; §3–§6 the numbers, the lines, the record, the float; §8 the switch; §11 Great Weapon Master; §12 Heavy Armor Master's block; §13 Elemental Adept and Poisoner; §14 Crossbow Expert's Dual Wielding; §15 Elemental Adept's type pick
   'unarmed-dice.js',      // §7 Unarmed Fighting's die by what the hands hold (the `hands` row)
   'reminders.js'          // §9 Blind Fighting — who sees the unseen: Invisible listed, not counted, within Blindsight
 ];

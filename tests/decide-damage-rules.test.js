@@ -1,16 +1,16 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 /**
- * DECISION-layer: the fighting styles (decide/fighting-styles.js, 2026-09-26, ruled off
- * prototypes/fighting-styles.html) — what the owner holds, whether a face is live, whether a roll
+ * DECISION-layer: the fighting styles (decide/damage-rules.js, 2026-09-26, ruled off
+ * prototypes/damage-rules.html) — what the owner holds, whether a face is live, whether a roll
  * fits, and what Great Weapon Fighting's floor raised. No Foundry: plain item facts and roll JSON.
  */
-/** @type {typeof import("../scripts/decide/fighting-styles.js")} */
+/** @type {typeof import("../scripts/decide/damage-rules.js")} */
 let d;
 /** @type {typeof import("../scripts/decide/registry.js")} */
 let reg;
 beforeAll(async () => {
-  d = await import("../scripts/decide/fighting-styles.js");
+  d = await import("../scripts/decide/damage-rules.js");
   reg = await import("../scripts/decide/registry.js");
 });
 
@@ -354,7 +354,7 @@ describe("the PHB feats, group 1 (2026-09-26): Elemental Adept and Poisoner", ()
   });
 
   it("the type pick offers the row's five, less what the other copies already name", () => {
-    const row = reg.FIGHTING_STYLES["Elemental Adept"];
+    const row = reg.DAMAGE_RULES["Elemental Adept"];
     expect(row.choices).toEqual(["acid", "cold", "fire", "lightning", "thunder"]);
     expect(d.typeChoicesLeft(row.choices, [])).toEqual(row.choices);
     expect(d.typeChoicesLeft(row.choices, ["fire", "Cold"])).toEqual([

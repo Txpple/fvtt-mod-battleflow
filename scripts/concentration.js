@@ -7,8 +7,8 @@
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
-import { fightingStyleEntries, listedNames } from "./decide/registry.js";
-import { FIGHTING_STYLES } from "./decide/registry.js";
+import { damageRuleEntries, listedNames } from "./decide/registry.js";
+import { DAMAGE_RULES } from "./decide/registry.js";
 import { popupKey, bfCard, esc, holdBarHTML } from "./decide/present.js";
 import { livePopups, momentButton, DialogCarried, scheduleBarSync, shownMoments, armAskTimer, disarmAskTimer, dramaticVerdictPause, registerDemand, demandAnsweredBy,
   registerWithheld, withholds } from "./ui.js";
@@ -60,8 +60,8 @@ function breakerFor(concentrator, dealerUuid) {
   if ( !dealerUuid || (dealerUuid === concentrator?.uuid) ) return null;
   const dealer = resolveUuid(dealerUuid);
   if ( !(dealer instanceof Actor) ) return null;
-  const listed = listedNames(fightingStyleEntries());
-  for ( const [name, row] of Object.entries(FIGHTING_STYLES) ) {
+  const listed = listedNames(damageRuleEntries());
+  for ( const [name, row] of Object.entries(DAMAGE_RULES) ) {
     if ( (row.breaks !== "concentration") || !listed.has(lower(name)) ) continue;
     if ( featureNamed(dealer, name) ) return { feat: name, by: dealer.name, uuid: dealer.uuid, rule: row.rule };
   }
