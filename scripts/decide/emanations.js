@@ -228,6 +228,42 @@ export function groupMembers(areas) {
 }
 
 /**
+ * What an alerted creature DID, for the reminder's title and its `why`: entered the reach (a move), or started
+ * or ended its turn inside it (Unnerving Gaze; Inspiring Movement, B5).
+ * @param {"moveIn"|"turnStart"|"turnEnd"|string} cause
+ */
+export function alertPhrase(cause) {
+  if ( cause === "turnStart" ) return "started its turn within";
+  if ( cause === "turnEnd" ) return "ended its turn within";
+  return "entered";
+}
+
+/**
+ * Whether an alert's once-guard keys on the TURN (a turn-start or turn-end alert fires once per turn) or on
+ * the movement (a move-in alert fires once per move).
+ * @param {string} cause
+ */
+export const alertKeysOnTurn = cause => (cause === "turnStart") || (cause === "turnEnd");
+
+/**
+ * THE PICK's candidates (Wrath of the Sea, B5): who stands inside a ring at its bearer's turn start and may be
+ * chosen — never the bearer, only those the reach admits, in the order given.
+ * @param {Array<{ tokenId: string, actorUuid: string|null, name: string, disposition: number }>} inside
+ * @param {{ sourceTokenId: string|null, sourceDisposition: number, reach: "helpful"|"harmful"|"all" }} ring
+ * @returns {Array<{ tokenId: string, uuid: string, name: string }>}
+ */
+export function pickCandidates(inside, { sourceTokenId, sourceDisposition, reach }) {
+  const out = [];
+  for ( const t of inside ?? [] ) {
+    if ( !t?.tokenId || !t.actorUuid ) continue;
+    if ( sourceTokenId && (t.tokenId === sourceTokenId) ) continue;
+    if ( !reachAdmits(reach, sourceDisposition, t.disposition) ) continue;
+    out.push({ tokenId: t.tokenId, uuid: t.actorUuid, name: t.name });
+  }
+  return out;
+}
+
+/**
  * The damage type of a multi-type part: the caster's pick, else evil → necrotic, else radiant, else the first.
  * @param {string[]} types      in the pack's order
  * @param {string|null} alignment

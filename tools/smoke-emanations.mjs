@@ -38,7 +38,11 @@ const SECTIONS = {
   16: 'a NO-SAVE concentration area (Fog Cloud, 2026-09-19): no demand card, no dependent at 6.0 — the module\'s own sweep ends the region with the concentration, exactly the areas the effect is tied to; a re-cast\'s area stands when the old concentration goes; an untied area is swept only when no other concentration of the spell stands',
   24: 'THE GM\'S SIDE — Fear Aura (2026-09-28): the Monster lent the trait raises a harmful ring off its save activity\'s Emanation; the Victim STARTING its turn inside is demanded the Wisdom save (cause turnStart, the failure\'s Frightened named), a failure lands Frightened by the verdict; the Monster Incapacitated, the next turn start asks nothing',
   25: 'Displacement (2026-09-28): the Victim attacking the Monster wearing the text-only trait sees "BF Test Monster is — Displacement", net Disadvantage; the Monster Incapacitated, the row is gone',
-  17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes"
+  17: "Polearm Master's Reactive Strike (2026-09-27): holding a Glaive, an invisible ring of its reach stands (no card); the hostile MOVING in raises Hew's reminder 'Reactive Strike' on the wielder; the ring sliding over a standing hostile does not; one walked move THROUGH the reach raises it too; the Glaive put away, the ring goes",
+  26: "THE PHB CLASSES — B5 (2026-09-30) Branches of the Tree: lent to the Ranger, no ring without a Rage; a Rage effect standing raises an invisible 30-ft harmful ring (no card); the hostile STARTING its turn inside raises Hew's reminder 'Branches of the Tree' on the rager (cause turnStart); the Rage gone, the ring goes",
+  27: "Inspiring Movement: an invisible 5-ft harmful ring (no card); the enemy ENDING its turn beside the bard raises the reminder 'Inspiring Movement' (cause turnEnd — new to the alert vocabulary); a turn ended 20 ft away raises nothing",
+  28: "Wrath of the Sea: the Cleric lent the Druid class, Circle of the Sea and the feature; no ring until 'Manifesting Ocean Spray' stands, then a 5-ft ring off @scale.sea.wrath-range (reach all, no member effect) with a card; at the druid's turn start a card lists the creatures inside with a button each; the Victim picked is demanded the Constitution save at the spell DC with the cold rolled, the push named; the card records the pick and the demand (once this turn); the spray gone, the ring goes",
+  29: "Aura of Devotion: Aura of Courage's row — the ring at the Paladin's aura scale, the ally inside wears 'Devoted — BF Test Paladin', the hostile nothing; the feature gone, the ring and the effect go"
 };
 const DEPENDS = { 2: [1], 3: [1], 4: [1], 5: [1], 7: [6], 8: [6], 11: [1] };
 
@@ -1153,6 +1157,216 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         game.user.targets.forEach(t => { t.setTarget(false, { releaseOthers: true }); });
         await homeAll();
       }
+    }
+    // ================================================== 26–29. THE PHB CLASSES — B5 (2026-09-30): the band-B emanation rows
+    // Each row on a LENT feature: the Ranger stands in for the barbarian and the bard, the Cleric for the druid
+    // (the Druid class and Circle of the Sea lent for the scale), the Paladin is the paladin. The Victim is hostile.
+    if (want(26) || want(27) || want(28) || want(29)) {
+      const B5_LIST = 'Aura of Protection, Aura of Courage, Aura of Warding, Spirit Guardians, Branches of the Tree, Inspiring Movement, Wrath of the Sea, Aura of Devotion';
+      const phbItem = async (name, type) => {
+        for (const pack of game.packs.filter(p => (p.metadata.packageName === 'dnd-players-handbook') && (p.documentName === 'Item'))) {
+          const hit = (await pack.getIndex({ fields: ['type'] })).find(e => (e.name === name) && (e.type === type));
+          if (hit) { const doc = await pack.getDocument(hit._id); const data = doc.toObject(); foundry.utils.setProperty(data, '_stats.compendiumSource', doc.uuid); return data; }
+        }
+        return null;
+      };
+      const lendPHB = async (actor, name, type, patch = null) => {
+        const data = await phbItem(name, type);
+        if (!data) throw new Error(`the PHB ships no ${type} "${name}" this box can find`);
+        const [item] = await actor.createEmbeddedDocuments('Item', [data]);
+        if (patch) await item.update(patch);
+        return actor.items.get(item.id);
+      };
+      const plainEffect = async (actor, name) => {
+        const [fx] = await actor.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false, changes: [] }]);
+        return fx;
+      };
+      const startFight = async list => {
+        for (const c of game.combats.filter(c => c.active)) { priorActiveCombats.push(c.id); await c.update({ active: false }); }
+        combat = await Combat.create({ scene: scene.id, active: true });
+        await combat.createEmbeddedDocuments('Combatant', list.map(([t, a, initiative]) => ({ tokenId: t.id, actorId: a.id, initiative })));
+        await combat.startCombat();
+        if (game.combat?.id !== combat.id) { try { ui.combat.viewed = combat; } catch { /* the tracker */ } }
+        await sleep(400);
+      };
+      const endFight = async () => { try { if (combat && game.combats.get(combat.id)) await combat.delete(); } catch { /* gone */ } combat = null; await sleep(300); };
+      const noticesOf = (label, t) => game.messages.filter(m => (m.timestamp >= t) && (m.getFlag(MOD, 'hewNotice')?.label === label));
+      const spot = { x: 10 * grid, y: 5 * grid };
+      await set('emanationList', B5_LIST);
+
+      // ---------------------------------------------------------------- 26. Branches of the Tree
+      if (want(26)) {
+        let feat = null; let rage = null;
+        try {
+          await parkAll();
+          await rgrTok.update(spot, mv());
+          await vicTok.update({ x: spot.x + 4 * grid, y: spot.y }, mv());   // 20 ft away: inside 30
+          await sleep(400);
+          feat = await lendPHB(ranger, 'Branches of the Tree', 'feat');
+          await sleep(2500);   // load-bearing: time for a WRONG ring
+          ok('26a. Branches of the Tree lent and no Rage standing: no ring', !featureRegion(rgrTok, 'Branches of the Tree'), `ring=${featureRegion(rgrTok, 'Branches of the Tree')?.id ?? 'none'}`);
+          const t0 = Date.now();
+          rage = await plainEffect(ranger, 'Rage');
+          const ring = await waitFor(() => { const r = featureRegion(rgrTok, 'Branches of the Tree'); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 10000);
+          const shape = ring?.shapes?.[0] ?? null;
+          ok('26b. the Rage standing: an invisible 30-foot harmful ring rises around the rager, no card (quiet)',
+            !!ring && (shape?.radius === 30 * px) && (ring.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED)
+              && (ring.behaviors?.find(b => b.type === TYPE)?.system?.reach === 'harmful')
+              && !game.messages.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationCard')?.key === 'Branches of the Tree')),
+            `ring=${ring?.id} radius=${shape?.radius} expected=${30 * px}`);
+          await startFight([[rgrTok, ranger, 20], [vicTok, vicActor(), 10]]);   // the rager's turn
+          const t1 = Date.now();
+          await combat.nextTurn();   // the Victim's turn STARTS inside
+          const card = await waitFor(() => noticesOf('Branches of the Tree', t1)[0] ?? null, 8000);
+          const n = card?.getFlag(MOD, 'hewNotice');
+          ok('26c. the hostile starting its turn within 30 ft raises the reminder on the rager — "Branches of the Tree", the one who started named, a Reaction from the sheet',
+            !!card && (n?.attackerUuid === ranger.uuid) && (n?.targetName === vicTok.name) && (n?.cause === 'turnStart') && /started its turn within/.test(card.content ?? ''),
+            `card=${!!card} notice=${JSON.stringify(n ?? null)}`);
+          await endFight();
+          await rage.delete(); rage = null;
+          const gone = await waitFor(() => featureRegion(rgrTok, 'Branches of the Tree') ? null : true, 8000);
+          ok('26d. the Rage ended: the ring goes', !!gone, `ring=${featureRegion(rgrTok, 'Branches of the Tree')?.id ?? 'gone'}`);
+        } finally {
+          await endFight();
+          await rage?.delete().catch(() => {});
+          await feat?.delete().catch(() => {});
+          await homeAll();
+        }
+      }
+
+      // ---------------------------------------------------------------- 27. Inspiring Movement
+      if (want(27)) {
+        let feat = null;
+        try {
+          await parkAll();
+          await rgrTok.update(spot, mv());
+          await vicTok.update({ x: spot.x + grid, y: spot.y }, mv());   // adjacent: within 5 ft
+          await sleep(400);
+          const t0 = Date.now();
+          feat = await lendPHB(ranger, 'Inspiring Movement', 'feat');
+          const ring = await waitFor(() => { const r = featureRegion(rgrTok, 'Inspiring Movement'); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 10000);
+          const shape = ring?.shapes?.[0] ?? null;
+          ok('27a. Inspiring Movement lent: an invisible 5-foot harmful ring stands, no card',
+            !!ring && (shape?.radius === 5 * px) && (ring.visibility === CONST.REGION_VISIBILITY.LAYER_UNLOCKED)
+              && !game.messages.some(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationCard')?.key === 'Inspiring Movement')),
+            `ring=${ring?.id} radius=${shape?.radius} expected=${5 * px}`);
+          await startFight([[rgrTok, ranger, 20], [vicTok, vicActor(), 10]]);   // the bard's turn
+          await combat.nextTurn();   // the Victim's turn starts (beside the bard)
+          await sleep(600);
+          const t1 = Date.now();
+          await combat.nextTurn();   // the Victim's turn ENDS beside the bard
+          const card = await waitFor(() => noticesOf('Inspiring Movement', t1)[0] ?? null, 8000);
+          const n = card?.getFlag(MOD, 'hewNotice');
+          ok('27b. the enemy ending its turn within 5 ft raises the reminder on the bard — "Inspiring Movement", cause turnEnd, the Reaction and the Bardic Inspiration use from the sheet',
+            !!card && (n?.attackerUuid === ranger.uuid) && (n?.targetName === vicTok.name) && (n?.cause === 'turnEnd') && /ended its turn within/.test(card.content ?? ''),
+            `card=${!!card} notice=${JSON.stringify(n ?? null)}`);
+          // The Victim steps away: a turn ended OUTSIDE raises nothing.
+          await vicTok.update({ x: spot.x + 4 * grid, y: spot.y }, mv());
+          await sleep(600);
+          await combat.nextTurn();   // the bard
+          await sleep(300);
+          const t2 = Date.now();
+          await combat.nextTurn();   // the Victim's turn starts outside
+          await sleep(300);
+          await combat.nextTurn();   // ...and ends outside
+          await sleep(2000);   // load-bearing: time for a WRONG reminder
+          ok('27c. the enemy ending its turn 20 ft away: no reminder', !noticesOf('Inspiring Movement', t2).length, `notices=${noticesOf('Inspiring Movement', t2).length}`);
+        } finally {
+          await endFight();
+          await feat?.delete().catch(() => {});
+          await homeAll();
+        }
+      }
+
+      // ---------------------------------------------------------------- 28. Wrath of the Sea
+      if (want(28)) {
+        const lent = [];
+        let spray = null;
+        try {
+          await parkAll();
+          await clrTok.update(spot, mv());
+          await vicTok.update({ x: spot.x + grid, y: spot.y }, mv());        // adjacent: inside 5 ft
+          await palTok.update({ x: spot.x - grid, y: spot.y }, mv());        // the ally, adjacent too
+          await sleep(400);
+          lent.push(await lendPHB(cleric, 'Druid', 'class', { 'system.levels': 3 }));
+          lent.push(await lendPHB(cleric, 'Circle of the Sea', 'subclass'));
+          lent.push(await lendPHB(cleric, 'Wrath of the Sea', 'feat'));
+          await sleep(300);
+          const scaleRange = cleric.getRollData()?.scale?.sea?.['wrath-range'] ?? null;
+          log.push(`§28: @scale.sea.wrath-range on the Cleric = ${JSON.stringify(scaleRange)}`);
+          await sleep(2000);
+          ok('28a. Wrath of the Sea lent and not manifested: no ring', !featureRegion(clrTok, 'Wrath of the Sea'), `ring=${featureRegion(clrTok, 'Wrath of the Sea')?.id ?? 'none'}`);
+          const t0 = Date.now();
+          spray = await plainEffect(cleric, 'Manifesting Ocean Spray');
+          const ring = await waitFor(() => { const r = featureRegion(clrTok, 'Wrath of the Sea'); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 10000);
+          const shape = ring?.shapes?.[0] ?? null;
+          const announced = await waitFor(() => game.messages.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationCard')?.key === 'Wrath of the Sea')) ?? null, 6000);
+          ok('28b. Manifesting Ocean Spray standing: the 5-foot ring rises off the scale (reach all, no member effect), and a card says the pick is yours at each turn start',
+            !!ring && (shape?.radius === 5 * px) && (ring.behaviors?.find(b => b.type === TYPE)?.system?.reach === 'all') && (ring.behaviors?.find(b => b.type === TYPE)?.system?.effect === null)
+              && !!announced && /one creature inside is yours to choose/.test(announced.content ?? ''),
+            `ring=${ring?.id} radius=${shape?.radius} expected=${5 * px} scale=${JSON.stringify(scaleRange)} announced=${!!announced}`);
+          const t1 = Date.now();
+          await startFight([[clrTok, cleric, 20], [vicTok, vicActor(), 10], [palTok, paladin, 5]]);   // the druid's turn STARTS
+          const pickCard = await waitFor(() => game.messages.find(m => (m.timestamp >= t1) && (m.getFlag(MOD, 'emanationPick')?.key === 'Wrath of the Sea')) ?? null, 8000);
+          const pk = pickCard?.getFlag(MOD, 'emanationPick');
+          const names = (pk?.candidates ?? []).map(c => c.name).sort();
+          ok('28c. at the druid\'s turn start, the card asks which creature inside: the Victim and the Paladin listed, nobody chosen yet',
+            !!pickCard && (names.length === 2) && names.includes(vicTok.name) && names.includes(palTok.name) && !pk?.picked && !pk?.demanded,
+            `card=${!!pickCard} candidates=${JSON.stringify(names)} picked=${JSON.stringify(pk?.picked ?? null)}`);
+          // The pick: the Victim's button on the card (the GM answers for the druid), else the fold by hand.
+          const t2 = Date.now();
+          const button = await waitFor(() => document.querySelector(`[data-message-id="${pickCard?.id}"] [data-bf-emanation-pick="${vicTok.id}"]`), 4000);
+          if (button) button.click();
+          else if (pickCard) { log.push('§28: no pick button rendered — folding the pick by hand'); await pickCard.setFlag(MOD, 'emanationPick', { ...pk, picked: pk.candidates.find(c => c.tokenId === vicTok.id) }); }
+          const demand = await waitFor(() => game.messages.find(m => (m.timestamp >= t2) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Wrath of the Sea')) ?? null, 10000);
+          const sv = demand?.getFlag(MOD, 'saves');
+          const dc = cleric.items.getName('Wrath of the Sea')?.system.activities.getName('Bonus Action Save')?.save?.dc?.value ?? null;   // the activity's own (calculation: spellcasting)
+          ok('28d. the Victim picked: it is demanded the Constitution save at the druid\'s spell DC (the pack\'s "Bonus Action Save"), the cold rolled with it, the card naming the push',
+            !!demand && (sv?.abilities?.[0] === 'con') && (Number(sv?.dc) === Number(dc)) && (sv?.targets?.length === 1) && (sv.targets[0].uuid === vicActor().uuid) && !!sv?.hasDamage && /pushed up to 15 feet/.test(demand.content ?? ''),
+            `demand=${!!demand} saves=${JSON.stringify(sv && { abilities: sv.abilities, dc: sv.dc, targets: sv.targets.map(t => t.name), hasDamage: sv.hasDamage })} dc=${dc}`);
+          const after = await waitFor(() => { const f = game.messages.get(pickCard?.id)?.getFlag(MOD, 'emanationPick'); return (f?.picked && f?.demanded) ? f : null; }, 6000);
+          ok('28e. the pick card records the choice and the demand — once this turn', !!after && (after.picked?.tokenId === vicTok.id) && (after.demanded === true), `flag=${JSON.stringify(after && { picked: after.picked?.name, demanded: after.demanded })}`);
+          await closeDialogs();
+          await endFight();
+          await spray.delete(); spray = null;
+          const gone = await waitFor(() => featureRegion(clrTok, 'Wrath of the Sea') ? null : true, 8000);
+          ok('28f. the spray dismissed (its effect gone): the ring goes', !!gone, `ring=${featureRegion(clrTok, 'Wrath of the Sea')?.id ?? 'gone'}`);
+        } finally {
+          await closeDialogs();
+          await endFight();
+          await spray?.delete().catch(() => {});
+          const live = lent.filter(i => i && cleric.items.get(i.id)).map(i => i.id);
+          if (live.length) await cleric.deleteEmbeddedDocuments('Item', live).catch(() => {});
+          await homeAll();
+        }
+      }
+
+      // ---------------------------------------------------------------- 29. Aura of Devotion
+      if (want(29)) {
+        let feat = null;
+        try {
+          await parkAll();
+          await palTok.update(spot, mv());
+          await rgrTok.update({ x: spot.x + 2 * grid, y: spot.y }, mv());   // 10 ft: inside the Paladin 10's aura
+          await vicTok.update({ x: spot.x - 2 * grid, y: spot.y }, mv());
+          await sleep(400);
+          feat = await lendPHB(paladin, 'Aura of Devotion', 'feat');
+          const ring = await waitFor(() => { const r = featureRegion(palTok, 'Aura of Devotion'); return r?.behaviors?.find(b => b.type === TYPE) ? r : null; }, 10000);
+          const worn = await waitFor(() => memberFx(ranger).find(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion') ?? null, 8000);
+          await sleep(1200);
+          const onVictim = memberFx(vicActor()).find(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion') ?? null;
+          ok('29a. Aura of Devotion lent: the ring rises at the Paladin\'s aura scale; the ally inside wears "Devoted — BF Test Paladin", the hostile nothing',
+            !!ring && (ring.shapes?.[0]?.radius === 10 * px) && !!worn && /^Devoted — BF Test Paladin/.test(worn.name) && !onVictim,
+            `ring=${ring?.id} radius=${ring?.shapes?.[0]?.radius} expected=${10 * px} worn=${worn?.name ?? 'none'} victim=${onVictim?.name ?? 'none'}`);
+          await feat.delete(); feat = null;
+          const lifted = await waitFor(() => (!featureRegion(palTok, 'Aura of Devotion') && !memberFx(ranger).some(e => e.getFlag(MOD, 'emanation')?.key === 'Aura of Devotion')) ? true : null, 8000);
+          ok('29b. the feature gone: the ring goes and the ally\'s Devoted lifts', !!lifted, `ring=${featureRegion(palTok, 'Aura of Devotion')?.id ?? 'gone'}`);
+        } finally {
+          await feat?.delete().catch(() => {});
+          await homeAll();
+        }
+      }
+      await set('emanationList', prior.emanationList);
     }
     return { log, results, skips };
   } catch (err) {

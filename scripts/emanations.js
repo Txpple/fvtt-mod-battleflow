@@ -4,7 +4,7 @@
  * Owns the lifecycle of the rings, the floor that keeps member effects true, and the triggers.
  * Only the active GM writes. Rulings: RULINGS *Emanations*.
  */
-import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow } from "./core.js";
+import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
@@ -17,7 +17,7 @@ import { castLevelOn } from "./decide/card.js";
 import { bfCard, ruleLine, esc } from "./decide/present.js";
 import { EMANATIONS, tableIndex } from "./decide/registry.js";
 import { pulseFormKey, reachAdmits, resolveChanges, emanationRange, triggerDue, healTriggerDue, memberEffectData, damageTypeFor, appliesOnScene, liveScenes, emanationGroup, groupMembers,
-  awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout } from "./decide/emanations.js";
+  awaySide, bandShape, bandOptions, askDefaults, creatureTypeOf, typeAdmits, movePayout, alertPhrase, alertKeysOnTurn, pickCandidates } from "./decide/emanations.js";
 import { feetOf } from "./geometry.js";
 import { canAnswerFor } from "./core.js";
 import { momentButton, registerRelay, waitForWrite } from "./ui.js";
@@ -72,7 +72,12 @@ listenOnce("init", "emanations", () => {
     /** GM-side: the region's membership changed under this token. */
     static async #onEnter(event) { if ( !gmHandles(event) ) return; await reconcileMembers(this.region); await maybeTrigger(this, event.data?.token ?? null, "enter"); }
     static async #onExit(event) { if ( !gmHandles(event) ) return; await forgetInitial(this.region, event.data?.token ?? null); await reconcileMembers(this.region); }
-    static async #onTurnEnd(event) { if ( !gmHandles(event) ) return; await maybeTrigger(this, event.data?.token ?? event.data?.combatant?.token ?? null, "turnEnd"); }
+    static async #onTurnEnd(event) {
+      if ( !gmHandles(event) ) return;
+      const token = event.data?.token ?? event.data?.combatant?.token ?? null;
+      await maybeTrigger(this, token, "turnEnd");
+      await maybeAlert(this, token, null, "turnEnd");
+    }
     static async #onTurnStart(event) {
       if ( !gmHandles(event) ) return;
       const token = event.data?.token ?? event.data?.combatant?.token ?? null;
@@ -344,7 +349,8 @@ async function triggerDamage({ region, row, sys, item, damage, token, actor, cas
 
 /**
  * An `alert` row: a creature that MOVED into the reach raises Hew's reminder (`hewNotice`), once per
- * movement — or, `on: "turnStart"`, one that STARTS ITS TURN inside it, once per turn (Unnerving Gaze);
+ * movement — or, `on: "turnStart"`, one that STARTS ITS TURN inside it, once per turn (Unnerving Gaze),
+ * or `on: "turnEnd"`, one that ENDS its turn inside it (Inspiring Movement, B5);
  * a `kind: "notice"` row (an area's ban on entering or leaving) posts a plain card instead.
  * tokenMoveIn fires only for a mover, and a walked move is split at each region edge, so passing
  * through is caught.
@@ -359,7 +365,7 @@ async function maybeAlert(behType, token, movement, cause) {
     const region = behType.region;
     if ( !appliesHere(region) ) return;
     const turn = game.combat ? `${game.combat.id}:${game.combat.round}:${game.combat.turn}` : null;
-    const key = `${region.id}|${token.id}|${cause}|${movement?.id ?? ((cause === "turnStart") && turn) ?? Date.now()}`;
+    const key = `${region.id}|${token.id}|${cause}|${movement?.id ?? (alertKeysOnTurn(cause) && turn) ?? Date.now()}`;
     if ( row.alert.kind === "notice" ) {
       if ( alerted.has(key) ) return;
       if ( !typeAdmits(row.alert, flagOf(region)?.picked ?? askDefaults(row.ask), creatureTypeOf(token.actor.system?.details?.type ?? null)) ) return;
@@ -376,7 +382,7 @@ async function maybeAlert(behType, token, movement, cause) {
     const item = resolveUuid(sys.item);
     const weapon = row.holding ? heldWeaponFor(bearer, row.holding) : null;
     const window = decisionWindow();
-    const what = (cause === "turnStart") ? "started its turn within" : "entered";
+    const what = alertPhrase(cause);
     const trait = item?.system?.type?.value === "monster";
     await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor: bearer, token: source }),
@@ -520,15 +526,167 @@ listen("updateCombat", "emanations", (combat, changes) => {
     const scene = combat.scene ?? token?.parent ?? null;
     if ( !token || !scene ) return;
     const names = listed();
-    for ( const region of scene.regions.filter(r => (flagOf(r)?.kind === "spell") && (flagOf(r)?.tokenId === token.id)) ) {
+    for ( const region of scene.regions.filter(r => ["spell", "feature"].includes(flagOf(r)?.kind) && (flagOf(r)?.tokenId === token.id)) ) {
       const row = rowNamed(flagOf(region).key);
-      if ( !row?.remind || (row.remind.on !== "sourceTurnStart") || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
-      void remind(region, row, token);
+      if ( !row || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
+      if ( row.remind?.on === "sourceTurnStart" ) void remind(region, row, token);
+      if ( row.pick?.on === "sourceTurnStart" ) void pickCard(region, row, token, combat);
     }
   } catch(err) {
     console.error(`${TITLE} | Emanation notice failed.`, err);
   }
 });
+
+/* --- the pick: once on each of the bearer's turns, ONE creature inside is chosen (Wrath of the Sea, B5) --- */
+
+/**
+ * A `pick` row's card at the bearer's turn start: who stands inside now, a button each. The pick demands the
+ * row's save activity at that one creature (the trigger's shape); the card records it, once per turn. Nobody
+ * inside — no card: the text needs a creature in the Emanation.
+ */
+async function pickCard(region, row, token, combat) {
+  try {
+    const beh = behaviorOf(region);
+    if ( !beh || beh.disabled ) return;
+    const sys = beh.system;
+    const item = resolveUuid(sys.item);
+    const activity = activityNamed(item, row.pick.activity);
+    const bearer = item?.actor ?? token.actor ?? null;
+    if ( !item || !activity || !bearer ) return;
+    const inside = (tokensInRegions([region]) ?? []).map(e => region.parent.tokens.get(e.tokenId)).filter(t => t?.actor)
+      .map(t => ({ tokenId: t.id, actorUuid: t.actor.uuid, name: t.name, disposition: t.disposition }));
+    const candidates = pickCandidates(inside, { sourceTokenId: token.id, sourceDisposition: token.disposition, reach: sys.reach });
+    if ( !candidates.length ) return;
+    const turn = combat ? `${combat.id}|${combat.round}|${combat.turn}` : null;
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: bearer, token }),
+      content: bfCard({ img: item.img ?? null, eyebrow: "Emanation", tone: "pending",
+        title: `${row.key} — ${bearer.name}'s turn: choose one creature inside`,
+        subtitle: `inside: ${candidates.map(c => c.name).join(", ")} · once on each of your turns`,
+        lines: [ruleLine(row.rule), row.caveat ? `<span style="opacity:0.8;">${esc(row.caveat)}</span>` : null] }),
+      flags: { [MODULE_ID]: { emanationPick: { ...statContext(bearer.uuid), key: row.key, regionId: region.id, tokenId: token.id,
+        activityUuid: activity.uuid, activityName: activity.name, turn, candidates, picked: null, demanded: false } } }
+    });
+  } catch(err) {
+    console.error(`${TITLE} | ${row?.key ?? "An emanation"}'s pick card failed — choose and roll the save from the sheet.`, err);
+  }
+}
+
+// The pick's buttons on the bearer's card: the driver answers; the answer is a fold onto the card (R2).
+listen("dnd5e.renderChatMessage", "emanations", (message, html) => {
+  const p = message.getFlag(MODULE_ID, "emanationPick");
+  if ( !p?.candidates?.length ) return;
+  const holder = html.querySelector(SURFACES.messageContent);
+  if ( !holder ) return;
+  if ( p.picked ) {
+    const line = document.createElement("div");
+    line.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.8;margin-top:0.35rem;";
+    line.textContent = `Chosen: ${p.picked.name}`;
+    holder.appendChild(line);
+    return;
+  }
+  if ( !canAnswerFor(resolveUuid(p.sourceUuid)) ) return;
+  const rowEl = document.createElement("div");
+  rowEl.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
+  for ( const c of p.candidates ) {
+    const b = momentButton(c.name, () => void choosePick(message, c));
+    b.dataset.bfEmanationPick = c.tokenId;
+    rowEl.appendChild(b);
+  }
+  holder.appendChild(rowEl);
+});
+
+async function choosePick(card, choice) {
+  const flag = card.getFlag(MODULE_ID, "emanationPick");
+  if ( !flag || flag.picked || !flag.candidates?.some(c => c.tokenId === choice.tokenId) ) return;
+  if ( card.canUserModify?.(game.user, "update") ) {
+    await card.setFlag(MODULE_ID, "emanationPick", { ...flag, picked: choice });
+    return;
+  }
+  await ChatMessage.create({ whisper: [game.user.id], speaker: { alias: TITLE }, content: `<p>${esc(choice.name)}</p>`,
+    flags: { [MODULE_ID]: { emanationPickChoice: { cardId: card.id, choice } } } });
+}
+
+registerRelay("emanationPickChoice", {
+  flagKey: "emanationPick",
+  targetOf: a => a.cardId,
+  owns: flag => drivesMomentFor(flag?.sourceUuid ?? null),
+  fold: (current, a) => {
+    if ( current.picked || !current.candidates?.some(c => c.tokenId === a.choice?.tokenId) ) return false;
+    current.picked = a.choice;
+  },
+  cleanup: true
+});
+
+// The pick landed: the active GM demands the save at the chosen creature, once (the demand is the resolve).
+listen("updateChatMessage", "emanations", (message, changes) => {
+  try {
+    if ( !isActiveGM() ) return;
+    if ( !foundry.utils.hasProperty(changes, `flags.${MODULE_ID}.emanationPick`) ) return;
+    const p = message.getFlag(MODULE_ID, "emanationPick");
+    if ( !p?.picked || p.demanded ) return;
+    void queueFlagWrite(message, "emanationPick", current => {
+      if ( current.demanded ) return false;
+      current.demanded = true;
+    }).then(() => demandPick(message, p));
+  } catch(err) {
+    console.error(`${TITLE} | The emanation's pick failed — ask for the save by hand.`, err);
+  }
+});
+
+/** The chosen creature is demanded the row's save (maybeTrigger's card, cause "pick"); the cold rolled with it. */
+async function demandPick(card, p) {
+  try {
+    // live only: the ring's feature stands on the sheet while its effect does — the pick uses up nothing
+    const activity = resolveUuid(p.activityUuid);
+    const item = activity?.item ?? null;
+    const region = game.scenes.get(card.speaker?.scene ?? "")?.regions?.get(p.regionId)
+      ?? game.scenes.find(s => s.regions.get(p.regionId))?.regions.get(p.regionId) ?? null;
+    const source = region?.parent?.tokens?.get(p.tokenId) ?? null;
+    const row = rowNamed(p.key);
+    const target = resolveUuid(p.picked.uuid);
+    const dc = activity?.save?.dc?.value;
+    const abilities = [...(activity?.save?.ability ?? [])];
+    if ( !item || !row || !target || !(dc > 0) || !abilities.length ) return;
+    const casterActor = item.actor ?? null;
+    const onSave = activity.damage?.onSave ?? "none";
+    const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
+    // A feature ring with no standing effect: the verdict lands the activity's own failure effect, if it has one.
+    const profiles = (await applicableProfiles(activity)).map(({ profile, effect }) => ({ onSave: profile.onSave, effect }));
+    const effectNames = { fail: profiles.filter(e => !e.onSave).map(e => e.effect.name), always: profiles.filter(e => e.onSave).map(e => e.effect.name) };
+    const window = decisionWindow();
+    const abilityLabel = CONFIG.DND5E.abilities[abilities[0]]?.label ?? abilities[0];
+    const demand = await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor: casterActor, token: source ?? undefined }),
+      content: bfCard({
+        img: item.img, eyebrow: "Emanation", tone: "bad",
+        title: `${row.key} — ${p.picked.name} is chosen inside ${casterActor?.name ?? source?.name ?? "the bearer"}'s ${row.key}`,
+        subtitle: `${abilityLabel} save DC ${dc} · once on each of your turns${hasDamage ? ` · ${onSave === "half" ? "half on a success" : "none on a success"}` : ""}`,
+        lines: [ruleLine(row.rule), row.pick.says ? `<span style="opacity:0.8;">On a failure: ${esc(row.pick.says)}.</span>` : null]
+      }),
+      flags: { [MODULE_ID]: {
+        saves: saveDemandData({
+          stat: statContext(casterActor?.uuid ?? null),
+          abilities, dc, damageOnSave: onSave, hasDamage,
+          effectNames, effectsHandled: null,
+          demand: { spell: !!item.system?.properties?.has?.("mgc"), abilities,
+            statuses: [...new Set(profiles.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))], sleep: false },
+          pinnedTargets: true,
+          activityUuid: activity.uuid, templateType: null, templated: false,
+          durationUnits: item.system?.duration?.units ?? null,
+          item: { name: item.name, img: item.img ?? null }, casterName: casterActor?.name ?? null,
+          scaling: 0,
+          window, deadline: window ? Date.now() + (window * 1000) : null,
+          targets: [saveTargetEntry(target.uuid, p.picked.name)]
+        }),
+        emanationTrigger: { key: row.key, cause: "pick", regionId: p.regionId, targetUuid: target.uuid, inCombat: !!p.turn, why: "chosen this turn", pickCardId: card.id }
+      } }
+    });
+    if ( hasDamage && demand ) await rollDamageForSave(activity, demand);
+  } catch(err) {
+    console.error(`${TITLE} | ${p?.key ?? "An emanation"}'s pick failed — ask for the save by hand.`, err);
+  }
+}
 
 async function remind(region, row, token) {
   const sys = behaviorOf(region)?.system;
@@ -1188,6 +1346,7 @@ async function announce(row, actor, item, range, effect, verb, { activity = null
       return raw ? `every creature inside takes ${raw} (${Roll.replaceFormulaData(raw, actor?.getRollData?.() ?? {})}) ${type ?? ""} damage at the end of your turns — while ${row.while ?? "it"} stands`.replace(/\s+/g, " ") : null;
     })() : null;
     const nothing = row.remind ? "a notice at the start of your turn — the heal is yours to aim"
+      : row.pick ? "once on each of your turns, one creature inside is yours to choose — the card at your turn start asks"
       : pulseLine ? pulseLine
       : row.trigger?.on?.includes("move") ? `${row.trigger.per ?? 5} feet moved inside pays the dice — when the move lands`
       : row.alert?.kind === "notice" ? `a card when a creature ${row.alert.on === "moveOut" ? "leaves" : "enters"} — the move is never stopped`

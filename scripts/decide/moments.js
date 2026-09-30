@@ -793,6 +793,8 @@ export const STATE_KEYS = Object.freeze({
   formChip: "an ActiveEffect's fingerprint — the transformation form a clock rider reads (Celestial Revelation's Necrotic Shroud, clock-riders.js)",
   spellRider: "the caster's pick of the ONE target a spell's extra damage goes to, on the spell's damage card; spellRiderCard is the resolve",
   emanationRemind: "a reminder on the emanation's card — presentation",
+  emanationPick: "the card a `pick` ring posts at its bearer's turn start (Wrath of the Sea, B5) — who stands inside, the one chosen (`picked`) and whether the demand went out (`demanded`); the saves record on the demand it raises is the resolve",
+  emanationPickChoice: "an envelope — the bearer's creature pick on the emanationPick card; the fold onto emanationPick is the resolve",
   metamagicAsk: "the ask at the area pending on the card (area-ask.js; the key is historical); the answer's records — the metamagic record, areaChoice, the demand — are the resolves",
   metamagicDeferred: "the held card's data while Careful asks; the real card's records are the resolves",
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",

@@ -459,3 +459,88 @@ describe("groupMembers — ONE copy per aura per creature across every live scen
     ]);
   });
 });
+
+describe("the band-B rows (Session 0 stage B5, 2026-09-30): the alert's turn end and the pick", () => {
+  it("alertPhrase: a move entered, a turn started or ended inside — Inspiring Movement's `turnEnd` joins the vocabulary", () => {
+    expect(em.alertPhrase("moveIn")).toBe("entered");
+    expect(em.alertPhrase("turnStart")).toBe("started its turn within");
+    expect(em.alertPhrase("turnEnd")).toBe("ended its turn within");
+  });
+  it("alertKeysOnTurn: a turn-start or turn-end alert fires once per turn, a move-in alert once per move", () => {
+    expect(em.alertKeysOnTurn("turnStart")).toBe(true);
+    expect(em.alertKeysOnTurn("turnEnd")).toBe(true);
+    expect(em.alertKeysOnTurn("moveIn")).toBe(false);
+    expect(em.alertKeysOnTurn("moveOut")).toBe(false);
+  });
+  it("pickCandidates: everyone the reach admits, never the bearer, in order; a tokenless or actorless entry dropped", () => {
+    const inside = [
+      { tokenId: "druid", actorUuid: "Actor.d", name: "Druid", disposition: FRIENDLY },
+      { tokenId: "gob", actorUuid: "Actor.g", name: "Goblin", disposition: HOSTILE },
+      { tokenId: "ally", actorUuid: "Actor.a", name: "Ally", disposition: FRIENDLY },
+      { tokenId: "spy", actorUuid: "Actor.s", name: "Spy", disposition: SECRET },
+      { tokenId: "ghost", actorUuid: null, name: "Ghost", disposition: HOSTILE }
+    ];
+    expect(
+      em.pickCandidates(inside, {
+        sourceTokenId: "druid",
+        sourceDisposition: FRIENDLY,
+        reach: "all"
+      })
+    ).toEqual([
+      { tokenId: "gob", uuid: "Actor.g", name: "Goblin" },
+      { tokenId: "ally", uuid: "Actor.a", name: "Ally" }
+    ]);
+    expect(
+      em.pickCandidates(inside, {
+        sourceTokenId: "druid",
+        sourceDisposition: FRIENDLY,
+        reach: "harmful"
+      })
+    ).toEqual([{ tokenId: "gob", uuid: "Actor.g", name: "Goblin" }]);
+    expect(
+      em.pickCandidates([], { sourceTokenId: "druid", sourceDisposition: FRIENDLY, reach: "all" })
+    ).toEqual([]);
+  });
+  it("the four B5 rows stand on the table with their shapes: Branches (turnStart alert while raging), Inspiring Movement (turnEnd alert), Wrath (a pick), Devotion (Courage's row)", () => {
+    const t = reg.EMANATIONS;
+    expect(t["Branches of the Tree"]).toMatchObject({
+      kind: "feature",
+      reach: "harmful",
+      range: 30,
+      effect: null,
+      quiet: true,
+      while: "Rage",
+      alert: { on: "turnStart" }
+    });
+    expect(t["Inspiring Movement"]).toMatchObject({
+      kind: "feature",
+      reach: "harmful",
+      range: 5,
+      effect: null,
+      quiet: true,
+      alert: { on: "turnEnd" }
+    });
+    expect(t["Wrath of the Sea"]).toMatchObject({
+      kind: "feature",
+      reach: "all",
+      range: "@scale.sea.wrath-range",
+      effect: null,
+      while: "Manifesting Ocean Spray",
+      pick: { on: "sourceTurnStart", activity: "Bonus Action Save" }
+    });
+    expect(t["Aura of Devotion"]).toMatchObject({
+      kind: "feature",
+      reach: "helpful",
+      range: "@scale.paladin.aura",
+      effect: "Devoted",
+      incapacitated: true
+    });
+    for (const k of [
+      "Branches of the Tree",
+      "Inspiring Movement",
+      "Wrath of the Sea",
+      "Aura of Devotion"
+    ])
+      expectPointer(t[k].rule);
+  });
+});

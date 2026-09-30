@@ -1227,7 +1227,40 @@ export const EMANATIONS = Object.freeze({
     alert: Object.freeze({ on: "turnStart", label: "Unnerving Gaze", swing: "Take your <strong>Reaction</strong> to use Unnerving Gaze at it — a Wisdom save, from the sheet." }),
     caveat: "\"can see the bearer\" and a success's 24-hour immunity are the table's",
     rule: Object.freeze({ item: "Unnerving Gaze", uuid: "Compendium.dnd-monster-manual.features.Item.mmUnnervingGaze0" }),
-    from: "monsters" })
+    from: "monsters" }),
+  // THE PHB CLASSES — B5 (RULINGS *The PHB classes — B5*): the band-B emanation rows on the shapes above.
+  // Unnerving Gaze's alert, standing only while the Rage does (the Wolf's `while`): a hostile STARTING its turn
+  // within 30 ft raises the reminder; the Reaction's Strength save, its Speed 0 and the teleport are the
+  // activity's, from the sheet. "A creature you can see" is not judged (the bends register).
+  "Branches of the Tree": Object.freeze({ kind: "feature", reach: "harmful", range: 30, effect: null, incapacitated: true, quiet: true,
+    while: "Rage",
+    alert: Object.freeze({ on: "turnStart", label: "Branches of the Tree",
+      swing: "Take your <strong>Reaction</strong> to use Branches of the Tree at it — a Strength save, its Speed 0 and the teleport, from the sheet." }),
+    caveat: "\"a creature you can see\" is the table's",
+    rule: Object.freeze({ item: "Branches of the Tree", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBranchesOf" }),
+    from: "Barbarian — Path of the World Tree 6" }),
+  // Reactive Strike's alert at 5 ft with `on: "turnEnd"` (new): an ENEMY ending its turn beside the bard raises the
+  // reminder; the Reaction's Move (a use of Bardic Inspiration) and the ally's move are the players', from the sheet.
+  "Inspiring Movement": Object.freeze({ kind: "feature", reach: "harmful", range: 5, effect: null, incapacitated: true, quiet: true,
+    alert: Object.freeze({ on: "turnEnd", label: "Inspiring Movement",
+      swing: "Take your <strong>Reaction</strong> and a use of Bardic Inspiration: you move up to half your Speed, then one ally within 30 ft may too — no Opportunity Attacks; the Move, from the sheet." }),
+    caveat: "\"an enemy you can see\" is the table's",
+    rule: Object.freeze({ item: "Inspiring Movement", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdInspiringM" }),
+    from: "Bard — College of Dance 6" }),
+  // Inner Radiance's shape (a ring while the use's effect stands) with a PICK instead of a pulse: once on each of the
+  // druid's turns ONE creature inside is chosen — the card at the turn start lists who stands inside, the pick demands
+  // the activity's Constitution save (the cold rolled on a failure). The push is a line on the verdict, the token the table's.
+  "Wrath of the Sea": Object.freeze({ kind: "feature", reach: "all", range: "@scale.sea.wrath-range", effect: null, incapacitated: true,
+    while: "Manifesting Ocean Spray",
+    pick: Object.freeze({ on: "sourceTurnStart", activity: "Bonus Action Save", says: "pushed up to 15 feet away from you if Large or smaller — move the token" }),
+    caveat: "\"a creature you can see\" is the table's; the push is the table's move of the token",
+    rule: Object.freeze({ item: "Wrath of the Sea", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdWrathOfThe" }),
+    from: "Druid — Circle of the Sea 3" }),
+  // Aura of Courage's row, the condition swapped: the pack's "Devoted" carries no change either.
+  "Aura of Devotion": Object.freeze({ kind: "feature", reach: "helpful", range: "@scale.paladin.aura", effect: "Devoted", incapacitated: true,
+    caveat: "the pack's effect carries no change — add Immunity to Charmed to it at the world",
+    rule: Object.freeze({ item: "Aura of Devotion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnDevotionAu" }),
+    from: "Paladin — Oath of Devotion 7" })
 });
 
 /**

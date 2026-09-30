@@ -91,6 +91,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Multiattack Defense**: "when a creature hits you with an attack roll" — every later attack it makes against you this turn | counts the hits the module SAW: the chip is written off the attack card, the −4 read on that attacker's rolls through the gate | a hit made outside the module's cards writes nothing; the gate is the one place the roll is bent | 2026-09-30 |
 | **Misty Escape**: "immediately after you take damage" | offered only when the damage names its dealer (the rebukes' floor); a self answer, no reach measured | damage with no card behind it names nobody | 2026-09-30 |
 | **Eldritch Smite, Lifedrinker**: "your pact weapon" | the weapon bonded through Pact of the Blade's enchantment; with NONE bonded on the sheet, any weapon counts and the card says so | the sheet cannot say which weapon is the pact weapon until the bond is made; a guessed exemption is never made | 2026-09-30 |
+| **Branches of the Tree, Inspiring Movement, Wrath of the Sea**: "a creature you can see" | the side and the ring are judged; sight is not — the reminder is raised, the pick offered, for a creature the bearer might not see | the module reads no line of sight for a reminder or an offer (the gate's own judgement is the table's; RULINGS *Emanations*) | 2026-09-30 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -2260,6 +2261,56 @@ Disappearing Step (Invisible) and Dreadful Step (a save); Warding Flare's Improv
 | Sculpt Spells, Fireball | the cast window's free row "Sculpt Spells"; ticked, the area's ask "Who does the spell spare? Up to 4." (Careful's popup); the spared take nothing |
 | Defensive Tactics, a creature attacks off its turn | the gate "<ranger> is — Defensive Tactics (Disadvantage)"; once one hits, the next gate "<ranger> is Multiattack Defense — vs <it> — −4 to this attack roll" |
 | Misty Escape, the warlock takes damage | the rebuke's popup "Misty Escape"; Use casts Misty Step (no slot), then the card's buttons "Disappearing Step" / "Dreadful Step" |
+
+## The PHB classes — B5 (2026-09-30, Session 0 stage B5)
+
+**Four band-B emanation rows on the shapes the table has — no new kind (40), no new file (131), one new facet
+(`pick`) and one new alert cause (`turnEnd`); BUILT and PROVEN (`smoke-emanations` §26–§29, 15 checks, each section
+run alone on the sandbox 2026-09-30), unwalked.** Measured on the pack first (`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5):
+Branches of the Tree a Reaction Save (Strength, 30 ft, the "Branches of the Tree" speed-0 effect on a failure);
+Inspiring Movement a Reaction utility "Move" consuming a Bardic Inspiration use; Wrath of the Sea two Constitution
+save activities ("Manifest Ocean Spray" consuming a Wild Shape use and landing "Manifesting Ocean Spray" on the druid,
+"Bonus Action Save" the per-turn pick, both `(max(1,@abilities.wis.mod))d6` cold, the range `@scale.sea.wrath-range`);
+Aura of Devotion the effect "Devoted" with NO change — Aura of Courage's exact shape. The calls made in the build,
+**each the user's to overrule**:
+
+- **Branches of the Tree is Unnerving Gaze's row standing only while the Rage does** (Rage of the Wolf's `while`): a
+  hostile STARTING its turn within 30 ft raises Hew's reminder on the rager; the Reaction's save, its Speed 0 and the
+  teleport are the activity's, from the sheet. Quiet: the ring rises and falls with the Rage and says nothing.
+- **Inspiring Movement is Reactive Strike's row at 5 ft with `alert.on: "turnEnd"`** — the alert vocabulary's third
+  cause (moveIn, turnStart, turnEnd): the region's own turn-end event says who ended a turn inside. The reminder names
+  the enemy; the Reaction, the Bardic Inspiration use and both moves are the players', from the sheet.
+- **Wrath of the Sea is Inner Radiance's ring with a PICK instead of a pulse** (`pick: { on: "sourceTurnStart",
+  activity }`): the ring stands while "Manifesting Ocean Spray" does, reach all (the text says "another creature"),
+  nobody wears anything. At the druid's turn start a card lists who stands inside with a button each (the one inside is
+  the one button — the clock's default); the pick demands the pack's "Bonus Action Save" at that creature (the trigger's
+  card, cause `pick`, the cold rolled with it), once per turn, the card recording the choice. Nobody inside — no card.
+  The push is a line on the demand ("pushed up to 15 feet away from you if Large or smaller — move the token"), the
+  token the table's (Repelling Blast's shape). A player's pick travels by relay (`emanationPickChoice` → the fold
+  onto `emanationPick`), the active GM raises the demand off the fold.
+- **Aura of Devotion is Aura of Courage's row with the condition swapped**, and the same caveat: the pack's "Devoted"
+  carries no change — add Immunity to Charmed to it at the world.
+- **"A creature you can see"** (Branches, Inspiring Movement, Wrath) is not judged — the side and the ring are; the
+  bends register has the row.
+
+**The rows:**
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Branches of the Tree | `EMANATIONS` (`alert.on: "turnStart"`, `while: "Rage"`, 30 ft, quiet) | the reminder on the rager when a hostile starts its turn inside; the save from the sheet |
+| Inspiring Movement | `EMANATIONS` (`alert.on: "turnEnd"`, 5 ft, quiet) | the reminder on the bard when an enemy ends its turn beside them |
+| Wrath of the Sea | `EMANATIONS` (`pick`, `while: "Manifesting Ocean Spray"`, `range: "@scale.sea.wrath-range"`, reach all) | the turn-start card asks which creature inside; the pick demands the Constitution save, the cold rolled, the push named |
+| Aura of Devotion | `EMANATIONS` (`effect: "Devoted"`, `@scale.paladin.aura`) | the pack's effect on the allies inside |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Branches of the Tree, raging, a hostile starts its turn within 30 ft | the reminder to the rager: "Branches of the Tree — the Goblin started its turn within <rager>'s reach"; the save from the sheet; no ring while not raging |
+| Inspiring Movement, an enemy ends its turn within 5 ft of the bard | "Inspiring Movement — the Goblin ended its turn within <bard>'s reach: a Reaction and a use of Bardic Inspiration to move" |
+| Wrath of the Sea manifested | the card "Wrath of the Sea — <druid> — 5-foot Emanation · once on each of your turns, one creature inside is yours to choose" |
+| Wrath of the Sea, two creatures in the ring at the druid's turn start | the card "choose one creature inside" with a button each; the pick's demand card "<name> is chosen inside <druid>'s Wrath of the Sea — Constitution save DC N · once on each of your turns", the cold rolled, the push line; the card then reads "Chosen: <name>" |
+| Aura of Devotion | allies inside wear "Devoted — <paladin>" in the effect view; the hostile nothing |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

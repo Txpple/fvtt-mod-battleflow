@@ -1,9 +1,18 @@
-# HANDOFF.md — the PHB classes: B4 DONE, next B5 (2026-09-30)
+# HANDOFF.md — the PHB classes: B5 DONE, the B-series battery, next C1 (2026-09-30)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
 ## FIRST — the state
+
+- **B5 BUILT and PROVEN** (this commit): the four band-B emanation rows — Branches of the Tree (Unnerving Gaze's alert
+  `while: "Rage"`), Inspiring Movement (`alert.on: "turnEnd"`, new), Wrath of the Sea (a `pick` ring: the turn-start card
+  asks which creature inside, the pick demands the pack's save; keys `emanationPick` + `emanationPickChoice`), Aura of
+  Devotion (Aura of Courage's row). `smoke-emanations` §26–§29 (4/4, 3/3, 6/6, 2/2), unit 1236. RULINGS *The PHB classes — B5*
+  and one bend row ("a creature you can see" not judged). **No new kind (40), no new file (131).**
+- **The full battery after B5** (the letter-series cadence) was LAUNCHED 2026-09-30 evening on the sandbox — its verdict is
+  in this file's next cut or the session's last message; if this line still reads so, the battery's result is unknown:
+  check `dist/battery/` for the newest run before trusting the box.
 
 - **The table is renamed** (da98706, the user: *"rename it now i hate deferred maintenance"*): `FIGHTING_STYLES` is
   **`DAMAGE_RULES`** — `scripts/damage-rules.js`, `scripts/decide/damage-rules.js`, `tests/decide-damage-rules.test.js`,
@@ -48,8 +57,8 @@
 
 ## Next — in this order, each on the user's go
 
-1. **B5** (band B emanation rows — the plan's §3, ≈ ½ session) → **the full battery after B5** (the letter-series cadence) →
-   **C1** (full) → **D1** (full). The plan is audits/plans/session-0-classes.md.
+1. **C1** (band C rows — the plan's §3, ≈ 1½ sessions) → **the full battery after C1** → **D1** (full) → its battery. The plan is
+   audits/plans/session-0-classes.md. (B5's battery: see the state above.)
 2. Then **the DMG**, then **the splat books**; **the prod deploy** (v2.7.0 + everything since) and **the walks** whenever the
    user says.
 
