@@ -102,6 +102,18 @@ export function dieOutcome({ kept, total, add, critAt = 20, fumbleAt = 1 }) {
 }
 
 /**
+ * A roll REROLLED after the fact (Countercharm's bend on a friend's save): the new d20 stands, the modifiers with it.
+ * @param {{kept: number, total: number, newKept: number, newTotal: number, critAt?: number, fumbleAt?: number, faces?: number[]|null}} args
+ */
+export function rerollOutcome({ kept, total, newKept, newTotal, critAt = 20, fumbleAt = 1, faces = null }) {
+  return { how: "reroll", first: Number(kept), second: null, stood: Number(newKept), add: 0,
+    firstTotal: Number(total), total: Number(newTotal),
+    isCritical: Number(newKept) >= critAt, isFumble: Number(newKept) <= fumbleAt,
+    wasCritical: Number(kept) >= critAt, changed: Number(newTotal) !== Number(total),
+    ...(Array.isArray(faces) ? { faces: faces.map(Number).filter(Number.isFinite) } : {}) };
+}
+
+/**
  * Advantage or Disadvantage taken away after the roll: the FIRST d20 stands (Q3, a rule of cool).
  * @param {{mode: string, kept: number, plain?: number|null, total: number, critAt?: number, fumbleAt?: number, faces?: number[]|null}} args
  */
@@ -118,7 +130,7 @@ export function neutraliseOutcome({ mode, kept, plain = null, total, critAt = 20
 /**
  * THE MARGIN GATE (Q2, option A): can this bystander's bend change the verdict? The futile-skip gate's
  * shape (`holdSkipped`), for another creature's roll. `want` is the verdict the bystander is after.
- * @param {{bend: "die"|"neutralise", sign?: number, dieMax?: number|null, want: "miss"|"hit",
+ * @param {{bend: "die"|"neutralise"|"reroll", sign?: number, dieMax?: number|null, want: "miss"|"hit",
  *   kept: number, plain?: number|null, total: number, target: number, mode?: string,
  *   isCritical?: boolean, isFumble?: boolean, critAt?: number, fumbleAt?: number}} args
  * @returns {boolean}
@@ -136,6 +148,12 @@ export function bystanderMatters({ bend, sign = 1, dieMax = null, want, kept, pl
     if ( !o.changed ) return false;
     const hits = o.isCritical || (!o.isFumble && (o.total >= target));
     return (want === "miss") ? !hits : hits;
+  }
+  // A reroll is a gift: offered only to make a FAILURE pass, and only where a 20 on the new die would reach the DC.
+  if ( bend === "reroll" ) {
+    if ( want !== "hit" ) return false;
+    const modifier = Number(total) - Number(kept);
+    return (Number(total) < Number(target)) && ((20 + modifier) >= Number(target));
   }
   return false;
 }

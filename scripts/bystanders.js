@@ -9,12 +9,13 @@
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
-import { bystanderMatters, dieMaxOf, dieOutcome, neutraliseOutcome } from "./decide/rescue-hit.js";
+import { bystanderMatters, dieMaxOf, dieOutcome, neutraliseOutcome, rerollOutcome } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
-import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf } from "./lookup.js";
+import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
+import { foldRise } from "./decide/dice-chips.js";
 import { armAskTimer, cardRow, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
 import { listen } from "./dispatch.js";
 
@@ -33,8 +34,9 @@ const TEST_WORD = { save: "saving throw", check: "check" };
  * @param {any} roll
  * @param {"save"|"check"} testKind
  * @param {number|null} dc
+ * @param {{statuses?: string[]}} [demand]  what the save is against (the demand card's), for a row's `against`
  */
-function bystandersFor(roller, roll, testKind, dc) {
+function bystandersFor(roller, roll, testKind, dc, demand = {}) {
   const token = tokenForUuid(roller?.uuid);
   const rollerSide = token?.document?.disposition;
   const facts = d20FactsOf(roll);
@@ -52,10 +54,13 @@ function bystandersFor(roller, roll, testKind, dc) {
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
       const friendly = side === rollerSide;
       if ( (row.bend === "die") && (friendly === ((row.sign ?? 1) < 0)) ) continue;
+      // A reroll is a gift (a friend's failure only), and only against an effect the row names (Countercharm's conditions).
+      if ( (row.bend === "reroll") && (!friendly || !known) ) continue;
+      if ( row.against && !(demand.statuses ?? []).some(s => row.against.includes(s)) ) continue;
       const feet = nearestFeet(other, token);
       if ( (feet === null) || (Number.isFinite(row.bystander) && (feet > row.bystander)) ) continue;
       const item = featureNamed(actor, key);
-      const activity = item ? activityNamed(item, row.activity) : null;
+      const activity = item ? activityOf(item, row) : null;
       if ( !item || (!activity && !row.stored) ) continue;
       // A STORED face (Portent): asked when a face in hand turns the verdict (a known DC; a check has none — not asked).
       if ( row.bend === "set" ) {
@@ -86,16 +91,20 @@ function bystandersFor(roller, roll, testKind, dc) {
   return out;
 }
 
+/** The row's activity on the item — by name, or the item's FIRST where the pack left it unnamed (`activity: null`). */
+const activityOf = (item, row) => (row.activity === null)
+  ? ([...(item?.system?.activities ?? [])][0] ?? null) : activityNamed(item, row.activity);
+
 /**
  * Stamp the offer on the roll message; true when someone is asked.
  * @param {ChatMessage} rollMessage
  * @param {Actor} roller
  * @param {"save"|"check"} testKind
- * @param {{dc?: number|null, resume?: object|null}} [opts]
+ * @param {{dc?: number|null, resume?: object|null, demand?: {statuses?: string[]}}} [opts]
  */
-async function stampBystanders(rollMessage, roller, testKind, { dc = null, resume = null } = {}) {
+async function stampBystanders(rollMessage, roller, testKind, { dc = null, resume = null, demand = {} } = {}) {
   const roll = rollMessage.rolls?.[0];
-  const guards = bystandersFor(roller, roll, testKind, dc);
+  const guards = bystandersFor(roller, roll, testKind, dc, demand);
   if ( !guards.length ) return false;
   const window = decisionWindow();
   await rollMessage.setFlag(MODULE_ID, KEY, {
@@ -125,7 +134,8 @@ registerWithhold(KEY, {
       if ( !Number.isFinite(total) || !Number.isFinite(dc) ) return false;
       const roller = await fromUuid(uuid);
       if ( !(roller instanceof Actor) ) return false;
-      return await stampBystanders(rollMessage, roller, "save", { dc, resume: { cardId: card.id, uuid, ...(by ? { by } : {}) } });
+      const demand = card.getFlag(MODULE_ID, "saves")?.demand ?? {};
+      return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [] }, resume: { cardId: card.id, uuid, ...(by ? { by } : {}) } });
     } catch(err) {
       console.error(`${TITLE} | The bystander offer on a save failed — the save folds as rolled.`, err);
       return false;
@@ -215,7 +225,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     ui.notifications.warn(`${TITLE}: ${guard.name}'s Reaction is already spent this round.`);
     return;
   }
-  const activity = item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row.activity);
+  const activity = item.system?.activities?.get(guard.activityId) ?? activityOf(item, row);
   const pool = (activity ? poolOf(actor, activity) : null) ?? item;
   if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) {
     ui.notifications.warn(`${TITLE}: ${guard.name} has no ${pool?.name ?? guard.row} left.`);
@@ -239,6 +249,19 @@ async function bystanderAnswer(message, guard, choice, face = null) {
   let bent = null;
   if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total), critAt: 99, fumbleAt: 0, faces: facts.faces });
+  } else if ( row.bend === "reroll" ) {
+    // THE REROLL (Countercharm): the roller's own d20 rolled again, at Advantage where the row says, in the open; the new
+    // roll stands, whatever it shows. The dice rise off the ROLLER, whose save it is.
+    const rolled = await rerollD20(roll, resolveUuid(flag.rollerUuid), { advantage: row.advantage === true })
+      .catch(err => { console.error(`${TITLE} | ${guard.row}'s reroll failed — reroll the save by hand.`, err); return null; });
+    if ( !rolled ) return;
+    const newFacts = d20FactsOf(rolled.roll);
+    const rise = foldRise({ mode: "reroll", oldFace: facts.kept, newFace: newFacts.kept, total: rolled.summary.total, on: flag.rollerUuid });
+    await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.rollerUuid) ?? actor }),
+      flavor: `${guard.row} — ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"} rerolled${row.advantage ? " with Advantage" : ""}`,
+      flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } } });
+    bent = rerollOutcome({ kept: Number(facts.kept), total: Number(roll.total), newKept: Number(newFacts.kept), newTotal: Number(rolled.summary.total),
+      critAt: 99, fumbleAt: 0, faces: newFacts.faces });
   } else {
     let n = 0;
     try {
@@ -293,6 +316,11 @@ function situation(flag, roll, guard, row) {
   if ( row?.bend === "set" ) {
     return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
   }
+  if ( row?.bend === "reroll" ) {
+    const modifier = Number(roll?.total) - Number(facts.kept);
+    return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. The d20 (${facts.kept}) is rolled again`
+      + `${row.advantage ? " with Advantage" : ""}; the new roll stands (${modifier < 0 ? "−" : "+"} ${Math.abs(modifier)}, so up to ${20 + modifier}).`;
+  }
   if ( row?.bend === "neutralise" ) {
     const o = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll?.total), critAt: 99, fumbleAt: 0 });
     return `${esc(flag.rollerName)}'s ${test}, rolled with <strong>${facts.mode === "advantage" ? "Advantage" : "Disadvantage"}</strong>: `
@@ -309,11 +337,12 @@ async function showPopup(message, flag, guard) {
   const actor = resolveUuid(guard.uuid);
   const row = INTERRUPT_ROLLS[guard.row] ?? null;
   const item = actor?.items?.get?.(guard.itemId) ?? null;
-  const activity = item ? (item.system?.activities?.get(guard.activityId) ?? activityNamed(item, row?.activity)) : null;
+  const activity = item ? (item.system?.activities?.get(guard.activityId) ?? (row ? activityOf(item, row) : null)) : null;
   const pool = (activity ? poolOf(actor, activity) : null) ?? item;
   const poolWord = (pool && (pool !== item)) ? `${pool.name} ` : "";
   const tag = [row?.reaction ? "a Reaction" : null, row?.uses ? `${poolWord}${Number(pool?.system?.uses?.value ?? 0)} left` : null].filter(Boolean).join(" · ");
-  const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
+  const dice = (row?.bend === "neutralise") ? "the first d20 stands"
+    : (row?.bend === "reroll") ? `reroll${row.advantage ? ", Advantage" : ""}` : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const test = TEST_WORD[flag.testKind] ?? "roll";
   const self = guard.uuid === flag.rollerUuid;
   const roll = message.rolls?.[0];
@@ -356,6 +385,7 @@ function bentLine(flag) {
   if ( !b ) return "";
   const who = `${esc(flag.rescue)} (${esc(flag.byName ?? "")})`;
   const change = (b.how === "set") ? `the stored ${b.stood} replaces the d20 (${b.first})`
+    : (b.how === "reroll") ? `the d20 (${b.first}) rerolled${(b.faces?.length > 1) ? ` with Advantage (${b.faces.join(", ")})` : ""} — the ${b.stood} stands`
     : (b.how === "neutralised") ? `no Advantage or Disadvantage — the first d20 (${b.stood}) stands`
     : `${Number(b.add) < 0 ? "−" : "+"}${Math.abs(Number(b.add) || 0)}`;
   const tail = (flag.testKind === "check") ? " — ask your DM whether it still succeeds" : Number.isFinite(flag.dc) ? ` vs DC ${flag.dc}` : "";

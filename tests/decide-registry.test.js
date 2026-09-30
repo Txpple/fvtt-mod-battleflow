@@ -103,6 +103,8 @@ describe("d20 folds — the spends, one mechanism", () => {
       "advantage",
       "bardic",
       "heroic",
+      "reroll",
+      "reroll",
       "seeking",
       "succeed",
       "tactical",
@@ -113,6 +115,8 @@ describe("d20 folds — the spends, one mechanism", () => {
     expect(reg.D20_FOLDS.map(e => e.name)).toContain("Ambush");
     expect(reg.D20_FOLDS).toContainEqual({ name: "Commanding Presence", kind: "tactical" });
     expect(reg.D20_FOLDS).toContainEqual({ name: "Tides of Chaos", kind: "advantage" });
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Indomitable", kind: "reroll" });
+    expect(reg.D20_FOLDS).toContainEqual({ name: "Fanatical Focus", kind: "reroll" });
   });
 
   // ⚠ The row names the EFFECT ("Inspired") the bard applies, not the bard's own feat: the feat
@@ -177,7 +181,9 @@ describe("the R4 tripwire — the kinds the code knows", () => {
     // effect's repeated save — the bearer's turn end, damage landing, its own action offered.
     // 2026-09-28 (later): 38 → 39 — `area` joins the emanations (the spells slice, Tier 3): the system's
     // template adopted where it was placed, attached to nothing — Moonbeam, Cloudkill, Cloud of Daggers.
-    expect(total).toBe(39);
+    // 2026-09-30: 39 → 40 — `reroll` joins the d20 folds (the PHB classes, B1): a FAILED save rerolled with a
+    // bonus added, paid by a use or a Rage's once — a spend `heroic` cannot say, a replace + add no row can.
+    expect(total).toBe(40);
   });
 
   it("counts every kind list's set in the tripwire", () => {

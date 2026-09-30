@@ -15,14 +15,15 @@ function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
   // Guarded Mind: the save's VERDICT is the contribution; the attack side has none to force.
   if ( spend?.kind === "succeed" ) return (uuid === undefined) ? { verdict: "saved" } : null;
-  if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") || (spend?.kind === "advantage") ) {
-    return Number.isFinite(spend.reroll?.total)
-      ? { ...at, replace: {
-          total: spend.reroll.total,
-          isCritical: spend.reroll.isCritical === true,
-          isFumble: spend.reroll.isFumble === true
-        } }
-      : null;
+  if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") || (spend?.kind === "advantage") || (spend?.kind === "reroll") ) {
+    if ( !Number.isFinite(spend.reroll?.total) ) return null;
+    // The `reroll` kind (REROLLS): the new d20 REPLACES and its bonus ADDS, one entry — a feature's "+ your Fighter level".
+    const bonus = ((spend.kind === "reroll") && Number.isFinite(spend.bonus) && spend.bonus) ? { add: Number(spend.bonus) } : {};
+    return { ...at, replace: {
+        total: spend.reroll.total,
+        isCritical: spend.reroll.isCritical === true,
+        isFumble: spend.reroll.isFumble === true
+      }, ...bonus };
   }
   return Number.isFinite(spend?.die) ? { ...at, add: spend.die } : null;
 }

@@ -1,6 +1,6 @@
 # The PHB classes — the register
 
-> Generated 2026-09-29 by `tools/audit-classes-register.mjs` from the measured class files (`audits/classes/*.md`, `audits/options.md` — the corpus
+> Generated 2026-09-30 by `tools/audit-classes-register.mjs` from the measured class files (`audits/classes/*.md`, `audits/options.md` — the corpus
 > scan of `dnd-players-handbook.classes`, dnd5e 6.0.5) joined with `scripts/decide/registry.js`, RULINGS' bend registers and the drawing's hand
 > verdicts ([drawings/classes.md](drawings/classes.md) *Register verdicts*). Never edited by hand: change the drawing or the code and re-run.
 >
@@ -11,14 +11,14 @@
 > held for its first player. **Band**: the level band (A 1–5 · B 6–10 · C 11–16 · D 17–20) — the plan builds a band ahead of the party. **Stage**:
 > the plan's stage that builds it ([plans/session-0-classes.md](plans/session-0-classes.md)). **Bend**: a row in RULINGS' two registers names it.
 
-**419 rows: 100 NATIVE · 88 MODULE · 92 ROW · 7 TABLE · 5 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
+**419 rows: 100 NATIVE · 88 MODULE · 93 ROW · 7 TABLE · 4 KIND · 0 TEXT · 126 OUT · 1 WAITS.**
 
 ## By class
 
 | Class | Rows | NATIVE | MODULE | ROW | TABLE | KIND | TEXT | OUT | WAITS |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Barbarian | 34 | 10 | 7 | 8 | 1 | 1 | 0 | 7 | 0 |
-| Bard | 23 | 4 | 3 | 6 | 2 | 1 | 0 | 7 | 0 |
+| Bard | 23 | 4 | 3 | 7 | 2 | 0 | 0 | 7 | 0 |
 | Cleric | 27 | 7 | 4 | 8 | 0 | 0 | 0 | 8 | 0 |
 | Druid | 29 | 11 | 2 | 5 | 0 | 0 | 0 | 11 | 0 |
 | Fighter | 32 | 11 | 3 | 10 | 0 | 1 | 0 | 7 | 0 |
@@ -30,7 +30,7 @@
 | Warlock | 28 | 5 | 3 | 9 | 0 | 0 | 0 | 11 | 0 |
 | Wizard | 26 | 4 | 1 | 7 | 1 | 0 | 0 | 12 | 1 |
 | Options | 67 | 11 | 33 | 5 | 0 | 0 | 0 | 18 | 0 |
-| **all** | **419** | **100** | **88** | **92** | **7** | **5** | **0** | **126** | **1** |
+| **all** | **419** | **100** | **88** | **93** | **7** | **4** | **0** | **126** | **1** |
 
 ## By stage
 
@@ -93,7 +93,7 @@
 | Bard |  | 2 | A | **Expertise** | OUT | — | — | a proficiency | — |
 | Bard |  | 2 | A | **Jack of All Trades** | NATIVE | — | — | the pack's effect | — |
 | Bard |  | 5 | A | **Font of Inspiration** | OUT | — | — | rest recovery and a slot-for-a-use trade — the sheet's | — |
-| Bard |  | 7 | B | **Countercharm** | KIND | the `reroll` kind (Fanatical Focus) with `ally: 30` (Protection's guard shape, on the save side) | B1 | an ALLY's failed save against Charmed or Frightened within 30 ft: the bard's Reaction, the reroll with Advantage — offered on the save withhold (Guarded Mind's seam), the bard the answerer | — |
+| Bard |  | 7 | B | **Countercharm** | ROW | `INTERRUPT_ROLLS` · the bystander's bend (Restore Balance, Portent) with `bend: "reroll"`, `bystander: 30`, `against`, `advantage` | B1 | a FRIEND's failed demanded save against Charmed or Frightened within 30 ft (the bard's own included): the bard's Reaction rerolls it with Advantage, the new roll stands — built 2026-09-30 as a bystander row, not a fold row (RULINGS *The PHB classes — B1*, call 4) | bend |
 | Bard |  | 10 | B | **Magical Secrets** | OUT | — | — | spell selection | — |
 | Bard |  | 18 | D | **Superior Inspiration** | TABLE | `INITIATIVE_GRANTS` · Persistent Rage | D1 | regain uses to two when Initiative is rolled — a sheet write and a card | — |
 | Bard |  | 20 | D | **Words of Creation** | OUT | — | — | spell selection (Power Word Heal / Kill are the spells register's) | — |

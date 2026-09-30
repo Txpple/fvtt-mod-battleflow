@@ -30,9 +30,11 @@ const SECTIONS = {
   8: "THE WINDOW CLOSES — when the clock runs out, and when a spend makes it moot",
   9: "THE WASTED-SPEND RACE — a click on a dead premise burns nothing",
   10: "THE REFUND ASK — Tactical Mind on a raw check asks whether it failed; refund restores the use, keep does not",
-  11: "GUARDED MIND (the PHB feats, group 4) — a Wisdom save rolled from the sheet is offered the `succeed` fold; pressed, the use is spent and the card says the save succeeds instead; a Dexterity save never is"
+  11: "GUARDED MIND (the PHB feats, group 4) — a Wisdom save rolled from the sheet is offered the `succeed` fold; pressed, the use is spent and the card says the save succeeds instead; a Dexterity save never is",
+  12: "INDOMITABLE (the PHB classes, B1) — the `reroll` fold on a sheet save: offered by the feature's name with the Fighter level as its bonus; pressed, the d20 is REROLLED, the bonus ADDS, one use is written off; no uses left, no offer",
+  13: "FANATICAL FOCUS (B1) — offered only while a Rage effect stands and the bonus reads; once per Rage (the mark on the Rage effect); a new Rage offers it again"
 };
-const DEPENDS = { 2: [1], 3: [1], 5: [1], 10: [1], 11: [1] };
+const DEPENDS = { 2: [1], 3: [1], 5: [1], 10: [1], 11: [1], 12: [1], 13: [1] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 
@@ -73,7 +75,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (has(1)) {
       const entries = game.modules.get(MODULE_ID)?.api?.registries?.d20Folds?.() ?? [];
       // Every entry is one of the fold kinds and each is represented; an older stored list may lack some.
-      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"];
+      const KINDS = ["heroic", "tactical", "bardic", "seeking", "advantage", "succeed", "reroll"];
       const REQUIRED = ["heroic", "tactical", "bardic", "seeking", "advantage"];
       ok("all six kinds are known, and the five surveyed before group 4 are listed and live",
         (entries.length >= REQUIRED.length) && entries.every(e => KINDS.includes(e.kind))
@@ -1213,6 +1215,179 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
           await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
           await game.settings.set(MODULE_ID, "d20Folds", priorFolds).catch(() => {});
+          for (const m of made) await m.delete().catch(() => {});
+        }
+      }
+    }
+
+    /* --- 12: INDOMITABLE — the `reroll` fold ------------------------------------------- */
+    // The pack's Indomitable: uses `@scale.fighter.indomitable` (nothing below Fighter 9 — the lent copy's max is
+    // pinned to 1), an unnamed activity whose "Bonus" roll is `@classes.fighter.levels` (5 here) and NO consumption
+    // — the fold writes the use off itself. A sheet save has no DC, so the offer is the roller's to judge.
+    if (has(12)) {
+      const pack = game.packs.get("dnd-players-handbook.classes");
+      const src = pack ? (await pack.getIndex()).find(e => e.name === "Indomitable") : null;
+      const doc = src ? await pack.getDocument(src._id) : null;
+      if (!doc) {
+        skips.push("section 12: no Indomitable in dnd-players-handbook.classes");
+      } else {
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const made = [];
+        let lent = null;
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+        try {
+          await fighter.update({ "system.attributes.inspiration": false });   // no heroic row beside it
+          const data = doc.toObject();
+          data.system.uses.max = "1";
+          [lent] = await fighter.createEmbeddedDocuments("Item", [data]);
+          const level = Number(fighter.classes?.fighter?.system?.levels ?? 0);
+          const priorDialogs = new Set([...document.querySelectorAll(".application")].map(el => el.id));
+          const since = Date.now();
+          face(3);
+          const rolls = await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
+          CONFIG.Dice.randomUniform = realPRNG;
+          const base = Number(rolls?.[0]?.total);
+          const msg = await until(() => game.messages.contents
+            .findLast(m => (m.timestamp >= since) && m.getFlag(MODULE_ID, "d20fold")), 8000);
+          if (msg) made.push(msg);
+          const flag = msg?.getFlag(MODULE_ID, "d20fold");
+          const offer = (flag?.offers ?? []).find(o => o.kind === "reroll");
+          ok("§12 a Wisdom save rolled from the sheet is offered Indomitable: the `reroll` kind, the feature's name, the Fighter level as the bonus, one use left",
+            !!offer && (offer.label === "Indomitable") && (offer.bonus === level) && (level > 0) && /1 use · 1 left/.test(offer.cost ?? "") && !Number.isFinite(flag?.dc),
+            JSON.stringify({ offers: flag?.offers, level }));
+          const popup = await until(() => [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !priorDialogs.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')), 8000);
+          const rowText = popup?.querySelector('[data-bf-rescue-action="reroll"]')?.closest("[data-bf-rescue-row]")?.textContent?.replace(/\s+/g, " ") ?? "";
+          ok("§12 the window's row reads the feature's name", !!popup && /Indomitable/.test(rowText), rowText.slice(0, 160) || "NO POPUP");
+          face(14);
+          popup?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
+          // ⚠ A sheet save has no DC, so it is "still failing" and the fixture's Bardic die is RE-OFFERED: wait for the
+          // spend to settle (its `pendingVerdict` cleared), not for the flag to resolve.
+          const done = await until(() => {
+            const cur = msg?.getFlag(MODULE_ID, "d20fold");
+            return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null;
+          }, 20_000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const spend = done?.spends?.[0] ?? null;
+          const mod = base - 3;
+          ok("§12 pressed: the d20 is REROLLED (a `reroll` entry with the new total) and the bonus rides the same entry; the folded total is the new roll + the bonus",
+            !!done && (done.spends?.length === 1) && (spend?.kind === "reroll") && (Number(spend?.reroll?.total) === 14 + mod) && (spend?.bonus === level)
+              && (done.foldedTotal === 14 + mod + level) && !Number.isFinite(spend?.die),
+            JSON.stringify({ base, spends: done?.spends ?? null, foldedTotal: done?.foldedTotal }));
+          const spent = await until(() => (Number(fighter.items.get(lent.id)?.system?.uses?.value) === 0) ? true : null, 6000);
+          ok("§12 the feature's one use is written off (the pack's activity consumes nothing — the fold spends it)", !!spent,
+            `uses=${fighter.items.get(lent.id)?.system?.uses?.value}`);
+          const card = await until(() => game.messages.contents.findLast(m => (m.timestamp >= since)
+            && /Indomitable — the roll is patched/.test(m.content ?? "") && new RegExp(`${base} → ${14 + mod} \\+ ${level} = ${14 + mod + level}`).test(m.content ?? "")), 8000);
+          ok("§12 the card says the arithmetic: base → new d20 + bonus = total", !!card, card ? "posted" : `NO CARD (looked for "${base} → ${14 + mod} + ${level} = ${14 + mod + level}")`);
+          const rise = game.messages.contents.find(m => (m.timestamp >= since) && (m.getFlag(MODULE_ID, "respondsTo") === msg?.id))?.getFlag(MODULE_ID, "diceRise");
+          ok("§12 the dice rise: the old face struck, the new one up, the bonus its own chip", !!rise && (rise.chips?.length === 2) && (rise.chips[0]?.was === "3") && (rise.chips[0]?.label === "14") && (rise.chips[1]?.label === `+${level}`),
+            JSON.stringify(rise ?? null));
+          for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
+          // The re-offered Bardic die is passed before the next roll.
+          [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
+            .forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+          await sleep(500);
+          // No uses left: a second save is not offered it.
+          const since2 = Date.now();
+          await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
+          await sleep(900);
+          const dMsg = game.messages.contents.findLast(m => (m.timestamp >= since2) && (m.system?.ability === "wis"));
+          const dOffers = (dMsg?.getFlag(MODULE_ID, "d20fold")?.offers ?? []).map(o => o.kind);
+          ok("§12 no uses left: not offered", !!dMsg && !dOffers.includes("reroll"), `roll=${!!dMsg} offers=[${dOffers.join(", ")}]`);
+          for (const m of game.messages.contents.filter(m => m.timestamp >= since2)) made.push(m);
+          [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
+            ?.querySelector('button[data-action="pass"]')?.click();
+          await sleep(400);
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG;
+          if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
+          for (const m of made) await m.delete().catch(() => {});
+        }
+      }
+    }
+
+    /* --- 13: FANATICAL FOCUS — the Rage's once --------------------------------------- */
+    // The pack's Fanatical Focus carries NOTHING (no uses, no activity): the row's bonus is `@scale.barbarian.rage-damage`,
+    // which the Fighter cannot read — the fold stays OFF (never a guessed number). The lent copy is then given the
+    // pinned part the pack's shape allows: an activity whose roll is the bonus (`pinPart`'s lesson), read first.
+    if (has(13)) {
+      const pack = game.packs.get("dnd-players-handbook.classes");
+      const src = pack ? (await pack.getIndex()).find(e => e.name === "Fanatical Focus") : null;
+      const doc = src ? await pack.getDocument(src._id) : null;
+      if (!doc) {
+        skips.push("section 13: no Fanatical Focus in dnd-players-handbook.classes");
+      } else {
+        const priorInspiration = fighter.system.attributes.inspiration;
+        const made = [];
+        const effects = [];
+        let lent = null;
+        const realPRNG = CONFIG.Dice.randomUniform;
+        const face = (n, faces = 20) => { CONFIG.Dice.randomUniform = () => 1 - ((n - 0.5) / faces); };
+        const offersOn = async () => {
+          const since = Date.now();
+          face(3);
+          await fighter.rollSavingThrow({ ability: "wis" }, { configure: false }, { create: true });
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(900);
+          const msg = game.messages.contents.findLast(m => (m.timestamp >= since) && (m.system?.ability === "wis"));
+          for (const m of game.messages.contents.filter(m => m.timestamp >= since)) made.push(m);
+          return { msg, offers: msg?.getFlag(MODULE_ID, "d20fold")?.offers ?? [] };
+        };
+        const passOpen = async () => {
+          [...document.querySelectorAll(".application")]
+            .filter(el => (el.tagName === "DIALOG") && !!el.querySelector('button[data-action="pass"]'))
+            .forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+          await sleep(400);
+        };
+        const rage = () => fighter.effects.find(e => e.name === "Rage") ?? null;
+        try {
+          await fighter.update({ "system.attributes.inspiration": false });
+          [lent] = await fighter.createEmbeddedDocuments("Item", [doc.toObject()]);
+          // a. not raging: nothing
+          let r = await offersOn();
+          ok("§13a not raging: Fanatical Focus is not offered", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen();
+          // b. raging, the bonus unreadable on a Fighter: still nothing (the fold stays off rather than guessing)
+          effects.push(...(await fighter.createEmbeddedDocuments("ActiveEffect", [{ name: "Rage", img: "icons/svg/aura.svg", transfer: false, disabled: false, changes: [] }])).map(e => e.id));
+          r = await offersOn();
+          ok("§13b raging but the Rage Damage scale unreadable on this sheet: not offered (never a guessed bonus)", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen();
+          // c. the pinned part: an activity whose roll is the bonus — offered, "once this Rage"
+          await lent.update({ "system.activities.bfpinnedbonus000": { type: "utility", _id: "bfpinnedbonus000", name: "Bonus", activation: { type: "special" }, roll: { formula: "2", name: "Bonus" } } });
+          r = await offersOn();
+          const offer = r.offers.find(o => o.kind === "reroll");
+          ok("§13c raging, the bonus pinned to 2: offered by name, +2, \"once this Rage\"",
+            !!offer && (offer.label === "Fanatical Focus") && (offer.bonus === 2) && /once this Rage/.test(offer.cost ?? ""), JSON.stringify(r.offers));
+          const popup = await until(() => [...document.querySelectorAll(".application")]
+            .find(el => (el.tagName === "DIALOG") && !!el.querySelector('[data-bf-rescue-action="reroll"]')), 6000);
+          face(12);
+          popup?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
+          const done = await until(() => { const cur = r.msg?.getFlag(MODULE_ID, "d20fold"); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 20_000);
+          await passOpen();   // the Bardic die re-offered (no DC: still failing)
+          CONFIG.Dice.randomUniform = realPRNG;
+          const used = rage()?.getFlag(MODULE_ID, "rerollUsed") ?? [];
+          ok("§13c pressed: rerolled with +2, and the once is a mark on the RAGE effect", !!done && (done.spends?.[0]?.kind === "reroll") && (done.spends?.[0]?.bonus === 2) && used.includes("Fanatical Focus"),
+            JSON.stringify({ spends: done?.spends ?? null, used }));
+          // d. the same Rage: spent — not offered
+          r = await offersOn();
+          ok("§13d a second failure the same Rage: not offered", !!r.msg && !r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen();
+          // e. the Rage ends and a new one begins: offered again
+          await fighter.deleteEmbeddedDocuments("ActiveEffect", effects.splice(0)).catch(() => {});
+          effects.push(...(await fighter.createEmbeddedDocuments("ActiveEffect", [{ name: "Rage", img: "icons/svg/aura.svg", transfer: false, disabled: false, changes: [] }])).map(e => e.id));
+          r = await offersOn();
+          ok("§13e a new Rage: offered again", !!r.msg && r.offers.some(o => o.kind === "reroll"), JSON.stringify(r.offers.map(o => o.kind)));
+          await passOpen();
+        } finally {
+          CONFIG.Dice.randomUniform = realPRNG;
+          if (effects.length) await fighter.deleteEmbeddedDocuments("ActiveEffect", effects).catch(() => {});
+          if (lent) await fighter.deleteEmbeddedDocuments("Item", [lent.id]).catch(() => {});
+          await fighter.update({ "system.attributes.inspiration": priorInspiration }).catch(() => {});
           for (const m of made) await m.delete().catch(() => {});
         }
       }

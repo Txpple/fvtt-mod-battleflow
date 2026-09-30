@@ -73,7 +73,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Cutting Words' damage half** ("makes a damage roll … reducing the damage") | offered on the attack card only where a hold already stands for the hit (another reaction asked); a hit nobody else is asked about lands whole | the ruled noise gate (Q2 option A): no hold opens for a bend that cannot change the verdict, and without a hold the damage has already landed when a card button could be pressed | 2026-09-29 |
 | **Portent**: "you must choose to do so before the roll" — another creature's D20 Test | offered AFTER that roll, the faces that turn it shown: a demanded save that a stored face turns asks the diviner (the save's verdict waits); an attack asks only on a critical hit, an ordinary hit a face would turn keeps the card row where a hold already stands; the diviner's OWN rolls keep the rule's order (a tick in its roll dialog, before the roll) | the roller's client cannot be paused by another player (Shield's row); the noise gate narrows it to saves and critical hits (Q2 option A) | 2026-09-29 |
 | **A bystander's bend on a CHECK** | the bent total is stated on the check's card — "ask your DM whether it still succeeds"; the module claims no verdict | dnd5e keeps no DC for a check (the raw-check shape, Tactical Mind's) | 2026-09-29 |
-| **A bystander's bend on a SAVE** | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered | only a demand carries the DC and a verdict to withhold (`registerWithhold`) | 2026-09-29 |
+| **A bystander's bend on a SAVE** — and **Countercharm**'s "fails a saving throw against an effect that applies the Charmed or Frightened condition" (2026-09-30) | offered only on a save the module DEMANDED (its DC known, the verdict withheld while the bystander answers); a save rolled from the sheet with no demand is not offered — Countercharm reads what the save is against off the demand's effects | only a demand carries the DC, a verdict to withhold (`registerWithhold`) and what the save is against | 2026-09-29; Countercharm 2026-09-30 |
 | **Magic Circle** and **Forcecage**: a creature "can't willingly enter" / "can't leave it by nonmagical means" | a NOTICE card as the creature moves in or out; the move itself carries on | Polearm Master's row, the same seam: a pause would need the moving client's `pauseMovement`, out of scope (DESIGN §8) (`emanations.js` `notice`) | 2026-09-28 |
 | **Rage**'s duration: it ends at the end of a turn that did not extend it (an attack roll against an enemy, a saving throw forced on one, or a Bonus Action) | a REMINDER card at the barbarian's turn end when the turn's own cards show no attack roll and no save at an enemy — "it ends now unless you extended it"; nothing is removed, the barbarian deletes the Rage | nothing records the Bonus Action that extends it, so an automatic end would end a Rage the player kept; the turn's cards are read only from a turn this client saw begin (`turn-grants.js` `remindExtend`) | 2026-09-29 |
 | **Dark One's Blessing**: "when you reduce an enemy to 0 Hit Points" (or someone else does, within 10 feet of you) | paid when damage a CARD dealt takes an enemy (the tokens on opposite sides) to 0; the dealer is the card's actor | a drop typed on a sheet names no dealer and no card (the rebukes' floor), and "enemy" is read off the tokens' dispositions (`heal-on-hit.js` `on: "kill"`) | 2026-09-29 |
@@ -1945,6 +1945,56 @@ NO new kind; BUILT and PROVEN (`smoke-classes` §41).** Calls — **each the use
 | Tides of Chaos spent, a slot cast | "Tides of Chaos spent: the surge rolls — …; Tides of Chaos regained"; the sheet's Tides back |
 | Inspiring Smite after Divine Smite | the dice on a card; the popup "Divide 12 Temporary Hit Points", a number per creature within 30 ft, "N to give · M left"; OK: the card names each share and "1 Channel Divinity spent"; No: nothing spent |
 | Inspiring Smite, the timer runs out | all of it to the paladin, "(timer: all to the giver)" |
+
+## The PHB classes — B1 (2026-09-30, Session 0 stage B1)
+
+**The reroll kind — `reroll` on the d20 folds (R4 pin 39 → 40), its table `REROLLS` (Indomitable, Fanatical Focus); Countercharm
+a bystander row (`bend: "reroll"`); no new file; BUILT and PROVEN (`smoke-d20-folds` §12–13, `smoke-classes` §42), unwalked.**
+Measured on the pack first (`dnd-players-handbook.classes`, dnd5e 6.0.5): Indomitable carries its uses (`@scale.fighter.indomitable`)
+and an unnamed activity whose roll is "Bonus" `@classes.fighter.levels` with NO consumption; Fanatical Focus carries nothing (no
+uses, no activity — the text alone); Countercharm one unnamed Reaction activity, range 30 ft, no consumption.
+Calls the plan left open — **each is the user's to overrule**:
+
+1. **`reroll` IS a kind** (the plan's, kept): a failed save rerolled with a bonus added is a spend `heroic` cannot say (a use, a
+   Rage's once) and a contribution no row can (the new d20 REPLACES and the bonus ADDS in one entry, `decide/verdict.js`).
+   It offers where Guarded Mind does: on a demanded save before its verdict (the withhold), and on a save rolled from the sheet
+   as an offer the roller judges (no DC there — the register's row). The row's `bonus` is a FORMULA on the roller; the pack's
+   own "Bonus" activity roll is read first where the item carries one. Unreadable (a sheet with no Barbarian scale) → the
+   fold stays off with a console warning, never a guessed number (BARDIC's shape).
+2. **Indomitable pays its own uses by a write** (`spendPoolUses`, the Lucky fold's road): the pack's activity consumes nothing,
+   so `use()` would spend nothing. The card: "Indomitable — reroll the d20, +9 · 1 use · 1 left, the new roll stands"; the
+   dice: the old face struck, the new one up, a "+9" chip beside it.
+3. **Fanatical Focus's once per Rage is a mark on the RAGE EFFECT** (`rerollUsed`, an ActiveEffect flag): the Rage ends, the
+   effect goes, the once with it — no chip, no clock. Offered only while the Rage stands (`while: "raging"`).
+4. **Countercharm is the bystander's row, NOT a fold row** (the plan wrote `ally: 30` on the kind; the register named
+   Protection's guard shape). The closer precedent is the bystander machine (A3): another creature's DEMANDED save, the
+   bard within 30 ft asked as a Reaction, the verdict withheld, the popup and the relay already built. So: `INTERRUPT_ROLLS`
+   "Countercharm" `bend: "reroll"`, `bystander: 30`, `advantage: true`, `against: ["charmed", "frightened"]` — the
+   condition read off the demand card's effects (a save the module did not demand is not offered, the register's row). A
+   reroll is a GIFT: only a FRIEND's failure (the bard's own included — the roller is a bystander at 0 ft), and only where a 20
+   on the new die reaches the DC. The new d20 rolls at Advantage off the ROLLER (its dice rise on the roller), the new roll
+   stands whatever it shows, and the card says "Countercharm (Salyth) — the d20 (4) rerolled with Advantage (17, 3) — the 17
+   stands: 9 → 22 vs DC 15". "A creature you can see" is not judged (Q6's rule).
+5. **Living Legend's save (D1) and Disciplined Survivor (C1) are rows of `REROLLS`** when their band comes (`advantage`, `pool`
+   already facets); the plan's `tests` facet on the `tactical` spend waits for its first customer (Dark One's Own Luck, B4).
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Indomitable | `D20_FOLDS` `kind: "reroll"` + `REROLLS` `tests: ["save"]`, `bonus: "@classes.fighter.levels"`, `uses` | a failed save rerolled, the Fighter level added, one of the item's uses written off; the new roll stands |
+| Fanatical Focus | `D20_FOLDS` `kind: "reroll"` + `REROLLS` `bonus: "@scale.barbarian.rage-damage"`, `while: "raging"`, `once: "rage"` | a failed save rerolled while raging, the Rage Damage bonus added, once per Rage (the mark on the Rage effect) |
+| Countercharm | `INTERRUPTS` `roll` + `INTERRUPT_ROLLS` `bend: "reroll"`, `bystander: 30`, `advantage`, `against`, `reaction` | a friend's failed demanded save against Charmed or Frightened within 30 ft: the bard's Reaction rerolls it with Advantage; the new roll stands |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Indomitable, a demanded save failed | the rescue window: "Indomitable — Rerolls the d20, +9 — 1 use · 1 left, the new roll stands"; Use: the old d20 struck, the new one up, "+9" beside it; the verdict retaken ("7 → 11 + 9 = 20 vs DC 18 — now saves"); the use spent |
+| Indomitable, a Wisdom save rolled from the sheet (no demand) | the same offer, the roller judges ("… — ask your DM whether that lands") |
+| Fanatical Focus, raging, a failed save | "Fanatical Focus — Rerolls the d20, +2 — once this Rage, the new roll stands"; a second failure the same Rage shows no row; a new Rage offers it again |
+| Fanatical Focus, not raging | no row |
+| Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — Gren's saving throw … The d20 (4) is rolled again with Advantage; the new roll stands"; Answer: the two d20s rise off Gren, the verdict retaken |
+| Countercharm, the save is against Paralyzed (Hold Person) | no popup |
+| Countercharm, the bard's own failed save against Charmed | the popup to the bard, "your saving throw" |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

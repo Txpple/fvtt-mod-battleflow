@@ -620,6 +620,12 @@ tables that are not kinds and vocabulary on two that exist.
 | `REPEAT_SAVES` | `item` · `activity` | a second row on one spell, naming the spell; the save by name where the spell's first is not the repeat's (Prismatic Spray's indigo ray) |
 | `EMANATIONS` | `trigger.on: "move"` · `per` · `band` · `ask` · `gate` · `alert.on: "moveOut"` · `alert.kind: "notice"` · `alert.types` · `noCastSave` | the `area` kind's held-spell facets: damage per feet moved inside (Spike Growth); a burning band on one side of a wall, flipped on the card (Wall of Fire); a pick asked on the card and kept on the region (Magic Circle's types); the attack gate reading the area (the circle's Disadvantage); a notice as a creature moves out, a plain card with no Reaction (Forcecage, the circle's entry), narrowed to the chosen types; a cast whose save is not for standing inside |
 
+The PHB classes (2026-09-29/30; RULINGS *The PHB classes — A1* … *B1*) moved one kind — `reroll` on the d20 folds
+(§6's tripwire 39 → 40, B1: a failed save rerolled with a bonus added, paid by a use or a Rage's once — the new d20
+REPLACES and the bonus ADDS in one `SAVE_FOLDS` entry) — and added tables that are not kinds (`WARD_POOLS`,
+`INITIATIVE_GRANTS`, `TURN_GRANTS`, `CAST_RIDERS`, `STORED_DICE`, `REROLLS`) plus bystander vocabulary on
+`INTERRUPT_ROLLS` (`bend: "die" | "neutralise" | "set" | "reroll"`, `bystander`, `against`, `advantage`).
+
 ### How a row names its content
 
 A row is keyed by its content's English name, and it FINDS the content by dnd5e's

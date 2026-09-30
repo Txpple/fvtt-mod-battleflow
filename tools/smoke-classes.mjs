@@ -97,7 +97,9 @@ const SECTIONS = {
   38: 'Vitality of the Tree (lent to the PC Attacker): the Rage used grants Vitality Surge (7 temp HP); a raging turn start asks "Who gets 7 Temporary Hit Points?" (Life-Giving Force, 2d6) — creatures on its side within 10 ft; OK gives the one ticked; not raging, nothing asked',
   39: 'Wild Magic Surge (lent to the Sorcerer with Tides of Chaos; Mage Armor marked a Sorcerer spell): a slot cast rolls the d20 — "d20: 14, nothing"; a 20 rolls the table and its card posts; Tides of Chaos spent: the table at once and Tides regained; a Wizard spell rolls nothing; in a combat, once per turn',
   40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin',
-  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody'
+  41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody',
+  // B1
+  42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — Gren\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody'
 };
 const DEPENDS = {};
 
@@ -148,6 +150,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const inspiration = () => bard.items.find(i => (i.name === 'Bardic Inspiration') && (Number(i.system?.uses?.max) > 0));
 
   const created = { tokens: [], items: [], combats: [] };
+  // The scene that was ACTIVE when the suite began: §25 activates the range for its ring and the teardown alone
+  // restores this. ⚠ Never mid-run: re-activating another scene and viewing the range again REDRAWS the canvas, and
+  // every Token placeable the sections hold (pcToken, halflingToken…) is destroyed — from there every control()
+  // and setTarget() is a no-op, the attack has no target and is refused, and every later section reads nothing
+  // (the §25 → §28 cascade, 2026-09-30: 44 reds, no module defect).
+  let priorActiveScene = null;
   const lentBy = new Map();
   const priorActor = {};
   let restored = false;
@@ -185,6 +193,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     try {
       await closeDialogs();
       for (const id of created.combats) { const c = game.combats.get(id); if (c) await c.delete(); }
+      if (priorActiveScene && (game.scenes.active?.id !== priorActiveScene.id)) { await priorActiveScene.activate().catch(() => {}); await sleep(800); }
       await dropMutes();
       await refillLuck();
       const b = inspiration(); if (b) await b.update({ 'system.uses.spent': inspirationSpentBefore });
@@ -1685,7 +1694,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // UNSURE: a ring stands only on a LIVE scene (emanations.js liveNow) — the active scene, or one a connected
       // user views. The suite only views the range; activated here as smoke-emanations does, restored after.
       const priorActive = game.scenes.active ?? null;
-      if (priorActive?.id !== scene.id) { await scene.activate(); await sleep(1500); }
+      if (priorActive?.id !== scene.id) { priorActiveScene = priorActiveScene ?? priorActive; await scene.activate(); await sleep(1500); }
       const rage = await lend(pcAttacker, 'Rage');
       const wilds = await lend(pcAttacker, 'Rage of the Wilds');
       const t0 = Date.now();
@@ -1745,8 +1754,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const m = memberOn(victim); if (m) await m.delete().catch(() => {});
         }
         clearTargets();
-        if (priorActive && (priorActive.id !== scene.id)) { await priorActive.activate().catch(() => {}); await sleep(1000); }
-        // ⚠ Activating the prior scene moves this page's canvas off the range: every later section needs it back.
+        // The prior active scene comes back in the TEARDOWN (see priorActiveScene): a switch here kills the placeables.
         if (canvas.scene?.id !== scene.id) { await scene.view(); for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === scene.id); i++) await sleep(250); await sleep(500); }
       }
     }
@@ -2918,6 +2926,111 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const chips = sorcerer.effects.filter(e => e.getFlag(MOD, 'storedDice')).map(e => e.id);
         if (chips.length) await sorcerer.deleteEmbeddedDocuments('ActiveEffect', chips).catch(() => {});
         if (portent) await unlend(sorcerer, portent);
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 42. Countercharm: a friend's failed demanded save against Charmed, the bard's Reaction rerolls it with Advantage
+    if (want(42)) {
+      await closeA1(); await spendLuck();
+      const countercharm = await hgLend(bard, 'Countercharm', 'feat');
+      const lentSpells = [];
+      const castAt = async (name, targetToken) => {
+        let id = attacker.items.find(i => (i.name === name) && (i.type === 'spell'))?.id;
+        if (!id) {
+          const src = await findPHB(name, 'spell');
+          const data = src?.toObject();
+          if (!data) return null;
+          data.system.prepared = 1; data.system.method = 'atwill';
+          const [it] = await attacker.createEmbeddedDocuments('Item', [data]); id = it.id; lentSpells.push(id);
+        }
+        const a = attacker.items.get(id)?.system?.activities?.find(x => x.type === 'save');
+        if (!a) return null;
+        attackerToken.control({ releaseOthers: true });
+        targetToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const use = await a.use({ consume: { spellSlot: false } }, { configure: false }, {});
+        const card = use?.message ?? null;
+        await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+        return card;
+      };
+      const reactionChip = () => bard.effects.find(e => e.getFlag(MOD, 'mastery') === 'reaction') ?? null;
+      let combat42 = null;
+      try {
+        if (!countercharm) log.push('§42 skipped: no Countercharm in the PHB');
+        else {
+          await set('saveRolls', 'prompt');
+          await healFull();
+          // A combat: out of one no Reaction chip is written (the suite lesson); the attacker's turn.
+          [combat42] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat42.id);
+          await combat42.createEmbeddedDocuments('Combatant', [
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 20 },
+            { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 15 },
+            { tokenId: bardDoc.id, sceneId: scene.id, actorId: bard.id, initiative: 10 }]);
+          await combat42.startCombat();
+          await sleep(400);
+          // a. Charm Person at the Halfling (10 ft from the bard): a natural 1 fails; the popup to the bard
+          const t0 = Date.now();
+          const card = await castAt('Charm Person', halflingToken);
+          if (!card) log.push('§42a skipped: no Charm Person save activity');
+          else {
+            const dc = Number(card.getFlag(MOD, 'saves')?.dc);
+            const demandStatuses = card.getFlag(MOD, 'saves')?.demand?.statuses ?? [];
+            faces([[10, 20]]);
+            const probeSave = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, { create: false });
+            const smod = Number(probeSave?.[0]?.total) - 10;
+            await sleep(600);
+            faces([[1, 20]]);
+            const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+            const rollMsg = rolls?.[0]?.parent ?? null;
+            const pop = await waitFor(() => rollPopup(/Countercharm/), 8000);
+            const popText = textOf(pop?.element);
+            ok('42a. the Halfling fails a demanded save against Charmed: the bard\'s popup "Countercharm — BF Test Halfling\'s saving throw", the reroll at Advantage named, the demand carrying "charmed"',
+              !!pop && /Countercharm/.test(popText) && /saving throw/.test(popText) && /rolled again with Advantage/.test(popText) && demandStatuses.includes('charmed'),
+              `pop=${!!pop} dc=${dc} mod=${smod} statuses=${JSON.stringify(demandStatuses)} text="${popText.slice(0, 240)}"`);
+            // b. Answer: two d20s (17 and 3) rerolled off the Halfling, the 17 standing; the Reaction spent; the entry SAVED
+            faces([[17, 20], [3, 20]]);
+            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
+            CONFIG.Dice.randomUniform = realPRNG;
+            const bent = rollMsg?.getFlag(MOD, 'bystanderRoll')?.bent ?? null;
+            const rerollMsg = game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'respondsTo') === rollMsg?.id));
+            const rise = rerollMsg?.getFlag(MOD, 'diceRise') ?? null;
+            ok('42b. Answer: the d20 rerolled with Advantage (17 and 3, the 17 standing), the total 17 + mod, the entry SAVED, the Reaction spent, the dice rising off the Halfling',
+              !!entry && (entry.outcome === 'saved') && (bent?.how === 'reroll') && (bent?.stood === 17) && (bent?.total === 17 + smod) && (entry.total === 17 + smod) && (17 + smod >= dc)
+                && !!reactionChip() && (rise?.on === halfling.uuid) && /Advantage/.test(rerollMsg?.flavor ?? ''),
+              `entry=${JSON.stringify(entry && { outcome: entry.outcome, total: entry.total })} bent=${JSON.stringify(bent)} reaction=${!!reactionChip()} rise=${JSON.stringify(rise)} flavor="${rerollMsg?.flavor ?? ''}"`);
+            const line = await waitFor(() => { const t = cardText(rollMsg?.id); return /rerolled with Advantage/.test(t) ? t : null; }, 6000);
+            ok('42c. the roll\'s card: "Countercharm (BF Test Bard) the d20 (1) rerolled with Advantage (17, 3) — the 17 stands: … vs DC"',
+              /Countercharm \(BF Test Bard\)/.test(line ?? '') && /the d20 \(1\) rerolled with Advantage \(17, 3\) — the 17 stands/.test(line ?? '') && new RegExp(`vs DC ${dc}`).test(line ?? ''),
+              `card="${(line ?? cardText(rollMsg?.id)).slice(0, 260)}"`);
+            clearTargets();
+          }
+          // d. Hold Person (Paralyzed) — not Countercharm's: nobody asked, the save folds as rolled
+          await bard.deleteEmbeddedDocuments('ActiveEffect', bard.effects.filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id)).catch(() => {});
+          const card2 = await castAt('Hold Person', halflingToken);
+          if (!card2) log.push('§42d skipped: no Hold Person save activity');
+          else {
+            faces([[1, 20]]);
+            await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+            CONFIG.Dice.randomUniform = realPRNG;
+            const entry2 = await waitFor(() => card2.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 10000);
+            const asked = popups().some(app => /Countercharm/.test(textOf(app.element)));
+            ok('42d. a failed save against Paralyzed (Hold Person): no Countercharm popup, the failure folds as rolled',
+              !asked && !!entry2 && (entry2.outcome === 'failed'), `asked=${asked} entry=${JSON.stringify(entry2 && { outcome: entry2.outcome, total: entry2.total })}`);
+            clearTargets();
+          }
+        }
+      } finally {
+        await closeA1();
+        await hgClose(/Countercharm/);
+        if (countercharm) await unlend(bard, countercharm);
+        if (lentSpells.length) await attacker.deleteEmbeddedDocuments('Item', lentSpells).catch(() => {});
+        await bard.deleteEmbeddedDocuments('ActiveEffect', bard.effects.filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id)).catch(() => {});
+        for (const e of halfling.effects.filter(e => ['Charmed', 'Paralyzed'].includes(e.name))) await e.delete().catch(() => {});
+        if (combat42) { await combat42.delete().catch(() => {}); created.combats = created.combats.filter(id => id !== combat42.id); }
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

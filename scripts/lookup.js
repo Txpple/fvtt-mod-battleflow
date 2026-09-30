@@ -296,6 +296,26 @@ export function bystanderDie(actor, row) {
   return ((typeof formula === "string") && formula.trim()) ? formula.trim() : null;
 }
 
+/**
+ * THE REROLL of a d20 roll, rebuilt from the original's class, data and options — a plain `Roll` would lose a moved
+ * crit threshold. `advantage` rolls the new one at Advantage (Countercharm). ⚠ `configured` is dropped: an evaluated
+ * Advantage roll's formula reads `2d20kh`, and with `configured: true` the constructor skips the system's
+ * normalisation and rolls four dice.
+ * @param {any} original
+ * @param {Actor|null} actor
+ * @param {{advantage?: boolean}} [opts]
+ */
+export async function rerollD20(original, actor, { advantage = false } = {}) {
+  if ( !original ) return null;
+  const RollCls = original.constructor;
+  const options = foundry.utils.deepClone(original.options ?? {});
+  delete options.configured;
+  if ( advantage ) options.advantageMode = CONFIG.Dice?.D20Roll?.ADV_MODE?.ADVANTAGE ?? 1;
+  const roll = new RollCls(original.formula, original.data ?? actor?.getRollData?.() ?? {}, options);
+  await roll.evaluate();
+  return { roll, summary: { total: roll.total, isCritical: roll.isCritical === true, isFumble: roll.isFumble === true } };
+}
+
 /** A d20 roll's facts for the gate and the bend: the kept and first faces, the mode, the crit range. */
 export function d20FactsOf(roll) {
   const d20 = roll?.dice?.[0] ?? null;

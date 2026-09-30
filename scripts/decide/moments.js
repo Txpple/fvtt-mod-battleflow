@@ -751,6 +751,7 @@ export const STATE_KEYS = Object.freeze({
   grappleDamageAnswer: "an envelope — a player's Unarmed Fighting answer (deal or skip); the fold onto the grappleDamage flag is the resolve",
   by: "an envelope field beside respondsTo — the GUARD who answered a held target (Protection, 2026-09-26); the fold onto the hold flag is the resolve",
   bystanderRollAnswer: "a message flag — a bystander's answer to another creature's save or check, relayed to the roll's keeper (bystanders.js); the envelope, the roll's `bystanderRoll` is the resolve",
+  rerollUsed: "an ActiveEffect flag on the RAGE effect — the `reroll` folds spent this Rage (Fanatical Focus, B1); gone with the Rage, the spend itself is the d20fold resolve",
   bystanderMute: "an ActiveEffect flag — \"Not this combat\" (Q2 option A, 2026-09-29): the bystander feature its bearer muted, with the combat it lasts for; a player's preference, swept with the combat, no resolve",
   protectedBy: "an ActiveEffect flag — the guard whose Protection landed \"Protected — <guard>\" on the creature it protected (2026-09-26); provenance, the hold is the resolve",
   fightingStyle: "a damage message's record — a fighting style's number that rode the roll (Great Weapon Fighting's raised dice, Thrown's and Dueling's +2, Two-Weapon's modifier): the card's line, the float, the stats' gain; and the same key on a style's FACE effect (its key, live, its line). Presentation and bookkeeping — the number rode the roll's own config (fighting-styles.js, 2026-09-26)",

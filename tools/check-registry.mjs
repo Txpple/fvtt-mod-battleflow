@@ -82,7 +82,7 @@ for (const [name, { rows, kinds }] of Object.entries(KIND_LISTS)) {
 // genuinely new (ARCHITECTURE.md §11 step 3). A kind names a different SPEND or way of KNOWING that a
 // row cannot say; a second customer of an existing shape is a row of its table, not a kind.
 // Bumping more than once a pass is the tripwire firing — re-read DESIGN.md R4.
-const EXPECTED_KINDS = 39;
+const EXPECTED_KINDS = 40;
 
 // A mastery this module resolves but cannot quote breaks presentation law 8 (ARCHITECTURE.md §5).
 const rulesSrc = read("scripts/decide/registry.js");

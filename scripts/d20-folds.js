@@ -10,12 +10,12 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM,
   from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
-import { activityNamed, cardActivity, itemNamed, itemsNamed, lower, resolveUuid, resolveDie } from "./lookup.js";
+import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20 } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { ADVANTAGE_BUYS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS } from "./decide/registry.js";
+import { ADVANTAGE_BUYS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
@@ -178,9 +178,77 @@ const SUCCEED = {
   }
 };
 
-const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE, succeed: SUCCEED };
+/** The `reroll` kind (REROLLS; the PHB classes, B1): a FAILED save rerolled, the row's bonus added, paid by the row's
+ * cost — the item's uses (Indomitable), or once per Rage (Fanatical Focus: the mark sits on the Rage effect and goes
+ * with it). ⚠ The bonus is read off the ROLLER; unreadable, the fold stays off (BARDIC's shape). */
+const REROLL = {
+  tests: ["save"],
+  testsFor: entry => rerollRowOf(entry.name)?.row.tests ?? ["save"],
+  find: (actor, entry) => {
+    const found = rerollRowOf(entry.name);
+    if ( !found ) return null;
+    const { key, row } = found;
+    const item = featureNamed(actor, key);
+    if ( !item ) return null;
+    const left = Number(item.system?.uses?.value ?? 0);
+    if ( row.uses && !(left > 0) ) return null;
+    let rage = null;
+    if ( row.while === "raging" ) {
+      rage = rageEffectOf(actor);
+      if ( !rage ) return null;
+      if ( (row.once === "rage") && (rage.getFlag(MODULE_ID, "rerollUsed") ?? []).includes(key) ) return null;
+    }
+    const bonus = rerollBonus(actor, item, row);
+    if ( bonus === null ) {
+      warnOnce(`reroll|${key}|${actor.id}`, `${TITLE} | ${actor.name}'s ${key} bonus (${row.bonus}) could not be read off `
+        + "the sheet, so the fold stays off rather than guessing a number.");
+      return null;
+    }
+    return { kind: "reroll", key, row, item, rage, bonus, left: row.uses ? left : null };
+  },
+  die: () => null,                                        // a REROLL contributes no die; the bonus rides the entry
+  spend: async (actor, marker, message) => {
+    if ( marker.row.uses ) {
+      const record = await spendPoolUses(actor, marker.item, marker.key, 1, null);
+      if ( !record ) return false;
+      if ( message ) await message.setFlag(MODULE_ID, "poolSpend", record);
+    }
+    if ( (marker.row.once === "rage") && marker.rage ) {
+      const used = marker.rage.getFlag(MODULE_ID, "rerollUsed") ?? [];
+      await marker.rage.setFlag(MODULE_ID, "rerollUsed", [...used, marker.key]);
+    }
+    return true;
+  }
+};
+
+/** The REROLLS row a D20_FOLDS entry names. */
+function rerollRowOf(name) {
+  const key = Object.keys(REROLLS).find(k => lower(k) === lower(name));
+  return key ? { key, row: REROLLS[key] } : null;
+}
+
+/** The Rage this actor wears (the pack's effect, by name), else null. */
+const rageEffectOf = actor => (actor?.appliedEffects ?? actor?.effects?.contents ?? [])
+  .find(e => !e.disabled && (lower(e.name) === "rage")) ?? null;
+
+/** The reroll's bonus as a NUMBER on the roller: the pack's own "Bonus" activity roll first, then the row's formula. */
+function rerollBonus(actor, item, row) {
+  const own = [...(item?.system?.activities ?? [])].map(a => a.roll?.formula).find(f => (typeof f === "string") && f.trim());
+  for ( const raw of [own, row.bonus] ) {
+    if ( !raw ) continue;
+    const formula = resolveDie(actor, raw);
+    if ( !formula ) continue;
+    try {
+      const n = Number(Roll.safeEval(formula));
+      if ( Number.isFinite(n) ) return n;
+    } catch { /* the next formula */ }
+  }
+  return null;
+}
+
+const KINDS = { heroic: HEROIC, tactical: TACTICAL, bardic: BARDIC, seeking: SEEKING, advantage: ADVANTAGE, succeed: SUCCEED, reroll: REROLL };
 /** The kinds that REPLACE the d20 rather than add to it (Lucky's Advantage keeps the HIGHER — `resolveFold`). */
-const REROLL_KINDS = new Set(["heroic", "seeking", "advantage"]);
+const REROLL_KINDS = new Set(["heroic", "seeking", "advantage", "reroll"]);
 /** The kinds whose contribution is the VERDICT — nothing rolled, nothing added. */
 const VERDICT_KINDS = new Set(["succeed"]);
 
@@ -211,7 +279,7 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     if ( !spec ) continue;
     // A SCOPED entry: the feature's text says which checks (and whether Initiative) it reaches.
     const scope = scopeOf(entry);
-    const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : spec.tests;
+    const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : (spec.testsFor?.(entry) ?? spec.tests);
     if ( !tests.includes(testKind) ) continue;
     if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
     if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows can stand
@@ -227,8 +295,11 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
       rule: marker.row.rule } : {};
     const succeed = (entry.kind === "succeed") ? { label: marker.row.label, rule: marker.row.rule,
       cost: `${RESCUE_KINDS.succeed.cost} · ${marker.left} left` } : {};
+    // A reroll row: the feature's name, its bonus as a number, its cost in its own words (a use, or the Rage's once).
+    const reroll = (entry.kind === "reroll") ? { label: marker.key, rule: marker.row.rule, bonus: marker.bonus, advantage: marker.row.advantage === true,
+      cost: marker.row.uses ? `1 use · ${marker.left} left, the new roll stands` : (marker.row.once === "rage") ? "once this Rage, the new roll stands" : RESCUE_KINDS.reroll.cost } : {};
     out.push({ kind: entry.kind, name: entry.name, label: scope ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
-      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy, ...succeed });
+      dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy, ...succeed, ...reroll });
   }
   return out;
 }
@@ -533,7 +604,7 @@ async function resolveFold(message, answer) {
       let rolledMessage = null;
       if ( !VERDICT_KINDS.has(kind) ) {
         rolled = REROLL_KINDS.has(kind)
-          ? await rerollOf(message, actor)
+          ? await rerollD20(message.rolls?.[0], actor, { advantage: (kind === "reroll") && (marker.row.advantage === true) })
           : await rollDie(spec.die(marker) ?? offer.dieFormula, actor);
         if ( !rolled ) return;
         // Lucky's Advantage: the HIGHER of the two d20s stands, its crit with it.
@@ -546,6 +617,8 @@ async function resolveFold(message, answer) {
         const faceOf = r => r?.dice?.[0]?.results?.find(x => (x.active !== false) && !x.discarded)?.result ?? null;
         const rise = foldRise({ mode: (kind === "advantage") ? "advantage" : REROLL_KINDS.has(kind) ? "reroll" : "die",
           oldFace: faceOf(message.rolls?.[0]), newFace: faceOf(rolled.roll), total: rolled.summary.total, on: actor.uuid });
+        // The reroll's bonus is its own chip beside the new die (Indomitable's "+9").
+        if ( rise && (kind === "reroll") && Number.isFinite(marker.bonus) && marker.bonus ) rise.chips.push({ label: `+${marker.bonus}`, flat: true, up: true });
         rolledMessage = await rolled.roll.toMessage({
           speaker: ChatMessage.getSpeaker({ actor }),
           flavor: (kind === "advantage") ? `${labelOf(offer)} — the second d20`
@@ -559,7 +632,7 @@ async function resolveFold(message, answer) {
       const entry = {
         kind, name: offer.name, label: offer.label, pendingVerdict: true,
         ...(VERDICT_KINDS.has(kind) ? { verdict: "saved" }
-          : REROLL_KINDS.has(kind) ? { reroll: rolled.summary } : { die: rolled.summary.total })
+          : REROLL_KINDS.has(kind) ? { reroll: rolled.summary, ...((kind === "reroll") ? { bonus: marker.bonus } : {}) } : { die: rolled.summary.total })
       };
       await queueFlagWrite(message, "d20fold", current => {
         if ( current.status !== "pending" ) return false;
@@ -678,7 +751,7 @@ function isStillFailing(flag, composed, baseRoll, folds) {
 
 /** The arithmetic sentence — a reroll REPLACES and reads with an arrow; a die ADDS and sums. */
 const sumText = (flag, composed) => composed.replaced
-  ? `${flag.baseTotal} → ${composed.total}`
+  ? (composed.added ? `${flag.baseTotal} → ${composed.total - composed.added} + ${composed.added} = ${composed.total}` : `${flag.baseTotal} → ${composed.total}`)
   : `${flag.baseTotal} + ${composed.added} = ${composed.total}`;
 
 async function announce(_message, actor, name, testKind, anyHit, lines, marker) {
@@ -719,25 +792,6 @@ async function rollDie(formula, actor) {
   const roll = new Roll(String(formula), actor.getRollData());
   await roll.evaluate();
   return { roll, summary: { total: roll.total, isCritical: false, isFumble: false } };
-}
-
-/** THE REROLL, rebuilt from the original roll's class, data and options: a plain `Roll` would lose
- * a moved crit threshold. */
-async function rerollOf(message, actor) {
-  const original = message.rolls?.[0];
-  if ( !original ) return null;
-  const RollCls = original.constructor;
-  // ⚠ Drop `configured`: an evaluated advantage roll's formula reads `2d20adv`, and with
-  // `configured: true` the constructor skips the system's normalisation and rolls four dice.
-  const options = foundry.utils.deepClone(original.options ?? {});
-  delete options.configured;
-  const roll = new RollCls(original.formula, original.data ?? actor.getRollData(), options);
-  await roll.evaluate();
-  return { roll, summary: {
-    total: roll.total,
-    isCritical: roll.isCritical === true,
-    isFumble: roll.isFumble === true
-  } };
 }
 
 // PRESENT. A demanded save's roll is drawn as a SUMMARY inside the usage card, so the block rides
@@ -851,7 +905,8 @@ const costOnCard = o => (VERDICT_KINDS.has(o.kind) ? (o.cost ?? SPEND_COST[o.kin
 /** The offer card's body: what can be spent (each cost on its own line), and under holdReveal what it must beat. */
 function offerLines(flag, offers) {
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
-    + (REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? " — succeed instead" : ` — add ${o.dieFormula}`)
+    + ((o.kind === "reroll") ? ` — reroll the d20${Number(o.bonus) ? `, +${o.bonus}` : ""}${o.advantage ? " with Advantage" : ""}`
+      : REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? " — succeed instead" : ` — add ${o.dieFormula}`)
     + (costOnCard(o) ? ` <em>(${costOnCard(o)})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {

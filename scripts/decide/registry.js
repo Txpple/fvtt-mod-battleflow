@@ -149,6 +149,14 @@ export const INTERRUPT_ROLLS = Object.freeze({
     bystander: "sight", tests: Object.freeze(["attack", "save"]), bend: "set", on: "both", ask: "crit",
     rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
     from: "Wizard — Diviner 3" }),
+  // B1: the bard's Reaction REROLLS a friend's failed save (the bard's own included) `against` an effect that applies one
+  // of the listed conditions — read off the demand card, so a sheet save with no demand is never offered; the new roll
+  // has Advantage (`advantage`) and stands. `bend: "reroll"` bends a FRIEND's roll only. The pack's activity is UNNAMED:
+  // `activity: null` reads the item's first (bystanders.js).
+  "Countercharm": Object.freeze({ reaction: true, uses: false, point: null, activity: null,
+    bystander: 30, tests: Object.freeze(["save"]), bend: "reroll", advantage: true, against: Object.freeze(["charmed", "frightened"]),
+    rule: Object.freeze({ item: "Countercharm", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCountercha" }),
+    from: "Bard 7" }),
   // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
@@ -163,8 +171,10 @@ export const INTERRUPT_ROLLS = Object.freeze({
  *   bardic     the "Inspired" effect — spent by a DELETE; its die resolves on the granting bard (`origin`)
  *   advantage  a second d20, the higher stands, paid with an item use — an initiative rolled with no dialog
  *   succeed    a failed save turned into a success through the feature's activity (SAVE_SUCCEEDS)
+ *   reroll     a FAILED save rerolled with a bonus added, the new roll standing, paid by the row's cost (REROLLS) — the
+ *              PHB classes' B1: a spend `heroic` cannot say (a use, a Rage's once) and a contribution no row can (replace + add)
  */
-export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage", "succeed"]);
+export const D20_FOLD_KINDS = new Set(["heroic", "tactical", "bardic", "seeking", "advantage", "succeed", "reroll"]);
 
 /** The closed set of volley kinds — the one definition the registry and tools/check-registry.mjs share. */
 export const VOLLEY_KINDS = new Set(["damage", "attack"]);
@@ -273,6 +283,29 @@ export const SAVE_SUCCEEDS = Object.freeze({
     abilities: Object.freeze(["int", "wis", "cha"]),
     rule: Object.freeze({ item: "Mage Slayer", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftMageSlayer0", benefit: "Guarded Mind" }),
     from: "General feat" })
+});
+
+/**
+ * A FAILED save REROLLED with a bonus added, the new roll standing — the `reroll` d20 fold (d20-folds.js; the PHB
+ * classes, B1). Offered where Guarded Mind is: on a demanded save before its verdict (the withhold) and on a sheet
+ * save as an offer the roller judges. The reroll REPLACES the d20 (its own crit and fumble) and the bonus folds as
+ * `add` in the same entry (decide/verdict.js). Another creature's save rerolled is the bystander's row
+ * (INTERRUPT_ROLLS "Countercharm", `bend: "reroll"`), not a fold.
+ *   tests      the D20 Tests reached
+ *   bonus      a formula on the ROLLER's roll data; the pack's own activity roll ("Bonus") is read first where it
+ *              carries one. Unreadable → the fold stays off (BARDIC's shape: never a guessed number)
+ *   uses       the item's own uses pay (Indomitable's scale)
+ *   while      "raging" — only while the Rage effect stands;  once  "rage" — once per Rage, the mark on the Rage
+ *              effect itself (`rerollUsed`), gone with it
+ *   advantage  the reroll has Advantage (Living Legend's save, D1)
+ */
+export const REROLLS = Object.freeze({
+  "Indomitable": Object.freeze({ tests: Object.freeze(["save"]), bonus: "@classes.fighter.levels", uses: true,
+    rule: Object.freeze({ item: "Indomitable", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrIndomitabl" }),
+    from: "Fighter 9" }),
+  "Fanatical Focus": Object.freeze({ tests: Object.freeze(["save"]), bonus: "@scale.barbarian.rage-damage", while: "raging", once: "rage",
+    rule: Object.freeze({ item: "Fanatical Focus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbFanaticalF" }),
+    from: "Barbarian — Path of the Zealot 6" })
 });
 
 /**
@@ -2401,6 +2434,7 @@ export const KIND_SETS = [
  * ⚠ D20_FOLDS' `name` is a LOOKUP KEY, the card's words come from the kind (d20-folds.js `KIND_LABEL`):
  *   tactical → an item by this name · bardic → the "Inspired" EFFECT (the card says Bardic Inspiration)
  *   heroic → no lookup (a boolean) · seeking → METAMAGIC must hold it too · succeed → the FEAT (SAVE_SUCCEEDS)
+ *   reroll → the FEATURE (REROLLS; the card says the feature's name)
  */
 const row = (name, kind) => Object.freeze({ name, kind });
 export const INTERRUPTS = Object.freeze([
@@ -2409,7 +2443,7 @@ export const INTERRUPTS = Object.freeze([
   row("Defensive Stance", "ac"), row("Whirlwind of Sand", "ac"), row("Deflect Attacks", "damage"),
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
   row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
-  row("Combat Inspiration", "roll"), row("Portent", "roll"),
+  row("Combat Inspiration", "roll"), row("Portent", "roll"), row("Countercharm", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
@@ -2424,7 +2458,8 @@ export const MANEUVER_FOLDS = Object.freeze([
 export const D20_FOLDS = Object.freeze([
   row("Heroic Inspiration", "heroic"), row("Tactical Mind", "tactical"), row("Inspired", "bardic"),
   row("Ambush", "tactical"), row("Tactical Assessment", "tactical"), row("Seeking Spell", "seeking"),
-  row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage")
+  row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage"),
+  row("Indomitable", "reroll"), row("Fanatical Focus", "reroll")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

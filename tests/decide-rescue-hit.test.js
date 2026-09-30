@@ -351,9 +351,13 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
       expectPointer(row.rule, name);
       expect(row.rule.item, name).toBe(name);
       // an `inspired` row pays with the answerer's Inspired effect, no activity (A1, Combat Inspiration); a `stored`
-      // row with a face off its STORED_DICE chip (A7, Portent)
+      // row with a face off its STORED_DICE chip (A7, Portent); a `reroll` row's pack activity is UNNAMED (B1,
+      // Countercharm) — `activity: null` reads the item's first
       expect(
-        row.activity || row.inspired || (row.stored && reg.STORED_DICE[row.stored]),
+        row.activity ||
+          row.inspired ||
+          (row.stored && reg.STORED_DICE[row.stored]) ||
+          (row.bend === "reroll" && row.activity === null),
         name
       ).toBeTruthy();
     }

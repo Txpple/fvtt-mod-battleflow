@@ -450,6 +450,11 @@ export const RESCUE_KINDS = {
     icon: "fa-solid fa-shield-halved",
     cost: "one use, back after a Short or Long Rest"
   },
+  // A failed save rerolled with a bonus (REROLLS); the offer carries its row's name, rule, bonus and cost.
+  reroll: {
+    icon: "fa-solid fa-rotate-right",
+    cost: "spent either way, and the new roll stands"
+  },
   precision: {
     label: "Precision Attack",
     icon: "fa-solid fa-crosshairs",
@@ -486,7 +491,8 @@ export const RESCUE_SOURCES = [
         die: o.dieFormula ?? null,
         spent: false,
         ...(o.cost ? { cost: o.cost } : {}),
-        ...(o.rule ? { rule: o.rule } : {})
+        ...(o.rule ? { rule: o.rule } : {}),
+        ...(Number.isFinite(o.bonus) ? { bonus: o.bonus, advantage: o.advantage === true } : {})
       })),
       // A reroll REPLACES the roll and carries its number under `reroll`.
       ...(flag?.spends ?? []).map(s => ({
@@ -547,7 +553,7 @@ export function rescueHeaderLines(premise, composed, { reveal = false } = {}) {
   const base = Number(premise?.baseTotal) || 0;
   const total = Number.isFinite(composed?.total) ? composed.total : base;
   const added = Number(composed?.added) || 0;
-  const sum = composed?.replaced ? `${base} → ${total}`
+  const sum = composed?.replaced ? (added ? `${base} → ${total - added} + ${added} = ${total}` : `${base} → ${total}`)
     : added ? `${base} + ${added} = ${total}` : `${total}`;
   // A raw check goes to the DM outside the reveal gate: there is no number to hide.
   if ( premise?.testKind === "initiative" ) return [`Initiative: ${sum}`];
@@ -626,6 +632,7 @@ export function rescueView(read, { composed = null, reveal = false,
       text: r.rule ?? RESCUE_KINDS[r.kind]?.rule ?? null,
       detail: (r.spent || r.withdrawn) ? ""
         : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20"
+          : (r.kind === "reroll") ? `Rerolls the d20${r.advantage ? " with Advantage" : ""}${Number(r.bonus) ? `, +${r.bonus}` : ""}`
           : (r.kind === "advantage") ? "Roll another d20 for Advantage, the higher stands"
           : (r.kind === "succeed") ? "The save succeeds instead — no roll" : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")

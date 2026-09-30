@@ -323,7 +323,7 @@ the next party (BACKLOG *The long-term order* step 5): this drawing is the map, 
 | **Animal Speaker** | Barbarian — Path of the Wild Heart | OUT | — | — | out-of-combat casts |
 | **Nature Speaker** | Barbarian — Path of the Wild Heart | OUT | — | — | an out-of-combat cast |
 | **Weapon Mastery** | Barbarian | NATIVE | — | — | the mastery machine (`mastery.js`) reads the weapon's own property |
-| **Countercharm** | Bard | KIND | the `reroll` kind (Fanatical Focus) with `ally: 30` (Protection's guard shape, on the save side) | B1 | an ALLY's failed save against Charmed or Frightened within 30 ft: the bard's Reaction, the reroll with Advantage — offered on the save withhold (Guarded Mind's seam), the bard the answerer |
+| **Countercharm** | Bard | ROW | `INTERRUPT_ROLLS` · the bystander's bend (Restore Balance, Portent) with `bend: "reroll"`, `bystander: 30`, `against`, `advantage` | B1 | a FRIEND's failed demanded save against Charmed or Frightened within 30 ft (the bard's own included): the bard's Reaction rerolls it with Advantage, the new roll stands — built 2026-09-30 as a bystander row, not a fold row (RULINGS *The PHB classes — B1*, call 4) |
 | **Superior Inspiration** | Bard | TABLE | `INITIATIVE_GRANTS` · Persistent Rage | D1 | regain uses to two when Initiative is rolled — a sheet write and a card |
 | **Font of Inspiration** | Bard | OUT | — | — | rest recovery and a slot-for-a-use trade — the sheet's |
 | **Expertise** | Bard | OUT | — | — | a proficiency |
