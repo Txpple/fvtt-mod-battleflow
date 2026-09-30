@@ -77,6 +77,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const lent = [];
   const placed = [];
+  // ⚠ An UNLINKED token of the Victim (smoke-battleflow's permanent one) shares the base actor's effects: a Grappled
+  // put on BF Test Victim grapples it too (§4a dealt twice). Set aside for the run, put back with its own id.
+  const asideVictims = scene ? scene.tokens.filter(t => (t.actorId === victim?.id) && !t.actorLink).map(t => t.toObject()) : [];
   let combat = null;
   const priorActiveCombats = [];
   const priorHp = { value: victim.system._source.attributes.hp.value, max: victim.system._source.attributes.hp.max, temp: victim.system._source.attributes.hp.temp };
@@ -106,6 +109,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (live.length) await monster.deleteEmbeddedDocuments('Item', live);
       const tokens = placed.filter(id => scene.tokens.get(id));
       if (tokens.length) await scene.deleteEmbeddedDocuments('Token', tokens);
+      const back = asideVictims.filter(t => !scene.tokens.get(t._id));
+      if (back.length) await scene.createEmbeddedDocuments('Token', back, { keepId: true });
       await victim.update({ 'system.attributes.hp.value': priorHp.value, 'system.attributes.hp.max': priorHp.max, 'system.attributes.hp.temp': priorHp.temp,
         ...Object.fromEntries(Object.entries(priorSaves).map(([a, v]) => [`system.abilities.${a}.save.roll.bonus`, v])) });
       await monster.update({ 'system.attributes.hp.value': priorMonsterHp });
@@ -119,6 +124,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   };
 
   try {
+    if (asideVictims.length) await scene.deleteEmbeddedDocuments('Token', asideVictims.map(t => t._id));
     await set('decisionTimer', 0);
     await set('dramaticBeat', 0);
     await set('saveRolls', 'auto');   // the demanded saves roll themselves; the bonus steers the verdict

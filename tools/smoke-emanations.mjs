@@ -939,8 +939,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const t22 = Date.now();
         const region = await placeArea(item, act, { type: 'circle', x: at.x, y: at.y, radius: 10 * px }, 3);
         const adopted = await adoptedArea('Magic Circle');
-        const f = adopted?.getFlag(MOD, 'emanation');
         const card = await waitFor(() => game.messages.find(m => (m.timestamp >= t22) && m.getFlag(MOD, 'emanationCard')?.key === 'Magic Circle') ?? null, 6000);
+        // ⚠ The picks land on the region's flag a beat after the adoption: read it once they have.
+        await waitFor(() => adopted?.getFlag(MOD, 'emanation')?.picked, 4000);
+        const f = adopted?.getFlag(MOD, 'emanation');
         const picks = card?.getFlag(MOD, 'emanationCard')?.picks;
         const FIVE = 'celestial,elemental,fey,fiend,undead';
         const castDemand = game.messages.find(m => (m.timestamp >= t22) && (m.getFlag(MOD, 'saves')?.activityUuid === act.uuid)) ?? null;
