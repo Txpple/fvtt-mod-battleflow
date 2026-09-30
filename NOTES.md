@@ -1340,6 +1340,11 @@ maneuver suites add fresh copies every run; smoke-volleys asserts clear ground a
 **After a killed run, `reset-fixture-state` comes before any suite** — automatic inside the battery,
 by hand outside it.
 
+**A status update on a battery is the progress bar** (2026-09-30, the user's rule: *"give a progress bar
+unix style with key stats"*): `node tools/battery-status.mjs` — the bar, done/total, elapsed and eta, suites
+ok/failed with the red ones named, the checks, what runs now and what is next (tools/README.md *The
+progress bar*). Never a paragraph.
+
 ⚠ **The sandbox can be stopped by Windows with nothing here changed (2026-08-28).** The headless
 server died on `An Application Control policy has blocked this file` — Foundry's unsigned
 `classic-level` native module, refused by **Smart App Control**, which vets unsigned binaries

@@ -122,6 +122,21 @@ Why the sole-GM preflight cannot do this: NOTES §5.
 | `--snapshot` | take a world snapshot first, roll it back after (the cure for the crash-launder hazard) |
 | `--list` | the order, the needs and the notes, without running anything. With `--changed` / `--files` / names: **the plan**, each row with why it runs (the file that claimed it, the suite that needed it, or the reason for the full battery), and each changed file that runs nothing with why |
 
+**The progress bar** (`battery-status.mjs`, 2026-09-30, the user's rule): **a status update on a running
+battery is this bar, never prose** — run it and paste the lines.
+
+```
+node tools/battery-status.mjs
+battery 2026-09-30T19-32-58  [######################--------] 35/47  74%  elapsed 62m  eta ~21m
+suites ok 34  failed 1 (smoke-saves 146/147)  checks 1378/1379  running smoke-monsters (1m)
+next smoke-wards, smoke-heal, smoke-rest, smoke-lucky … +7
+```
+
+It reads the newest `dist/battery/<stamp>/` (or a run directory named as its argument): one `<suite>.txt`
+lands per FINISHED entry, so the first entry of `--list`'s order with no file is the one running now; the
+start is the stamp (UTC), the eta the mean per finished entry times what is left. Exit 1 while any entry is
+red. Offline, no Foundry, safe to run mid-battery.
+
 **`needs`** is a field on an ORDER row: the rows that suite cannot run without, each resolved to
 the **nearest row of that name above it** — which is how the three `fixture-suite` seeds each serve
 the suites below them. `smoke-hold` needs `smoke-battleflow` (adjacent in ORDER, so nothing can

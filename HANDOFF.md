@@ -1,66 +1,55 @@
-# HANDOFF.md — the PHB classes: B5 DONE, the B-series battery, next C1 (2026-09-30)
+# HANDOFF.md — the PHB classes: the B series CLOSED, next C1 (2026-09-30)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
 
 ## FIRST — the state
 
-- **B5 BUILT and PROVEN** (this commit): the four band-B emanation rows — Branches of the Tree (Unnerving Gaze's alert
-  `while: "Rage"`), Inspiring Movement (`alert.on: "turnEnd"`, new), Wrath of the Sea (a `pick` ring: the turn-start card
-  asks which creature inside, the pick demands the pack's save; keys `emanationPick` + `emanationPickChoice`), Aura of
-  Devotion (Aura of Courage's row). `smoke-emanations` §26–§29 (4/4, 3/3, 6/6, 2/2), unit 1236. RULINGS *The PHB classes — B5*
-  and one bend row ("a creature you can see" not judged). **No new kind (40), no new file (131).**
-- **The full battery after B5** (the letter-series cadence) was LAUNCHED 2026-09-30 evening on the sandbox — its verdict is
-  in this file's next cut or the session's last message; if this line still reads so, the battery's result is unknown:
-  check `dist/battery/` for the newest run before trusting the box.
-
-- **The table is renamed** (da98706, the user: *"rename it now i hate deferred maintenance"*): `FIGHTING_STYLES` is
-  **`DAMAGE_RULES`** — `scripts/damage-rules.js`, `scripts/decide/damage-rules.js`, `tests/decide-damage-rules.test.js`,
-  `tools/smoke-damage-rules.mjs`, `prototypes/damage-rules.html`. The face flag `fightingStyle` stays (persisted data).
-- **B4 BUILT and PROVEN** (this commit): thirty rows on tables that exist — **no new kind (40), no new file (131)**. Suites:
-  `smoke-classes` §50–§63 (§50 6/6, §51 4/4, §52 4/4, §53 4/4, §54 4/4, §55 5/5, §56 3/3, §57 2/2, §58 1/1, §59 4/4, §60 3/3, §61 5/5, §62 2/2, §63 8/8 — 55 checks, each section run alone on the sandbox 2026-09-30; one module defect found by them (the effect ward's name carries its count) and fixed); unit 1232. The calls (RULINGS *The PHB classes — B4*, each the user's
-  to overrule): the spell-damage bonuses ride ONE roll of the spell (`spellRuleFits`); Eldritch Smite's Pact slot is a
-  `poolOf` branch with NO picker (every Pact slot is one level — the plan's picker had nothing to pick); the pact weapon is
-  Pact of the Blade's bond, none bonded → any weapon with the caveat; Bend Luck's sign follows the side; Cosmic Omen's d6 is
-  a stored chip whose parity is the sign; Dark One's Own Luck and Homing Strikes are `tactical` folds with their own tests
-  (`TACTICAL_FOLDS`); Tandem Footwork rolls once and notes late rollers on the combat; Heroic Warrior writes, Guarded Mind /
-  Self-Restoration / Physician's Touch's heal OFFER a condition's end (`conditionEnd`); Telekinetic Thrust a `follow`,
-  Physician's Poisoned an `also`; Lifedrinker's heal offered on the card; Blessed Healer its own card; Improved Warding
-  Flare's temp HP with the Flare; Bastion of Law's pool on the effect; Projected Ward a guard on any damage; Gift of the
-  Protectors reads the warlock's page; Multiattack Defense a chip on the ranger with a negative `plus`; Escape the Horde the
-  gate's `opportunity` judge; Misty Escape a self rebuke with `follow`; Sculpt Spells rides Careful's ask as a free row.
-- **Four platform bends registered** (RULINGS *Where the table bends the rule*): Cosmic Omen after the roll; Multiattack
-  Defense counts the hits the module saw; Misty Escape only when the damage names its dealer; the pact weapon unbonded.
-- **B3 BUILT and PROVEN** (060001f): Brutal Strike's forgo and group, Studied Attacks' miss chip, Relentless' d8; Tactical
-  Master NATIVE. **B2** (2f9ace5), **B1** (a35c8c2), **the A series CLOSED** (bf0163f) — see RULINGS for each.
+- **The B series is CLOSED**: B1 (a35c8c2), B2 (2f9ace5), B3 (060001f), B4 (d05607e), **B5 (c86a592)** — the four band-B
+  emanation rows (Branches of the Tree = Unnerving Gaze's alert `while: "Rage"`; Inspiring Movement = Reactive Strike's
+  alert with the new cause `turnEnd`; Wrath of the Sea = Inner Radiance's ring with a `pick` instead of a pulse — the
+  turn-start card asks which creature inside, the pick demands the pack's "Bonus Action Save" once per turn, keys
+  `emanationPick` + `emanationPickChoice`; Aura of Devotion = Aura of Courage's row). RULINGS *The PHB classes — B5*.
+- **The B-series full battery ran 2026-09-30 evening on c86a592: 46/47 suites, 1900/1901 checks.** The one red,
+  `smoke-saves` §32 (g), is the timing class NOTES §5 records (*"some sections fail inside the battery and pass
+  alone"*): a save popup or the demand's `saves` flag arriving after the suite's wait, the failing check moving
+  (32f / 32g / 32j) between runs alone straight after a deploy, then **green 3/3 alone** on the same bytes. Bisects by
+  row contradicted each other (no rows: pass; Wrath+Devotion only: pass; Branches only: fail; all four: fail, then
+  pass ×3) — not a B5 defect; a BACKLOG candidate if it repeats in the C1 battery.
+- **v2.8.0** — the release commit after this file's cut: the whole Session 0 A and B series, the Monster Manual rows,
+  the spells slice and the GM's side since v2.7.0 (which was released on GitHub but never deployed). The prod deploy
+  is on the user's word of 2026-09-30 (*"push/release to prod"*) — see the last message of that session, or
+  `FOUNDRY_HOST=molten node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow --check` to read
+  where prod stands (an all-identical hash = a half-awake box; wake it with get-world-info first).
+- **A battery status update is the progress bar**: `node tools/battery-status.mjs` (the user's rule, 2026-09-30;
+  NOTES §5, tools/README *The progress bar*). Never a paragraph.
+- ⚠ **Launch a battery DETACHED** — `Start-Process node -ArgumentList "tools/battery.mjs" -RedirectStandardOutput <log>`
+  from PowerShell; the Bash tool's 10-minute cap KILLS a battery mid-suite, and a killed suite leaves a COMBAT behind that
+  `reset-fixture-state` does not sweep (2026-09-30: `smoke-battleflow` 3b/3c red on "a combat was running"). After any
+  kill: delete every combat on the box (a one-off harness script: `for (const c of [...game.combats]) await c.delete()`),
+  then `verify-settings --fix` → `reset-fixture-state` → `fixture-suite`.
 
 ## Suite lessons (keep them)
 
-- ⚠ **Heredoc edits mangle backslashes** (the memory rule, hit again 2026-09-30): a Python or perl edit with a `\'` or a
-  regex goes in a FILE in the scratchpad, never a bash heredoc. The suite file is LF; a title with an apostrophe must be
-  escaped `\'` inside the `SECTIONS` map.
-- **`then` is not a property name**: biome's `noThenProperty` refuses it (a thenable); a follow-up facet is `follow`.
-- **`_source.abilities` is not a safe read** on a fixture: keep the prepared score (`actor.system.abilities.wis.value`).
-- **The Pact slots are DERIVED** (`system.spells.pact.max` / `.level` from the class): a suite lends a Warlock class
-  (`hgLend(actor, 'Warlock', 'class', { 'system.levels': 5 })`) and sets `pact.value` only.
-- **A pool spend lands AFTER the answer resolves**: `await sleep(900)` before reading the uses (Bend Luck's Sorcery Point).
-- **A friend's miss needs the FRIEND's modifier**: the Victim's AC for the PC Attacker's miss is `modOf(pcAttacker, pcWeapon) + N`,
-  never `atkMod` (the hostile Attacker's).
-- **A tactical fold's label**: `KIND_LABEL` says "Tactical Mind" for every `tactical` entry; a feature's own row
-  (`TACTICAL_FOLDS`) and a maneuver's scope label with the feature's name — assert `o.name`, not the label.
-- **The condition labels**: `CONFIG.DND5E.conditionTypes[k].label` may read as a key or lower-case on the box; title-case
-  the key when it does.
-- (from B3) the attack dialog in a suite: `activity.rollAttack({}, {}, {})` (a promise), `waitFor(rollDialog)`, click the box,
-  then `button[data-action="normal"]`; a moment popup CLOSES on any button (DialogV2); out of a combat no Reaction chip is
-  written and a `rounds` clock lands as SECONDS; a suite that switches scenes mid-run must re-resolve its placeables or not
-  switch (§25's cascade); `--section` takes ONE section.
+- **Wait for the ring's BEHAVIOUR, not the region**: `featureRegion(tok, key)` returns the region a beat before
+  `adoptRegion` attaches the behaviour — assert `r.behaviors.find(b => b.type === TYPE)` in the `waitFor` (§24's shape).
+- **The DC on a pack save activity is the activity's own** (`activity.save.dc.value`, calculation "spellcasting" —
+  14 on the Cleric lent the Druid class), never `system.attributes.spell.dc`.
+- **A lent class + subclass computes the scale**: `hgLend(cleric, 'Druid', 'class', { 'system.levels': 3 })` then
+  `'Circle of the Sea', 'subclass'` gives `@scale.sea.wrath-range = 5` on the roll data.
+- **A pick button by DOM**: `[data-message-id="<card>"] [data-bf-emanation-pick="<tokenId>"]`, the GM answering for
+  the bearer; the fold by hand (`setFlag` with `picked`) is the fallback.
+- (from B4) heredoc edits mangle backslashes — a Python edit goes in a scratchpad FILE; `then` is not a property name
+  (`follow`); `_source.abilities` is not a safe read; the Pact slots are derived; a pool spend lands after the answer;
+  a friend's miss needs the FRIEND's modifier; `KIND_LABEL` says "Tactical Mind" for every tactical entry — assert
+  `o.name`; condition labels may read as keys; the attack dialog in a suite: `rollAttack({}, {}, {})` then the box.
 
 ## Next — in this order, each on the user's go
 
-1. **C1** (band C rows — the plan's §3, ≈ 1½ sessions) → **the full battery after C1** → **D1** (full) → its battery. The plan is
-   audits/plans/session-0-classes.md. (B5's battery: see the state above.)
-2. Then **the DMG**, then **the splat books**; **the prod deploy** (v2.7.0 + everything since) and **the walks** whenever the
-   user says.
+1. **C1** (band C rows — the plan's §3, 28 rows, ≈ 1½ sessions; the register's `C1`) → **the full battery after
+   C1** (the letter-series cadence; launched DETACHED, watched with the bar) → **D1** (full) → its battery. The plan is
+   audits/plans/session-0-classes.md; each row names its precedent there.
+2. Then **the DMG**, then **the splat books**; **the walks** whenever the user says.
 
 ## Ground rules (unchanged)
 
@@ -68,7 +57,7 @@
   commit; a bend by choice in *Bent by choice*; a new flag key is classified in `decide/moments.js`; a new file bumps
   `tools/check-registry.mjs`'s pin (131) and joins check-layers / dispatch / battleflow.js; a new kind moves
   `EXPECTED_KINDS` (40) and the count in `tests/decide-registry.test.js`.
-- A change runs its own suites (in rapid mode a spine change too — the full battery after each letter series); deploy `--local`
-  first; launch detached.
+- A change runs its own suites (in rapid mode a spine change too — the full battery after each letter series); deploy
+  `--local` first; launch detached.
 - `npm run verify` green on every commit; `biome --write` on named files only; commit bodies ASCII.
 - After any run: `node tools/verify-settings.mjs` (`--fix` restores).
