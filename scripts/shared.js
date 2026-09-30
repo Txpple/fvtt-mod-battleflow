@@ -407,6 +407,13 @@ export async function spendSuperiorityDie(actor, pool, ability) {
   return spendPoolUses(actor, pool, ability, 1);
 }
 
+/** B3 — the stand-in's once per turn (Relentless): the rider chit, keyed `stand-in:<feature>`; none out of combat. */
+export async function noteSuperiorityStandIn(actor, standIn) {
+  return writeTurnChit(actor, "rider", { name: `${standIn.feature} — used this turn`, img: standIn.item?.img ?? null,
+    description: `${standIn.feature}'s ${standIn.die} stood in for a Superiority Die this turn. Once per turn; this chit ends with the turn.`,
+    origin: standIn.item?.uuid ?? null, riderKey: `stand-in:${standIn.feature}` });
+}
+
 /**
  * Spend N uses of a pool, recorded under `poolName` (default the item's).
  * @param {number} n

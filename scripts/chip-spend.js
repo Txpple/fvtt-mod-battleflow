@@ -61,11 +61,19 @@ async function spendChips(message, ctx) {
       .map(([k, r]) => [k.toLowerCase(), r]));
     if ( spendRows.size ) {
       const listed = listedNames(effectEntries());
+      const targetUuids = new Set(targetsOf(message).map(t => t.uuid));
       const rowFor = (e, side) => {
-        const r = spendRows.get(String(e.name ?? "").toLowerCase());
-        if ( !(r?.[side] && listed.has(String(e.name).toLowerCase())) ) return null;
+        // A row whose name is the chip's start (Studied Attacks — vs Goblin): the chip names its creature after the dash.
+        const name = String(e.name ?? "").toLowerCase();
+        const r = spendRows.get(name) ?? spendRows.get(name.split(" — ")[0]);
+        const sided = (side === "attacker") ? (r?.attacker || r?.against) : (r?.target || (Number(r?.plus) > 0));
+        if ( !r || !sided || !listed.has(String(name.split(" — ")[0])) ) return null;
         // `only: "source"` (Feinting Attack): a target's marker is spent by ITS source's roll alone.
         if ( (r.only === "source") && (side === "target") && (e.getFlag(MODULE_ID, "sourceUuid") !== attacker.uuid) ) return null;
+        // `except: "source"` (Sundered): the placer's own roll never spends it.
+        if ( (r.except === "source") && (side === "target") && (e.getFlag(MODULE_ID, "sourceUuid") === attacker.uuid) ) return null;
+        // `against` (Studied Attacks): spent only by a roll AT the creature the chip names.
+        if ( r.against && !targetUuids.has(e.getFlag(MODULE_ID, "against")) ) return null;
         return r;
       };
       for ( const e of attacker.effects ) {

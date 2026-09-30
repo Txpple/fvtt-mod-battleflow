@@ -275,9 +275,15 @@ export const REMINDER_KINDS = new Set(["vex", "sap", "prone", "condition", "rang
  * roll dialog (advantage-buys.js), spent when the roll goes out ticked. An initiative with no dialog is
  * offered it after the roll — the `advantage` d20 fold (RULINGS *Where the table bends the rule*).
  *   tests  the D20 Tests the rule reaches;  point  what one use is called
+ *   forgo  true — the MIRROR (B3, Brutal Strike): the tick FORGOES the roll's Advantage (every Advantage source struck,
+ *          the net Normal) and records `forgo` on the attack's reminder; nothing is spent; `ability` narrows the attack's
+ *          ability ("str"); off when the attack has Disadvantage or no Advantage to forgo
  * ⚠ The 2014 Halfling "Lucky" shares the name with no uses — the lookup demands them.
  */
 export const ADVANTAGE_BUYS = Object.freeze({
+  "Brutal Strike": Object.freeze({ forgo: true, tests: Object.freeze(["attack"]), ability: "str", uses: false, point: null, activity: null,
+    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri" }),
+    from: "Barbarian 9" }),
   "Lucky": Object.freeze({ uses: true, point: "Luck Point", activity: "Advantage",
     tests: Object.freeze(["attack", "save", "check", "initiative"]),
     rule: Object.freeze({ item: "Lucky", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftLucky000000", benefit: "Advantage" }),
@@ -519,12 +525,18 @@ export const CLOCK_RIDERS = Object.freeze({
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
  * as the feature, EFFECT_BENDS reads it, the roll spends it. `window` a CHIP_WINDOWS key; `changes` the
- * sheet changes. Membership: Effect Sources. */
+ * sheet changes; `on: "miss"` + `against` — written by a MISS, one chip per missed creature, carrying its uuid
+ * (Studied Attacks, B3). Membership: Effect Sources. */
 export const USE_CHIPS = Object.freeze({
   "Steady Aim": Object.freeze({ key: "steadyAim", bend: "advantage", window: "steadyAim",
     rule: Object.freeze({ item: "Steady Aim", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSteadyAim0" }),
     note: "Speed 0 until the end of the turn; the next attack roll spends it",
-    changes: Object.freeze([Object.freeze({ key: "system.attributes.movement.walk", mode: 5, value: "0" })]) })
+    changes: Object.freeze([Object.freeze({ key: "system.attributes.movement.walk", mode: 5, value: "0" })]) }),
+  // B3 — armed by a MISS (`on: "miss"`, read as rolled on the attack card — Graze's road), one chip per missed creature on the
+  // attacker, `against` that creature (EFFECT_BENDS "Studied Attacks" reads the chip only at that target; the roll spends it).
+  "Studied Attacks": Object.freeze({ key: "studiedAttacks", bend: "advantage", window: "vex", on: "miss", against: true,
+    rule: Object.freeze({ item: "Studied Attacks", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrStudiedAtt" }),
+    note: "the next attack roll against that creature spends it, before the end of your next turn" })
 });
 
 /**
@@ -712,6 +724,8 @@ export function tableIndex(table, keyOf = null) {
  *   only     "flurry" — an Unarmed Strike after Flurry of Blows THIS turn (its use writes a chit; out of combat
  *            every Unarmed Strike, the caveat said) | "own" — the attack is the feature's OWN activity
  *   ownType  the option's die keeps its own damage type (a shared-pool group's dice otherwise take the weapon's)
+ *   dieFrom  the die is ANOTHER feature's damage activity (Improved Brutal Strike's blows ride Brutal Strike's die)
+ *   requires { forgo } — the group opens only on a hit whose attack recorded that forgo (Brutal Strike, B3)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
  * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid); `max` picks; `ownDice` each
  * option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
@@ -737,7 +751,13 @@ export const HIT_GROUPS = Object.freeze({
     rule: Object.freeze({ item: "Elemental Attunement", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkElementalA" }) }),
   "psionic-power": Object.freeze({ feature: "Psionic Power", pool: "feature", ownDice: true, label: "Psionic Power", max: 1,
     dieLabel: "Psionic Energy Die", eyebrow: "Psi Warrior", heading: "Psionic Power", per: "once per turn", from: "Fighter — Psi Warrior 3",
-    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow" }) })
+    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow" }) }),
+  // B3 — Brutal Strike: FREE (the forgone Advantage paid for it — `requires.forgo` reads the attack's reminder record, the
+  // group opens only on a hit whose attack forwent its Advantage); `ownDice`: every option rides the feature's own die
+  // (`@scale.barbarian.brutal-strike`, the weapon's type), one effect per hit (`max` 1; level 17's two is D1's).
+  "brutal-strike": Object.freeze({ feature: "Brutal Strike", pool: "free", ownDice: true, requires: Object.freeze({ forgo: "Brutal Strike" }),
+    label: "Brutal Strike", max: 1, dieLabel: "die", eyebrow: "Barbarian", heading: "Brutal Strike", per: "one effect per hit — the forgone Advantage paid for it", from: "Barbarian 9",
+    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri" }) })
 });
 
 export const HIT_OPTIONS = Object.freeze({
@@ -786,7 +806,23 @@ export const HIT_OPTIONS = Object.freeze({
   // A2 — the Psi Warrior: a Psionic Energy Die as Force, once per turn, on a weapon hit.
   "psionic-strike": Object.freeze({ feature: "Psionic Power", group: "psionic-power", activity: "Psionic Strike", label: "Psionic Strike",
     oncePerTurn: true, weapon: true, ownType: true,
-    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Psionic Strike" }) })
+    rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow", benefit: "Psionic Strike" }) }),
+  // B3 — the Brutal Strike effects. Forceful Blow is the table's (a line); Hamstring Blow lands the pack's Hamstrung (the
+  // damage activity's effect); Improved's two ride the SAME die (`dieFrom` — their item carries utility activities alone):
+  // Staggering Blow lands Staggered (EFFECT_BENDS reads it on the next save), Sundering Blow lands Sundered (+5 to the next
+  // other creature's attack roll, EFFECT_BENDS `plus`). Each until the start of the barbarian's next turn (`clock: "slow"`).
+  "forceful-blow": Object.freeze({ feature: "Brutal Strike", group: "brutal-strike", label: "Forceful Blow", weapon: true,
+    line: "Played at the table: the target is pushed 15 feet straight away from you; you may then move up to half your Speed straight toward it without provoking Opportunity Attacks.",
+    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri", benefit: "Forceful Blow" }) }),
+  "hamstring-blow": Object.freeze({ feature: "Brutal Strike", group: "brutal-strike", label: "Hamstring Blow", weapon: true, effects: true, clock: "slow",
+    rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri", benefit: "Hamstring Blow" }) }),
+  "staggering-blow": Object.freeze({ feature: "Improved Brutal Strike", group: "brutal-strike", activity: "Staggering Blow", label: "Staggering Blow",
+    weapon: true, effects: true, clock: "slow", dieFrom: "Brutal Strike",
+    line: "Played at the table: it can't make Opportunity Attacks until the start of your next turn.",
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Staggering Blow" }) }),
+  "sundering-blow": Object.freeze({ feature: "Improved Brutal Strike", group: "brutal-strike", activity: "Sundering Blow", label: "Sundering Blow",
+    weapon: true, effects: true, clock: "slow", dieFrom: "Brutal Strike",
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) })
 });
 
 
@@ -824,6 +860,15 @@ export const SUPERIORITY_FOLDS = Object.freeze({
     rule: Object.freeze({ item: "Tactical Assessment", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvTacticalAs" }) }),
   "Commanding Presence": Object.freeze({ skills: Object.freeze(["itm", "prf", "per"]), initiative: false,
     rule: Object.freeze({ item: "Commanding Presence", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvCommanding" }) })
+});
+
+/** B3 — a die that STANDS IN for a Superiority Die (Relentless): with none of `pool` left, once per turn, `die` rides in the
+ * die's place and nothing is spent (lookup.js `superiorityStandIn`, the hit menu's rider). Offered only at an EMPTY pool
+ * (RULINGS *The PHB classes — B3*): with dice left the module spends one. */
+export const SUPERIORITY_STAND_INS = Object.freeze({
+  "Relentless": Object.freeze({ die: "1d8", pool: "Combat Superiority",
+    rule: Object.freeze({ item: "Relentless", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrRelentless" }),
+    from: "Fighter — Battle Master 15" })
 });
 
 /** Every Battle Master maneuver, lower-cased: their damage activities are the DIE (damage-casts.js skips them). */
@@ -1557,6 +1602,9 @@ export const CHECK_BENDS = Object.freeze({
  *             (a spell of the effect's own source), `sourceFeature` (the effect's source holds the feature)
  *   side      "caster" — the row's carrier is the DEMAND's caster (the demand's `source` snapshot), not the roller
  *   spend     "save" — the save the row bends spends the effect (Struck), as "attack" does the next attack roll
+ *   against   the carrier chip names the ONE creature it is against (`flags.<module>.against`): read at that target alone
+ *   plus      a flat bonus to an attack roll AT the bearer (Sundered's +5), pushed onto the roll's parts by the gate —
+ *             a listed source (no bend), `except: "source"` keeps it from the placer's own roll
  *   attack    the bend rides ONE attack alone — the item making it (Object Slam, the GM's side): the attack
  *             itself is the carrier, no feature or effect is read;  judge "targetInSpace": the target's
  *             token overlaps the attacker's (Pack Tactics' map reading)
@@ -1564,7 +1612,7 @@ export const CHECK_BENDS = Object.freeze({
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace", spend?: "attack"|"save", attack?: string,
- *   only?: "source", except?: "source", side?: "caster", named?: string, rule: object|string|null, from: string}>>>}
+ *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean, plus?: number, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
   // --- A. standing, no caveat: the row is the whole truth ---------------------------------
@@ -1878,7 +1926,20 @@ export const EFFECT_BENDS = Object.freeze({
     rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
   "Hexed Charisma": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
     saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["cha"]), sourceFeature: "Eldritch Hex" }),
-    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) })
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  // --- I. the PHB classes — B3 (RULINGS *The PHB classes — B3*) --------------------------------------------
+  // Studied Attacks: the use chip a MISS wrote (USE_CHIPS), named "Studied Attacks — vs <creature>", read only at THAT
+  // creature (`against`: the chip's uuid must be the attack's target), spent by the roll.
+  "Studied Attacks": Object.freeze({ attacker: "advantage", target: null, scope: "any", spend: "attack", against: true, from: "Fighter 13",
+    rule: Object.freeze({ item: "Studied Attacks", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrStudiedAtt" }) }),
+  // Improved Brutal Strike's two landed effects. Staggered: Disadvantage on the target's NEXT save, which spends it (the
+  // Opportunity Attack ban is the table's, the option's line). Sundered: +5 to the next attack roll by ANOTHER creature at
+  // the target (`plus`, `except: "source"` — the barbarian's own attack gains nothing), that roll spending it.
+  "Staggered": Object.freeze({ attacker: null, target: null, scope: "any", spend: "save", from: "Barbarian 13 (Improved Brutal Strike)",
+    saves: Object.freeze({ bend: "disadvantage" }),
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Staggering Blow" }) }),
+  "Sundered": Object.freeze({ attacker: null, target: null, scope: "any", plus: 5, except: "source", spend: "attack", from: "Barbarian 13 (Improved Brutal Strike)",
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) })
 });
 
 /** The table's rows, in the order the table reads them. */

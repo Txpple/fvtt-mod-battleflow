@@ -1,4 +1,4 @@
-# HANDOFF.md — the PHB classes: B2 DONE, B3 in progress (2026-09-30)
+# HANDOFF.md — the PHB classes: B3 DONE, next B4 (2026-09-30)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Do nothing until the user says go, and do not re-ask what is ruled below.**
@@ -6,7 +6,16 @@
 ## FIRST — the state
 
 - **The A series is CLOSED** (`bf0163f`): its full battery went 41 of 46, every red a flake or a suite race, no module defect.
-- **B2 BUILT and PROVEN** (this commit): the save bends by name — seven rows, no new kind (40), no new file (131). Suites:
+- **B3 BUILT and PROVEN** (this commit): Brutal Strike (the forgo box — `ADVANTAGE_BUYS` `forgo`, the advantage buys'
+  mirror — and the hit menu's free `ownDice` group opened by `requires.forgo`; Hamstring, Staggering, Sundering Blows land
+  their effects, Staggered a save row, Sundered a `plus` row the gate pushes onto the roll), Studied Attacks (a use chip a
+  MISS writes, `against` its creature), Relentless (`SUPERIORITY_STAND_INS` — a d8 at an EMPTY pool, the hit menu's rider);
+  **Tactical Master NATIVE** (dnd5e 6's mastery select). Suites: `smoke-classes` §46 6/6 (Brutal Strike), §47 4/4
+  (Studied Attacks), §48 3/3 (Relentless), §49 3/3 (Tactical Master); unit 1208. No new kind (40), no new file (131). The calls (RULINGS *The
+  PHB classes — B3*, each the user's to overrule): the forgo lives in the dialog (no dialog, no forgo); Studied Attacks
+  read as rolled (Graze's road); Sundered's +5 pushed for the targets at the dialog; Relentless only at an empty pool and
+  only on the hit menu (Parry and the Bonus Action maneuvers still ask for a die — B4's if wanted).
+- **B2 BUILT and PROVEN** (2f9ace5): the save bends by name — seven rows, no new kind (40), no new file (131). Suites:
   `smoke-saves` §32 10/10, `smoke-classes` §43 4/4 (Eldritch Strike), §44 6/6 (Beguiling Twist), §45 3/3 (Beguiling
   Defenses); unit 1195. The calls (RULINGS *The PHB classes — B2*, each the user's to overrule): a CASTER-side row is a
   facet (`side: "caster"`, the demand's caster SNAPSHOT); Mantle of Majesty is a Fails button; Eldritch Strike a clock
@@ -29,6 +38,9 @@
 
 ## Suite lessons (keep them)
 
+- **The attack dialog in a suite**: `activity.rollAttack({}, {}, {})` (a promise), `waitFor(rollDialog)`, click the box
+  (`input[name="bf-buy"]`), then `button[data-action="normal"]`, then await the promise; the offer is found by
+  `offerApp(before)` as a1Hit does. `rollAttack({ mastery: "push" }, { configure: false })` picks a mastery with no dialog.
 - ⚠ **A moment popup CLOSES on any button** (DialogV2): an answer the machine refuses (Beguiling Twist with no target) must ask
   again (`setTimeout(showPopup)`), or the roll stays held with nobody to answer. The suite re-finds the popup after a refusal.
 - **Out of a combat**: no Reaction chip is written (B1's lesson, again), and a `rounds` clock lands as SECONDS (the vex window
@@ -56,8 +68,8 @@
 
 ## Next — in this order, each on the user's go
 
-1. **B3** (Brutal Strike's forgo box + hit-menu group, Studied Attacks' miss chip, Relentless' d8; Tactical Master native)
-   → **B4** → **B5** (the full battery after B5), **C1** (full), **D1** (full) — the plan is audits/plans/session-0-classes.md.
+1. **B4** (band B rows on tables that exist — 30 rows, build in the register's order; ⚠ the user asked for a CHECK-IN before
+   B4) → **B5** (the full battery after B5), **C1** (full), **D1** (full) — the plan is audits/plans/session-0-classes.md.
 2. **Owed small:** Physician's Touch's Poisoned is B4's. (Done 2026-09-30: the Legendary Resistance flip now lands the
    `success` effects — Stunning Strike's Slowed — `saves/verdict.js` + `applySaveEffects({ successOnly })`, §28 asserts it;
    the a2-live worktree was already gone.)

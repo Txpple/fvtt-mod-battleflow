@@ -360,7 +360,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   // The EDGE reads the attacker once, then each target: a row hinging on the TARGET is the target pass's.
   const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget", "notIncapacitated", "targetInSpace"]);
-  const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source");
+  const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source") || !!row.against || !!row.plus;
   const notOnlyFor = (row, e, otherUuid) => (row.only === "source") && (!e?.sourceUuid || !otherUuid || (e.sourceUuid !== otherUuid));
   const attackerRowHere = row => (pass === "both") || ((pass === "target") === hingesOnTarget(row));
   const exceptedFor = (row, e, otherUuid) => (row.except === "source") && !!e?.sourceUuid && !!otherUuid && (e.sourceUuid === otherUuid);
@@ -404,7 +404,8 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( !inScope(row) ) continue;
     const counted = row.counted !== false;
     const say = (who, bend, /** @type {{name?: string}|null} */ e = null) => {
-      const label = `${who} — ${row.named ? (e?.name ?? row.named) : key}${labelCaveat(row)}`;
+      // A `named` row says the effect's own name; so does an `against` chip (it names its creature after the dash).
+      const label = `${who} — ${(row.named || row.against) ? (e?.name ?? row.named ?? key) : key}${labelCaveat(row)}`;
       return Object.assign(reminderSource("effect", counted ? bend : null, label, row.rule),
         row.spend ? { spend: row.spend } : {});
     };
@@ -412,7 +413,17 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       for ( const e of carriers(attacker, row) ) {
         if ( exceptedFor(row, e, target.uuid) || notOnlyFor(row, e, target.uuid) ) continue;
         if ( outOfReach(row, e) ) continue;
+        // `against`: the chip names ONE creature (Studied Attacks) — read at that target alone.
+        if ( row.against && (!target?.uuid || (e?.against !== target.uuid)) ) continue;
         out.push(Object.assign(say(attackerName, row.attacker, e), e.id ? { effectId: e.id } : {}));
+      }
+    }
+    // `plus` (Sundered): a flat bonus to attack rolls AT the bearer — a listed source the gate pushes onto the roll.
+    if ( Number(row.plus) > 0 && targetRowHere && judged(row) ) {
+      for ( const e of carriers(target, row) ) {
+        if ( exceptedFor(row, e, attacker.uuid) || notOnlyFor(row, e, attacker.uuid) ) continue;
+        out.push(Object.assign(reminderSource("effect", null, `${targetName} is ${row.named ? (e?.name ?? row.named) : key} — +${row.plus} to this attack roll`, row.rule),
+          { plus: Number(row.plus) }, e.id ? { effectId: e.id } : {}, row.spend ? { spend: row.spend } : {}));
       }
     }
     if ( row.target && targetRowHere && judged(row) ) {
@@ -607,12 +618,33 @@ export function reminderView(sources, net) {
 }
 
 /** The record on the re-issued attack message: shown, net, pressed, and whether they matched.
- * @param {{sources: {kind: string, bend: string|null, label: string}[],
+ * @param {{sources: {kind: string, bend: string|null, label: string, forgone?: boolean, plus?: number}[],
  *          net: "advantage"|"disadvantage"|"normal", mode: "advantage"|"disadvantage"|"normal",
  *          answeredAt: number}} answer */
 export function reminderRecord({ sources, net, mode, answeredAt }) {
   return {
-    sources: sources.map(({ kind, bend, label }) => ({ kind, bend: bend ?? null, label })),
+    sources: sources.map(({ kind, bend, label, forgone, plus }) => ({ kind, bend: bend ?? null, label,
+      ...(forgone ? { forgone: true } : {}), ...(Number(plus) > 0 ? { plus: Number(plus) } : {}) })),
     net, mode, honoured: mode === net, answeredAt
   };
+}
+
+/** THE FORGO (B3, Brutal Strike): every Advantage source struck — listed, no vote — so the net reads Normal; a
+ * Disadvantage source stands (the tick is refused before this). Pure.
+ * @param {{kind: string, bend: "advantage"|"disadvantage"|null, label: string}[]} sources
+ * @param {string} name  the forgoing feature */
+export function forgoneSources(sources, name) {
+  return (sources ?? []).map(s => (s.bend === "advantage") ? { ...s, bend: null, label: `${s.label} — forgone (${name})`, forgone: true } : s);
+}
+
+/** Why the forgo box is off, or null: the attack must carry Advantage, no Disadvantage, and the row's ability.
+ * @param {{ability?: string|null}} row
+ * @param {{sources?: {bend?: string|null}[]}|null} gate
+ * @param {string|null} ability  the attack's */
+export function forgoOff(row, gate, ability) {
+  if ( row?.ability && ability && (String(ability).toLowerCase() !== String(row.ability).toLowerCase()) ) return `a ${abilityName(row.ability)}-based attack only`;
+  const sources = gate?.sources ?? [];
+  if ( sources.some(s => s.bend === "disadvantage") ) return "the attack has Disadvantage";
+  if ( !sources.some(s => s.bend === "advantage") ) return "no Advantage to forgo";
+  return null;
 }

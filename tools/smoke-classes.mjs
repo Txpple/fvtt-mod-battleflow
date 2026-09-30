@@ -40,6 +40,7 @@ export const COVERS = [
   'damage-holds.js',        // Protective Field's guard
   'saves/consequences.js',  // Stunning Strike's success half (SAVE_PRESSES `success`)
   'saves/choices.js',       // §44 — the word's statuses map (Beguiling Twist's Charmed or Frightened)
+  'use-chips.js',           // §47 — Studied Attacks' miss chip (B3)
   'saves/demand.js',        // the save card's effect names by outcome
   // §A4 (32–34)
   'saves/verdict.js',       // Potent Cantrip stamped on the entry at the fold
@@ -103,8 +104,11 @@ const SECTIONS = {
   42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — Gren\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
   43: 'Eldritch Strike (B2, lent to the Attacker): a weapon hit offers the rider row ticked and lands "Struck" on the Victim for the vex window; the Victim\'s save against the striker\'s Hold Person reads "Struck — against BF Test Attacker\'s spell", Net Disadvantage, and the save SPENDS it',
   44: 'Beguiling Twist (B2, lent to the Sorcerer): the Halfling SUCCEEDS on a demanded save against Charm Person within 120 ft — the sorcerer\'s popup "it succeeded, target one other creature"; Answer with no target is refused; the attacker targeted, Answer spends the Reaction and demands a Wisdom save of the attacker on the twist\'s own card (twistFor), the Halfling\'s SAVED entry standing; the attacker fails: the word popup "Charmed or Frightened?", Charmed lands for 10 rounds',
-  45: 'Beguiling Defenses (B2, lent to the Sorcerer, 1 use): the attacker hits the sorcerer — the hold and the popup; Cast halves the damage on the receipt, spends the item\'s use and the Reaction, and demands a Wisdom save of the attacker on the Beguiling Reaction\'s card with the failDamage rider; the attacker fails: psychic damage equal to the damage taken, receipted on that card'
-};
+  45: 'Beguiling Defenses (B2, lent to the Sorcerer, 1 use): the attacker hits the sorcerer — the hold and the popup; Cast halves the damage on the receipt, spends the item\'s use and the Reaction, and demands a Wisdom save of the attacker on the Beguiling Reaction\'s card with the failDamage rider; the attacker fails: psychic damage equal to the damage taken, receipted on that card',
+  46: 'Brutal Strike (B3, lent to the PC Attacker with Improved, a Reckless effect on): the attack dialog lists Reckless and the box "Brutal Strike — forgo the Advantage"; ticked, "Reckless — forgone", Net Normal; the roll\'s record carries forgo; the damage offer\'s group Brutal Strike (four rows, 1d10 · free); Hamstring Blow rides the 1d10 and lands Hamstrung; a hit with no dialog offers no group',
+  47: 'Studied Attacks (B3, lent to the Attacker): a MISS at the Halfling writes the chip "Studied Attacks — vs BF Test Halfling" against it; the next attack\'s gate at the Halfling reads it (Net Advantage), at the Victim nothing; the attack at the Halfling spends it (the chipSpend record)',
+  48: 'Relentless (B3, lent to BF Test Fighter with no Superiority Dice left): a hit-menu maneuver still offered at "1d8 Superiority Die"; picked, the 1d8 rides, the record says Relentless stood in, nothing spent, the pool still 0; the card line',
+  49: 'Tactical Master (B3, NATIVE — lent to the PC Attacker): the weapon\'s masteryOptions read Push, Sap and Slow beside its own (dnd5e 6 fills the attack dialog\'s Mastery select); rolled with mastery "push", the attack message carries push and the module\'s Push ask follows'};
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -3292,6 +3296,197 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (priorActor[attacker.id]) await attacker.update(priorActor[attacker.id]).catch(() => {});
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
+      }
+    }
+
+    // ================================================ §B3 — Brutal Strike and the Fighter's rows (RULINGS *The PHB classes — B3*)
+    // ---- 46. Brutal Strike: the forgo box in the attack dialog; the forgone hit's group; Hamstring Blow lands; no forgo, no group
+    if (want(46)) {
+      await closeA1(); await a1Victim(); await dropVictimFx(); await spendLuck();
+      const bs = await hgLend(pcAttacker, 'Brutal Strike', 'feat');
+      const ibs = await hgLend(pcAttacker, 'Improved Brutal Strike', 'feat');
+      let reckless = null;
+      try {
+        const bsAct = bs?.system?.activities?.find(a => a.type === 'damage') ?? null;
+        const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+        const ability = wAct?.ability || 'str';
+        if (!bs || !ibs || !bsAct || !wAct) log.push(`§46 skipped: bs=${!!bs} ibs=${!!ibs} act=${!!bsAct} weapon=${!!pcWeapon}`);
+        else if (ability !== 'str') log.push(`§46 skipped: BF Test PC Attacker's ${pcWeapon.name} attacks with ${ability}, not Strength`);
+        else {
+          await pinPart(bs, bsAct, '1d10');   // the fixture has no Barbarian scale
+          [reckless] = await pcAttacker.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reckless', img: 'icons/svg/sword.svg', transfer: false, disabled: false }]);
+          await set('saveRolls', 'auto');
+          await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          const before = new Set(popups());
+          faces([[19, 20], [19, 20], [3, 6], [3, 6], [7, 10], [7, 10]]);
+          const p = wAct.rollAttack({}, {}, {});
+          const dlg = await waitFor(rollDialog, 6000);
+          await sleep(400);
+          const box = () => dlg?.element?.querySelector('input[name="bf-buy"][data-bf-buy-name="Brutal Strike"]') ?? null;
+          const head = () => textOf(dlg?.element?.querySelector('[data-bf-reminder-head]'));
+          const section = () => textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
+          const textBefore = section();
+          ok('46a. the attack dialog with Reckless: "Reckless" in the section, Net Advantage, and the box "Brutal Strike — forgo the Advantage"',
+            !!dlg && /Reckless/.test(textBefore) && /Net Advantage/.test(head()) && !!box(), `dlg=${!!dlg} box=${!!box()} head="${head()}" text="${textBefore.slice(0, 200)}"`);
+          box()?.click();
+          await sleep(350);
+          const textAfter = section();
+          ok('46b. ticked: "Reckless — forgone (Brutal Strike)", Net Normal', /forgone \(Brutal Strike\)/.test(textAfter) && /Net Normal/.test(head()), `head="${head()}" text="${textAfter.slice(0, 220)}"`);
+          dlg?.element?.querySelector('button[data-action="normal"]')?.click();
+          const rolls = await p.catch(() => null);
+          const msg = rolls?.[0]?.parent ?? null;
+          const rec = msg?.getFlag(MOD, 'reminder') ?? null;
+          ok('46c. the roll\'s record: forgo "Brutal Strike", the Reckless source struck, rolled Normal',
+            (rec?.forgo === 'Brutal Strike') && (rec?.sources ?? []).some(x => x.forgone && /Reckless/.test(x.label)) && (rec?.mode === 'normal'),
+            `rec=${JSON.stringify(rec && { forgo: rec.forgo, net: rec.net, mode: rec.mode, sources: rec.sources })}`);
+          const offer = await waitFor(() => offerApp(before), 6000);
+          const rows = hitRows(offer);
+          ok('46d. the damage offer\'s group "Brutal Strike": Forceful, Hamstring, Staggering and Sundering Blow, each "1d10 · free"',
+            !!offer && ['forceful-blow', 'hamstring-blow', 'staggering-blow', 'sundering-blow'].every(k => rows.includes(k)) && /1d10 · free/i.test(hitRow(offer, 'hamstring-blow')),
+            `offer=${!!offer} rows=${JSON.stringify(rows)} row="${hitRow(offer, 'hamstring-blow').slice(0, 120)}"`);
+          await tick(offer, 'hamstring-blow');
+          const d = await a1Roll(msg, offer);
+          const pick = d?.getFlag(MOD, 'hitManeuver')?.picks?.[0] ?? null;
+          const hamstrung = await waitFor(() => victimFx().find(e => e.name === 'Hamstrung') ?? null, 8000);
+          ok('46e. Hamstring Blow: the 1d10 rode the damage, Hamstrung landed on the Victim',
+            (pick?.key === 'hamstring-blow') && (pick?.formula === '1d10') && (pick?.rides === true) && !!hamstrung,
+            `pick=${JSON.stringify(pick && { key: pick.key, formula: pick.formula, type: pick.type, rides: pick.rides })} hamstrung=${!!hamstrung}`);
+          await dropVictimFx();
+          const r2 = await a1Hit(pcAttacker, pcToken, wAct);
+          ok('46f. a hit that forwent nothing (no dialog): no Brutal Strike group on the offer', !r2.offer || !hitBox(r2.offer, 'hamstring-blow'), `offer=${!!r2.offer} rows=${JSON.stringify(hitRows(r2.offer))}`);
+          if (r2.offer) await a1Roll(r2.msg, r2.offer); else await a1Damage(r2.msg);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await dropVictimFx();
+        if (reckless) await reckless.delete().catch(() => {});
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [bs, ibs]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 47. Studied Attacks: a miss arms the chip against that creature; the gate reads it there alone; the roll spends it
+    if (want(47)) {
+      await closeA1(); await spendLuck();
+      const sa = await hgLend(attacker, 'Studied Attacks', 'feat');
+      try {
+        if (!sa) log.push('§47 skipped: no Studied Attacks in the PHB');
+        else {
+          await healFull();
+          const msg = await swing({ d20: [2] });   // 2 + the modifier < the Halfling's AC: a miss
+          const chip = await waitFor(() => attacker.effects.find(e => (e.getFlag(MOD, 'mastery') === 'use') && (e.getFlag(MOD, 'useKey') === 'studiedAttacks')) ?? null, 8000);
+          ok('47a. a miss at the Halfling: the chip "Studied Attacks — vs BF Test Halfling" on the attacker, against the Halfling',
+            !!chip && /Studied Attacks — vs/.test(chip.name) && (chip.getFlag(MOD, 'against') === halfling.uuid), `chip=${chip?.name ?? null} against=${chip?.getFlag(MOD, 'against')} hold=${!!holdOf(msg)}`);
+          const gH = await gateFor(attackerToken, act(), halflingToken);
+          ok('47b. the next attack\'s gate at the Halfling: "Studied Attacks — vs BF Test Halfling", Net Advantage', /Studied Attacks — vs/.test(gH.text) && (gH.net === 'advantage'), `text="${gH.text.slice(0, 200)}" net=${gH.net}`);
+          const gV = await gateFor(attackerToken, act(), victimToken);
+          ok('47c. …at another creature: no Studied Attacks row', gV.open ? !/Studied Attacks/.test(gV.text) : true, `open=${gV.open} text="${gV.text.slice(0, 200)}"`);
+          const msg2 = await swing({ d20: [12] });
+          const gone = await waitFor(() => (chip && !attacker.effects.get(chip.id)) ? true : null, 8000);
+          const spent = msg2?.getFlag(MOD, 'chipSpend')?.spent ?? [];
+          ok('47d. the attack at the Halfling spends the chip: gone from the attacker, the attack card\'s spend record naming it',
+            (gone === true) && spent.some(x => /Studied Attacks/.test(x.name)), `gone=${!!chip && !attacker.effects.get(chip.id)} spent=${JSON.stringify(spent.map(x => x.name))}`);
+        }
+      } finally {
+        await closeA1();
+        if (sa) await unlend(attacker, sa);
+        for (const e of attacker.effects.filter(e => e.getFlag(MOD, 'useKey') === 'studiedAttacks')) await e.delete().catch(() => {});
+        await dropReactionChips(halfling);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets(); await healFull();
+      }
+    }
+
+    // ---- 48. Relentless: with no Superiority Dice left, a d8 stands in on a hit-menu maneuver
+    if (want(48)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      const { HIT_OPTIONS } = await import('/modules/fvtt-mod-battleflow/scripts/decide/registry.js');
+      const fighter = game.actors.getName('BF Test Fighter');
+      const pool = fighter?.items.find(i => (i.name === 'Combat Superiority') && (Number(i.system?.uses?.max) > 0)) ?? null;
+      const fWeapon = fighter ? weaponOf(fighter) : null;
+      const rel = fighter ? await hgLend(fighter, 'Relentless', 'feat') : null;
+      const priorSpent = Number(pool?.system?.uses?.spent ?? 0);
+      let key = fighter ? (Object.entries(HIT_OPTIONS).find(([, r]) => (r.group === 'combat-superiority') && !r.save && (r.mode !== 'sweep') && fighter.items.some(i => i.name === r.feature))
+        ?? Object.entries(HIT_OPTIONS).find(([, r]) => (r.group === 'combat-superiority') && fighter.items.some(i => i.name === r.feature)))?.[0] ?? null : null;
+      // The fixture's sheet names none of the table's on-hit maneuvers: lend Distracting Strike (an effect, no save).
+      const lentManeuver = (fighter && !key) ? await hgLend(fighter, 'Distracting Strike', 'feat') : null;
+      if (lentManeuver) key = 'distracting-strike';
+      let fTokenDoc = null;
+      try {
+        if (!fighter || !pool || !fWeapon || !rel || !key) log.push(`§48 skipped: fighter=${!!fighter} pool=${!!pool} weapon=${!!fWeapon} relentless=${!!rel} maneuver=${key}`);
+        else {
+          await set('saveRolls', 'auto');
+          const { token: fToken, doc } = await placeToken(fighter, 1700, 2100, 1);
+          fTokenDoc = doc;
+          await pool.update({ 'system.uses.spent': Number(pool.system.uses.max) });   // none left
+          const r = await a1Hit(fighter, fToken, attackOf(fighter, fWeapon));
+          const row = hitRow(r.offer, key);
+          ok(`48a. no Superiority Dice left, Relentless on the sheet: the offer's group still opens, ${key} costing "1d8 Superiority Die"`,
+            !!r.offer && /1d8 Superiority Die/.test(row) && (hitBox(r.offer, key)?.disabled === false), `offer=${!!r.offer} row="${row.slice(0, 140)}" group="${groupText(r.offer, 'combat-superiority').slice(0, 140)}"`);
+          await tick(r.offer, key);
+          const d = await a1Roll(r.msg, r.offer);
+          const pick = d?.getFlag(MOD, 'hitManeuver')?.picks?.[0] ?? null;
+          const left = Number(fighter.items.get(pool.id)?.system?.uses?.value ?? -1);
+          ok('48b. the d8 rode in the die\'s place: formula 1d8, the record "Relentless" standing in, nothing spent, the pool still 0',
+            (pick?.key === key) && (pick?.formula === '1d8') && (pick?.poolSpend?.standIn === 'Relentless') && (pick?.poolSpend?.spent === 0) && (left === 0),
+            `pick=${JSON.stringify(pick && { key: pick.key, formula: pick.formula, poolSpend: pick.poolSpend })} left=${left}`);
+          const line = await waitFor(() => { const t = cardText(d?.id); return /stood in/.test(t) ? t : null; }, 6000);
+          ok('48c. the damage card: "Relentless — a 1d8 stood in for the Superiority Die; none spent"',
+            /Relentless — a 1d8 stood in for the Superiority Die; none spent/.test(line ?? ''), `card="${(line ?? cardText(d?.id)).slice(0, 240)}"`);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await dropVictimFx();
+        if (pool) await pool.update({ 'system.uses.spent': priorSpent }).catch(() => {});
+        if (rel) await unlend(fighter, rel);
+        if (lentManeuver) await unlend(fighter, lentManeuver);
+        if (fighter) await dropEffects(fighter, riderChits(fighter));
+        if (fTokenDoc && scene.tokens.get(fTokenDoc.id)) { await scene.deleteEmbeddedDocuments('Token', [fTokenDoc.id]).catch(() => {}); created.tokens = created.tokens.filter(id => id !== fTokenDoc.id); }
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 49. Tactical Master is NATIVE: dnd5e's mastery select off the pack's effect; the module resolves the pick
+    if (want(49)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      const tm = await hgLend(pcAttacker, 'Tactical Master', 'feat');
+      const w = pcWeapon ? pcAttacker.items.get(pcWeapon.id) : null;
+      const priorMastery = { value: [...(pcAttacker.system._source.traits?.weaponProf?.mastery?.value ?? [])], weapon: w?._source?.system?.mastery ?? '' };
+      try {
+        if (!tm || !w) log.push(`§49 skipped: tm=${!!tm} weapon=${!!w}`);
+        else {
+          const base = w.system.type?.baseItem ?? null;
+          if (base && !pcAttacker.system.traits?.weaponProf?.mastery?.value?.has?.(base)) await pcAttacker.update({ 'system.traits.weaponProf.mastery.value': [...priorMastery.value, base] });
+          if (!w.system.mastery) await w.update({ 'system.mastery': 'sap' });
+          await sleep(250);
+          const live = pcAttacker.items.get(w.id);
+          const options = live?.system?.masteryOptions ?? null;
+          const values = (options ?? []).map(o => o.value);
+          ok('49a. NATIVE: with Tactical Master\'s effect on the sheet, the weapon\'s masteryOptions read Push, Sap and Slow beside its own (dnd5e 6 fills the attack dialog\'s Mastery select from mastery.bonus)',
+            !!options && ['push', 'sap', 'slow'].every(v => values.includes(v)),
+            `options=${JSON.stringify(values)} own=${live?.system?.mastery} base=${base} bonus=${JSON.stringify([...(pcAttacker.system.traits?.weaponProf?.mastery?.bonus ?? [])])}`);
+          await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          const before = new Set(popups());
+          faces([[19, 20], [19, 20], [3, 6], [3, 6]]);
+          const wa = attackOf(pcAttacker, w);
+          const usage = await wa.use({ subsequentActions: false }, { configure: false }, {});
+          const rolls = await wa.rollAttack({ mastery: 'push' }, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const msg = rolls?.[0]?.parent ?? null;
+          ok('49b. rolled with the mastery swapped to Push: the attack message carries mastery "push"', msg?.system?.mastery === 'push', `mastery=${msg?.system?.mastery}`);
+          const offer = await waitFor(() => offerApp(before), 4000);
+          if (offer) await a1Roll(msg, offer); else await a1Damage(msg);
+          const ask = await waitFor(() => (msg?.getFlag(MOD, 'mastery')?.key === 'push') ? msg.getFlag(MOD, 'mastery') : null, 8000);
+          ok('49c. the module\'s mastery machine resolves the PICK: the Push ask stamped on the attack (not the weapon\'s own)',
+            (ask?.key === 'push'), `mastery=${JSON.stringify(ask && { key: ask.key, status: ask.status })} setting=${game.settings.get(MOD, 'masteryAsk')}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await hgClose(/Push|Mastery/); await dropVictimFx();
+        if (tm) await unlend(pcAttacker, tm);
+        await pcAttacker.update({ 'system.traits.weaponProf.mastery.value': priorMastery.value }).catch(() => {});
+        if (w && pcAttacker.items.get(w.id)) await pcAttacker.items.get(w.id).update({ 'system.mastery': priorMastery.weapon }).catch(() => {});
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
       }
     }
 

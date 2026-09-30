@@ -6,9 +6,10 @@
 import { MODULE_ID, TITLE, canAnswerFor, canApplyTo, drivesMomentFor, queueFlagWrite, statContext, decisionWindow } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { verdictsOn } from "./decide/demand.js";
-import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie } from "./lookup.js";
+import { featureNamed, activityNamed, activityOfType, namesAnswering, profileEffects, resolveUuid, resolveDie, superiorityStandIn } from "./lookup.js";
+import { REMINDER_FLAG } from "./decide/reminders.js";
 import { hitMenuEntries } from "./decide/registry.js";
-import { forceStatus, hitTargets, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
+import { forceStatus, hitTargets, noteSuperiorityStandIn, poolOf, spendSuperiorityDie, statSourceOf, turnChitStands, withTargets, writeTurnChit } from "./shared.js";
 import { activeCombatFor } from "./core.js";
 import { bfCard, hitMenuHTML, momentBarHTML, popupKey, ruleLine, spendPhrase } from "./decide/present.js";
 import { HIT_GROUPS, HIT_OPTIONS, answers } from "./decide/registry.js";
@@ -59,6 +60,8 @@ function menuFor(attackMessage, activity) {
   for ( const [gkey, group] of Object.entries(HIT_GROUPS) ) {
     // A group with no paying feature (a text-only parent) requires nothing.
     if ( group.feature && !featureNamed(attacker, group.feature) ) continue;
+    // `requires.forgo` (Brutal Strike, B3): only a hit whose attack RECORDED the forgo opens the group.
+    if ( group.requires?.forgo && (attackMessage?.getFlag(MODULE_ID, REMINDER_FLAG)?.forgo !== group.requires.forgo) ) continue;
     const perOption = group.pool === "option";
     const free = group.pool === "free";
     for ( const [key, row] of Object.entries(HIT_OPTIONS) ) {
@@ -68,7 +71,10 @@ function menuFor(attackMessage, activity) {
       // Several options on one item (Open Hand Technique) name their own activity.
       const named = row.activity ? usableNamed(feat, row.activity) : null;
       if ( row.activity && !named ) continue;
-      const die = row.noDie ? null : ((named?.type === "damage") ? named : activityOfType(feat, "damage"));
+      // `dieFrom`: the die is ANOTHER feature's (Improved Brutal Strike's blows ride Brutal Strike's die).
+      const dieFeat = row.dieFrom ? featureNamed(attacker, row.dieFrom) : feat;
+      if ( row.dieFrom && !dieFeat ) continue;
+      const die = row.noDie ? null : ((named?.type === "damage") ? named : activityOfType(dieFeat, "damage"));
       // A no-save press ships a utility activity and no die — its uses are the cost; a no-die option
       // pays through its own activity's consumption (Stunning Strike's save spends the Focus Point).
       const paying = die ?? (row.noDie ? (named ?? activityOfType(feat, row.save ? "save" : "utility"))
@@ -90,7 +96,13 @@ function menuFor(attackMessage, activity) {
         pools[gkey] ??= pool ? { left: Number(pool.system?.uses?.value ?? 0), max: Number(pool.system?.uses?.max ?? 0), die: group.ownDice ? null : formula } : null;
         if ( pools[gkey] && !group.ownDice && !pools[gkey].die && formula ) pools[gkey].die = formula;
         if ( group.ownDice ) dice[key] = { die: formula, type: partType };
-      }
+        // THE STAND-IN (Relentless, B3): an EMPTY pool with a d8 to stand in reads as one die of the stand-in's size.
+        const standIn = (pools[gkey] && !(pools[gkey].left > 0)) ? superiorityStandIn(attacker, pool, k => turnChitStands(attacker, "rider", k)) : null;
+        if ( standIn ) {
+          pools[gkey].left = 1; pools[gkey].die = standIn.die; pools[gkey].standIn = standIn.feature;
+          edge[key].formula = standIn.die; edge[key].standIn = standIn.feature;
+        }
+      } else if ( group.ownDice ) dice[key] = { die: formula, type: partType };
       if ( row.maxSize ) fits[key] = sizeFits(hits, row.maxSize);
     }
   }
@@ -268,7 +280,7 @@ registerOfferPart({
           const facts = edge[p.row.key];
           return { key: p.row.key, group: p.group, feature: p.row.feature, label: p.row.label, mode: p.row.mode,
             formula: facts.formula, type: facts.type ?? type, itemUuid: facts.item.uuid, poolUuid: facts.pool?.uuid ?? null,
-            activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave };
+            activity: HIT_OPTIONS[p.row.key]?.activity ?? null, paidBySave: facts.paidBySave, ...(facts.standIn ? { standIn: facts.standIn } : {}) };
         });
         try {
           await attackMessage.setFlag(MODULE_ID, "hitPick", records.length ? { picks: records } : { key: null });
@@ -309,10 +321,16 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
       // One use spent on the item the activity names; the count left is read after the spend. A save option
       // paid by its own activity (Stunning Strike) spends at its use, in the consequences.
       const pool = pick.paidBySave ? null : resolveUuid(pick.poolUuid);
-      const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - 1) : null;
+      // THE STAND-IN (Relentless): the pool still empty, the d8 rode in the die's place — nothing spent, the turn's chit written.
+      const standIn = (pick.standIn && pool && !(Number(pool.system?.uses?.value ?? 0) > 0))
+        ? superiorityStandIn(attacker, pool, k => turnChitStands(attacker, "rider", k)) : null;
+      const left = pool ? Math.max(0, Number(pool.system?.uses?.value ?? 0) - (standIn ? 0 : 1)) : null;
       // The one spend path (shared.js `spendSuperiorityDie`); the card, flash and subtitle read its record.
-      const poolSpend = pool ? { pool: pool.name, spent: 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now() } : null;
-      if ( pool ) {
+      const poolSpend = pool ? { pool: pool.name, spent: standIn ? 0 : 1, left, max: Number(pool.system?.uses?.max ?? 0), ability: row.feature, actorUuid: attacker?.uuid ?? null, at: Date.now(),
+        ...(standIn ? { standIn: standIn.feature, die: standIn.die } : {}) } : null;
+      if ( standIn ) {
+        void noteSuperiorityStandIn(attacker, standIn).catch(err => console.warn(`${TITLE} | Could not mark ${standIn.feature} this turn.`, err));
+      } else if ( pool ) {
         void spendSuperiorityDie(attacker, pool, row.feature)
           .catch(err => console.warn(`${TITLE} | Could not spend a ${group.dieLabel}.`, err));
       }
@@ -693,7 +711,8 @@ listen("dnd5e.renderChatMessage", "hit-menu", (message, html) => {
       title: hm.rides ? `${hm.feature} — ${hm.formula}${hm.type ? ` ${hm.type}` : ""} rode this roll`
         : (hm.mode === "sweep") ? `${hm.feature} — the die is rolled at a second creature`
           : pressTitle ?? `${hm.feature} — its die could not be read off the sheet`,
-      subtitle: `${spendPhrase(hm.poolSpend ? [hm.poolSpend] : [], hm.dieLabel)}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
+      subtitle: `${hm.poolSpend?.standIn ? `${hm.poolSpend.standIn} — a ${hm.poolSpend.die ?? "d8"} stood in for the ${hm.dieLabel}; none spent`
+        : (hm.group === "Brutal Strike") ? "the forgone Advantage paid for it" : spendPhrase(hm.poolSpend ? [hm.poolSpend] : [], hm.dieLabel)}${hm.caveat ? ` · ${hm.caveat}` : ""}`,
       lines: [hm.line, ruleLine(hm.rule), ...(hm.notes ?? []).map(n => `<span style="opacity:0.8;">${n}</span>`)]
     });
     html.querySelector(SURFACES.messageContent)?.appendChild(line);

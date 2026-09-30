@@ -3,7 +3,9 @@
  * can read it and the roll can spend it; plus the card chips (Tinker) and the coatings (Poisoner).
  * EDGE layer (ARCHITECTURE.md §7).
  */
-import { MODULE_ID, TITLE, statContext, queueFlagWrite } from "./core.js";
+import { MODULE_ID, TITLE, statContext, queueFlagWrite, drivesMomentFor } from "./core.js";
+import { CARD, isCard, targetsOf } from "./decide/card.js";
+import { messageActivity } from "./effect-riders.js";
 import { ruleHTML } from "./rule-text.js";
 import { lower, featureNamed, itemNamed, namesAnswering, activityNamed, asiAssigned, resolveUuid } from "./lookup.js";
 import { effectEntries, cardChipEntries, fightingStyleEntries, listedNames } from "./decide/registry.js";
@@ -57,6 +59,50 @@ async function writeUseChip(actor, item, row, message) {
     await message.setFlag(MODULE_ID, "useChip", { ...statContext(actor.uuid), effectId: effect?.id ?? null, name: item.name, rule: row.rule, bend: row.bend, note: row.note ?? null })
       .catch(() => { /* the chip stands; only the card line is lost */ });
   }
+}
+
+/* A MISS ARMS A CHIP (USE_CHIPS `on: "miss"` — Studied Attacks, B3): read as rolled on the attack card (Graze's road: a
+ * later rescue does not re-open it), one chip per missed creature on the ATTACKER carrying that creature's uuid
+ * (`against`); the elect writes, a fresh miss at the same creature refreshes the one copy. */
+const MISS_ROWS = Object.entries(USE_CHIPS).filter(([, r]) => r.on === "miss");
+
+listen("createChatMessage", "use-chips", message => {
+  try {
+    if ( !MISS_ROWS.length || !isCard(message, CARD.attack) ) return;
+    const attacker = messageActivity(message)?.item?.actor ?? null;
+    if ( !attacker || !drivesMomentFor(attacker.uuid) ) return;
+    const listed = listedNames(effectEntries());
+    const hits = new Set(hitTargets(message).map(t => t.uuid));
+    const missed = targetsOf(message).filter(t => !hits.has(t.uuid) && (t.uuid !== attacker.uuid));
+    if ( !missed.length ) return;
+    for ( const [key, row] of MISS_ROWS ) {
+      if ( !listed.has(lower(key)) ) continue;
+      const item = featureNamed(attacker, key);
+      if ( !item ) continue;
+      void writeMissChips(attacker, item, row, missed, message);
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The miss chip failed — note the Advantage by hand.`, err);
+  }
+});
+
+async function writeMissChips(actor, item, row, missed, message) {
+  const against = new Set(missed.map(t => t.uuid));
+  const stale = actor.effects.filter(e => (e.getFlag(MODULE_ID, CHIP_FLAG) === "use") && (e.getFlag(MODULE_ID, "useKey") === row.key)
+    && against.has(e.getFlag(MODULE_ID, "against")));
+  if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale.map(e => e.id)).catch(() => {});
+  const clock = chipClock(row.window, placeOf(actor));
+  const rule = await ruleHTML(row.rule);
+  await ActiveEffect.implementation.createDocuments(missed.map(t => ({
+    name: `${item.name} — vs ${t.name}`, img: item.img ?? "icons/svg/aura.svg",
+    description: `${rule}<p>Written by Battle Flow when ${esc(actor.name)} missed ${esc(t.name)}; the next attack roll against it spends it.</p>`,
+    origin: item.uuid, disabled: false, transfer: false, changes: [],
+    ...(clock ? chipData(clock) : {}),
+    flags: { [MODULE_ID]: { [CHIP_FLAG]: "use", useKey: row.key, against: t.uuid } }
+  })), { parent: actor });
+  await message.setFlag(MODULE_ID, "useChip", { ...statContext(actor.uuid), effectId: null, name: item.name, rule: row.rule, bend: row.bend,
+    note: `against ${missed.map(t => t.name).join(", ")} — ${row.note ?? "the next attack roll spends it"}` })
+    .catch(() => { /* the chip stands; only the card line is lost */ });
 }
 
 listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {

@@ -43,7 +43,14 @@ describe("the table", () => {
     ]);
     expect(by("elemental-attunement")).toEqual(["Elemental Attunement"]);
     expect(by("psionic-power")).toEqual(["Psionic Power"]);
-    expect(rows).toHaveLength(16);
+    // B3: the Brutal Strike group — two of the feature's own, two of Improved's riding the same die.
+    expect(by("brutal-strike")).toEqual([
+      "Brutal Strike",
+      "Brutal Strike",
+      "Improved Brutal Strike",
+      "Improved Brutal Strike"
+    ]);
+    expect(rows).toHaveLength(20);
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);

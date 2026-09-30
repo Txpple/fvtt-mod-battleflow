@@ -84,6 +84,9 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Open Hand Technique**: "whenever you hit a creature with an attack granted by your Flurry of Blows" | offered on an Unarmed Strike hit after Flurry of Blows was USED this turn (the use writes a turn chit); out of combat, on every Unarmed Strike hit, the caveat said | the pack's Flurry of Blows is a utility on Monk's Focus: the strikes that follow are plain Unarmed Strikes, and no card records which were granted by it (`hit-menu.js` `FLURRY`) | 2026-09-29 |
 | **Protective Field**: "when you or another creature you can see within 30 feet of you takes damage" | yourself on any damage the module applies; another creature only on an ATTACK's damage (Interception's guard) | the guard hold (`damage-holds.js`) is asked on an attack's damage alone — a save's or an aura's damage to an ally is not held for a guard (Interception's rule) | 2026-09-29 |
 | **Beguiling Defenses**: Psychic damage "equal to the damage you take" | read off the HIT's receipt for the warlock once it lands (the demand's `failDamage`); a save answered before the damage landed says so on a card and the table applies it by hand | the hold's landing and the attacker's save are two moments in either order; a receipt is the only honest number | 2026-09-30 |
+| **Brutal Strike**: forgo Advantage on "one Strength-based attack roll of your choice" | the forgo is a TICK in the attack dialog before the roll; a roll with no dialog (a shift-click) cannot forgo, and the hit offers no group | the choice must be recorded before the d20; only the dialog is a place to make it | 2026-09-30 |
+| **Studied Attacks**: "if you make an attack roll against a creature and miss" | the chip is written as ROLLED on the attack card (Graze's row): a Shield or a Lucky that turns the verdict later does not re-open it | the miss is read where Graze reads it, before any reaction; the rescue machine does not replay the attack's riders | 2026-09-30 |
+| **Sundering Blow**: +5 to "the next attack roll made by another creature against the target" | the +5 is pushed onto the roll's parts at the dialog for the targets aimed at that moment; a re-target inside the dialog does not re-push it | the parts are fixed before the dialog renders (dnd5e's preRollAttack); the gate lists the source either way | 2026-09-30 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -102,6 +105,7 @@ as its code.**
 | **Counterspell**: "you attempt to interrupt a creature in the process of casting a spell" — a Reaction at the moment of the cast | the caster TARGETS the creature and uses Counterspell; the saves machine demands its Constitution save as for any targeted save, and the verdict stands on the card — nothing watches for a cast, no hold is raised, no spell is stopped by the module; the rest is the table's | the drawing's cast-triggered hold (a reaction at a hostile's cast, prototype-first, cost 2) was traded for the table's own timing: the player says "Counterspell" as the spell is declared, the module answers with the save (the user, 2026-09-28: *"the user can just target intended counterspell actor, and force them to make the con save per the spell. the rest can be handled at table"*) | 2026-09-28 |
 | **Wild Magic Surge**: "you can roll 1d20 immediately after you cast a Sorcerer spell with a spell slot" | the module rolls the d20 itself after every such cast, once per turn in a combat; a 20 rolls the surge table and posts it (`cast-riders.js`, `CAST_RIDERS`) | no click on every cast for a die with one sensible answer, and the surge is never forgotten (ruled Q7, 2026-09-29: the dice changers' one-sensible-answer rule) | 2026-09-29 |
 | **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
+| **Relentless**: "once per turn, when you use a maneuver, you can roll 1d8 and use the number rolled instead of expending a Superiority Die" | the d8 stands in only when NO Superiority Dice are left; with dice left the module spends one | an ask on every maneuver would double the popups for a trade nobody takes with dice in hand (the noise gate, Q2); the user may overrule | 2026-09-30 |
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
@@ -2059,6 +2063,63 @@ check-mode change. Calls the plan left open — **each is the user's to overrule
 | Eldritch Hex, a Hexed (Dexterity) creature's Dexterity save | "Hexed Dexterity — a Dexterity save", Net Disadvantage; a Wisdom save shows nothing |
 | Beguiling Twist, anyone within 120 ft succeeds against Charm Person | the ranger's popup "Beguiling Twist — Gren's saving throw — it succeeded; target ONE other creature, then Answer"; the target's Wisdom save demanded; on its failure "Charmed or Frightened?" — the pick lands for a minute |
 | Beguiling Defenses, a creature hits the warlock | the hold's popup with Beguiling Defenses (1 use); Cast: the damage halved on the receipt, the attacker's Wisdom save demanded; on its failure psychic damage equal to the damage taken, receipted |
+
+## The PHB classes — B3 (2026-09-30, Session 0 stage B3)
+
+**Brutal Strike and the Fighter's rows — no new kind, no new file; BUILT and PROVEN (`smoke-classes` §46–§49), unwalked.**
+Measured on the pack first (`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5): Brutal Strike ships one damage activity
+(`@scale.barbarian.brutal-strike`, the weapon's type, the effect Hamstrung −15 ft for 1 turn); Improved Brutal Strike two
+utility activities (Staggered, Sundered — bare effects, 1 turn each); Tactical Master a transferred effect adding push, sap
+and slow to `weaponProf.mastery.bonus`; Studied Attacks and Relentless are text only. Calls the plan left open — **each is
+the user's to overrule**:
+
+1. **Tactical Master is NATIVE.** dnd5e 6 reads `mastery.bonus` into `item.system.masteryOptions`, its attack dialog offers
+   the swap (the weapon's own, then Push, Sap, Slow) and stamps the pick on the message (`system.mastery`), which the
+   mastery machine already resolves. No row; §49 proves the pick reaches the module's Push ask.
+2. **The forgo is a tick in the attack dialog, the advantage buys' MIRROR** (`ADVANTAGE_BUYS` `forgo: true` — Lucky's box
+   beside the Reckless source): ticked, every Advantage source is STRUCK (listed, no vote — `forgoneSources`), the net reads
+   Normal, and the roll's reminder record carries `forgo: "Brutal Strike"`; nothing is spent. Off when the attack has no
+   Advantage to give, has Disadvantage ("mustn't have Disadvantage"), or is not Strength-based (`ability: "str"`). Rolled
+   against the net (with Advantage after all): nothing forgone, no group. A roll with NO dialog cannot forgo (the register).
+3. **The hit menu's Brutal Strike group opens only on a forgone attack** (`HIT_GROUPS` `requires: { forgo }`): free — the
+   Advantage paid for it — its own die on every option (`ownDice`, the feature's activity, the weapon's type), ONE effect per
+   hit (`max` 1; level 17's two is D1's). Forceful Blow is a line (the push and the follow-up move are the table's);
+   Hamstring Blow lands the pack's Hamstrung; Improved's Staggering and Sundering Blows ride the SAME die (`dieFrom`) and land
+   Staggered and Sundered — each until the start of the barbarian's next turn (`clock: "slow"`, the pack's own duration).
+4. **Staggered is a save row, Sundered a `plus` row.** Staggered: Disadvantage on the target's next save, spent by that save
+   (`spend: "save"`, Struck's road); the Opportunity Attack ban is the table's (the option's line). Sundered: +5 to the next
+   attack roll by ANOTHER creature at the target — a LISTED source (no bend) the gate pushes onto the roll's parts
+   (`plus: 5`, `except: "source"`: the barbarian's own roll gains nothing), spent by that roll (chip-spend, Vex's road).
+5. **Studied Attacks is a use chip a MISS writes** (`USE_CHIPS` `on: "miss"`, `against`): read AS ROLLED on the attack card
+   (Graze's road — a later Shield does not re-open it), one chip per missed creature on the fighter, named "Studied Attacks
+   — vs <creature>", the `vex` window ("before the end of your next turn"); the gate reads it at THAT creature alone
+   (`EFFECT_BENDS` `against`), the roll at it spends it; a fresh miss refreshes the one copy.
+6. **Relentless stands in only at an EMPTY pool** (`SUPERIORITY_STAND_INS`): the hit menu counts one die of the stand-in's
+   size, the d8 rides in the Superiority Die's place, nothing is spent, a turn chit marks the once per turn. The text
+   allows the d8 with dice left too; the module spends a die while one is left — a bend by choice (the register): an ask
+   on every maneuver would double the popups for a trade nobody takes. The hit menu's maneuvers only: Parry and the Bonus
+   Action maneuvers still ask for a die (the lookup greys them at 0) — B4's if the table wants them.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Brutal Strike (the forgo) | `ADVANTAGE_BUYS` `forgo: true`, `ability: "str"` | the attack dialog's box: the Advantage forgone, the net Normal, `forgo` on the reminder record |
+| Brutal Strike (the group) | `HIT_GROUPS "brutal-strike"` (`free`, `ownDice`, `requires.forgo`, `max` 1) + `HIT_OPTIONS` forceful-blow, hamstring-blow, staggering-blow, sundering-blow (`dieFrom`) | on a forgone hit: the feature's die rides and one effect lands (a line, Hamstrung, Staggered, Sundered) until the barbarian's next turn |
+| Staggered · Sundered | `EFFECT_BENDS` (`saves: { disadvantage }`, `spend: "save"`) · (`plus: 5`, `except: "source"`, `spend: "attack"`) | the next save at Disadvantage, spent · +5 on another creature's next attack at the target, pushed onto the roll, spent |
+| Studied Attacks | `USE_CHIPS` (`on: "miss"`, `against`, `window: "vex"`) + `EFFECT_BENDS` (`against`, `spend: "attack"`) | a miss arms Advantage on the next attack at that creature before the end of the fighter's next turn |
+| Relentless | `SUPERIORITY_STAND_INS` (`die: "1d8"`, `pool: "Combat Superiority"`) | with no Superiority Dice left, once per turn, a d8 rides a hit-menu maneuver in the die's place; nothing spent |
+| Tactical Master | NATIVE (dnd5e 6 `masteryOptions` off the pack's `mastery.bonus` effect) | the attack dialog's mastery select: the weapon's own, Push, Sap or Slow; the module resolves the pick |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Brutal Strike, Reckless Attack on, the forgo box ticked | the attack dialog's section: "Reckless — forgone (Brutal Strike)", Net Normal; on the hit the damage offer's group "Brutal Strike": Forceful Blow / Hamstring Blow (+ Staggering / Sundering with Improved), each "1d10 · free" |
+| Brutal Strike, the box not ticked | no group on the hit |
+| Brutal Strike, Hamstring Blow picked | the die rode the roll, "the forgone Advantage paid for it"; Hamstrung on the target (−15 ft) until the start of your next turn |
+| Sundering Blow, then an ally attacks the target | the ally's dialog: "Ogre is Sundered — +5 to this attack roll" and +5 in the formula; the roll spends it; the barbarian's own attack shows nothing |
+| Studied Attacks, a miss then an attack at the same creature | after the miss: "Studied Attacks — vs Goblin" on the fighter; the next attack's gate "Morgash — Studied Attacks — vs Goblin", Net Advantage; against another creature nothing; the roll spends it |
+| Relentless, no dice left, a maneuver picked | the offer's group "Combat Superiority" with "1d8 Superiority Die"; the card: "Relentless — a 1d8 stood in for the Superiority Die; none spent"; the pool still 0 |
+| Tactical Master, a Longsword (Sap) attack | the attack dialog's Mastery select: Sap · Push · Slow; Push picked: the module's Push ask after the hit |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

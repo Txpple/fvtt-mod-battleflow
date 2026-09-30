@@ -10,10 +10,10 @@ import { MODULE_ID, TITLE, statContext } from "./core.js";
 import { itemsNamed } from "./lookup.js";
 import { reminderEntries } from "./decide/registry.js";
 import { DialogCarried, markDefaultButton } from "./ui.js";
-import { bfCard, buyBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
+import { bfCard, buyBoxHTML, forgoBoxHTML, modeTagHTML, reminderFieldsetHTML } from "./decide/present.js";
 import { ADVANTAGE_BUYS } from "./decide/registry.js";
 import { rollModeOf } from "./decide/chips.js";
-import { REMINDER_FLAG, netMode, reminderRecord, reminderSource } from "./decide/reminders.js";
+import { REMINDER_FLAG, forgoOff, forgoneSources, netMode, reminderRecord, reminderSource } from "./decide/reminders.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
 
@@ -28,6 +28,8 @@ function buysFor(actor, testKind) {
     const item = itemsNamed(actor, name, { types: ["feat"] })
       .find(i => !row.uses || (Number(i.system?.uses?.max) > 0));
     if ( !item ) continue;
+    // A FORGO row (Brutal Strike, B3): nothing spent; the box is off unless the roll carries Advantage and no Disadvantage.
+    if ( row.forgo ) { out.push({ name, forgo: true, ability: row.ability ?? null, point: null, rule: row.rule, itemId: item.id, left: null, max: 0 }); continue; }
     out.push({ name, point: row.point, rule: row.rule, itemId: item.id,
       left: row.uses ? Math.max(0, Number(item.system.uses.value ?? 0)) : null, max: Number(item.system?.uses?.max ?? 0) });
   }
@@ -35,11 +37,11 @@ function buysFor(actor, testKind) {
 }
 
 /** Ride the dialog: one DialogCarried shared by the config, the rendered app and the record (ui.js). */
-function carry(config, dialog, actor, testKind) {
+function carry(config, dialog, actor, testKind, ability = null) {
   if ( dialog?.configure === false ) return;                           // no dialog, no box
   const rows = buysFor(actor, testKind);
   if ( !rows.length ) return;
-  const buy = new DialogCarried({ rows, armed: null, shown: false, net: null, testKind, actorUuid: actor.uuid });
+  const buy = new DialogCarried({ rows, armed: null, shown: false, net: null, testKind, actorUuid: actor.uuid, ability });
   dialog.options ??= {};
   dialog.options.bfBuy = buy;
   config.bfBuy = buy;
@@ -49,7 +51,7 @@ listen("dnd5e.preRollAttack", "advantage-buys", (config, dialog) => {
   try {
     const activity = config?.subject;
     if ( activity?.type !== "attack" ) return;
-    carry(config, dialog, activity.item?.actor, "attack");
+    carry(config, dialog, activity.item?.actor, "attack", activity.ability || "str");
   } catch(err) { console.error(`${TITLE} | Advantage buy (attack) failed — rolling natively.`, err); }
 });
 
@@ -97,9 +99,13 @@ function drawBuy(app) {
     else element.querySelector("form")?.appendChild(fieldset);
   }
   fieldset.querySelectorAll("[data-bf-buy]").forEach(n => { n.remove(); });
+  const gate = gateOf(app.options);
   for ( const row of buy.rows ) {
     const box = document.createElement("div");
-    box.innerHTML = buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name });
+    box.innerHTML = row.forgo
+      ? forgoBoxHTML({ name: row.name, rule: row.rule, checked: buy.armed === row.name, off: forgoOff(row, gate, buy.ability ?? null), says: "the hit offers its effects",
+        struck: (buy.armed === row.name) ? forgoneSources(gate?.sources ?? [], row.name).filter(s => s.forgone).map(s => s.label) : [] })
+      : buyBoxHTML({ name: row.name, point: row.point, left: row.left, rule: row.rule, checked: buy.armed === row.name });
     fieldset.appendChild(box.firstElementChild);
   }
   // One tick at a time — Advantage does not stack, so a second buy would only spend twice.
@@ -116,7 +122,10 @@ function renet(app, element) {
   const gate = gateOf(app.options);
   const actor = fromUuidSync(buy.actorUuid);
   const row = buy.armed ? buy.rows.find(r => r.name === buy.armed) : null;
-  const sources = [...(gate?.sources ?? []), ...(row ? [buySource(actor?.name ?? "You", row)] : [])];
+  // A forgo row STRIKES the Advantage sources (listed, no vote); a buy row ADDS its own.
+  const sources = row?.forgo
+    ? forgoneSources(gate?.sources ?? [], row.name)
+    : [...(gate?.sources ?? []), ...(row ? [buySource(actor?.name ?? "You", row)] : [])];
   buy.net = netMode(sources);
   if ( gate?.autoFail ) return;
   const head = element.querySelector("[data-bf-reminder-head]");
@@ -158,6 +167,18 @@ listen("dnd5e.postRollConfiguration", "advantage-buys", (rolls, config, _dialog,
     if ( mode !== buy.net ) return;                                  // pressed against the net: nothing bought
     const row = buy.rows.find(r => r.name === buy.armed);
     const actor = fromUuidSync(buy.actorUuid);
+    // THE FORGO'S RECORD (Brutal Strike): nothing spent; the reminder record carries the struck sources and `forgo`, which
+    // the hit menu's group reads (`requires.forgo`). Rolled against the net (with Advantage after all): nothing forgone.
+    if ( row?.forgo ) {
+      rolls[0].options.bfForgo = row.name;
+      if ( !message ) return;
+      const gate = gateOf(config);
+      foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${REMINDER_FLAG}`, {
+        ...reminderRecord({ sources: forgoneSources(gate?.sources ?? [], row.name), net: buy.net, mode, answeredAt: Date.now() }),
+        forgo: row.name, ...statContext(actor?.uuid ?? buy.actorUuid)
+      });
+      return;
+    }
     const item = row ? actor?.items?.get(row.itemId) : null;
     const left = Number(item?.system?.uses?.value ?? 0);
     if ( !item || !(left > 0) ) return;

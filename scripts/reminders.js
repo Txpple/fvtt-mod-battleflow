@@ -92,6 +92,26 @@ listen("dnd5e.preRollAttack", "reminders", (config, dialog, message) => {
   }
 });
 
+/* THE PLUS (B3, Sundered): a flat bonus to the roll AT a target carrying a `plus` row — pushed onto the roll's parts here,
+ * dialog or none, for the targets the attack has NOW (a re-target inside the dialog does not re-push: RULINGS *Where the
+ * table bends the rule*); the chip is spent by the roll (chip-spend.js). */
+listen("dnd5e.preRollAttack", "reminders", (config, _dialog, message) => {
+  try {
+    const activity = config.subject;
+    if ( activity?.type !== "attack" ) return;
+    const attacker = activity.item?.actor;
+    if ( !(attacker instanceof Actor) || !reminderEntries().length ) return;
+    const judged = judgeRoll(attacker, { activity, attackMode: config.attackMode, rangeFeet: distantRangeOn(message) });
+    const plus = (judged?.sources ?? []).filter(s => Number(s.plus) > 0);
+    if ( !plus.length ) return;
+    const roll = config.rolls?.[0];
+    if ( !Array.isArray(roll?.parts) ) return;
+    for ( const s of plus ) roll.parts.push(String(s.plus));
+  } catch(err) {
+    console.error(`${TITLE} | The attack's plus could not be added — add it by hand.`, err);
+  }
+});
+
 /** The range feats (RANGE_FEATS) this attack meets: the attacker's feats against the attack's kind. */
 function rangeFeatsOf(attacker, activity) {
   const item = activity?.item;
@@ -464,7 +484,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
   const sheetOf = actor => ({
     uuid: actor.uuid,
     effects: actor.effects.filter(live).map(e => ({ id: e.id, name: e.name, sourceUuid: sourceOf(e), item: itemOf(e),
-      sourceFeet: sourceFeetOf(actor, sourceOf(e)), member: !!e.getFlag(MODULE_ID, "emanation") })),
+      sourceFeet: sourceFeetOf(actor, sourceOf(e)), member: !!e.getFlag(MODULE_ID, "emanation"),
+      against: e.getFlag(MODULE_ID, "against") ?? null })),
     features: featuresOf(actor),
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),

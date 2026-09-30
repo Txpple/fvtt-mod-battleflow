@@ -204,6 +204,26 @@ export function buyBoxHTML({ name, point, left, rule, checked = false }) {
       </div>`;
 }
 
+/**
+ * THE FORGO BOX (B3, Brutal Strike): the buy box's shape for Advantage GIVEN UP before the roll — ticked, the net reads Normal
+ * and the hit offers the feature's group. `off` names why it cannot be ticked (no Advantage, Disadvantage, another ability).
+ */
+export function forgoBoxHTML({ name, rule, checked = false, off = null, says = "", struck = [] }) {
+  const control = off ? "" : `<label style="display:flex;align-items:center;gap:0.4rem;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" name="bf-buy" data-bf-buy-name="${attr(name)}" data-bf-forgo ${checked ? "checked" : ""} style="margin:0;"> <span>Forgo the Advantage</span></label>`;
+  return `
+      <div data-bf-buy data-bf-forgo-box style="display:grid;grid-template-columns:1fr auto;gap:0.2rem 0.6rem;align-items:center;
+                  margin:0.4rem 0;padding:0.45rem 0.6rem;border-radius:4px;${off ? "opacity:0.6;" : ""}
+                  background:rgba(0,0,0,0.25);border:1px solid var(--color-border-dark,rgba(0,0,0,0.4));
+                  border-left:3px solid ${off ? TONE.neutral : TONE.pending};">
+        <div style="font-weight:bold;">${attr(name)} — forgo the Advantage${says ? ` (${attr(says)})` : ""}</div>
+        ${control}
+        ${off ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;opacity:0.85;">${attr(off)}</div>` : ""}
+        ${(checked && struck.length) ? `<div style="grid-column:1 / -1;font-size:var(--font-size-11,11px);line-height:1.45;">${struck.map(attr).join(" · ")}</div>` : ""}
+        ${foldedRuleHTML(rule)}
+      </div>`;
+}
+
 /** A rule under a closed fold; a fold whose pointer reads as no text goes. @param {object|string|null|undefined} rule */
 export function foldedRuleHTML(rule) {
   if ( !rule ) return "";

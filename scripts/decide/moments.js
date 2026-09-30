@@ -800,6 +800,7 @@ export const STATE_KEYS = Object.freeze({
   combatRoster: "the data plane's turn→actor map — stats, never a moment",
   // effect fingerprint fields (the chips), never on a message
   useKey: "an ActiveEffect field — which use-chip this is",
+  against: "an ActiveEffect field — the ONE creature a use chip is against (Studied Attacks, B3); the roll at it that spends the chip (chipSpend) is the resolve",
   coat: "an ActiveEffect field — which coating this chip is (use-chips.js COATINGS: the Poisoner's Poison Coating)",
   cardKey: "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
   stacks: "an ActiveEffect field — a deliberate stack, one chip per device; the twin-chip dedupe leaves it alone (effect-riders.js)",

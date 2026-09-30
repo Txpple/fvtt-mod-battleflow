@@ -5,7 +5,7 @@
  */
 
 import { CARD, activityUuidOf, isCard } from "./decide/card.js";
-import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
+import { EVASIONS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, SUPERIORITY_STAND_INS, answers, identifierOf, interruptEntries, matchOf } from "./decide/registry.js";
 import { d20Faces, d20ModeOf } from "./decide/rescue-hit.js";
 import { TITLE } from "./core.js";
 
@@ -284,6 +284,25 @@ export function bystanderRows(testKind) {
   return interruptEntries().filter(e => e.kind === "roll")
     .map(e => Object.keys(INTERRUPT_ROLLS).find(k => lower(k) === lower(e.name)))
     .filter(k => k && INTERRUPT_ROLLS[k].bystander && (INTERRUPT_ROLLS[k].tests ?? []).includes(testKind));
+}
+
+/**
+ * B3 — a die that stands in for a Superiority Die (SUPERIORITY_STAND_INS, Relentless): the pool EMPTY, the feature on the
+ * sheet, not yet this turn (`chitStands` the caller's read). `{ feature, die, item, rule }` or null.
+ * @param {Actor} actor
+ * @param {Item|null} pool
+ * @param {(riderKey: string) => boolean} chitStands
+ */
+export function superiorityStandIn(actor, pool, chitStands) {
+  if ( !actor || !pool ) return null;
+  if ( Number(pool.system?.uses?.value ?? 0) > 0 ) return null;
+  for ( const [key, row] of Object.entries(SUPERIORITY_STAND_INS) ) {
+    if ( !answers(row.pool, pool) ) continue;
+    const item = featureNamed(actor, key);
+    if ( !item || chitStands(`stand-in:${key}`) ) continue;
+    return { feature: key, die: row.die, item, rule: row.rule };
+  }
+  return null;
 }
 
 /** A bystander row's die, read off the BYSTANDER's own roll data (a scale's formula); a flat `bonus` as itself. */

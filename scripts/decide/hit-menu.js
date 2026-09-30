@@ -52,7 +52,7 @@ export function hitMenu({ groups, options, listed, features, melee = true, pools
       const count = `${rowLeft}${(Number(pool.max) > 0) ? ` of ${Number(pool.max)}` : ""} ${(Number(pool.max) || rowLeft) === 1 ? group.dieLabel : pluralOf(group.dieLabel)} left`;
       const cost = perOption
         ? (pool.die ? `${pool.die}${pool.type ? ` ${pool.type}` : ""} · ${count}` : count)
-        : free ? "free"
+        : free ? (own?.die ? `${own.die}${own.type ? ` ${own.type}` : ""} · free` : "free")
           : ownDice ? `${own?.die ? `${own.die}${own.type ? ` ${own.type}` : ""} · ` : ""}1 ${group.dieLabel}`
             : `${pool.die ?? "1 die"} ${group.dieLabel}`;
       // A die option's die must read; a no-die option (a save, an effect, a press) pays with the pool alone.
