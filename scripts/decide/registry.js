@@ -21,14 +21,25 @@ export const SHOVES = Object.freeze({
 export const INTERRUPT_KINDS = new Set(["ac", "damage", "roll"]);
 
 /** `damage` interrupts that MULTIPLY the triggering attack's damage for the reactor; any other damage
- * interrupt stays "reduce by hand". Keyed by the Interrupt list's names. */
+ * interrupt stays "reduce by hand". Keyed by the Interrupt list's names.
+ *   uses        the item's own uses spent by a write at the cast (the activity consumes nothing)
+ *   at          "attacker" — the cast is aimed at the attacker (a save activity's demand lands on it)
+ *   failDamage  { type, equalTo: "taken" } — on the demanded save's FAILURE the attacker takes this type, equal to
+ *               the damage the reactor took from the hit (saves/consequences.js) */
 export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
     rule: Object.freeze({ item: "Uncanny Dodge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeUncannyDod" }) }),
   // The GM's side: the half is the module's; the teleport and the save at the destination are the sheet's.
   "Toxic Escape": Object.freeze({ multiplier: 0.5,
     caveat: "the teleport and the Constitution save at the destination are the sheet's — use Save after",
-    rule: Object.freeze({ item: "Toxic Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmToxicEscape000" }) })
+    rule: Object.freeze({ item: "Toxic Escape", uuid: "Compendium.dnd-monster-manual.features.Item.mmToxicEscape000" }) }),
+  // B2: the warlock's Reaction after a hit (2024's text): the damage halved AND the pack's own save activity used at the
+  // attacker (`at: "attacker"`); a failure deals the attacker Psychic damage equal to what the warlock took (`failDamage`,
+  // read off the hit's receipt by the saves machine); the item's once per Long Rest is spent by a write (`uses` — the
+  // activity consumes nothing). The Charmed immunity is the sheet's (the pack's level-up).
+  "Beguiling Defenses": Object.freeze({ multiplier: 0.5, uses: true, at: "attacker",
+    failDamage: Object.freeze({ type: "psychic", equalTo: "taken" }),
+    rule: Object.freeze({ item: "Beguiling Defenses", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkBeguilingD" }) })
 });
 
 /**
@@ -157,6 +168,14 @@ export const INTERRUPT_ROLLS = Object.freeze({
     bystander: 30, tests: Object.freeze(["save"]), bend: "reroll", advantage: true, against: Object.freeze(["charmed", "frightened"]),
     rule: Object.freeze({ item: "Countercharm", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdCountercha" }),
     from: "Bard 7" }),
+  // B2: the ranger's Reaction on a SUCCEEDED demanded save `against` Charmed or Frightened — anyone's, any side, within
+  // 120 ft (`bend: "twist"`): the roll is not bent; the pack's Save activity is used at the creature the ranger has
+  // TARGETED (never the roller — "a different creature"; sight is not judged, Q6). SAVE_PRESSES "Beguiling Twist" lands
+  // the failure's condition by the ranger's word.
+  "Beguiling Twist": Object.freeze({ reaction: true, uses: false, point: null, activity: "Save",
+    bystander: 120, tests: Object.freeze(["save"]), bend: "twist", against: Object.freeze(["charmed", "frightened"]),
+    rule: Object.freeze({ item: "Beguiling Twist", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrBeguilingT" }),
+    from: "Ranger — Fey Wanderer 7" }),
   // The GM's side (Shadowy Dodge's row): the pack lands no effect for the Advantage after — the table's.
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
@@ -487,7 +506,15 @@ export const CLOCK_RIDERS = Object.freeze({
     lands: Object.freeze({ name: "Halted", from: "Halted", id: "bfHalted00000000" }), clock: "halt",
     says: "Speed 0 for the rest of the current turn", caveat: "only on an Opportunity Attack",
     rule: Object.freeze({ item: "Sentinel", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftSentinel000", benefit: "Halt" }),
-    from: "General feat (Sentinel)" })
+    from: "General feat (Sentinel)" }),
+  // B2: Eldritch Strike — the pack's "Struck" (no activity carries it) landed by any weapon hit, until the end of the
+  // fighter's next turn (the `vex` window is that clock); EFFECT_BENDS "Struck" reads it on the target's next save
+  // against the fighter's spell and spends it.
+  "eldritch-strike": Object.freeze({ feature: "Eldritch Strike", activity: null, label: "Eldritch Strike", when: "any", weapon: true,
+    lands: Object.freeze({ name: "Struck", from: "Struck", id: "bfStruck00000000" }), clock: "vex",
+    says: "Disadvantage on its next saving throw against a spell you cast, until the end of your next turn",
+    rule: Object.freeze({ item: "Eldritch Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrEldritchSt" }),
+    from: "Fighter — Eldritch Knight 10" })
 });
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
@@ -531,7 +558,9 @@ export const CARD_CHIPS = Object.freeze({
  * activity brought no effect. ⚠ tools/audit-presses.mjs's output: re-run it after a content update. Left
  * out: Sleep and Flesh to Stone (carried), Elemental Attunement and Mind Spike.
  *   word   a press behind the CASTER's word (Command): `ask` and `options` the choice, `presses` the one
- *          option that lands `status`, `default` what the clock chooses (saves/choices.js, kind `word`)
+ *          option that lands `status`, `default` what the clock chooses (saves/choices.js, kind `word`); with
+ *          `statuses` (option → status) every option presses its own (Beguiling Twist)
+ *   lasts  the pressed status's duration ({ rounds, seconds }); none → until removed
  *   success  the activity's OWN effects by name that land on a SUCCESS, never a failure (no `status`): the
  *          pack marks Stunning Strike's Slowed failure-only (A2)
  */
@@ -544,6 +573,12 @@ export const SAVE_PRESSES = Object.freeze({
     rule: Object.freeze({ item: "Command", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCommand000" }) }),
   "Web": Object.freeze({ status: "restrained", onFail: true,
     rule: Object.freeze({ item: "Web", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplWeb0000000" }) }),
+  // B2: the twist's Wisdom save (INTERRUPT_ROLLS "Beguiling Twist") — the pack ships no effect; the ranger's word picks the
+  // condition (a `word` whose `statuses` map EVERY option to a press), for a minute (`lasts`).
+  "Beguiling Twist": Object.freeze({ status: "frightened", onFail: true, lasts: Object.freeze({ rounds: 10, seconds: 60 }),
+    word: Object.freeze({ ask: "Charmed or Frightened?", options: Object.freeze(["Charmed", "Frightened"]), presses: "Frightened", default: "Frightened",
+      statuses: Object.freeze({ Charmed: "charmed", Frightened: "frightened" }) }),
+    rule: Object.freeze({ item: "Beguiling Twist", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrBeguilingT" }) }),
   "Grease": Object.freeze({ status: "prone", onFail: true,
     rule: Object.freeze({ item: "Grease", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplGrease0000" }) }),
   "Sleet Storm": Object.freeze({ status: "prone", onFail: true,
@@ -1516,15 +1551,20 @@ export const CHECK_BENDS = Object.freeze({
  *   checks / checksWhen  a bend on the bearer's ability checks, narrowed to { statuses, skills }
  *   saves     { bend, statuses?, spells?, abilities?, halfToNone? } scoped by the demand (`abilities`: the
  *             save's own ability, Irresistible Dance's Dexterity), or { succeeds, sleep } — the save
- *             cannot fail against magical sleep (a fourth button)
+ *             cannot fail against magical sleep (a fourth button); B2's facets: `fails` (the save cannot
+ *             succeed — the Fails button), `item` (the demand's item by name), `charmedBy: "source"` (the roller
+ *             Charmed by the demand's caster), `sourceStatus` (the caster's status as it cast), `spells: "source"`
+ *             (a spell of the effect's own source), `sourceFeature` (the effect's source holds the feature)
+ *   side      "caster" — the row's carrier is the DEMAND's caster (the demand's `source` snapshot), not the roller
+ *   spend     "save" — the save the row bends spends the effect (Struck), as "attack" does the next attack roll
  *   attack    the bend rides ONE attack alone — the item making it (Object Slam, the GM's side): the attack
  *             itself is the carrier, no feature or effect is read;  judge "targetInSpace": the target's
  *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace", spend?: "attack", attack?: string,
- *   only?: "source", except?: "source", rule: object|string|null, from: string}>>>}
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace", spend?: "attack"|"save", attack?: string,
+ *   only?: "source", except?: "source", side?: "caster", named?: string, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
   // --- A. standing, no caveat: the row is the whole truth ---------------------------------
@@ -1794,7 +1834,51 @@ export const EFFECT_BENDS = Object.freeze({
   "Powerful Build": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Goliath",
     checks: "advantage", checksWhen: Object.freeze({ statuses: Object.freeze(["grappled"]), skills: Object.freeze(["ath", "acr"]) }),
     caveat: "counted — while Grappled, an Athletics or Acrobatics check counts as the escape",
-    rule: Object.freeze({ item: "Goliath", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspGoliath0000", benefit: "Powerful Build" }) })
+    rule: Object.freeze({ item: "Goliath", uuid: "Compendium.dnd-players-handbook.origins.Item.phbspGoliath0000", benefit: "Powerful Build" }) }),
+  // --- H. the PHB classes — B2: the save bends by name (RULINGS *The PHB classes — B2*) -----------------
+  // Brave's shape (G) twice: text-only in the pack, read by name; a sheet save to END the condition is listed, not counted.
+  "Psychic Defenses": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Sorcerer — Aberrant Sorcery 6",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["charmed", "frightened"]) }),
+    rule: Object.freeze({ item: "Psychic Defenses", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrPsychicDef" }) }),
+  "Beguiling Twist": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Ranger — Fey Wanderer 7",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["charmed", "frightened"]) }),
+    rule: Object.freeze({ item: "Beguiling Twist", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrBeguilingT" }) }),
+  // `side: "caster"`: read off the DEMAND's caster — its snapshot at the cast (saves/demand.js `source`), never the
+  // roller's sheet; with no demand there is nothing to list. Magical Ambush: the caster Invisible as it cast (`sourceStatus`).
+  "Magical Ambush": Object.freeze({ match: "feature", side: "caster", attacker: null, target: null, scope: "any", from: "Rogue — Arcane Trickster 9",
+    saves: Object.freeze({ bend: "disadvantage", spells: true, sourceStatus: "invisible" }),
+    rule: Object.freeze({ item: "Magical Ambush", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeMagicalAmb" }) }),
+  // Mantle of Majesty: the pack's "Unearthly Appearance" effect on the BARD (`named`); a Command (`item`) at a creature the
+  // bard has Charmed (`charmedBy: "source"` — the roller's Charmed whose source is the bard) cannot succeed (`fails`).
+  "Mantle of Majesty": Object.freeze({ named: "Unearthly Appearance", side: "caster", attacker: null, target: null, scope: "any", from: "Bard — College of Glamour 6",
+    saves: Object.freeze({ fails: true, item: "Command", charmedBy: "source" }),
+    rule: Object.freeze({ item: "Mantle of Majesty", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdMantleOfMa" }) }),
+  // Eldritch Strike: the pack's "Struck", landed by the hit (CLOCK_RIDERS "eldritch-strike"); the target's next save against a
+  // spell the FIGHTER casts (`spells: "source"` — the effect's source is the demand's caster) is at Disadvantage, and that
+  // save spends it (`spend: "save"`).
+  "Struck": Object.freeze({ attacker: null, target: null, scope: "any", spend: "save", from: "Fighter — Eldritch Knight 10",
+    saves: Object.freeze({ bend: "disadvantage", spells: "source" }),
+    rule: Object.freeze({ item: "Eldritch Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrEldritchSt" }) }),
+  // Eldritch Hex: Hex's six "Hexed <Ability>" effects, a row each, the ability the row's; the bend only where the effect's
+  // SOURCE holds the feature (`sourceFeature`) — any other warlock's Hex bends checks alone (the pack's own change).
+  "Hexed Strength": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["str"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  "Hexed Dexterity": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["dex"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  "Hexed Constitution": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["con"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  "Hexed Intelligence": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["int"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  "Hexed Wisdom": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["wis"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) }),
+  "Hexed Charisma": Object.freeze({ attacker: null, target: null, scope: "any", from: "Warlock — Great Old One Patron 10 (Eldritch Hex)",
+    saves: Object.freeze({ bend: "disadvantage", abilities: Object.freeze(["cha"]), sourceFeature: "Eldritch Hex" }),
+    rule: Object.freeze({ item: "Eldritch Hex", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkEldritchHe" }) })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -2444,6 +2528,7 @@ export const INTERRUPTS = Object.freeze([
   row("Stone's Endurance", "damage"), row("Lucky", "roll"), row("Warding Flare", "roll"), row("Shadowy Dodge", "roll"),
   row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
   row("Combat Inspiration", "roll"), row("Portent", "roll"), row("Countercharm", "roll"),
+  row("Beguiling Twist", "roll"), row("Beguiling Defenses", "damage"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);

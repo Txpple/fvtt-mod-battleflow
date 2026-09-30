@@ -9,7 +9,7 @@ import { interruptEntries } from "../decide/registry.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
-import { INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
 import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption } from "../lookup.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
@@ -479,8 +479,27 @@ export async function castReaction(attackMessage, target) {
     ui.notifications.warn(`${TITLE}: could not find ${target.reaction} on ${target.name} to cast.`);
     return;
   }
+  // A multiplier row with a cost the activity does not carry (`uses` — Beguiling Defenses' once per Long Rest, B2): spent
+  // by a write first; none left casts nothing. `at: "attacker"`: the cast is aimed at the attacker (its save demand lands
+  // on it); `failDamage` rides the usage card for the saves machine.
+  const multiplierKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(target.reaction));
+  const multiplierRow = multiplierKey ? INTERRUPT_MULTIPLIERS[multiplierKey] : null;
+  if ( multiplierRow?.uses ) {
+    const ownItem = actor?.items.get(target.itemId) ?? reactionItem(actor, target.reaction);
+    if ( !(Number(ownItem?.system?.uses?.value ?? 0) > 0) ) {
+      ui.notifications.warn(`${TITLE}: ${actor?.name ?? target.name} has no use of ${target.reaction} left.`);
+      return;
+    }
+    await spendPoolUses(actor, ownItem, target.reaction).catch(err => console.warn(`${TITLE} | Could not spend a use of ${target.reaction}.`, err));
+  }
+  const attackerUuid = attackMessage.getAssociatedActor?.()?.uuid ?? null;
+  const aim = (multiplierRow?.at === "attacker") ? tokenForUuid(attackerUuid) : null;
+  const data = multiplierRow?.failDamage
+    ? { data: { flags: { [MODULE_ID]: { failDamage: { ...multiplierRow.failDamage, attackId: attackMessage.id, takenBy: actor.uuid, by: multiplierKey } } } } }
+    : {};
   // No usage dialog (the lowest slot; upcast from the sheet); the module drives what follows.
-  await activity.use({ subsequentActions: false }, { configure: false }, {});
+  const cast = () => activity.use({ subsequentActions: false }, { configure: false }, data);
+  await (aim ? withTargets([aim], cast) : cast());
 }
 
 /** Parry's answer: pool and Reaction spent, the reduction rolled in the open. */

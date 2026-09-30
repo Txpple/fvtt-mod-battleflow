@@ -83,6 +83,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Deflect Attacks**' Redirect: "if you reduce the damage to 0" | offered on the damage card once the reduced damage has LANDED at 0, as the pack's own save activity at the attacker; the range and the Focus Point are the activity's | the reduction is rolled at the answer and the damage lands later; only the receipt knows it came to 0 (`hold/views.js` `atZero`) | 2026-09-29 |
 | **Open Hand Technique**: "whenever you hit a creature with an attack granted by your Flurry of Blows" | offered on an Unarmed Strike hit after Flurry of Blows was USED this turn (the use writes a turn chit); out of combat, on every Unarmed Strike hit, the caveat said | the pack's Flurry of Blows is a utility on Monk's Focus: the strikes that follow are plain Unarmed Strikes, and no card records which were granted by it (`hit-menu.js` `FLURRY`) | 2026-09-29 |
 | **Protective Field**: "when you or another creature you can see within 30 feet of you takes damage" | yourself on any damage the module applies; another creature only on an ATTACK's damage (Interception's guard) | the guard hold (`damage-holds.js`) is asked on an attack's damage alone — a save's or an aura's damage to an ally is not held for a guard (Interception's rule) | 2026-09-29 |
+| **Beguiling Defenses**: Psychic damage "equal to the damage you take" | read off the HIT's receipt for the warlock once it lands (the demand's `failDamage`); a save answered before the damage landed says so on a card and the table applies it by hand | the hold's landing and the attacker's save are two moments in either order; a receipt is the only honest number | 2026-09-30 |
 
 ## Bent by choice — the rule of cool (2026-09-26)
 
@@ -1995,6 +1996,69 @@ Calls the plan left open — **each is the user's to overrule**:
 | Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — Gren's saving throw … The d20 (4) is rolled again with Advantage; the new roll stands"; Answer: the two d20s rise off Gren, the verdict retaken |
 | Countercharm, the save is against Paralyzed (Hold Person) | no popup |
 | Countercharm, the bard's own failed save against Charmed | the popup to the bard, "your saving throw" |
+
+## The PHB classes — B2 (2026-09-30, Session 0 stage B2)
+
+**The save bends by name — seven rows, no new kind, no new file; BUILT and PROVEN (`smoke-saves` §32 10/10, `smoke-classes`
+§43–§45), unwalked.** Measured on the pack first (`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5): Psychic Defenses, Beguiling
+Twist's Advantage, Magical Ambush, Eldritch Hex and Studied-shaped text are TEXT ONLY; Mantle of Majesty ships a self effect
+"Unearthly Appearance" (the Bonus Action) and automates nothing; Eldritch Strike ships the effect "Struck" (1 turn) that no
+activity lands; Beguiling Twist ships a Save activity (Wisdom, spellcasting DC, a Reaction, 120 ft) with NO effect; Beguiling
+Defenses (2024's text — the plan drew the 2014 charm reflection) ships one save activity "Beguiling Reaction" (a Reaction, Wisdom,
+half on a save, no damage parts) and 1 use per Long Rest with no consumption; Hex lands six "Hexed <Ability>" effects, each a
+check-mode change. Calls the plan left open — **each is the user's to overrule**:
+
+1. **The caster-side row is a facet, not a machine** (`side: "caster"` on EFFECT_BENDS). A row read off the CASTER (Magical
+   Ambush's Invisible, Mantle's Unearthly Appearance) cannot read the caster's live sheet from the roller's client: the demand
+   carries a SNAPSHOT of the caster at the cast (`demand.source` — uuid, name, the effects and features the caster-side rows
+   name, its statuses) and the gate reads that. Honest by construction: what the caster was AS IT CAST is what the rule asks.
+2. **Mantle of Majesty is a Fails button** (`saves.fails`): the save "automatically fails" — the die-less fold's road
+   (Paralyzed's), the entry `autoFailed` by "Mantle of Majesty". "Charmed by you" is the roller's Charmed whose SOURCE (the
+   module's stamp, else the effect's origin) is the demand's caster (`charmedBy: "source"`); a Charmed with no readable source
+   lists nothing — the gate never guesses. The row is the pack's effect BY NAME (`named: "Unearthly Appearance"`), so the
+   mantle counts only while the Bonus Action's effect stands on the bard.
+3. **Eldritch Strike lands its effect off the hit as a clock rider** (`CLOCK_RIDERS "eldritch-strike"`, `lands` — Slasher's
+   shape), every weapon hit, one copy refreshed, the `vex` window ("until the end of your next turn"); the target's next save
+   against a spell of the STRIKER's (`saves.spells: "source"`) is at Disadvantage, and that save SPENDS the effect (`spend:
+   "save"` — Vex's shape on the save side: the record on the save message, the effect deleted).
+4. **Eldritch Hex is six rows** ("Hexed Strength" … "Hexed Charisma"), the ability the row's — not read off the effect — and the
+   bend only where the effect's SOURCE holds the feature (`saves.sourceFeature`): any other warlock's Hex bends checks alone,
+   as the pack's change says.
+5. **Beguiling Twist's Reaction is the bystander's row, not a fold** (B1's Countercharm precedent, `bend: "twist"`): anyone's
+   SUCCEEDED demanded save against Charmed or Frightened within 120 ft of the ranger (any side — "you or a creature you can
+   see"; sight not judged, Q6), the ranger's popup; the roll is NOT bent. The answer uses the pack's Save activity at the ONE
+   creature the ranger has TARGETED (never the roller — "a different creature"); no target, the answer is refused and the
+   popup asked again. The twist's failure lands the ranger's WORD — Charmed or Frightened (`SAVE_PRESSES` `word.statuses`, every
+   option a press; Command's word shape) — for a minute (`lasts`). A save to END the condition from the sheet has no demand:
+   not offered (the register's rule).
+6. **Beguiling Defenses is a damage interrupt** (`INTERRUPT_MULTIPLIERS`, Uncanny Dodge's shape, halved) whose cast is AIMED at
+   the attacker (`at: "attacker"` — the pack's save activity demands the Wisdom save on the cast), the item's once per Long
+   Rest spent by a write (`uses` — the activity consumes nothing), and the failure's Psychic damage "equal to the damage you
+   take" read off the HIT's receipt for the warlock (`failDamage` on the demand, `saves/consequences.js`) and landed on the
+   attacker with a receipt. The Charmed immunity is the sheet's (the pack's level-up trait), not a row.
+7. **Danger Sense is NATIVE** (M0), no row.
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Psychic Defenses · Beguiling Twist | `EFFECT_BENDS` feature rows, `saves: { advantage, statuses: charmed, frightened }` | Brave's shape: Advantage against a demand that would charm or frighten; a sheet save to end one is listed, not counted |
+| Magical Ambush | `EFFECT_BENDS` feature row, `side: "caster"`, `saves: { disadvantage, spells, sourceStatus: "invisible" }` | the caster Invisible as it cast (the demand's snapshot): Disadvantage against its spell |
+| Mantle of Majesty | `EFFECT_BENDS` `named: "Unearthly Appearance"`, `side: "caster"`, `saves: { fails, item: "Command", charmedBy: "source" }` | a Command at a creature Charmed by the bard: the save cannot succeed — the Fails button, the entry autoFailed |
+| Eldritch Strike | `CLOCK_RIDERS "eldritch-strike"` (`lands` Struck, `clock: "vex"`) + `EFFECT_BENDS "Struck"` (`saves: { disadvantage, spells: "source" }`, `spend: "save"`) | a weapon hit lands Struck until the end of the fighter's next turn; the next save against the fighter's spell at Disadvantage, and it spends the effect |
+| Eldritch Hex | `EFFECT_BENDS "Hexed <Ability>"` ×6, `saves: { disadvantage, abilities, sourceFeature: "Eldritch Hex" }` | a Hexed creature's saves of the hexed ability at Disadvantage, only where the hexer holds the feature |
+| Beguiling Twist (the Reaction) | `INTERRUPT_ROLLS` `bend: "twist"`, `bystander: 120`, `against`, `activity: "Save"` + `SAVE_PRESSES "Beguiling Twist"` (`word.statuses`, `lasts`) | a success against Charmed/Frightened within 120 ft: the ranger's Reaction demands a Wisdom save of its target; the failure lands the word's condition for a minute |
+| Beguiling Defenses | `INTERRUPTS` `damage` + `INTERRUPT_MULTIPLIERS` (`0.5`, `uses`, `at: "attacker"`, `failDamage`) | a hit's damage halved, the attacker's Wisdom save demanded; a failure deals it psychic damage equal to the damage taken |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Psychic Defenses, a demand that would frighten | the save dialog's section "Psychic Defenses — against Frightened", Net Advantage |
+| Magical Ambush, the invisible rogue casts Tasha's Hideous Laughter | the target's section "Vex — Magical Ambush — against a spell, Vex Invisible as it cast", Net Disadvantage; visible, nothing |
+| Mantle of Majesty on (Unearthly Appearance), Command at a creature the bard Charmed | "Salyth — Mantle of Majesty: this save cannot succeed — Command, Gren Charmed by Salyth"; the red Fails button the default; Fails: the entry failed, no die |
+| Eldritch Strike, a weapon hit then Hold Person at the target | the damage offer's rider row "Eldritch Strike" ticked; "Struck" on the target; its Wisdom save's section "Struck — against Morgash's spell", Net Disadvantage; after the roll Struck is gone |
+| Eldritch Hex, a Hexed (Dexterity) creature's Dexterity save | "Hexed Dexterity — a Dexterity save", Net Disadvantage; a Wisdom save shows nothing |
+| Beguiling Twist, anyone within 120 ft succeeds against Charm Person | the ranger's popup "Beguiling Twist — Gren's saving throw — it succeeded; target ONE other creature, then Answer"; the target's Wisdom save demanded; on its failure "Charmed or Frightened?" — the pick lands for a minute |
+| Beguiling Defenses, a creature hits the warlock | the hold's popup with Beguiling Defenses (1 use); Cast: the damage halved on the receipt, the attacker's Wisdom save demanded; on its failure psychic damage equal to the damage taken, receipted |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 

@@ -739,6 +739,8 @@ export const STATE_KEYS = Object.freeze({
   riposteBy: "provenance — the driven attack names the reactor",
   rebukeFor: "provenance — a rebuke's driven use or attack names the offer it answers",
   atZero: "on a damage card: the defender whose reduction took it to 0 used the feature's own activity at the attacker (Deflect Attacks' Redirect, A1) — a latch; the save activity's own card and the saves machine's verdict are the resolve",
+  failDamage: "on a usage card: the rider a hit reaction's cast carried (Beguiling Defenses, B2) — copied onto the saves flag at the stamp; the verdict and its damage receipt are the resolve",
+  twistFor: "provenance — the driven save (Beguiling Twist, B2) names the bystander roll it answers",
   alsoHeal: "the pick on a healing spell's card of one more creature for a feature's own heal (Starry Form's Chalice, A1) — a latch; the heal's own card and its receipt are the resolve",
   option: "an ITEM flag — the option a feature's character took, which the sheet never records (Hunter's Prey, A1): asked once on the damage offer, cleared by the card's Change; the clockRiders record and the hewNotice card are the moments",
   opportunity: "provenance — the driven attack is an Opportunity Attack (Sentinel's Guardian, the PHB feats group 6); the Halt rider reads it, the clockRiders record is the resolve",

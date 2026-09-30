@@ -79,7 +79,7 @@ const clockOfExpiry = expiry => ({ "duration.expiry": expiry, "duration.value": 
  * Put a status on an actor and make sure it LANDED. ⚠ `toggleStatusEffect(id, { active: true })`
  * no-ops when any carrier exists (disabled too): re-enable a canonical carrier, else build it, else toggle.
  */
-export async function forceStatus(actor, statusId, { origin = null, expiry = null } = {}) {
+export async function forceStatus(actor, statusId, { origin = null, expiry = null, duration = null } = {}) {
   if ( !(actor instanceof Actor) ) return false;
   // ⚠ Only the CANONICAL condition (by localized name) is re-enabled; a pack effect would revive its own changes.
   // ⚠ `CONFIG.statusEffects` is an OBJECT keyed by id in dnd5e 6.
@@ -89,12 +89,13 @@ export async function forceStatus(actor, statusId, { origin = null, expiry = nul
   if ( active ) {
     // An already-active effect keeps its own origin.
   } else if ( dormant ) {
-    await dormant.update({ disabled: false, ...(origin ? { origin } : {}), ...(expiry ? clockOfExpiry(expiry) : {}) });
+    await dormant.update({ disabled: false, ...(origin ? { origin } : {}), ...(expiry ? clockOfExpiry(expiry) : {}), ...(duration ? { duration } : {}) });
   } else {
     try {
       const effect = await ActiveEffect.implementation.fromStatusEffect(statusId);
       if ( origin ) effect.updateSource({ origin });
       if ( expiry ) effect.updateSource(clockOfExpiry(expiry));
+      if ( duration ) effect.updateSource({ duration });   // a press that lasts (SAVE_PRESSES `lasts`, B2)
       await ActiveEffect.implementation.create(effect, { parent: actor, keepId: true });
     } catch(err) {
       console.error(`${TITLE} | Could not build status "${statusId}" directly.`, err);

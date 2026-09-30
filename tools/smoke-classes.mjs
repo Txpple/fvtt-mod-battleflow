@@ -39,6 +39,7 @@ export const COVERS = [
   'hit-menu.js',            // the Monk's Focus, Open Hand Technique, Elemental Attunement and Psionic Power groups
   'damage-holds.js',        // Protective Field's guard
   'saves/consequences.js',  // Stunning Strike's success half (SAVE_PRESSES `success`)
+  'saves/choices.js',       // §44 — the word's statuses map (Beguiling Twist's Charmed or Frightened)
   'saves/demand.js',        // the save card's effect names by outcome
   // §A4 (32–34)
   'saves/verdict.js',       // Potent Cantrip stamped on the entry at the fold
@@ -99,7 +100,10 @@ const SECTIONS = {
   40: 'Inspiring Smite (lent to the Cleric): after Divine Smite, "Divide 12 Temporary Hit Points" with a number per creature within 30 ft, the paladin among them; 7 and 5 land and one Channel Divinity is spent; No keeps it; the clock gives all 12 to the paladin',
   41: 'Portent (lent to the Sorcerer): the Long Rest keeps 17 and 3 on a chip; in its own save dialog "use the 17" ticked makes the d20 the 17; a failed save of an ally that a stored 18 turns asks the diviner and Answer SAVES it; a critical hit by an enemy asks "replace the 20 with the 2" and makes it a MISS; an ordinary hit asks nobody',
   // B1
-  42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — Gren\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody'
+  42: 'Countercharm (lent to the Bard): the Halfling fails a demanded save against Charm Person (Charmed) within 30 ft — the bard\'s popup "Countercharm — Gren\'s saving throw"; Answer: the d20 is rerolled with Advantage off the Halfling, the Reaction spent, the save retaken and SAVED; a failed save against Hold Person (Paralyzed) asks nobody',
+  43: 'Eldritch Strike (B2, lent to the Attacker): a weapon hit offers the rider row ticked and lands "Struck" on the Victim for the vex window; the Victim\'s save against the striker\'s Hold Person reads "Struck — against BF Test Attacker\'s spell", Net Disadvantage, and the save SPENDS it',
+  44: 'Beguiling Twist (B2, lent to the Sorcerer): the Halfling SUCCEEDS on a demanded save against Charm Person within 120 ft — the sorcerer\'s popup "it succeeded, target one other creature"; Answer with no target is refused; the attacker targeted, Answer spends the Reaction and demands a Wisdom save of the attacker on the twist\'s own card (twistFor), the Halfling\'s SAVED entry standing; the attacker fails: the word popup "Charmed or Frightened?", Charmed lands for 10 rounds',
+  45: 'Beguiling Defenses (B2, lent to the Sorcerer, 1 use): the attacker hits the sorcerer — the hold and the popup; Cast halves the damage on the receipt, spends the item\'s use and the Reaction, and demands a Wisdom save of the attacker on the Beguiling Reaction\'s card with the failDamage rider; the attacker fails: psychic damage equal to the damage taken, receipted on that card'
 };
 const DEPENDS = {};
 
@@ -3045,6 +3049,247 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await bard.deleteEmbeddedDocuments('ActiveEffect', bard.effects.filter(e => e.getFlag(MOD, 'mastery') === 'reaction').map(e => e.id)).catch(() => {});
         for (const e of halfling.effects.filter(e => ['Charmed', 'Paralyzed'].includes(e.name))) await e.delete().catch(() => {});
         if (combat42) { await combat42.delete().catch(() => {}); created.combats = created.combats.filter(id => id !== combat42.id); }
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ================================================ §B2 — the save bends by name (RULINGS *The PHB classes — B2*)
+    // ---- 43. Eldritch Strike: the hit lands Struck; the target's save against the striker's spell at Disadvantage, spent
+    if (want(43)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      const es = await hgLend(attacker, 'Eldritch Strike', 'feat');
+      const lentSpells = [];
+      const spellAt = async (name, targetToken) => {
+        let id = attacker.items.find(i => (i.name === name) && (i.type === 'spell'))?.id;
+        if (!id) {
+          const src = await findPHB(name, 'spell');
+          const data = src?.toObject();
+          if (!data) return null;
+          data.system.prepared = 1; data.system.method = 'atwill';
+          const [it] = await attacker.createEmbeddedDocuments('Item', [data]); id = it.id; lentSpells.push(id);
+        }
+        const a = attacker.items.get(id)?.system?.activities?.find(x => x.type === 'save');
+        if (!a) return null;
+        attackerToken.control({ releaseOthers: true });
+        targetToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const use = await a.use({ consume: { spellSlot: false } }, { configure: false }, {});
+        const card = use?.message ?? null;
+        await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+        return card;
+      };
+      try {
+        if (!es) log.push('§43 skipped: no Eldritch Strike in the PHB');
+        else {
+          await set('saveRolls', 'prompt');
+          const r = await a1Hit(attacker, attackerToken, act());
+          const row = riderRow(r.offer, 'eldritch-strike');
+          ok('43a. a weapon hit by the fighter: the offer\'s rider row "Eldritch Strike", ticked',
+            !!r.offer && /Eldritch Strike/.test(row) && (riderBox(r.offer, 'eldritch-strike')?.checked === true), `offer=${!!r.offer} row="${row.slice(0, 140)}"`);
+          await a1Roll(r.msg, r.offer);
+          const struck = await waitFor(() => victimFx().find(e => e.name === 'Struck') ?? null, 8000);
+          // The vex window: 1 round in a combat, the platform's 6 seconds out of one — the turnEnd expiry either way.
+          const sd = struck?.duration ?? {};
+          ok('43b. Struck lands on the Victim off the hit, clocked to the vex window (1 round / 6 s, turnEnd)',
+            !!struck && (sd.expiry === 'turnEnd') && ((Number(sd.rounds) === 1) || (Number(sd.seconds) === 6)),
+            `struck=${!!struck} duration=${JSON.stringify(struck?.duration?.toObject?.() ?? struck?.duration ?? null)}`);
+          const card = await spellAt('Hold Person', victimToken);
+          if (!card || !struck) log.push(`§43c skipped: card=${!!card} struck=${!!struck}`);
+          else {
+            let dlg = await waitFor(rollDialog, 3000);
+            let p = null;
+            if (!dlg) { p = victim.rollSavingThrow({ ability: 'wis' }, {}, {}); dlg = await waitFor(rollDialog, 6000); }
+            const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
+            ok('43c. the Victim\'s save against the fighter\'s Hold Person: "Struck — against BF Test Attacker\'s spell", Net Disadvantage',
+              !!dlg && /Struck — against BF Test Attacker's spell/.test(text) && /Net Disadvantage/.test(text), `dlg=${!!dlg} text="${text.slice(0, 220)}"`);
+            (dlg?.element?.querySelector('button[data-action="disadvantage"]') ?? dlg?.element?.querySelector('button[autofocus]'))?.click();
+            if (p) await p.catch(() => {});
+            const gone = await waitFor(() => !victim.effects.get(struck.id), 8000);
+            ok('43d. the save SPENT Struck: gone from the Victim', gone === true, `gone=${!victim.effects.get(struck.id)}`);
+            await waitFor(() => card.getFlag(MOD, 'saves')?.status === 'done', 8000);
+          }
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        await dropVictimFx();
+        for (const e of victim.effects.filter(e => e.name === 'Paralyzed')) await e.delete().catch(() => {});
+        if (es) await unlend(attacker, es);
+        if (lentSpells.length) await attacker.deleteEmbeddedDocuments('Item', lentSpells).catch(() => {});
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 44. Beguiling Twist: a SUCCESS within 120 ft turns onto the ranger's target
+    if (want(44)) {
+      await closeA1(); await spendLuck();
+      const twist = await hgLend(sorcerer, 'Beguiling Twist', 'feat');
+      const sorcToken = canvas.tokens.get(sorcererDoc.id);
+      const lentSpells = [];
+      const castAt = async (name, targetToken) => {
+        let id = attacker.items.find(i => (i.name === name) && (i.type === 'spell'))?.id;
+        if (!id) {
+          const src = await findPHB(name, 'spell');
+          const data = src?.toObject();
+          if (!data) return null;
+          data.system.prepared = 1; data.system.method = 'atwill';
+          const [it] = await attacker.createEmbeddedDocuments('Item', [data]); id = it.id; lentSpells.push(id);
+        }
+        const a = attacker.items.get(id)?.system?.activities?.find(x => x.type === 'save');
+        if (!a) return null;
+        attackerToken.control({ releaseOthers: true });
+        targetToken.setTarget(true, { releaseOthers: true });
+        await sleep(100);
+        const use = await a.use({ consume: { spellSlot: false } }, { configure: false }, {});
+        const card = use?.message ?? null;
+        await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+        return card;
+      };
+      let combat44 = null;
+      try {
+        if (!twist || !sorcToken) log.push(`§44 skipped: twist=${!!twist} sorcererToken=${!!sorcToken}`);
+        else {
+          await set('saveRolls', 'prompt');
+          await healFull();
+          await dropReactionChips(sorcerer);
+          [combat44] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          created.combats.push(combat44.id);
+          await combat44.createEmbeddedDocuments('Combatant', [
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 20 },
+            { tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id, initiative: 15 },
+            { tokenId: sorcererDoc.id, sceneId: scene.id, actorId: sorcerer.id, initiative: 10 }]);
+          await combat44.startCombat();
+          await sleep(400);
+          const t0 = Date.now();
+          const card = await castAt('Charm Person', halflingToken);
+          if (!card) log.push('§44a skipped: no Charm Person save activity');
+          else {
+            faces([[20, 20]]);
+            const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+            const rollMsg = rolls?.[0]?.parent ?? null;
+            CONFIG.Dice.randomUniform = realPRNG;
+            const pop = await waitFor(() => rollPopup(/Beguiling Twist/), 8000);
+            const popText = textOf(pop?.element);
+            ok('44a. the Halfling SUCCEEDS on a demanded save against Charmed within 120 ft of the sorcerer: the popup "Beguiling Twist — BF Test Halfling\'s saving throw", "it succeeded", target one other creature',
+              !!pop && /Beguiling Twist/.test(popText) && /it succeeded/.test(popText) && /Target ONE other creature/.test(popText), `pop=${!!pop} text="${popText.slice(0, 240)}"`);
+            // b. Answer with nothing targeted: refused, nothing spent, the popup stays.
+            clearTargets();
+            pop?.element?.querySelector('button[data-action="answer"]')?.click();
+            await sleep(700);
+            ok('44b. Answer with no target: refused — the roll still held, no Reaction spent',
+              (rollFlag(rollMsg)?.status === 'pending') && !reactionChipOn(sorcerer), `status=${rollFlag(rollMsg)?.status} reaction=${!!reactionChipOn(sorcerer)}`);
+            // c. The attacker targeted: Answer — the Reaction spent, the Save demanded of the attacker, the Halfling's save stands.
+            // (The refused click closed the popup; the module asks again — find the new one.)
+            const pop2 = await waitFor(() => rollPopup(/Beguiling Twist/), 6000);
+            attackerToken.setTarget(true, { releaseOthers: true });
+            await sleep(120);
+            (pop2 ?? pop)?.element?.querySelector('button[data-action="answer"]')?.click();
+            const twistCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'twistFor') === rollMsg?.id) && m.getFlag(MOD, 'saves')) ?? null, 12000);
+            const entry = await waitFor(() => card.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
+            const tflag = rollFlag(rollMsg);
+            const demanded = twistCard?.getFlag(MOD, 'saves')?.targets?.[0] ?? null;
+            ok('44c. Answer at the attacker: the Reaction spent, a Wisdom save demanded of BF Test Attacker on the twist\'s own card (twistFor the roll), the Halfling\'s SAVED entry standing, the roll\'s flag naming the turn',
+              !!twistCard && (demanded?.uuid === attacker.uuid) && (twistCard.getFlag(MOD, 'saves')?.abilities?.[0] === 'wis') && !!reactionChipOn(sorcerer)
+                && (entry?.outcome === 'saved') && (tflag?.answer === 'roll') && (tflag?.twist?.targetUuid === attacker.uuid) && (tflag?.bent === null),
+              `card=${!!twistCard} demanded=${demanded?.name} abilities=${JSON.stringify(twistCard?.getFlag(MOD, 'saves')?.abilities)} reaction=${!!reactionChipOn(sorcerer)} entry=${entry?.outcome} flag=${JSON.stringify(tflag && { answer: tflag.answer, twist: tflag.twist, bent: tflag.bent })}`);
+            const line = await waitFor(() => { const t = cardText(rollMsg?.id); return /turned it on/.test(t) ? t : null; }, 6000);
+            const atkName = attackerToken.document?.name ?? attacker.name;   // the card names the TOKEN
+            ok('44d. the roll\'s card: "Beguiling Twist (BF Test Sorcerer) turned it on <the attacker\'s token> — a Wisdom saving throw demanded"',
+              /Beguiling Twist \(BF Test Sorcerer\)/.test(line ?? '') && new RegExp(`turned it on ${atkName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`).test(line ?? '') && /Wisdom saving throw demanded/.test(line ?? ''),
+              `card="${(line ?? cardText(rollMsg?.id)).slice(0, 240)}"`);
+            // e–f. The attacker fails: the caster's word — Charmed, for a minute.
+            if (twistCard) {
+              faces([[1, 20]]);
+              await attacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+              CONFIG.Dice.randomUniform = realPRNG;
+              const wordPop = await waitFor(() => popups().find(app => /Charmed or Frightened\?/.test(textOf(app.element))) ?? null, 10000);
+              ok('44e. the attacker fails the twist\'s save: the sorcerer\'s word popup "Charmed or Frightened?"', !!wordPop, `pop=${!!wordPop}`);
+              wordPop?.element?.querySelector('button[data-action="word-charmed"]')?.click();
+              const charmed = await waitFor(() => attacker.effects.find(e => e.statuses?.has?.('charmed')) ?? null, 10000);
+              await sleep(400);
+              const tEntry = twistCard.getFlag(MOD, 'saves')?.targets?.[0] ?? null;
+              ok('44f. "Charmed": the attacker is Charmed for a minute (10 rounds), the twist\'s entry FAILED and its word Charmed',
+                !!charmed && ((Number(charmed.duration?.rounds) === 10) || (Number(charmed.duration?.seconds) === 60)) && (tEntry?.outcome === 'failed') && (tEntry?.choice?.answer === 'Charmed'),
+                `charmed=${!!charmed} duration=${JSON.stringify(charmed?.duration?.toObject?.() ?? null)} entry=${JSON.stringify(tEntry && { outcome: tEntry.outcome, word: tEntry.choice?.answer })}`);
+            }
+          }
+        }
+      } finally {
+        await closeA1();
+        await hgClose(/Beguiling Twist|Charmed or Frightened/);
+        if (twist) await unlend(sorcerer, twist);
+        if (lentSpells.length) await attacker.deleteEmbeddedDocuments('Item', lentSpells).catch(() => {});
+        await dropReactionChips(sorcerer);
+        for (const e of attacker.effects.filter(e => e.statuses?.has?.('charmed'))) await e.delete().catch(() => {});
+        for (const e of halfling.effects.filter(e => e.name === 'Charmed')) await e.delete().catch(() => {});
+        if (combat44) { await combat44.delete().catch(() => {}); created.combats = created.combats.filter(id => id !== combat44.id); }
+        CONFIG.Dice.randomUniform = realPRNG;
+        clearTargets();
+      }
+    }
+
+    // ---- 45. Beguiling Defenses: the hit halved, the attacker's Wisdom save, psychic damage equal to the damage taken
+    if (want(45)) {
+      await closeA1(); await spendLuck();
+      const sorcToken = canvas.tokens.get(sorcererDoc.id);
+      const bd = await hgLend(sorcerer, 'Beguiling Defenses', 'feat', { 'system.uses.spent': 0 });
+      hgKeep(sorcerer, {
+        'system.attributes.ac.override': sorcerer.system._source.attributes.ac.override ?? null,
+        'system.attributes.hp.value': sorcerer.system._source.attributes.hp.value,
+        'system.attributes.hp.max': sorcerer.system._source.attributes.hp.max
+      });
+      hgKeep(attacker, { 'system.attributes.hp.value': attacker.system._source.attributes.hp.value });
+      try {
+        if (!bd || !sorcToken) log.push(`§45 skipped: defenses=${!!bd} sorcererToken=${!!sorcToken}`);
+        else {
+          await set('saveRolls', 'prompt');
+          await dropReactionChips(sorcerer);
+          await sorcerer.update({ 'system.attributes.ac.override': AC, 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400 });
+          const atkHp = Number(attacker.system.attributes.hp.value);
+          const t0 = Date.now();
+          attackerToken.control({ releaseOthers: true });
+          sorcToken.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          faces([[12, 20], [4, 6], [4, 6]]);
+          const usage = await act().use({ subsequentActions: false }, { configure: false }, {});
+          const rolls = await act().rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const msg = rolls?.[0]?.parent ?? null;
+          CONFIG.Dice.randomUniform = realPRNG;
+          const hold = await waitFor(() => holdOf(msg), 6000);
+          const pop = await waitFor(() => popups().find(app => /Beguiling Defenses/.test(textOf(app.element))
+            && (app.element?.querySelector?.('input[name="bf-rescue"][value="Beguiling Defenses"]') || app.element?.querySelector?.('button[data-action="cast"]'))) ?? null, 8000);
+          ok('45a. the attacker hits the sorcerer: the hold, the sorcerer\'s popup with Beguiling Defenses (a damage kind, 1 use)',
+            !!hold && !!pop && (hold.targets?.[0]?.uuid === sorcerer.uuid), `hold=${!!hold} pop=${!!pop} target=${hold?.targets?.[0]?.name}`);
+          const box = pop?.element?.querySelector('input[name="bf-rescue"][value="Beguiling Defenses"]');
+          if (box) { if (!box.checked) box.click(); await sleep(50); pop.element.querySelector('button[data-action="answer"]')?.click(); }
+          else pop?.element?.querySelector('button[data-action="cast"]')?.click();
+          const target = await waitFor(() => { const h = holdOf(msg); return (h?.status === 'resolved') ? (h.targets.find(x => x.uuid === sorcerer.uuid) ?? null) : null; }, 12000);
+          const dmg = await waitFor(() => { const d = damageFor(msg?.id); const r = d?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === sorcerer.uuid); return r ? { d, r } : null; }, 12000);
+          const defCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'failDamage') && m.getFlag(MOD, 'saves')) ?? null, 12000);
+          const dflag = defCard?.getFlag(MOD, 'saves') ?? null;
+          ok('45b. Cast: the hold answered cast, the damage HALVED on the receipt, the item\'s use spent, the Beguiling Reaction\'s Wisdom save demanded (no combat here: no Reaction chip is written, the B1 lesson) of the attacker with the failDamage rider',
+            (target?.answer === 'cast') && (dmg?.r?.multiplier === 0.5) && (Number(sorcerer.items.get(bd.id)?.system?.uses?.spent) === 1)
+              && (dflag?.targets?.[0]?.uuid === attacker.uuid) && (dflag?.abilities?.[0] === 'wis') && (dflag?.failDamage?.equalTo === 'taken') && (dflag?.failDamage?.takenBy === sorcerer.uuid),
+            `answer=${target?.answer} mult=${dmg?.r?.multiplier} taken=${dmg?.r?.taken} spent=${sorcerer.items.get(bd.id)?.system?.uses?.spent} reaction=${!!reactionChipOn(sorcerer)} card=${!!defCard} flag=${JSON.stringify(dflag && { targets: dflag.targets?.map(t => t.name), abilities: dflag.abilities, failDamage: dflag.failDamage })}`);
+          const taken = Number(dmg?.r?.taken);
+          if (defCard) {
+            faces([[1, 20]]);
+            await attacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+            CONFIG.Dice.randomUniform = realPRNG;
+            const psychic = await waitFor(() => defCard.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === attacker.uuid) ?? null, 12000);
+            ok('45c. the attacker FAILS: psychic damage equal to the damage the sorcerer took, receipted on the reaction\'s card, the attacker\'s HP down by it',
+              !!psychic && (taken > 0) && (Number(psychic.taken) === taken) && (Number(attacker.system.attributes.hp.value) === atkHp - taken),
+              `taken=${taken} psychic=${JSON.stringify(psychic && { taken: psychic.taken, note: psychic.note })} hp=${attacker.system.attributes.hp.value}/${atkHp}`);
+          }
+        }
+      } finally {
+        await closeA1();
+        await hgClose(/Beguiling/);
+        if (bd) await unlend(sorcerer, bd);
+        await dropReactionChips(sorcerer);
+        if (priorActor[sorcerer.id]) await sorcerer.update(priorActor[sorcerer.id]).catch(() => {});
+        if (priorActor[attacker.id]) await attacker.update(priorActor[attacker.id]).catch(() => {});
         CONFIG.Dice.randomUniform = realPRNG;
         clearTargets();
       }

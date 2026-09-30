@@ -128,13 +128,14 @@ export function saveTargetEntry(uuid, name) {
  * @param {string | null} [d.durationUnits]
  * @param {{ name: string, img: string | null }} d.item
  * @param {string | null} [d.casterName]
+ * @param {object | null} [d.failDamage]  a hit reaction's rider (Beguiling Defenses, B2): the failure's damage on the saver
  * @param {number | null} [d.scaling]
  * @param {number} [d.window]
  * @param {number | null} [d.deadline]
  * @param {object[]} d.targets
  */
 export function saveDemandData({ status = "pending", stat, abilities, dc, damageOnSave, hasDamage, effectNames,
-  demand = null, effectsHandled = null, pinnedTargets = false, activityUuid, templateType = null, templated = false,
+  demand = null, effectsHandled = null, failDamage = null, pinnedTargets = false, activityUuid, templateType = null, templated = false,
   awaitingTemplate = false, durationUnits = null, item, casterName = null, scaling = null, window = 0, deadline = null,
   targets }) {
   return {
@@ -142,6 +143,7 @@ export function saveDemandData({ status = "pending", stat, abilities, dc, damage
     abilities, dc, damageOnSave, hasDamage, effectNames,
     ...(demand ? { demand } : {}),
     ...(effectsHandled ? { effectsHandled } : {}),
+    ...(failDamage ? { failDamage } : {}),
     ...(pinnedTargets ? { pinnedTargets: true } : {}),
     activityUuid, templateType, templated,
     ...(awaitingTemplate ? { awaitingTemplate: true } : {}),

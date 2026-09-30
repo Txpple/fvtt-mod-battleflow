@@ -52,7 +52,8 @@ const SECTIONS = {
   29: 'Command (the spells slice, 2026-09-28): a failed save behind a press with a WORD asks the caster — Approach / Flee / Grovel / Halt; Grovel presses Prone (receipted, the announce card says who falls); Halt presses nothing and the card says the table moves the token',
   30: 'the saves facet\'s two new effect rows (the spells slice, 2026-09-28): Poison Protection counts Advantage against a demand that would poison; Irresistible Dance counts Disadvantage against a DEXTERITY demand (the `abilities` scope) and nothing against a Wisdom one',
   27: 'Guarded Mind (the PHB feats, group 4, 2026-09-27): a failed demanded Wisdom save is withheld and offered the `succeed` fold; pressed, the use is spent and the verdict is SAVED (half damage, no fail-only effect); spent, not offered; a Constitution save never',
-  31: 'THE GM\'S SIDE (2026-09-28): Magic Resistance, text-only on the sheet, counts Advantage against a spell\'s demand; Greater Magic Resistance says the save cannot fail (a Succeeds button, the default — SAVED with no die); Avoidance on a CONSTITUTION save takes none on a success and half on a failure, the row and the receipt naming Avoidance'
+  31: 'THE GM\'S SIDE (2026-09-28): Magic Resistance, text-only on the sheet, counts Advantage against a spell\'s demand; Greater Magic Resistance says the save cannot fail (a Succeeds button, the default — SAVED with no die); Avoidance on a CONSTITUTION save takes none on a success and half on a failure, the row and the receipt naming Avoidance',
+  32: 'THE PHB CLASSES — B2 (2026-09-30): the save bends by name — Psychic Defenses (Brave\'s shape) counts Advantage against a frightening demand; Magical Ambush on the CASTER, Invisible as it casts, counts Disadvantage (the demand\'s caster snapshot) and nothing when visible; Struck by the caster counts Disadvantage against its spell and the save SPENDS it; Hexed Dexterity by a warlock holding Eldritch Hex counts Disadvantage on a Dexterity demand and nothing on a Wisdom one; Mantle of Majesty (the bard\'s Unearthly Appearance) makes a Command at a creature Charmed by the bard FAIL (the Fails button the default, the entry autoFailed), and a Charmed by someone else lists nothing'
 };
 // §2 rolls §1's demand damage (`card1`); §13 rides §12's lifecycle (`card12`, its area, its scene).
 const DEPENDS = { 2: ['1'], 13: ['12'] };
@@ -2528,6 +2529,166 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           `outcome=${b.entry?.outcome} by=${b.entry?.evasionBy} taken=${b.receipt?.taken} mult=${b.receipt?.multiplier} note="${b.receipt?.note}"`);
       } finally {
         for (const t of traits.splice(0)) await t.delete().catch(() => {});
+        await saveBonus(victim, '');
+        await healFull(victim);
+        await clearChips();
+      }
+    }
+
+    // ============================================== 32. the PHB classes — B2: the save bends by name
+    if (want(32)) {
+      const failEff = npc.items.get(poisonItem.id).effects.get(EFF_FAIL);
+      const priorStatuses = [...(failEff?.statuses ?? [])];
+      const wards = [];
+      const lent = [];   // { actor, id }
+      let commandItem = null;
+      try {
+        await clearChips();
+        await saveBonus(victim, '');
+        await healFull(victim);
+        const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
+        const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const ward = async (name, data = {}) => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false, ...data }]); wards.push(e); return e; };
+        const feat = async (actor, name) => {
+          const [it] = await actor.createEmbeddedDocuments('Item', [{ name, type: 'feat', system: { description: { value: `<p>${name}</p>` } } }]);
+          lent.push({ actor, id: it.id }); return it;
+        };
+        const unfeat = async it => { const l = lent.find(x => x.id === it.id); if (l?.actor.items.get(it.id)) await l.actor.deleteEmbeddedDocuments('Item', [it.id]); lent.splice(lent.indexOf(l), 1); };
+        const castAt = async activity => {
+          target(victimToken);
+          await sleep(120);
+          const use = await activity.use({}, { configure: false }, {});
+          const card = use?.message instanceof ChatMessage ? use.message : null;
+          if (card) await until(() => card.getFlag(MOD, 'saves'));
+          return card;
+        };
+        const roll = async (card, dlg, action = null) => {
+          (action ? dlg?.querySelector(`button[data-action="${action}"]`) : dlg?.querySelector('button[autofocus]'))?.click();
+          await until(() => card?.getFlag(MOD, 'saves')?.status === 'done', 10000);
+          await sleep(400);
+        };
+        const settle = async (card, dlg, action = null) => {
+          await roll(card, dlg, action);
+          for (const w of wards.splice(0)) await w.delete().catch(() => {});
+          await healFull(victim);
+        };
+
+        // a. Psychic Defenses, a text-only trait on the Victim, against a demand that would frighten (Brave's shape).
+        await failEff.update({ statuses: ['frightened'] });
+        const pd = await feat(victim, 'Psychic Defenses');
+        const cardA = await castAt(dexActivity());
+        const dlgA = await dialogFor(cardA);
+        const textA = sectionText(dlgA);
+        ok('32a. Psychic Defenses on the Victim (text only) against a frightening demand: "Psychic Defenses — against Frightened", Net Advantage',
+          !!dlgA && /Psychic Defenses — against Frightened/.test(textA) && /Net Advantage/.test(textA), `text="${textA.slice(0, 220)}"`);
+        await settle(cardA, dlgA);
+        await unfeat(pd);
+        await failEff.update({ statuses: priorStatuses });
+
+        // b–c. Magical Ambush: the CASTER's feature, Invisible as it casts; visible, nothing.
+        const ma = await feat(npc, 'Magical Ambush');
+        await npc.toggleStatusEffect('invisible', { active: true });
+        await sleep(150);
+        const cardB = await castAt(dexActivity());
+        const dlgB = await dialogFor(cardB);
+        const textB = sectionText(dlgB);
+        const snapB = cardB?.getFlag(MOD, 'saves')?.demand?.source ?? null;
+        ok('32b. the caster Invisible with Magical Ambush: "BF Test Attacker — Magical Ambush — against a spell, BF Test Attacker Invisible as it cast", Net Disadvantage; the demand carries the caster\'s snapshot',
+          !!dlgB && /Magical Ambush — against a spell, BF Test Attacker Invisible as it cast/.test(textB) && /Net Disadvantage/.test(textB)
+            && (snapB?.uuid === npc.uuid) && (snapB?.statuses ?? []).includes('invisible') && (snapB?.features ?? []).includes('Magical Ambush'),
+          `text="${textB.slice(0, 220)}" source=${JSON.stringify(snapB)}`);
+        await settle(cardB, dlgB);
+        await npc.toggleStatusEffect('invisible', { active: false });
+        await sleep(150);
+        const cardC = await castAt(dexActivity());
+        const dlgC = await dialogFor(cardC);
+        const textC = sectionText(dlgC);
+        ok('32c. …the caster visible: Magical Ambush nowhere in the section', !!dlgC && !/Magical Ambush/.test(textC), `text="${textC.slice(0, 220)}"`);
+        await settle(cardC, dlgC);
+        await unfeat(ma);
+
+        // d–e. Struck by the caster: Disadvantage against ITS spell, and the save spends it.
+        const struck = await ward('Struck', { flags: { [MOD]: { sourceUuid: npc.uuid } } });
+        const cardD = await castAt(dexActivity());
+        const dlgD = await dialogFor(cardD);
+        const textD = sectionText(dlgD);
+        ok('32d. Struck (its source the caster) against the caster\'s spell: "Struck — against BF Test Attacker\'s spell", Net Disadvantage',
+          !!dlgD && /Struck — against BF Test Attacker's spell/.test(textD) && /Net Disadvantage/.test(textD), `text="${textD.slice(0, 220)}"`);
+        await roll(cardD, dlgD);
+        const struckGone = await until(() => !victim.effects.get(struck.id), 6000);
+        ok('32e. the save SPENT Struck: the effect is gone from the Victim', struckGone === true, `gone=${!victim.effects.get(struck.id)}`);
+        for (const w of wards.splice(0)) await w.delete().catch(() => {});
+        await healFull(victim);
+
+        // f–g. Hexed Dexterity by a warlock holding Eldritch Hex: a Dexterity demand, Disadvantage; a Wisdom one, nothing.
+        const eh = await feat(npc, 'Eldritch Hex');
+        await ward('Hexed Dexterity', { statuses: ['cursed'], flags: { [MOD]: { sourceUuid: npc.uuid } } });
+        const cardF = await castAt(dexActivity());
+        const dlgF = await dialogFor(cardF);
+        const textF = sectionText(dlgF);
+        ok('32f. Hexed Dexterity (its source holds Eldritch Hex) against a Dexterity demand: "Hexed Dexterity — a Dexterity save", Net Disadvantage',
+          !!dlgF && /Hexed Dexterity — a Dexterity save/.test(textF) && /Net Disadvantage/.test(textF), `text="${textF.slice(0, 220)}"`);
+        await settle(cardF, dlgF);
+        await ward('Hexed Dexterity', { statuses: ['cursed'], flags: { [MOD]: { sourceUuid: npc.uuid } } });
+        const cardG = await castAt(wisActivity());
+        const dlgG = await dialogFor(cardG);
+        const textG = sectionText(dlgG);
+        ok('32g. …and nowhere in the section of a Wisdom demand', !!dlgG && !/Hexed/.test(textG), `text="${textG.slice(0, 220)}"`);
+        await settle(cardG, dlgG);
+        await unfeat(eh);
+
+        // h–j. Mantle of Majesty: the bard's Unearthly Appearance, a Command at a creature Charmed BY the bard — Fails.
+        [commandItem] = await npc.createEmbeddedDocuments('Item', [{
+          name: 'Command', type: 'spell',
+          system: {
+            level: 1, school: 'enc', properties: ['vocal'], duration: { units: 'round', value: 1 },
+            target: { affects: { type: 'creature', count: '1', choice: false } }, range: { value: '60', units: 'ft' },
+            method: 'spell', prepared: 1, identifier: 'bf-b2-command',
+            activities: {
+              bfb2command00000: {
+                _id: 'bfb2command00000', type: 'save', activation: { type: 'action', override: false },
+                consumption: { targets: [], spellSlot: false }, damage: { parts: [] }, effects: [],
+                save: { ability: ['wis'], dc: { calculation: '', formula: '15' } }, target: { override: false, prompt: true }
+              }
+            }
+          }
+        }]);
+        const cmdAct = () => npc.items.get(commandItem.id).system.activities.get('bfb2command00000');
+        const [ua] = await npc.createEmbeddedDocuments('ActiveEffect', [{ name: 'Unearthly Appearance', img: 'icons/svg/aura.svg', transfer: false, disabled: false }]);
+        await ward('Charmed', { statuses: ['charmed'], flags: { [MOD]: { sourceUuid: npc.uuid } } });
+        const cardH = await castAt(cmdAct());
+        const dlgH = await dialogFor(cardH);
+        const textH = sectionText(dlgH);
+        ok('32h. Mantle of Majesty — a Command at a creature Charmed by the bard: "BF Test Attacker — Mantle of Majesty: this save cannot succeed — Command, BF Test Victim Charmed by BF Test Attacker", the Fails button the default',
+          !!dlgH && /Mantle of Majesty: this save cannot succeed — Command, BF Test Victim Charmed by BF Test Attacker/.test(textH)
+            && !!dlgH.querySelector('[data-bf-fails]') && (defaultOf(dlgH) === 'bf-fails'),
+          `text="${textH.slice(0, 260)}" fails=${!!dlgH?.querySelector('[data-bf-fails]')} default=${defaultOf(dlgH)}`);
+        dlgH?.querySelector('[data-bf-fails]')?.click();
+        const entryH = await until(() => { const e = entryOf(cardH, victim); return e?.done ? e : null; }, 10000);
+        ok('32i. Fails: the entry FAILED with no die, by Mantle of Majesty',
+          (entryH?.outcome === 'failed') && (entryH?.autoFailed === true) && /Mantle of Majesty/.test(entryH?.autoFailedBy ?? ''),
+          `entry=${JSON.stringify(entryH && { outcome: entryH.outcome, autoFailed: entryH.autoFailed, by: entryH.autoFailedBy })}`);
+        await sleep(400);
+        for (const w of wards.splice(0)) await w.delete().catch(() => {});
+        await healFull(victim);
+        // j. Charmed by someone else: no row, no Fails button.
+        await ward('Charmed', { statuses: ['charmed'], flags: { [MOD]: { sourceUuid: 'Actor.someoneElse00' } } });
+        const cardJ = await castAt(cmdAct());
+        const dlgJ = await dialogFor(cardJ);
+        const textJ = sectionText(dlgJ);
+        ok('32j. …Charmed by someone else: no Mantle row, no Fails button',
+          !!dlgJ && !/Mantle/.test(textJ) && !dlgJ.querySelector('[data-bf-fails]'), `text="${textJ.slice(0, 220)}" fails=${!!dlgJ?.querySelector('[data-bf-fails]')}`);
+        await settle(cardJ, dlgJ, 'normal');
+        await ua.delete().catch(() => {});
+      } finally {
+        for (const w of wards.splice(0)) await w.delete().catch(() => {});
+        for (const l of lent.splice(0)) if (l.actor.items.get(l.id)) await l.actor.deleteEmbeddedDocuments('Item', [l.id]).catch(() => {});
+        if (commandItem && npc.items.get(commandItem.id)) await npc.deleteEmbeddedDocuments('Item', [commandItem.id]).catch(() => {});
+        for (const e of npc.effects.filter(e => e.name === 'Unearthly Appearance')) await e.delete().catch(() => {});
+        if (npc.statuses.has('invisible')) await npc.toggleStatusEffect('invisible', { active: false }).catch(() => {});
+        for (const e of victim.effects.filter(e => e.statuses?.has?.('charmed') || e.statuses?.has?.('cursed'))) await e.delete().catch(() => {});
+        await failEff.update({ statuses: priorStatuses }).catch(() => {});
         await saveBonus(victim, '');
         await healFull(victim);
         await clearChips();

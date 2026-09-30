@@ -4,6 +4,7 @@
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { ruleHTML } from "../rule-text.js";
+import { bfCard } from "../decide/present.js";
 import { applicableProfiles, cardActivity, featureNamed, namesAnswering, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
@@ -56,6 +57,7 @@ export async function applySaveConsequences(card, uuid, rollMessage = null) {
     if ( !entry?.done || entry.applied ) return;
 
     await applySaveEffects(card, flag, entry);
+    await applyFailDamage(card, flag, entry);
     if ( (entry.choice?.kind === "bash") && entry.choice.answer ) await announceBashOutcome(card, flag, entry);
     if ( (entry.choice?.kind === "word") && entry.choice.answer ) await announceWordOutcome(card, flag, entry);
     if ( entry.choice?.kind === "interpose" ) await settleInterpose(card, flag, entry);
@@ -97,7 +99,7 @@ export async function applySaveEffects(card, flag, entry, { successOnly = false 
   // behind the caster's WORD (Command) lands only when the word answered is the pressing one.
   if ( !toApply.length && (entry.outcome === "failed") && !successOnly ) {
     const press = SAVE_PRESS_INDEX.rowFor(activity.item);
-    const spoken = !press?.word || ((entry.choice?.kind === "word") && (entry.choice.answer === press.word.presses));
+    const spoken = !press?.word || ((entry.choice?.kind === "word") && wordPresses(press.word, entry.choice.answer));
     if ( press?.onFail && spoken ) await pressSaveStatus(card, flag, entry, press);
     return;
   }
@@ -109,6 +111,31 @@ export async function applySaveEffects(card, flag, entry, { successOnly = false 
     spellLevel: castLevelOn(card) ?? undefined,
     source: statSourceOf(card) // the data-plane stamp — the caster whose demand this is
   });
+}
+
+/** B2 — a hit reaction's `failDamage` (Beguiling Defenses): on the FAILURE the saver takes the type named, equal to the
+ * damage the reactor took from the hit — read off the hit's receipts (`attackFor` the attack, the reactor the target). No
+ * receipt yet (the save answered before the damage landed): a card says so and the table applies it by hand. */
+async function applyFailDamage(card, flag, entry) {
+  const fd = flag?.failDamage;
+  if ( !fd || (entry.outcome !== "failed") ) return;
+  let amount = Number(fd.amount);
+  if ( !Number.isFinite(amount) && (fd.equalTo === "taken") && fd.attackId && fd.takenBy ) {
+    amount = game.messages.contents.filter(m => m.getFlag(MODULE_ID, "attackFor") === fd.attackId)
+      .flatMap(m => (m.getFlag(MODULE_ID, "receipt")?.targets ?? []).filter(t => (t.uuid === fd.takenBy) && !t.reverted))
+      .reduce((n, t) => n + (Number(t.taken) || 0), 0);
+  }
+  const by = fd.by ?? flag.item?.name ?? "the reaction";
+  if ( !(amount > 0) ) {
+    await ChatMessage.create({ speaker: card.speaker,
+      content: bfCard({ img: flag.item?.img ?? null, eyebrow: `Reaction — ${by}`, tone: "pending",
+        title: `${entry.name} failed: ${fd.type ?? "psychic"} damage equal to the damage taken`,
+        subtitle: "the hit's damage has no receipt yet — apply it by hand from the damage card" }) });
+    return;
+  }
+  await applyDamagesWithReceipt(card, [{ uuid: entry.uuid, name: entry.name }],
+    [{ value: amount, type: fd.type ?? "psychic", properties: new Set() }],
+    { note: `${by} — ${fd.type ?? "psychic"}, equal to the damage taken (${amount})` });
 }
 
 /** Which EVASIONS row (registry.js) applies — its key (Evasion, Avoidance) or null. Read at the fold and
@@ -148,15 +175,21 @@ export function noneOnSuccessFor(actor, flag) {
     enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand: flag.demand ?? null });
 }
 
+/** Does the caster's word press? Command's one pressing option, or (B2) a `statuses` map where every word presses its own. */
+export const wordPresses = (word, answer) => word?.statuses ? !!word.statuses[answer] : (answer === word?.presses);
+/** The status a word lands: the map's (Beguiling Twist's Charmed or Frightened), else the row's. */
+export const wordStatus = (press, answer) => press?.word?.statuses?.[answer] ?? press?.status ?? null;
+
 /** The SAVE_PRESSES status on the failer, receipted as the effect it became (so revert removes it). */
 async function pressSaveStatus(card, flag, entry, press) {
   const subject = await fromUuid(entry.uuid).catch(() => null);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( !(saver instanceof Actor) || !canApplyTo(saver) ) return;
-  if ( saver.statuses?.has?.(press.status) ) return;   // already wearing it — nothing to press, nothing to receipt
-  const landed = await forceStatus(saver, press.status, { origin: flag.sourceUuid ?? null, expiry: press.expiry ?? null });
+  const status = wordStatus(press, entry.choice?.answer ?? null);
+  if ( !status || saver.statuses?.has?.(status) ) return;   // already wearing it — nothing to press, nothing to receipt
+  const landed = await forceStatus(saver, status, { origin: flag.sourceUuid ?? null, expiry: press.expiry ?? null, duration: press.lasts ?? null });
   if ( !landed ) return;
-  const effect = saver.effects.find(e => e.statuses?.has?.(press.status));
+  const effect = saver.effects.find(e => e.statuses?.has?.(status));
   if ( !effect ) return;
   const description = await ruleHTML(press.rule);
   await queueFlagWrite(card, "effectReceipt", current => {

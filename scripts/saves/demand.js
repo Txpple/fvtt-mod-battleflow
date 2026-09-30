@@ -4,7 +4,7 @@
  * area and an emanation's reach applied at the cast.
  */
 import { MODULE_ID, TITLE, S, setting, statContext, decisionWindow } from "../core.js";
-import { applicableProfiles, resolveUuid, itemNamed } from "../lookup.js";
+import { applicableProfiles, resolveUuid, itemNamed, namesAnswering } from "../lookup.js";
 import { CARD, activityUuidOf, isCard, targetsOf } from "../decide/card.js";
 import { saveDemandData, saveTargetEntry, putsToSleep } from "../decide/demand.js";
 import { METAMAGIC_FLAG, metamagicRuleText } from "../decide/metamagic.js";
@@ -12,7 +12,7 @@ import { AREA_ASK_FLAG, AREA_CHOICE_FLAG, carefulProtects, heightenedMark, choic
 import { askCandidates, newAsk, raiseAsk } from "../area-ask.js";
 import { tokensInRegions } from "../geometry.js";
 import { isDeadForSaves } from "../decide/eligible.js";
-import { EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
+import { EFFECT_BENDS, EMANATIONS, SAVE_PRESSES, tableIndex } from "../decide/registry.js";
 import { reachAdmits, affectsAdmits } from "../decide/emanations.js";
 import { emanationEntries, spentAreaListed, chosenAreaListed } from "../decide/registry.js";
 import { raiseHold, releaseHold, isHeld } from "../holds.js";
@@ -20,6 +20,19 @@ import { offerSaveDamageRoll, rollDamageForSave } from "../auto-damage.js";
 import { listen } from "../dispatch.js";
 
 const SAVE_PRESS_ROWS = tableIndex(SAVE_PRESSES);
+
+/* THE CASTER'S SNAPSHOT (B2): the `side: "caster"` save rows are read off the DEMAND, not the roller's sheet —
+ * the caster's effects and features in the table's words, and its statuses as it cast (Magical Ambush's Invisible). */
+const CASTER_SIDE = Object.entries(EFFECT_BENDS).filter(([, r]) => (r.side === "caster") && r.saves);
+const CASTER_EFFECT_NAMES = new Set(CASTER_SIDE.filter(([, r]) => r.match !== "feature").map(([k, r]) => String(r.named ?? k).toLowerCase()));
+const CASTER_FEATURE_KEYS = [...new Set(CASTER_SIDE.filter(([, r]) => r.match === "feature").map(([k, r]) => String(r.named ?? k)))];
+function casterSnapshot(actor) {
+  if ( !(actor instanceof Actor) ) return null;
+  return { uuid: actor.uuid, name: actor.name,
+    effects: actor.effects.filter(e => !e.disabled && CASTER_EFFECT_NAMES.has(String(e.name ?? "").toLowerCase())).map(e => ({ id: e.id, name: e.name })),
+    features: CASTER_FEATURE_KEYS.length ? namesAnswering(actor.items.filter(i => i.type === "feat"), CASTER_FEATURE_KEYS) : [],
+    statuses: [...(actor.statuses ?? [])] };
+}
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
 function casterFactsOf(activity) {
@@ -217,10 +230,14 @@ async function stampSaveDemand(activity, message, results) {
       // WHAT THE SAVE IS AGAINST, read by save-side auras when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         abilities,
+        item: activity.item?.name ?? null,
+        source: casterSnapshot(activity.actor),
         statuses: [...new Set(entries.filter(e => !e.onSave && !onSuccess(e)).flatMap(e => [...(e.effect?.statuses ?? [])]))],
         sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),
         ...(metamagic.heightened ? { heightened: metamagic.heightened } : {}) },
       effectsHandled: emanation ? "emanation" : null,
+      // A rider the CAST carried (a hit reaction's `failDamage`, B2): the failure's damage on the saver.
+      failDamage: message.getFlag(MODULE_ID, "failDamage") ?? null,
       activityUuid: activity.uuid,
       // Adoption's shape gate for a toolbar-drawn area, which has no origin flag.
       templateType: activity.target?.template?.type ?? null,

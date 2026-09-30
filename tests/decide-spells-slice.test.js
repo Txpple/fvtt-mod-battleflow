@@ -48,8 +48,17 @@ describe("Tier 1 — the rows", () => {
     expect(row).toMatchObject({ attacker: "disadvantage", target: "advantage", scope: "any" });
     expect(row.saves).toMatchObject({ bend: "disadvantage" });
     expect([...row.saves.abilities]).toEqual(["dex"]);
+    // …and B2's six Hexed rows (Eldritch Hex) share the scope, one ability each.
     expect(Object.keys(reg.EFFECT_BENDS).filter(k => reg.EFFECT_BENDS[k].saves?.abilities)).toEqual(
-      ["Irresistible Dance"]
+      [
+        "Irresistible Dance",
+        "Hexed Strength",
+        "Hexed Dexterity",
+        "Hexed Constitution",
+        "Hexed Intelligence",
+        "Hexed Wisdom",
+        "Hexed Charisma"
+      ]
     );
     expectPointer(row.rule);
   });

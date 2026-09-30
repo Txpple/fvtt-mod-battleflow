@@ -3,7 +3,7 @@
  * BEFORE the dice; plus the attack's cover (measured, or ignored by a feat). EDGE layer
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
-import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor } from "./core.js";
+import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
 import { featureNamed, namesAnswering, resolveUuid } from "./lookup.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
@@ -32,6 +32,19 @@ const EFFECT_ITEM_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.item
 
 /** The actor's feats in the effect table's words. */
 const featuresOf = actor => namesAnswering(actor.items.filter(i => i.type === "feat"), EFFECT_FEATURE_KEYS);
+/** An effect's SOURCE: the module's own stamp, else the actor behind its origin (B2's `spells: "source"`, `charmedBy`). */
+const effectSourceUuid = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
+/** The features a save row reads off an effect's SOURCE (`saves.sourceFeature` — Eldritch Hex), and the effects that ask. */
+const SOURCE_FEATURE_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.saves?.sourceFeature).filter(Boolean))];
+const SOURCE_FEATURE_ROWS = new Set(Object.entries(EFFECT_BENDS).filter(([, r]) => r.saves?.sourceFeature).map(([k, r]) => String(r.named ?? k).toLowerCase()));
+const sourceFeaturesOf = e => {
+  if ( !SOURCE_FEATURE_ROWS.has(String(e.name ?? "").toLowerCase()) ) return [];
+  const source = resolveUuid(effectSourceUuid(e) ?? "");
+  return (source instanceof Actor) ? namesAnswering(source.items.filter(i => i.type === "feat"), SOURCE_FEATURE_KEYS) : [];
+};
+/** The roller's effects as the save gate reads them (B2: statuses, the source, the source's features). */
+const saveEffectFacts = actor => actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name,
+  statuses: [...(e.statuses ?? [])], sourceUuid: effectSourceUuid(e), sourceHas: sourceFeaturesOf(e) }));
 
 /* THE ATTACK GATE: one fieldset in dnd5e's Attack Roll dialog, default button on the net; re-judged
  * on every re-render and re-target. ⚠ FORCED open: dnd5e applies fast-forward keys AFTER the pre-roll
@@ -659,7 +672,7 @@ function judgeSave(actor, ability, { concentration = false, askId = null } = {})
     sources.push(...modeSources({ effects: sheetModeEffects(actor), roll, rollLabel: rollLabelFor(roll), name: actor.name }));
     // The effect table's `saves` facet (Aura of Purity), read against the demand being answered.
     const demand = pendingDemandFor(actor)?.demand ?? null;
-    sources.push(...effectSaveSources({ effects: actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name })),
+    sources.push(...effectSaveSources({ effects: saveEffectFacts(actor),
       features: featuresOf(actor),
       enabled: effectEntries().map(e => e.kind), table: EFFECT_BENDS, demand, name: actor.name }));
     // The demand's own bend (a repeated save raised by damage — Tasha's Hideous Laughter).
@@ -823,7 +836,28 @@ listen("dnd5e.postRollConfiguration", "reminders", (rolls, config, _dialog, mess
       ...reminderRecord({ sources: gate.sources, net: gate.net, mode, answeredAt: Date.now() }),
       ...statContext(gate.actorUuid)
     });
+    void spendSaveEffects(gate);
   } catch(err) {
     console.error(`${TITLE} | Save gate record failed.`, err);
   }
 });
+
+/** A `spend: "save"` row's effect (Struck) is used up by the save it bent — the record above is the receipt. */
+async function spendSaveEffects(gate) {
+  try {
+    const ids = [...new Set((gate?.sources ?? []).filter(s => (s.spend === "save") && s.effectId).map(s => s.effectId))];
+    if ( !ids.length ) return;
+    const actor = resolveUuid(gate.actorUuid);
+    if ( !(actor instanceof Actor) ) return;
+    const live = ids.filter(id => actor.effects.get(id));
+    if ( !live.length ) return;
+    if ( !canApplyTo(actor) ) {
+      await whisperNoGM(`the spent ${actor.effects.get(live[0])?.name ?? "effect"} on ${actor.name}`,
+        "The save's record says it was spent; the effect stays until a GM is connected or its window closes.");
+      return;
+    }
+    await actor.deleteEmbeddedDocuments("ActiveEffect", live);
+  } catch(err) {
+    console.error(`${TITLE} | The save's spend failed.`, err);
+  }
+}

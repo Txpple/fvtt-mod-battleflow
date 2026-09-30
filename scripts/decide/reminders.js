@@ -147,14 +147,16 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
 /** The row's carriers: effects named as it, or one id-less carrier for a `match: "feature"` row (Brave).
  * @param {any} row
  * @param {string} key
- * @param {{id?: string|null, name: string}[]} [effects]
+ * @param {{id?: string|null, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[]}[]} [effects]
  * @param {string[]} [features]
- * @returns {{id?: string|null, name?: string}[]} */
+ * @returns {{id?: string|null, name?: string, sourceUuid?: string|null, sourceHas?: string[]}[]} */
 function rowCarriers(row, key, effects = [], features = []) {
+  // `named`: the carrier's own name when the row's key cannot be it (Mantle of Majesty's "Unearthly Appearance").
+  const name = String(row?.named ?? key);
   if ( row?.match === "feature" ) {
-    return (features ?? []).some(f => String(f).toLowerCase() === key.toLowerCase()) ? [{ id: null }] : [];
+    return (features ?? []).some(f => String(f).toLowerCase() === name.toLowerCase()) ? [{ id: null }] : [];
   }
-  return (effects ?? []).filter(e => effectNamedAs(e?.name, key));
+  return (effects ?? []).filter(e => effectNamedAs(e?.name, name));
 }
 
 /** Effect rows whose `checks` facet bends ability checks; `checksWhen` narrows to statuses/skills.
@@ -178,29 +180,52 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
 }
 
 /** Effect rows with a `saves` facet, read against the DEMAND (what the save is against). With no
- * demand (a bare sheet roll) every row is LISTED — never guess what a roll is against.
- * @param {{effects?: {id: string, name: string}[], features?: string[], enabled: Iterable<string>,
- *          table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null}|null, name?: string}} facts */
+ * demand (a bare sheet roll) every row is LISTED — never guess what a roll is against. A `side: "caster"`
+ * row is read off the demand's caster snapshot (`demand.source`) and is nothing without a demand.
+ * @param {{effects?: {id: string, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[]}[],
+ *          features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
+ *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null, item?: string|null,
+ *                    source?: {uuid?: string|null, name?: string|null, effects?: {id?: string|null, name: string}[], features?: string[], statuses?: string[]}|null}|null,
+ *          name?: string}} facts */
 export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
+  const lower = v => String(v ?? "").toLowerCase();
   const out = [];
   for ( const [key, row] of Object.entries(table ?? {}) ) {
     const facet = row?.saves;
     if ( !facet || !on.has(key.toLowerCase()) ) continue;
-    const carriers = rowCarriers(row, key, effects, features);
+    const casterSide = row.side === "caster";
+    const source = demand?.source ?? null;
+    if ( casterSide && !source ) continue;
+    const who = (casterSide && source) ? (source.name ?? "The caster") : name;
+    const carriers = (casterSide && source)
+      ? rowCarriers(row, key, source.effects ?? [], source.features ?? [])
+      : rowCarriers(row, key, effects, features);
     if ( !carriers.length ) continue;
     const scope = facet.statuses?.length
       ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
       : facet.sleep ? "a save against magic that would put you to sleep"
         : facet.spells ? "a save against a spell or other magical effect"
-          : facet.abilities?.length ? `a ${facet.abilities.map(abilityName).join(" or ")} save` : "this save";
+          : facet.abilities?.length ? `a ${facet.abilities.map(abilityName).join(" or ")} save`
+            : facet.item ? `a save against ${facet.item}` : "this save";
     let bend = null;
     let caveat = "";
     let succeeds = false;
+    let fails = false;
     if ( !demand ) {
       caveat = facet.succeeds ? ` (listed — ${scope}; it cannot fail if this is one)`
-        : ` (listed — ${scope}; press ${facet.bend === "advantage" ? "Advantage" : "Disadvantage"} if this is one)`;
+        : facet.fails ? ` (listed — ${scope}; it cannot succeed if this is one)`
+          : ` (listed — ${scope}; press ${facet.bend === "advantage" ? "Advantage" : "Disadvantage"} if this is one)`;
+    } else if ( facet.item && (lower(demand.item) !== lower(facet.item)) ) {
+      continue;   // the demand's own item by name (Mantle of Majesty's Command)
+    } else if ( facet.sourceStatus && !(source?.statuses ?? []).some(s => lower(s) === lower(facet.sourceStatus)) ) {
+      continue;   // the caster's status as it cast (Magical Ambush's Invisible)
+    } else if ( (facet.charmedBy === "source")
+      && !(source?.uuid && effects.some(e => (e.statuses ?? []).includes("charmed") && (e.sourceUuid === source.uuid))) ) {
+      continue;   // the roller Charmed by the demand's caster (Mantle of Majesty)
+    } else if ( facet.fails ) {
+      fails = true;
+      caveat = `: this save cannot succeed${facet.item ? ` — ${facet.item}` : ""}${(facet.charmedBy === "source") ? `, ${name} Charmed by ${who}` : ""}`;
     } else if ( facet.sleep ) {
       if ( !demand.spell || !demand.sleep ) continue;
       succeeds = !!facet.succeeds;
@@ -216,7 +241,9 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       // Greater Magic Resistance: the save against magic cannot fail — the fourth button, Trance's shape.
       succeeds = !!facet.succeeds;
       bend = succeeds ? null : (facet.bend ?? null);
-      caveat = succeeds ? ": this save cannot fail — against a spell or other magical effect" : " — against a spell";
+      caveat = succeeds ? ": this save cannot fail — against a spell or other magical effect"
+        : (facet.spells === "source") ? ` — against ${source?.name ?? "its source"}'s spell`
+          : facet.sourceStatus ? ` — against a spell, ${who} ${conditionName(facet.sourceStatus)} as it cast` : " — against a spell";
     } else if ( facet.abilities?.length ) {
       // The save's own ability (Irresistible Dance's Dexterity); a demand naming none is not this one.
       const hits = (demand.abilities ?? []).filter(a => facet.abilities.includes(String(a).toLowerCase()));
@@ -227,8 +254,14 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       bend = facet.bend;
     }
     for ( const e of carriers ) {
-      out.push(Object.assign(reminderSource("effect", bend, `${name} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {},
-        succeeds ? { autoSucceed: true, feature: key } : {}));
+      // `spells: "source"`: only an effect whose SOURCE is the demand's caster (Struck by this fighter).
+      if ( demand && (facet.spells === "source") && !(source?.uuid && (e.sourceUuid === source.uuid)) ) continue;
+      // `sourceFeature`: only an effect whose source holds the feature (Eldritch Hex's Hexed).
+      if ( facet.sourceFeature && !(e.sourceHas ?? []).some(f => lower(f) === lower(facet.sourceFeature)) ) continue;
+      out.push(Object.assign(reminderSource("effect", bend, `${who} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {},
+        succeeds ? { autoSucceed: true, feature: key } : {},
+        fails ? { autoFail: true, status: null, statusName: key } : {},
+        row.spend ? { spend: row.spend } : {}));
     }
   }
   return out;

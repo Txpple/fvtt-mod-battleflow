@@ -65,6 +65,7 @@ async function wordChoiceSpec(card, flag, entry) {
   return { kind: "word", itemName: flag.item?.name ?? press.key, itemImg: flag.item?.img ?? null,
     subjectUuid: caster?.uuid ?? flag.sourceUuid ?? null, casterName: caster?.name ?? flag.casterName ?? null,
     ask: press.word.ask, options: [...press.word.options], presses: press.word.presses, default: press.word.default,
+    ...(press.word.statuses ? { statuses: { ...press.word.statuses } } : {}),
     rule: press.rule ?? null };
 }
 
@@ -223,7 +224,9 @@ async function showWordPopup(card, uuid, c, entry, subject) {
     content: bfCard({
       img: c.itemImg, eyebrow: `Cast — ${c.itemName}`, tone: "pending",
       title: `${c.itemName} — ${entry.name} failed: ${c.ask ?? "which word?"}`,
-      subtitle: `${flag?.item?.name ?? c.itemName} — the save failed; ${c.presses} lands ${entry.name} Prone, the other words move the token by hand.`,
+      subtitle: c.statuses
+        ? `${flag?.item?.name ?? c.itemName} — the save failed; each word lands its condition on ${entry.name} for a minute.`
+        : `${flag?.item?.name ?? c.itemName} — the save failed; ${c.presses} lands ${entry.name} Prone, the other words move the token by hand.`,
       lines: [ruleLine(c.rule)]
     }) + momentBarHTML(c, "to answer"),
     buttons: (c.options ?? []).map(word => ({
@@ -244,13 +247,14 @@ export async function announceWordOutcome(card, _flag, entry) {
   });
   if ( !claimed ) return;
   const caster = card.getAssociatedActor?.() ?? null;
-  const presses = c.answer === c.presses;
+  const presses = c.statuses ? !!c.statuses[c.answer] : (c.answer === c.presses);
+  const landed = c.statuses ? `is ${c.answer}` : "falls Prone";
   await ChatMessage.create({
     speaker: caster ? ChatMessage.getSpeaker({ actor: caster }) : card.speaker,
     content: bfCard({
       img: c.itemImg, eyebrow: `Cast — ${c.itemName}`, tone: "good",
       title: presses
-        ? `${c.itemName} — "${c.answer}": ${entry.name} falls Prone`
+        ? `${c.itemName} — "${c.answer}": ${entry.name} ${landed}`
         : `${c.itemName} — "${c.answer}": ${entry.name} obeys on its next turn`,
       subtitle: c.timedOut ? "the word defaulted by the timer" : `${c.casterName ?? "the caster"}'s word`,
       lines: presses ? [] : [`${esc(c.answer)} moves or holds the creature — the table plays it; nothing moves the token for you.`]

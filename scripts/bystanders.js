@@ -13,7 +13,7 @@ import { bystanderMatters, dieMaxOf, dieOutcome, neutraliseOutcome, rerollOutcom
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
-import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable } from "./shared.js";
+import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { armAskTimer, cardRow, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
@@ -56,6 +56,8 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( (row.bend === "die") && (friendly === ((row.sign ?? 1) < 0)) ) continue;
       // A reroll is a gift (a friend's failure only), and only against an effect the row names (Countercharm's conditions).
       if ( (row.bend === "reroll") && (!friendly || !known) ) continue;
+      // A twist (Beguiling Twist, B2) rides anyone's SUCCESS against the row's conditions — any side, the DC known.
+      if ( (row.bend === "twist") && (!known || !(total >= Number(dc))) ) continue;
       if ( row.against && !(demand.statuses ?? []).some(s => row.against.includes(s)) ) continue;
       const feet = nearestFeet(other, token);
       if ( (feet === null) || (Number.isFinite(row.bystander) && (feet > row.bystander)) ) continue;
@@ -79,7 +81,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( bystanderMuted(actor, key) ) continue;
       const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;
-      const matters = known
+      const matters = (row.bend === "twist") ? true : known
         ? bystanderMatters({ bend: row.bend, sign: row.sign ?? 1, dieMax: dieMaxOf(die), want: friendly ? "hit" : "miss",
             kept: Number(facts.kept), plain: facts.plain, total, target: Number(dc), mode: facts.mode, critAt: 99, fumbleAt: 0 })
         : ((row.bend === "neutralise") ? neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total }).changed : true);
@@ -171,7 +173,8 @@ function foldAnswer(current, envelope, userId = null) {
     return;
   }
   Object.assign(current, { status: "resolved", answer: "roll", by: guard.uuid, byName: guard.name, rescue: envelope.rescue ?? guard.row,
-    bent: envelope.bent ?? null, poolSpend: envelope.poolSpend ?? null, answeredAt: Date.now(), answeredBy: userId });
+    bent: envelope.bent ?? null, poolSpend: envelope.poolSpend ?? null, ...(envelope.twist ? { twist: envelope.twist } : {}),
+    answeredAt: Date.now(), answeredBy: userId });
 }
 
 registerRelay("bystanderRollAnswer", {
@@ -234,6 +237,27 @@ async function bystanderAnswer(message, guard, choice, face = null) {
   const roll = message.rolls?.[0];
   const facts = d20FactsOf(roll);
   if ( !roll || !Number.isFinite(facts.kept) ) return;
+  // THE TWIST (Beguiling Twist, B2): the roll stands; the pack's Save activity is used at the ONE creature the answerer has
+  // targeted — never the roller. Nothing is spent until the aim is right.
+  if ( row.bend === "twist" ) {
+    const picked = [...game.user.targets];
+    const aim = picked[0] ?? null;
+    if ( (picked.length !== 1) || !aim?.actor || (aim.actor.uuid === flag.rollerUuid) ) {
+      ui.notifications.warn(`${TITLE}: ${guard.row} — target ONE other creature first, then Answer.`);
+      // The popup closed with the click (DialogV2); the question is still open — ask it again.
+      setTimeout(() => { void showPopup(message, message.getFlag(MODULE_ID, KEY) ?? flag, guard); }, 300);
+      return;
+    }
+    if ( !activity ) {
+      ui.notifications.warn(`${TITLE}: ${guard.row} has no ${row.activity ?? "activity"} on ${guard.name} — use it from the sheet.`);
+      return;
+    }
+    if ( row.reaction ) await spendReaction(actor, { origin: item.uuid, what: guard.row });
+    const twist = { targetUuid: aim.actor.uuid, targetName: aim.document?.name ?? aim.actor.name };
+    await withTargets([aim], () => activity.use({ subsequentActions: false }, { configure: false }, { data: { flags: { [MODULE_ID]: { twistFor: message.id } } } }))
+      .catch(err => console.error(`${TITLE} | ${guard.row}'s save could not be demanded — use it from the sheet.`, err));
+    return sendAnswer(message, { ...base, answer: "roll", bent: null, twist, poolSpend: null }, actor);
+  }
   if ( row.bend === "set" ) {
     const pick = Number.isFinite(Number(face)) ? Number(face) : Number(guard.faces?.[0]);
     if ( !Number.isFinite(pick) || !(await spendStoredFace(actor, row.stored, pick)) ) {
@@ -316,6 +340,10 @@ function situation(flag, roll, guard, row) {
   if ( row?.bend === "set" ) {
     return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. A stored face replaces the d20 (${facts.kept}) — the modifiers stand.`;
   }
+  if ( row?.bend === "twist" ) {
+    return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs} — <strong>it succeeded</strong>. Target ONE other creature `
+      + `within ${row.bystander ?? 120} ft of you, then Answer: it makes a Wisdom saving throw against your spell save DC.`;
+  }
   if ( row?.bend === "reroll" ) {
     const modifier = Number(roll?.total) - Number(facts.kept);
     return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}. The d20 (${facts.kept}) is rolled again`
@@ -342,7 +370,8 @@ async function showPopup(message, flag, guard) {
   const poolWord = (pool && (pool !== item)) ? `${pool.name} ` : "";
   const tag = [row?.reaction ? "a Reaction" : null, row?.uses ? `${poolWord}${Number(pool?.system?.uses?.value ?? 0)} left` : null].filter(Boolean).join(" · ");
   const dice = (row?.bend === "neutralise") ? "the first d20 stands"
-    : (row?.bend === "reroll") ? `reroll${row.advantage ? ", Advantage" : ""}` : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
+    : (row?.bend === "reroll") ? `reroll${row.advantage ? ", Advantage" : ""}`
+      : (row?.bend === "twist") ? "a Wisdom save at your target" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const test = TEST_WORD[flag.testKind] ?? "roll";
   const self = guard.uuid === flag.rollerUuid;
   const roll = message.rolls?.[0];
@@ -355,7 +384,8 @@ async function showPopup(message, flag, guard) {
   const dialog = await openMomentPopup(message, `${KEY}|${guard.uuid}`, actor, {
     title: `${guard.row} — ${self ? "your" : `${flag.rollerName}'s`} ${test}`, icon: "fa-solid fa-comment-dots", width: 460,
     content: bfCard({ img: item?.img ?? actor?.img ?? null, eyebrow: `Reaction — ${guard.row}`, tone: "pending",
-      title: `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`, subtitle: (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
+      title: (row?.bend === "twist") ? `${self ? "You" : flag.rollerName} succeeded on a ${test}` : `${self ? "You rolled" : `${flag.rollerName} rolled`} a ${test}`,
+      subtitle: (row?.bystander === "sight") ? "on the scene" : `within ${row?.bystander ?? "?"} ft of you` })
       + holdBarHTML(flag) + `<div style="padding:0.4rem 0.1rem;">${situation(flag, message.rolls?.[0], guard, row)}</div>`
       + tickRowsHTML({ name: "bf-bystander-roll", rows }),
     buttons: [
@@ -382,8 +412,9 @@ async function showPopup(message, flag, guard) {
 /** The line a bent check or save carries: who bent it, and the arithmetic (a check's verdict is the DM's). */
 function bentLine(flag) {
   const b = flag.bent;
-  if ( !b ) return "";
   const who = `${esc(flag.rescue)} (${esc(flag.byName ?? "")})`;
+  if ( !b && flag.twist ) return `<strong>${who}</strong> turned it on <strong>${esc(flag.twist.targetName ?? "")}</strong> — a Wisdom saving throw demanded; ${esc(flag.rollerName ?? "the roller")}'s save stands`;
+  if ( !b ) return "";
   const change = (b.how === "set") ? `the stored ${b.stood} replaces the d20 (${b.first})`
     : (b.how === "reroll") ? `the d20 (${b.first}) rerolled${(b.faces?.length > 1) ? ` with Advantage (${b.faces.join(", ")})` : ""} — the ${b.stood} stands`
     : (b.how === "neutralised") ? `no Advantage or Disadvantage — the first d20 (${b.stood}) stands`

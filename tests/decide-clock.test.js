@@ -205,6 +205,7 @@ describe("the registry's clock-rider data", () => {
       expect(["oncePerTurn", "firstRound", "any"], key).toContain(row.when);
       // …or a Critical Hit's own (the PHB feats, group 3: Slasher, Crusher, Piercer): the crit is the limit.
       // …or an Opportunity Attack's (the PHB feats, group 6: Sentinel's Halt) — the Reaction is the limit.
+      // …or a bare landed effect that costs nothing and refreshes ONE copy (B2: Eldritch Strike's Struck).
       if (row.when === "any")
         expect(
           row.uses === true ||
@@ -212,7 +213,8 @@ describe("the registry's clock-rider data", () => {
             row.judge === "opportunity" ||
             row.self === true ||
             row.enchant === true ||
-            row.inspired === true,
+            row.inspired === true ||
+            (!!row.lands?.name && !row.amount && !row.bonusDice),
           key
         ).toBe(true);
       if (row.effects || row.lands)

@@ -308,6 +308,7 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
 describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03)", () => {
   it("is the three rows the audit found bare and single-save — Web, Grease, Sleet Storm — the Poisoner's coating, and Command behind its word", () => {
     expect(Object.keys(reg.SAVE_PRESSES).sort()).toEqual([
+      "Beguiling Twist",
       "Command",
       "Grease",
       "Poisoner",
