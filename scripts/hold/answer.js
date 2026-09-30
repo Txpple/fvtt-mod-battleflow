@@ -10,7 +10,7 @@ import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard } from "../decide/present.js";
 import { reductionRise } from "../decide/dice-chips.js";
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, answers, tableIndex } from "../decide/registry.js";
-import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
+import { d20Faces, d20ModeOf, dieOutcome, disadvantageOutcome, guardSign, needsSecondD20, neutraliseOutcome, rescueSpendText } from "../decide/rescue-hit.js";
 import { lower, holdsFor, activityNamed, bystanderDie, d20FactsOf, meleeOptions, preferredMeleeOption } from "../lookup.js";
 import { spendReaction, poolOf, spendSuperiorityDie, spendPoolUses, reactionSpent, muteBystander, withTargets, spendStoredFace } from "../shared.js";
 import { setOutcome } from "../decide/stored-dice.js";
@@ -373,7 +373,7 @@ export async function bystanderReaction(attackMessage, target, guard, { onDamage
       console.error(`${TITLE} | ${key}'s die could not be rolled — bend the roll by hand.`, err);
     }
     if ( onDamage ) reduceBy = n;
-    else bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: (row.sign ?? 1) * n,
+    else bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n,
       critAt: facts.critAt, fumbleAt: facts.fumbleAt });
   } else if ( row.bend === "neutralise" ) {
     bent = neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total),

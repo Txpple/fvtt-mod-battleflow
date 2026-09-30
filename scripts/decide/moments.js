@@ -212,6 +212,17 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  conditionEnd: {
+    events: ["choice"],
+    means: "a feature's offer to END a condition its bearer wears — Guarded Mind (a Psionic die), Self-Restoration (free, the turn end), Physician's Touch (the healed creature) — answered with the condition or Keep (turn-grants.js, the PHB classes B4); resolved at Keep, or when the effects are gone",
+    resolved: (r) => ((r?.answer === "keep") || r?.applied) ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: r.row ?? null,
+        targets: r.bearerUuid ? [{ uuid: r.bearerUuid, name: r.bearerName ?? null }] : [],
+        details: { answer: r.answer ?? null, ended: r.ended ?? null, gone: r.gone ?? [], timedOut: !!r.timedOut } }
+    }] : []
+  },
+
   grappleDamage: {
     events: ["choice"],
     means: "Unarmed Fighting's turn-start damage was answered — 1d4 to a creature the owner grapples, dealt through the feat's own damage activity, or skipped (damage-rules.js, the fighting styles 2026-09-26, ruled U1); the clock deals it to the one creature known to be held",
@@ -711,6 +722,8 @@ export const STATE_KEYS = Object.freeze({
   kitTendFor: "a back-link — the heal a kit's tending drove, pointing at the kit's card; the kitTend flag there is the resolve",
   initiativeGrantAnswer: "an envelope — a player's answer to an Initiative grant's offer; the fold onto the initiativeGrant flag, landed by the GM, is the resolve",
   initiativeGrantRead: "a combat flag — the once-per-combat latch of which combatants' Initiative grants were read; initiativeGrant on the card is the resolve",
+  initiativeBonusDue: "a combat flag — the Initiative bonus a `to: \"allies\"` grant (Tandem Footwork, B4) owes to combatants who had not rolled when it landed; cleared as each rolls, the initiativeGrant card is the resolve",
+  conditionEndAnswer: "an envelope — a player's answer to a condition-end offer, relayed to the GM who lands it; the fold onto the conditionEnd flag is the resolve",
   initiativeSwapAnswer: "an envelope — a player's Initiative swap answer; the fold onto the initiativeSwap flag, landed by the elect, is the resolve",
   initiativeSwapAsked: "a combat flag — the once-per-combat latch of who was asked about an Initiative swap; initiativeSwap on the card is the resolve",
   storedDice: "an effect field — a STORED_DICE chip's faces and the turn one was spent (Portent); the bent roll's record (hold, bystanderRoll) or the roll itself is the resolve",
@@ -816,7 +829,7 @@ export const STATE_KEYS = Object.freeze({
   repeatSave: "the demand card a landed effect's repeated save raised (repeat-saves.js) — beside the saves record, which is the resolve; `settled` and `says` what the verdict did to the effect (the cast card's effectReceipt carries the removal)",
   repeatOffer: "a notice at the bearer's turn start — its own action can repeat the save (Otto's Irresistible Dance); the button raises the demand card",
   repeatCount: "an ActiveEffect field — a counted repeat's tally and lock (Contagion, Flesh to Stone)",
-  turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP; Regeneration's heal on the bearer's own trait) — the receipt on the same card is the resolve; a `blocked` card (the troll's fire) carries no receipt and resolves nothing",
+  turnGrant: "the card a turn-start grant posts (turn-grants.js, Heroism's temp HP; Regeneration's heal on the bearer's own trait) — the receipt on the same card is the resolve; a `blocked` card (the troll's fire) carries no receipt and resolves nothing; a `grant: \"inspiration\"` card (Heroic Warrior, B4) records the sheet's own write, no receipt",
   ward: "the demand card a ward raised of whoever targeted its bearer (wards.js, Sanctuary) — beside the saves record, which is the resolve; `settled`, `outcome` and `says` whether the use went on or was turned aside",
   wardEnded: "the card a ward's end posts (wards.js) — its bearer's own attack roll, cast or damage roll ended it; the effect's deletion is the act",
   duplicatesSeen: "a line on the defender's side — the attacker sees through its duplicates (a status, a sense), so nothing was rolled (hold/trigger.js, Mirror Image)",

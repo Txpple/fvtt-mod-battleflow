@@ -23,11 +23,22 @@ export function initiativeGrantDue({ own, regain, heals = false, hp = null }) {
 /**
  * The card's line for a grant, by its state.
  * @param {{row: string, status?: string, answer?: string|null, applied?: boolean, timedOut?: boolean, unit?: string,
- *          regained?: number, max?: number, healed?: number|null, formula?: string|null, back?: number, actorName?: string}} flag
+ *          regained?: number, max?: number, healed?: number|null, formula?: string|null, back?: number, actorName?: string,
+ *          give?: boolean, given?: {name: string, from: number, to: number}[], rolled?: number, due?: string[], reach?: number}} flag
  */
 export function initiativeGrantLine(flag) {
   const unit = flag.unit ?? "uses";
   if ( flag.answer === "no" ) return `${flag.row} — kept for later${flag.timedOut ? " (timer)" : ""}`;
+  // B4 — a `to: "allies"` row (Tandem Footwork): one roll, added to every ally's Initiative within reach.
+  if ( flag.give ) {
+    if ( flag.applied ) {
+      const names = (flag.given ?? []).map(g => `${g.name} ${g.from} → ${g.to}`);
+      return names.length ? `${flag.row} — +${flag.rolled} Initiative: ${names.join(", ")}${flag.due?.length ? ` (${flag.due.length} still to roll)` : ""}`
+        : `${flag.row} — +${flag.rolled ?? 0} Initiative, nobody within reach yet${flag.due?.length ? ` (${flag.due.length} still to roll)` : ""}`;
+    }
+    if ( flag.status === "resolved" ) return `${flag.row} — rolling…`;
+    return `${flag.row} — give ${flag.formula ?? "the die"} to allies within ${flag.reach ?? 30} ft? · a use of ${unit}`;
+  }
   if ( flag.applied ) {
     const parts = [`${unit} regained (${Number(flag.max) || 0} of ${Number(flag.max) || 0})`];
     if ( Number.isFinite(flag.healed) ) parts.push(`${flag.healed} Hit Point${flag.healed === 1 ? "" : "s"} regained`);

@@ -144,6 +144,28 @@ export function typeChoicesLeft(choices, held) {
   return (choices ?? []).filter(t => !have.has(String(t).toLowerCase()));
 }
 
+/**
+ * B4 — THE SPELL-DAMAGE BONUS (RULINGS *The PHB classes — B4*, Q5): does a `spells` row with a `bonus` fit THIS
+ * spell, and which of the roll's damage types it rides? The row's scope: `spells` true (any spell) or "cantrip";
+ * `classes` (the spell's own class); `school`; the types (`types`, or a `typed` row's picks). Returns the types the
+ * bonus may ride — every dealt type when the row names none — or null when the row does not fit.
+ * @param {{spells?: boolean|string, classes?: string[], school?: string, bonus?: string}} row
+ * @param {{level?: number|null, school?: string|null, sourceClass?: string|null, dealt?: string[]}} spell
+ * @param {string[]} [types]  the row's types (a typed row's picks)
+ * @returns {string[]|null} */
+export function spellRuleFits(row, spell, types = []) {
+  if ( !row?.spells || !row.bonus ) return null;
+  if ( (row.spells === "cantrip") && (Number(spell?.level ?? -1) !== 0) ) return null;
+  if ( row.classes?.length && !row.classes.includes(String(spell?.sourceClass ?? "")) ) return null;
+  if ( row.school && (String(spell?.school ?? "").toLowerCase() !== String(row.school).toLowerCase()) ) return null;
+  const dealt = [...new Set((spell?.dealt ?? []).filter(Boolean).map(t => String(t).toLowerCase()))];
+  if ( !dealt.length ) return null;
+  const own = (types ?? []).map(t => String(t).toLowerCase());
+  if ( !own.length ) return dealt;
+  const hit = dealt.filter(t => own.includes(t));
+  return hit.length ? hit : null;
+}
+
 /** A typed row's face: the types it reads, or off with how to fix it.
  * @param {string} name
  * @param {string[]} types

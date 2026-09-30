@@ -9,7 +9,7 @@
  */
 import { MODULE_ID, TITLE, queueFlagWrite, canAnswerFor, keepsMessage, statContext, decisionWindow, activeCombatFor } from "./core.js";
 import { INTERRUPT_ROLLS, STORED_DICE } from "./decide/registry.js";
-import { bystanderMatters, dieMaxOf, dieOutcome, neutraliseOutcome, rerollOutcome } from "./decide/rescue-hit.js";
+import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neutraliseOutcome, rerollOutcome, signFor } from "./decide/rescue-hit.js";
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
@@ -53,7 +53,11 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( !actor || out.some(b => (b.uuid === actor.uuid) && (b.row === key)) ) continue;
       if ( ((actor.system?.attributes?.hp?.value ?? 0) <= 0) || actor.statuses?.has?.("incapacitated") ) continue;
       const friendly = side === rollerSide;
-      if ( (row.bend === "die") && (friendly === ((row.sign ?? 1) < 0)) ) continue;
+      // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen).
+      const omenFace = (row.sign === "omen") ? (storedChipOf(actor, row.stored)?.getFlag(MODULE_ID, STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const sign = signFor(row, { friendly, face: omenFace }) ?? NaN;
+      if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
+      if ( (row.bend === "die") && (friendly === (sign < 0)) ) continue;
       // A reroll is a gift (a friend's failure only), and only against an effect the row names (Countercharm's conditions).
       if ( (row.bend === "reroll") && (!friendly || !known) ) continue;
       // A twist (Beguiling Twist, B2) rides anyone's SUCCESS against the row's conditions — any side, the DC known.
@@ -62,8 +66,8 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       const feet = nearestFeet(other, token);
       if ( (feet === null) || (Number.isFinite(row.bystander) && (feet > row.bystander)) ) continue;
       const item = featureNamed(actor, key);
-      const activity = item ? activityOf(item, row) : null;
-      if ( !item || (!activity && !row.stored) ) continue;
+      const activity = item ? (row.omen ? activityNamed(item, (sign > 0) ? row.omen.even : row.omen.odd) : activityOf(item, row)) : null;
+      if ( !item || (!activity && !row.stored && !row.omen) ) continue;
       // A STORED face (Portent): asked when a face in hand turns the verdict (a known DC; a check has none — not asked).
       if ( row.bend === "set" ) {
         const chip = storedChipOf(actor, row.stored);
@@ -82,12 +86,12 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;
       const matters = (row.bend === "twist") ? true : known
-        ? bystanderMatters({ bend: row.bend, sign: row.sign ?? 1, dieMax: dieMaxOf(die), want: friendly ? "hit" : "miss",
+        ? bystanderMatters({ bend: row.bend, sign, dieMax: dieMaxOf(die), want: friendly ? "hit" : "miss",
             kept: Number(facts.kept), plain: facts.plain, total, target: Number(dc), mode: facts.mode, critAt: 99, fumbleAt: 0 })
         : ((row.bend === "neutralise") ? neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total }).changed : true);
       if ( !matters ) continue;
       out.push({ uuid: actor.uuid, name: other.document?.name ?? actor.name, row: key, itemId: item.id, activityId: activity.id ?? null,
-        want: friendly ? "pass" : "fail", passed: false, die });
+        want: friendly ? "pass" : "fail", passed: false, die, sign });
     }
   }
   return out;
@@ -295,7 +299,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
     } catch(err) {
       console.error(`${TITLE} | ${guard.row}'s die could not be rolled — bend the roll by hand.`, err);
     }
-    bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: (row.sign ?? 1) * n, critAt: 99, fumbleAt: 0 });
+    bent = dieOutcome({ kept: Number(facts.kept), total: Number(roll.total), add: guardSign(guard, row) * n, critAt: 99, fumbleAt: 0 });
   }
   return sendAnswer(message, { ...base, answer: "roll", bent, poolSpend }, actor);
 }
@@ -355,7 +359,7 @@ function situation(flag, roll, guard, row) {
       + `${facts.faces.join(" and ")} → <strong>${roll?.total}</strong>${vs}. Take it away and the <strong>first d20 (${o.stood})</strong> stands — <strong>${o.total}</strong>.`;
   }
   const max = Number(dieMaxOf(guard.die)) || 0;
-  const minus = (row?.sign ?? 1) < 0;
+  const minus = guardSign(guard, row) < 0;
   return `${esc(flag.rollerName)}'s ${test}: <strong>${roll?.total}</strong>${vs}.`
     + (Number.isFinite(flag.dc) ? ` A ${esc(guard.die)} can turn it: ${roll?.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.`
       : " No DC is known — the arithmetic goes on the card and the DM rules.");
@@ -371,7 +375,7 @@ async function showPopup(message, flag, guard) {
   const tag = [row?.reaction ? "a Reaction" : null, row?.uses ? `${poolWord}${Number(pool?.system?.uses?.value ?? 0)} left` : null].filter(Boolean).join(" · ");
   const dice = (row?.bend === "neutralise") ? "the first d20 stands"
     : (row?.bend === "reroll") ? `reroll${row.advantage ? ", Advantage" : ""}`
-      : (row?.bend === "twist") ? "a Wisdom save at your target" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
+      : (row?.bend === "twist") ? "a Wisdom save at your target" : `${guardSign(guard, row) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const test = TEST_WORD[flag.testKind] ?? "roll";
   const self = guard.uuid === flag.rollerUuid;
   const roll = message.rolls?.[0];

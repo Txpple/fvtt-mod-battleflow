@@ -128,6 +128,24 @@ export function neutraliseOutcome({ mode, kept, plain = null, total, critAt = 20
 }
 
 /**
+ * B4 — a bystander row's SIGN for one roll: a number as itself; "either" follows the side (a friend's roll +, a foe's −:
+ * Bend Luck, R1 — helping a friend or hindering a foe is the one sensible answer); "omen" follows the stored face's parity
+ * (Cosmic Omen: even Weal +, odd Woe −). Null when an omen has no face.
+ * @param {{sign?: number|string}} row
+ * @param {{friendly?: boolean, face?: number|null}} facts
+ * @returns {number|null} */
+export function signFor(row, { friendly = false, face = null } = {}) {
+  const s = row?.sign ?? 1;
+  if ( s === "either" ) return friendly ? 1 : -1;
+  if ( s === "omen" ) return ((face !== null) && (face !== undefined) && Number.isFinite(Number(face))) ? ((Number(face) % 2 === 0) ? 1 : -1) : null;
+  return Number(s) || 1;
+}
+
+/** The sign a stamped guard entry carries (resolved at the offer), else the row's plain number. */
+export const guardSign = (guard, row) => Number.isFinite(Number(guard?.sign)) ? Number(guard.sign)
+  : ((typeof row?.sign === "number") ? row.sign : 1);
+
+/**
  * THE MARGIN GATE (Q2, option A): can this bystander's bend change the verdict? The futile-skip gate's
  * shape (`holdSkipped`), for another creature's roll. `want` is the verdict the bystander is after.
  * @param {{bend: "die"|"neutralise"|"reroll", sign?: number, dieMax?: number|null, want: "miss"|"hit",

@@ -8,7 +8,7 @@ import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligib
 import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
-import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows } from "../decide/rescue-hit.js";
+import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows, signFor } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
 import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf } from "../lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
@@ -251,8 +251,13 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       const inspired = row.inspired ? inspiredDieOf(actor, key) : null;
       if ( row.inspired && !inspired ) continue;
       const item = inspired ? null : featureNamed(actor, key);
-      const activity = item ? activityNamed(item, (self && row.selfActivity) ? row.selfActivity : row.activity) : null;
-      if ( !inspired && (!item || (!activity && !row.stored)) ) continue;
+      // B4 — the sign follows the side ("either", Bend Luck) or the stored omen's parity ("omen", Cosmic Omen: its activity too).
+      const omenFace = (row.sign === "omen") ? (storedChipOf(actor, row.stored)?.getFlag(MODULE_ID, STORED_FLAG)?.faces?.[0] ?? null) : null;
+      const sign = signFor(row, { friendly: on === "miss", face: omenFace }) ?? NaN;
+      if ( !Number.isFinite(sign) ) continue;   // an omen with no face rolled yet
+      const activityName = row.omen ? ((sign > 0) ? row.omen.even : row.omen.odd) : ((self && row.selfActivity) ? row.selfActivity : row.activity);
+      const activity = item ? activityNamed(item, activityName) : null;
+      if ( !inspired && (!item || (!activity && !row.stored && !row.omen)) ) continue;
       // A `self` answer on your own roll takes no Reaction (Guided Strike); a hit creature's own answer does.
       if ( row.reaction && (!self || hitSelf) && reactionSpent(actor) ) continue;
       const pool = activity ? (poolOf(actor, activity) ?? item) : null;
@@ -275,13 +280,13 @@ export function bystandersOf(defender, attacker, roll, ac, { on = "hit" } = {}) 
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;   // a die nobody can read is never guessed
       // ⚠ The margin gate judges the AC: with the math hidden it would leak it (holdWouldMatter's rule),
       // so a die bend is then asked on every hit but a natural 20 or 1.
-      const matters = ((row.bend === "die") && !setting(S.holdReveal)) ? !(roll.isCritical || roll.isFumble) : bystanderMatters({ bend: row.bend, sign: row.sign ?? 1, dieMax: dieMaxOf(die), want,
+      const matters = ((row.bend === "die") && !setting(S.holdReveal)) ? !(roll.isCritical || roll.isFumble) : bystanderMatters({ bend: row.bend, sign, dieMax: dieMaxOf(die), want,
         kept: Number(facts.kept), plain: facts.plain, total: Number(roll.total), target: Number(ac), mode: facts.mode,
         isCritical: !!roll.isCritical, isFumble: !!roll.isFumble, critAt: facts.critAt, fumbleAt: facts.fumbleAt });
       if ( !matters && !row.damage ) continue;
       out.push({ uuid: actor.uuid, name: token.document?.name ?? actor.name, row: key, itemId: item?.id ?? null,
         activityId: activity?.id ?? null, passed: !matters, bystander: true, ...(matters ? {} : { quiet: true }),
-        ...(self ? { self: true } : {}), ...(hitSelf ? { hitSelf: true } : {}),
+        ...(self ? { self: true } : {}), ...(hitSelf ? { hitSelf: true } : {}), sign,
         ...(inspired ? { inspired: { effectId: inspired.effect.id, bard: inspired.bard.name } } : {}), die });
     }
   }

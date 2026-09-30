@@ -180,7 +180,22 @@ export const INTERRUPT_ROLLS = Object.freeze({
   "Limited Foresight": Object.freeze({ reaction: true, uses: true, point: null, activity: "Expend Use",
     after: "you have Advantage on attack rolls against it until the end of your next turn (the table's)",
     rule: Object.freeze({ item: "Limited Foresight", uuid: "Compendium.dnd-monster-manual.features.Item.mmLimitedForesig" }),
-    from: "monsters (the cyclops)" })
+    from: "monsters (the cyclops)" }),
+  // B4 — Bend Luck: ±1d4 on another creature's attack, save or check within 60 ft, a Sorcery Point (Font of Magic, `poolOf`).
+  // `sign: "either"` FOLLOWS THE SIDE (decide/rescue-hit.js signFor): a friend's roll +, a foe's − — R1, the one sensible
+  // answer; `on: "both"`: a foe's hit and a friend's miss. The die is a plain formula (`die: "1d4"`, lookup.js bystanderDie).
+  "Bend Luck": Object.freeze({ reaction: true, uses: true, point: "Sorcery Point", activity: "Bend Luck",
+    bystander: 60, tests: Object.freeze(["attack", "save", "check"]), bend: "die", sign: "either", die: "1d4", on: "both",
+    rule: Object.freeze({ item: "Bend Luck", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrBendLuck00" }),
+    from: "Sorcerer — Wild Magic Sorcery 6" }),
+  // B4 — Cosmic Omen: the Long Rest's d6 kept on a STORED_DICE chip (never spent); `sign: "omen"` reads its parity — even
+  // Weal +1d6 (a friend's roll), odd Woe −1d6 (a foe's); `omen` names the pack's activity for each, the item's uses the pool.
+  // "About to make a D20 Test" is bent after the roll (the platform register, Restore Balance's road).
+  "Cosmic Omen": Object.freeze({ reaction: true, uses: true, point: null, activity: null, stored: "Cosmic Omen",
+    omen: Object.freeze({ even: "Weal (Even)", odd: "Woe (Odd)" }),
+    bystander: 30, tests: Object.freeze(["attack", "save", "check"]), bend: "die", sign: "omen", die: "1d6", on: "both",
+    rule: Object.freeze({ item: "Cosmic Omen", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdCosmicOmen" }),
+    from: "Druid — Circle of the Stars 6" })
 });
 
 /**
@@ -860,6 +875,19 @@ export const SUPERIORITY_FOLDS = Object.freeze({
     rule: Object.freeze({ item: "Tactical Assessment", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvTacticalAs" }) }),
   "Commanding Presence": Object.freeze({ skills: Object.freeze(["itm", "prf", "per"]), initiative: false,
     rule: Object.freeze({ item: "Commanding Presence", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnvCommanding" }) })
+});
+
+/** B4 — a `tactical` fold that is NOT a maneuver: the feature's own uses through its activity, with the text's own
+ * D20 Tests (`tests`) — the `tests` facet the plan held for its first customer. No refund clause (Tactical Mind's alone).
+ *   activity  the activity BY NAME (its `roll` the die);  weapon  the attack's item must be this (a name prefix — Homing
+ *             Strikes on the Psychic Blades only);  tests  which D20 Tests, "attack" offered on a MISS (Precision's window) */
+export const TACTICAL_FOLDS = Object.freeze({
+  "Dark One's Own Luck": Object.freeze({ tests: Object.freeze(["check", "save"]), activity: "Luck",
+    rule: Object.freeze({ item: "Dark One's Own Luck", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkDarkOnesOw" }),
+    from: "Warlock — Fiend Patron 6" }),
+  "Soul Blades": Object.freeze({ tests: Object.freeze(["attack"]), activity: "Homing Strikes", weapon: "Psychic Blade",
+    rule: Object.freeze({ item: "Soul Blades", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSoulBlades", benefit: "Homing Strikes" }),
+    from: "Rogue — Soulknife 9" })
 });
 
 /** B3 — a die that STANDS IN for a Superiority Die (Relentless): with none of `pool` left, once per turn, `die` rides in the
@@ -2053,7 +2081,11 @@ export const WARD_POOLS = Object.freeze({
  *   heal     the feature's heal activity, rolled on the owner's numbers and landed with a receipt
  *   ask      true — OFFERED (the use is the player's to keep): a Yes/No popup, the clock answers No; else it
  *            simply happens (R1) and a card says so — never when nothing would come back
- * ⚠ NOT A KIND — one table, one machine; Superior Inspiration, Perfect Focus, Tandem Footwork are rows (B4 / C1 / D1).
+ *   to: "allies" (B4, Tandem Footwork): the feature's `activity` is rolled ONCE on the owner's numbers (its `roll`) and
+ *            the number is ADDED to the Initiative of the owner and every ally within `reach` feet — the combatants
+ *            already rolled at once, the rest as theirs lands (a combat flag holds what is due); the activity's own
+ *            consumption pays (`poolOf`: a Bardic Inspiration use). Musician's give, on the swap's seam.
+ * ⚠ NOT A KIND — one table, one machine; Superior Inspiration, Perfect Focus are rows (C1 / D1).
  */
 export const INITIATIVE_GRANTS = Object.freeze({
   "Persistent Rage": Object.freeze({ regain: "Rage", unit: "Rage uses",
@@ -2061,7 +2093,10 @@ export const INITIATIVE_GRANTS = Object.freeze({
     from: "Barbarian 15" }),
   "Uncanny Metabolism": Object.freeze({ regain: "Monk's Focus", unit: "Focus Points", heal: "Uncanny Metabolism", ask: true,
     rule: Object.freeze({ item: "Uncanny Metabolism", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkUncannyMet" }),
-    from: "Monk 2" })
+    from: "Monk 2" }),
+  "Tandem Footwork": Object.freeze({ to: "allies", reach: 30, activity: "Initiative Bonus", unit: "Bardic Inspiration", ask: true,
+    rule: Object.freeze({ item: "Tandem Footwork", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdTandemFoot" }),
+    from: "Bard — College of Dance 6" })
 });
 
 /**
@@ -2091,13 +2126,18 @@ export const CAST_RIDERS = Object.freeze({
  *   dice     how many d20s the rest rolls (Greater Portent: 3, C1);  rests  which rests roll them (the old faces go)
  *   tests    the bearer's OWN rolls a face may replace, ticked in the roll's dialog BEFORE the roll (the rule's order)
  *   oncePerTurn  one replacement per turn, whoever's roll (a stamp on the chip)
+ *   die      the die's size (20 by default);  omen  true — the face is a SIGN, never spent (Cosmic Omen, B4: even Weal,
+ *            odd Woe — INTERRUPT_ROLLS "Cosmic Omen" reads its parity, `sign: "omen"`); `tests` empty: no dialog tick
  * Another creature's roll is the bystander's row (INTERRUPT_ROLLS "Portent", `bend: "set"`), after the roll.
  * ⚠ NOT A KIND — one table, one machine; the replacement is a bend on the `roll` interrupt and a pinned die.
  */
 export const STORED_DICE = Object.freeze({
   "Portent": Object.freeze({ dice: 2, rests: Object.freeze(["long"]), tests: Object.freeze(["attack", "save", "check"]), oncePerTurn: true,
     rule: Object.freeze({ item: "Portent", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdPortent000" }),
-    from: "Wizard — Diviner 3" })
+    from: "Wizard — Diviner 3" }),
+  "Cosmic Omen": Object.freeze({ dice: 1, die: 6, rests: Object.freeze(["long"]), tests: Object.freeze([]), omen: true,
+    rule: Object.freeze({ item: "Cosmic Omen", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdCosmicOmen" }),
+    from: "Druid — Circle of the Stars 6" })
 });
 
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
@@ -2144,9 +2184,17 @@ export const KIT_TENDS = Object.freeze({
  *   takesOver  the pack's UNGATED effect is switched off; the face carries the rule
  *   block      cut from `types` damage before resistances, at dnd5e.preCalculateDamage (the card's buttons too)
  *   ignores    "resistance" — the owner's `types` damage ignores Resistance (`options.ignore.resistance`)
- *   typed      types read off the feat's NAME ("Elemental Adept (Fire)"); none → a greyed face;  choices  the pick
- *   spells     spell damage only;  feat  a general feat (its face wears the feat's name)
+ *   typed      types read off the feat's NAME ("Elemental Adept (Fire)"); none → a greyed face;  choices  the pick;
+ *              pickLine  the type popup's words for what the pick does
+ *   spells     spell damage only (true), or "cantrip" — level 0 only;  feat  a feat or class feature (its face wears
+ *              the item's own name)
  *   breaks     "concentration" — creatures the owner damages save at Disadvantage (concentration.js)
+ *   B4 — THE SPELL-DAMAGE BONUSES (Q5; decide/damage-rules.js spellRuleFits): a `spells` row with a `bonus` formula
+ *   ("@abilities.cha.mod", the owner's roll data) pushed onto ONE of the spell's damage rolls — the first whose type the
+ *   row names (`types`, or a `typed` row's picks; none → any).  classes  the spell's own class (its `sourceClass`);
+ *   school  the spell's school ("evo");  once  "spell" (one roll per cast — Scorching Ray's rays share it) | "turn"
+ *   (a turn chit, `rider` keyed `damage-rule:<key>`); absent, every roll. The pack's own Damage activities for these
+ *   (measured in M0) are clicked by hand; the row is the mechanism.
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const DAMAGE_RULES = Object.freeze({
@@ -2190,7 +2238,32 @@ export const DAMAGE_RULES = Object.freeze({
   // No pack data for the breaker: the row is the switch and the face (concentration.js reads it).
   "Mage Slayer": Object.freeze({ key: "mage-slayer", gate: "always", feat: true, breaks: "concentration",
     rule: Object.freeze({ item: "Mage Slayer", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftMageSlayer0", benefit: "Concentration Breaker" }),
-    from: "General feat" })
+    from: "General feat" }),
+  // B4 — the spell-damage bonuses (RULINGS *The PHB classes — B4*). The parents (Blessed Strikes, Elemental Fury) name the
+  // pick; the option on the sheet is the row. Divine Strike and Primal Strike are CLOCK_RIDERS rows already.
+  "Blessed Strikes: Potent Spellcasting": Object.freeze({ key: "potent-spellcasting-cleric", gate: "always", feat: true,
+    spells: "cantrip", classes: Object.freeze(["cleric"]), bonus: "@abilities.wis.mod",
+    rule: Object.freeze({ item: "Blessed Strikes: Potent Spellcasting", uuid: "Compendium.dnd-players-handbook.classes.Item.phbClcPotentSpel" }),
+    from: "Cleric 7 (Blessed Strikes)" }),
+  "Elemental Fury: Potent Spellcasting": Object.freeze({ key: "potent-spellcasting-druid", gate: "always", feat: true,
+    spells: "cantrip", classes: Object.freeze(["druid"]), bonus: "@abilities.wis.mod",
+    rule: Object.freeze({ item: "Elemental Fury: Potent Spellcasting", uuid: "Compendium.dnd-players-handbook.classes.Item.phbFuryPotentSpe" }),
+    from: "Druid 7 (Elemental Fury)" }),
+  // The affinity's type is read off the copy's NAME ("Elemental Affinity (Fire)") as Elemental Adept's is; the pack ships
+  // five typed Damage activities and no pick. The Resistance half is the sheet's (a Sorcery Point, by hand).
+  "Elemental Affinity": Object.freeze({ key: "elemental-affinity", gate: "always", feat: true, typed: true, spells: true,
+    once: "spell", bonus: "@abilities.cha.mod", choices: Object.freeze(["acid", "cold", "fire", "lightning", "poison"]),
+    pickLine: "one damage roll of your spells of that type adds your Charisma modifier",
+    rule: Object.freeze({ item: "Elemental Affinity", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrElementalA" }),
+    from: "Sorcerer — Draconic Sorcery 6" }),
+  "Radiant Soul": Object.freeze({ key: "radiant-soul", gate: "always", feat: true, spells: true, once: "turn",
+    types: Object.freeze(["radiant", "fire"]), bonus: "@abilities.cha.mod",
+    rule: Object.freeze({ item: "Radiant Soul", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkRadiantSou" }),
+    from: "Warlock — Celestial Patron 6" }),
+  "Empowered Evocation": Object.freeze({ key: "empowered-evocation", gate: "always", feat: true, spells: true, once: "spell",
+    school: "evo", classes: Object.freeze(["wizard"]), bonus: "@abilities.int.mod",
+    rule: Object.freeze({ item: "Empowered Evocation", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdEmpoweredE" }),
+    from: "Wizard — Evoker 10" })
 });
 
 /** What raises a repeated save — the closed set the R4 tripwire counts (repeat-saves.js). */
@@ -2348,6 +2421,12 @@ export const REPEAT_SAVES = Object.freeze({
  *   while     "raging" — the bearer wears its Rage
  *   to: "ally" the row's amount is GIVEN to one creature within `reach` feet — the owner picks (the rest song's
  *             popup, rest-grants.js); `self` false: another creature (Life-Giving Force)
+ *   grant     B4 — what a feature row pays that is not a roll: "inspiration" (Heroic Warrior: Heroic Inspiration written
+ *             on the sheet at the turn start when none is held, a card, no choice — R1) | "end" (Guarded Mind, Self-
+ *             Restoration, Physician's Touch: one of `statuses` ended on the bearer — OFFERED, a button per condition it
+ *             wears, `activity` the pack's activity that pays when the row has a cost, the clock keeps it)
+ *   to: "target"  an `on: "use"` row whose bearer is the use's TARGET (Hand of Healing's healed creature); `of` may be a
+ *             list of items (the pack ships the heal on two), `activityType` narrows the use ("heal")
  * The GM's side: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const TURN_GRANTS = Object.freeze({
@@ -2390,7 +2469,28 @@ export const TURN_GRANTS = Object.freeze({
     while: "raging", to: "ally", reach: 10, self: false,
     caveat: "the Temporary Hit Points vanishing when the Rage ends is the table's",
     rule: Object.freeze({ item: "Vitality of the Tree", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbVitalityOf", benefit: "Life-Giving Force" }),
-    from: "Barbarian — Path of the World Tree 3" })
+    from: "Barbarian — Path of the World Tree 3" }),
+  // B4 — the grants that are not a roll (RULINGS *The PHB classes — B4*). Heroic Warrior: in a combat, at the turn start.
+  "Heroic Warrior": Object.freeze({ match: "feature", on: "turnStart", grant: "inspiration",
+    rule: Object.freeze({ item: "Heroic Warrior", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrHeroicWarr" }),
+    from: "Fighter — Champion 10" }),
+  // Guarded Mind: the pack's End Effects activity spends a Psionic Energy Die (poolOf); the Resistance half is the pack's.
+  "Guarded Mind": Object.freeze({ match: "feature", on: "turnStart", grant: "end", activity: "End Effects",
+    statuses: Object.freeze(["charmed", "frightened"]),
+    rule: Object.freeze({ item: "Guarded Mind", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrGuardedMin" }),
+    from: "Fighter — Psi Warrior 10" }),
+  "Self-Restoration": Object.freeze({ match: "feature", on: "turnEnd", grant: "end",
+    statuses: Object.freeze(["charmed", "frightened", "poisoned"]),
+    caveat: "the no-food-no-drink half is the table's",
+    rule: Object.freeze({ item: "Self-Restoration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkSelfrestor" }),
+    from: "Monk 10" }),
+  // Physician's Touch's Hand of Healing half: the healed creature may lose one condition (asked). The Hand of Harm half is
+  // the hit menu's (HIT_OPTIONS "hand-of-harm" `also`). The pack ships the heal on Hand of Healing AND on Physician's Touch.
+  "Physician's Touch": Object.freeze({ match: "feature", on: "use", of: Object.freeze(["Hand of Healing", "Physician's Touch"]),
+    activityType: "heal", to: "target", grant: "end",
+    statuses: Object.freeze(["blinded", "deafened", "paralyzed", "poisoned", "stunned"]),
+    rule: Object.freeze({ item: "Physician's Touch", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkPhysicians" }),
+    from: "Monk — Warrior of Mercy 6" })
 });
 
 /**
@@ -2592,6 +2692,7 @@ export const INTERRUPTS = Object.freeze([
   row("Interception", "damage"), row("Psionic Power", "damage"), row("Protection", "roll"), row("Cutting Words", "roll"), row("Restore Balance", "roll"), row("Guided Strike", "roll"),
   row("Combat Inspiration", "roll"), row("Portent", "roll"), row("Countercharm", "roll"),
   row("Beguiling Twist", "roll"), row("Beguiling Defenses", "damage"),
+  row("Bend Luck", "roll"), row("Cosmic Omen", "roll"),
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
 ]);
@@ -2607,7 +2708,8 @@ export const D20_FOLDS = Object.freeze([
   row("Heroic Inspiration", "heroic"), row("Tactical Mind", "tactical"), row("Inspired", "bardic"),
   row("Ambush", "tactical"), row("Tactical Assessment", "tactical"), row("Seeking Spell", "seeking"),
   row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage"),
-  row("Indomitable", "reroll"), row("Fanatical Focus", "reroll")
+  row("Indomitable", "reroll"), row("Fanatical Focus", "reroll"),
+  row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

@@ -7,6 +7,8 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext, drivesMomentFor, decisionWindow } from "./core.js";
 import { activityNamed, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { poolOf, spendPoolUses } from "./shared.js";
+import { nearestFeet, tokenForUuid } from "./geometry.js";
 import { INITIATIVE_GRANTS, initiativeGrantEntries, listedNames } from "./decide/registry.js";
 import { initiativeGrantDue, initiativeGrantLine } from "./decide/initiative-grants.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -20,6 +22,8 @@ import { listen } from "./dispatch.js";
 const INITIATIVE_GRANT_FLAG = "initiativeGrant";
 /** The combat's own latch — which combatant has been read for which row (once per combat). */
 const INITIATIVE_READ_FLAG = "initiativeGrantRead";
+/** B4 — the combat's own note of a bonus DUE to combatants who had not rolled when a `to: "allies"` grant landed. */
+const BONUS_DUE_FLAG = "initiativeBonusDue";
 const timers = new Map();
 
 const usesOf = item => ({ value: Number(item?.system?.uses?.value ?? 0), max: Number(item?.system?.uses?.max ?? 0),
@@ -42,8 +46,19 @@ function grantsFor(actor) {
   for ( const [name, row] of Object.entries(INITIATIVE_GRANTS) ) {
     if ( !on.has(lower(name)) ) continue;
     const item = featureNamed(actor, name);
-    const regain = item ? featureNamed(actor, row.regain) : null;
-    if ( !item || !regain ) continue;
+    if ( !item ) continue;
+    // B4 — a `to: "allies"` row: the activity's roll on the owner's numbers, its consumption the pool (a use must stand).
+    if ( row.to === "allies" ) {
+      const activity = row.activity ? activityNamed(item, row.activity) : null;
+      const pool = activity ? (poolOf(actor, activity) ?? item) : null;
+      let formula = null;
+      try { formula = activity?.roll?.formula ? Roll.replaceFormulaData(String(activity.roll.formula), actor.getRollData()) : null; } catch { formula = null; }
+      if ( !activity || !pool || !formula || !Roll.validate(formula) || !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
+      out.push({ name, row, item, regain: null, heal: null, give: { activity, pool, formula } });
+      continue;
+    }
+    const regain = featureNamed(actor, row.regain);
+    if ( !regain ) continue;
     const heal = row.heal ? activityNamed(item, row.heal) : null;
     const hp = actor.system?.attributes?.hp ?? null;
     const due = initiativeGrantDue({ own: usesOf(item), regain: usesOf(regain), heals: !!heal,
@@ -105,14 +120,15 @@ async function readFor(combat, combatant) {
   }
 }
 
-async function post(combat, combatant, actor, { name, row, item, regain, heal }) {
+async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null }) {
   const r = usesOf(regain);
-  const formula = heal ? healFormulaOf(actor, heal) : null;
+  const formula = give ? give.formula : heal ? healFormulaOf(actor, heal) : null;
   if ( heal && !formula ) console.warn(`${TITLE} | ${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
   const window = row.ask ? decisionWindow() : 0;
   const flag = { status: row.ask ? "pending" : "resolved", answer: row.ask ? null : "auto", row: name, unit: row.unit ?? null,
-    actorUuid: actor.uuid, actorName: combatant.name ?? actor.name, itemId: item.id, regainId: regain.id,
+    actorUuid: actor.uuid, actorName: combatant.name ?? actor.name, itemId: item.id, regainId: regain?.id ?? null,
     back: Math.min(r.spent, r.max), max: r.max, formula, combatId: combat.id, combatantId: combatant.id, ...statContext(actor.uuid),
+    ...(give ? { give: true, reach: row.reach ?? 30, activityId: give.activity.id, poolId: give.pool.id, poolName: give.pool.name } : {}),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor, token: combatant.token }),
@@ -169,6 +185,7 @@ async function landGrant(message) {
   try {
     const actor = resolveUuid(flag.actorUuid);
     const item = actor?.items?.get(flag.itemId);
+    if ( flag.give ) { Object.assign(record, await giveToAllies(flag, actor, item)); return; }
     const regain = actor?.items?.get(flag.regainId);
     if ( !(actor instanceof Actor) || !item || !regain ) throw new Error("the feature left the sheet");
     const own = usesOf(item);
@@ -195,6 +212,57 @@ registerResumable(INITIATIVE_GRANT_FLAG, {
   pending: flag => (flag?.status === "resolved") && (flag.answer !== "no") && !flag.applied && !flag.applying,
   drives: () => isActiveGM(),
   drive: landGrant
+});
+
+/* --- B4 — the gift to allies (Tandem Footwork): one roll, every ally's Initiative within reach ------------ */
+
+/** The GM lands a `to: "allies"` Yes: the die rolled once, the pool's use spent, the rolled allies moved, the rest noted. */
+async function giveToAllies(flag, actor, item) {
+  if ( !(actor instanceof Actor) || !item ) throw new Error("the feature left the sheet");
+  const pool = actor.items.get(flag.poolId) ?? item;
+  if ( !(Number(pool.system?.uses?.value ?? 0) > 0) ) return { spentAlready: true };
+  const combat = game.combats.get(flag.combatId);
+  if ( !combat ) throw new Error("the combat is gone");
+  const roll = await new Roll(String(flag.formula)).evaluate();
+  const n = Math.max(0, Number(roll.total) || 0);
+  await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor }), flavor: `${flag.row} — the die for allies within ${flag.reach ?? 30} ft` });
+  await spendPoolUses(actor, pool, flag.row, 1, (pool === item) ? null : pool.name);
+  const own = combat.combatants.get(flag.combatantId)?.token?.object ?? tokenForUuid(actor.uuid);
+  const side = own?.document?.disposition;
+  const given = [], due = [];
+  for ( const c of combat.combatants ) {
+    const token = c.token?.object ?? (c.actor ? tokenForUuid(c.actor.uuid) : null);
+    if ( !token || !c.actor || (token.document?.disposition !== side) ) continue;
+    const feet = (c.actor.uuid === actor.uuid) ? 0 : nearestFeet(own, token);
+    if ( (feet === null) || (feet > (flag.reach ?? 30)) ) continue;
+    if ( (c.initiative === null) || (c.initiative === undefined) ) { due.push(c.id); continue; }
+    const from = Number(c.initiative);
+    await c.update({ initiative: from + n }).catch(err => console.warn(`${TITLE} | ${flag.row}: could not move ${c.name}'s Initiative.`, err));
+    given.push({ id: c.id, name: c.name, from, to: from + n });
+  }
+  if ( due.length ) {
+    await combat.update(Object.fromEntries(due.map(id => [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.${id}`, { n, row: flag.row, from: actor.name }])))
+      .catch(err => console.warn(`${TITLE} | ${flag.row}: the bonus due to late rollers could not be noted.`, err));
+  }
+  return { rolled: n, given, due };
+}
+
+// A combatant rolling AFTER the gift landed gets its bonus as its Initiative lands (the GM; the note is cleared).
+listen("updateCombatant", "initiative-grants", (combatant, changes) => {
+  try {
+    if ( !("initiative" in (changes ?? {})) || !isActiveGM() ) return;
+    const combat = combatant.parent;
+    const note = combat?.getFlag(MODULE_ID, BONUS_DUE_FLAG)?.[combatant.id];
+    if ( !note || (changes.initiative === null) || (changes.initiative === undefined) ) return;
+    const from = Number(changes.initiative);
+    void (async () => {
+      await combat.update({ [`flags.${MODULE_ID}.${BONUS_DUE_FLAG}.-=${combatant.id}`]: null });
+      await combatant.update({ initiative: from + Number(note.n) });
+      await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: combatant.actor, token: combatant.token }),
+        content: bfCard({ eyebrow: "Initiative", tone: "good", title: `${note.row} — +${note.n} Initiative for ${combatant.name} (${from} → ${from + Number(note.n)})`,
+          subtitle: `${note.from}'s gift, rolled before ${combatant.name}'s Initiative` }) });
+    })().catch(err => console.error(`${TITLE} | ${note.row}'s late bonus could not land — add it by hand.`, err));
+  } catch(err) { console.error(`${TITLE} | The Initiative bonus due could not be read.`, err); }
 });
 
 /* --- the clock: No, on whoever drives the owner's moments --------------------------------------------- */

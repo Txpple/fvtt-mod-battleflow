@@ -452,3 +452,100 @@ describe("Crossbow Expert's Dual Wielding (group 2, 2026-09-26)", () => {
     ).toBe(false);
   });
 });
+
+/**
+ * B4 — the spell-damage bonuses (RULINGS *The PHB classes — B4*, Q5): rows on the damage-rules table with a
+ * `bonus` scoped by `spells` / `classes` / `school` / `types`, ridden by ONE roll (spellRuleFits).
+ */
+describe("the spell-damage bonuses (B4)", () => {
+  it("the five rows sit on the damage-rules table with the measured scopes", () => {
+    expect(reg.DAMAGE_RULES["Blessed Strikes: Potent Spellcasting"]).toMatchObject({
+      gate: "always",
+      feat: true,
+      spells: "cantrip",
+      classes: ["cleric"],
+      bonus: "@abilities.wis.mod"
+    });
+    expect(reg.DAMAGE_RULES["Elemental Fury: Potent Spellcasting"]).toMatchObject({
+      spells: "cantrip",
+      classes: ["druid"],
+      bonus: "@abilities.wis.mod"
+    });
+    expect(reg.DAMAGE_RULES["Elemental Affinity"]).toMatchObject({
+      typed: true,
+      spells: true,
+      once: "spell",
+      bonus: "@abilities.cha.mod",
+      choices: ["acid", "cold", "fire", "lightning", "poison"]
+    });
+    expect(reg.DAMAGE_RULES["Radiant Soul"]).toMatchObject({
+      spells: true,
+      once: "turn",
+      types: ["radiant", "fire"]
+    });
+    expect(reg.DAMAGE_RULES["Empowered Evocation"]).toMatchObject({
+      spells: true,
+      once: "spell",
+      school: "evo",
+      classes: ["wizard"]
+    });
+    const keys = Object.values(reg.DAMAGE_RULES)
+      .filter(r => r.spells && r.bonus)
+      .map(r => r.key);
+    expect(keys).toEqual([
+      "potent-spellcasting-cleric",
+      "potent-spellcasting-druid",
+      "elemental-affinity",
+      "radiant-soul",
+      "empowered-evocation"
+    ]);
+  });
+
+  it("Potent Spellcasting fits a cleric cantrip only", () => {
+    const row = reg.DAMAGE_RULES["Blessed Strikes: Potent Spellcasting"];
+    expect(d.spellRuleFits(row, { level: 0, sourceClass: "cleric", dealt: ["radiant"] })).toEqual([
+      "radiant"
+    ]);
+    expect(
+      d.spellRuleFits(row, { level: 1, sourceClass: "cleric", dealt: ["radiant"] })
+    ).toBeNull();
+    expect(d.spellRuleFits(row, { level: 0, sourceClass: "wizard", dealt: ["fire"] })).toBeNull();
+    expect(d.spellRuleFits(row, { level: 0, sourceClass: "cleric", dealt: [] })).toBeNull();
+  });
+
+  it("a typed row rides only the picked types; a fixed-types row its own; a school row its school", () => {
+    const affinity = reg.DAMAGE_RULES["Elemental Affinity"];
+    expect(
+      d.spellRuleFits(affinity, { level: 3, sourceClass: "sorcerer", dealt: ["fire", "cold"] }, [
+        "fire"
+      ])
+    ).toEqual(["fire"]);
+    expect(
+      d.spellRuleFits(affinity, { level: 3, sourceClass: "sorcerer", dealt: ["cold"] }, ["fire"])
+    ).toBeNull();
+    const soul = reg.DAMAGE_RULES["Radiant Soul"];
+    expect(
+      d.spellRuleFits(soul, { level: 0, sourceClass: "warlock", dealt: ["Radiant"] }, soul.types)
+    ).toEqual(["radiant"]);
+    expect(
+      d.spellRuleFits(soul, { level: 0, sourceClass: "warlock", dealt: ["necrotic"] }, soul.types)
+    ).toBeNull();
+    const evo = reg.DAMAGE_RULES["Empowered Evocation"];
+    expect(
+      d.spellRuleFits(evo, { level: 3, school: "evo", sourceClass: "wizard", dealt: ["fire"] })
+    ).toEqual(["fire"]);
+    expect(
+      d.spellRuleFits(evo, { level: 3, school: "nec", sourceClass: "wizard", dealt: ["necrotic"] })
+    ).toBeNull();
+    expect(
+      d.spellRuleFits(evo, { level: 3, school: "evo", sourceClass: "sorcerer", dealt: ["fire"] })
+    ).toBeNull();
+  });
+
+  it("a row with no bonus or no spells scope never fits", () => {
+    expect(
+      d.spellRuleFits(reg.DAMAGE_RULES["Elemental Adept"], { level: 1, dealt: ["fire"] }, ["fire"])
+    ).toBeNull();
+    expect(d.spellRuleFits(reg.DAMAGE_RULES["Dueling"], { level: 1, dealt: ["fire"] })).toBeNull();
+  });
+});

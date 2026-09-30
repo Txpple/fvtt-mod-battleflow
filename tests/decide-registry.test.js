@@ -110,6 +110,8 @@ describe("d20 folds — the spends, one mechanism", () => {
       "tactical",
       "tactical",
       "tactical",
+      "tactical",
+      "tactical",
       "tactical"
     ]);
     expect(reg.D20_FOLDS.map(e => e.name)).toContain("Ambush");

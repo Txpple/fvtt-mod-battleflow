@@ -35,7 +35,8 @@ describe("INITIATIVE_GRANTS", () => {
     expectPointer(um.rule);
     expect(reg.initiativeGrantEntries().map(e => e.kind)).toEqual([
       "persistent rage",
-      "uncanny metabolism"
+      "uncanny metabolism",
+      "tandem footwork" // B4
     ]);
   });
 });

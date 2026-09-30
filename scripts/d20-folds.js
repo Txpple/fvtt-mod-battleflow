@@ -15,7 +15,7 @@ import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
-import { ADVANTAGE_BUYS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS } from "./decide/registry.js";
+import { ADVANTAGE_BUYS, REROLLS, SAVE_SUCCEEDS, SUPERIORITY_FOLDS, TACTICAL_FOLDS } from "./decide/registry.js";
 import { CHIP_FLAG } from "./decide/chips.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { cardRow, momentButton, scheduleBarSync, armAskTimer, disarmAskTimer, openMomentPopup, shownMoments, acknowledgeMoment, momentAcknowledged, registerRescue, syncRescuePopup, pendingDemandsFor, registerWithhold, resumeWithheld, dramaticVerdictPause } from "./ui.js";
@@ -48,9 +48,12 @@ const HEROIC = {
  * `actor.sourcedItems`; a hand-copied Second Wind fails that silently, so a pool miss is REPORTED. */
 const TACTICAL = {
   tests: ["check"],
-  find: (actor, entry) => {
+  find: (actor, entry, ctx = {}) => {
     const item = itemNamed(actor, entry.name);
-    const activity = item?.system.activities?.contents?.[0];
+    // B4 — a TACTICAL_FOLDS row names its activity and may judge the attack's weapon (Homing Strikes: the Psychic Blades).
+    const own = tacticalRowOf(entry);
+    if ( own?.weapon && ctx.item && !lower(ctx.item.name ?? "").startsWith(lower(own.weapon)) ) return null;
+    const activity = own?.activity ? activityNamed(item, own.activity) : item?.system.activities?.contents?.[0];
     if ( !activity ) return null;
     for ( const c of (activity.consumption?.targets ?? []) ) {
       if ( c.type !== "itemUses" ) continue;
@@ -263,6 +266,11 @@ function warnOnce(key, message) {
 /** A `tactical` entry with a SCOPE of its own — the Battle Master's Ambush / Tactical Assessment (decide/registry.js SUPERIORITY_FOLDS). */
 const scopeOf = entry => (entry.kind === "tactical")
   ? (Object.entries(SUPERIORITY_FOLDS).find(([k]) => k.toLowerCase() === String(entry.name ?? "").toLowerCase())?.[1] ?? null) : null;
+/** B4 — a `tactical` entry that is a feature's OWN fold, not a maneuver (TACTICAL_FOLDS): its tests, activity and weapon. */
+const tacticalRowOf = entry => (entry.kind === "tactical")
+  ? (Object.entries(TACTICAL_FOLDS).find(([k]) => k.toLowerCase() === String(entry.name ?? "").toLowerCase())?.[1] ?? null) : null;
+/** Tactical Mind alone carries the refund clause: a scoped maneuver die and a feature's own fold are spent either way. */
+const refundsOf = entry => (entry.kind === "tactical") && !scopeOf(entry) && !tacticalRowOf(entry);
 
 /**
  * EVERY listed fold this actor can spend on this kind of test, never just the first (list order
@@ -279,7 +287,8 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     if ( !spec ) continue;
     // A SCOPED entry: the feature's text says which checks (and whether Initiative) it reaches.
     const scope = scopeOf(entry);
-    const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])] : (spec.testsFor?.(entry) ?? spec.tests);
+    const tests = scope ? [...((scope.skills?.length) ? ["check"] : []), ...(scope.initiative ? ["initiative"] : [])]
+      : (tacticalRowOf(entry)?.tests ?? spec.testsFor?.(entry) ?? spec.tests);
     if ( !tests.includes(testKind) ) continue;
     if ( scope && (testKind === "check") && !(ctx.skill && scope.skills.includes(ctx.skill)) ) continue;
     if ( spent.includes(entry.kind) || spent.includes(entry.name) ) continue;   // by NAME too: two tactical rows can stand
@@ -331,7 +340,7 @@ function attackFoldFor(subject, message, roll) {
   if ( !attacker || !(message instanceof ChatMessage) || !roll ) return null;
   if ( message.getFlag(MODULE_ID, "d20fold") ) return null;           // never re-stamp
   const spell = subject.item?.type === "spell";
-  let offers = availableFolds(attacker, "attack", [], { spell });
+  let offers = availableFolds(attacker, "attack", [], { spell, item: subject.item ?? null });
   // ⚠ A natural 1 stands against an added die; only a reroll replaces it.
   if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
   if ( !offers.length ) return null;
@@ -694,7 +703,7 @@ async function resolveFold(message, answer) {
     });
 
     // Tactical Mind's refund clause is ASKED (DESIGN §8): the module cannot judge the check.
-    const refundable = (kind === "tactical") && !scopeOf({ kind, name: offer.name });
+    const refundable = refundsOf({ kind, name: offer.name });
     if ( refundable ) {
       lines.push("If the check still fails, this use of Second Wind isn't expended — "
         + "the next window asks which it was.");
@@ -759,13 +768,13 @@ async function announce(_message, actor, name, testKind, anyHit, lines, marker) 
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({
       img: marker?.item?.img ?? marker?.effect?.img ?? null,
-      eyebrow: (marker?.kind === "tactical") ? `Maneuver — ${name}` : `D20 Fold — ${name}`,
+      eyebrow: ((marker?.kind === "tactical") && !tacticalRowOf({ kind: "tactical", name })) ? `Maneuver — ${name}` : `D20 Fold — ${name}`,
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
       title: (testKind === "attack")
         ? (anyHit ? `${name} — the miss becomes a hit` : `${name} — still a miss`)
         : (marker?.kind === "succeed") ? `${name} — the failed save succeeds instead`
         : `${name} — the roll is patched`,
-      subtitle: (marker?.kind === "tactical") ? "one Superiority Die spent" : `${actor.name} spends ${name}`,
+      subtitle: ((marker?.kind === "tactical") && !tacticalRowOf({ kind: "tactical", name })) ? "one Superiority Die spent" : `${actor.name} spends ${name}`,
       lines
     })
   });
@@ -956,7 +965,7 @@ function resolvedLines(flag, message) {
   }
   const refund = message.getFlag(MODULE_ID, "tacticalRefund");
   if ( refund ) lines.push(refundLine(refund));
-  else if ( (flag.spends ?? []).some(s => (s.kind === "tactical") && !scopeOf({ kind: s.kind, name: s.name })) ) {   // Tactical Mind, never a scoped die
+  else if ( (flag.spends ?? []).some(s => refundsOf({ kind: s.kind, name: s.name })) ) {   // Tactical Mind, never a scoped die or a feature's own fold
     lines.push("If the check still fails, this use of Second Wind isn't expended.");
   }
   return lines;

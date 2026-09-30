@@ -6,7 +6,7 @@
 import { MODULE_ID, TITLE, S, setting, canAnswerFor, isContinuingClient, activeCombatFor } from "../core.js";
 import { INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS } from "../decide/registry.js";
 import { bfCard, popupKey, holdBarHTML, ruleLine, spendLine, spendPhrase, tickRowsHTML, esc } from "../decide/present.js";
-import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
+import { bentLines, d20ModeOf, dieMaxOf, futileGuardLine, guardRow, guardSign, liveRows, neutraliseOutcome, rescueTitle } from "../decide/rescue-hit.js";
 import { duplicateWords } from "../decide/duplicates.js";
 import { poolOf, resolveAttackMessage } from "../shared.js";
 import { openMomentPopup, momentButton, scheduleBarSync, shownMoments } from "../ui.js";
@@ -279,7 +279,7 @@ function bystanderSituation(row, roll, ac, guard, miss = false) {
     : `<strong>${roll.total}</strong>${reveal ? ` vs AC <strong>${ac}</strong>` : ""} — a ${miss ? "miss" : "hit"}.`;
   const max = dieMaxOf(guard.die);
   if ( !reveal || !max ) return head;
-  const minus = (row?.sign ?? 1) < 0;
+  const minus = guardSign(guard, row) < 0;
   const what = /d/i.test(String(guard.die)) ? esc(guard.die) : `${minus ? "−" : "+"}${esc(guard.die)}`;
   return `${head} A ${what} can turn it: ${roll.total} ${minus ? "−" : "+"} ${max} = ${minus ? roll.total - max : roll.total + max}.`;
 }
@@ -298,7 +298,7 @@ async function showBystanderPopup(attackMessage, target, guard, byActor, hold, r
   const poolWord = (pool && (pool !== item)) ? `${pool.name} ` : "";
   const tag = [(row?.reaction && (!guard.self || guard.hitSelf)) ? "a Reaction" : null, row?.uses ? `${poolWord}${left} left` : null,
     guard.inspired ? "the Inspired die" : null].filter(Boolean).join(" · ");
-  const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${(row?.sign ?? 1) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
+  const dice = (row?.bend === "neutralise") ? "the first d20 stands" : `${guardSign(guard, row) < 0 ? "−" : "+"}${guard.die ?? "a die"}`;
   const facts = d20FactsOf(roll);
   const modifier = Number(roll?.total) - Number(facts.kept);
   const rows = (row?.bend === "set")

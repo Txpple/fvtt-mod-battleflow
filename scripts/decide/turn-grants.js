@@ -127,3 +127,22 @@ export function extendedThisTurn({ cards, side }) {
   }
   return { extended: false, why: "no attack roll against an enemy and forced no saving throw" };
 }
+
+/**
+ * B4 — a `grant: "end"` row's OPTIONS: which of the row's statuses the bearer wears, each with the effects that carry
+ * it (the ones an End deletes). `effects` are plain facts: `{ id, name, statuses }`.
+ * @param {string[]} statuses  the row's
+ * @param {{id: string, name: string, statuses: string[]}[]} effects  the bearer's applied effects
+ * @param {Record<string, string>} [labels]  status → label
+ * @returns {{status: string, label: string, effectIds: string[], names: string[]}[]}
+ */
+export function endOptionsOf(statuses, effects, labels = {}) {
+  const out = [];
+  for ( const status of (statuses ?? []) ) {
+    const carrying = (effects ?? []).filter(e => (e?.statuses ?? []).includes(status));
+    if ( !carrying.length ) continue;
+    out.push({ status, label: labels[status] ?? (status.charAt(0).toUpperCase() + status.slice(1)),
+      effectIds: carrying.map(e => e.id), names: [...new Set(carrying.map(e => e.name))] });
+  }
+  return out;
+}

@@ -9,12 +9,12 @@ import { lower, featureNamed, resolveUuid } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
-  typesInNames, typedFace, ignoredResistances, typeChoicesLeft } from "./decide/damage-rules.js";
-import { isCard, CARD } from "./decide/card.js";
+  typesInNames, typedFace, ignoredResistances, typeChoicesLeft, spellRuleFits } from "./decide/damage-rules.js";
+import { isCard, CARD, originIdInData } from "./decide/card.js";
 import { bfCard, esc, holdBarHTML, popupKey, ruleLine } from "./decide/present.js";
 import { SURFACES } from "./surfaces.js";
 import { riseDice, driftChip } from "./dice-rise.js";
-import { withTargets, resolveAttackMessage } from "./shared.js";
+import { withTargets, resolveAttackMessage, turnChitStands, writeTurnChit } from "./shared.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
 import { openMomentPopup, momentButton, armDeadline, disarmDeadline, livePopups, shownMoments, scheduleBarSync,
@@ -194,7 +194,7 @@ listen("dnd5e.preRollDamage", "damage-rules", (config, _dialog, message) => {
   try {
     if ( !config || config[DONE] ) return;
     const activity = config.subject;
-    if ( activity?.item?.type === "spell" ) { spellFloor(config, activity, message); return; }
+    if ( activity?.item?.type === "spell" ) { spellRules(config, activity, message); return; }
     const weapon = activity?.item;
     if ( (activity?.type !== "attack") || (weapon?.type !== "weapon") ) return;
     const attacker = activity.actor;
@@ -250,25 +250,67 @@ listen("dnd5e.preRollDamage", "damage-rules", (config, _dialog, message) => {
   }
 });
 
+/** The damage types one built roll carries. */
+const rollTypesOf = r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : []);
+
+/** The once-per-cast marks (`once: "spell"`), client-local: the cast card's id → the row keys that rode it. The rolling
+ * client rolls every roll of the cast (Scorching Ray's rays), so no world write is needed. */
+const spellOnce = new Map();
+const SPELL_ONCE_CAP = 200;
+function markSpellOnce(castId, key) {
+  if ( !castId ) return;
+  if ( spellOnce.size >= SPELL_ONCE_CAP ) spellOnce.delete(spellOnce.keys().next().value);
+  spellOnce.set(castId, new Set([...(spellOnce.get(castId) ?? []), key]));
+}
+
+/** Whose spell (a `classes` row): metamagic.js's reading of dnd5e 6's `sourceItem`. */
+function sourceClassOf(activity) {
+  const sys = activity?.item?.system ?? {};
+  return sys.classIdentifier || (String(sys.sourceItem ?? "").startsWith("class:") ? String(sys.sourceItem).slice(6) : "")
+    || ((Object.keys(activity?.actor?.classes ?? {}).length === 1) ? Object.keys(activity.actor.classes)[0] : null);
+}
+
 /**
- * A SPELL's floor (Elemental Adept): a `spells` row with a `minimum`, when the spell deals one of
- * the row's types. Only that type's dice are floored.
+ * A SPELL's rows: the floor (Elemental Adept — a `spells` row with a `minimum`, when the spell deals one of the row's
+ * types; only that type's dice are floored) and B4's BONUSES (a `spells` row with a `bonus`, pushed onto the FIRST
+ * roll whose type the row names — one roll per cast for `once: "spell"`, one per turn for `once: "turn"`).
  */
-function spellFloor(config, activity, message) {
+function spellRules(config, activity, message) {
   const caster = activity.actor;
-  const rows = heldRows(caster).filter(r => r.row.spells && r.row.minimum && r.types.length);
-  if ( !rows.length ) return;
-  const typesOf = r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : []);
-  const dealt = new Set((config.rolls ?? []).flatMap(typesOf));
-  for ( const { name, row, types } of rows ) {
+  const held = heldRows(caster).filter(r => r.row.spells);
+  if ( !held.length ) return;
+  const rolls = config.rolls ?? [];
+  const dealt = new Set(rolls.flatMap(rollTypesOf));
+  const styles = [];
+  for ( const { name, row, types } of held ) {
+    if ( !row.minimum || !types.length ) continue;
     const hit = types.filter(t => dealt.has(t));
-    if ( !hit.length ) continue;
-    config[DONE] = true;
+    if ( !hit.length || config[FLOOR] ) continue;
     config[FLOOR] = { minimum: row.minimum, types: hit };
-    foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${STYLE_FLAG}`,
-      { styles: [{ key: row.key, feature: name, gain: 0, pending: true }], gain: 0, ...statContext(caster.uuid) });
-    return;
+    styles.push({ key: row.key, feature: name, gain: 0, pending: true });
   }
+  const castId = originIdInData(message?.data ?? {}) ?? null;
+  const spell = { level: activity.item.system?.level ?? null, school: activity.item.system?.school ?? null,
+    sourceClass: sourceClassOf(activity), dealt: [...dealt] };
+  for ( const { name, row, types } of held ) {
+    const fits = spellRuleFits(row, spell, types);
+    if ( !fits ) continue;
+    if ( (row.once === "spell") && castId && spellOnce.get(castId)?.has(row.key) ) continue;
+    if ( (row.once === "turn") && turnChitStands(caster, "rider", `damage-rule:${row.key}`) ) continue;
+    const roll = rolls.find(r => rollTypesOf(r).some(t => fits.includes(String(t).toLowerCase())));
+    const parts = Array.isArray(roll?.parts) ? roll.parts : null;
+    if ( !parts ) continue;
+    let gain = NaN;
+    try { gain = Number(Roll.replaceFormulaData(String(row.bonus), roll.data ?? caster.getRollData?.() ?? {}, { missing: "0" })); } catch { gain = NaN; }
+    if ( !Number.isFinite(gain) || (gain <= 0) ) continue;
+    parts.push(String(row.bonus));
+    if ( row.once === "spell" ) markSpellOnce(castId, row.key);
+    styles.push({ key: row.key, feature: name, gain, ...(row.once === "turn" ? { turnChit: true } : {}) });
+  }
+  if ( !styles.length ) return;
+  config[DONE] = true;
+  foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.${STYLE_FLAG}`,
+    { styles, gain: styles.reduce((s, e) => s + e.gain, 0), ...statContext(caster.uuid) });
 }
 
 // The floor goes on the built rolls, so a crit's doubled dice are included.
@@ -504,6 +546,8 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
 // The dice rise off the ATTACKER's token on every client, once, for every style that changed the
 // roll (dice-rise.js draws them). Live cards only: a reload replays nothing.
 const floated = new Set();
+/** The type popup's words: the row's own (`pickLine`), else Elemental Adept's. */
+const pickWordsOf = row => row?.pickLine ?? "your spells ignore Resistance to it, and its 1s count as 2";
 listen("createChatMessage", "damage-rules", message => {
   try {
     const flag = message.getFlag(MODULE_ID, STYLE_FLAG);
@@ -517,6 +561,16 @@ listen("createChatMessage", "damage-rules", message => {
       Hooks.callAll("battleflow.styleDice", { messageId: message.id, key: entry.key, chips });
       setTimeout(() => riseDice(token, chips), i * 700);
     });
+    // B4 — a `once: "turn"` row (Radiant Soul) marks the turn on the caster's own client: the rider chit.
+    const caster = resolveUuid(flag.sourceUuid);
+    if ( (caster instanceof Actor) && drivesMomentFor(caster.uuid) ) {
+      for ( const entry of changed.filter(e => e.turnChit) ) {
+        const feature = featureNamed(caster, entry.feature);
+        void writeTurnChit(caster, "rider", { name: `${entry.feature} — used this turn`, img: feature?.img ?? null,
+          description: `${entry.feature} rode a damage roll this turn. Once per turn; this chit ends with the turn.`,
+          origin: feature?.uuid ?? null, riderKey: `damage-rule:${entry.key}` });
+      }
+    }
   } catch(err) { console.warn(`${TITLE} | The fighting style's dice could not draw.`, err); }
 });
 
@@ -774,7 +828,7 @@ async function askTypePick(message) {
       img: fromUuidSync(flag.itemUuid ?? "")?.img ?? null,
       eyebrow: `${flag.row} — a new feat`, tone: "pending",
       title: "Choose your damage type",
-      subtitle: "your spells ignore Resistance to it, and its 1s count as 2",
+      subtitle: pickWordsOf(row),
       lines: [ruleLine(row.rule)]
     }),
     buttons: [
@@ -807,7 +861,7 @@ listen("dnd5e.renderChatMessage", "damage-rules", (message, html) => {
   line.innerHTML = bfCard({
     eyebrow: `${f.row} — a new feat`, tone: f.chosen ? "good" : "pending",
     title: f.chosen ? `${titleCase(f.chosen)} chosen — “${f.row} (${titleCase(f.chosen)})”` : "Choose your damage type",
-    subtitle: f.chosen ? "your spells ignore Resistance to it, and its 1s count as 2" : f.left.map(titleCase).join(" · ")
+    subtitle: f.chosen ? pickWordsOf(row) : f.left.map(titleCase).join(" · ")
   });
   const content = html.querySelector(SURFACES.messageContent);
   content?.appendChild(line);

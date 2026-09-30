@@ -210,7 +210,7 @@ const WORLD_WRITERS = {
   "damage-casts.js": ["damageCast", "saves"],
   "emanations.js": ["emanationCard", "effectReceipt", "saves", "receipt"],
   "repeat-saves.js": ["saves", "effectReceipt"],   // the demand card it raises; a success's removal marks the cast card's receipt
-  "turn-grants.js": ["receipt"],   // Heroism's temp HP at the turn start, landed by the elect
+  "turn-grants.js": ["receipt", "conditionEnd"],   // Heroism's temp HP at the turn start, landed by the elect; B4's condition-end offer
   "wards.js": ["saves"],   // the demand card it raises of the attacker; the ward's end deletes the effect on the bearer's own act
   "volleys.js": ["volley", "receipt"],
   "cast.js": ["castApply", "effectReceipt", "receipt"],

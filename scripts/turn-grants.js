@@ -13,9 +13,13 @@
  * Rage); `while: "raging"` pays only while the Rage stands; `to: "ally"` rolls the amount and GIVES it to one
  * creature within reach — the owner's pick, the rest song's popup (Life-Giving Force).
  */
-import { MODULE_ID, TITLE, drivesMomentFor, statContext } from "./core.js";
-import { activityNamed, activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
-import { chitStampOf, effectSourceOf } from "./shared.js";
+import { MODULE_ID, TITLE, drivesMomentFor, statContext, isActiveGM, queueFlagWrite, canAnswerFor, decisionWindow } from "./core.js";
+import { activityNamed, activityOfType, cardActivity, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { chitStampOf, effectSourceOf, poolOf } from "./shared.js";
+import { endOptionsOf } from "./decide/turn-grants.js";
+import { holdBarHTML, popupKey, esc } from "./decide/present.js";
+import { livePopups, openMomentPopup, momentButton, shownMoments, scheduleBarSync, armDeadline, disarmDeadline, registerRelay, registerResumable } from "./ui.js";
+import { SURFACES } from "./surfaces.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { extendedThisTurn } from "./decide/turn-grants.js";
 import { grappledBy, tokenForUuid } from "./geometry.js";
@@ -104,7 +108,18 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
     if ( !combat.started || (options?.direction === -1) ) return;
     const prev = combat.previous ?? null;
     const ended = prev?.combatantId ? (combat.combatants.get(prev.combatantId)?.actor ?? null) : null;
-    if ( (ended instanceof Actor) && drivesMomentFor(ended.uuid) ) payEffects(ended, combat, { on: "turnEnd", round: prev.round, turn: prev.turn, why: "the end of its turn" });
+    if ( (ended instanceof Actor) && drivesMomentFor(ended.uuid) ) {
+      payEffects(ended, combat, { on: "turnEnd", round: prev.round, turn: prev.turn, why: "the end of its turn" });
+      // B4 — the bearer's OWN turn-end rows (Self-Restoration): a condition's end offered as its turn ends.
+      const listedEnd = listedNames(turnGrantEntries());
+      for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: ended.items.filter(i => i.type === "feat"), listed: listedEnd, answers, on: "turnEnd" }) ) {
+        if ( row.grant !== "end" ) continue;
+        const place = `${combat.id}|${prev.round}|${prev.turn}|end|${item.uuid}|${key}`;
+        if ( !grantDue({ paid, place: settledAt(place) ? null : place }).due ) continue;
+        paid.add(place);
+        void offerEnd({ row: { key, ...row }, item, actor: ended, bearer: ended, place, on: "turnEnd", why: "the end of its turn" });
+      }
+    }
     const actor = combat.combatant?.actor ?? null;
     if ( !(actor instanceof Actor) || !drivesMomentFor(actor.uuid) ) return;
     payEffects(actor, combat, { on: "turnStart", round: combat.round, turn: combat.turn, why: null });
@@ -124,6 +139,9 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
         void dealToGrappled({ row: { key, ...row }, item, actor, place, held, why: due.why });
         continue;
       }
+      // B4 — the grants that are not a roll: Heroic Inspiration written, or a condition's end offered.
+      if ( row.grant === "inspiration" ) { paid.add(place); void grantInspiration({ row: { key, ...row }, item, actor, place }); continue; }
+      if ( row.grant === "end" ) { paid.add(place); void offerEnd({ row: { key, ...row }, item, actor, bearer: actor, place, on: "turnStart", why: "the start of its turn" }); continue; }
       paid.add(place);
       if ( row.to === "ally" ) { void giveToAlly({ row: { key, ...row }, item, actor }); continue; }
       const block = row.unless?.damagedBy ? blockedBy(actor, item, combat) : null;
@@ -146,16 +164,240 @@ listen("dnd5e.postUseActivity", "turn-grants", (activity, _usageConfig, results)
     if ( !(actor instanceof Actor) || !used || !actor.isOwner ) return;
     const listed = listedNames(turnGrantEntries());
     for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: actor.items.filter(i => i.type === "feat"), listed, answers, on: "use" }) ) {
-      if ( !row.of || !answers(row.of, used) ) continue;
+      if ( !row.of || ![].concat(row.of).some(name => answers(name, used)) ) continue;
+      if ( row.activityType && (activity.type !== row.activityType) ) continue;
       const place = `use|${results?.message?.id ?? activity.uuid}|${key}`;
       if ( paid.has(place) ) continue;
       paid.add(place);
+      // B4 — a `to: "target"` end row (Physician's Touch): the use's target is the bearer; each target its own offer.
+      if ( row.grant === "end" ) {
+        const bearers = (row.to === "target") ? targetActorsOf(results?.message ?? null) : [actor];
+        for ( const bearer of bearers ) void offerEnd({ row: { key, ...row }, item, actor, bearer, place: `${place}|${bearer.uuid}`, on: "use", why: `${used.name} used` });
+        continue;
+      }
       void pay({ effect: null, row: { key, ...row }, item, actor, place, why: `${used.name} used`, on: "use" });
     }
   } catch(err) {
     console.error(`${TITLE} | A grant on the use could not be read — apply it by hand.`, err);
   }
 });
+
+/** The creatures a use card names as its targets (dnd5e 6 `system.targets`), else the targets picked now. */
+function targetActorsOf(message) {
+  const out = [];
+  for ( const t of (message ? targetsOf(message) : []) ) {
+    const a = resolveUuid(t.uuid);
+    if ( (a instanceof Actor) && !out.includes(a) ) out.push(a);
+  }
+  if ( !out.length ) for ( const t of game.user.targets ) if ( t.actor && !out.includes(t.actor) ) out.push(t.actor);
+  return out;
+}
+
+/* --- B4 — THE GRANTS THAT ARE NOT A ROLL ----------------------------------------------------------------- *
+ * `grant: "inspiration"` (Heroic Warrior): Heroic Inspiration written on the sheet when none is held, a card, no
+ * choice (R1). `grant: "end"` (Guarded Mind, Self-Restoration, Physician's Touch): a condition the bearer wears is
+ * ENDED — asked, a button per condition (the pick is the player's), the pack's activity paid where the row names one;
+ * the clock keeps them. The answer is the owner's; the landing (a delete on the bearer, a use on the owner) the GM's.
+ * ------------------------------------------------------------------------------------------------------ */
+
+const END_FLAG = "conditionEnd";
+const endTimers = new Map();
+
+/** Heroic Inspiration written, once, when none is held. */
+async function grantInspiration({ row, item, actor, place }) {
+  try {
+    if ( actor.type !== "character" ) return;
+    if ( actor.system?.attributes?.inspiration === true ) return;   // held already: nothing to give, nothing said
+    await actor.update({ "system.attributes.inspiration": true });
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({ img: item.img ?? null, eyebrow: "Turn start", tone: "good",
+        title: `${row.key} — ${actor.name} gains Heroic Inspiration`, subtitle: "none was held — the start of its turn",
+        lines: [ruleLine(row.rule)] }),
+      flags: { [MODULE_ID]: { [GRANT_FLAG]: { ...statContext(actor.uuid), key: row.key, place, effectUuid: null, actorUuid: actor.uuid,
+        grant: "inspiration", why: "the start of its turn" } } }
+    });
+  } catch(err) { console.error(`${TITLE} | ${row.key} could not write Heroic Inspiration — tick it by hand.`, err); }
+}
+
+/** The bearer's applied effects as plain facts (the actor's own and its items' transferred ones). */
+function effectFactsOf(bearer) {
+  const seen = new Map();
+  for ( const e of [...(bearer.appliedEffects ?? []), ...(bearer.effects ?? [])] ) {
+    if ( !e || e.disabled || seen.has(e.uuid) ) continue;
+    seen.set(e.uuid, { id: e.uuid, name: e.name, statuses: [...(e.statuses ?? [])] });
+  }
+  return [...seen.values()];
+}
+
+const statusLabels = () => Object.fromEntries(Object.entries(CONFIG.DND5E?.conditionTypes ?? {}).map(([k, v]) => [k, v?.label ?? k]));
+
+/** OFFER the end of one of the row's conditions the bearer wears; nothing worn, nothing said. */
+async function offerEnd({ row, item, actor, bearer, place, on, why }) {
+  try {
+    const options = endOptionsOf(row.statuses ?? [], effectFactsOf(bearer), statusLabels());
+    if ( !options.length ) return;
+    const activity = row.activity ? activityNamed(item, row.activity) : null;
+    if ( row.activity && !activity ) { console.warn(`${TITLE} | ${row.key}: no "${row.activity}" on ${item.name} — end it by hand.`); return; }
+    const pool = activity ? (poolOf(actor, activity) ?? item) : null;
+    const left = pool ? Number(pool.system?.uses?.value ?? 0) : null;
+    if ( pool && !(left > 0) ) return;   // nothing to pay with: not offered
+    const window = decisionWindow();
+    const flag = { status: "pending", answer: null, row: row.key, place, on, why, actorUuid: actor.uuid, actorName: actor.name,
+      bearerUuid: bearer.uuid, bearerName: bearer.name, itemId: item.id, activityId: activity?.id ?? null,
+      poolName: pool?.name ?? null, poolLeft: left, options, ...statContext(actor.uuid),
+      ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: bfCard({ img: item.img ?? null, eyebrow: (on === "use") ? `${why}` : (on === "turnEnd") ? "Turn end" : "Turn start", tone: "pending",
+        title: `${row.key} — end a condition on ${bearer.name}?`, subtitle: options.map(o => o.label).join(" · ") }),
+      flags: { [MODULE_ID]: { [END_FLAG]: flag } }
+    });
+  } catch(err) { console.error(`${TITLE} | ${row.key} could not be offered — end the condition by hand.`, err); }
+}
+
+const settleEnd = (current, answer, timedOut = false) => {
+  if ( current.status !== "pending" ) return false;
+  Object.assign(current, { status: "resolved", answer: answer ?? "keep", answeredAt: Date.now(), ...(timedOut ? { timedOut: true } : {}) });
+};
+
+/** The owner answers (a status, or "keep"): written on the card, relayed to the GM when this client cannot write it. */
+async function answerEnd(message, answer, { timedOut = false } = {}) {
+  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  if ( flag?.status !== "pending" ) return;
+  if ( isActiveGM() || message.canUserModify?.(game.user, "update") ) {
+    await queueFlagWrite(message, END_FLAG, current => settleEnd(current, answer, timedOut));
+    return;
+  }
+  if ( !game.users.activeGM ) { ui.notifications?.warn(`${flag.row}: a GM must be on — end it from the sheet by hand.`); return; }
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.actorUuid) }), content: "",
+    whisper: game.users.filter(u => u.isGM).map(u => u.id),
+    flags: { [MODULE_ID]: { conditionEndAnswer: { messageId: message.id, answer } } } });
+}
+
+registerRelay("conditionEndAnswer", {
+  flagKey: END_FLAG, targetOf: a => a.messageId, owns: () => isActiveGM(), cleanup: true,
+  fold: (current, a) => settleEnd(current, a.answer)
+});
+
+/** The GM lands a pick: the effects carrying the status go from the bearer, the activity pays, the card says so. */
+async function landEnd(message) {
+  let claimed = false;
+  await queueFlagWrite(message, END_FLAG, current => {
+    if ( (current.status !== "resolved") || (current.answer === "keep") || current.applied || current.applying ) return false;
+    current.applying = true;
+    claimed = true;
+  });
+  if ( !claimed ) return;
+  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  const record = {};
+  try {
+    const actor = resolveUuid(flag.actorUuid), bearer = resolveUuid(flag.bearerUuid);
+    const item = actor?.items?.get(flag.itemId);
+    const option = (flag.options ?? []).find(o => o.status === flag.answer);
+    if ( !(actor instanceof Actor) || !(bearer instanceof Actor) || !item || !option ) throw new Error("the feature or the condition left the sheet");
+    const activity = flag.activityId ? item.system?.activities?.get(flag.activityId) : null;
+    if ( flag.activityId && !activity ) throw new Error("the activity left the sheet");
+    if ( activity ) await activity.use({ subsequentActions: false }, { configure: false }, {});
+    const gone = [];
+    for ( const uuid of option.effectIds ) {
+      const effect = fromUuidSync(uuid);
+      if ( !effect ) continue;
+      if ( effect.parent === bearer ) { await effect.delete(); gone.push(effect.name); }
+      else { await effect.update({ disabled: true }); gone.push(effect.name); }
+    }
+    record.ended = option.status;
+    record.gone = gone;
+  } catch(err) {
+    console.error(`${TITLE} | ${flag.row} failed part-way — check the sheet.`, err);
+    record.failed = true;
+  } finally {
+    await queueFlagWrite(message, END_FLAG, current => { Object.assign(current, record, { applied: true, applying: false }); });
+  }
+}
+
+registerResumable(END_FLAG, {
+  pending: flag => (flag?.status === "resolved") && (flag.answer !== "keep") && !flag.applied && !flag.applying,
+  drives: () => isActiveGM(),
+  drive: landEnd
+});
+
+function armEndTimer(message) {
+  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  if ( (flag?.status !== "pending") || !flag.deadline || !drivesMomentFor(flag.actorUuid ?? null) ) return;
+  armDeadline(endTimers, message.id, flag.deadline, async () => {
+    const live = game.messages.get(message.id);
+    if ( live?.getFlag(MODULE_ID, END_FLAG)?.status === "pending" ) await answerEnd(live, "keep", { timedOut: true });
+  });
+}
+
+async function showEndPopup(message) {
+  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  if ( flag?.status !== "pending" ) return;
+  const actor = resolveUuid(flag.actorUuid);
+  if ( !actor ) return;
+  const row = TURN_GRANTS[flag.row] ?? null;
+  const cost = flag.poolName ? ` · 1 ${flag.poolName} (${flag.poolLeft} left)` : " · free";
+  await openMomentPopup(message, END_FLAG, actor, {
+    title: `${flag.row} — ${flag.actorName}`, icon: "fa-solid fa-hand-sparkles", width: 420,
+    content: bfCard({ img: actor.items.get(flag.itemId)?.img ?? null, eyebrow: (flag.on === "turnEnd") ? "Turn end" : (flag.on === "use") ? flag.why : "Turn start", tone: "pending",
+      title: `End a condition on ${flag.bearerName}?`, subtitle: `${(flag.options ?? []).map(o => `${o.label} (${o.names.join(", ")})`).join(" · ")}${cost}`,
+      lines: [row?.rule ? ruleLine(row.rule) : ""] }) + holdBarHTML(flag, "to answer"),
+    buttons: [
+      ...(flag.options ?? []).map((o, i) => ({ action: o.status, label: `End ${o.label}`, default: i === 0, callback: () => { void answerEnd(message, o.status); } })),
+      { action: "keep", label: "Keep", callback: () => { void answerEnd(message, "keep"); } }
+    ]
+  });
+}
+
+/** The card's line, by the offer's state. */
+function endLine(flag) {
+  if ( flag.answer === "keep" ) return `${flag.row} — nothing ended${flag.timedOut ? " (timer)" : ""}`;
+  if ( flag.applied ) {
+    if ( flag.failed ) return `${flag.row} — could not end ${flag.answer} (see the console)`;
+    const label = (flag.options ?? []).find(o => o.status === flag.ended)?.label ?? flag.ended;
+    return `${flag.row} — ${label} ended on ${flag.bearerName}${flag.poolName ? ` · 1 ${flag.poolName}` : ""}`;
+  }
+  if ( flag.status === "resolved" ) return `${flag.row} — ending…`;
+  return `${flag.row} — end a condition on ${flag.bearerName}? ${(flag.options ?? []).map(o => o.label).join(" · ")}`;
+}
+
+listen("dnd5e.renderChatMessage", "turn-grants", (message, html) => {
+  try {
+    const flag = message.getFlag(MODULE_ID, END_FLAG);
+    if ( !flag ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-condition-end-line") ) return;
+    const div = document.createElement("div");
+    div.className = "bf-condition-end-line";
+    div.style.cssText = "margin:0.25rem 0;font-size:var(--font-size-11,11px);opacity:0.85;";
+    div.innerHTML = `<i class="fa-solid fa-hand-sparkles" data-tooltip="${esc(flag.row)}"></i> ${esc(endLine(flag))}`
+      + ((flag.status === "pending") ? ` ${holdBarHTML(flag, "to answer")}` : "");
+    if ( flag.status === "pending" ) {
+      const actor = resolveUuid(flag.actorUuid);
+      if ( canAnswerFor(actor) ) {
+        const shown = popupKey(message.id, END_FLAG);
+        if ( !shownMoments.has(shown) ) { shownMoments.add(shown); void showEndPopup(message); }
+        div.appendChild(momentButton("Answer", () => { void showEndPopup(message); }));
+      }
+      scheduleBarSync(div);
+      armEndTimer(message);
+    }
+    content.appendChild(div);
+  } catch(err) { console.warn(`${TITLE} | The condition-end line could not render.`, err); }
+});
+
+// An answer anywhere closes the popup everywhere (law 4); the clock stands down with it.
+listen("updateChatMessage", "turn-grants", message => {
+  const flag = message.getFlag(MODULE_ID, END_FLAG);
+  if ( !flag ) return;
+  if ( flag.status === "pending" ) { armEndTimer(message); return; }
+  disarmDeadline(endTimers, message.id);
+  const open = livePopups.get(popupKey(message.id, END_FLAG));
+  if ( open ) { try { void open.close(); } catch { /* gone */ } }
+});
+
+listen("deleteChatMessage", "turn-grants", message => { disarmDeadline(endTimers, message.id); });
 
 /** A `to: "ally"` row (Life-Giving Force): the amount rolled on the bearer's numbers, then GIVEN — the rest song's pick. */
 async function giveToAlly({ row, item, actor }) {

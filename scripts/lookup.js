@@ -309,6 +309,7 @@ export function superiorityStandIn(actor, pool, chitStands) {
 export function bystanderDie(actor, row) {
   if ( row.bonus !== undefined ) return String(row.bonus);
   if ( !row.die ) return null;
+  if ( /^\d*d\d+/i.test(String(row.die).trim()) ) return String(row.die).trim();   // a plain die (Bend Luck's 1d4, B4)
   const value = foundry.utils.getProperty(actor?.getRollData?.() ?? {}, row.die);
   // ⚠ `formula`/`die` are getters on ScaleValueTypeDice (BARDIC's lesson): a plain string only.
   const formula = (typeof value === "string") ? value : (value?.formula ?? value?.die ?? null);

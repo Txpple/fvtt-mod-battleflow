@@ -142,7 +142,7 @@ describe("STORED_DICE and the Portent bystander row (A7b)", () => {
       oncePerTurn: true
     });
     expectPointer(row.rule);
-    expect(reg.storedDiceEntries().map(e => e.kind)).toEqual(["portent"]);
+    expect(reg.storedDiceEntries().map(e => e.kind)).toEqual(["portent", "cosmic omen"]); // Cosmic Omen joined in B4
   });
   it("the bystander row: a stored face, the scene the reach, attacks and saves, a popup only for a crit on an attack", () => {
     expect(reg.INTERRUPT_ROLLS.Portent).toMatchObject({

@@ -438,7 +438,18 @@ describe("TURN_GRANTS — the turn-start damage", () => {
       reg
         .turnGrantEntries()
         .map(e => e.kind)
-        .filter(k => !["rage", "vitality surge", "life-giving force"].includes(k))
+        .filter(
+          k =>
+            ![
+              "rage",
+              "vitality surge",
+              "life-giving force",
+              "heroic warrior",
+              "guarded mind",
+              "self-restoration",
+              "physician's touch"
+            ].includes(k)
+        ) // B4's rows filtered
     ).toEqual([
       "heroism",
       "regeneration",

@@ -41,13 +41,17 @@ listen("dnd5e.restCompleted", "stored-dice", (actor, result, config) => {
     void (async () => {
       const rolled = [];
       for ( const { key, row, item } of rows ) {
-        const roll = await new Roll(`${Number(row.dice) || 2}d20`).evaluate();
+        const roll = await new Roll(`${Number(row.dice) || 2}d${Number(row.die) || 20}`).evaluate();
         const faces = roll.dice[0].results.map(r => r.result);
+        // B4 — an omen row's chip says which omen the face is (Cosmic Omen: even Weal, odd Woe); its face is never spent.
+        const name = row.omen ? `${key} — ${(faces[0] % 2 === 0) ? "Weal" : "Woe"} (${faces[0]})` : storedChipName(key, faces);
         const stale = actor.effects.filter(e => e.getFlag(MODULE_ID, STORED_FLAG)?.key === key).map(e => e.id);
         if ( stale.length ) await actor.deleteEmbeddedDocuments("ActiveEffect", stale);
         await ActiveEffect.implementation.create({
-          name: storedChipName(key, faces), img: item.img ?? "icons/svg/d20.svg", origin: item.uuid, transfer: false, disabled: false,
-          description: `<p>Written by Battle Flow at the rest: ${esc(key)}'s dice, each spent once to replace a d20. Lost at the next ${restType === "long" ? "Long" : "Short"} Rest.</p>`,
+          name, img: item.img ?? "icons/svg/d20.svg", origin: item.uuid, transfer: false, disabled: false,
+          description: row.omen
+            ? `<p>Written by Battle Flow at the rest: ${esc(key)}'s roll — ${(faces[0] % 2 === 0) ? "even, Weal: your Reaction adds 1d6 to a creature's D20 Test" : "odd, Woe: your Reaction subtracts 1d6 from a creature's D20 Test"} within 30 feet. Rolled again at the next Long Rest.</p>`
+            : `<p>Written by Battle Flow at the rest: ${esc(key)}'s dice, each spent once to replace a d20. Lost at the next ${restType === "long" ? "Long" : "Short"} Rest.</p>`,
           flags: { [MODULE_ID]: { [STORED_FLAG]: { key, faces, turn: null } } }
         }, { parent: actor });
         rolled.push({ key, faces });
@@ -149,7 +153,7 @@ listen("dnd5e.renderChatMessage", "stored-dice", (message, html) => {
     if ( !content ) return;
     const rested = message.getFlag(MODULE_ID, REST_LINE);
     const used = message.getFlag(MODULE_ID, USED_LINE);
-    const said = rested?.length ? rested.map(r => `${r.key} — ${r.faces.join(" and ")} kept`).join(" · ")
+    const said = rested?.length ? rested.map(r => STORED_DICE[r.key]?.omen ? `${r.key} — ${(r.faces[0] % 2 === 0) ? "Weal" : "Woe"} (${r.faces[0]})` : `${r.key} — ${r.faces.join(" and ")} kept`).join(" · ")
       : used ? `${used.key} — the d20 is the ${used.face}` : null;
     if ( !said || content.querySelector(".bf-stored-line") ) return;
     const div = document.createElement("div");

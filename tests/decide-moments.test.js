@@ -156,6 +156,18 @@ describe("the moment registry — shape", () => {
         regained: 3,
         healed: 9
       },
+      conditionEnd: {
+        status: "resolved",
+        row: "Guarded Mind",
+        actorUuid: "Actor.f",
+        actorName: "Fighter",
+        bearerUuid: "Actor.f",
+        bearerName: "Fighter",
+        answer: "frightened",
+        applied: true,
+        ended: "frightened",
+        gone: ["Frightened"]
+      },
       grappleDamage: {
         status: "resolved",
         row: "Unarmed Fighting",
