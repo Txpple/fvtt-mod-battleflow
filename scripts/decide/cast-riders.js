@@ -44,6 +44,8 @@ export function surgeOutcome({ tidesSpent, used, d20 = null, surgeOn = 20 }) {
  */
 export function surgeLine(r) {
   const effect = r.result ? ` — ${r.result}` : "";
+  // D1 — a cast whose d20 was already rolled this turn, carried for Tamed Surge's pick alone.
+  if ( !r.tides && !r.surged && !Number.isFinite(r.d20) ) return `${r.feature} — the d20 was rolled this turn`;
   if ( r.tides ) return `${r.feature} — Tides of Chaos spent: the surge rolls${effect}; Tides of Chaos regained`;
   if ( r.surged ) return `${r.feature} — d20: ${r.d20}, a SURGE${effect}`;
   return `${r.feature} — d20: ${r.d20}, nothing`;

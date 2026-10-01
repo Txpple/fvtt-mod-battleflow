@@ -81,11 +81,14 @@ async function surge({ name, row, actor, message }) {
     const tidesSpent = !!tides && (Number(tides.system?.uses?.max) > 0) && !(Number(tides.system?.uses?.value) > 0);
     const key = turnKey();
     let o = surgeOutcome({ tidesSpent, used: rolledThisTurn(actor, name, key) });
+    // D1 — Tamed Surge: its use standing, every such cast offers the pick (the d20's once per turn is the surge's alone).
+    const tamed = row.tamed ? featureNamed(actor, row.tamed) : null;
+    const tameOptions = (tamed && (Number(tamed.system?.uses?.value ?? 0) > 0)) ? await tableChoices(row.table) : null;
     let d20 = null;
     if ( o.roll ) {
       d20 = (await new Roll("1d20").evaluate()).total;
       o = surgeOutcome({ tidesSpent, used: false, d20, surgeOn: row.surgeOn });
-    } else if ( !o.surged ) return;   // this turn's roll is made: nothing, no line
+    } else if ( !o.surged && !tameOptions?.length ) return;   // this turn's roll is made: nothing, no line
     let result = null;
     let results = null;
     if ( o.surged ) {
@@ -95,7 +98,8 @@ async function surge({ name, row, actor, message }) {
     }
     if ( o.tides ) await tides.update({ "system.uses.spent": 0 });
     const record = { feature: name, actorUuid: actor.uuid, turn: key, d20, surged: o.surged, tides: o.tides, result,
-      ...(results ? { twice: row.twice, results, chosen: null } : {}) };
+      ...(results ? { twice: row.twice, results, chosen: null } : {}),
+      ...(tameOptions?.length ? { tamed: { feature: row.tamed, itemId: tamed.id, options: tameOptions, chosen: null } } : {}) };
     if ( message?.isOwner ) await message.setFlag(MODULE_ID, SURGE_FLAG, record);
     else await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }), content: `<p>${esc(surgeLine(record))}</p>`,
       flags: { [MODULE_ID]: { [SURGE_FLAG]: record } } });
@@ -104,16 +108,27 @@ async function surge({ name, row, actor, message }) {
   }
 }
 
+/** D1 — Tamed Surge's choices: every row of the table but the LAST (the rule's exception), each its text, trimmed. */
+async function tableChoices(uuid) {
+  const table = uuid ? await fromUuid(uuid) : null;
+  const rows = [...(table?.results ?? [])].sort((a, b) => (a.range?.[0] ?? 0) - (b.range?.[0] ?? 0));
+  return rows.slice(0, -1).map(r => resultText(r)).filter(Boolean);
+}
+
+/** A table result's words, the inline rolls kept as their formula. */
+function resultText(r) {
+  const text = String(r?.description || r?.name || r?.text || "").replace(/<[^>]*>/g, " ")
+    .replace(/\[\[\/r\s*([^\]]+)\]\]/g, "$1").replace(/\s+/g, " ").trim();
+  return text ? (text.length > 140 ? `${text.slice(0, 137)}…` : text) : null;
+}
+
 /** The pack's table rolled (never marked drawn — a compendium table is not written) and posted; its text back. */
 async function rollTable(uuid, actor) {
   const table = uuid ? await fromUuid(uuid) : null;
   if ( !table ) { console.warn(`${TITLE} | The Wild Magic Surge table (${uuid}) is not on this box — roll it by hand.`); return null; }
   const { roll, results } = await table.roll();
   await table.toMessage(results, { roll, messageData: { speaker: ChatMessage.getSpeaker({ actor }) } });
-  const r = results?.[0];
-  const text = String(r?.description || r?.name || r?.text || "").replace(/<[^>]*>/g, " ")
-    .replace(/\[\[\/r\s*([^\]]+)\]\]/g, "$1").replace(/\s+/g, " ").trim();
-  return text ? (text.length > 140 ? `${text.slice(0, 137)}…` : text) : null;
+  return resultText(results?.[0]);
 }
 
 listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
@@ -138,6 +153,30 @@ listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
       }
       div.appendChild(pick);
     }
+    // D1 — Tamed Surge: the pick from the table (every row but the last), the feature's use spent with it.
+    if ( r.tamed?.options?.length ) {
+      const tame = document.createElement("div");
+      tame.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.25rem;flex-wrap:wrap;";
+      if ( r.tamed.chosen ) tame.textContent = `${r.tamed.feature} — chosen: ${r.tamed.chosen}`;
+      else {
+        const actor = resolveUuid(r.actorUuid);
+        if ( actor?.isOwner ) {
+          tame.append(`${r.tamed.feature} — choose an effect instead (1 use):`);
+          const select = document.createElement("select");
+          select.dataset.bfTamedSurge = "1";
+          select.style.cssText = "max-width:100%;";
+          for ( const text of r.tamed.options ) {
+            const option = document.createElement("option");
+            option.value = text;
+            option.textContent = text;
+            select.appendChild(option);
+          }
+          tame.appendChild(select);
+          tame.appendChild(momentButton("Choose", () => void chooseTamed(message, select.value)));
+        }
+      }
+      div.appendChild(tame);
+    }
     content.appendChild(div);
   } catch(err) { console.warn(`${TITLE} | The surge line could not render.`, err); }
 });
@@ -149,6 +188,26 @@ async function chooseSurge(message, text) {
     if ( current.chosen || !current.results?.includes(text) ) return false;
     current.chosen = text;
   });
+}
+
+/** D1 — the Tamed Surge pick: the feature's use spent, the choice recorded on the caster's card and posted. */
+async function chooseTamed(message, text) {
+  if ( !message.canUserModify?.(game.user, "update") ) return;
+  const r = message.getFlag(MODULE_ID, SURGE_FLAG);
+  const actor = resolveUuid(r?.actorUuid);
+  const item = actor?.items?.get(r?.tamed?.itemId ?? "");
+  if ( !r?.tamed || r.tamed.chosen || !r.tamed.options?.includes(text) || !item ) return;
+  if ( !(Number(item.system?.uses?.value ?? 0) > 0) ) { ui.notifications?.warn(`${item.name}: no use left.`); return; }
+  let won = false;
+  await queueFlagWrite(message, SURGE_FLAG, current => {
+    if ( !current.tamed || current.tamed.chosen ) return false;
+    current.tamed.chosen = text;
+    won = true;
+  });
+  if ( !won ) return;
+  await item.update({ "system.uses.spent": (Number(item.system?.uses?.spent) || 0) + 1 });
+  await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor }),
+    content: `<p><strong>${esc(r.tamed.feature)}</strong> — ${esc(text)}</p>` });
 }
 
 /* --- C1 — SMITE OF PROTECTION: the aura's members wear the effect until the caster's next turn start ---------- */

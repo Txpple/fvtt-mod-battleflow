@@ -72,7 +72,14 @@ describe("Tier 1 — the rows", () => {
         .healRerollEntries()
         .map(e => e.kind)
         .sort()
-    ).toEqual(["beacon of hope", "blessed healer", "disciple of life", "healer", "starry form"]);
+    ).toEqual([
+      "beacon of hope",
+      "blessed healer",
+      "disciple of life",
+      "healer",
+      "starry form",
+      "supreme healing"
+    ]);
     expectPointer(row.rule);
   });
   it("Heroism: the one turn-start grant — Bravery on the bearer, the spell's Heal activity rolled again on the caster", () => {

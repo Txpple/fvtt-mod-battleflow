@@ -1939,6 +1939,7 @@ export const CHECK_BENDS = Object.freeze({
  *             itself is the carrier, no feature or effect is read;  judge "targetInSpace": the target's
  *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
+ *   allies    D1 — a `match: "feature"` row read off ANOTHER creature of the attacker's side on the scene (Improved Duplicity)
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity", spend?: "attack"|"save", attack?: string,
@@ -2179,6 +2180,13 @@ export const EFFECT_BENDS = Object.freeze({
   "Invoke Duplicity": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "Trickery Cleric",
     caveat: "listed — Advantage only with the illusion and you both within 5 feet of the target",
     rule: Object.freeze({ item: "Invoke Duplicity", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcInvokeDupl", benefit: "Distract" }) }),
+  // D1 — Improved Duplicity's Shared Distraction: the bend serves the cleric's ALLIES (`allies` — the feature held by another
+  // creature of the attacker's side on the scene); listed, as Invoke Duplicity is (the illusion is not a token the module
+  // reads). The cleric's own attacks keep Invoke Duplicity's row; Healing Illusion is the table's.
+  "Improved Duplicity": Object.freeze({ match: "feature", allies: true, attacker: "advantage", target: null, scope: "any", counted: false,
+    from: "Trickery Cleric 17",
+    caveat: "listed — Advantage only against a creature within 5 feet of the cleric's illusion",
+    rule: Object.freeze({ item: "Improved Duplicity", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcImprovedDu", benefit: "Shared Distraction" }) }),
   "Ambusher": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Advantage only in the first round, against a creature it surprised",
     rule: Object.freeze({ item: "Ambusher", uuid: "Compendium.dnd5e.monsterfeatures.Item.EMygUh5uRujWaFYK" }) }),
@@ -2388,6 +2396,12 @@ export const HEAL_REROLLS = Object.freeze({
     caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised",
     rule: Object.freeze({ item: "Beacon of Hope", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplBeaconofHo" }),
     from: "Cleric spell, level 3 (Concentration, 1 minute)" }),
+  // D1 — Supreme Healing: Beacon's `max` keyed to the CASTER's feature (`caster`) — every creature the cleric's spell or
+  // Channel Divinity heals takes the dice's maximum; the flat parts stay as rolled.
+  "Supreme Healing": Object.freeze({ max: true, caster: true,
+    caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised",
+    rule: Object.freeze({ item: "Supreme Healing", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcSupremeHea" }),
+    from: "Cleric — Life Domain 17" }),
   // `bonus` + `slotCast`: a levelled spell the owner casts (never innate or at will) heals `2 + @slot` more - a
   // part added to the healing roll itself, so the card's own buttons carry it too.
   "Disciple of Life": Object.freeze({ bonus: "2 + @slot", slotCast: true,
@@ -2468,12 +2482,16 @@ export const INITIATIVE_GRANTS = Object.freeze({
  *   after    the spell whose cast raises the rider (Inspiring Smite: Divine Smite)
  *   handOut  the feature's heal activity's Temporary Hit Points DIVIDED among creatures within `reach` (the giver
  *            too) — the rest song's popup; the activity's consumption (Channel Divinity) paid only when given
+ *   tamed    the feature whose use lets the sorcerer CHOOSE a table row instead of rolling (D1)
  * ⚠ NOT A KIND — one table, one machine; Controlled Chaos (C1) and Tamed Surge (D1) are facets of the surge row.
  */
 export const CAST_RIDERS = Object.freeze({
   // C1 — `twice` (Controlled Chaos): with that feature on the sheet a surge rolls the table TWICE; both results post and
   // the surge line offers the pick (a button each); the choice is recorded, the effects are the table's as ever.
-  "Wild Magic Surge": Object.freeze({ spellClass: "sorcerer", surgeOn: 20, tides: "Tides of Chaos", twice: "Controlled Chaos",
+  // D1 — `tamed` (Tamed Surge): after the same cast, once per Long Rest (the feature's own use), the sorcerer may CHOOSE an
+  // effect from the table instead of rolling it — a pick on the surge line from every row but the last; the use is spent
+  // with the pick, and the effect is the table's to play as ever.
+  "Wild Magic Surge": Object.freeze({ spellClass: "sorcerer", surgeOn: 20, tides: "Tides of Chaos", twice: "Controlled Chaos", tamed: "Tamed Surge",
     table: "Compendium.dnd-players-handbook.tables.RollTable.phbWildMagicSurg",
     rule: Object.freeze({ item: "Wild Magic Surge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrSurgeWildM" }),
     from: "Sorcerer — Wild Magic Sorcery 3" }),

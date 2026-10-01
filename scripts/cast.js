@@ -13,7 +13,7 @@ import { momentButton, openMomentPopup, registerResumable, shownMoments } from "
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { applyEffectsWithReceipt } from "./effect-riders.js";
 import { SURFACES } from "./surfaces.js";
-import { targetsOf } from "./decide/card.js";
+import { activityUuidOf, targetsOf } from "./decide/card.js";
 import { listen } from "./dispatch.js";
 
 // Auto-apply on cast (ARCHITECTURE.md §6). The STAMP is the trigger, never the setting: `castApply` and
@@ -79,8 +79,10 @@ async function applyCastHealing(message) {
     if ( !targets.length ) return;
     const damages = damagePartsOf(message.rolls);
     if ( !damages.length ) return;
-    // A target wearing a `max` row's effect (Beacon of Hope's Hopeful) is healed the roll's maximum.
-    const raised = targets.filter(t => maxRowOn(t.uuid));
+    // A target wearing a `max` row's effect (Beacon of Hope's Hopeful) is healed the roll's maximum; a CASTER's `max` row
+    // (Supreme Healing, D1) raises every target of its spell or Channel Divinity.
+    const casterMax = casterMaxRow(message);
+    const raised = targets.filter(t => casterMax || maxRowOn(t.uuid));
     const plain = targets.filter(t => !raised.includes(t));
     if ( plain.length ) await applyDamagesWithReceipt(message, plain, damages, { note: "Healing" });
     if ( raised.length ) {
@@ -89,12 +91,32 @@ async function applyCastHealing(message) {
         return { value: rollMaximum(json), type: r.options?.type ?? "healing", properties: new Set(r.options?.properties ?? []) };
       }).filter(p => p.value > 0);
       for ( const t of raised ) {
-        await applyDamagesWithReceipt(message, [t], maxed, { note: `Healing — ${maxRowOn(t.uuid)} — the maximum` });
+        await applyDamagesWithReceipt(message, [t], maxed, { note: `Healing — ${casterMax ?? maxRowOn(t.uuid)} — the maximum` });
       }
     }
   } catch(err) {
     console.error(`${TITLE} | Healing auto-apply failed.`, err);
   }
+}
+
+/** D1 — the listed `caster` `max` row the HEALER holds (Supreme Healing), by key, when the healing is a spell's or a Channel
+ * Divinity's (the item, or the Channel Divinity uses its activity consumes), else null. */
+function casterMaxRow(message) {
+  const actor = message?.getAssociatedActor?.() ?? null;
+  if ( !(actor instanceof Actor) ) return null;
+  const activity = cardActivity(message, activityUuidOf(message));
+  const item = activity?.item ?? null;
+  if ( !item ) return null;
+  const channel = actor.items.find(i => (i.type === "feat") && ((i.system?.identifier === "channel-divinity") || (lower(i.name) === "channel divinity")));
+  const viaChannel = !!channel && ((item.id === channel.id)
+    || (activity.consumption?.targets ?? []).some(c => (c.type === "itemUses") && c.target && ((c.target === channel.id) || String(c.target).endsWith(".phbclcChannelDiv"))));
+  if ( (item.type !== "spell") && !viaChannel ) return null;
+  const listed = listedNames(healRerollEntries());
+  for ( const [key, row] of Object.entries(HEAL_REROLLS) ) {
+    if ( !row.max || !row.caster || !listed.has(lower(key)) ) continue;
+    if ( featureNamed(actor, key) ) return key;
+  }
+  return null;
 }
 
 /** The listed `max` row whose effect stands on this creature (HEAL_REROLLS — Beacon of Hope), by key, or null. */

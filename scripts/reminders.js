@@ -32,6 +32,22 @@ const EFFECT_ITEM_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.item
 
 /** The actor's feats in the effect table's words. */
 const featuresOf = actor => namesAnswering(actor.items.filter(i => i.type === "feat"), EFFECT_FEATURE_KEYS);
+
+/** D1 — the `allies` feature rows (Improved Duplicity) another creature of the attacker's side holds on its scene: read as the
+ * attacker's own, so the gate lists them for every ally's attack. */
+const ALLY_FEATURE_KEYS = Object.entries(EFFECT_BENDS).filter(([, r]) => (r.match === "feature") && r.allies).map(([k]) => k);
+function alliedFeaturesOf(attacker, attackerToken) {
+  const scene = attackerToken?.document?.parent ?? attackerToken?.scene ?? canvas?.scene ?? null;
+  if ( !ALLY_FEATURE_KEYS.length || !scene || !attackerToken ) return [];
+  const side = attackerToken.document?.disposition ?? attackerToken.disposition;
+  const out = new Set();
+  for ( const t of scene.tokens ) {
+    const actor = t.actor;
+    if ( !actor || (actor.uuid === attacker.uuid) || (t.disposition !== side) ) continue;
+    for ( const key of namesAnswering(actor.items.filter(i => i.type === "feat"), ALLY_FEATURE_KEYS) ) if ( ALLY_FEATURE_KEYS.includes(key) ) out.add(key);
+  }
+  return [...out];
+}
 /** An effect's SOURCE: the module's own stamp, else the actor behind its origin (B2's `spells: "source"`, `charmedBy`). */
 const effectSourceUuid = e => e.getFlag(MODULE_ID, "sourceUuid") ?? grantingActor(e)?.uuid ?? null;
 /** The features a save row reads off an effect's SOURCE (`saves.sourceFeature` — Eldritch Hex), and the effects that ask. */
@@ -493,6 +509,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     notActed: targetNotActed(attacker, actor)
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
+  if ( attackerSheet ) attackerSheet.features = [...new Set([...attackerSheet.features, ...alliedFeaturesOf(attacker, attackerToken)])];
   // B4 — an Opportunity Attack as the gate can read it (Halt's fact): a melee attack off the attacker's turn in a running combat.
   if ( attackerSheet ) {
     const combat = game.combat;
