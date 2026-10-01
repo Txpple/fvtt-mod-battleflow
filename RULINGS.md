@@ -1584,6 +1584,22 @@ each is a machine change or a new reader for a found item no one holds. The regi
 of where each row lands the day an item is in a player's hands; that day is a new commission on the user's
 word, never owed. The order moves on to Slice B.
 
+**RE-REVIEWED 2026-10-01 (the user, after the C1 battery), the 29 WAITS rows split by cost, nothing built:**
+fourteen rows are rows on machines that exist (the five `vsSpells` items, Ring of Evasion and Scarab of
+Protection on `SAVE_SUCCEEDS`, the four on-hit reactions, Sword of Wounding, Cloak of Displacement, Luck
+Blade) — an afternoon, and the items a party finds at tiers 2–3; the crit riders need a new table and an
+enchantment-aware weapon reader (a day; eight customers now — **Sword of Sharpness** was misread as a
+utility item and joins them); the four injury poisons need Poisoner's coating machine generalised; the
+three absorption items wait on the cast-triggered kind with the splat books. Three more first-scan misreads
+corrected in the drawing's hand table: **Moonblade** (the crit threshold), **Shield of Missile Attraction**
+(the redirect kind, held with the MM's Redirect Attack) and **Periapt of Wound Closure** (the death-save
+seam Survivor opens in D1). The combat classics (Flame Tongue, Frost Brand, Holy Avenger, Defender, the
+Slayers, the Maces, the Staves, Dragon Scale Mail…) are NATIVE on the pack's effects and activities; the
+passive stat items are the sheet's. The traps, hazards and siege weapons stay the GM's. **The rules
+chapters** (the pack's journal pages: cover from an area's origin, fear and mental stress, curses,
+environmental effects) were never scanned — the register reads the two item compendia only; a scan of the
+journal pages is owed before the DMG is called read.
+
 ## The full release — the order (2026-09-29)
 
 **The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all
