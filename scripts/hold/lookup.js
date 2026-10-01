@@ -440,6 +440,11 @@ export function hasReactionEffect(actor, reactionName, ids) {
  * cast alone moves no AC). Receipt-shaped entries, [] on nothing. */
 export async function applyReactionEffect(activity, actor, reactionName, ids) {
   try {
+    // C1 — a multiplier row's typed effect (Superior Hunter's Defense, `effects: "type"`): the pack's activity carries
+    // one Resistance per damage type; none of them is the answer's. The one of the damage's type lands WITH the share
+    // (auto-apply.js, damage-holds.js) — applied here, all thirteen would land and the platform would halve twice.
+    const multiplierKey = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(reactionName ?? ""));
+    if ( multiplierKey && (INTERRUPT_MULTIPLIERS[multiplierKey].effects === "type") ) return [];
     // ⚠ A cast activity's effects live on the linked spell: reactionItem, never a bare name match.
     const own = (await activity?.getApplicableEffects?.()) ?? [];   // 6.0: profiles resolve asynchronously
     let effects = own;

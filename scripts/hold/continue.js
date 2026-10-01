@@ -69,6 +69,12 @@ export async function continueHold(attackMessage) {
   }
 }
 
+/** C1 — the INTERRUPT_MULTIPLIERS row whose effect is typed (`effects: "type"`), or null. */
+const typedEffectRow = name => {
+  const key = Object.keys(INTERRUPT_MULTIPLIERS).find(k => lower(k) === lower(name ?? ""));
+  return (key && (INTERRUPT_MULTIPLIERS[key].effects === "type")) ? INTERRUPT_MULTIPLIERS[key] : null;
+};
+
 async function driveHoldContinuation(attackMessage, hold) {
 
   // Safety net: the cast reaction's effect must be ON the actor before the re-test. ⚠ Catches only
@@ -76,6 +82,7 @@ async function driveHoldContinuation(attackMessage, hold) {
   for ( const target of hold.targets.filter(t => t.answer === "cast") ) {
     const actor = await fromUuid(target.uuid);
     if ( !actor?.isOwner || hasReactionEffect(actor, target.reaction, target) ) continue;
+    if ( typedEffectRow(target.reaction) ) continue;   // C1 — its one typed effect lands with the share, not here
     // The ITEM, by recorded itemId: a statblock's Shield keeps its effect only on the item.
     const item = reactionItem(actor, target.reaction, target);
     const activity = item?.system.activities?.contents?.[0];

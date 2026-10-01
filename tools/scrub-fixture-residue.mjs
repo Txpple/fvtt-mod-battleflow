@@ -27,6 +27,12 @@ try {
         if ( !check ) await actor.update(update);
         rows.push(`${actor.name}: ${found.join(", ")}${check ? "" : " — cleared"}`);
       }
+      // A killed run's ward pools (Bastion of Law's "Warded by Law (N)") absorb every later hit: gone.
+      const pools = actor.effects.filter(e => e.getFlag("fvtt-mod-battleflow", "wardPool"));
+      if ( pools.length ) {
+        if ( !check ) await actor.deleteEmbeddedDocuments("ActiveEffect", pools.map(e => e.id));
+        rows.push(`${actor.name}: ${pools.length} ward pool effect(s) (${pools.map(e => e.name).join(", ")})${check ? "" : " — removed"}`);
+      }
     }
     // An unlinked fixture token's synthetic actor at 0 HP is a corpse every save demand skips: heal it.
     for ( const scene of game.scenes ) {

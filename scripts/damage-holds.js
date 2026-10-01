@@ -382,7 +382,7 @@ async function showPopup(message) {
     content: bfCard({ img: pool?.img ?? null, eyebrow: `Reaction — ${flag.label ?? flag.reaction}`, tone: "pending",
       title: `${flag.label ?? flag.reaction} — ${flag.actorName} may reduce ${flag.amount} damage`,
       subtitle: `${flag.sourceName ? `from ${flag.sourceName} · ` : ""}a Reaction${max > 0 ? ` · ${left} of ${max} uses left` : ""}`,
-      lines: [ruleLine(row?.rule ?? ""), `Reduce by ${esc(row?.by ?? flag.formula)}.`] })
+      lines: [ruleLine(row?.rule ?? INTERRUPT_MULTIPLIERS[flag.reaction]?.rule ?? ""), flag.halve ? `The damage is halved.` : `Reduce by ${esc(row?.by ?? flag.formula)}.`] })
       + holdBarHTML(flag, "to answer"),
     buttons: [
       { action: "cast", label: flag.label ?? flag.reaction, default: true, callback: () => { void answerHold(message, "cast"); } },

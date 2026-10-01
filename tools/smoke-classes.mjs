@@ -4832,8 +4832,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const dmg = await waitFor(() => { const m = damageFor(msg?.id); return m?.getFlag(MOD, 'receipt') ? m : null; }, 12000);
           const receipt = dmg?.getFlag(MOD, 'receipt')?.targets?.find(x => x.uuid === halfling.uuid);
           const fx = await waitFor(typed, 8000);
-          ok('73b. Cast: the damage halved (12 → 6), the pack\'s typed Resistance ("Hunter\'s Defense: <type>") lands on the Halfling for the turn',
-            (rt?.answer === 'cast') && (Number(receipt?.taken) === 6) && !!fx && (hp() === 394), `answer=${rt?.answer} taken=${receipt?.taken} hp=${hp()} fx=${fx?.name ?? null}`);
+          // ⚠ The goblin's weapon rolls ONE die (8 with the pinned 6); the effect lands AFTER the share, so the half is one half.
+          const rolled = (dmg?.rolls ?? []).reduce((n, r) => n + (Number(r.total) || 0), 0);
+          const half = Math.floor(rolled / 2);
+          ok('73b. Cast: the damage halved once (the goblin\'s 8 → 4), the pack\'s typed Resistance ("Hunter\'s Defense: <type>") lands on the Halfling for the turn — after the share',
+            (rt?.answer === 'cast') && (rolled > 0) && (Number(receipt?.taken) === half) && !!fx && (hp() === 400 - half), `answer=${rt?.answer} rolled=${rolled} taken=${receipt?.taken} hp=${hp()} fx=${fx?.name ?? null}`);
           await dropNamed(halfling, halfling.effects.filter(e => e.name.startsWith("Hunter's Defense: ")).map(e => e.name)); await dropReactionChips(halfling); await healFull();
           // any damage: the Attacker's Sacred Flame fails — the damage hold asks, halves
           let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
@@ -4845,11 +4848,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             attackerToken.control({ releaseOthers: true });
             halflingToken.setTarget(true, { releaseOthers: true });
             await sleep(100);
-            faces([[1, 20], [4, 8]]);
+            faces([[4, 8], [1, 20]]);   // ⚠ the damage die rolls BEFORE the save: the d8 first, then the natural 1
             await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
             const hold = await waitFor(() => c1Cards(t1, 'damageHold').find(m => m.getFlag(MOD, 'damageHold')?.reaction === "Superior Hunter's Defense") ?? null, 10000);
-            const pop2 = await waitFor(() => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && /about to take/.test(textOf(app.element))) ?? null, 6000);
-            ok('73c. a failed save\'s damage is held by the damage hold: "is about to take N damage", the popup', !!hold && !!pop2 && (hold.getFlag(MOD, 'damageHold')?.halve === 0.5),
+            const pop2 = await waitFor(() => popups().find(app => /Superior Hunter's Defense/.test(textOf(app.element)) && /may reduce \d+ damage/.test(textOf(app.element))) ?? null, 6000);
+            ok('73c. a failed save\'s damage is held by the damage hold: the card "is about to take N damage", the popup "may reduce N damage"', !!hold && !!pop2 && (hold.getFlag(MOD, 'damageHold')?.halve === 0.5),
               `hold=${JSON.stringify(hold?.getFlag(MOD, 'damageHold') && { amount: hold.getFlag(MOD, 'damageHold').amount, halve: hold.getFlag(MOD, 'damageHold').halve })} pop=${!!pop2}`);
             const amount = Number(hold?.getFlag(MOD, 'damageHold')?.amount ?? 0);
             pop2?.element?.querySelector('button[data-action="cast"]')?.click();

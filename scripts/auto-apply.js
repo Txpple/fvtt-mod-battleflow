@@ -11,7 +11,7 @@ import { missShareFor } from "./lookup.js";
 import { CARD, isCard, targetsOf } from "./decide/card.js";
 import { DICE_CHANGE_FLAG, DICE_CHANGE_WAITS } from "./decide/dice-changers.js";
 import { registerResumable } from "./ui.js";
-import { applyEffectRiders } from "./effect-riders.js";
+import { applyEffectRiders, applyItemEffectOnHit } from "./effect-riders.js";
 import { resolveHitMastery } from "./mastery.js";
 import { sequenceBashOffer } from "./bash-offer.js";
 
@@ -111,7 +111,30 @@ async function applyToHitTargets(damageMessage, attackMessage, hits) {
   }
   for ( const { multiplier, note, reduce, hits: group } of groups.values() ) {
     await applyDamagesWithReceipt(damageMessage, group, reduce ? reduceDamages(damages, reduce) : damages, { multiplier, ...(note ? { note } : {}) });
+    for ( const target of group ) await landTypedEffect(attackMessage, hold, target, damages);
   }
+}
+
+/**
+ * C1 — a multiplier row's typed effect (Superior Hunter's Defense, `effects: "type"`): the pack's Resistance of the
+ * damage's type on the reactor until the end of the current turn, landed AFTER its halved share (damage-holds.js lands
+ * the any-damage share the same way). Landed before it, the platform would halve the share a second time.
+ */
+async function landTypedEffect(attackMessage, hold, target, damages) {
+  const entry = (hold?.status === "resolved") ? hold.targets?.find(t => t.uuid === target.uuid) : null;
+  if ( !entry || (entry.answer !== "cast") ) return;
+  const key = Object.keys(INTERRUPT_MULTIPLIERS).find(k => k.toLowerCase() === String(entry.reaction ?? "").toLowerCase());
+  const row = key ? INTERRUPT_MULTIPLIERS[key] : null;
+  if ( row?.effects !== "type" ) return;
+  const actor = await fromUuid(entry.uuid).catch(() => null);
+  const item = (actor instanceof Actor) ? (actor.items.get(entry.itemId) ?? null) : null;
+  const type = damages.map(d => d.type).find(t => t && !["healing", "temphp"].includes(t)) ?? null;
+  const want = `${row.effectPrefix ?? ""}${type}`.toLowerCase();
+  const effect = (type && item) ? item.effects.find(e => String(e.name).toLowerCase() === want) : null;
+  if ( !effect ) return;
+  await applyItemEffectOnHit(attackMessage, item, { name: effect.name, from: effect.name, id: `bfTypedRes${type.slice(0, 6).padEnd(6, "0")}` },
+    [{ uuid: entry.uuid, name: entry.name }], { clock: row.clock ?? null, attacker: actor })
+    .catch(err => console.warn(`${TITLE} | ${key}'s effect could not land — apply it by hand.`, err));
 }
 
 /**
