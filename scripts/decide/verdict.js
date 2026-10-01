@@ -14,8 +14,10 @@
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
   // D1 — Stroke of Luck: the d20 TURNED INTO A 20 — a replace like a reroll's, re-judged against the AC or the DC.
+  // ⚠ On an attack the 20 is a CRITICAL HIT (RULINGS *Bent by choice — the rule of cool*): it ignores the AC and
+  // crit-doubles the damage; the save side never reads the crit.
   if ( (spend?.kind === "succeed") && Number.isFinite(spend.twenty?.total) ) {
-    return { ...at, replace: { total: spend.twenty.total, isCritical: false, isFumble: false } };
+    return { ...at, replace: { total: spend.twenty.total, isCritical: true, isFumble: false } };
   }
   // D1 — Unerring Strike: the miss HITS — a forced verdict on the attack side.
   if ( (spend?.kind === "succeed") && (spend.verdict === "hit") ) return (uuid === undefined) ? null : { uuid, verdict: "hit" };

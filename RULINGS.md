@@ -111,10 +111,12 @@ as its code.**
 | --- | --- | --- | --- |
 | **Interpose Shield** (Shield Master): a Reaction when "subjected to an effect that allows you to make a Dexterity saving throw to take only half damage" — taken before the save is known | offered only AFTER the save SUCCEEDS (a Dexterity half-damage save, a Shield held, the Reaction free): Use turns the half into none and spends the Reaction; a failed save never asks (`saves/choices.js`, kind `interpose`) | the Reaction is never wasted on a save that fails, and the ask comes with the good news (ruled "B", 2026-09-26; built so since walk-5 (y)) | 2026-09-26 (built earlier; recorded as a choice this day) |
 | **Poisoner's Apply Poison**: a dose applied to ONE weapon or piece of ammunition, potent for 1 minute or until that item deals damage | the use puts a **Poison Coating** on the CHARACTER (no weapon picked — the pack's drop-a-weapon card is not drawn): a Bonus Action said on its own card, a dose spent, "+(Poison Coating)" floated; the NEXT weapon hit spends it — the feat's own save at the creatures struck, 2d8 and Poisoned (until the end of the Poisoner's next turn, `sourceEnd`) on a failure; a miss spends nothing (`use-chips.js` COATINGS; the switch is the Fighting Styles list's Poisoner) | no weapon bookkeeping, and the poison always meets the next thing the Poisoner hits (the user, 2026-09-26: *"make it a buff applied to the actor"*) | 2026-09-26 |
+| **The DMG's injury poisons** (Lolth's Sting, Purple Worm Poison, Serpent Venom, Wyvern Poison): applied to ONE weapon or piece of ammunition, potent for 1 minute or until it deals damage | Poisoner's bend on the vial itself: Use Poison writes a coating chip on the CHARACTER, the dose spent; the next weapon hit uses the vial's own save at the creatures struck, the last vial left empty on the sheet; a miss spends nothing (`use-chips.js` COATINGS, `item` rows) | the same no-weapon-bookkeeping as the Poisoner's, and a found vial works the day it is found (the user's cut, 2026-10-01) | 2026-10-01 |
 | **Chef**'s Bolstering Treats: cooked "with 1 hour of work or when you finish a Long Rest", they last 8 hours, and "a creature can use a Bonus Action to eat one" for Temporary Hit Points equal to the Proficiency Bonus | after the Chef's Long Rest a popup hands them out: up to the Proficiency Bonus creatures on the scene (the Chef too) gain that many Temporary Hit Points at once — no treat to carry, no Bonus Action (`REST_GRANTS` "Bolstering Treats", `rest-grants.js`) | no treat bookkeeping, and the party starts the day with them (the user, 2026-09-26: Bolstering Treats as temp HP handed out after the Long Rest) | 2026-09-27 (ruled 2026-09-26) |
 | **Restore Balance**: "is about to roll a d20 with Advantage or Disadvantage" — before the roll | offered AFTER the roll, both faces shown; answered, the FIRST d20 stands (the register's arithmetic for a cancelled Advantage), on an attack, a demanded save or a check (`decide/rescue-hit.js` `neutraliseOutcome`) | the sorcerer chooses with the faces in hand, which is more fun than guessing; the seam before the roll does not exist on another client (ruled Q3, 2026-09-29: *"yes we will have to rule of cool the restore balance that way"*) | 2026-09-29 |
 | **Counterspell**: "you attempt to interrupt a creature in the process of casting a spell" — a Reaction at the moment of the cast | the caster TARGETS the creature and uses Counterspell; the saves machine demands its Constitution save as for any targeted save, and the verdict stands on the card — nothing watches for a cast, no hold is raised, no spell is stopped by the module; the rest is the table's | the drawing's cast-triggered hold (a reaction at a hostile's cast, prototype-first, cost 2) was traded for the table's own timing: the player says "Counterspell" as the spell is declared, the module answers with the save (the user, 2026-09-28: *"the user can just target intended counterspell actor, and force them to make the con save per the spell. the rest can be handled at table"*) | 2026-09-28 |
 | **Wild Magic Surge**: "you can roll 1d20 immediately after you cast a Sorcerer spell with a spell slot" | the module rolls the d20 itself after every such cast, once per turn in a combat; a 20 rolls the surge table and posts it (`cast-riders.js`, `CAST_RIDERS`) | no click on every cast for a die with one sensible answer, and the surge is never forgotten (ruled Q7, 2026-09-29: the dice changers' one-sensible-answer rule) | 2026-09-29 |
+| **Stroke of Luck** on an attack: "you can turn the roll into a 20" — the roll counts as 20; the page never says a 20 was rolled, so by the letter no Critical Hit | the 20 IS a Critical Hit: the miss hits whatever the AC and the damage crit-doubles, the resolve card "now hits — a Critical Hit" (`decide/verdict.js` the `twenty` replace, `auto-damage.js` `critFor` reads the crit through the folds) | a Rogue of 20 who burns the feature on a miss deserves the fireworks (the user, 2026-10-01: *"20 is a crit, make it rule of cool"*) | 2026-10-01 |
 | **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
 | **Relentless**: "once per turn, when you use a maneuver, you can roll 1d8 and use the number rolled instead of expending a Superiority Die" | the d8 stands in only when NO Superiority Dice are left; with dice left the module spends one | an ask on every maneuver would double the popups for a trade nobody takes with dice in hand (the noise gate, Q2); the user may overrule | 2026-09-30 |
 
@@ -1618,11 +1620,12 @@ plan's §3. The calls made in the build, **each the user's to overrule**:
 - **The worn-item carrier** (`match: "worn"`): a magic item is a row's carrier while it is EQUIPPED and, where the item requires
   attunement, ATTUNED — read off `system.equipped` and `system.attuned`, never guessed. A supernatural gift is a feat on the sheet
   (the plain feature row).
-- **Against spells** (Magic Resistance's `saves: { spells }`): Mantle of Spell Resistance, Ring of Spell Turning, Robe of the
-  Archmagi, Scarab of Protection, Spellguard Shield and the Blessing of Magic Resistance list Advantage on a save against a spell —
-  the demand's own `spell` mark, which reads magical effects too (the Mantle and the Ring say "spells" alone: counted, the user's to
-  narrow). **Spellguard Shield** also sets spell attack rolls against the bearer at Disadvantage (`scope: "spell"`). The Ring's
-  "no effect on a success" and its reflection are the table's.
+- **Against spells** (Magic Resistance's `saves: { spells }`): Robe of the Archmagi, Scarab of Protection, Spellguard Shield and
+  the Blessing of Magic Resistance list Advantage on a save against a spell or other magical effect — the demand's own `spell`
+  mark, which reads magical items' effects too. **Mantle of Spell Resistance and Ring of Spell Turning are `spells: "cast"`**: a
+  save against a SPELL CAST alone (the demand's `cast` mark — the item is a spell), never a magic item's effect (the user,
+  2026-10-01: *"only spells — justification: uses a spell slot"*). **Spellguard Shield** also sets spell attack rolls against the
+  bearer at Disadvantage (`scope: "spell"`). The Ring's "no effect on a success" and its reflection are the table's.
 - **Ring of Evasion and Scarab of Protection are `succeed` rows** (Guarded Mind's fold) paid by the item's charges: the Ring on a
   failed Dexterity save; the Scarab's Preservation on a failed save against a Necromancy spell or an Undead's effect, read off the
   demand (its spell's school — the demand now carries it — and its caster's type); a save rolled from the sheet with no demand is
@@ -1636,6 +1639,22 @@ plan's §3. The calls made in the build, **each the user's to overrule**:
 - **Arrow-Catching Shield's +2 AC against ranged attacks** is the gate's −2 on the roll (`plus`, Multiattack Defense's shape, `scope:
   "ranged"`) — the pack ships the bonus as an optional toggle; Intercept Attack (become the target) waits for the redirect kind.
 
+**The second cut (2026-10-01, the user: the rest of the DMG's items are edge cases — build the ones a table meets):**
+
+- **The four injury poisons are `COATINGS` rows carried by the VIAL** (`item: true`): Lolth's Sting, Purple Worm Poison, Serpent
+  Venom, Wyvern Poison. Use Poison is vetoed into a coating chip on the character (Poisoner's bend, *Bent by choice*), the dose
+  spent; the next weapon hit uses the vial's own Use Poison save at the creatures struck; a stack loses one vial, and the LAST
+  vial stays on the sheet empty (the save card reads its activity off the item, so it is never deleted under it — the player
+  discards it); a miss spends nothing. The ingested, inhaled and contact poisons stay NATIVE (the item's own save, used at the
+  creature).
+- **Periapt of Wound Closure is a `D20_FLOORS` row on the Death Saving Throw** (`worn`, `minimum: 10`): a 9 or lower counts as a
+  10 while the pendant is worn and attuned — the platform's own `minimum` knob (Reliable Talent's), the card "Periapt of Wound
+  Closure — the d20's 4 counts as 10". Natural Healing Boost (the Hit Point Die doubled) is the table's.
+- **Held out, to BACKLOG** (the user, 2026-10-01: not worth a day each until a player holds one): the crit riders (Vorpal Sword,
+  Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon,
+  Adamantine Weapon), the enchantment-aware reader (Sword of Wounding, Luck Blade), the made AC effect (Quarterstaff of the
+  Acrobat, Shield of the Cavalier), Moonblade. The DMG is called read.
+
 **The walk table** (for the batched walk):
 
 | Item | What you should see |
@@ -1647,6 +1666,8 @@ plan's §3. The calls made in the build, **each the user's to overrule**:
 | Cloak of Displacement, an attack at the wearer | "Cloak of Displacement", Disadvantage; after it takes damage, nothing until its next turn |
 | Gloves of Missile Snaring, a ranged hit | the hold "Gloves of Missile Snaring — 1d10 + Dex"; a melee hit never |
 | Arrow-Catching Shield, a ranged attack at the bearer | the gate "… is Arrow-Catching Shield — −2 to this attack roll" |
+| Serpent Venom (or any injury poison) used | the "Serpent Venom Coating" chip on the character, the vial's dose spent; the next weapon hit demands its DC 11 Constitution save of the creature struck and the vial is left empty; a miss keeps the chip |
+| Periapt of Wound Closure worn and attuned, a Death Saving Throw of 9 or lower | a success — "Periapt of Wound Closure — the d20's 4 counts as 10"; unattuned, the die stands |
 
 ## The full release — the order (2026-09-29)
 
@@ -2546,8 +2567,8 @@ targets and a Regeneration heal of 10; Tamed Surge text alone; the Wild Magic Su
   table tracks it); **Unerring Strike is a `succeed` row (`hit`)**: once on each of your turns, a weapon miss hits instead (a forced
   verdict, no Critical Hit), while the legend stands.
 - **Stroke of Luck is a `succeed` row (`twenty`)**: any failed D20 Test — the d20 turns into a 20 and the roll is RE-JUDGED (a replace,
-  like a reroll's), never a forced success: a DC above 20 + the bonus still beats it. **On an attack it is not a Critical Hit** — the
-  rule turns the roll into a 20, it does not say the 20 was rolled (a reading; the user's to overrule).
+  like a reroll's), never a forced success: a DC above 20 + the bonus still beats it. **On an attack the 20 IS a Critical Hit**
+  (the user's call, 2026-10-01 — *Bent by choice — the rule of cool*): it hits whatever the AC and the damage crit-doubles.
 - **Elusive** is Trance of Order's `cancel` on a feature (`judge: "notIncapacitated"`). **Improved War Magic** is War Magic's reminder,
   listed first so a fighter of 18 hears it alone. **Elemental Epitome** is a clock rider (`judge: "attuned"` — the APPLIED enchantment;
   `unarmed`: an Unarmed Strike or the attunement's own Elemental Strike); its Resistance is the pack's effect, Destructive Stride the

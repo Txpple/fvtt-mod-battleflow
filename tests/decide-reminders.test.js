@@ -1303,6 +1303,38 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
   });
 });
 
+describe('effectSaveSources — `spells: "cast"` (the DMG: the Mantle and the Ring against a spell CAST alone)', () => {
+  const facts = () => ({
+    enabled: ["Mantle of Spell Resistance", "Magic Resistance"],
+    table: reg.EFFECT_BENDS,
+    features: ["Mantle of Spell Resistance", "Magic Resistance"],
+    name: "Gren"
+  });
+  it("a spell cast: both list Advantage; the Mantle says 'against a spell'", () => {
+    const out = r.effectSaveSources({
+      ...facts(),
+      demand: { spell: true, cast: true, statuses: [] }
+    });
+    expect(out.map(s => s.label).sort()).toEqual([
+      "Gren — Magic Resistance — against a spell",
+      "Gren — Mantle of Spell Resistance — against a spell"
+    ]);
+  });
+  it("a magic item's effect (a Wand, a Necklace of Fireballs): Magic Resistance alone — the Mantle wants a spell", () => {
+    const out = r.effectSaveSources({
+      ...facts(),
+      demand: { spell: true, cast: false, statuses: [] }
+    });
+    expect(out.map(s => s.label)).toEqual(["Gren — Magic Resistance — against a spell"]);
+  });
+  it("the registry: the Mantle and the Ring are `cast`; the Robe, the Scarab and Magic Resistance stay `true`", () => {
+    expect(reg.EFFECT_BENDS["Mantle of Spell Resistance"].saves.spells).toBe("cast");
+    expect(reg.EFFECT_BENDS["Ring of Spell Turning"].saves.spells).toBe("cast");
+    for (const k of ["Robe of the Archmagi", "Scarab of Protection", "Magic Resistance"])
+      expect(reg.EFFECT_BENDS[k].saves.spells).toBe(true);
+  });
+});
+
 describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Purity, Circle of Power)", () => {
   const facts = () => ({
     enabled: ["Aura of Purity", "Circle's Power"],

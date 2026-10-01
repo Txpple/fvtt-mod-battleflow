@@ -13,7 +13,7 @@
 > weapon · feature (the DMG's NPC traits). **Rule of cool / bend**: a row in RULINGS *Where the table bends the rule* (bend)
 > or *Bent by choice* (rule of cool) names it. **Walked**: the RULINGS walk table the row sits in.
 
-**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 24 MODULE · 23 WAITS.**
+**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 29 MODULE · 18 WAITS.**
 
 | Kind | Item | Type | Rarity | In scope | Shape | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -296,7 +296,7 @@
 | magic item | **Perfume of Bewitching** | consumable · trinket | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Periapt of Health** | equipment · wondrous | Uncommon | NATIVE | — | the pack resolves it: uses | — | — |
 | magic item | **Periapt of Proof against Poison** | equipment · wondrous | Rare | NATIVE | — | the pack resolves it: 1 effect | — | — |
-| magic item | **Periapt of Wound Closure** | equipment · wondrous | Uncommon | WAITS | The death-save seam | stabilizes at 0 Hit Points: the death-save seam Survivor opens (D1); a row after it (2026-10-01) | — | — |
+| magic item | **Periapt of Wound Closure** | equipment · wondrous | Uncommon | MODULE | D20_FLOORS · worn · minimum: 10 · tests: ["death"] · minimum | `D20_FLOORS` (d20-folds.js; RULINGS *The PHB classes — D1*) | — | — |
 | magic item | **Philter of Love** | consumable · potion | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Pipe of Smoke Monsters** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Pipes of Haunting** | equipment · wondrous | Uncommon | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, uses | — | — |
@@ -505,16 +505,16 @@
 | poison | **Burnt Othur Fumes** | consumable · poison |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | poison | **Carrion Crawler Mucus** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [paralyzed, poisoned], a save, uses | — | — |
 | poison | **Essence of Ether** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [poisoned, unconscious], a save, uses | — | — |
-| poison | **Lolth's Sting** | consumable · poison |  | WAITS | COATINGS | COATINGS (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating | — | — |
+| poison | **Lolth's Sting** | consumable · poison |  | MODULE | COATINGS · item · COATINGS | `COATINGS` (use-chips.js; RULINGS *Bent by choice — the rule of cool*) | — | — |
 | poison | **Malice** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [blinded, poisoned], a save, uses | — | — |
 | poison | **Midnight Tears** | consumable · poison |  | NATIVE | — | the pack resolves it: a save, damage, uses | — | — |
 | poison | **Oil of Taggit** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [poisoned, unconscious], a save, uses | — | — |
 | poison | **Pale Tincture** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [poisoned], a save, damage, uses | — | — |
-| poison | **Purple Worm Poison** | consumable · poison |  | WAITS | COATINGS | COATINGS (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating | — | — |
-| poison | **Serpent Venom** | consumable · poison |  | WAITS | COATINGS | COATINGS (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating | — | — |
+| poison | **Purple Worm Poison** | consumable · poison |  | MODULE | COATINGS · item · COATINGS | `COATINGS` (use-chips.js; RULINGS *Bent by choice — the rule of cool*) | — | — |
+| poison | **Serpent Venom** | consumable · poison |  | MODULE | COATINGS · item · COATINGS | `COATINGS` (use-chips.js; RULINGS *Bent by choice — the rule of cool*) | — | — |
 | poison | **Torpor** | consumable · poison |  | NATIVE | — | the pack resolves it: 1 effect [poisoned], a save, uses | — | — |
 | poison | **Truth Serum** | consumable · potion |  | NATIVE | — | the pack resolves it: 1 effect [poisoned], a save, uses | — | — |
-| poison | **Wyvern Poison** | consumable · poison |  | WAITS | COATINGS | COATINGS (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating | — | — |
+| poison | **Wyvern Poison** | consumable · poison |  | MODULE | COATINGS · item · COATINGS | `COATINGS` (use-chips.js; RULINGS *Bent by choice — the rule of cool*) | — | — |
 | supernatural gift | **Arcane Study Charm** | feat · gift |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | supernatural gift | **Blessing of Health** | feat · gift |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | supernatural gift | **Blessing of Magic Resistance** | feat · gift |  | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |

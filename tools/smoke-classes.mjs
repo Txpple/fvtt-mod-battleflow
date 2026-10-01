@@ -166,7 +166,7 @@ const SECTIONS = {
   95: "Improved War Magic (D1, the PC Attacker with War Magic too): its reminder alone, two attacks for a level 1 or 2 spell",
   96: "Elusive (D1, the Sorcerer): the Reckless Attacker's gate cancels the Advantage; Incapacitated, Elusive is off",
   97: "Elemental Epitome (D1, the PC Attacker a Monk 17): Empowered Strikes rides an Elemental Strike only while the attunement is active",
-  98: "Stroke of Luck and Living Legend (D1): a failed save turned into a 20; the legend's save reroll (a Reaction); Unerring Strike makes a weapon miss hit",
+  98: "Stroke of Luck and Living Legend (D1): a failed save turned into a 20; the legend's save reroll (a Reaction); Unerring Strike makes a weapon miss hit; Stroke of Luck on a weapon miss is a Critical Hit (the rule of cool)",
   99: "Supreme Healing (D1, the Cleric): Cure Wounds with ones on the dice heals the maximum",
   100: "Tamed Surge (D1, the Sorcerer): a slot cast offers the table's rows but the last; the pick recorded, the use spent",
   101: "Improved Duplicity (D1, the Cleric): an ally's attack lists Shared Distraction; an enemy's nothing",
@@ -182,6 +182,8 @@ const SECTIONS = {
   110: "Cloak of Displacement (the DMG, the Sorcerer): attacks against it at Disadvantage; the pack's suppressor on, or Grappled, nothing",
   111: "Gloves of Missile Snaring (the DMG, the Halfling): a Shortbow hit is held for the gloves' 1d10 + Dex; a melee hit not",
   112: "Arrow-Catching Shield (the DMG, the Halfling): a ranged attack at it reads -2; a melee attack nothing",
+  113: "Serpent Venom (the DMG, the PC Attacker): Use Poison writes the coating chip, the dose spent, no save card; a MISS keeps it; a HIT spends it - the vial's DC 11 Constitution save at the Victim, the last vial left empty",
+  114: "Periapt of Wound Closure (the DMG, the Halfling): a Death Saving Throw of 4 counts as 10 - a success, the card line; unattuned, the 4 stands - a failure",
 };
 const DEPENDS = {};
 
@@ -5893,6 +5895,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('98f. pressed: the miss becomes a HIT (the verdict forced, no die)', adone?.targets?.[0]?.verdict === 'hit', `targets=${JSON.stringify(adone?.targets ?? null)} spends=${JSON.stringify(adone?.spends ?? null)}`);
           await sleep(500);
           await closeOffers();
+          await unlend(pcAttacker, pcLegend); pcLegend = null;
+          if (pcLegendFx) { await pcLegendFx.delete().catch(() => {}); pcLegendFx = null; }
+          // g. Stroke of Luck on the PC Attacker's weapon MISS at AC 30: the 20 is a Critical Hit (the rule of cool)
+          const pcStroke = await hgLend(pcAttacker, 'Stroke of Luck', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+          try {
+            const dmgBefore = new Set(game.messages.contents.filter(m => m.type === 'damage').map(m => m.id));
+            const prior4 = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+            faces([[3, 20], [3, 20]]);
+            const ar2 = await wAct.rollAttack({}, { configure: false }, {});
+            CONFIG.Dice.randomUniform = realPRNG;
+            const am2 = ar2?.[0]?.parent ?? null;
+            const aflag2 = await waitFor(() => am2?.getFlag(MOD, 'd20fold') ?? null, 6000);
+            const so = (aflag2?.offers ?? []).find(o => o.label === 'Stroke of Luck') ?? null;
+            ok('98g. a weapon MISS at AC 30 offers "Stroke of Luck — turn the d20 into a 20"', !!so && /into a 20/.test(String(so.says ?? '')),
+              `offers=${JSON.stringify((aflag2?.offers ?? []).map(o => [o.kind, o.label, o.says]))}`);
+            const pop4 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => !prior4.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+            pop4?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
+            const adone2 = await waitFor(() => { const cur = am2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+            await sleep(500);
+            await closeOffers();   // the offer rolls the damage
+            const dmg = await waitFor(() => game.messages.contents.find(m => (m.type === 'damage') && !dmgBefore.has(m.id) && (m.getFlag(MOD, 'attackFor') === am2?.id)) ?? null, 8000);
+            ok('98h. pressed: the 20 HITS past AC 30 and the damage rolls as a CRITICAL HIT (the rule of cool), the use spent',
+              (adone2?.targets?.[0]?.verdict === 'hit') && (dmg?.rolls?.[0]?.isCritical === true) && (Number(pcAttacker.items.get(pcStroke?.id ?? '')?.system?.uses?.spent) === 1),
+              `targets=${JSON.stringify(adone2?.targets ?? null)} twenty=${JSON.stringify(adone2?.spends?.[0]?.twenty ?? null)} dmgCrit=${dmg?.rolls?.[0]?.isCritical} spent=${pcAttacker.items.get(pcStroke?.id ?? '')?.system?.uses?.spent}`);
+          } finally {
+            if (pcStroke) await unlend(pcAttacker, pcStroke);
+          }
         }
       } finally {
         passAll(); await closeA1(); await closeOffers();
@@ -6403,6 +6432,105 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (bow) await unlend(attacker, bow);
         if (shield) await unlend(halfling, shield);
         CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 113. an injury poison: the vial is the coating's carrier (COATINGS `item`), its Use Poison the save at the struck
+    if (want(113)) {
+      await closeA1(); await spendLuckC();
+      const vial = await dmgLend(pcAttacker, 'dmgSerpentVenom0', { 'system.equipped': false, 'system.attuned': false });
+      const vialId = vial?.id ?? null;
+      const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+      const coat = () => pcAttacker.effects.find(e => e.getFlag(MOD, 'coat')) ?? null;
+      const t113 = Date.now();
+      try {
+        if (!vial || !wAct) log.push(`§113 skipped: vial=${!!vial} weapon=${!!wAct}`);
+        else {
+          const usePoison = vial.system.activities.find(a => a.type === 'save');
+          await usePoison?.use({}, { configure: false }, {});
+          const chip = await waitFor(coat, 6000);
+          const useCard = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t113) && m.getFlag(MOD, 'coatUse')) ?? null, 6000);
+          const saveCards = () => game.messages.contents.filter(m => (m.timestamp >= t113) && m.getFlag(MOD, 'saves') && (m.getAssociatedItem?.()?.name === 'Serpent Venom'));
+          ok('113a. Use Poison on the vial: the "Serpent Venom Coating" chip on the PC Attacker (60 s, the vial\'s icon), the dose spent, the use card, no save demanded',
+            !!chip && (chip.name === 'Serpent Venom Coating') && (chip.img === vial.img) && (Number(chip._source.duration?.seconds) === 60)
+              && (Number(pcAttacker.items.get(vialId)?.system?.uses?.spent) === 1) && !!useCard && !saveCards().length,
+            `chip=${chip?.name} img=${chip?.img} duration=${JSON.stringify(chip?._source?.duration)} spent=${pcAttacker.items.get(vialId)?.system?.uses?.spent} card=${!!useCard} saves=${saveCards().length}`);
+          victimPrior();
+          await victim.update({ 'system.attributes.ac.override': 30, 'system.attributes.hp.value': 400 });
+          pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          faces([[3, 20], [3, 20]]);
+          const miss = await wAct.rollAttack({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(2500);
+          await closeOffers();
+          ok('113b. a MISS at AC 30 spends nothing: the coating stands, the vial still there', !!coat() && !!pcAttacker.items.get(vialId), `chip=${!!coat()} vial=${!!pcAttacker.items.get(vialId)} miss=${miss?.[0]?.total}`);
+          await victim.update({ 'system.attributes.ac.override': 1 });
+          await sleep(120);
+          faces([[15, 20], [15, 20]]);
+          const hit = await wAct.rollAttack({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const hm = hit?.[0]?.parent ?? null;
+          await sleep(800);
+          await closeOffers();   // the offer rolls the damage
+          const dmg = await waitFor(() => damageFor(hm?.id) ?? null, 10000);
+          const spentFlag = await waitFor(() => (dmg?.getFlag(MOD, 'coatHit')?.status === 'spent') ? dmg.getFlag(MOD, 'coatHit') : null, 10000);
+          const saveCard = await waitFor(() => saveCards()[0] ?? null, 10000);
+          const gone = await waitFor(() => !coat(), 8000);
+          const empty = Number(pcAttacker.items.get(vialId)?.system?.uses?.spent) === 1;
+          ok('113c. a HIT spends it: the chip gone, the vial\'s own DC 11 Constitution save demanded of the Victim, the last vial left on the sheet empty',
+            gone && empty && !!spentFlag && (spentFlag.ability === 'con') && spentFlag.targets?.some(t => t.uuid === victim.uuid) && !!saveCard
+              && (saveCard.getFlag(MOD, 'saves')?.abilities?.join() === 'con') && (Number(saveCard.getFlag(MOD, 'saves')?.dc) === 11),
+            `gone=${gone} chip=${!!coat()} vial=${!!pcAttacker.items.get(vialId)} flag=${JSON.stringify(spentFlag ? { status: spentFlag.status, ability: spentFlag.ability, note: spentFlag.note ?? null } : null)} save=${!!saveCard} dc=${saveCard?.getFlag(MOD, 'saves')?.dc}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers();
+        await hgClose(/Saving Throw|Serpent Venom/);
+        const c = coat();
+        if (c) await c.delete().catch(() => {});
+        if (vialId && pcAttacker.items.get(vialId)) await unlend(pcAttacker, pcAttacker.items.get(vialId));
+        await victim.update({ 'system.attributes.ac.override': 1 }).catch(() => {});
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 114. Periapt of Wound Closure: a Death Saving Throw of 9 or lower counts as 10 while the pendant is worn
+    if (want(114)) {
+      await closeA1(); await spendLuckC();
+      const periapt = await dmgLend(halfling, 'dmgPeriaptOfWoun');
+      const hp0 = hp();
+      const death = () => halfling.system.attributes.death ?? {};
+      try {
+        if (!periapt) log.push('§114 skipped: no Periapt');
+        else {
+          await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
+          faces([[4, 20]]);
+          const rolls = await halfling.rollDeathSave({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const r0 = rolls?.[0];
+          await waitFor(() => Number(death().success) === 1, 6000);
+          const line = (await waitFor(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as 10/.test(el.textContent ?? '')), 5000))?.textContent?.trim() ?? '';
+          ok('114a. worn and attuned: the Death Saving Throw\'s 4 counts as 10 — a success, the card "Periapt of Wound Closure — the d20\'s 4 counts as 10"',
+            (Number(r0?.total) >= 10) && (Number(death().success) === 1) && (Number(death().failure) === 0) && /Periapt of Wound Closure — the d20's 4 counts as 10/.test(line),
+            `total=${r0?.total} minimum=${r0?.options?.minimum} death=${JSON.stringify(death())} line="${line}"`);
+          await periapt.update({ 'system.attuned': false });
+          await halfling.update({ 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
+          await sleep(200);
+          faces([[4, 20]]);
+          const rolls2 = await halfling.rollDeathSave({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const r1 = rolls2?.[0];
+          await waitFor(() => Number(death().failure) === 1, 6000);
+          ok('114b. unattuned: the 4 stands — a failure', (Number(r1?.total) < 10) && (Number(death().failure) === 1) && !r1?.options?.bfFloor?.length,
+            `total=${r1?.total} minimum=${r1?.options?.minimum} death=${JSON.stringify(death())}`);
+        }
+      } finally {
+        await closeA1();
+        CONFIG.Dice.randomUniform = realPRNG;
+        await clearDown(halfling);
+        await halfling.update({ 'system.attributes.hp.value': hp0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 }).catch(() => {});
+        if (periapt) await unlend(halfling, periapt);
       }
     }
 

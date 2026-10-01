@@ -135,7 +135,7 @@ async function raiseWard({ row, effect, item, ward }, attacker, activity, gate, 
           effectNames: { fail: [], always: [] }, effectsHandled: "ward",
           // ⚠ Pinned: the ward's cast shares this activity; the area adoption must not rewrite the targets.
           pinnedTargets: true,
-          demand: { spell: true, abilities, statuses: [], sleep: false },
+          demand: { spell: true, cast: true, abilities, statuses: [], sleep: false },
           activityUuid: save.uuid, templateType: null, templated: false,
           durationUnits: item.system?.duration?.units ?? null,
           item: { name: item.name, img: item.img ?? null }, casterName: caster?.name ?? null,

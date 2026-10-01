@@ -727,14 +727,35 @@ export const USE_CHIPS = Object.freeze({
  * VETOED at the use and becomes a chip `chip` on the actor for `seconds`, spending `dose` uses. The next
  * weapon hit spends it: the save in `saves` for the ability the feat raised (decide/chips.js
  * `coatSaveAbility`) is used at the struck creatures; SAVE_PRESSES presses what the pack only names.
- * `list`: the Fighting Styles entry for the same feat is its switch.
+ * `list`: the Fighting Styles entry for the same feat is its switch (a row without one is on while its carrier is owned).
+ * `item`: the DMG — the carrier is the VIAL itself (a consumable the actor owns): its own `Use Poison` save activity is the
+ * save at the creatures struck; on the hit a stack loses one vial, the last stays on the sheet empty (its save reads it).
+ * `says`: the hit card's one line — what the struck creature faces.
  * ⚠ NOT A KIND — one table, one machine (use-chips.js); a second customer is a row.
  */
 export const COATINGS = Object.freeze({
   "Poisoner": Object.freeze({ key: "poisoner", activity: "Apply Poison", chip: "Poison Coating", img: "icons/weapons/daggers/dagger-poisoned.webp", seconds: 60, dose: 1,
     saves: Object.freeze({ dex: "Poison Save (Dexterity)", int: "Poison Save (Intelligence)" }), list: "damageRules",
+    says: "on a failure, 2d8 Poison and Poisoned until the end of your next turn",
     rule: Object.freeze({ item: "Poisoner", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPoisoner000", benefit: "Brew Poison" }),
-    from: "General feat" })
+    from: "General feat" }),
+  // The DMG's four INJURY poisons (audits/drawings/dm.md *Poisons as weapon coatings*): the vial is the carrier, its Use Poison the save.
+  "Lolth's Sting": Object.freeze({ key: "lolthsSting", item: true, activity: "Use Poison", chip: "Lolth's Sting Coating", img: null, seconds: 60, dose: 1,
+    saves: Object.freeze({ con: "Use Poison" }), says: "DC 13 — on a failure, Poisoned for 1 hour; failed by 5 or more, Unconscious as well",
+    rule: Object.freeze({ item: "Lolth's Sting", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgLolthsSting00" }),
+    from: "DMG injury poison" }),
+  "Purple Worm Poison": Object.freeze({ key: "purpleWormPoison", item: true, activity: "Use Poison", chip: "Purple Worm Poison Coating", img: null, seconds: 60, dose: 1,
+    saves: Object.freeze({ con: "Use Poison" }), says: "DC 21 — 10d6 Poison, half on a success",
+    rule: Object.freeze({ item: "Purple Worm Poison", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgPurpleWormPoi" }),
+    from: "DMG injury poison" }),
+  "Serpent Venom": Object.freeze({ key: "serpentVenom", item: true, activity: "Use Poison", chip: "Serpent Venom Coating", img: null, seconds: 60, dose: 1,
+    saves: Object.freeze({ con: "Use Poison" }), says: "DC 11 — 3d6 Poison, half on a success",
+    rule: Object.freeze({ item: "Serpent Venom", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSerpentVenom0" }),
+    from: "DMG injury poison" }),
+  "Wyvern Poison": Object.freeze({ key: "wyvernPoison", item: true, activity: "Use Poison", chip: "Wyvern Poison Coating", img: null, seconds: 60, dose: 1,
+    saves: Object.freeze({ con: "Use Poison" }), says: "DC 14 — 7d6 Poison, half on a success",
+    rule: Object.freeze({ item: "Wyvern Poison", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgWyvernPoison0" }),
+    from: "DMG injury poison" })
 });
 
 /** A text-only feature used through another item's cast: that cast's card (`on`) offers a reminder chip
@@ -2335,12 +2356,14 @@ export const EFFECT_BENDS = Object.freeze({
     caveat: "counted — the spell attacks that automatically miss are the table's",
     rule: Object.freeze({ item: "Greater Magic Resistance", uuid: "Compendium.dnd-monster-manual.features.Item.mmGreaterMagicRe" }) }),
   // --- I. THE DMG's magic items (audits/plans/dmg-build.md): Magic Resistance's row on a WORN item (`match: "worn"` —
-  // equipped, and attuned where the item requires it). The demand's `spell` mark reads spells and magical effects alike.
+  // equipped, and attuned where the item requires it). The demand's `spell` mark reads spells and magical effects alike;
+  // `spells: "cast"` narrows a row to a SPELL cast (the demand's `cast` mark — a spell item, the thing a slot pays for):
+  // the Mantle and the Ring say "spells" alone (RULINGS *The DMG — the worn items*).
   "Mantle of Spell Resistance": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG wondrous item",
-    saves: Object.freeze({ bend: "advantage", spells: true }),
+    saves: Object.freeze({ bend: "advantage", spells: "cast" }),
     rule: Object.freeze({ item: "Mantle of Spell Resistance", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgMantleOfSpell" }) }),
   "Ring of Spell Turning": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG ring",
-    saves: Object.freeze({ bend: "advantage", spells: true }),
+    saves: Object.freeze({ bend: "advantage", spells: "cast" }),
     caveat: "counted — the spell of level 7 or lower that has no effect on a success, and the reflection, are the table's",
     rule: Object.freeze({ item: "Ring of Spell Turning", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgRingOfSpellTu" }) }),
   "Robe of the Archmagi": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG wondrous item",
@@ -3192,6 +3215,7 @@ export const CONCENTRATION_EXEMPTS = Object.freeze({
  *   tests    which of the bearer's D20 Tests (attack, save, check);  abilities  narrows saves and checks to these
  *   concentration  true — a save row reaches Concentration saves alone (Starry Form's Dragon)
  *   feature   D1 — the row stands while the roller HOLDS this feature (no effect to find)
+ *   worn      the DMG — with `feature`: the row stands while that magic item is WORN (equipped, and attuned where required)
  *   critical  D1 — the platform's other knob: a d20 face of at least this counts as a 20 (`criticalSuccess` on the roll
  *             configuration); `tests: ["death"]` — the Death Saving Throw alone (Survivor's Defy Death: 18–20 is a 20)
  * ⚠ NOT A KIND — a knob the platform reads, set before the roll; rows of data.
@@ -3208,7 +3232,12 @@ export const D20_FLOORS = Object.freeze({
   // D1 — Survivor's Defy Death: an 18 or 19 on a Death Saving Throw counts as a 20 (its Advantage is the pack's effect).
   "Survivor": Object.freeze({ feature: "Survivor", critical: 18, tests: Object.freeze(["death"]),
     rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrSurvivor00", benefit: "Defy Death" }),
-    from: "Fighter — Champion 18" })
+    from: "Fighter — Champion 18" }),
+  // The DMG — Life Preservation: a Death Saving Throw's 9 or lower becomes a 10 while the pendant is worn; Natural Healing
+  // Boost (the Hit Point Die doubled) is the table's.
+  "Periapt of Wound Closure": Object.freeze({ feature: "Periapt of Wound Closure", worn: true, minimum: 10, tests: Object.freeze(["death"]),
+    rule: Object.freeze({ item: "Periapt of Wound Closure", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgPeriaptOfWoun", benefit: "Life Preservation" }),
+    from: "DMG wondrous item" })
 });
 
 /**

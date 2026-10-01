@@ -162,7 +162,7 @@ async function raiseRay({ row, activity, caster, casterTok, card, target, ray, s
           effectNames: { fail: [], always: [] }, effectsHandled: "prismatic",
           // ⚠ Pinned: the cast's activity is shared with every damage ray; the area adoption must not rewrite the targets.
           pinnedTargets: true,
-          demand: { spell: true, abilities, statuses: ray.effect ? [...(item.effects.find(e => lower(e.name) === lower(ray.effect))?.statuses ?? [])] : [], sleep: false },
+          demand: { spell: true, cast: true, abilities, statuses: ray.effect ? [...(item.effects.find(e => lower(e.name) === lower(ray.effect))?.statuses ?? [])] : [], sleep: false },
           activityUuid: save.uuid, templateType: null, templated: false, durationUnits: "inst",
           item: { name: item.name, img: item.img ?? null }, casterName: caster?.name ?? null, scaling,
           window, deadline: window ? Date.now() + (window * 1000) : null,

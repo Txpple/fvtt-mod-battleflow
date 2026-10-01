@@ -10,7 +10,7 @@ import { TONE, esc, popupKey, bfCard, momentBarHTML } from "./decide/present.js"
 import { livePopups, offerParts, openManagedPopup } from "./ui.js";
 import { CONDITION_BENDS } from "./decide/registry.js";
 import { autoCritSources } from "./decide/reminders.js";
-import { critStands } from "./decide/rescue-hit.js";
+import { foldedRoll, foldsFrom } from "./decide/verdict.js";
 import { CARD, isCard, originData, originIdInData, originIdOf } from "./decide/card.js";
 import { nearestFeet, tokenForUuid, tokenOfActor } from "./geometry.js";
 import { stampHoldIfInterrupted, stampMissHoldIfBystanders } from "./hold/index.js";
@@ -147,12 +147,13 @@ export async function damageAfterHold(attackMessage) {
  */
 function critFor(attackMessage) {
   const d20Crit = attackMessage?.rolls?.[0]?.isCritical ?? false;
-  // A natural 20 a defender's Disadvantage undid doubles only if it stands for every hit target.
-  const rolled = d20Crit && rolledCritStands(attackMessage);
+  const hits = hitTargets(attackMessage);
+  // The crit that stands THROUGH the folds: a defender's Disadvantage can undo the d20's own, a replace (Stroke of
+  // Luck's 20, a reroll that lands one) can make it — either way it needs every hit target.
+  const rolled = hits.length ? foldedCritStands(attackMessage, hits) : d20Crit;
   /** @type {ReturnType<typeof critFor>} */
   const out = { isCritical: rolled, rolled, undone: d20Crit && !rolled, auto: false, sources: [], dropped: [] };
   try {
-    const hits = hitTargets(attackMessage);
     if ( !hits.length ) return out;
     const attackerToken = tokenOfActor(attackMessage.getAssociatedActor());
     const per = hits.map(t => {
@@ -178,16 +179,17 @@ function critFor(attackMessage) {
   return out;
 }
 
-/** Does the d20's own crit still stand after the hold — no bent roll took it from a hit target? */
-function rolledCritStands(attackMessage) {
+/** Is the roll a crit for EVERY hit target once its folds are composed (the last replace carries the crit)? */
+function foldedCritStands(attackMessage, hits) {
+  const roll = attackMessage?.rolls?.[0];
+  const own = roll?.isCritical === true;
   try {
-    const bents = Object.fromEntries((attackMessage?.getFlag(MODULE_ID, "hold")?.targets ?? [])
-      .filter(t => t.bent).map(t => [t.uuid, t.bent]));
-    if ( !Object.keys(bents).length ) return true;
-    return critStands({ rolledCrit: true, hitUuids: hitTargets(attackMessage).map(t => t.uuid), bents });
+    const folds = foldsFrom(key => attackMessage.getFlag(MODULE_ID, key));
+    const base = { total: roll?.total, isCritical: own, isFumble: roll?.isFumble === true };
+    return hits.every(t => foldedRoll(base, folds.filter(f => f.uuid === t.uuid)).isCritical);
   } catch(err) {
-    console.error(`${TITLE} | The bent roll's crit could not be read — the d20's own verdict stands.`, err);
-    return true;
+    console.error(`${TITLE} | The folded roll's crit could not be read — the d20's own verdict stands.`, err);
+    return own;
   }
 }
 
@@ -216,8 +218,9 @@ listen("dnd5e.preRollDamage", "auto-damage", (config, _dialog, message) => {
     if ( !attackMessage ) return;
     const crit = critFor(attackMessage);
     if ( crit.undone && !crit.auto ) { config.isCritical = false; return; }
+    // A crit a fold made (Stroke of Luck's 20): the platform's own roll never saw it.
+    if ( crit.isCritical ) config.isCritical = true;
     if ( !crit.auto ) return;
-    config.isCritical = true;
     foundry.utils.setProperty(message, `data.flags.${MODULE_ID}.autoCrit`,
       { sources: crit.sources.map(s => ({ status: s.status, label: s.label })), attackId: attackMessage.id });
   } catch(err) {

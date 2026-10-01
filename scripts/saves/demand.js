@@ -241,6 +241,8 @@ async function stampSaveDemand(activity, message, results) {
       effectNames,
       // WHAT THE SAVE IS AGAINST, read by save-side auras when the roller's dialog opens.
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
+        // A spell CAST alone (`spells: "cast"` rows — the Mantle, the Ring): the item is a spell.
+        cast: activity.item?.type === "spell",
         abilities,
         item: activity.item?.name ?? null,
         // D1 — the damage types it deals and whether it is a Channel Divinity use (Corona of Light, Diminish Defiance).

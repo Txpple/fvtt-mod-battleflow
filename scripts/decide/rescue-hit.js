@@ -208,16 +208,6 @@ export function bentChips(bent) {
 }
 
 /**
- * Does a rolled crit stand for the damage? One damage roll serves every hit target, so only when it
- * stands against ALL of them (the intersection rule of `critFor`).
- * @param {{rolledCrit: boolean, hitUuids: string[], bents: Record<string, {isCritical?: boolean}|null|undefined>}} args
- */
-export function critStands({ rolledCrit, hitUuids, bents }) {
-  if ( !rolledCrit ) return false;
-  return (hitUuids ?? []).every(uuid => bents?.[uuid]?.isCritical !== false);
-}
-
-/**
  * The rescue popup's rows: the held reaction (`primary`) and every `roll` row. A row's tag is its
  * cost or why it is off; an off row stays, greyed.
  * @param {object} args

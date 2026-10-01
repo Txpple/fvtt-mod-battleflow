@@ -139,28 +139,6 @@ describe("disadvantageOutcome — the arithmetic the ruling names", () => {
   });
 });
 
-describe("critStands — one damage roll serves every hit target", () => {
-  it("no rolled crit, no crit", () => {
-    expect(r.critStands({ rolledCrit: false, hitUuids: ["a"], bents: {} })).toBe(false);
-  });
-  it("a rolled crit no hold bent stands", () => {
-    expect(r.critStands({ rolledCrit: true, hitUuids: ["a", "b"], bents: {} })).toBe(true);
-  });
-  it("a bent roll that is no longer a crit takes it from the whole roll", () => {
-    expect(
-      r.critStands({ rolledCrit: true, hitUuids: ["a", "b"], bents: { a: { isCritical: false } } })
-    ).toBe(false);
-  });
-  it("a bent roll that stayed a crit (20 twice) keeps it; a bent target no longer hit is not asked", () => {
-    expect(
-      r.critStands({ rolledCrit: true, hitUuids: ["a"], bents: { a: { isCritical: true } } })
-    ).toBe(true);
-    expect(
-      r.critStands({ rolledCrit: true, hitUuids: ["b"], bents: { a: { isCritical: false } } })
-    ).toBe(true);
-  });
-});
-
 describe("rescueRows — the popup's rows (scenes 2a, 2a2, 2a3, 2c)", () => {
   const lucky = { name: "Lucky", reaction: false, uses: true, point: "Luck Point", left: 3 };
   const flare = { name: "Warding Flare", reaction: true, uses: true, point: null, left: 2 };

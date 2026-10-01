@@ -779,6 +779,38 @@ describe("foldedSave — the save side of the fold (D8's real new work)", () => 
     expect(v.foldedSave({ total: 9, dc: 15, folds: [{ add: 6 }] }).total).toBe(15);
   });
 
+  // Stroke of Luck (D1): the d20 turned into a 20 — on an attack a Critical Hit (RULINGS, the rule of cool).
+  it("a `twenty` spend REPLACES the roll with a crit on the attack side: it hits past any AC; the save side only re-judges the total", () => {
+    const spends = [
+      {
+        kind: "succeed",
+        name: "Stroke of Luck",
+        label: "Stroke of Luck",
+        twenty: { total: 25, face: 3 }
+      }
+    ];
+    const attack = v.foldsFrom(
+      key => (key === "d20fold" ? { targets: [{ uuid: "t1" }], spends } : null),
+      v.ATTACK_FOLDS
+    );
+    expect(attack[0]).toMatchObject({
+      uuid: "t1",
+      replace: { total: 25, isCritical: true, isFumble: false }
+    });
+    expect(v.foldedVerdict({ uuid: "t1", ac: 30 }, { total: 8 }, attack)).toBe("hit");
+    expect(v.foldedRoll({ total: 8 }, attack)).toMatchObject({
+      total: 25,
+      isCritical: true,
+      replaced: true
+    });
+    const save = v.foldsFrom(key => (key === "d20fold" ? { spends } : null), v.SAVE_FOLDS);
+    expect(v.foldedSave({ total: 8, dc: 26, folds: save })).toMatchObject({
+      total: 25,
+      outcome: "failed",
+      replaced: true
+    });
+  });
+
   // Guarded Mind (the PHB feats, group 4, 2026-09-27): "you can cause yourself to succeed instead".
   it("a `succeed` spend contributes the VERDICT on the save side — no number moves — and nothing on the attack side", () => {
     const spends = [

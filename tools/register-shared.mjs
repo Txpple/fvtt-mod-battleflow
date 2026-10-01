@@ -43,6 +43,7 @@ export const WHERE = {
   TWINNED_EXCEPTIONS: ["metamagic.js", "Metamagic"],
   CLOCK_RIDERS: ["clock-riders.js", "Rulings the code carried · The hit's sequence"],
   COATINGS: ["use-chips.js", "Bent by choice — the rule of cool"],
+  D20_FLOORS: ["d20-folds.js", "The PHB classes — D1"],
   USE_CHIPS: ["use-chips.js", "The gate before the roll"],
   DAMAGE_RULES: ["damage-rules.js", "The fighting styles"],
   EVASIONS: ["saves/consequences.js", "The GM's side — the five shapes"],

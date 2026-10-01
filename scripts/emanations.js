@@ -296,7 +296,7 @@ async function maybeTrigger(behType, token, cause) {
           stat: statContext(casterActor?.uuid ?? null),
           abilities, dc, damageOnSave: onSave, hasDamage,
           effectNames, effectsHandled: standing ? "emanation" : null,
-          ...(standing ? {} : { demand: { spell: (item.type === "spell") || !!item.system?.properties?.has?.("mgc"), abilities,
+          ...(standing ? {} : { demand: { spell: (item.type === "spell") || !!item.system?.properties?.has?.("mgc"), cast: item.type === "spell", abilities,
             statuses: [...new Set(profiles.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))], sleep: false } }),
           // ⚠ Pinned: the area adoption keys on the activity this card shares with the cast and would rewrite the targets.
           pinnedTargets: true,
@@ -670,7 +670,7 @@ async function demandPick(card, p) {
           stat: statContext(casterActor?.uuid ?? null),
           abilities, dc, damageOnSave: onSave, hasDamage,
           effectNames, effectsHandled: null,
-          demand: { spell: !!item.system?.properties?.has?.("mgc"), abilities,
+          demand: { spell: !!item.system?.properties?.has?.("mgc"), cast: item.type === "spell", abilities,
             statuses: [...new Set(profiles.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))], sleep: false },
           pinnedTargets: true,
           activityUuid: activity.uuid, templateType: null, templated: false,

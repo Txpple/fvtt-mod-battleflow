@@ -367,6 +367,32 @@ describe("the coating (COATINGS — the Poisoner, the user 2026-09-26: Apply Poi
     expect(ch.dosesLeft({ max: 3, spent: 5 })).toBe(0);
     expect(ch.dosesLeft({ max: "@prof", spent: 0 })).toBe(0);
   });
+  it("the DMG's four injury poisons are `item` rows: the vial's own Use Poison, a Constitution save, a minute, no list", () => {
+    for (const name of ["Lolth's Sting", "Purple Worm Poison", "Serpent Venom", "Wyvern Poison"]) {
+      const row = reg.COATINGS[name];
+      expect(row.item).toBe(true);
+      expect(row.activity).toBe("Use Poison");
+      expect(row.chip).toBe(`${name} Coating`);
+      expect(row.seconds).toBe(60);
+      expect(row.dose).toBe(1);
+      expect(Object.keys(row.saves)).toEqual(["con"]);
+      expect(row.list).toBeUndefined();
+      expect(typeof row.says).toBe("string");
+      expect(row.rule.uuid).toMatch(/^Compendium\.dnd-dungeon-masters-guide\.equipment\.Item\./);
+    }
+    expect(reg.COATINGS.Poisoner.item).toBeUndefined();
+  });
+  it("the Periapt of Wound Closure is a D20 floor on the Death Saving Throw alone, carried by the worn pendant: a 9 or lower is a 10", () => {
+    const row = reg.D20_FLOORS["Periapt of Wound Closure"];
+    expect(row).toMatchObject({
+      feature: "Periapt of Wound Closure",
+      worn: true,
+      minimum: 10,
+      tests: ["death"]
+    });
+    expect(row.critical).toBeUndefined();
+    expect(reg.D20_FLOORS.Survivor.worn).toBeUndefined();
+  });
   it("the Poisoner's row: Apply Poison becomes the Poison Coating for a minute, a dose spent, one save per raised ability, switched by the Fighting Styles list", () => {
     const row = reg.COATINGS.Poisoner;
     expect(row.activity).toBe("Apply Poison");

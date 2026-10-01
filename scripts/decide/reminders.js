@@ -187,7 +187,7 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
  * row is read off the demand's caster snapshot (`demand.source`) and is nothing without a demand.
  * @param {{effects?: {id: string, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[], member?: boolean}[],
  *          features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null, item?: string|null,
+ *          demand?: {spell?: boolean|null, cast?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null, item?: string|null,
  *                    types?: string[]|null, channel?: boolean|null,
  *                    source?: {uuid?: string|null, name?: string|null, type?: string|null, effects?: {id?: string|null, name: string}[], features?: string[], statuses?: string[]}|null}|null,
  *          name?: string}} facts */
@@ -209,7 +209,8 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     const scope = facet.statuses?.length
       ? `a save against ${facet.statuses.map(conditionName).join(", ")}`
       : facet.sleep ? "a save against magic that would put you to sleep"
-        : facet.spells ? "a save against a spell or other magical effect"
+        : (facet.spells === "cast") ? "a save against a spell"
+          : facet.spells ? "a save against a spell or other magical effect"
           : facet.abilities?.length ? `a ${facet.abilities.map(abilityName).join(" or ")} save`
             : facet.item ? `a save against ${facet.item}` : "this save";
     let bend = null;
@@ -257,6 +258,8 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
       caveat = ` — against ${hits.map(conditionName).join(", ")}`;
     } else if ( facet.spells ) {
       if ( !demand.spell ) continue;
+      // `spells: "cast"`: a spell CAST alone (the demand's `cast` mark) — never a magic item's effect.
+      if ( (facet.spells === "cast") && !demand.cast ) continue;
       // Greater Magic Resistance: the save against magic cannot fail — the fourth button, Trance's shape.
       succeeds = !!facet.succeeds;
       bend = succeeds ? null : (facet.bend ?? null);
@@ -303,7 +306,7 @@ export function demandBendSources(demand, name = "You") {
 
 /** The key of a row that turns a half-on-save SUCCESS into none (`halfToNone`, Circle of Power).
  * @param {{effects?: {name: string}[], features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
- *          demand?: {spell?: boolean|null}|null}} facts
+ *          demand?: {spell?: boolean|null, cast?: boolean|null}|null}} facts
  * @returns {string|null} */
 export function saveNoneOnSuccess({ effects = [], features = [], enabled, table, demand = null }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
@@ -311,6 +314,7 @@ export function saveNoneOnSuccess({ effects = [], features = [], enabled, table,
     const facet = row?.saves;
     if ( !facet?.halfToNone || !on.has(key.toLowerCase()) ) continue;
     if ( facet.spells && !demand?.spell ) continue;
+    if ( (facet.spells === "cast") && !demand?.cast ) continue;
     if ( rowCarriers(row, key, effects, features).length ) return key;
   }
   return null;

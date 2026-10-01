@@ -280,15 +280,28 @@ const COAT_HIT = "coatHit";        // on the damage message that spends the chip
 /** The listed-names readers a row's `list` may name. */
 const COAT_LISTS = { damageRules: damageRuleEntries };
 
-/** The row whose vetoed activity this is, on a listed feature — `{ name, row }` or null. */
+/** The row whose vetoed activity this is, on a listed feature (or the DMG's vial itself) — `{ name, row }` or null. */
 function coatRowFor(activity) {
   const item = activity?.item;
   for ( const [name, row] of Object.entries(COATINGS) ) {
     if ( !answers(name, item) || (lower(activity?.name) !== lower(row.activity)) ) continue;
-    if ( !listedNames(COAT_LISTS[row.list]?.() ?? []).has(lower(name)) ) continue;
+    if ( row.item ? (item?.type !== "consumable") : !listedNames(COAT_LISTS[row.list]?.() ?? []).has(lower(name)) ) continue;
     return { name, row };
   }
   return null;
+}
+
+/** The platform's label for a save ability (the hit card's line). */
+const abilityLabel = a => CONFIG.DND5E.abilities?.[a]?.label ?? String(a ?? "").toUpperCase();
+
+/** The row's carrier on the attacker: the feat, or (`item`) the vial. */
+const coatCarrier = (attacker, name, row) => row.item ? itemNamed(attacker, name, { types: ["consumable"] }) : featureNamed(attacker, name);
+
+/** The DMG — the vial after its save: a stack loses one (the next vial full). ⚠ The LAST vial stays on the sheet, empty:
+ * the save card it just posted reads its activity off the item, and a deleted item leaves that save unresolvable. */
+async function consumeVial(item) {
+  const quantity = Number(item?.system?.quantity) || 0;
+  if ( quantity > 1 ) return item.update({ "system.quantity": quantity - 1, "system.uses.spent": 0 });
 }
 
 /** The coating chip standing on an actor, or null. */
@@ -300,8 +313,12 @@ function coatRowKeyed(key) {
   return name ? { name, row: COATINGS[name] } : null;
 }
 
+/** The DMG — activities the HIT is using right now (a vial's Use Poison is both the coating's use and its save): never vetoed. */
+const hitUses = new Set();
+
 listen("dnd5e.preUseActivity", "use-chips", activity => {
   try {
+    if ( hitUses.has(activity?.uuid) ) return;
     const found = coatRowFor(activity);
     const actor = activity?.actor;
     if ( !found || !actor?.isOwner ) return;
@@ -318,7 +335,8 @@ async function writeCoat(actor, activity, name, row) {
   const uses = feature.system?.uses ?? {};
   const left = Number.isFinite(Number(uses.value)) ? Math.max(0, Number(uses.value)) : dosesLeft({ max: uses.max, spent: uses.spent });
   if ( left < row.dose ) {
-    ui.notifications.warn(`${actor.name} has no poison doses left — make more first (${name}: Create Poison Doses).`);
+    ui.notifications.warn(row.item ? `${actor.name}'s ${name} is used up.`
+      : `${actor.name} has no poison doses left — make more first (${name}: Create Poison Doses).`);
     return;
   }
   await feature.update({ "system.uses.spent": (Number(uses.spent) || 0) + row.dose });
@@ -416,14 +434,16 @@ async function spendCoat(message) {
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     // A miss deals no damage: the coating stands for the next swing.
     const spent = !!found && !!attacker && (hits.length > 0);
-    const feature = spent ? featureNamed(attacker, found.name) : null;
+    const feature = spent ? coatCarrier(attacker, found.name, found.row) : null;
     const offered = spent ? Object.keys(found.row.saves) : [];
     const ability = spent ? coatSaveAbility({ offered, assigned: asiAssigned(feature),
       mods: Object.fromEntries(offered.map(a => [a, attacker.system?.abilities?.[a]?.mod ?? 0])) }) : null;
     // ⚠ THE SAVE IS A RIDER, and dnd5e hides a rider on its source item (Activity#isHidden): it runs
     // from an in-memory copy of the feat with `riders.activity` emptied; nothing written.
     const source = feature ? feature.clone({ "flags.dnd5e.riders.activity": [] }, { keepId: true }) : null;
-    const act = (source && ability) ? activityNamed(source, found.row.saves[ability]) : null;
+    // The vial's save: by name, else its one save activity (the pack names them unevenly).
+    const act = (source && ability) ? (activityNamed(source, found.row.saves[ability])
+      ?? (found.row.item ? (source.system?.activities?.find?.(a => a.type === "save") ?? null) : null)) : null;
     let claimed = false;
     await queueFlagWrite(message, COAT_HIT, current => {
       if ( current.status !== "due" ) return false;
@@ -440,9 +460,14 @@ async function spendCoat(message) {
     if ( chip ) await chip.delete();
     if ( !act ) return;
     const tokens = hits.map(t => tokenForUuid(t.uuid)).filter(Boolean);
-    const results = await withTargets(tokens, () => act.use({ consume: false }, { configure: false }, {}));
+    hitUses.add(act.uuid);
+    let results;
+    try { results = await withTargets(tokens, () => act.use({ consume: false }, { configure: false }, {})); }
+    finally { hitUses.delete(act.uuid); }
     const card = results?.message;
     if ( card instanceof ChatMessage ) await queueFlagWrite(message, COAT_HIT, current => { current.saveId = card.id; });
+    // The DMG — the vial is spent on the hit (its dose went at the use; the vial itself goes now).
+    if ( found.row.item && feature && !dosesLeft({ max: feature.system?.uses?.max, spent: feature.system?.uses?.spent }) ) await consumeVial(feature);
   } catch(err) {
     console.error(`${TITLE} | The coating's save failed — use the feature's save by hand.`, err);
   } finally {
@@ -460,7 +485,7 @@ listen("dnd5e.renderChatMessage", "use-chips", (message, html) => {
   line.innerHTML = bfCard({
     eyebrow: found.name, tone: "good",
     title: `${found.row.chip} spent on the hit`,
-    subtitle: f.note ?? `a Constitution save for ${who} — on a failure, 2d8 Poison and Poisoned until the end of your next turn`
+    subtitle: f.note ?? `a ${abilityLabel(f.ability)} save for ${who} — ${found.row.says ?? "the poison's own save"}`
   });
   html.querySelector(SURFACES.messageContent)?.appendChild(line);
 });

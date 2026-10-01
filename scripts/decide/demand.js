@@ -118,7 +118,7 @@ export function saveTargetEntry(uuid, name) {
  * @param {string} d.damageOnSave
  * @param {boolean} d.hasDamage
  * @param {{ fail: string[], always: string[] }} d.effectNames
- * @param {{ spell: boolean, statuses: string[] } | null} [d.demand]
+ * @param {{ spell: boolean, cast?: boolean, statuses: string[] } | null} [d.demand]
  * @param {string | null} [d.effectsHandled]
  * @param {boolean} [d.pinnedTargets]
  * @param {string} d.activityUuid

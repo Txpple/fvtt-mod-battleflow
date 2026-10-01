@@ -742,8 +742,9 @@ async function resolveFold(message, answer) {
           if ( t.verdict === "hit" ) anyHit = true;
           const ac = folds.filter(f => f.uuid === t.uuid).findLast(f => Number.isFinite(f.ac))?.ac
             ?? t.ac;
+          const crit = foldedRoll(baseRoll, folds.filter(f => f.uuid === t.uuid)).isCritical;
           lines.push(`${sumText(flag, composed)} vs AC ${ac} — `
-            + (t.verdict === "hit" ? `<strong>now hits ${esc(t.name)}</strong>` : `still misses ${esc(t.name)}`));
+            + (t.verdict === "hit" ? `<strong>now hits ${esc(t.name)}</strong>${crit ? " — a Critical Hit" : ""}` : `still misses ${esc(t.name)}`));
         }
       } else if ( succeeded ) {
         lines.push(Number.isFinite(current.dc)
@@ -1399,8 +1400,9 @@ function floorsFor(actor, { test, ability = null, concentration = false } = {}) 
   const out = [];
   for ( const [key, row] of Object.entries(D20_FLOORS) ) {
     if ( !on.has(lower(key)) || !row.tests.includes(test) ) continue;
-    // D1 — a `feature` row stands while the roller holds it (Survivor); else the row's effect must stand.
-    if ( row.feature ? !featureNamed(actor, row.feature)
+    // D1 — a `feature` row stands while the roller holds it (Survivor); the DMG — a `worn` row while the item is worn;
+    // else the row's effect must stand.
+    if ( row.feature ? !(row.worn ? wornNamed(actor, row.feature) : featureNamed(actor, row.feature))
       : !actor.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(row.effect))) ) continue;
     const abilities = row.abilities?.[test] ?? null;
     if ( abilities && ability && !abilities.includes(lower(ability)) ) continue;

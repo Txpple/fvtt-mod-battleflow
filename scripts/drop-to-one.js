@@ -349,7 +349,7 @@ async function landedZero(actor, { source }) {
           saves: saveDemandData({
             stat: statContext(actor.uuid),
             abilities, dc, damageOnSave: onSave, hasDamage, effectNames,
-            demand: { spell: !!activity.item?.system?.properties?.has?.("mgc"), abilities,
+            demand: { spell: !!activity.item?.system?.properties?.has?.("mgc"), cast: activity.item?.type === "spell", abilities,
               statuses: [...new Set(entries.filter(e => !e.onSave).flatMap(e => [...(e.effect?.statuses ?? [])]))], sleep: false },
             // ⚠ Pinned: the area adoption keys on the activity and would rewrite the targets.
             pinnedTargets: true,
