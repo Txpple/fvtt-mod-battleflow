@@ -6295,9 +6295,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       try {
         if (!scarab) log.push('§109 skipped: no Scarab of Protection');
         else {
-          const g = await dmgSaveGate(halfling, halflingToken);
-          ok('109a. the Halfling\'s save against Sacred Flame lists the Scarab of Protection, net Advantage', g.open && /Scarab of Protection/.test(g.text) && (g.net === 'advantage'),
-            `net=${g.net} text="${g.text.slice(0, 200)}"`);
           faces([[3, 20]]);
           const rolls = await halfling.rollSavingThrow({ ability: 'con' }, { configure: false }, {});
           CONFIG.Dice.randomUniform = realPRNG;
@@ -6305,6 +6302,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 5000);
           ok('109b. a failed save from the sheet (no demand to read) offers "Preservation" — the roller judges', (flag?.offers ?? []).some(o => o.label === 'Preservation'),
             `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label]))}`);
+          const g = await dmgSaveGate(halfling, halflingToken);
+          ok('109a. the Halfling\'s save against Sacred Flame lists the Scarab of Protection, net Advantage', g.open && /Scarab of Protection/.test(g.text) && (g.net === 'advantage'),
+            `net=${g.net} text="${g.text.slice(0, 200)}"`);
         }
       } finally {
         passAll(); await closeA1();
