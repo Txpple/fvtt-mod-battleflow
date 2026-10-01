@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battle Flow Summons</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), the options and rulings down the side. Dark by choice. */
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --ward:rgba(120,170,255,.5); --hit-ink:#e79a90; --miss-ink:#8fd0a2; --log:#1a1c20; --tok-foe:#6a3a3a; --tok-pc:#3a4a6a; --tok-sum:#4a3a6a;
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1420px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:70ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .scenes .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scenes .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:150px;flex:0 0 auto}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .scenes button:focus-visible,.btn:focus-visible,.opt:focus-visible,.card:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:560px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 300px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;min-height:460px;min-width:0}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:var(--log);padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:560px;min-width:0}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .chatlog .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .caption{position:absolute;left:12px;right:12px;bottom:10px;font-size:12px;color:var(--ink-2);background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+  .tok{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid var(--bad);background:var(--tok-foe);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink)}
+  .tok.pc{border-color:var(--good);background:var(--tok-pc)}
+  .tok.sum{border-color:var(--ward);background:var(--tok-sum)}
+  .tok.big{width:100px;height:100px}
+  .tok.ghost{opacity:.45;border-style:dashed}
+  .tok .nm{position:absolute;top:54px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000}
+  .tok.big .nm{top:104px}
+  .ring{position:absolute;inset:-8px;border-radius:50%;border:2px dashed var(--ward)}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.offer,.msg{animation:none}}
+  /* the popup, the house offer shape */
+  .offer{position:absolute;left:24px;top:22px;width:420px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px;animation:rise .18s ease-out}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .offer .title i{width:10px;height:10px;border-radius:50%;background:var(--pending);display:inline-block}
+  .offer .title .x{margin-left:auto;color:var(--ink-3)}
+  .offer .body{padding:10px;max-height:470px;overflow:auto}
+  .head{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .head .img{width:42px;height:42px;border-radius:4px;background:linear-gradient(135deg,#5a4a7a,#2e2a3e);border:1px solid var(--line);flex:0 0 auto}
+  .head h2{margin:0;font-size:15px;font-weight:700;line-height:1.2} .head .sub{font-size:11.5px;color:var(--ink-2)}
+  .situ{font-size:12.5px;color:var(--ink-2);margin:6px 0 8px;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18)}
+  .grp-l{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:10px 0 5px}
+  .grp-l:first-child{margin-top:0}
+  /* the tick row — name + dice, then "the rule ▸"; nothing above the fold */
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);margin-bottom:5px;cursor:pointer}
+  .row.on{border-color:var(--pending);background:var(--pending-soft)}
+  .row input{margin:0}
+  .row .nm{font-weight:600;color:var(--ink)} .row .nm .dice{font-weight:400;color:var(--ink-2);margin-left:6px}
+  .row .cost{font-size:11px;color:var(--ink-2);text-align:right}
+  .row details{grid-column:1/-1;font-size:11.5px;color:var(--ink-2)} .row summary{cursor:pointer;color:var(--ink-3);list-style:none} .row summary::after{content:" ▸"}
+  .row details[open] summary::after{content:" ▾"} .row details p{margin:4px 0 0}
+  /* form cards — art, name, the four-line summary */
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:6px;margin-bottom:4px}
+  .card{position:relative;text-align:left;font:inherit;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);color:var(--ink);padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .card[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft)}
+  .card .art{height:56px;border-radius:3px;border:1px solid var(--line);background:linear-gradient(135deg,var(--a1,#5a4a7a),var(--a2,#2e2a3e))}
+  .card b{font-size:12.5px;line-height:1.15} .card small{font-size:10.5px;color:var(--ink-2);line-height:1.3}
+  .card .tag{position:absolute;top:4px;right:4px;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.5);color:var(--ink-2)}
+  .pick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px}
+  .opt{font:inherit;font-size:12px;padding:4px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .opt[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .opt .sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px;background:var(--c,#888)}
+  .count{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-2);margin:4px 0}
+  .count input{width:54px;font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:2px 4px}
+  .budget{font-size:11.5px;color:var(--ink-2);margin:4px 0 2px} .budget b{color:var(--pending)}
+  .btnrow{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .btn{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--pending);border-color:var(--pending);color:#111} .btn[disabled]{opacity:.45;cursor:default}
+  .btnrow .hint{margin-left:auto;font-size:11px;color:var(--ink-3)}
+  /* the system's own dialog, for the comparison option */
+  .dlg{position:absolute;left:24px;top:22px;width:390px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px}
+  .dlg .title{padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .dlg .body{padding:10px}
+  .fg{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:5px 0;font-size:12.5px;color:var(--ink-2)}
+  .fg select{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:2px 4px}
+  /* chat */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2);animation:rise .18s ease-out}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)} .bf.ward{border-left-color:#7aa6ff}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .s{font-size:11px;opacity:.75}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5} .bf .l div{margin-top:2px} .bf b{color:var(--ink)}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft);margin-right:4px}
+  .chip.pick{border-color:var(--pending);color:var(--pending);background:var(--pending-soft);cursor:pointer}
+  .chip.wait{border-color:rgba(232,190,50,.5);color:var(--crit)}
+  .cardbtn{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);margin-top:5px;cursor:pointer}
+  /* the effect view bar on the summoner */
+  .bar{position:absolute;left:24px;bottom:52px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 48px)}
+  .fx{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-left:3px solid #7aa6ff;border-radius:4px;padding:5px 8px;font-size:12px}
+  .fx.conc{border-left-color:var(--crit)}
+  .fx .clk{color:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums}
+  .fx .act{font-size:11px;color:var(--pending);cursor:pointer}
+  /* side */
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b,.panel p b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)} .fix{border-left:3px solid var(--bad)}
+  .toggles{display:flex;flex-direction:column;gap:8px}
+  .tg{display:flex;flex-direction:column;gap:4px}
+  .tg span{font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  .tg .set{display:flex;gap:4px;flex-wrap:wrap}
+  .tg button{font:inherit;font-size:12px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .tg button[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .kbd{font-size:11px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Prototype · issue #1 · summons</div>
+      <h1>The player casts and places. The GM's client makes the creature.</h1>
+    </div>
+    <p>Six moments of one evening, each with the options to rule on in the right column. Nothing here needs the player to hold Create Token or Create Actor; the orange card is the record the active GM's client reacts to.</p>
+  </header>
+
+  <div class="scenes">
+    <div class="grp"><span>The cast</span>
+      <button type="button" data-scene="dragon" aria-pressed="true">Sorcerer · Summon Dragon (5th)</button>
+      <button type="button" data-scene="familiar">Wizard · Find Familiar (CR 0 pick)</button>
+      <button type="button" data-scene="objects">Bard · Animate Objects (the budget)</button>
+    </div>
+    <div class="grp"><span>After the card</span>
+      <button type="button" data-scene="place">Place, then the GM's client lands it</button>
+      <button type="button" data-scene="nogm">No GM online</button>
+      <button type="button" data-scene="fight">In the fight: breath, resistance, dismiss</button>
+    </div>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="stage"></div><div class="caption" id="caption"></div></div>
+      <div class="chatlog"><div class="ey-log">Chat log</div><div id="log"></div></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- the options the user rules on; every scene re-renders from them ----------
+  const O = {
+    form: "one",        // one: one popup before the card | card: the system's dialog, choices as chips on the card
+    picker: "cards",    // cards: art cards | list: compact rows
+    seat: "after",      // after: a tracker slot right after the caster | turn: acts on the caster's turn, a reminder
+    tier2: "relay"      // relay: lights and illusions take the relay with no form | system: stay the system's
+  };
+  const TOGGLES = [
+    { key: "form", label: "Where the questions are asked", opts: [["one", "A · one popup, then the card"], ["card", "B · the system's dialog, chips on the card"]] },
+    { key: "picker", label: "How a form is picked", opts: [["cards", "A · art cards"], ["list", "B · compact rows"]] },
+    { key: "seat", label: "The creature's seat in the tracker", opts: [["after", "A · its own slot after the caster"], ["turn", "B · on the caster's turn, a reminder"]] },
+    { key: "tier2", label: "Lights, illusions, Mage Hand", opts: [["relay", "A · the relay, no form"], ["system", "B · stay the system's"]] }
+  ];
+
+  // ---------- data from the packs (offline dump, 2026-10-01) ----------
+  const DRAGON_TYPES = [["acid", "#8fc74a"], ["cold", "#7ec8e3"], ["fire", "#e8793a"], ["lightning", "#e8d44a"], ["poison", "#9b5fc0"]];
+  const FAMILIARS = [
+    ["Bat", "Tiny · 5 ft, fly 30 · Blindsight 60", "#4a4a6a", "#1e1e2e"], ["Cat", "Tiny · 40 ft, climb 30 · Perception +3", "#7a6a4a", "#2e2a1e"],
+    ["Frog", "Tiny · 20 ft, swim 20 · Stealth +3", "#4a7a4a", "#1e2e1e"], ["Hawk", "Tiny · 10 ft, fly 60 · Perception +6", "#8a7a5a", "#3e2e1e"],
+    ["Lizard", "Tiny · 20 ft, climb 20 · Darkvision", "#6a8a4a", "#2e3e1e"], ["Octopus", "Small · 5 ft, swim 30 · Ink Cloud", "#5a4a7a", "#2e2a3e"],
+    ["Owl", "Tiny · 5 ft, fly 60 · Flyby", "#8a8a7a", "#3e3e2e"], ["Rat", "Tiny · 20 ft, climb 20 · Keen Smell", "#6a5a5a", "#2e1e1e"],
+    ["Raven", "Tiny · 10 ft, fly 50 · Mimicry", "#3a3a4a", "#1a1a22"], ["Spider", "Tiny · 20 ft, climb 20 · Web Walker", "#4a4a4a", "#1e1e1e"],
+    ["Weasel", "Tiny · 30 ft · Keen Smell", "#8a6a4a", "#3e2a1e"], ["Crab", "Tiny · 20 ft, swim 20 · Amphibious", "#a0523a", "#3e1e1a"]
+  ];
+  const OBJECTS = [["Tiny", 1, "+8 · 1d4+4 · AC 18, 20 HP"], ["Small", 1, "+6 · 1d8+2 · AC 16, 25 HP"], ["Medium", 1, "+5 · 2d6+1 · AC 13, 40 HP"], ["Large", 2, "+6 · 2d10+2 · AC 10, 50 HP"], ["Huge", 3, "+8 · 2d12+4 · AC 10, 80 HP"]];
+
+  // ---------- state per scene ----------
+  const S = { type: null, familiar: null, famType: "fey", objects: { Tiny: 0, Small: 0, Medium: 0, Large: 0, Huge: 0 }, placed: false, landed: false, dismissed: false };
+  let scene = "dragon";
+
+  const $ = (sel, root = document) => root.querySelector(sel);
+  const h = (html) => html;
+
+  // ---------- the pieces ----------
+  const tok = (x, y, cls, label, extra = "") => `<div class="tok ${cls}" style="left:${x}px;top:${y}px">${extra}${label.slice(0, 2)}<span class="nm">${label}</span></div>`;
+
+  function titleBar(name) { return `<div class="title"><i></i>${name}<span class="x">✕</span></div>`; }
+
+  function typePick() {
+    return `<div class="grp-l">The dragon's damage type · one pick lands the breath and the shared resistance</div><div class="pick">` +
+      DRAGON_TYPES.map(([t, c]) => `<button type="button" class="opt" data-type="${t}" aria-pressed="${S.type === t}" style="--c:${c}"><span class="sw"></span>${t[0].toUpperCase() + t.slice(1)}</button>`).join("") + `</div>`;
+  }
+
+  function familiarPick() {
+    if (O.picker === "cards") return `<div class="cards">` + FAMILIARS.map(([n, s, a1, a2]) =>
+      `<button type="button" class="card" data-fam="${n}" aria-pressed="${S.familiar === n}" style="--a1:${a1};--a2:${a2}"><span class="art"></span><b>${n}</b><small>${s}</small></button>`).join("") + `</div>`;
+    return FAMILIARS.map(([n, s]) => `<label class="row ${S.familiar === n ? "on" : ""}"><input type="radio" name="fam" data-fam="${n}" ${S.familiar === n ? "checked" : ""}><span class="nm">${n}<span class="dice">${s}</span></span><span class="cost">CR 0</span></label>`).join("");
+  }
+
+  function objectsPick() {
+    const mod = 5, spent = OBJECTS.reduce((n, [sz, c]) => n + S.objects[sz] * c, 0);
+    return `<div class="budget">Spellcasting modifier <b>${mod}</b> · objects cost by size · <b>${spent} / ${mod}</b> spent</div>` + OBJECTS.map(([sz, c, s]) =>
+      `<div class="count"><input type="number" min="0" id="obj-${sz}" data-obj="${sz}" value="${S.objects[sz]}" aria-label="${sz} objects"><span><b style="color:var(--ink)">${sz}</b> · costs ${c} · ${s}</span></div>`).join("");
+  }
+
+  function offer(name, sub, body, primary, enabled, situ) {
+    return `<div class="offer">${titleBar("Battle Flow · the cast")}<div class="body">
+      <div class="head"><div class="img"></div><div><h2>${name}</h2><div class="sub">${sub}</div></div></div>
+      ${situ ? `<div class="situ">${situ}</div>` : ""}
+      ${body}
+      <div class="btnrow"><button type="button" class="btn primary" id="go" ${enabled ? "" : "disabled"}>${primary}</button><button type="button" class="btn">Cancel the cast</button><span class="hint">${enabled ? "the card posts after placement" : "answer first"}</span></div>
+    </div></div>`;
+  }
+
+  function systemDialog(name, fields, chips) {
+    return `<div class="dlg"><div class="title">${name}: Configure Usage</div><div class="body">
+      <div class="fg"><span>Spell Slot</span><select><option>5th Level (2 of 2)</option></select></div>
+      <div class="fg"><span>Concentration</span><input type="checkbox" checked></div>
+      ${fields}
+      <div class="fg"><span>Place Summons</span><input type="checkbox" checked></div>
+      <div class="btnrow"><button type="button" class="btn primary" id="go">Cast</button></div>
+      </div></div>` + (chips || "");
+  }
+
+  function card(speaker, cls, eyebrow, title, sub, lines, extra = "") {
+    return `<div class="msg"><div class="spk">${speaker}</div><div class="bf ${cls}"><div class="e">${eyebrow}</div><div class="t">${title}</div>${sub ? `<div class="s">${sub}</div>` : ""}${lines ? `<div class="l">${lines}</div>` : ""}${extra}</div></div>`;
+  }
+
+  // ---------- scenes ----------
+  const scenes = {
+    dragon: {
+      caption: () => O.form === "one" ? "One popup asks everything the spell asks, in the house offer shape, before the card posts. One profile means no form question; the dragon's one question is its damage type." : "The system's dialog casts; the choices the data model cannot hold are chips on the card, answered afterwards. Two steps instead of one.",
+      stage: () => tok(300, 220, "pc", "Salyth") + (O.form === "one"
+        ? offer("Summon Dragon", "Draconic Spirit · 5th-level slot · Concentration, 1 hour", typePick(), "Place the dragon", !!S.type, "Large · AC 19 · 50 HP · fly 60 · 2 Rends + Breath (DC 16) · acts right after you")
+        : systemDialog("Summon Dragon", `<div class="fg"><span>Summon</span><select><option>Draconic Spirit</option></select></div>`)),
+      log: () => O.form === "one"
+        ? card("Salyth", "pending", "Battle Flow · cast", "Summon Dragon", "the card posts once the dragon is placed", "")
+        : card("Salyth", "pending", "Summon Dragon", "Draconic Spirit", "Concentration · 1 hour", `<div>Damage type: <span class="chip pick">pick</span> <span class="chip">acid</span><span class="chip">cold</span><span class="chip">fire</span><span class="chip">lightning</span><span class="chip">poison</span></div><div><span class="cardbtn">Summon</span> <span class="kbd">hidden from a player today</span></div>`)
+    },
+    familiar: {
+      caption: () => "A CR-mode summon (Find Familiar, Wild Companion) gets a gallery of what the rule allows, with the spell's second question beside it. Today it is the full compendium browser.",
+      stage: () => tok(300, 220, "pc", "Gren") + offer("Find Familiar", "a CR 0 Beast · then Celestial, Fey or Fiend · 1 hour cast",
+        `<div class="grp-l">The form · PHB appendix, 12 shown of 26 CR 0 beasts</div>${familiarPick()}<div class="grp-l">Its creature type</div><div class="pick">${["celestial", "fey", "fiend"].map(t => `<button type="button" class="opt" data-famtype="${t}" aria-pressed="${S.famType === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>`,
+        "Place the familiar", !!S.familiar),
+      log: () => card("Gren", "pending", "Battle Flow · cast", "Find Familiar", "the card posts once the familiar is placed", "")
+    },
+    objects: {
+      caption: () => "Animate Objects' profiles carry a count formula per size; the form turns the budget into numbers and refuses an overspend. Today each size is a separate profile with the count rolled for you.",
+      stage: () => {
+        const mod = 5, spent = OBJECTS.reduce((n, [sz, c]) => n + S.objects[sz] * c, 0), n = Object.values(S.objects).reduce((a, b) => a + b, 0);
+        return tok(300, 220, "pc", "Lio") + offer("Animate Objects", "up to your modifier in objects · Concentration, 1 minute", objectsPick(), n ? `Place ${n} object${n === 1 ? "" : "s"}` : "Place the objects", n > 0 && spent <= mod);
+      },
+      log: () => card("Lio", "pending", "Battle Flow · cast", "Animate Objects", "the card posts once the objects are placed", "")
+    },
+    place: {
+      caption: () => S.landed ? "The GM's client saw the record, imported the spirit with its own permissions, applied the spell-level bonuses, created the token and gave Salyth's player ownership. The card is stamped applied; a reload never re-drives it." : "The placement is a canvas preview on the player's own client (no permission needed). The record goes on the card; the orange chip is what the GM's client reacts to.",
+      stage: () => tok(300, 220, "pc", "Salyth") + (S.landed ? tok(380, 150, "sum big", "Draconic Spirit") : tok(380, 150, "sum big ghost", "Draconic Spirit")) +
+        (S.landed ? `<div class="bar"><div class="fx conc">Concentration · Summon Dragon <span class="clk">1 h</span></div><div class="fx">Draconic Spirit · fire <span class="clk">1 h</span><span class="act">Dismiss</span></div><div class="fx">Shared Resistance · fire <span class="clk">1 h</span></div></div>` :
+          `<div class="caption" style="bottom:auto;top:16px;left:auto;right:12px;width:220px"><b>Place the dragon</b><br>click a square · Esc cancels<br><button type="button" class="btn primary" id="land" style="margin-top:6px">Confirm placement</button></div>`),
+      log: () => card("Salyth", S.landed ? "ward" : "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", `5th level · fire · placed at (18, 11)`,
+        S.landed ? `<div><b>Landed by the GM's client</b> · AC 19 · 50 HP · Rend ×2 + Breath (DC 16, fire) · Salyth's player owns it${O.seat === "after" ? "<div>Tracker: a slot right after Salyth</div>" : "<div>Acts on Salyth's turn · a reminder at her turn start</div>"}</div>` : `<div><span class="chip wait">waiting for the GM's client</span></div>`)
+    },
+    nogm: {
+      caption: () => "No degraded mode (DESIGN §4). With no GM online the card holds and says so; the preview stays on the map as a ghost. When a GM connects, the record is driven exactly once.",
+      stage: () => tok(300, 220, "pc", "Salyth") + tok(380, 150, "sum big ghost", "Draconic Spirit"),
+      log: () => card("Salyth", "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", "5th level · fire · placed at (18, 11)", `<div><span class="chip wait">no GM online</span> the dragon lands when a GM connects</div>`)
+    },
+    fight: {
+      caption: () => "The pick narrowed Breath Weapon to one type on the spirit's own card, and the resistance sits on the caster's bar until the spell ends. Dismiss runs on the GM's client; concentration's end cascades to the token.",
+      stage: () => tok(300, 220, "pc", "Salyth") + tok(380, 150, "sum big", "Draconic Spirit") + tok(560, 120, "", "Ogre") + tok(600, 230, "", "Ogre") +
+        `<div class="bar"><div class="fx conc">Concentration · Summon Dragon <span class="clk">8 rounds</span></div><div class="fx">Draconic Spirit · fire <span class="clk">8 rounds</span><span class="act" id="dismiss">${S.dismissed ? "dismissed" : "Dismiss"}</span></div><div class="fx">Shared Resistance · fire <span class="clk">8 rounds</span></div></div>`,
+      log: () => card("Draconic Spirit", "bad", "Breath Weapon", "Fire · DC 16 Dexterity · 30-foot cone", "2 targets", `<div>Ogre · <b>failed</b> · 9 fire</div><div>Ogre · <b>saved</b> · 4 fire</div>`) +
+        card("Draconic Spirit", "neutral", "Multiattack", "Rend ×2 · reach 10 ft", "+8 to hit · 1d6 + 4 + 5", "") +
+        (S.dismissed ? card("Salyth", "ward", "Battle Flow · summon", "Draconic Spirit dismissed", "the token removed by the GM's client · Shared Resistance ended", "") : "")
+    }
+  };
+
+  // ---------- side ----------
+  function side() {
+    return `<div class="panel"><h3>The options</h3><div class="toggles">${TOGGLES.map(t => `<div class="tg"><span>${t.label}</span><div class="set">${t.opts.map(([v, l]) => `<button type="button" data-opt="${t.key}" data-val="${v}" aria-pressed="${O[t.key] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>
+    <div class="panel q"><h3>What the scene shows</h3><p>${scenes[scene].caption()}</p></div>
+    <div class="panel"><h3>Measured, dnd5e 6.0.5</h3><ul>
+      <li><b>The wall</b>: Summon needs Create Token on the player and the world's Allow Summoning; a compendium import needs Create Actor. The card's Summon button is hidden without them.</li>
+      <li><b>The dragon</b>: Breath Weapon carries all five types; Shared Resistances is five buttons on the spirit's sheet; nothing lands on the caster.</li>
+      <li><b>The platform</b>: a placement preview needs no permission; the GM's client can create tokens and grant ownership. Foundry 14 has User#query, but the house channel is a flag on a message (ARCHITECTURE §3).</li>
+    </ul></div>
+    <div class="panel fix"><h3>Open for the ruling</h3><ol>
+      <li>Pool for CR-mode picks: the PHB appendix or every book, de-duplicated by name (45 names ship twice or more).</li>
+      <li>Linked companions (Primal Companion, Find Steed): import once and keep, or re-create per cast.</li>
+      <li>Option A or B for each toggle above.</li>
+    </ol></div>`;
+  }
+
+  // ---------- render + wiring ----------
+  function render() {
+    $("#stage").innerHTML = scenes[scene].stage();
+    $("#caption").textContent = scenes[scene].caption();
+    $("#log").innerHTML = scenes[scene].log();
+    $("#side").innerHTML = side();
+    wire();
+  }
+  function wire() {
+    document.querySelectorAll("[data-type]").forEach(b => b.addEventListener("click", () => { S.type = b.dataset.type; render(); }));
+    document.querySelectorAll("[data-fam]").forEach(b => b.addEventListener("click", () => { S.familiar = b.dataset.fam; render(); }));
+    document.querySelectorAll("[data-famtype]").forEach(b => b.addEventListener("click", () => { S.famType = b.dataset.famtype; render(); }));
+    document.querySelectorAll("[data-obj]").forEach(i => i.addEventListener("change", () => { S.objects[i.dataset.obj] = Math.max(0, +i.value || 0); render(); }));
+    document.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => { O[b.dataset.opt] = b.dataset.val; render(); }));
+    const go = $("#go"); if (go) go.addEventListener("click", () => { if (scene === "dragon" || scene === "familiar" || scene === "objects") { scene = "place"; S.landed = false; pressScene(); render(); } });
+    const land = $("#land"); if (land) land.addEventListener("click", () => { S.landed = true; render(); });
+    const dis = $("#dismiss"); if (dis) dis.addEventListener("click", () => { S.dismissed = true; render(); });
+  }
+  function pressScene() { document.querySelectorAll("[data-scene]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.scene === scene))); }
+  document.querySelectorAll("[data-scene]").forEach(b => b.addEventListener("click", () => { scene = b.dataset.scene; if (scene === "place") S.landed = false; pressScene(); render(); }));
+  render();
+})();
+</script>
+</body>
+</html>

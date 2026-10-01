@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battle Flow Wild Shape</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), the options and rulings down the side. Dark by choice. */
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --ward:rgba(120,170,255,.5); --hit-ink:#e79a90; --miss-ink:#8fd0a2; --log:#1a1c20; --tok-foe:#6a3a3a; --tok-pc:#3a4a6a; --tok-form:#3a5a3a;
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1420px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:70ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .scenes .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scenes .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:150px;flex:0 0 auto}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .scenes button:focus-visible,.btn:focus-visible,.opt:focus-visible,.card:focus-visible,.pin:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:600px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 300px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;min-height:600px;min-width:0}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:var(--log);padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:600px;min-width:0}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .chatlog .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .caption{position:absolute;left:12px;right:12px;bottom:10px;font-size:12px;color:var(--ink-2);background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+  .tok{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid var(--bad);background:var(--tok-foe);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink)}
+  .tok.pc{border-color:var(--good);background:var(--tok-pc)}
+  .tok.form{border-color:var(--good);background:var(--tok-form)}
+  .tok.big{width:100px;height:100px}
+  .tok .nm{position:absolute;top:54px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000}
+  .tok.big .nm{top:104px}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.offer,.msg{animation:none}}
+  /* the popup, the house offer shape — wider here, it is a gallery */
+  .offer{position:absolute;left:24px;top:22px;width:560px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px;animation:rise .18s ease-out}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .offer .title i{width:10px;height:10px;border-radius:50%;background:var(--pending);display:inline-block}
+  .offer .title .x{margin-left:auto;color:var(--ink-3)}
+  .offer .body{padding:10px;max-height:500px;overflow:auto}
+  .head{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  .head .img{width:42px;height:42px;border-radius:4px;background:linear-gradient(135deg,#4a7a4a,#1e2e1e);border:1px solid var(--line);flex:0 0 auto}
+  .head h2{margin:0;font-size:15px;font-weight:700;line-height:1.2} .head .sub{font-size:11.5px;color:var(--ink-2)}
+  .situ{font-size:12.5px;color:var(--ink-2);margin:6px 0 8px;padding:6px 8px;border-radius:4px;background:rgba(0,0,0,.18)}
+  .grp-l{display:flex;align-items:baseline;gap:8px;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:10px 0 5px}
+  .grp-l small{margin-left:auto;letter-spacing:0;text-transform:none;font-size:11px}
+  .tools{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+  .tools input[type=search]{font:inherit;font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:3px;padding:4px 7px;min-width:0;flex:1 1 140px}
+  .opt{font:inherit;font-size:12px;padding:4px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .opt[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(122px,1fr));gap:6px}
+  .card{position:relative;text-align:left;font:inherit;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);color:var(--ink);padding:6px;cursor:pointer;display:flex;flex-direction:column;gap:3px;min-width:0}
+  .card[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft)}
+  .card .art{height:54px;border-radius:3px;border:1px solid var(--line);background:linear-gradient(135deg,var(--a1,#5a6a4a),var(--a2,#1e2e1e))}
+  .card b{font-size:12.5px;line-height:1.15} .card small{font-size:10.5px;color:var(--ink-2);line-height:1.3}
+  .card .tag{position:absolute;top:4px;right:4px;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;padding:1px 5px;border-radius:3px;background:rgba(0,0,0,.55);color:var(--ink-2)}
+  .card .pin{position:absolute;top:4px;left:4px;font:inherit;font-size:11px;line-height:1;padding:2px 4px;border-radius:3px;border:1px solid transparent;background:rgba(0,0,0,.55);color:var(--ink-3);cursor:pointer}
+  .card .pin[aria-pressed="true"]{color:var(--crit);border-color:rgba(232,190,50,.5)}
+  .card.locked{opacity:.45}
+  /* the compact rows option */
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);margin-bottom:4px;cursor:pointer}
+  .row.on{border-color:var(--pending);background:var(--pending-soft)}
+  .row input{margin:0}
+  .row .nm{font-weight:600;color:var(--ink)} .row .nm .dice{font-weight:400;color:var(--ink-2);margin-left:6px}
+  .row .cost{font-size:11px;color:var(--ink-2);text-align:right;white-space:nowrap}
+  .browser{border:1px solid var(--line);border-radius:4px;background:var(--log);font-size:12px}
+  .browser .bh{display:flex;gap:8px;padding:6px 8px;border-bottom:1px solid var(--line);color:var(--ink-3);font-size:11px}
+  .browser .br{display:grid;grid-template-columns:minmax(0,1fr) 60px 70px;gap:8px;padding:4px 8px;border-bottom:1px solid var(--line);color:var(--ink-2)}
+  .btnrow{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .btn{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--pending);border-color:var(--pending);color:#111} .btn[disabled]{opacity:.45;cursor:default}
+  .btnrow .hint{margin-left:auto;font-size:11px;color:var(--ink-3)}
+  /* chat */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2);animation:rise .18s ease-out}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)} .bf.ward{border-left-color:#7aa6ff}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .s{font-size:11px;opacity:.75}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5} .bf .l div{margin-top:2px} .bf b{color:var(--ink)}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft);margin-right:4px}
+  .chip.wait{border-color:rgba(232,190,50,.5);color:var(--crit)}
+  .cardbtn{display:inline-block;font-size:11.5px;padding:3px 9px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);margin-top:5px;cursor:pointer}
+  .verdict{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:3px;margin-left:4px}
+  .verdict.fail{background:var(--bad-soft);color:var(--hit-ink)}
+  /* the effect view bar */
+  .bar{position:absolute;left:24px;bottom:52px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 48px)}
+  .fx{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--good);border-radius:4px;padding:5px 8px;font-size:12px}
+  .fx.conc{border-left-color:var(--crit)} .fx.temp{border-left-color:#7aa6ff}
+  .fx .clk{color:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums}
+  .fx .act{font-size:11px;color:var(--pending);cursor:pointer}
+  .hp{position:absolute;right:16px;top:16px;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:6px 10px;font-size:12px;min-width:160px}
+  .hp .trk{height:6px;border-radius:3px;background:var(--panel-2);overflow:hidden;margin:4px 0}
+  .hp .fill{height:100%;background:var(--good)} .hp .fill.low{background:var(--bad)}
+  .hp b{font-variant-numeric:tabular-nums}
+  /* side */
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b,.panel p b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)} .fix{border-left:3px solid var(--bad)}
+  .toggles{display:flex;flex-direction:column;gap:8px}
+  .tg{display:flex;flex-direction:column;gap:4px}
+  .tg span{font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  .tg .set{display:flex;gap:4px;flex-wrap:wrap}
+  .tg button{font:inherit;font-size:12px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .tg button[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  table.pool{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;margin-top:6px}
+  table.pool th,table.pool td{padding:2px 4px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+  table.pool th:first-child,table.pool td:first-child{text-align:left}
+  table.pool th{color:var(--ink-3);font-weight:600}
+  .kbd{font-size:11px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Prototype · issue #2 · wild shape and polymorph</div>
+      <h1>A gallery of what the rule allows, and a form that ends.</h1>
+    </div>
+    <p>Five moments of a druid's and a wizard's evening, each with the options to rule on in the right column. The player picks on their own client; the GM's client transforms, using dnd5e's own presets. No Create Actor on the player.</p>
+  </header>
+
+  <div class="scenes">
+    <div class="grp"><span>Wild Shape</span>
+      <button type="button" data-scene="l2" aria-pressed="true">Druid 2 · the first Wild Shape</button>
+      <button type="button" data-scene="rest">Long rest · swap a known form</button>
+      <button type="button" data-scene="moon">Moon 9 · CR 3, the river crossing</button>
+    </div>
+    <div class="grp"><span>The spells and the end</span>
+      <button type="button" data-scene="poly">Wizard · Polymorph on an ogre</button>
+      <button type="button" data-scene="end">The form ends · hours, 0 HP, revert</button>
+    </div>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="stage"></div><div class="caption" id="caption"></div></div>
+      <div class="chatlog"><div class="ey-log">Chat log</div><div id="log"></div></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- the options the user rules on ----------
+  const O = {
+    picker: "cards",   // cards | rows | browser (the system's, for comparison)
+    known: "enforce",  // enforce: only the four known forms can be taken | pin: known forms are pins, the pool stays open
+    source: "mm",      // mm: the Monster Manual copy wins a shared name | phb: the PHB appendix copy wins
+    polyPick: "caster" // caster: the caster picks the form | gm: the GM picks from the card
+  };
+  const TOGGLES = [
+    { key: "picker", label: "How a form is picked", opts: [["cards", "A · art cards"], ["rows", "B · compact rows"], ["browser", "C · today's compendium browser"]] },
+    { key: "known", label: "Known Forms (four, RAW)", opts: [["enforce", "A · enforced, the rest locked"], ["pin", "B · pinned favourites, pool open"]] },
+    { key: "source", label: "A name shipped by two books", opts: [["mm", "A · the Monster Manual copy"], ["phb", "B · the PHB appendix copy"]] },
+    { key: "polyPick", label: "Polymorph on an enemy", opts: [["caster", "A · the caster picks"], ["gm", "B · the GM picks from the card"]] }
+  ];
+
+  // ---------- the pool, from the offline pack dump (2026-10-01) — name, CR, size, speeds, summary, books ----------
+  const P = [
+    ["Wolf", .25, "Med", "40", "AC 12 · 11 HP · Bite +4, 1d6+2 · Pack Tactics", "PHB MM"],
+    ["Rat", 0, "Tiny", "20, climb 20", "AC 10 · 1 HP · Bite +2, 1 · Keen Smell", "PHB MM DMG"],
+    ["Riding Horse", .25, "Lg", "60", "AC 11 · 13 HP · Hooves +4, 1d8+2", "PHB MM DMG"],
+    ["Spider", 0, "Tiny", "20, climb 20", "AC 12 · 1 HP · Bite +4, 1 + poison · Web Walker", "PHB MM"],
+    ["Badger", 0, "Tiny", "20, burrow 5", "AC 11 · 5 HP · Bite +2, 1 · Keen Smell", "PHB MM DMG"],
+    ["Boar", .25, "Med", "40", "AC 11 · 13 HP · Tusk +5, 1d6+3 · Bloodied Fury", "PHB MM"],
+    ["Cat", 0, "Tiny", "40, climb 40", "AC 12 · 2 HP · Scratch +4, 1 · Jumper", "PHB MM"],
+    ["Constrictor Snake", .25, "Lg", "30, swim 30", "AC 13 · 13 HP · Bite +4, 1d8+2 · Constrict", "PHB MM"],
+    ["Crab", 0, "Tiny", "20, swim 20", "AC 11 · 3 HP · Claw +2, 1 · Amphibious", "PHB MM"],
+    ["Draft Horse", .25, "Lg", "40", "AC 10 · 15 HP · Hooves +6, 1d4+4", "PHB MM"],
+    ["Elk", .25, "Lg", "50", "AC 10 · 11 HP · Ram +5, 1d6+3 · Charge", "PHB MM"],
+    ["Frog", 0, "Tiny", "20, swim 20", "AC 11 · 1 HP · Amphibious · Standing Leap", "PHB MM DMG"],
+    ["Giant Badger", .25, "Med", "30, burrow 10", "AC 11 · 15 HP · Bite +3, 2d4+1 · Keen Smell", "PHB MM DMG"],
+    ["Giant Crab", .125, "Med", "30, swim 30", "AC 15 · 13 HP · Claw +3, 1d6+1 · Grapple", "PHB MM"],
+    ["Giant Weasel", .125, "Med", "40", "AC 13 · 9 HP · Bite +5, 1d4+3", "PHB MM DMG"],
+    ["Goat", 0, "Med", "40", "AC 10 · 4 HP · Ram +2, 1d4 · Charge", "PHB MM DMG"],
+    ["Lizard", 0, "Tiny", "20, climb 20", "AC 10 · 2 HP · Bite +2, 1 · Darkvision", "PHB MM"],
+    ["Mastiff", .125, "Med", "40", "AC 12 · 5 HP · Bite +3, 1d6+1 · knocks Prone", "PHB MM DMG"],
+    ["Octopus", 0, "Sm", "5, swim 30", "AC 12 · 3 HP · Tentacles +4, 1 · Ink Cloud", "PHB MM"],
+    ["Panther", .25, "Med", "50, climb 40", "AC 12 · 13 HP · Rend +4, 1d6+2 · Pounce", "PHB MM DMG"],
+    ["Pony", .125, "Med", "40", "AC 10 · 11 HP · Hooves +4, 1d4+2", "PHB MM"],
+    ["Scorpion", 0, "Tiny", "10", "AC 11 · 1 HP · Sting +2, 1 + poison", "PHB MM"],
+    ["Venomous Snake", .125, "Tiny", "30, swim 30", "AC 12 · 5 HP · Bite +4, 1 + 2d4 poison", "PHB MM"],
+    ["Weasel", 0, "Tiny", "30", "AC 13 · 1 HP · Bite +5, 1 · Keen Smell", "PHB MM DMG"],
+    ["Camel", .125, "Lg", "50", "AC 10 · 17 HP · Bite +5, 1d4+3", "PHB MM DMG"],
+    ["Giant Rat", .125, "Sm", "30, climb 30", "AC 13 · 7 HP · Bite +5, 1d4+3 · Pack Tactics", "MM"],
+    ["Giant Frog", .25, "Med", "30, swim 30", "AC 11 · 18 HP · Bite +3, 1d6+1 · Swallow", "MM"],
+    ["Giant Lizard", .25, "Lg", "30, climb 30", "AC 12 · 19 HP · Bite +4, 1d8+2", "MM"],
+    ["Giant Wolf Spider", .25, "Med", "40, climb 40", "AC 13 · 11 HP · Bite +4, 1d6+2 + poison", "MM"],
+    ["Hyena", 0, "Med", "50", "AC 11 · 5 HP · Bite +2, 1d6 · Pack Tactics", "MM"],
+    ["Jackal", 0, "Sm", "40", "AC 12 · 3 HP · Bite +1, 1d4−1 · Keen Senses", "MM"],
+    ["Deer", 0, "Med", "50", "AC 13 · 4 HP · Ram +2, 1d4 · Agile", "MM"],
+    ["Giant Centipede", .25, "Sm", "30, climb 30", "AC 13 · 9 HP · Bite +4, 1d4+2 + 3d6 poison", "MM"],
+    ["Black Bear", .5, "Med", "30, climb 30, swim 30", "AC 11 · 19 HP · Bite +4, 2d4+2 · Rend", "PHB MM DMG"],
+    ["Crocodile", .5, "Lg", "20, swim 30", "AC 12 · 13 HP · Bite +4, 1d8+2 · Grapple", "PHB MM"],
+    ["Reef Shark", .5, "Med", "swim 30", "AC 12 · 22 HP · Bite +4, 2d4+2 · Pack Tactics", "PHB MM"],
+    ["Giant Goat", .5, "Lg", "40, climb 30", "AC 11 · 19 HP · Ram +5, 2d4+3 · Charge", "PHB MM DMG"],
+    ["Brown Bear", 1, "Lg", "40, climb 30", "AC 11 · 22 HP · Bite +5, 1d8+3 · Claw +5, 2d4+3", "PHB MM DMG"],
+    ["Dire Wolf", 1, "Lg", "50", "AC 14 · 22 HP · Bite +5, 1d10+3 · Pack Tactics", "PHB MM DMG RHW"],
+    ["Giant Spider", 1, "Lg", "30, climb 30", "AC 14 · 26 HP · Bite +5, 1d8+3 + poison · Web", "PHB MM DMG"],
+    ["Lion", 1, "Lg", "50", "AC 12 · 22 HP · Bite +5, 1d8+3 · Pounce", "PHB MM DMG"],
+    ["Tiger", 1, "Lg", "40", "AC 13 · 30 HP · Bite +5, 1d10+3 · Pounce", "PHB MM DMG"],
+    ["Giant Octopus", 1, "Lg", "10, swim 60", "AC 11 · 45 HP · Tentacles +5, 2d6+3 · Ink Cloud", "MM"],
+    ["Giant Toad", 1, "Lg", "20, swim 40", "AC 11 · 39 HP · Bite +4, 1d10+2 + poison · Swallow", "MM"],
+    ["Giant Bat", .25, "Lg", "10, fly 60", "AC 13 · 22 HP · Bite +4, 1d6+2 · Echolocation", "MM"],
+    ["Pteranodon", .25, "Med", "10, fly 60", "AC 13 · 13 HP · Bite +4, 2d4+2 · Flyby", "MM"],
+    ["Blood Hawk", .125, "Sm", "10, fly 60", "AC 12 · 7 HP · Beak +4, 1d4+2 · Pack Tactics", "MM"],
+    ["Giant Eagle", 1, "Lg", "10, fly 80", "AC 13 · 26 HP · Talons +5, 2d6+3 · Flyby", "MM"],
+    ["Polar Bear", 2, "Lg", "40, swim 40", "AC 12 · 42 HP · Bite +7, 1d8+5 · Claw +7, 2d4+5", "MM"],
+    ["Giant Constrictor Snake", 2, "Huge", "30, swim 30", "AC 12 · 60 HP · Bite +6, 2d6+4 · Constrict", "MM"],
+    ["Hunter Shark", 2, "Lg", "swim 40", "AC 12 · 45 HP · Bite +6, 2d8+4 · Blood Frenzy", "MM"],
+    ["Plesiosaurus", 2, "Lg", "20, swim 40", "AC 13 · 68 HP · Bite +6, 2d6+4", "MM"],
+    ["Allosaurus", 2, "Lg", "60", "AC 13 · 51 HP · Bite +6, 2d10+4 · Pounce", "MM"],
+    ["Giant Boar", 2, "Lg", "40", "AC 13 · 42 HP · Tusk +6, 2d6+4 · Charge", "MM"],
+    ["Saber-Toothed Tiger", 2, "Lg", "40", "AC 13 · 52 HP · Bite +6, 2d10+3 · Pounce", "MM"],
+    ["Rhinoceros", 2, "Lg", "40", "AC 13 · 45 HP · Gore +7, 2d8+5 · Charge", "MM"],
+    ["Killer Whale", 3, "Huge", "swim 60", "AC 12 · 90 HP · Bite +6, 5d6+4 · Echolocation", "MM"],
+    ["Ankylosaurus", 3, "Huge", "30", "AC 15 · 68 HP · Tail +7, 4d6+4 · knocks Prone", "MM"],
+    ["Giant Scorpion", 3, "Lg", "40", "AC 15 · 52 HP · Claw +4, 1d8+2 ×2 · Sting + 4d10 poison", "MM"],
+    ["Giant Crocodile", 5, "Huge", "30, swim 50", "AC 14 · 85 HP · Bite +8, 3d10+5 · Tail", "MM RHW"],
+    ["Elephant", 4, "Huge", "40", "AC 12 · 76 HP · Gore +8, 3d8+6 · Trample", "PHB MM DMG"],
+    ["Tyrannosaurus Rex", 8, "Huge", "50", "AC 13 · 136 HP · Bite +10, 4d12+7 · Tail", "MM RHW"]
+  ];
+  const ART = ["#5a6a4a,#1e2e1e", "#6a5a4a,#2e1e1a", "#4a5a6a,#1a1e2e", "#7a6a3a,#2e2a1e", "#4a6a6a,#1a2e2e", "#6a4a5a,#2e1a2e"];
+
+  // ---------- state ----------
+  const S = { known: ["Wolf", "Rat", "Riding Horse", "Spider"], pick: null, filter: "", speed: "", swapOut: null, swapIn: null, polyPick: null, ended: false, saved: false };
+  let scene = "l2";
+  const $ = (s, r = document) => r.querySelector(s);
+
+  // ---------- rules ----------
+  const RULE = {
+    l2: { cap: .25, fly: false, label: "Druid 2 · CR ¼ or lower · no Fly Speed" },
+    moon: { cap: 3, fly: true, label: "Moon 9 · Circle Forms · CR 3 or lower" },
+    poly: { cap: 2, fly: true, label: "Polymorph · the ogre is CR 2 · CR 2 or lower" }
+  };
+  function eligible(rule) { return P.filter(([n, cr, sz, sp]) => cr <= rule.cap && (rule.fly || !/fly/.test(sp))); }
+  const hasSpeed = (sp, k) => !k || new RegExp(k).test(sp);
+  const crText = cr => cr === .125 ? "⅛" : cr === .25 ? "¼" : cr === .5 ? "½" : String(cr);
+  const bookOf = books => O.source === "mm" && /MM/.test(books) ? "MM" : /PHB/.test(books) ? "PHB" : books.split(" ")[0];
+
+  // ---------- pieces ----------
+  const tok = (x, y, cls, label) => `<div class="tok ${cls}" style="left:${x}px;top:${y}px">${label.slice(0, 2)}<span class="nm">${label}</span></div>`;
+  const titleBar = n => `<div class="title"><i></i>${n}<span class="x">✕</span></div>`;
+
+  function gallery(rule, { pins = true, lock = O.known === "enforce" } = {}) {
+    let list = eligible(rule).filter(([n, , , sp]) => (!S.filter || n.toLowerCase().includes(S.filter)) && hasSpeed(sp, S.speed));
+    const isKnown = n => S.known.includes(n);
+    if (pins) list = [...list].sort((a, b) => (isKnown(b[0]) - isKnown(a[0])) || (a[1] - b[1]) || a[0].localeCompare(b[0]));
+    const tools = `<div class="tools"><input type="search" id="q" placeholder="search ${eligible(rule).length} forms" value="${S.filter}" aria-label="search forms">` +
+      [["", "any"], ["swim", "swim"], ["climb", "climb"], ["burrow", "burrow"], ["fly", "fly"]].map(([v, l]) => `<button type="button" class="opt" data-speed="${v}" aria-pressed="${S.speed === v}">${l}</button>`).join("") + `</div>`;
+    if (O.picker === "browser") return `<div class="browser"><div class="bh"><span>Compendium Browser · Actors · NPC · Beast · CR ≤ ${crText(rule.cap)}</span></div>` +
+      list.slice(0, 9).map(([n, cr, , , , b]) => `<div class="br"><span>${n}</span><span>CR ${crText(cr)}</span><span>${b.split(" ").join(", ")}</span></div>`).join("") + `<div class="br"><span>… ${Math.max(0, list.length - 9)} more rows, every book, no art, no pins</span><span></span><span></span></div></div>`;
+    if (O.picker === "rows") return tools + list.map(([n, cr, sz, sp, sum, b]) => { const k = isKnown(n), locked = lock && pins && !k; return `<label class="row ${S.pick === n ? "on" : ""}" style="${locked ? "opacity:.45" : ""}"><input type="radio" name="form" data-pick="${n}" ${S.pick === n ? "checked" : ""} ${locked ? "disabled" : ""}><span class="nm">${k && pins ? "★ " : ""}${n}<span class="dice">${sum}</span></span><span class="cost">CR ${crText(cr)} · ${sz} · ${bookOf(b)}</span></label>`; }).join("");
+    return tools + `<div class="cards">` + list.map(([n, cr, sz, sp, sum, b], i) => { const k = isKnown(n), locked = lock && pins && !k; const [a1, a2] = ART[n.length % ART.length].split(","); return `<button type="button" class="card ${locked ? "locked" : ""}" data-pick="${n}" aria-pressed="${S.pick === n}" style="--a1:${a1};--a2:${a2}" ${locked ? "disabled" : ""}>${pins ? `<span class="pin" data-pin="${n}" role="button" aria-pressed="${k}" title="${k ? "a known form" : "pin as a known form"}">★</span>` : ""}<span class="tag">${bookOf(b)}</span><span class="art"></span><b>${n}</b><small>CR ${crText(cr)} · ${sz} · ${sp} ft</small><small>${sum}</small></button>`; }).join("") + `</div>`;
+  }
+
+  function offer(name, sub, situ, body, primary, enabled, width) {
+    return `<div class="offer" ${width ? `style="width:${width}px"` : ""}>${titleBar("Battle Flow · the form")}<div class="body">
+      <div class="head"><div class="img"></div><div><h2>${name}</h2><div class="sub">${sub}</div></div></div>
+      ${situ ? `<div class="situ">${situ}</div>` : ""}${body}
+      <div class="btnrow"><button type="button" class="btn primary" id="go" ${enabled ? "" : "disabled"}>${primary}</button><button type="button" class="btn">Cancel</button><span class="hint">${enabled ? "the GM's client transforms you" : "pick a form"}</span></div>
+    </div></div>`;
+  }
+  const msg = (spk, cls, e, t, s, l) => `<div class="msg"><div class="spk">${spk}</div><div class="bf ${cls}"><div class="e">${e}</div><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ""}${l ? `<div class="l">${l}</div>` : ""}</div></div>`;
+
+  // ---------- scenes ----------
+  const scenes = {
+    l2: {
+      caption: () => O.known === "enforce" ? "Known Forms first and the rest locked: the rule's four, swapped one per long rest. The pool is filtered to what the row allows, so the Giant Bat never shows and the T-Rex is not an offer." : "Known Forms as pins at the top; the whole eligible pool stays open below. The rule's four are a favourite list, not a wall.",
+      stage: () => tok(300, 330, "pc", "Tamsin") + offer("Wild Shape", RULE.l2.label + " · 2 uses · Bonus Action", null, `<div class="grp-l">Known forms, then the pool<small>${eligible(RULE.l2).length} eligible of 97 beasts in six books</small></div>${gallery(RULE.l2)}`, S.pick ? `Become a ${S.pick}` : "Become…", !!S.pick),
+      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Wild Shape · ${S.pick}`, `${Math.floor(2 / 2) || 1} hour · a use spent`, `<div><span class="chip wait">waiting for the GM's client</span> the preset wildshape · keeps mind, HP, class features · merges saves and skills</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Wild Shape", "the card posts once a form is picked", "")
+    },
+    rest: {
+      caption: () => "At the long rest the rest-grants machine offers the swap: one known form out, one eligible form in. The pins are a flag on the druid's Wild Shape item; nothing on the system side holds them today.",
+      stage: () => tok(300, 330, "pc", "Tamsin") + offer("Long rest · Wild Shape", "replace one known form", `Known: ${S.known.map(k => `<b style="color:var(--ink)">${k}</b>`).join(" · ")} · swap out: ${S.swapOut ?? "—"} · swap in: ${S.swapIn ?? "—"}`,
+        `<div class="grp-l">Swap out</div><div class="tools">${S.known.map(k => `<button type="button" class="opt" data-out="${k}" aria-pressed="${S.swapOut === k}">${k}</button>`).join("")}</div><div class="grp-l">Swap in<small>${eligible(RULE.l2).length} eligible</small></div>` +
+        `<div class="cards">` + eligible(RULE.l2).filter(([n]) => !S.known.includes(n)).slice(0, 12).map(([n, cr, sz, sp, sum, b]) => { const [a1, a2] = ART[n.length % ART.length].split(","); return `<button type="button" class="card" data-in="${n}" aria-pressed="${S.swapIn === n}" style="--a1:${a1};--a2:${a2}"><span class="tag">${bookOf(b)}</span><span class="art"></span><b>${n}</b><small>CR ${crText(cr)} · ${sz} · ${sp} ft</small></button>`; }).join("") + `</div>`,
+        "Swap", !!(S.swapOut && S.swapIn)),
+      log: () => msg("Tamsin", "good", "Battle Flow · rest", "Long rest", "Wild Shape uses restored · 2 of 2", S.swapOut && S.swapIn ? `<div>Known forms: ${S.swapOut} → <b>${S.swapIn}</b></div>` : "")
+    },
+    moon: {
+      caption: () => "Moon 9: the cap is CR 3 (floor of level over 3), Fly allowed from level 8. The speed filter answers the moment the table actually has: a river to cross. The Moon's AC floor and temp HP come from dnd5e's own preset, untouched.",
+      stage: () => tok(300, 330, "pc", "Tamsin") + offer("Circle Forms", RULE.moon.label + " · AC 13 + Wis if higher · 27 temp HP", null, `<div class="grp-l">Known forms, then the pool<small>${eligible(RULE.moon).length} eligible</small></div>${gallery(RULE.moon)}`, S.pick ? `Become a ${S.pick}` : "Become…", !!S.pick),
+      log: () => S.pick ? msg("Tamsin", "pending", "Battle Flow · transform", `Circle Forms · ${S.pick}`, "4 hours · a Wild Shape use spent", `<div><span class="chip wait">waiting for the GM's client</span> preset wildshape · minimum AC 13 + Wis · temp HP 3 × level</div>`) : msg("Tamsin", "neutral", "Battle Flow", "Circle Forms", "the card posts once a form is picked", "")
+    },
+    poly: {
+      caption: () => O.polyPick === "caster" ? "The save machine already exists. The caster picks the beast before the save, capped at the target's CR or level (the pack leaves the cap blank today, so the browser offers a T-Rex). On a fail the GM's client transforms the ogre; the temp HP are the beast's HP, from the polymorph preset." : "The caster casts and the save runs; the GM picks the beast from the card, capped the same way. The caster's intent is in chat, the pick is the adjudicator's.",
+      stage: () => tok(300, 330, "pc", "Gren") + (S.saved ? tok(520, 200, "form", S.polyPick || "Frog") : tok(520, 200, "", "Ogre")) + (O.polyPick === "caster" && !S.saved ? offer("Polymorph", "a Beast of CR 2 or lower · Wisdom save DC 15 · Concentration, 1 hour", "Target: the Ogre · CR 2 · 59 HP · its HP and mind stay, its body goes",
+        `<div class="grp-l">The form<small>${eligible(RULE.poly).length} eligible · the whole pool, no known forms</small></div>${gallery(RULE.poly, { pins: false, lock: false })}`, S.pick ? `Cast · ${S.pick}` : "Cast", !!S.pick, 600) : ""),
+      log: () => msg("Gren", "pending", "Battle Flow · demand", "Polymorph · Wisdom save DC 15", `Ogre${O.polyPick === "caster" && S.pick ? ` · into a ${S.pick}` : ""}`, S.saved
+        ? `<div>Ogre · 7 <span class="verdict fail">failed</span></div><div><b>Transformed by the GM's client</b> into a ${S.polyPick} · ${P.find(p => p[0] === S.polyPick)?.[4].match(/\d+ HP/)?.[0] ?? "HP"} as temp HP · concentration 1 hour</div>`
+        : `<div><span class="cardbtn" id="rollsave">Roll the save (GM)</span>${O.polyPick === "gm" ? ` <span class="cardbtn" id="gmpick">Pick the form (GM)</span>` : ""}</div>`)
+    },
+    end: {
+      caption: () => S.ended ? "At 0 HP in the form the drop machine reverts her and carries the excess over, the 2024 rule the system never applies. Her own HP take the 4 that were left." : "What the system never tracks: the hours. The bar shows the form, its clock and Revert; the clock is half the druid level in hours, concentration for the spells. Click the Ogre's hit to watch the drop.",
+      stage: () => tok(300, 330, S.ended ? "pc" : "form", S.ended ? "Tamsin" : "Tamsin (Brown Bear)") + tok(420, 250, "", "Ogre") +
+        `<div class="hp"><div>${S.ended ? "Tamsin" : "Brown Bear form"}</div><div class="trk"><div class="fill ${S.ended ? "low" : ""}" style="width:${S.ended ? 68 : 32}%"></div></div><b>${S.ended ? "15 / 22" : "7 / 22"}</b> HP${S.ended ? "" : ` · <button type="button" class="btn" id="hit" style="padding:2px 8px;font-size:11px">Ogre hits for 11</button>`}</div>` +
+        `<div class="bar">${S.ended ? `<div class="fx temp">Reverted · excess 4 carried over <span class="clk">now</span></div>` : `<div class="fx">Wild Shape · Brown Bear <span class="clk">2 h 40 m</span><span class="act">Revert</span></div><div class="fx temp">Temp HP 9 (Moon) <span class="clk">with the form</span></div>`}</div>`,
+      log: () => S.ended ? msg("Ogre", "bad", "Greatclub", "hit · 11 bludgeoning", "Tamsin (Brown Bear) · 7 → 0", `<div><b>The form ends</b> · Tamsin reverts · 4 excess damage carries to her own HP · 19 → 15</div>`) : msg("Tamsin", "good", "Battle Flow · transform", "Wild Shape · Brown Bear", "2 h 40 m left · Revert is on the bar", "")
+    }
+  };
+
+  // ---------- side ----------
+  const POOL = [["Wild Shape L2–5 (CR ≤ ¼, no fly)", 25, 40, 13, 0, 1, 42], ["Wild Shape L6–7 (CR ≤ ½, no fly)", 32, 47, 16, 0, 1, 50], ["Wild Shape L8+ (CR ≤ 1)", 42, 69, 24, 1, 1, 73], ["Moon L9–11 (CR ≤ 3)", 42, 81, 24, 3, 1, 87], ["Moon L15+ (CR ≤ 5)", 43, 87, 25, 4, 1, 93], ["Polymorph at CR ≤ 4", 43, 84, 25, 3, 1, 90]];
+  function side() {
+    return `<div class="panel"><h3>The options</h3><div class="toggles">${TOGGLES.map(t => `<div class="tg"><span>${t.label}</span><div class="set">${t.opts.map(([v, l]) => `<button type="button" data-opt="${t.key}" data-val="${v}" aria-pressed="${O[t.key] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>
+    <div class="panel q"><h3>What the scene shows</h3><p>${scenes[scene].caption()}</p></div>
+    <div class="panel"><h3>The pools, six books (names de-duplicated)</h3><div style="overflow-x:auto"><table class="pool"><tr><th>Rule</th><th>PHB</th><th>MM</th><th>DMG</th><th>RHW</th><th>HoF</th><th>Names</th></tr>${POOL.map(r => `<tr>${r.map((c, i) => `<td>${c}</td>`).join("")}</tr>`).join("")}</table></div><p style="margin-top:6px">Arcana Unleashed ships no eligible beast. 45 names ship in two or more books; 48 Monster Manual beasts have no PHB copy.</p></div>
+    <div class="panel"><h3>Measured, dnd5e 6.0.5</h3><ul>
+      <li><b>The wall</b>: cr-mode transforms need Create Actor on the player and the world's Allow Transformation; transformInto builds a new world actor and swaps the tokens.</li>
+      <li><b>The chooser</b> is the compendium browser (option C above); no art, no known forms, nothing remembered.</li>
+      <li><b>Nothing ends a form</b>: no hours, no revert at 0 HP, no end when Polymorph's temp HP run out. Polymorph's CR cap ships blank.</li>
+      <li><b>The presets are right</b> (wildshape: the Moon's AC floor and temp HP; polymorph: HP and type kept) and are reused as they are.</li>
+    </ul></div>
+    <div class="panel fix"><h3>Open for the ruling</h3><ol><li>A, B or C for each toggle above.</li><li>One gallery for the summons issue's CR-mode picks too (Find Familiar, Wild Companion)?</li><li>Improved Circle Forms at Moon 6: measure before ruling whether the preset covers it.</li></ol></div>`;
+  }
+
+  // ---------- render + wiring ----------
+  function render() {
+    $("#stage").innerHTML = scenes[scene].stage();
+    $("#caption").textContent = scenes[scene].caption();
+    $("#log").innerHTML = scenes[scene].log();
+    $("#side").innerHTML = side();
+    wire();
+  }
+  function wire() {
+    document.querySelectorAll("[data-pick]").forEach(b => b.addEventListener("click", e => { if (e.target.closest("[data-pin]")) return; S.pick = b.dataset.pick; render(); }));
+    document.querySelectorAll("[data-pin]").forEach(p => p.addEventListener("click", e => { e.stopPropagation(); e.preventDefault(); const n = p.dataset.pin; const i = S.known.indexOf(n); if (i >= 0) S.known.splice(i, 1); else if (S.known.length < 4) S.known.push(n); render(); }));
+    document.querySelectorAll("[data-speed]").forEach(b => b.addEventListener("click", () => { S.speed = b.dataset.speed; render(); }));
+    const q = $("#q"); if (q) q.addEventListener("input", () => { S.filter = q.value.toLowerCase(); const pos = q.selectionStart; render(); const q2 = $("#q"); if (q2) { q2.focus(); q2.setSelectionRange(pos, pos); } });
+    document.querySelectorAll("[data-out]").forEach(b => b.addEventListener("click", () => { S.swapOut = b.dataset.out; render(); }));
+    document.querySelectorAll("[data-in]").forEach(b => b.addEventListener("click", () => { S.swapIn = b.dataset.in; render(); }));
+    document.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => { O[b.dataset.opt] = b.dataset.val; if (b.dataset.opt === "known" && O.known === "enforce" && S.pick && !S.known.includes(S.pick)) S.pick = null; render(); }));
+    const go = $("#go"); if (go) go.addEventListener("click", () => {
+      if (scene === "rest" && S.swapOut && S.swapIn) { S.known[S.known.indexOf(S.swapOut)] = S.swapIn; S.swapOut = S.swapIn = null; render(); return; }
+      if (scene === "poly") { S.polyPick = S.pick; render(); return; }
+      if (scene === "l2" || scene === "moon") { scene = "end"; S.ended = false; pressScene(); render(); }
+    });
+    const rs = $("#rollsave"); if (rs) rs.addEventListener("click", () => { S.polyPick = S.polyPick || S.pick || "Frog"; S.saved = true; render(); });
+    const gp = $("#gmpick"); if (gp) gp.addEventListener("click", () => { S.polyPick = "Giant Toad"; S.saved = true; render(); });
+    const hit = $("#hit"); if (hit) hit.addEventListener("click", () => { S.ended = true; render(); });
+  }
+  function pressScene() { document.querySelectorAll("[data-scene]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.scene === scene))); }
+  document.querySelectorAll("[data-scene]").forEach(b => b.addEventListener("click", () => { scene = b.dataset.scene; S.pick = null; S.filter = ""; S.speed = ""; if (scene === "poly") { S.saved = false; S.polyPick = null; } if (scene === "end") S.ended = false; pressScene(); render(); }));
+  render();
+})();
+</script>
+</body>
+</html>
