@@ -1600,6 +1600,13 @@ chapters** (the pack's journal pages: cover from an area's origin, fear and ment
 environmental effects) were never scanned — the register reads the two item compendia only; a scan of the
 journal pages is owed before the DMG is called read.
 
+**The rules chapters SCANNED 2026-10-01** (`tools/scan-dmg-rules.mjs`: 341 journal pages, 76 with a mechanism word, each
+read): **no row owed.** Two optional rules could become DM configs, off by default — Fight or Flight (a Bloodied and
+Frightened monster's morale notice at its turn start) and Success at a Cost (a D20 Test failed by 1 or 2) — the user's
+call; the rest is guidance, exploration time, the GM's procedures or the register's own items. The table and the order
+of the remaining DMG work: [audits/plans/dmg-build.md](audits/plans/dmg-build.md). **The user, the same night:** the
+fourteen rows on machines that exist are built now (v2.11.0); the crit riders, the injury poisons and the rest tomorrow.
+
 ## The full release — the order (2026-09-29)
 
 **The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all

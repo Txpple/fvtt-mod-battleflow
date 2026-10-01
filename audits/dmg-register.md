@@ -1,6 +1,6 @@
 # The Dungeon Master's Guide — the register
 
-> Generated 2026-09-28 by `tools/audit-dmg-register.mjs` from the corpus scan (`dnd-dungeon-masters-guide.equipment` and `.features`,
+> Generated 2026-10-01 by `tools/audit-dmg-register.mjs` from the corpus scan (`dnd-dungeon-masters-guide.equipment` and `.features`,
 > 571 rows, dnd5e 6.0.5) joined with `scripts/decide/registry.js`, RULINGS' walk tables and bend registers, and the
 > drawing's two hand tables ([drawings/dm.md](drawings/dm.md) *The shapes the DMG shares with the other books* and *Register
 > verdicts*). Never edited by hand: change the drawing or the code and re-run.
@@ -13,7 +13,7 @@
 > weapon · feature (the DMG's NPC traits). **Rule of cool / bend**: a row in RULINGS *Where the table bends the rule* (bend)
 > or *Bent by choice* (rule of cool) names it. **Walked**: the RULINGS walk table the row sits in.
 
-**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 367 TEXT · 111 NATIVE · 14 MODULE · 29 WAITS.**
+**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 14 MODULE · 33 WAITS.**
 
 | Kind | Item | Type | Rarity | In scope | Shape | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -274,7 +274,7 @@
 | magic item | **Mithral Armor** | equipment | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Moon** | consumable · trinket |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Moon-Touched Sword** | weapon · martial melee | Common | TEXT | — | a utility item — no combat mechanism | — | — |
-| magic item | **Moonblade** | weapon · martial melee | Legendary | TEXT | — | a utility item — no combat mechanism | — | — |
+| magic item | **Moonblade** | weapon · martial melee | Legendary | WAITS | flags.dnd5e.weaponCriticalThreshold | a 19 crits for an elf: the crit-threshold shape — the pack's flag if it ships one, a row if not; measured when found (2026-10-01) | — | — |
 | magic item | **Mystery Key** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Nature's Mantle** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Necklace of Adaptation** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -296,7 +296,7 @@
 | magic item | **Perfume of Bewitching** | consumable · trinket | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Periapt of Health** | equipment · wondrous | Uncommon | NATIVE | — | the pack resolves it: uses | — | — |
 | magic item | **Periapt of Proof against Poison** | equipment · wondrous | Rare | NATIVE | — | the pack resolves it: 1 effect | — | — |
-| magic item | **Periapt of Wound Closure** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
+| magic item | **Periapt of Wound Closure** | equipment · wondrous | Uncommon | WAITS | The death-save seam | stabilizes at 0 Hit Points: the death-save seam Survivor opens (D1); a row after it (2026-10-01) | — | — |
 | magic item | **Philter of Love** | consumable · potion | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Pipe of Smoke Monsters** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Pipes of Haunting** | equipment · wondrous | Uncommon | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, uses | — | — |
@@ -405,7 +405,7 @@
 | magic item | **Sentinel Shield** | equipment · shield | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Serpentine Owl** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Shield of Expression** | equipment · shield | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Shield of Missile Attraction** | equipment · shield | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
+| magic item | **Shield of Missile Attraction** | equipment · shield | Rare | WAITS | The redirect kind | ranged attacks within 10 ft target the wearer: the redirect kind, held with the MM's Redirect Attack for a player customer (2026-10-01) | — | — |
 | magic item | **Shield of the Cavalier** | equipment · shield | Very Rare | WAITS | REBUKES · INTERRUPTS | an attack when an ally within 5 ft is hit — rows on lists that exist; the redirect waits for its kind | — | — |
 | magic item | **Shield, +1, +2, or +3** | equipment · shield | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Short Compartment** | container |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -445,7 +445,7 @@
 | magic item | **Sword of Answering** | weapon · martial melee | Legendary | MODULE | REBUKES · INTERRUPTS | `REBUKES` (rebukes.js; RULINGS *A listed reaction cast freestanding · The PHB feats — groups 4–6*) | bend | — |
 | magic item | **Sword of Kas** | weapon · martial melee | Artifact | OUT | — | an artifact's lore powers — the GM's; the weapon's +3 and its extra die are the pack's | — | — |
 | magic item | **Sword of Life Stealing** | weapon · martial melee | Rare | WAITS | CRIT_RIDERS | temp HP on a crit, 10 necrotic to the target — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
-| magic item | **Sword of Sharpness** | weapon · martial melee | Very Rare | TEXT | — | a utility item — no combat mechanism | — | — |
+| magic item | **Sword of Sharpness** | weapon · martial melee | Very Rare | WAITS | CRIT_RIDERS | a crit rider (the first scan read it as a utility item): +14 slashing on a 20 and the sever — the `CRIT_RIDERS` table's eighth customer (2026-10-01) | — | — |
 | magic item | **Sword of Vengeance** | weapon | Uncommon | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Sword of Wounding** | weapon | Rare | WAITS | grant · CLOCK_RIDERS · turnStart | 1d4 necrotic per wound at the victim's turn start; no healing until a save — the turn-start grant facet's harmful twin — CLOCK_RIDERS turnStart on the bearer of the wound effect; one customer, waits | — | — |
 | magic item | **Sylvan Talon** | weapon | Common | TEXT | — | a utility item — no combat mechanism | — | — |
