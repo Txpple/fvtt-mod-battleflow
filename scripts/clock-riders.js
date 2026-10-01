@@ -159,7 +159,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   // pack's enchantment ("Active Attunement…") standing on the Elemental Attunement item itself.
   const attunement = featureNamed(attacker, "Elemental Attunement");
   facts.unarmed = (activity?.attack?.type?.classification === "unarmed") || (!!attunement && (item.id === attunement.id));
-  facts.attuned = !!attunement?.effects?.some(e => !e.disabled && lower(e.name).startsWith("active attunement"));
+  // ⚠ The item always carries the enchantment's TEMPLATES (transfer false); the APPLIED copy is the transferred one.
+  facts.attuned = !!attunement?.effects?.some(e => !e.disabled && (e.isAppliedEnchantment ?? e.transfer) && lower(e.name).startsWith("active attunement"));
   const summoner = summonerOf(attacker);
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;

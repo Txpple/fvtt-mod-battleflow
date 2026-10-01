@@ -158,7 +158,23 @@ const SECTIONS = {
   88: 'Leading Evasion (C1, the Bard 5 ft from the Halfling): the Halfling fails a half-on-save Dexterity save and takes HALF — the bard\'s Evasion shared',
   89: 'Unbreakable Majesty (C1, the Bard in its Majestic Presence): the Attacker\'s hit rolls its Charisma save inside the hold; a failure — the attack misses instead; the second hit that turn is not asked',
   90: 'Oceanic Gift (C1, the Cleric a Sea Druid 14, Stormborn on the Halfling): the ring stands around the Halfling with the druid as its source; the druid\'s turn start asks the pick; the pick demands the druid\'s save',
-  91: 'the gate\'s flag for the death save (C1): a Death Saving Throw with nobody holding Searing Vengeance raises no offer'};
+  91: 'the gate\'s flag for the death save (C1): a Death Saving Throw with nobody holding Searing Vengeance raises no offer',
+  // D1
+  92: "Improved Brutal Strike (D1, the PC Attacker a Barbarian 17): the Brutal Strike group keeps two ticks; both effects ride the hit",
+  93: "Superior Inspiration (D1, the Bard with every Bardic Inspiration spent): at Initiative the uses come back up to 2, automatically",
+  94: "Survivor (D1, the Halfling): Heroic Rally heals 5 + Con at a Bloodied turn start, nothing when not Bloodied; Defy Death — an 18 on the death save is a critical success",
+  95: "Improved War Magic (D1, the PC Attacker with War Magic too): its reminder alone, two attacks for a level 1 or 2 spell",
+  96: "Elusive (D1, the Sorcerer): the Reckless Attacker's gate cancels the Advantage; Incapacitated, Elusive is off",
+  97: "Elemental Epitome (D1, the PC Attacker a Monk 17): Empowered Strikes rides an Elemental Strike only while the attunement is active",
+  98: "Stroke of Luck and Living Legend (D1): a failed save turned into a 20; the legend's save reroll (a Reaction); Unerring Strike makes a weapon miss hit",
+  99: "Supreme Healing (D1, the Cleric): Cure Wounds with ones on the dice heals the maximum",
+  100: "Tamed Surge (D1, the Sorcerer): a slot cast offers the table's rows but the last; the pick recorded, the use spent",
+  101: "Improved Duplicity (D1, the Cleric): an ally's attack lists Shared Distraction; an enemy's nothing",
+  102: "Corona of Light (D1, the Cleric): the light and the 60-ft ring; the Victim inside saves at Disadvantage against the cleric's Sacred Flame",
+  103: "Holy Nimbus (D1, the Cleric a Paladin 20): the sunlight on the paladin; an enemy starting its turn in the aura takes the radiant damage",
+  104: "Avenging Angel (D1, the Cleric a Paladin 20): an enemy starting its turn in the aura saves or is Frightened; attacks against it read Advantage",
+  105: "Elder Champion (D1, the Cleric a Paladin 20): the form's mark, the ring's Diminished Defiance on the Victim, Regeneration's 10 at the turn start"
+};
 const DEPENDS = {};
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
@@ -5570,6 +5586,568 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await clearDown(halfling);
         await healFull();
         CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ================================================ D1 — the PHB classes, band D (RULINGS *The PHB classes — D1*)
+    const d1Cards = (since, key) => game.messages.contents.filter(m => (m.timestamp >= since) && m.getFlag(MOD, key));
+    const d1Combat = async (rows) => {
+      const [combat] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+      created.combats.push(combat.id);
+      await combat.createEmbeddedDocuments('Combatant', rows.map(([tok, actor, initiative]) => ({ tokenId: tok.document?.id ?? tok.id, sceneId: scene.id, actorId: actor.id, initiative })));
+      return combat;
+    };
+    const d1Region = (key, tokenId) => scene.regions.find(r => { const fl = r.getFlag(MOD, 'emanation'); return (fl?.kind === 'feature') && (fl.key === key) && (fl.tokenId === tokenId); }) ?? null;
+
+    // ---- 92. Improved Brutal Strike at Barbarian 17: two different effects on one hit
+    if (want(92)) {
+      await closeA1(); await a1Victim(); await dropVictimFx(); await spendLuck();
+      const barb = await hgLend(pcAttacker, 'Barbarian', 'class', { 'system.levels': 17 });
+      const bs = await hgLend(pcAttacker, 'Brutal Strike', 'feat');
+      const ibs = await hgLend(pcAttacker, 'Improved Brutal Strike', 'feat');
+      let reckless = null;
+      try {
+        const bsAct = bs?.system?.activities?.find(a => a.type === 'damage') ?? null;
+        const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+        if (!barb || !bs || !ibs || !bsAct || !wAct) log.push(`§92 skipped: barb=${!!barb} bs=${!!bs} ibs=${!!ibs} act=${!!bsAct} weapon=${!!pcWeapon}`);
+        else {
+          await pinPart(bs, bsAct, '2d10');
+          [reckless] = await pcAttacker.createEmbeddedDocuments('ActiveEffect', [{ name: 'Reckless', img: 'icons/svg/sword.svg', transfer: false, disabled: false }]);
+          await set('saveRolls', 'auto');
+          await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          const before = new Set(popups());
+          faces([[19, 20], [19, 20], [3, 6], [3, 6], [7, 10], [7, 10], [7, 10], [7, 10]]);
+          const p = wAct.rollAttack({}, {}, {});
+          const dlg = await waitFor(rollDialog, 6000);
+          await sleep(400);
+          dlg?.element?.querySelector('input[name="bf-buy"][data-bf-buy-name="Brutal Strike"]')?.click();
+          await sleep(350);
+          dlg?.element?.querySelector('button[data-action="normal"]')?.click();
+          const rolls = await p.catch(() => null);
+          const msg = rolls?.[0]?.parent ?? null;
+          const offer = await waitFor(() => offerApp(before), 6000);
+          await tick(offer, 'hamstring-blow', 'staggering-blow');
+          await sleep(200);
+          const both = !!hitBox(offer, 'hamstring-blow')?.checked && !!hitBox(offer, 'staggering-blow')?.checked;
+          ok('92a. at Barbarian 17 the Brutal Strike group keeps TWO ticks (Hamstring and Staggering Blow) — the group\'s max is 2',
+            !!offer && both, `offer=${!!offer} hamstring=${hitBox(offer, 'hamstring-blow')?.checked} staggering=${hitBox(offer, 'staggering-blow')?.checked} rows=${JSON.stringify(hitRows(offer))}`);
+          const d = await a1Roll(msg, offer);
+          const picks = d?.getFlag(MOD, 'hitManeuver')?.picks ?? [];
+          ok('92b. both effects ride the one hit: two picks recorded, Hamstring and Staggering Blow',
+            (picks.length === 2) && picks.some(x => x.key === 'hamstring-blow') && picks.some(x => x.key === 'staggering-blow'),
+            `picks=${JSON.stringify(picks.map(x => ({ key: x.key, formula: x.formula, rides: x.rides })))}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await dropVictimFx();
+        if (reckless) await reckless.delete().catch(() => {});
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [ibs, bs, barb]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 93. Superior Inspiration: Bardic Inspiration back up to two at Initiative
+    if (want(93)) {
+      await closeA1();
+      const sup = await hgLend(bard, 'Superior Inspiration', 'feat');
+      const bi = inspiration();
+      let combat = null;
+      try {
+        if (!sup || !bi) log.push(`§93 skipped: superior=${!!sup} inspiration=${!!bi}`);
+        else {
+          await bi.update({ 'system.uses.spent': Number(bi.system.uses.max) });   // every use spent
+          const t0 = Date.now();
+          combat = await d1Combat([[bardDoc, bard, null]]);
+          const bC = combat.combatants.find(c => c.actorId === bard.id);
+          await combat.setInitiative(bC.id, 14);
+          const card = await waitFor(() => grantCards(bard, 'Superior Inspiration').find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, 8000);
+          await sleep(300);
+          const value = Number(inspiration()?.system?.uses?.value ?? NaN);
+          ok('93a. at Initiative with no Bardic Inspiration left: "Superior Inspiration — Bardic Inspiration uses back up to 2", the uses at 2, nothing asked',
+            !!card && (value === 2) && /Superior Inspiration/.test(await grantLine(card)), `card=${!!card} value=${value} line="${await grantLine(card)}"`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        if (sup) await unlend(bard, sup);
+        await refillInspiration();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 94. Survivor: Heroic Rally at the turn start while Bloodied; Defy Death's 18 counts as a 20
+    if (want(94)) {
+      await closeA1(); await spendLuckC();
+      const surv = await hgLend(halfling, 'Survivor', 'feat');
+      let combat = null;
+      try {
+        if (!surv) log.push('§94 skipped: no Survivor');
+        else {
+          const con = Number(halfling.getRollData()?.abilities?.con?.mod ?? 0);
+          await halfling.update({ 'system.attributes.hp.value': 150, 'system.attributes.hp.temp': 0 });   // of 400: Bloodied
+          combat = await d1Combat([[halflingToken, halfling, 20]]);
+          await combat.startCombat();
+          await waitFor(() => hp() > 150, 8000);
+          await sleep(300);
+          ok('94a. Heroic Rally: the Bloodied Halfling\'s turn start heals 5 + Con (150 → 155 + Con), no ask', hp() === 155 + con, `hp=${hp()} con=${con}`);
+          if (combat && game.combats.get(combat.id)) await combat.delete();
+          combat = null;
+          await halfling.update({ 'system.attributes.hp.value': 300 });
+          await sleep(200);
+          const t1 = Date.now();
+          combat = await d1Combat([[halflingToken, halfling, 20]]);
+          await combat.startCombat();
+          await sleep(1500);
+          ok('94b. not Bloodied (300 of 400): the turn start heals nothing', (hp() === 300) && !d1Cards(t1, 'turnGrant').some(m => m.getFlag(MOD, 'turnGrant')?.row === 'Heroic Rally'), `hp=${hp()}`);
+          if (combat && game.combats.get(combat.id)) await combat.delete();
+          combat = null;
+          // b. Defy Death: an 18 on the Death Saving Throw counts as a 20 (the Advantage is the pack's: both dice 18).
+          await halfling.update({ 'system.attributes.hp.value': 0, 'system.attributes.hp.temp': 0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
+          faces([[18, 20], [18, 20]]);
+          const rolls = await halfling.rollDeathSave({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const r0 = rolls?.[0];
+          await waitFor(() => hp() >= 1, 6000);
+          const line = (await waitFor(() => [...(cardEl(r0?.parent?.id)?.querySelectorAll?.('div') ?? [])].find(el => /counts as a 20/.test(el.textContent ?? '')), 5000))?.textContent?.trim() ?? '';
+          ok('94c. Defy Death: an 18 on the Death Saving Throw is a critical success — 1 Hit Point back, the card "Survivor — the d20\'s 18 counts as a 20"',
+            (r0?.isCritical === true) && (hp() === 1) && /Survivor — the d20's 18 counts as a 20/.test(line), `critical=${r0?.isCritical} threshold=${r0?.options?.criticalSuccess} hp=${hp()} line="${line}"`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await clearDown(halfling);
+        await halfling.update({ 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 }).catch(() => {});
+        if (surv) await unlend(halfling, surv);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 95. Improved War Magic: its reminder replaces War Magic's
+    if (want(95)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      const wm = await hgLend(pcAttacker, 'War Magic', 'feat');
+      const iwm = await hgLend(pcAttacker, 'Improved War Magic', 'feat');
+      try {
+        const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+        if (!wm || !iwm || !wAct) log.push(`§95 skipped: wm=${!!wm} iwm=${!!iwm} weapon=${!!wAct}`);
+        else {
+          const t0 = Date.now();
+          const r = await a1Hit(pcAttacker, pcToken, wAct);
+          const notice = await waitFor(() => hewNotices(t0, 'Improved War Magic')[0] ?? null, 8000);
+          await sleep(500);
+          ok('95a. an attack by a fighter with both: the reminder "Improved War Magic — … can attack again" (two attacks for a level 1 or 2 spell), War Magic\'s not posted',
+            !!notice && (hewNotices(t0, 'War Magic').length === 0) && /level 1 or 2/.test(cardText(notice?.id)), `notice=${!!notice} wm=${hewNotices(t0, 'War Magic').length} text="${cardText(notice?.id).slice(0, 200)}"`);
+          await ackHew('Improved War Magic');
+          if (r.offer) await a1Roll(r.msg, r.offer); else await a1Damage(r.msg);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await dropVictimFx();
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [iwm, wm]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 96. Elusive: no attack roll against the rogue has Advantage, unless it is Incapacitated
+    if (want(96)) {
+      await closeA1();
+      const elusive = await hgLend(sorcerer, 'Elusive', 'feat');
+      const reckless = await markOn(attacker, 'Reckless', null);
+      const sTok = sorcTokC();
+      let incap = null;
+      try {
+        if (!elusive || !sTok) log.push(`§96 skipped: elusive=${!!elusive} token=${!!sTok}`);
+        else {
+          const gate = await gateFor(attackerToken, act(), sTok);
+          ok('96a. the Reckless Attacker at the Elusive sorcerer: "has Elusive — attack rolls against it cannot have Advantage", Reckless cancelled, net Normal',
+            gate.open && /has Elusive — attack rolls against it cannot have Advantage/.test(gate.text) && /cancelled \(Elusive\)/.test(gate.text) && (gate.net === 'normal'),
+            `net=${gate.net} text="${gate.text.slice(0, 260)}"`);
+          incap = await markOn(sorcerer, 'Incapacitated (test)', null, ['incapacitated']);
+          await sleep(200);
+          const gate2 = await gateFor(attackerToken, act(), sTok);
+          ok('96b. the sorcerer Incapacitated: Elusive is off — no cancel line', gate2.open && !/Elusive/.test(gate2.text), `net=${gate2.net} text="${gate2.text.slice(0, 200)}"`);
+        }
+      } finally {
+        await closeA1();
+        if (incap) await incap.delete().catch(() => {});
+        if (reckless) await reckless.delete().catch(() => {});
+        if (elusive) await unlend(sorcerer, elusive);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 97. Elemental Epitome: Empowered Strikes once per turn on an Unarmed Strike while Elemental Attunement is active
+    if (want(97)) {
+      await closeA1(); await a1Victim(); await dropVictimFx();
+      const monk = await hgLend(pcAttacker, 'Monk', 'class', { 'system.levels': 17 });
+      const att = await hgLend(pcAttacker, 'Elemental Attunement', 'feat');
+      const epi = await hgLend(pcAttacker, 'Elemental Epitome', 'feat');
+      let active = null;
+      try {
+        const strike = att?.system?.activities?.find(a => a.type === 'attack') ?? null;
+        if (!monk || !att || !epi || !strike) log.push(`§97 skipped: monk=${!!monk} attunement=${!!att} epitome=${!!epi} strike=${!!strike}`);
+        else {
+          const r0 = await a1Hit(pcAttacker, pcToken, strike);
+          ok('97a. Elemental Attunement not active: the Elemental Strike\'s offer has no Empowered Strikes row', !riderRow(r0.offer, 'elemental-epitome'),
+            `row="${riderRow(r0.offer, 'elemental-epitome')}"`);
+          if (r0.offer) await a1Roll(r0.msg, r0.offer); else await a1Damage(r0.msg);
+          await closeOffers();
+          [active] = await att.createEmbeddedDocuments('ActiveEffect', [{ name: 'Active Attunement', type: 'enchantment', img: 'icons/svg/aura.svg', transfer: true, disabled: false }]);   // the APPLIED enchantment (the templates are transfer false)
+          await sleep(200);
+          const r = await a1Hit(pcAttacker, pcToken, attackOf(pcAttacker, att) ?? strike);
+          const row = riderRow(r.offer, 'elemental-epitome');
+          ok('97b. attuned: the offer\'s rider "Empowered Strikes" with the Martial Arts die, ticked', !!r.offer && /Empowered Strikes/.test(row) && !!riderBox(r.offer, 'elemental-epitome')?.checked,
+            `row="${row}" checked=${riderBox(r.offer, 'elemental-epitome')?.checked}`);
+          const d = await a1Roll(r.msg, r.offer);
+          ok('97c. rolled: the rider rode the damage', ridersOf(d).some(x => (x.key ?? x) === 'elemental-epitome'), `riders=${JSON.stringify(ridersOf(d))}`);
+        }
+      } finally {
+        await closeA1(); await closeOffers(); await dropVictimFx();
+        if (active) await active.delete().catch(() => {});
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        for (const it of [epi, att, monk]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 98. Stroke of Luck (a failed D20 Test becomes a 20) and Living Legend (the save reroll; Unerring Strike's miss made a hit)
+    if (want(98)) {
+      await closeA1(); await spendLuckC();
+      const stroke = await hgLend(halfling, 'Stroke of Luck', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      let legend = null, legendFx = null, pcLegend = null, pcLegendFx = null;
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      try {
+        if (!stroke) log.push('§98 skipped: no Stroke of Luck');
+        else {
+          // a. Stroke of Luck on a failed save from the sheet
+          const prior = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+          faces([[3, 20]]);
+          const rolls = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const m = rolls?.[0]?.parent ?? null;
+          const base = Number(rolls?.[0]?.total);
+          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const offer = (flag?.offers ?? []).find(o => o.label === 'Stroke of Luck') ?? null;
+          ok('98a. a failed save offers "Stroke of Luck — turn the d20 into a 20" (the `succeed` kind, 1 use)', !!offer && (offer.kind === 'succeed') && /into a 20/.test(String(offer.says ?? '')),
+            `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label, o.says]))}`);
+          const win = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+          win?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
+          const done = await waitFor(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          await sleep(300);
+          ok('98b. pressed: the d20 counts as a 20 — the folded total is the base − 3 + 20, the use spent',
+            (Number(done?.spends?.[0]?.twenty?.total) === base - 3 + 20) && (Number(done?.foldedTotal) === base - 3 + 20) && (Number(halfling.items.get(stroke.id)?.system?.uses?.spent) === 1),
+            `base=${base} spends=${JSON.stringify(done?.spends ?? null)} folded=${done?.foldedTotal} spent=${halfling.items.get(stroke.id)?.system?.uses?.spent}`);
+          passAll(); await closeA1();
+          await unlend(halfling, stroke);
+          // c. Living Legend's save reroll — a Reaction, while the legend stands
+          legend = await hgLend(halfling, 'Living Legend', 'feat');
+          legendFx = await markOn(halfling, 'Living Legend: Charismatic', legend?.uuid ?? null);
+          const prior2 = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+          faces([[3, 20]]);
+          const rolls2 = await halfling.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          const m2 = rolls2?.[0]?.parent ?? null;
+          const base2 = Number(rolls2?.[0]?.total);
+          const flag2 = await waitFor(() => m2?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const re = (flag2?.offers ?? []).find(o => (o.kind === 'reroll') && (o.label === 'Living Legend')) ?? null;
+          ok('98c. Living Legend standing: a failed save offers its reroll — "your Reaction, the new roll stands"', !!re && /Reaction/.test(String(re.cost ?? '')),
+            `offers=${JSON.stringify((flag2?.offers ?? []).map(o => [o.kind, o.label, o.cost]))}`);
+          const pop2 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior2.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, 8000);
+          faces([[15, 20]]);
+          pop2?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
+          const done2 = await waitFor(() => { const cur = m2?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('98d. pressed: the save rerolled (15), the new roll standing', (done2?.spends?.[0]?.kind === 'reroll') && (Number(done2?.spends?.[0]?.reroll?.total) === 15 + (base2 - 3)),
+            `base=${base2} spends=${JSON.stringify(done2?.spends ?? null)}`);
+          passAll(); await closeA1();
+          // e. Unerring Strike: the PC Attacker's weapon MISS hits instead, once per turn
+          pcLegend = await hgLend(pcAttacker, 'Living Legend', 'feat');
+          pcLegendFx = await markOn(pcAttacker, 'Living Legend: Charismatic', pcLegend?.uuid ?? null);
+          const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+          victimPrior();
+          await victim.update({ 'system.attributes.ac.override': 30, 'system.attributes.hp.value': 400 });
+          pcToken.control({ releaseOthers: true }); clearTargets(); victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(120);
+          const prior3 = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+          faces([[3, 20], [3, 20]]);
+          const ar = await wAct.rollAttack({}, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          const am = ar?.[0]?.parent ?? null;
+          const aflag = await waitFor(() => am?.getFlag(MOD, 'd20fold') ?? null, 6000);
+          const us = (aflag?.offers ?? []).find(o => o.label === 'Unerring Strike') ?? null;
+          ok('98e. a weapon MISS at AC 30 offers "Unerring Strike — hit instead" (once on each of your turns)', !!us && /hit instead/.test(String(us.says ?? '')),
+            `offers=${JSON.stringify((aflag?.offers ?? []).map(o => [o.kind, o.label, o.says, o.cost]))}`);
+          const pop3 = await waitFor(() => [...document.querySelectorAll('.application')].find(el => !prior3.has(el.id) && !!el.querySelector('[data-bf-rescue-action="succeed"]')) ?? null, 8000);
+          pop3?.querySelector('[data-bf-rescue-action="succeed"]')?.click();
+          const adone = await waitFor(() => { const cur = am?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          ok('98f. pressed: the miss becomes a HIT (the verdict forced, no die)', adone?.targets?.[0]?.verdict === 'hit', `targets=${JSON.stringify(adone?.targets ?? null)} spends=${JSON.stringify(adone?.spends ?? null)}`);
+          await sleep(500);
+          await closeOffers();
+        }
+      } finally {
+        passAll(); await closeA1(); await closeOffers();
+        for (const e of [legendFx, pcLegendFx]) if (e) await e.delete().catch(() => {});
+        if (pcLegend) await unlend(pcAttacker, pcLegend);
+        if (legend) await unlend(halfling, legend);
+        if (halfling.items.get(stroke?.id ?? '')) await unlend(halfling, stroke);
+        await victim.update({ 'system.attributes.ac.override': 1 }).catch(() => {});
+        await dropEffects(pcAttacker, riderChits(pcAttacker));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 99. Supreme Healing: the cleric's healing dice count their maximum
+    if (want(99)) {
+      await closeDialogs(); await spendLuck();
+      const supreme = await hgLend(cleric, 'Supreme Healing', 'feat');
+      const cure = await lendClassSpell(cleric, 'Cure Wounds', 'cleric');
+      hgKeep(cleric, { 'system.spells': foundry.utils.deepClone(cleric.system._source.spells) });
+      try {
+        if (!supreme || !cure) log.push(`§99 skipped: supreme=${!!supreme} cure=${!!cure}`);
+        else {
+          await cleric.update({ 'system.spells.spell1.value': 3 });
+          await halfling.update({ 'system.attributes.hp.value': 100, 'system.attributes.hp.temp': 0 });
+          const wis = Number(cleric.getRollData()?.abilities?.wis?.mod ?? 0);
+          const clericTok = canvas.tokens.get(clericToken.id);
+          clericTok?.control({ releaseOthers: true });
+          faces([[1, 8], [1, 8]]);
+          const card = await castSpell(cleric, clericTok, cure, 1, halflingToken);
+          const cureAct = cleric.items.get(cure.id)?.system?.activities?.find(a => a.type === 'heal');
+          halflingToken.setTarget(true, { releaseOthers: true }); await sleep(80);
+          await cureAct.rollDamage({}, { configure: false }, card?.id ? { data: { 'system.origin': card.id } } : {});
+          CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+          await waitFor(() => hp() > 100, 10000);
+          await sleep(500);
+          const healed = hp() - 100;
+          ok('99a. Cure Wounds with ones on the dice heals the MAXIMUM (2d8 → 16, + Wis) — the receipt names Supreme Healing',
+            healed === 16 + wis, `healed=${healed} wis=${wis}`);
+        }
+      } finally {
+        await closeDialogs();
+        if (cure) await unlend(cleric, cure);
+        if (supreme) await unlend(cleric, supreme);
+        await healFull();
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 100. Tamed Surge: a pick from the surge table instead of a roll, once per Long Rest
+    if (want(100)) {
+      await closeA1();
+      const sTok = sorcTokC();
+      hgKeep(sorcerer, { 'system.spells': foundry.utils.deepClone(sorcerer.system._source.spells) });
+      const wms = await hgLend(sorcerer, 'Wild Magic Surge', 'feat');
+      const tamed = await hgLend(sorcerer, 'Tamed Surge', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      const armor = await hgLend(sorcerer, 'Mage Armor', 'spell', { 'system.prepared': 1, 'system.method': 'spell', 'system.sourceItem': 'class:sorcerer' });
+      try {
+        if (!wms || !tamed || !armor || !sTok) log.push(`§100 skipped: wms=${!!wms} tamed=${!!tamed} armor=${!!armor} token=${!!sTok}`);
+        else {
+          await sorcerer.update({ 'system.spells.spell1.value': 4 });
+          faces([[5, 20]]);
+          const c1 = await castSpell(sorcerer, sTok, armor, 1);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const rec = await waitFor(() => c1?.getFlag(MOD, 'castRider')?.tamed ?? null, 8000);
+          const select = await waitFor(() => cardEl(c1?.id)?.querySelector('select[data-bf-tamed-surge]'), 6000);
+          const table = await fromUuid('Compendium.dnd-players-handbook.tables.RollTable.phbWildMagicSurg');
+          ok('100a. a Sorcerer slot cast: the surge line offers "Tamed Surge — choose an effect instead (1 use)" with every table row but the last',
+            !!rec && !!select && (rec.options.length === (table?.results?.size ?? 0) - 1) && /Tamed Surge — choose an effect instead/.test(cardText(c1?.id)),
+            `options=${rec?.options?.length} table=${table?.results?.size} select=${!!select}`);
+          const want3 = rec?.options?.[3];
+          if (select) { select.value = want3; select.dispatchEvent(new Event('change', { bubbles: true })); }
+          [...(cardEl(c1?.id)?.querySelectorAll('.bf-surge-line button') ?? [])].find(b => /Choose/.test(textOf(b)))?.click();
+          const chosen = await waitFor(() => c1?.getFlag(MOD, 'castRider')?.tamed?.chosen ?? null, 6000);
+          await sleep(400);
+          ok('100b. chosen: the record holds the pick, the line says it, the feature\'s use spent',
+            (chosen === want3) && /Tamed Surge — chosen:/.test(cardText(c1?.id)) && (Number(sorcerer.items.get(tamed.id)?.system?.uses?.spent) === 1),
+            `chosen="${chosen}" want="${want3}" spent=${sorcerer.items.get(tamed.id)?.system?.uses?.spent}`);
+        }
+      } finally {
+        await closeA1();
+        for (const it of [wms, tamed, armor]) if (it) await unlend(sorcerer, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 101. Improved Duplicity: the ally's attack lists Shared Distraction
+    if (want(101)) {
+      await closeA1();
+      const dup = await hgLend(cleric, 'Improved Duplicity', 'feat');
+      try {
+        const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+        if (!dup || !wAct) log.push(`§101 skipped: duplicity=${!!dup} weapon=${!!wAct}`);
+        else {
+          const gate = await gateFor(pcToken, wAct, victimToken);
+          ok('101a. the cleric\'s ally attacks: the gate lists "Improved Duplicity (listed — Advantage only against a creature within 5 feet of the cleric\'s illusion)", not counted',
+            gate.open && /Improved Duplicity/.test(gate.text) && /illusion/.test(gate.text), `net=${gate.net} text="${gate.text.slice(0, 260)}"`);
+          const gate2 = await gateFor(attackerToken, act(), halflingToken);
+          ok('101b. an enemy\'s attack lists nothing of it', gate2.open && !/Improved Duplicity/.test(gate2.text), `text="${gate2.text.slice(0, 200)}"`);
+        }
+      } finally {
+        await closeA1();
+        if (dup) await unlend(cleric, dup);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 102. Corona of Light: the light on the cleric, the ring's enemies at Disadvantage against its radiant spell
+    if (want(102)) {
+      await closeA1(); await activateRange(); await set('saveRolls', 'prompt');
+      const corona = await hgLend(cleric, 'Corona of Light', 'feat', { 'system.uses.max': '3', 'system.uses.spent': 0 });
+      let flameLent = null;
+      try {
+        if (!corona) log.push('§102 skipped: no Corona of Light');
+        else {
+          await useFeature(clericToken, corona, 'Emit Aura of Sunlight');
+          const lit = await waitFor(() => cleric.effects.find(e => (e.name === 'Corona of Light') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
+          const region = await waitFor(() => { const r = d1Region('Corona of Light', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, 12000);
+          const member = await waitFor(() => victim.effects.find(e => e.name.startsWith('Corona of Light') && e.getFlag(MOD, 'emanation')) ?? null, 10000);
+          ok('102a. the use lands "Corona of Light" on the cleric with its light (60 / 90), the 60-ft ring stands, the Victim inside wears the member copy',
+            !!lit && !!region && !!member, `lit=${!!lit} region=${!!region} member=${member?.name ?? null}`);
+          let flameId = cleric.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
+          if (!flameId) { flameLent = await hgLend(cleric, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' }); flameId = flameLent?.id; }
+          const flameAct = cleric.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
+          clericToken.control({ releaseOthers: true });
+          victimToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
+          const card = use?.message ?? null;
+          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          const p = victim.rollSavingThrow({ ability: 'dex' }, {}, {});
+          const dlg = await waitFor(rollDialog, 6000);
+          await sleep(500);
+          const text = textOf(dlg?.element?.querySelector('[data-bf-reminder]'));
+          const net = dlg?.options?.bfSaveGate?.net ?? null;
+          ok('102b. the Victim\'s save against the cleric\'s Sacred Flame (radiant): the gate lists "Corona of Light — against BF Test Cleric\'s spell", net Disadvantage',
+            !!dlg && /Corona of Light/.test(text) && (net === 'disadvantage'), `dlg=${!!dlg} net=${net} text="${text.slice(0, 220)}"`);
+          try { await dlg?.close(); } catch { /* gone */ }
+          await Promise.race([Promise.resolve(p).catch(() => {}), sleep(3000)]);
+          await hgClose(/Saving Throw/);
+        }
+      } finally {
+        await closeA1();
+        await dropNamed(cleric, ['Corona of Light']); await dropEffects(victim, victim.effects.filter(e => e.name.startsWith('Corona of Light')).map(e => e.id));
+        if (flameLent) await unlend(cleric, flameLent);
+        if (corona) await unlend(cleric, corona);
+        const gone = await waitFor(() => !d1Region('Corona of Light', clericToken.document.id), 8000);
+        if (!gone) { const r = d1Region('Corona of Light', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 103. Holy Nimbus: an enemy starting its turn in the aura takes the radiant damage
+    if (want(103)) {
+      await closeA1(); await activateRange(); await a1Victim();
+      const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
+      const nimbus = await hgLend(cleric, 'Holy Nimbus', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      let combat = null;
+      try {
+        if (!pal || !nimbus) log.push(`§103 skipped: paladin=${!!pal} nimbus=${!!nimbus}`);
+        else {
+          await sleep(300);
+          await useFeature(clericToken, nimbus, 'Holy Nimbus');
+          const lit = await waitFor(() => cleric.effects.find(e => (e.name === 'Holy Nimbus') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
+          const region = await waitFor(() => { const r = d1Region('Holy Nimbus', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, 12000);
+          ok('103a. the use lands "Holy Nimbus" on the paladin (its sunlight), the ring stands at the Aura of Protection\'s reach', !!lit && !!region,
+            `lit=${!!lit} region=${!!region} radius=${region?.shapes?.[0]?.radius ?? null}`);
+          await victim.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          const t0 = Date.now();
+          combat = await d1Combat([[victimToken, victim, 20], [clericToken, cleric, 10]]);
+          await combat.startCombat();
+          const card = await waitFor(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Holy Nimbus') ?? null, 10000);
+          await waitFor(() => Number(victim.system.attributes.hp.value) < 400, 8000);
+          ok('103b. the Victim starts its turn inside: the card "Holy Nimbus — … started its turn inside", radiant damage landed (no save)',
+            !!card && (Number(victim.system.attributes.hp.value) < 400), `card=${!!card} hp=${victim.system.attributes.hp.value} text="${cardText(card?.id).slice(0, 160)}"`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await dropNamed(cleric, ['Holy Nimbus']);
+        for (const it of [nimbus, pal]) if (it) await unlend(cleric, it);
+        const gone = await waitFor(() => !d1Region('Holy Nimbus', clericToken.document.id), 8000);
+        if (!gone) { const r = d1Region('Holy Nimbus', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
+        await dropEffects(victim, victim.effects.filter(e => e.getFlag(MOD, 'chip')).map(e => e.id));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 104. Avenging Angel: an enemy starting its turn in the aura saves or is Frightened; attacks against it at Advantage
+    if (want(104)) {
+      await closeA1(); await activateRange(); await set('saveRolls', 'auto');
+      const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
+      const angel = await hgLend(cleric, 'Avenging Angel', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      let combat = null;
+      try {
+        if (!pal || !angel) log.push(`§104 skipped: paladin=${!!pal} angel=${!!angel}`);
+        else {
+          await sleep(300);
+          await useFeature(clericToken, angel, 'Avenging Angel');
+          const self = await waitFor(() => cleric.effects.find(e => e.name === 'Avenging Angel') ?? null, 8000);
+          const region = await waitFor(() => { const r = d1Region('Avenging Angel', clericToken.document.id); return (r?.behaviors?.size) ? r : null; }, 12000);
+          ok('104a. the use lands "Avenging Angel" on the paladin (the flight), the Frightful Aura ring stands', !!self && !!region, `self=${!!self} region=${!!region}`);
+          const t0 = Date.now();
+          faces([[1, 20]]);
+          combat = await d1Combat([[victimToken, victim, 20], [clericToken, cleric, 10]]);
+          await combat.startCombat();
+          const card = await waitFor(() => d1Cards(t0, 'emanationTrigger').find(m => m.getFlag(MOD, 'emanationTrigger')?.key === 'Avenging Angel') ?? null, 10000);
+          const fr = await waitFor(() => victim.effects.find(e => (e.name === 'Frightened') && e.statuses?.has?.('frightened')) ?? null, 15000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('104b. the Victim starts its turn inside: the Wisdom save demanded at the paladin\'s DC; a 1 FAILS — Frightened lands',
+            !!card && (card.getFlag(MOD, 'saves')?.abilities ?? []).includes('wis') && !!fr, `card=${!!card} saves=${JSON.stringify(card?.getFlag(MOD, 'saves') && { dc: card.getFlag(MOD, 'saves').dc, abilities: card.getFlag(MOD, 'saves').abilities })} frightened=${!!fr}`);
+          if (combat && game.combats.get(combat.id)) await combat.delete();
+          combat = null;
+          const wAct = pcWeapon ? attackOf(pcAttacker, pcWeapon) : null;
+          const gate = wAct ? await gateFor(pcToken, wAct, victimToken) : { text: '', open: false };
+          ok('104c. an attack at the Frightened Victim reads the Frightful Aura row — "Frightened", net Advantage', gate.open && /Frightened/.test(gate.text) && /Frightful Aura/.test(gate.text) && (gate.net === 'advantage'), `net=${gate.net} text="${gate.text.slice(0, 220)}"`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await dropNamed(cleric, ['Avenging Angel']); await dropNamed(victim, ['Frightened']);
+        for (const it of [angel, pal]) if (it) await unlend(cleric, it);
+        const gone = await waitFor(() => !d1Region('Avenging Angel', clericToken.document.id), 8000);
+        if (!gone) { const r = d1Region('Avenging Angel', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
+        await dropEffects(victim, victim.effects.filter(e => e.getFlag(MOD, 'chip')).map(e => e.id));
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
+      }
+    }
+
+    // ---- 105. Elder Champion: the form's mark on the paladin, Diminish Defiance on the enemies inside, Regeneration at the turn start
+    if (want(105)) {
+      await closeA1(); await activateRange();
+      hgKeep(cleric, { 'system.attributes.hp.value': cleric.system._source.attributes.hp.value, 'system.attributes.hp.max': cleric.system._source.attributes.hp.max });
+      const pal = await hgLend(cleric, 'Paladin', 'class', { 'system.levels': 20 });
+      const elder = await hgLend(cleric, 'Elder Champion', 'feat', { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      let combat = null;
+      try {
+        if (!pal || !elder) log.push(`§105 skipped: paladin=${!!pal} elder=${!!elder}`);
+        else {
+          await sleep(300);
+          await useFeature(clericToken, elder, 'Elder Champion');
+          const mark = await waitFor(() => cleric.effects.find(e => (e.name === 'Diminished Defiance') && e.getFlag(MOD, 'tokenLight')) ?? null, 8000);
+          const member = await waitFor(() => victim.effects.find(e => e.name.startsWith('Diminished Defiance') && e.getFlag(MOD, 'emanation')) ?? null, 12000);
+          ok('105a. the use lands "Diminished Defiance" on the paladin (no light written), the ring\'s Victim wears the member copy',
+            !!mark && !!member && !JSON.stringify(mark?.changes ?? mark?.system?.changes ?? []).includes('token.light'), `mark=${!!mark} member=${!!member} changes=${JSON.stringify(mark?.changes ?? mark?.system?.changes ?? null)}`);
+          await cleric.update({ 'system.attributes.hp.max': 100, 'system.attributes.hp.value': 50 });
+          combat = await d1Combat([[clericToken, cleric, 20]]);
+          await combat.startCombat();
+          await waitFor(() => Number(cleric.system.attributes.hp.value) > 50, 8000);
+          await sleep(300);
+          ok('105b. the paladin\'s turn start: Regeneration heals 10 (50 → 60)', Number(cleric.system.attributes.hp.value) === 60, `hp=${cleric.system.attributes.hp.value}`);
+        }
+      } finally {
+        await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await dropNamed(cleric, ['Diminished Defiance']); await dropEffects(victim, victim.effects.filter(e => e.name.startsWith('Diminished Defiance')).map(e => e.id));
+        for (const it of [elder, pal]) if (it) await unlend(cleric, it);
+        const gone = await waitFor(() => !d1Region('Elder Champion', clericToken.document.id), 8000);
+        if (!gone) { const r = d1Region('Elder Champion', clericToken.document.id); if (r) await r.delete().catch(() => {}); }
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+        await backToRange();
       }
     }
 
