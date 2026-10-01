@@ -286,9 +286,15 @@ export const BONUS_SWINGS = Object.freeze({
     from: "Cleric — War Domain 3" }),
   // B4 — War Magic: a reminder alone — one of the Attack action's attacks may be a cantrip (cast from the sheet).
   "War Magic": Object.freeze({ when: "attack", label: "War Magic", ranged: true,
-    swing: "One of this Attack action's attacks may be a <strong>cantrip</strong> instead — cast it from the sheet (Improved War Magic at 18: any spell of level 1 or 2).",
+    swing: "One of this Attack action's attacks may be a <strong>cantrip</strong> instead — cast it from the sheet.",
     rule: Object.freeze({ item: "War Magic", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrWarMagic00" }),
     from: "Fighter — Eldritch Knight 7" }),
+  // D1 — Improved War Magic: War Magic's reminder, two attacks replaced by a level 1 or 2 Wizard spell. Listed BEFORE War
+  // Magic in MANEUVER_FOLDS: the first row the sheet answers is the one reminded, so a fighter of 18 hears this one alone.
+  "Improved War Magic": Object.freeze({ when: "attack", label: "Improved War Magic", ranged: true,
+    swing: "Two of this Attack action's attacks may be replaced by one <strong>level 1 or 2 Wizard spell</strong> with a casting time of an action — cast it from the sheet.",
+    rule: Object.freeze({ item: "Improved War Magic", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrImprovedWa" }),
+    from: "Fighter — Eldritch Knight 18" }),
   // Not a Bonus Action: the extra attack is the option's own, once per turn, from the sheet.
   "Hunter's Prey": Object.freeze({ when: "attack", label: "Horde Breaker", ranged: true, option: "Horde Breaker", near: 5,
     swing: "One more attack with the same weapon at a different creature within 5 feet of the original target, one you haven't attacked this turn — make it from the sheet.",
@@ -347,7 +353,14 @@ export const ADVANTAGE_BUYS = Object.freeze({
 /**
  * A feature turning a FAILED save into a success once per rest — the `succeed` d20 fold (d20-folds.js):
  * offered on a demanded save before its verdict, and on a sheet save as an offer the roller judges.
- *   activity  the feature's activity that pays;  label  the benefit's name;  abilities  the saves reached
+ *   activity  the feature's activity that pays (null: nothing paid — Unerring Strike);  label  the benefit's name;
+ *   abilities  the saves reached
+ *   tests     D1 — the D20 Tests reached (default ["save"]); an attack fold is offered on a clean miss, a natural 1 included
+ *   twenty    D1 — the failed d20 TURNS INTO A 20 (Stroke of Luck): the roll re-judged with a 20 on the die, never a verdict
+ *             forced — a high DC can still beat it; on an attack it is NOT a Critical Hit (RULINGS *The PHB classes — D1*)
+ *   hit       D1 — a missed attack HITS instead (Unerring Strike), a forced verdict, no Critical Hit
+ *   feature   the item that carries the row when the key is a benefit's name;  weapon  a weapon attack only
+ *   whileEffect  the row stands while the roller wears this effect (Living Legend's 10 minutes);  oncePerTurn  a turn chit
  * ⚠ Legendary Resistance is NOT a row: dnd5e ships it NATIVE (the NPC's `resistSave`, its button on the failed
  * save's message, the `legres` resource spent by the system), and the saves machine already honours the flip
  * (saves/verdict.js `forced`; smoke-saves §6). A row would be a second entry path (RULINGS *The GM's side — the five shapes*).
@@ -356,7 +369,18 @@ export const SAVE_SUCCEEDS = Object.freeze({
   "Mage Slayer": Object.freeze({ activity: "Guard Mind", label: "Guarded Mind",
     abilities: Object.freeze(["int", "wis", "cha"]),
     rule: Object.freeze({ item: "Mage Slayer", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftMageSlayer0", benefit: "Guarded Mind" }),
-    from: "General feat" })
+    from: "General feat" }),
+  // D1 — Stroke of Luck: any failed D20 Test turned into a 20, once per Short or Long Rest (the pack's own activity pays).
+  "Stroke of Luck": Object.freeze({ activity: "Stroke of Luck", label: "Stroke of Luck", twenty: true,
+    tests: Object.freeze(["attack", "save", "check"]),
+    rule: Object.freeze({ item: "Stroke of Luck", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeStrokeOfLu" }),
+    from: "Rogue 20" }),
+  // D1 — Living Legend's Unerring Strike: once on each of your turns, a missed WEAPON attack hits instead, while the legend
+  // stands (its "Living Legend: Charismatic" effect, the pack's 10 minutes). Nothing paid; the save half is REROLLS'.
+  "Unerring Strike": Object.freeze({ feature: "Living Legend", activity: null, label: "Unerring Strike", hit: true, weapon: true,
+    tests: Object.freeze(["attack"]), whileEffect: "Living Legend: Charismatic", oncePerTurn: true,
+    rule: Object.freeze({ item: "Living Legend", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnLivingLege", benefit: "Unerring Strike" }),
+    from: "Paladin — Oath of Glory 20" })
 });
 
 /**
@@ -371,7 +395,9 @@ export const SAVE_SUCCEEDS = Object.freeze({
  *   uses       the item's own uses pay (Indomitable's scale)
  *   while      "raging" — only while the Rage effect stands;  once  "rage" — once per Rage, the mark on the Rage
  *              effect itself (`rerollUsed`), gone with it
- *   advantage  the reroll has Advantage (Living Legend's save, D1)
+ *   advantage  the reroll has Advantage
+ *   whileEffect  D1 — the row stands while the roller wears this effect (Living Legend's 10 minutes);  reaction  the cost is
+ *              the roller's Reaction (said on the offer; the table tracks it)
  */
 export const REROLLS = Object.freeze({
   "Indomitable": Object.freeze({ tests: Object.freeze(["save"]), bonus: "@classes.fighter.levels", uses: true,
@@ -384,7 +410,11 @@ export const REROLLS = Object.freeze({
   // (`activity`, Monk's Focus by uuid), no bonus; the saving-throw proficiencies are the pack's transferred effect.
   "Disciplined Survivor": Object.freeze({ tests: Object.freeze(["save"]), bonus: null, activity: "Consume Focus Point", point: "Focus Point",
     rule: Object.freeze({ item: "Disciplined Survivor", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkDiscipline" }),
-    from: "Monk 14" })
+    from: "Monk 14" }),
+  // D1 — Living Legend's Saving Throw Reroll: a failed save rerolled as a Reaction while the legend stands, the new roll used.
+  "Living Legend": Object.freeze({ tests: Object.freeze(["save"]), bonus: null, whileEffect: "Living Legend: Charismatic", reaction: true,
+    rule: Object.freeze({ item: "Living Legend", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnLivingLege", benefit: "Saving Throw Reroll" }),
+    from: "Paladin — Oath of Glory 20" })
 });
 
 /**
@@ -443,7 +473,9 @@ export const DEATH_STRIKE = Object.freeze({
  *   requires  "sneak" — an armed Sneak Attack only;  weapon  a weapon attack only
  *   judge     "raging" | "reckless" (raging AND the "Reckless" effect on the attacker) | "targetDamaged"
  *             (the hit target below its Hit Point maximum) | "opportunity" (a driven Opportunity Attack, or an
- *             off-turn melee attack, ticked with the caveat) | "transformed"
+ *             off-turn melee attack, ticked with the caveat) | "transformed" | "attuned" (D1, Elemental Epitome: the
+ *             attacker's Elemental Attunement carries its active enchantment)
+ *   unarmed   D1 — an Unarmed Strike only (the attack's `unarmed` classification, or Elemental Attunement's own Elemental Strike)
  *   enchant   due only on the item carrying the feature's own enchantment (Repelling Blast's "Make
  *             Repelling"); with none on the sheet, the row's `spell` stands for it
  *   maxSize   the largest target size it reaches; a larger one is not due, an unreadable size is
@@ -606,6 +638,13 @@ export const CLOCK_RIDERS = Object.freeze({
   "lunar-form": Object.freeze({ feature: "Lunar Form", activity: "Damage", when: "oncePerTurn", judge: "wildShape", label: "Lunar Form",
     rule: Object.freeze({ item: "Lunar Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdLunarForm0" }),
     from: "Druid — Circle of the Moon 14" }),
+  // D1 — Elemental Epitome's Empowered Strikes: once per turn, an Unarmed Strike hit while Elemental Attunement is active
+  // deals one more Martial Arts die of the strike's own type (Divine Fury's clock; the Resistance is the pack's effect,
+  // Destructive Stride is movement — the table's).
+  "elemental-epitome": Object.freeze({ feature: "Elemental Epitome", activity: "Empowered Strike", when: "oncePerTurn", judge: "attuned",
+    unarmed: true, type: "weapon", label: "Empowered Strikes",
+    rule: Object.freeze({ item: "Elemental Epitome", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkElementalE", benefit: "Empowered Strikes" }),
+    from: "Monk — Warrior of the Elements 17" }),
   // C1 — Power of the Wilds' Ram (the pick at the Rage, EFFECT_CHOICES): once per turn while raging, a MELEE hit on a
   // Large or smaller creature lands the pack's own "Power of the Wilds: Ram" (Prone) — no save, no die. The pick's chip
   // ("Power of the Wilds: Ram") is the form the row reads; Lion is the ring's row (EMANATIONS), Falcon the pack's flight.
@@ -856,7 +895,8 @@ export function tableIndex(table, keyOf = null) {
  *   requires { forgo } — the group opens only on a hit whose attack recorded that forgo (Brutal Strike, B3)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
  * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid) | "pactSlot" (B4, Eldritch Smite: a
- * Pact Magic slot — `system.spells.pact`, every slot one level, so no picker; Q9's `poolOf` branch); `max` picks;
+ * Pact Magic slot — `system.spells.pact`, every slot one level, so no picker; Q9's `poolOf` branch); `max` picks
+ * (`maxAt` { levels, at, max } — D1: the group's `max` rises at a class level read off the attacker's roll data);
  * `ownDice` each option shows its own die beside the pool's one use (Monk's Focus); the rest are the card's words.
  *   pact     B4 — the attack's weapon must be the PACT WEAPON (lookup.js pactWeaponFits: bonded through Pact of the Blade;
  *            none bonded on the sheet, any weapon with the caveat)
@@ -889,9 +929,11 @@ export const HIT_GROUPS = Object.freeze({
     rule: Object.freeze({ item: "Psionic Power", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrPsionicPow" }) }),
   // B3 — Brutal Strike: FREE (the forgone Advantage paid for it — `requires.forgo` reads the attack's reminder record, the
   // group opens only on a hit whose attack forwent its Advantage); `ownDice`: every option rides the feature's own die
-  // (`@scale.barbarian.brutal-strike`, the weapon's type), one effect per hit (`max` 1; level 17's two is D1's).
+  // (`@scale.barbarian.brutal-strike`, the weapon's type), one effect per hit (`max` 1). D1 — Improved Brutal Strike at
+  // Barbarian 17: two DIFFERENT effects (`maxAt` — the pack ships ONE Improved Brutal Strike item, the level is the read;
+  // the 2d10 is the scale's own step).
   "brutal-strike": Object.freeze({ feature: "Brutal Strike", pool: "free", ownDice: true, requires: Object.freeze({ forgo: "Brutal Strike" }),
-    label: "Brutal Strike", max: 1, dieLabel: "die", eyebrow: "Barbarian", heading: "Brutal Strike", per: "one effect per hit — the forgone Advantage paid for it", from: "Barbarian 9",
+    label: "Brutal Strike", max: 1, maxAt: Object.freeze({ levels: "@classes.barbarian.levels", at: 17, max: 2 }), dieLabel: "die", eyebrow: "Barbarian", heading: "Brutal Strike", per: "one effect per hit — the forgone Advantage paid for it", from: "Barbarian 9",
     rule: Object.freeze({ item: "Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbBrutalStri" }) }),
   // B4 — Eldritch Smite: a Pact slot the cost (`pool: "pactSlot"`), the die the pack's Smite activity ((1 + pact level)d8 force).
   "eldritch-smite": Object.freeze({ feature: "Eldritch Smite", pool: "pactSlot", ownDice: true, label: "Eldritch Smite", max: 1,
@@ -2001,6 +2043,11 @@ export const EFFECT_BENDS = Object.freeze({
   // source on the roll is struck, Brutal Strike's forgo shape, and the gate says why); its own d20 floor of 10 is D20_FLOORS'.
   "Trance of Order": Object.freeze({ attacker: null, target: null, scope: "any", cancel: "advantage", from: "Sorcerer — Clockwork Sorcery 14",
     rule: Object.freeze({ item: "Trance of Order", uuid: "Compendium.dnd-players-handbook.classes.Item.phbscrTranceOfOr" }) }),
+  // D1 — Elusive: Trance of Order's cancel on a FEATURE (`match: "feature"`), off while the rogue is Incapacitated
+  // (Displacement's `notIncapacitated` judge) — no attack roll against it can have Advantage.
+  "Elusive": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", cancel: "advantage", judge: "notIncapacitated",
+    from: "Rogue 18",
+    rule: Object.freeze({ item: "Elusive", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeElusive000" }) }),
   // `item`: only an effect from THIS item (the Aura of Protection's "Protected" is a save bonus).
   "Protected": Object.freeze({ attacker: null, target: "disadvantage", scope: "any", from: "Protection from Evil and Good", item: "Protection from Evil and Good",
     caveat: "counted — press Normal if the attacker is not an Aberration, Celestial, Elemental, Fey, Fiend or Undead",
@@ -2388,7 +2435,7 @@ export const WARD_POOLS = Object.freeze({
  *            the number is ADDED to the Initiative of the owner and every ally within `reach` feet — the combatants
  *            already rolled at once, the rest as theirs lands (a combat flag holds what is due); the activity's own
  *            consumption pays (`poolOf`: a Bardic Inspiration use). Musician's give, on the swap's seam.
- * ⚠ NOT A KIND — one table, one machine; Superior Inspiration, Perfect Focus are rows (C1 / D1).
+ * ⚠ NOT A KIND — one table, one machine; Perfect Focus (C1) and Superior Inspiration (D1) are rows.
  */
 export const INITIATIVE_GRANTS = Object.freeze({
   "Persistent Rage": Object.freeze({ regain: "Rage", unit: "Rage uses",
@@ -2404,7 +2451,12 @@ export const INITIATIVE_GRANTS = Object.freeze({
   // used (`unless`: with that ask pending, this row waits for its No — the same card, one line; with no ask due, its own).
   "Perfect Focus": Object.freeze({ regain: "Monk's Focus", unit: "Focus Points", upTo: 4, unless: "Uncanny Metabolism",
     rule: Object.freeze({ item: "Perfect Focus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkPerfectFoc" }),
-    from: "Monk 15" })
+    from: "Monk 15" }),
+  // D1 — Superior Inspiration: Bardic Inspiration back UP TO 2 at Initiative, automatically (Perfect Focus's `upTo`; the
+  // feature has no uses of its own — nothing spent, nothing asked).
+  "Superior Inspiration": Object.freeze({ regain: "Bardic Inspiration", unit: "Bardic Inspiration uses", upTo: 2,
+    rule: Object.freeze({ item: "Superior Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdSuperiorIn" }),
+    from: "Bard 18" })
 });
 
 /**
@@ -2736,7 +2788,8 @@ export const REPEAT_SAVES = Object.freeze({
  *   feature   a `match: "feature"` row that is ONE BENEFIT of a feature: the sheet's item is this name, the row
  *             key the benefit (Vitality of the Tree's two)
  *   on: "use" + of   the bearer's OWN use of the named item (`of`: the Rage) pays the row (Vitality Surge)
- *   while     "raging" — the bearer wears its Rage
+ *   while     "raging" — the bearer wears its Rage · "bloodied" (D1, Survivor's Heroic Rally) — at half its Hit Points or
+ *             fewer and at least 1 · `whileEffect` (D1) — the bearer wears an effect of that name (Elder Champion's form)
  *   to: "ally" the row's amount is GIVEN to one creature within `reach` feet — the owner picks (the rest song's
  *             popup, rest-grants.js); `self` false: another creature (Life-Giving Force)
  *   grant     B4 — what a feature row pays that is not a roll: "inspiration" (Heroic Warrior: Heroic Inspiration written
@@ -2808,7 +2861,11 @@ export const TURN_GRANTS = Object.freeze({
     activityType: "heal", to: "target", grant: "end",
     statuses: Object.freeze(["blinded", "deafened", "paralyzed", "poisoned", "stunned"]),
     rule: Object.freeze({ item: "Physician's Touch", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkPhysicians" }),
-    from: "Monk — Warrior of Mercy 6" })
+    from: "Monk — Warrior of Mercy 6" }),
+  // D1 — Survivor's Heroic Rally: the pack's heal (5 + Con) at each turn start while Bloodied, no choice (R1).
+  "Heroic Rally": Object.freeze({ match: "feature", feature: "Survivor", activity: "Heroic Rally", on: "turnStart", while: "bloodied",
+    rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrSurvivor00", benefit: "Heroic Rally" }),
+    from: "Fighter — Champion 18" })
 });
 
 /**
@@ -2988,6 +3045,9 @@ export const CONCENTRATION_EXEMPTS = Object.freeze({
  * face below `minimum` as `minimum` — the platform's own `minimum` on the roll configuration (Reliable Talent's knob).
  *   tests    which of the bearer's D20 Tests (attack, save, check);  abilities  narrows saves and checks to these
  *   concentration  true — a save row reaches Concentration saves alone (Starry Form's Dragon)
+ *   feature   D1 — the row stands while the roller HOLDS this feature (no effect to find)
+ *   critical  D1 — the platform's other knob: a d20 face of at least this counts as a 20 (`criticalSuccess` on the roll
+ *             configuration); `tests: ["death"]` — the Death Saving Throw alone (Survivor's Defy Death: 18–20 is a 20)
  * ⚠ NOT A KIND — a knob the platform reads, set before the roll; rows of data.
  */
 export const D20_FLOORS = Object.freeze({
@@ -2998,7 +3058,11 @@ export const D20_FLOORS = Object.freeze({
   "Starry Form": Object.freeze({ effect: "Dragon Form", minimum: 10, tests: Object.freeze(["save", "check"]),
     abilities: Object.freeze({ check: Object.freeze(["int", "wis"]), save: Object.freeze(["con"]) }), concentration: true,
     rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm", benefit: "Dragon" }),
-    from: "Druid — Circle of the Stars 3" })
+    from: "Druid — Circle of the Stars 3" }),
+  // D1 — Survivor's Defy Death: an 18 or 19 on a Death Saving Throw counts as a 20 (its Advantage is the pack's effect).
+  "Survivor": Object.freeze({ feature: "Survivor", critical: 18, tests: Object.freeze(["death"]),
+    rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrSurvivor00", benefit: "Defy Death" }),
+    from: "Fighter — Champion 18" })
 });
 
 /**
@@ -3065,7 +3129,7 @@ export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", rea
 export const MANEUVER_FOLDS = Object.freeze([
   row("Precision Attack", "precision"), row("Riposte", "riposte"), row("Shield Master", "interpose"),
   row("Shield Master", "bash"), row("Great Weapon Master", "hew"), row("Commander's Strike", "command"),
-  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew"), row("War Priest", "hew"), row("War Magic", "hew"),
+  row("Tavern Brawler", "shove"), row("Crusher", "shove"), row("Polearm Master", "hew"), row("War Priest", "hew"), row("Improved War Magic", "hew"), row("War Magic", "hew"),
   row("Hunter's Prey", "hew"), row("Battle Magic", "hew")
 ]);
 export const D20_FOLDS = Object.freeze([
@@ -3073,7 +3137,8 @@ export const D20_FOLDS = Object.freeze([
   row("Ambush", "tactical"), row("Tactical Assessment", "tactical"), row("Seeking Spell", "seeking"),
   row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage"),
   row("Indomitable", "reroll"), row("Fanatical Focus", "reroll"), row("Disciplined Survivor", "reroll"),
-  row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical"), row("Peerless Skill", "tactical")
+  row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical"), row("Peerless Skill", "tactical"),
+  row("Stroke of Luck", "succeed"), row("Unerring Strike", "succeed"), row("Living Legend", "reroll")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

@@ -616,7 +616,7 @@ describe("the reaction rows — the interrupts, the rebukes, Reactive", () => {
 
 describe("SAVE_SUCCEEDS — Legendary Resistance is NOT a row: the platform ships it", () => {
   it("the table still holds Mage Slayer alone; the saves machine honours the native flip (`forced`)", () => {
-    expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual(["Mage Slayer"]);
+    expect(Object.keys(reg.SAVE_SUCCEEDS)).not.toContain("Legendary Resistance");
     const flag = { dc: 15, hasDamage: true, damageOnSave: "half" };
     expect(v.verdictText(flag, { done: true, outcome: "saved", total: 3, forced: true })).toBe(
       "3 vs DC 15 — saved — half damage (legendary resistance)"

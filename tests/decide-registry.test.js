@@ -106,7 +106,10 @@ describe("d20 folds — the spends, one mechanism", () => {
       "reroll",
       "reroll",
       "reroll",
+      "reroll",
       "seeking",
+      "succeed",
+      "succeed",
       "succeed",
       "tactical",
       "tactical",
@@ -283,7 +286,11 @@ describe("SAVE_BENDS — the save table (option E, 2026-09-02)", () => {
 
 describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4, 2026-09-27)", () => {
   it("Mage Slayer's Guarded Mind: its activity, its label, the three mental saves, the rule the feat's", () => {
-    expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual(["Mage Slayer"]);
+    expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual([
+      "Mage Slayer",
+      "Stroke of Luck",
+      "Unerring Strike"
+    ]); // D1's two
     const row = reg.SAVE_SUCCEEDS["Mage Slayer"];
     expect(Object.isFrozen(row)).toBe(true);
     expect(row).toMatchObject({ activity: "Guard Mind", label: "Guarded Mind" });

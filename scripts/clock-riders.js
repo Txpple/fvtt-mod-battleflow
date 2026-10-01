@@ -155,6 +155,11 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   // C1 — the facts the band-C rows read: a melee attack, the attacker in Wild Shape (the platform's transformation flag).
   facts.melee = activity?.attack?.type?.value === "melee";
   facts.wildShape = !!(attacker.getFlag?.("dnd5e", "isPolymorphed") || attacker.isPolymorphed || attacker.getFlag?.("dnd5e", "transformed") || attacker.getFlag?.("dnd5e", "originalActor"));
+  // D1 — Elemental Epitome: an Unarmed Strike (or Elemental Attunement's own Elemental Strike), the attunement active — the
+  // pack's enchantment ("Active Attunement…") standing on the Elemental Attunement item itself.
+  const attunement = featureNamed(attacker, "Elemental Attunement");
+  facts.unarmed = (activity?.attack?.type?.classification === "unarmed") || (!!attunement && (item.id === attunement.id));
+  facts.attuned = !!attunement?.effects?.some(e => !e.disabled && lower(e.name).startsWith("active attunement"));
   const summoner = summonerOf(attacker);
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;

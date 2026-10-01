@@ -610,10 +610,13 @@ function cancelAdvantage(attacker, sources, targets) {
     if ( !target || (target.uuid === attacker.uuid) ) continue;
     for ( const [key, row] of rows ) {
       if ( !on.has(lower(key)) ) continue;
-      if ( !target.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(key))) ) continue;
+      // D1 — a FEATURE carrier (Elusive), off while it is Incapacitated (`judge: "notIncapacitated"`); else the effect by name.
+      const feature = row.match === "feature";
+      if ( feature ? !featureNamed(target, key) : !target.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(key))) ) continue;
+      if ( (row.judge === "notIncapacitated") && target.statuses?.has?.("incapacitated") ) continue;
       const name = token.document?.name ?? target.name;
       const struck = forgoneSources(sources, key).map(s => s.forgone ? { ...s, label: s.label.replace(/ — forgone \(.*\)$/, ` — cancelled (${key})`) } : s);
-      return [...struck, reminderSource("effect", null, `${name} is in a ${key} — attack rolls against it cannot have Advantage`, row.rule)];
+      return [...struck, reminderSource("effect", null, `${name} ${feature ? `has ${key}` : `is in a ${key}`} — attack rolls against it cannot have Advantage`, row.rule)];
     }
   }
   return sources;

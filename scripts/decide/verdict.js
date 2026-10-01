@@ -13,6 +13,12 @@
 /** One spend's contribution: attack side with `uuid`, save side without. A reroll is a `replace` (its own crit and fumble). */
 function contributionOf(spend, uuid) {
   const at = uuid === undefined ? {} : { uuid };
+  // D1 — Stroke of Luck: the d20 TURNED INTO A 20 — a replace like a reroll's, re-judged against the AC or the DC.
+  if ( (spend?.kind === "succeed") && Number.isFinite(spend.twenty?.total) ) {
+    return { ...at, replace: { total: spend.twenty.total, isCritical: false, isFumble: false } };
+  }
+  // D1 — Unerring Strike: the miss HITS — a forced verdict on the attack side.
+  if ( (spend?.kind === "succeed") && (spend.verdict === "hit") ) return (uuid === undefined) ? null : { uuid, verdict: "hit" };
   // Guarded Mind: the save's VERDICT is the contribution; the attack side has none to force.
   if ( spend?.kind === "succeed" ) return (uuid === undefined) ? { verdict: "saved" } : null;
   if ( (spend?.kind === "heroic") || (spend?.kind === "seeking") || (spend?.kind === "advantage") || (spend?.kind === "reroll") ) {

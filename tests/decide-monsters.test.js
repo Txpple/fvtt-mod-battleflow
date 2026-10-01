@@ -453,7 +453,8 @@ describe("TURN_GRANTS — the turn-start damage", () => {
               "heroic warrior",
               "guarded mind",
               "self-restoration",
-              "physician's touch"
+              "physician's touch",
+              "heroic rally"
             ].includes(k)
         ) // B4's rows filtered
     ).toEqual([

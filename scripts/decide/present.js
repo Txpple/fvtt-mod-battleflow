@@ -655,7 +655,9 @@ export function rescueView(read, { composed = null, reveal = false,
         : `${((r.kind === "heroic") || (r.kind === "seeking")) ? "Rerolls the d20"
           : (r.kind === "reroll") ? `Rerolls the d20${r.advantage ? " with Advantage" : ""}${Number(r.bonus) ? `, +${r.bonus}` : ""}`
           : (r.kind === "advantage") ? "Roll another d20 for Advantage, the higher stands"
-          : (r.kind === "succeed") ? "The save succeeds instead — no roll" : `Adds ${r.die ?? "a die"}`}`
+          : (r.kind === "succeed") ? ((r.says === "turn the d20 into a 20") ? "The d20 becomes a 20 — no roll"
+            : (r.says === "hit instead") ? "The miss hits instead — no roll" : "The save succeeds instead — no roll")
+          : `Adds ${r.die ?? "a die"}`}`
           + (r.cost ? ` — ${r.cost}.` : ".")
     }))
     .filter(q => q.text);

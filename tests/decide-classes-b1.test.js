@@ -36,7 +36,9 @@ describe("REROLLS — the table of the `reroll` kind", () => {
     // The bonus is a FORMULA on the roller, never a transcribed number (R4 / N1).
     // A row with no bonus (C1, Disciplined Survivor) rerolls flat and pays from the pool its activity consumes.
     for (const row of Object.values(reg.REROLLS)) {
-      if (row.bonus === null) expect(row.activity).toBeTruthy();
+      // D1 — Living Legend: no bonus, no pool — the Reaction is the cost, while its effect stands.
+      if (row.bonus === null)
+        expect(row.activity || (row.reaction && row.whileEffect)).toBeTruthy();
       else expect(row.bonus).toMatch(/^@/);
     }
   });

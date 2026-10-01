@@ -37,7 +37,8 @@ describe("INITIATIVE_GRANTS", () => {
       "persistent rage",
       "uncanny metabolism",
       "tandem footwork", // B4
-      "perfect focus" // C1
+      "perfect focus", // C1
+      "superior inspiration" // D1
     ]);
   });
 });

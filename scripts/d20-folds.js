@@ -11,7 +11,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM,
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
 import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20 } from "./lookup.js";
-import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses } from "./shared.js";
+import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
 import { ATTACK_FOLDS, SAVE_FOLDS, foldsFrom, foldedRoll, foldedVerdict } from "./decide/verdict.js";
@@ -160,26 +160,63 @@ const ADVANTAGE = {
  * rolled; the spend is the feature's own activity. */
 const SUCCEED = {
   tests: ["save"],
+  testsFor: entry => succeedRowOf(entry.name)?.row.tests ?? ["save"],
   find: (actor, entry, ctx = {}) => {
-    const key = Object.keys(SAVE_SUCCEEDS).find(k => lower(k) === lower(entry.name));
-    const row = key ? SAVE_SUCCEEDS[key] : null;
-    if ( !row || !ctx.ability || !row.abilities.includes(ctx.ability) ) return null;
-    const item = itemNamed(actor, key);
-    const activity = item ? activityNamed(item, row.activity) : null;
-    if ( !item || !activity ) return null;
+    const found = succeedRowOf(entry.name);
+    if ( !found ) return null;
+    const { key, row } = found;
+    // A save row names its abilities (Guarded Mind); an attack or check row has none to read (D1).
+    if ( row.abilities && (!ctx.ability || !row.abilities.includes(ctx.ability)) ) return null;
+    if ( row.weapon && ctx.item && (ctx.item.type !== "weapon") ) return null;
+    if ( row.whileEffect && !actorWears(actor, row.whileEffect) ) return null;
+    if ( row.oncePerTurn && turnChitStands(actor, "rider", `fold:${key}`) ) return null;
+    const item = itemNamed(actor, row.feature ?? key);
+    if ( !item ) return null;
+    // D1 — `activity: null` (Unerring Strike): nothing pays, nothing counts down.
+    if ( row.activity === null ) return { kind: "succeed", key, row, item, activity: null, pool: null, left: null };
+    const activity = activityNamed(item, row.activity);
+    if ( !activity ) return null;
     const pool = poolOf(actor, activity) ?? item;
     const left = Number(pool?.system?.uses?.value ?? 0);
     if ( !(left > 0) ) return null;
     return { kind: "succeed", key, row, item, activity, pool, left };
   },
   die: () => null,                                        // no die: the verdict itself
-  spend: async (_actor, marker, message) => {
-    const used = await marker.activity.use({ subsequentActions: false }, { configure: false }, {
-      data: { ...originData(message.id), flags: { [MODULE_ID]: { foldSpend: message.id } } }
-    });
-    return !!used;                                        // a use that did not happen grants nothing
+  spend: async (actor, marker, message) => {
+    if ( marker.activity ) {
+      const used = await marker.activity.use({ subsequentActions: false }, { configure: false }, {
+        data: { ...originData(message.id), flags: { [MODULE_ID]: { foldSpend: message.id } } }
+      });
+      if ( !used ) return false;                          // a use that did not happen grants nothing
+    }
+    if ( marker.row.oncePerTurn ) {
+      await writeTurnChit(actor, "rider", { name: `${marker.row.label} — used this turn`, img: marker.item?.img ?? null,
+        origin: marker.item?.uuid ?? null, riderKey: `fold:${marker.key}` });
+    }
+    return true;
   }
 };
+
+/** The SAVE_SUCCEEDS row a D20_FOLDS `succeed` entry names. */
+function succeedRowOf(name) {
+  const key = Object.keys(SAVE_SUCCEEDS).find(k => lower(k) === lower(name));
+  return key ? { key, row: SAVE_SUCCEEDS[key] } : null;
+}
+
+/** The roller wears an enabled effect of this name (D1: Living Legend's 10 minutes). */
+const actorWears = (actor, name) => (actor?.appliedEffects ?? actor?.effects?.contents ?? [])
+  .some(e => !e.disabled && (lower(e.name) === lower(name)));
+
+/** D1 — what a `succeed` spend records: the twenty (Stroke of Luck), the hit (Unerring Strike), else the saved verdict. */
+function succeedEntry(marker, message) {
+  if ( marker?.row?.twenty ) {
+    const roll = message?.rolls?.[0];
+    const face = roll?.dice?.[0]?.results?.find(r => (r.active !== false) && !r.discarded)?.result ?? null;
+    if ( Number.isFinite(Number(roll?.total)) && Number.isFinite(face) ) return { twenty: { total: Number(roll.total) - face + 20, face } };
+  }
+  if ( marker?.row?.hit ) return { verdict: "hit" };
+  return { verdict: "saved" };
+}
 
 /** The `reroll` kind (REROLLS; the PHB classes, B1): a FAILED save rerolled, the row's bonus added, paid by the row's
  * cost — the item's uses (Indomitable), or once per Rage (Fanatical Focus: the mark sits on the Rage effect and goes
@@ -199,6 +236,7 @@ const REROLL = {
     if ( row.activity && !pool ) return null;
     const left = Number((pool ?? item).system?.uses?.value ?? 0);
     if ( (row.uses || pool) && !(left > 0) ) return null;
+    if ( row.whileEffect && !actorWears(actor, row.whileEffect) ) return null;
     let rage = null;
     if ( row.while === "raging" ) {
       rage = rageEffectOf(actor);
@@ -310,11 +348,14 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     // ⚠ `name` is the LOOKUP KEY, `label` what the table reads; they differ for `bardic`.
     const buy = (entry.kind === "advantage") ? { cost: `1 ${marker.row.point} · ${Number(marker.item.system.uses.value ?? 0)} left`,
       rule: marker.row.rule } : {};
+    // D1 — a succeed row's own words: the twenty (Stroke of Luck), the hit (Unerring Strike); nothing paid, its clock.
     const succeed = (entry.kind === "succeed") ? { label: marker.row.label, rule: marker.row.rule,
-      cost: `${RESCUE_KINDS.succeed.cost} · ${marker.left} left` } : {};
+      says: marker.row.twenty ? "turn the d20 into a 20" : marker.row.hit ? "hit instead" : "succeed instead",
+      cost: (marker.left === null) ? (marker.row.oncePerTurn ? "once on each of your turns" : "free") : `${RESCUE_KINDS.succeed.cost} · ${marker.left} left` } : {};
     // A reroll row: the feature's name, its bonus as a number, its cost in its own words (a use, or the Rage's once).
     const reroll = (entry.kind === "reroll") ? { label: marker.key, rule: marker.row.rule, bonus: marker.bonus, advantage: marker.row.advantage === true,
-      cost: marker.row.uses ? `1 use · ${marker.left} left, the new roll stands` : (marker.row.once === "rage") ? "once this Rage, the new roll stands" : RESCUE_KINDS.reroll.cost } : {};
+      cost: marker.row.uses ? `1 use · ${marker.left} left, the new roll stands` : (marker.row.once === "rage") ? "once this Rage, the new roll stands"
+        : marker.row.reaction ? "your Reaction, the new roll stands" : RESCUE_KINDS.reroll.cost } : {};
     out.push({ kind: entry.kind, name: entry.name, label: (scope || tacticalRowOf(entry)) ? entry.name : (KIND_LABEL[entry.kind] ?? entry.name),
       dieFormula, ...(scope ? { cost: "the superiority die is spent either way it lands", rule: scope.rule } : {}), ...buy, ...succeed, ...reroll });
   }
@@ -350,7 +391,7 @@ function attackFoldFor(subject, message, roll) {
   const spell = subject.item?.type === "spell";
   let offers = availableFolds(attacker, "attack", [], { spell, item: subject.item ?? null });
   // ⚠ A natural 1 stands against an added die; only a reroll replaces it.
-  if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind));
+  if ( roll.isFumble ) offers = offers.filter(o => REROLL_KINDS.has(o.kind) || (o.kind === "succeed"));
   if ( !offers.length ) return null;
   const snapshot = targetsOf(message);
   if ( !snapshot.length || hitTargets(message).length ) return null;  // clean misses only
@@ -648,7 +689,7 @@ async function resolveFold(message, answer) {
       // ⚠ Recorded BEFORE the dice pause, with `pendingVerdict`, so a crash is never spent twice.
       const entry = {
         kind, name: offer.name, label: offer.label, pendingVerdict: true,
-        ...(VERDICT_KINDS.has(kind) ? { verdict: "saved" }
+        ...(VERDICT_KINDS.has(kind) ? succeedEntry(marker, message)
           : REROLL_KINDS.has(kind) ? { reroll: rolled.summary, ...((kind === "reroll") ? { bonus: marker.bonus } : {}) } : { die: rolled.summary.total })
       };
       await queueFlagWrite(message, "d20fold", current => {
@@ -780,6 +821,7 @@ async function announce(_message, actor, name, testKind, anyHit, lines, marker) 
       tone: (testKind === "attack") ? (anyHit ? "good" : "neutral") : "good",
       title: (testKind === "attack")
         ? (anyHit ? `${name} — the miss becomes a hit` : `${name} — still a miss`)
+        : ((marker?.kind === "succeed") && marker.row?.twenty) ? `${name} — the d20 is a 20`
         : (marker?.kind === "succeed") ? `${name} — the failed save succeeds instead`
         : `${name} — the roll is patched`,
       subtitle: ((marker?.kind === "tactical") && !tacticalRowOf({ kind: "tactical", name })) ? "one Superiority Die spent" : `${actor.name} spends ${name}`,
@@ -923,7 +965,7 @@ const costOnCard = o => (VERDICT_KINDS.has(o.kind) ? (o.cost ?? SPEND_COST[o.kin
 function offerLines(flag, offers) {
   const lines = offers.map(o => `<strong>${labelOf(o)}</strong>`
     + ((o.kind === "reroll") ? ` — reroll the d20${Number(o.bonus) ? `, +${o.bonus}` : ""}${o.advantage ? " with Advantage" : ""}`
-      : REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? " — succeed instead" : ` — add ${o.dieFormula}`)
+      : REROLL_KINDS.has(o.kind) ? " — reroll the d20" : VERDICT_KINDS.has(o.kind) ? ` — ${o.says ?? "succeed instead"}` : ` — add ${o.dieFormula}`)
     + (costOnCard(o) ? ` <em>(${costOnCard(o)})</em>` : ""));
   if ( setting(S.holdReveal) ) {
     for ( const t of flag.targets ?? [] ) {
@@ -1349,7 +1391,9 @@ function floorsFor(actor, { test, ability = null, concentration = false } = {}) 
   const out = [];
   for ( const [key, row] of Object.entries(D20_FLOORS) ) {
     if ( !on.has(lower(key)) || !row.tests.includes(test) ) continue;
-    if ( !actor.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(row.effect))) ) continue;
+    // D1 — a `feature` row stands while the roller holds it (Survivor); else the row's effect must stand.
+    if ( row.feature ? !featureNamed(actor, row.feature)
+      : !actor.effects.some(e => !e.disabled && !e.isSuppressed && (lower(e.name) === lower(row.effect))) ) continue;
     const abilities = row.abilities?.[test] ?? null;
     if ( abilities && ability && !abilities.includes(lower(ability)) ) continue;
     if ( (test === "save") && row.concentration && !concentration ) continue;
@@ -1362,11 +1406,21 @@ function floorsFor(actor, { test, ability = null, concentration = false } = {}) 
 function floorRolls(config, actor, facts) {
   const rows = floorsFor(actor, facts);
   if ( !rows.length || !Array.isArray(config?.rolls) ) return;
-  const minimum = Math.max(...rows.map(r => Number(r.row.minimum) || 0));
+  const floors = rows.filter(r => Number(r.row.minimum) > 0);
+  const crits = rows.filter(r => Number(r.row.critical) > 0);
+  const minimum = floors.length ? Math.max(...floors.map(r => Number(r.row.minimum))) : 0;
+  // D1 — the critical knob (Survivor): the lowest face that counts as a 20.
+  const critical = crits.length ? Math.min(...crits.map(r => Number(r.row.critical))) : 0;
   for ( const roll of config.rolls ) {
     roll.options ??= {};
-    if ( !(Number(roll.options.minimum) >= minimum) ) roll.options.minimum = minimum;
-    roll.options.bfFloor = rows.map(r => r.key);
+    if ( minimum ) {
+      if ( !(Number(roll.options.minimum) >= minimum) ) roll.options.minimum = minimum;
+      roll.options.bfFloor = floors.map(r => r.key);
+    }
+    if ( critical ) {
+      if ( !(Number(roll.options.criticalSuccess) <= critical) ) roll.options.criticalSuccess = critical;
+      roll.options.bfCritical = crits.map(r => r.key);
+    }
   }
 }
 
@@ -1375,7 +1429,12 @@ listen("dnd5e.preRollAttack", "d20-folds", config => {
   catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the attack.`, err); }
 });
 listen("dnd5e.preRollSavingThrow", "d20-folds", config => {
-  try { floorRolls(config, config?.subject ?? null, { test: "save", ability: config?.ability ?? null, concentration: !!config?.isConcentration }); }
+  try {
+    // D1 — a Death Saving Throw is its own test (the system rolls it as a save with the "deathSave" hook name).
+    const death = (config?.hookNames ?? []).includes("deathSave");
+    floorRolls(config, config?.subject ?? null, death ? { test: "death" }
+      : { test: "save", ability: config?.ability ?? null, concentration: !!config?.isConcentration });
+  }
   catch(err) { console.error(`${TITLE} | The d20 floor could not be set on the save.`, err); }
 });
 listen("dnd5e.preRollAbilityCheck", "d20-folds", config => {
@@ -1387,13 +1446,19 @@ listen("dnd5e.preRollAbilityCheck", "d20-folds", config => {
 listen("dnd5e.renderChatMessage", "d20-folds", cardRow((message, host) => {
   const roll = message.rolls?.[0];
   const keys = roll?.options?.bfFloor;
-  if ( !keys?.length ) return;
+  const critKeys = roll?.options?.bfCritical;
+  if ( !keys?.length && !critKeys?.length ) return;
   const d20 = roll.dice?.[0];
   const face = d20?.results?.find(r => r.active)?.result ?? d20?.total ?? null;
   const minimum = Number(roll.options.minimum) || 0;
-  if ( !(face !== null && face < minimum) ) return;
-  const line = document.createElement("div");
-  line.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.85;margin-top:0.25rem;";
-  line.innerHTML = `<i class="fa-solid fa-arrow-up-from-bracket"></i> ${esc(keys.join(", "))} — the d20's ${face} counts as ${minimum}`;
-  host.appendChild(line);
+  const critical = Number(roll.options.criticalSuccess) || 0;
+  const say = text => {
+    const line = document.createElement("div");
+    line.style.cssText = "font-size:var(--font-size-11,11px);opacity:0.85;margin-top:0.25rem;";
+    line.innerHTML = `<i class="fa-solid fa-arrow-up-from-bracket"></i> ${text}`;
+    host.appendChild(line);
+  };
+  if ( keys?.length && (face !== null) && (face < minimum) ) say(`${esc(keys.join(", "))} — the d20's ${face} counts as ${minimum}`);
+  // D1 — the critical knob: a face below 20 that counts as one.
+  if ( critKeys?.length && (face !== null) && (face >= critical) && (face < 20) ) say(`${esc(critKeys.join(", "))} — the d20's ${face} counts as a 20`);
 }));

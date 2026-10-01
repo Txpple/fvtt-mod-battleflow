@@ -119,9 +119,21 @@ function menuFor(attackMessage, activity) {
     }
   }
   const melee = activity.attack?.type?.value !== "ranged";
-  const menu = hitMenu({ groups: HIT_GROUPS, options: HIT_OPTIONS, listed, features, melee, pools, fits, eligible, used, dice });
+  const menu = hitMenu({ groups: groupsFor(attacker), options: HIT_OPTIONS, listed, features, melee, pools, fits, eligible, used, dice });
   const type = [...(item.system?.damage?.base?.types ?? [])][0] ?? null;
   return { attacker, menu, edge, type };
+}
+
+/** HIT_GROUPS with each `maxAt` read off the attacker (D1, Improved Brutal Strike: two effects at Barbarian 17). */
+function groupsFor(attacker) {
+  const data = attacker?.getRollData?.() ?? {};
+  const out = {};
+  for ( const [key, group] of Object.entries(HIT_GROUPS) ) {
+    const at = group.maxAt;
+    const level = at ? Number(foundry.utils.getProperty(data, String(at.levels).replace(/^@/, ""))) || 0 : 0;
+    out[key] = (at && (level >= at.at)) ? { ...group, max: at.max } : group;
+  }
+  return out;
 }
 
 /** Does every hit target fit `maxSize`? null when a size cannot be read (the table judges). */

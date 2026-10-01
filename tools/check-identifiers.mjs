@@ -20,7 +20,8 @@ const NOT_CONTENT = new Map([
   ["Absorb Elements", "Xanathar's; not in the installed packs, inert until a book carries it"],
   ["Attack and Save Disadvantage", "Ravenloft's Howl; not in the installed packs"],
   ["Cursed (Path to the Grave)", "Ravenloft's Path to the Grave; not in the installed packs"],
-  ["Power of the Wilds: Lion", "the module-MADE member effect of the Lion's ring (EMANATIONS `made`): the pack ships no effect for it"]
+  ["Power of the Wilds: Lion", "the module-MADE member effect of the Lion's ring (EMANATIONS `made`): the pack ships no effect for it"],
+  ["Unerring Strike", "a BENEFIT of Living Legend (SAVE_SUCCEEDS `feature`): the D20_FOLDS entry names the row, the row names the item"]
 ]);
 
 /** The fields a row names its content in. */

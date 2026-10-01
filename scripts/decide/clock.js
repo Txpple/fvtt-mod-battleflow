@@ -9,19 +9,22 @@
  * cannot be read (a size the table judges; an unread HP is never "damaged"). `enchanted`: the attack's
  * item carries the row's enchantment, or — none on the sheet — it is the row's `spell`.
  * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string|readonly string[], weapon?: boolean,
- *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean, melee?: boolean, marked?: string}} row
+ *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean, melee?: boolean, marked?: string, unarmed?: boolean}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, reckless?: boolean, targetDamaged?: boolean|null, weapon?: boolean,
  *          form?: string|null, dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null,
- *          fits?: boolean|null, enchanted?: boolean, melee?: boolean, wildShape?: boolean, marked?: boolean|null}} facts
+ *          fits?: boolean|null, enchanted?: boolean, melee?: boolean, wildShape?: boolean, marked?: boolean|null,
+ *          unarmed?: boolean, attuned?: boolean}} facts
  * @returns {{due: boolean, why: string}} */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
   sneakArmed = false, raging = false, reckless = false, targetDamaged = null, weapon = false, form = null, dealt = [],
-  critical = false, opportunity = null, fits = null, enchanted = false, melee = false, wildShape = false, marked = null } = {}) {
+  critical = false, opportunity = null, fits = null, enchanted = false, melee = false, wildShape = false, marked = null,
+  unarmed = false, attuned = false } = {}) {
   // C1 — `judge` may list several (Power of the Wilds' Ram: raging AND the form chip); every one must stand.
   const judges = new Set(/** @type {string[]} */ ([]).concat(row.judge ?? []));
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
   if ( row.melee && !melee ) return { due: false, why: "not a melee attack" };
+  if ( row.unarmed && !unarmed ) return { due: false, why: "not an Unarmed Strike" };
   if ( row.enchant && !enchanted ) return { due: false, why: "not the cantrip it was chosen for" };
   if ( row.maxSize && (fits === false) ) return { due: false, why: "the target is too large" };
   if ( row.dealt && !(dealt ?? []).includes(row.dealt) ) return { due: false, why: `no ${row.dealt} damage` };
@@ -36,6 +39,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
   }
   if ( judges.has("transformed") && !form ) return { due: false, why: "not transformed" };
   if ( judges.has("wildShape") && !wildShape ) return { due: false, why: "not in Wild Shape" };
+  if ( judges.has("attuned") && !attuned ) return { due: false, why: "Elemental Attunement is not active" };
   if ( judges.has("opportunity") ) {
     if ( opportunity === "driven" ) return { due: true, why: "an Opportunity Attack" };
     if ( opportunity === "offTurn" ) return { due: true, why: "a melee attack off your turn" };
@@ -54,6 +58,7 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
       if ( judges.has("reckless") ) return { due: true, why: `raging and reckless — ${why}` };
       if ( judges.has("targetDamaged") ) return { due: true, why: `the target is damaged — ${why}` };
       if ( judges.has("wildShape") ) return { due: true, why: `in Wild Shape — ${why}` };
+      if ( judges.has("attuned") ) return { due: true, why: `attuned — ${why}` };
       if ( row.marked ) return { due: true, why: `under your ${row.marked} — ${why}` };
       return { due: true, why };
     }

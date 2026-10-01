@@ -128,6 +128,8 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
     for ( const { key, row, item } of featureGrantRows({ table: TURN_GRANTS, features: actor.items.filter(i => i.type === "feat"), listed, answers, on: "turnStart" }) ) {
       if ( (row.while === "aboveZero") && !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) ) continue;
       if ( (row.while === "raging") && !raging(actor) ) continue;
+      if ( (row.while === "bloodied") && !bloodied(actor) ) continue;
+      if ( row.whileEffect && !wears(actor, row.whileEffect) ) continue;
       const place = `${combat.id}|${combat.round}|${combat.turn}|${item.uuid}${row.feature ? `|${key}` : ""}`;
       const due = grantDue({ paid, place: settledAt(place) ? null : place });
       if ( !due.due ) continue;
@@ -153,8 +155,17 @@ listen("updateCombat", "turn-grants", (combat, changes, options) => {
   }
 });
 
-/** The bearer wears its Rage — an enabled effect of that name, the actor's own or its item's transferred copy. */
-const raging = actor => (actor.appliedEffects ?? actor.effects?.contents ?? []).some(e => !e.disabled && (lower(e.name) === "rage"));
+/** The bearer wears an enabled effect of this name, its own or its item's transferred copy. */
+const wears = (actor, name) => (actor.appliedEffects ?? actor.effects?.contents ?? []).some(e => !e.disabled && (lower(e.name) === lower(name)));
+/** The bearer wears its Rage. */
+const raging = actor => wears(actor, "rage");
+/** D1 — Bloodied with at least 1 Hit Point (Heroic Rally): half the maximum or fewer. */
+const bloodied = actor => {
+  const hp = actor.system?.attributes?.hp ?? {};
+  const value = Number(hp.value ?? 0);
+  const max = Number(hp.effectiveMax ?? hp.max ?? 0);
+  return (value >= 1) && (max > 0) && (value <= Math.floor(max / 2));
+};
 
 // A feature row `on: "use"` (Vitality Surge): the bearer's OWN use of the named item pays it, on the using client.
 listen("dnd5e.postUseActivity", "turn-grants", (activity, _usageConfig, results) => {

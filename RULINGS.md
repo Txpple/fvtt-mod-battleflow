@@ -2463,6 +2463,10 @@ The calls made in the build, **each the user's to overrule**:
 | Relentless Hunter | damage while concentrating on Hunter's Mark: the card "Relentless Hunter — no save for Hunter's Mark", no ask |
 | Hurl Through Hell | the hit menu's group "Hurl Through Hell — 1 use"; the Charisma save card |
 
+## The PHB classes — D1 (2026-10-01, Session 0 stage D1)
+
+<!-- D1-BODY -->
+
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
 **The commission** (BACKLOG row 4b, the drawing [audits/drawings/monsters.md](audits/drawings/monsters.md)):
