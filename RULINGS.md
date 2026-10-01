@@ -2465,7 +2465,95 @@ The calls made in the build, **each the user's to overrule**:
 
 ## The PHB classes — D1 (2026-10-01, Session 0 stage D1)
 
-<!-- D1-BODY -->
+**Fifteen band-D rows on the shapes the table has — no new kind (40), no new file, no new table; BUILT and PROVEN
+(`smoke-classes` §92–§105), unwalked.** The PHB classes are complete with it. Measured on the pack first
+(`tools/probe-pack-shapes.mjs`, dnd5e 6.0.5): **the pack ships ONE Improved Brutal Strike item** (level 13's two blows) — level
+17's second effect has no item of its own, so the class level is the read; Superior Inspiration, Supreme Healing, Elusive and
+Improved War Magic are text alone; Survivor carries Heroic Rally (a Heal of `5 + @abilities.con.mod`, `activation: turnStart`) and
+the Defy Death effect (the Advantage, native); **Elemental Attunement is an ENCHANT activity on its own item** — the item always
+holds the enchantment's templates (`transfer: false`), the APPLIED copy is the transferred one; Living Legend's three activities
+land "Living Legend: Charismatic" on the paladin (10 minutes) and ship the save reroll as a bare Reaction utility; **its attack
+half is "the attack hits instead", not a reroll** (the plan's reroll row was a misread: the pack's text is the row); Stroke of
+Luck a utility consuming its own use; Corona of Light a utility with a 60-ft template landing "Corona of Light" on the enemies;
+Holy Nimbus a damage activity (Cha + PB radiant) landing "Holy Nimbus"; Avenging Angel a self-aimed utility (the flight) and a
+Frightful Aura save (Wisdom, the paladin's DC) landing Frightened; Elder Champion a utility landing "Diminished Defiance" on its
+targets and a Regeneration heal of 10; Tamed Surge text alone; the Wild Magic Surge table 25 rows. The calls made in the build,
+**each the user's to overrule**:
+
+- **Improved Brutal Strike (2)** is the group's `maxAt` — the Brutal Strike group's `max` rises to 2 at Barbarian 17
+  (`@classes.barbarian.levels`); the 2d10 is the scale's own step.
+- **Superior Inspiration** is Perfect Focus's `upTo` row (Bardic Inspiration back up to 2, automatic — nothing spent, nothing asked).
+- **Supreme Healing** is Beacon of Hope's `max` keyed to the CASTER (`caster`): every creature the cleric's spell or Channel
+  Divinity heals takes the dice's maximum, the flat parts as rolled; the card's own buttons and a typed heal are not raised (the
+  caveat Beacon carries).
+- **Corona of Light, Holy Nimbus and Elder Champion stand while their use's own effect stands on the bearer**, landed at the use by
+  TOKEN_LIGHTS' `on: "self"` (Corona's light 60/90; Holy Nimbus's sunlight 30 — the level-20 aura; **Elder Champion writes no light**
+  — a row with no light writes nothing to the token's own); **Avenging Angel's** self-aimed effect is the cast applier's. So each ring
+  lives the pack's own clock (1 or 10 minutes), and ends with the effect.
+- **The save bends read the demand** (`saves.by`, decide/reminders.js): Corona of Light's MEMBER copy — Disadvantage against the
+  cleric's own spell dealing fire or radiant damage, or its Radiance of the Dawn; Elder Champion's Diminished Defiance — against the
+  paladin's spells and Channel Divinity; Holy Nimbus's Holy Ward — Advantage on a save a Fiend or an Undead forces (the demand's
+  caster snapshot now carries its creature type, and the demand its damage types and whether it is a Channel Divinity use).
+- **Holy Nimbus's radiant damage is the plain-damage trigger** (Cloud of Daggers' shape on a feature ring): an enemy starting its turn
+  inside takes the activity's Cha + PB, no save, once per turn. **Avenging Angel's Frightful Aura is Fear Aura's** — an enemy starting
+  its turn inside saves or is Frightened (the verdict lands the activity's effect); attack rolls against THAT Frightened read
+  Advantage (EFFECT_BENDS `itemOnly` — a plain Frightened is the condition's row); "until it takes any damage" is the table's.
+- **Survivor:** Heroic Rally is a turn grant `while: "bloodied"` (at half the maximum or fewer, at least 1); Defy Death's 18–20 is
+  the D20 FLOORS table's second knob — `critical` (the platform's `criticalSuccess` on the roll), on the Death Saving Throw alone
+  (`tests: ["death"]`), the card "Survivor — the d20's 18 counts as a 20".
+- **Living Legend:** the save reroll is the `reroll` kind (`whileEffect`, `reaction` — the Reaction is the cost, said on the offer, the
+  table tracks it); **Unerring Strike is a `succeed` row (`hit`)**: once on each of your turns, a weapon miss hits instead (a forced
+  verdict, no Critical Hit), while the legend stands.
+- **Stroke of Luck is a `succeed` row (`twenty`)**: any failed D20 Test — the d20 turns into a 20 and the roll is RE-JUDGED (a replace,
+  like a reroll's), never a forced success: a DC above 20 + the bonus still beats it. **On an attack it is not a Critical Hit** — the
+  rule turns the roll into a 20, it does not say the 20 was rolled (a reading; the user's to overrule).
+- **Elusive** is Trance of Order's `cancel` on a feature (`judge: "notIncapacitated"`). **Improved War Magic** is War Magic's reminder,
+  listed first so a fighter of 18 hears it alone. **Elemental Epitome** is a clock rider (`judge: "attuned"` — the APPLIED enchantment;
+  `unarmed`: an Unarmed Strike or the attunement's own Elemental Strike); its Resistance is the pack's effect, Destructive Stride the
+  table's. **Improved Duplicity** is Invoke Duplicity's listed bend for the cleric's ALLIES (`allies` — the feature held by another
+  creature of the attacker's side on the scene); the illusion is not a token the module reads; Healing Illusion is the table's.
+- **Tamed Surge** is a facet of the surge row (`tamed`): after a Sorcerer slot cast, with its use standing, the surge line offers a
+  pick from every table row but the last; the pick is recorded and posted and spends the use; the effect is the table's to play.
+
+**The rows:**
+
+| Row | Table · facet | What it does |
+| --- | --- | --- |
+| Improved Brutal Strike (2) | `HIT_GROUPS` (`maxAt`) | two different Brutal Strike effects on one hit at Barbarian 17 |
+| Superior Inspiration | `INITIATIVE_GRANTS` (`upTo: 2`) | Bardic Inspiration back up to 2 at Initiative |
+| Supreme Healing | `HEAL_REROLLS` (`max`, `caster`) | the cleric's spell and Channel Divinity heals at the dice's maximum |
+| Corona of Light | `TOKEN_LIGHTS` (`on: "self"`) + `EMANATIONS` + `EFFECT_BENDS` (`saves.by`) | the light; enemies within 60 ft save at Disadvantage against the cleric's fire or radiant spells and Radiance of the Dawn |
+| Improved Duplicity | `EFFECT_BENDS` (`allies`) | Shared Distraction listed on every ally's attack |
+| Survivor | `TURN_GRANTS` (`while: "bloodied"`) + `D20_FLOORS` (`critical`) | Heroic Rally at a Bloodied turn start; 18–20 on a death save counts as 20 |
+| Improved War Magic | `BONUS_SWINGS` | two attacks for a level 1 or 2 Wizard spell — the reminder |
+| Elemental Epitome | `CLOCK_RIDERS` (`judge: "attuned"`, `unarmed`) | the Martial Arts die once per turn on an Unarmed Strike while attuned |
+| Holy Nimbus | `TOKEN_LIGHTS` + `EMANATIONS` (`trigger` plain damage) + `EFFECT_BENDS` (`saves.by.creatureTypes`) | the sunlight; radiant damage to an enemy starting its turn inside; Advantage on saves against Fiends and Undead |
+| Living Legend | `REROLLS` (`whileEffect`, `reaction`) + `SAVE_SUCCEEDS` "Unerring Strike" (`hit`) | the save reroll as a Reaction; a weapon miss hits instead once per turn |
+| Avenging Angel | `EMANATIONS` (`trigger` save) + `EFFECT_BENDS` (`itemOnly`) | an enemy starting its turn inside saves or is Frightened; attacks against it at Advantage |
+| Elder Champion | `TOKEN_LIGHTS` (no light) + `EMANATIONS` + `EFFECT_BENDS` (`saves.by`) + `TURN_GRANTS` (`whileEffect`) | enemies inside at Disadvantage against the paladin's spells and Channel Divinity; 10 HP at each turn start |
+| Elusive | `EFFECT_BENDS` (`cancel`, `match: "feature"`) | no Advantage against the rogue unless Incapacitated |
+| Stroke of Luck | `SAVE_SUCCEEDS` (`twenty`, `tests`) | a failed D20 Test's d20 becomes a 20, once per rest |
+| Tamed Surge | `CAST_RIDERS` (`tamed` on Wild Magic Surge) | a pick from the surge table instead of a roll, once per Long Rest |
+
+**The walk table** (for the batched walk):
+
+| Trait | What you should see |
+| --- | --- |
+| Improved Brutal Strike, Barbarian 17, the forgo ticked | the hit's Brutal Strike group keeps two ticks; both ride the damage |
+| Superior Inspiration, Initiative with no uses | the card "Superior Inspiration — Bardic Inspiration uses back up to 2" |
+| Supreme Healing, Cure Wounds | the healing at the dice's maximum, the receipt "Healing — Supreme Healing — the maximum" |
+| Corona of Light used | the cleric's light 60/90; the enemies within 60 ft wear "Corona of Light — <cleric>"; their save against Sacred Flame lists it, Disadvantage |
+| Improved Duplicity, an ally attacks | the gate lists "Improved Duplicity (listed — … within 5 feet of the cleric's illusion)" |
+| Survivor, Bloodied at the turn start; a death save of 18 | the heal 5 + Con; the death save a critical success, "Survivor — the d20's 18 counts as a 20" |
+| Improved War Magic, an attack | "Improved War Magic — <fighter> can attack again" (War Magic's never beside it) |
+| Elemental Epitome, attuned, an Unarmed Strike hit | the offer's rider "Empowered Strikes — <die>", ticked |
+| Holy Nimbus used, an enemy's turn starts inside | the card "Holy Nimbus — <enemy> started its turn inside", the radiant damage landed |
+| Living Legend standing: a failed save; a weapon miss | the rescue row "Living Legend — your Reaction, the new roll stands"; "Unerring Strike — hit instead", the miss now a hit |
+| Avenging Angel used, an enemy's turn starts inside | the Wisdom save card; a failure lands Frightened; an attack at it lists "Frightened" with Advantage |
+| Elder Champion used | the paladin's mark (no light); the enemies inside wear "Diminished Defiance — <paladin>"; 10 HP at the paladin's turn start |
+| Elusive, Reckless at the rogue | the gate "has Elusive — attack rolls against it cannot have Advantage", Reckless cancelled |
+| Stroke of Luck, a failed save | the rescue row "Stroke of Luck — turn the d20 into a 20"; the total re-judged with a 20 |
+| Tamed Surge, a Sorcerer slot cast | the surge line's select "Tamed Surge — choose an effect instead (1 use)"; Choose records it and spends the use |
 
 ## The GM's side — the five shapes (2026-09-28, night; HANDOFF.md Stage 1)
 
