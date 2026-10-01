@@ -176,7 +176,7 @@ async function auraEffect({ name, row, feature, actor, message }) {
   try {
     const members = auraMembersOf(actor, row.aura);
     if ( !members.length || !(message instanceof ChatMessage) ) return;
-    await applyItemEffectOnHit(message, feature, { name: row.effect, from: row.effect, id: "bfSmiteOfProt00" }, members,
+    await applyItemEffectOnHit(message, feature, { name: row.effect, from: row.effect, id: "bfSmiteOfProt000" }, members,
       { clock: row.clock ?? null, attacker: actor });
     await message.setFlag(MODULE_ID, "auraRider", { feature: name, actorUuid: actor.uuid, aura: row.aura, effect: row.effect,
       members: members.map(m => m.name) }).catch(() => {});

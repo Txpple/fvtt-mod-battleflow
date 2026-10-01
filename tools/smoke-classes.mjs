@@ -5001,7 +5001,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else {
           await sleep(300);
           await cleric.update({ 'system.spells.spell1.value': 4 });
-          await halflingDoc.update({ x: 1600, y: 2000 });   // 5 ft from the cleric: inside the 10-ft aura
+          // ⚠ The range is 2000 x 2000: the main row (y 2100) is OFF the scene, and Foundry refuses any move onto y >= 2000
+          // (the update returns undefined, nothing moves). Moves go on the north rows.
+          await halflingDoc.update({ x: 1700, y: 1900 });   // 5 ft from the cleric: inside the 10-ft aura
           await sleep(600);
           const region = await waitFor(() => regionKeyed('Aura of Protection', clericToken.document.id), 12000);
           await waitFor(() => halfling.effects.some(e => e.getFlag(MOD, 'emanation') && e.name.startsWith('Protected')), 10000);
@@ -5028,25 +5030,27 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
     // ---- 78. Soul of Vengeance: the Vow's creature attacks — the paladin within 5 ft is offered the strike
     if (want(78)) {
-      await closeA1(); await spendLuckC(); await dropReactionChips(cleric);
+      await closeA1(); await spendLuckC(); await dropReactionChips(cleric); await a1Victim();
       const vow = await hgLend(cleric, 'Vow of Enmity', 'feat');
       const soul = await hgLend(cleric, 'Soul of Vengeance', 'feat');
       const cx = clericToken.document.x, cy = clericToken.document.y;
       let marked = null;
       try {
-        if (!vow || !soul || !clericWeapon) log.push(`§78 skipped: vow=${!!vow} soul=${!!soul} weapon=${!!clericWeapon}`);
+        if (!vow || !soul || !pcWeapon) log.push(`§78 skipped: vow=${!!vow} soul=${!!soul} weapon=${!!pcWeapon}`);
         else {
-          await clericToken.document.update({ x: 1500, y: 2000 });   // 5 ft (diagonal) from the Attacker
+          // ⚠ The Attacker's row (y 2100) is OFF the 2000 x 2000 range: nobody can be moved beside it. The PC Attacker
+          // (1400, 1900) wears the Vow and strikes the Victim; the cleric moves 5 ft north of it (1400, 1800).
+          await clericToken.document.update({ x: 1400, y: 1800 });
           await sleep(400);
-          marked = await markOn(attacker, 'Vow of Enmity', vow.uuid);
+          marked = await markOn(pcAttacker, 'Vow of Enmity', vow.uuid);
           const t0 = Date.now();
-          const msg = await swing({ d20: [12], dmg: 3 });
+          const msg = await hgStrike(pcAttacker, pcToken, pcWeapon, victimToken);
           const card = await waitFor(() => c1Cards(t0, 'rebuke').find(m => m.getFlag(MOD, 'rebuke')?.onAttack && (m.getFlag(MOD, 'rebuke')?.actorUuid === cleric.uuid)) ?? null, 8000);
           const pop = await waitFor(() => popups().find(app => /Soul of Vengeance/.test(textOf(app.element)) && /attacked — strike\?/.test(textOf(app.element))) ?? null, 6000);
           const f = card?.getFlag(MOD, 'rebuke');
-          ok('78a. the Attacker under the Vow makes an attack roll: the paladin\'s popup "BF Test Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BF Test Cleric\'s Vow of Enmity"',
+          ok('78a. the PC Attacker under the Vow makes an attack roll: the paladin\'s popup "BF Test PC Attacker attacked — strike?" with Soul of Vengeance (a melee attack), the card "under BF Test Cleric\'s Vow of Enmity"',
             !!msg && !!card && !!pop && (f?.options ?? []).some(o => o.name === 'Soul of Vengeance') && /Vow of Enmity/.test(cardText(card?.id)),
-            `card=${!!card} pop=${!!pop} options=${JSON.stringify((f?.options ?? []).map(o => o.name))} text="${cardText(card?.id).slice(0, 200)}"`);
+            `card=${!!card} pop=${!!pop} options=${JSON.stringify((f?.options ?? []).map(o => o.name))} distance=${f?.distance ?? null} text="${cardText(card?.id).slice(0, 200)}" msg=${msg?.id ?? null}`);
           pop?.element?.querySelector('button[data-action="pass"]')?.click();
           await sleep(500);
         }

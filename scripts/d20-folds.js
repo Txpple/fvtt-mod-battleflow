@@ -302,6 +302,9 @@ function availableFolds(actor, testKind, spent = [], ctx = {}) {
     let dieFormula = spec.die(marker);
     if ( scope && dieFormula ) {
       dieFormula = resolveDie(actor, dieFormula);
+    } else if ( dieFormula && /@/.test(dieFormula) ) {
+      // C1 — a tactical row's die off its activity (Peerless Skill: "@scale.bard.inspiration"): the bearer's number, for the offer's label.
+      dieFormula = resolveDie(actor, dieFormula) ?? dieFormula;
     }
     if ( !REROLL_KINDS.has(entry.kind) && !VERDICT_KINDS.has(entry.kind) && !dieFormula ) continue;   // a die-kind with no die is off
     // ⚠ `name` is the LOOKUP KEY, `label` what the table reads; they differ for `bardic`.
