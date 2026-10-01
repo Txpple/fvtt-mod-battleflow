@@ -4192,7 +4192,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       } finally {
         await closeA1(); await closeOffers();
-        const fx = lawFx(); if (fx) await fx.delete().catch(() => {});
+        { const ids = halfling.effects.filter(e => e.name.startsWith('Warded by Law')).map(e => e.id); if (ids.length) await halfling.deleteEmbeddedDocuments('ActiveEffect', ids).catch(() => {}); }   // every pool, not the first
         for (const it of [bastion, arcane, projected]) if (it) await unlend(sorcerer, it);
         if (font && !ownFont61) await unlend(sorcerer, font);
         else if (font) await font.update({ 'system.uses.spent': fontSpent61 }).catch(() => {});
@@ -4554,7 +4554,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const cha = Number(sorcerer.getRollData()?.abilities?.cha?.mod ?? 0);
           const blinded = attacker.effects.find(e => (e.name === 'Searing Vengeance') && e.statuses?.has?.('blinded')) ?? null;
           ok('67b. Yes: the Halfling at half its maximum (200), the Attacker within 30 ft takes 2d8 + Cha radiant and is Blinded, the use spent',
-            (hp() === 200) && (done?.healed === 200) && (Number(attacker.system.attributes.hp.value) === ahp0 - (8 + cha)) && !!blinded
+            (hp() === 200) && (done?.healed === 200) && (Number(attacker.system.attributes.hp.value) === Math.max(0, ahp0 - (8 + cha))) && !!blinded
               && (Number(sorcerer.items.get(sv.id)?.system?.uses?.spent) === 1) && (done?.victims ?? []).includes(attackerToken.document.name),
             `hp=${hp()} record=${JSON.stringify(done && { healed: done.healed, burst: done.burst, victims: done.victims })} attacker=${attacker.system.attributes.hp.value} (from ${ahp0}, cha ${cha}) blinded=${!!blinded} spent=${sorcerer.items.get(sv.id)?.system?.uses?.spent}`);
         }

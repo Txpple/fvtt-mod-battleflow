@@ -1572,7 +1572,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await sleep(150);
       };
       const entryName = card => card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? 'BF Test Victim';
-      const dialogFor = name => until(() => savePopups().find(p => demandText(p).includes(name)), 6000);
+      const dialogFor = name => until(() => savePopups().find(p => demandText(p).includes(name)), 12000);
       const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
       const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
       const saveRollsIn = before => fresh(before).filter(m => m.type === 'save');
@@ -1945,7 +1945,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!/(^|,\s*)Trance(\s*,|$)/i.test(priorLists.effectList)) await set('effectList', `${priorLists.effectList}, Trance`);
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
         const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
-        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
         const castDexAt = async () => {
           target(victimToken);
           await sleep(120);
@@ -2014,7 +2014,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (!/(^|,\s*)Brave(\s*,|$)/i.test(priorLists.effectList)) await set('effectList', `${priorLists.effectList}, Brave`);
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
         const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
-        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
         const castDexAt = async () => {
           target(victimToken);
           await sleep(120);
@@ -2343,7 +2343,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             const card = use?.message instanceof ChatMessage ? use.message : null;
             if (!card) return { card: null };
             await until(() => card.getFlag(MOD, 'saves'));
-            const dlg = await until(() => savePopups().find(p => demandText(p).includes(card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+            const dlg = await until(() => savePopups().find(p => demandText(p).includes(card.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
             dlg?.querySelector('button[data-action="normal"]')?.click();
             const choice = await until(() => entryOf(card, victim)?.choice ?? null, 12000);
             const popup = await until(wordPopup, 8000);
@@ -2387,10 +2387,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await saveBonus(victim, '');
         await healFull(victim);
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
-        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
         const ward = async name => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false }]); wards.push(e); return e; };
         const castAt = async activity => {
           target(victimToken);
+          // The previous demand's dialog must be GONE first: cast over a closing dialog, the next one never shows (the battery's timing-class red, §32 f/g).
+          await until(() => !savePopups().length, 8000);
           await sleep(120);
           const use = await activity.use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;
@@ -2446,7 +2448,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull(victim);
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
         const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
-        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
         const damageFor = card => game.messages.contents.find(m => (m.type === 'damage') && (m._source.system?.origin === card?.id));
         const lendTrait = async name => {
           const pack = game.packs.get('dnd-monster-manual.features');
@@ -2460,6 +2462,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dropTraits = async () => { for (const t of traits.splice(0)) await t.delete().catch(() => {}); };
         const castAt = async activity => {
           target(victimToken);
+          // The previous demand's dialog must be GONE first: cast over a closing dialog, the next one never shows (the battery's timing-class red, §32 f/g).
+          await until(() => !savePopups().length, 8000);
           await sleep(120);
           const use = await activity.use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;
@@ -2548,7 +2552,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await healFull(victim);
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
         const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
-        const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 6000);
+        const dialogFor = async card => {
+          const dlg = await until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);
+          if (!dlg) log.push(`§32 no dialog for card ${card?.id}: saves=${JSON.stringify(card?.getFlag(MOD, 'saves') && { status: card.getFlag(MOD, 'saves').status, targets: card.getFlag(MOD, 'saves').targets?.map(t => [t.name, t.done ?? null, t.outcome ?? null]) })} apps=${[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => (a.constructor?.name ?? '?') + ':' + String(a.title ?? a.options?.window?.title ?? '').slice(0, 40)).join(' | ')}`);
+          return dlg;
+        };
         const ward = async (name, data = {}) => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false, ...data }]); wards.push(e); return e; };
         const feat = async (actor, name) => {
           const [it] = await actor.createEmbeddedDocuments('Item', [{ name, type: 'feat', system: { description: { value: `<p>${name}</p>` } } }]);
@@ -2557,6 +2565,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const unfeat = async it => { const l = lent.find(x => x.id === it.id); if (l?.actor.items.get(it.id)) await l.actor.deleteEmbeddedDocuments('Item', [it.id]); lent.splice(lent.indexOf(l), 1); };
         const castAt = async activity => {
           target(victimToken);
+          // The previous demand's dialog must be GONE first: cast over a closing dialog, the next one never shows (the battery's timing-class red, §32 f/g).
+          await until(() => !savePopups().length, 8000);
           await sleep(120);
           const use = await activity.use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;

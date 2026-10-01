@@ -71,7 +71,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
     try {
       for (const app of foundry.applications.instances.values()) {
-        if ((app.element?.textContent ?? '').includes('drop to 1 instead')) { try { await app.close(); } catch { /* gone */ } }
+        if (/drop to 1( Hit Point)? instead/.test(app.element?.textContent ?? '')) { try { await app.close(); } catch { /* gone */ } }
       }
       const live = lent.filter(id => actor.items.get(id));
       if (live.length) await actor.deleteEmbeddedDocuments('Item', live);
@@ -122,7 +122,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const hit = n => actor.applyDamage([{ value: n, type: 'slashing' }]);
     const cardAfter = t0 => game.messages.contents.filter(m => (m.timestamp >= t0) && m.getFlag(MOD, 'dropToOne')).pop() ?? null;
     const popup = () => [...foundry.applications.instances.values()]
-      .find(app => app.rendered && (app.element?.textContent ?? '').includes('drop to 1 instead')) ?? null;
+      .find(app => app.rendered && /drop to 1( Hit Point)? instead/.test(app.element?.textContent ?? '')) ?? null;
     const press = (app, action) => { const b = app?.element?.querySelector(`button[data-action="${action}"]`); b?.click(); return !!b; };
 
     // ================================================== 1. Death Ward
