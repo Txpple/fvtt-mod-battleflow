@@ -15,7 +15,7 @@ import { damageAfterHold } from "../auto-damage.js";
 import { joinEffectReceipt } from "../decide/receipt.js";
 import { bfCard, popupKey, spendPhrase, esc } from "../decide/present.js";
 import { livePopups, waitForWrite } from "../ui.js";
-import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf } from "./lookup.js";
+import { reactionItem, hasReactionEffect, applyReactionEffect, reactionACArrived, reactionImg, duplicatesOf, attackFactsOf, recoilKey } from "./lookup.js";
 import { duplicateOutcome, duplicateWords } from "../decide/duplicates.js";
 import { disarmHoldTimer } from "./clock.js";
 import { resolveUuid, lower } from "../lookup.js";
@@ -218,7 +218,8 @@ async function rollDuplicates(attackMessage, target) {
       } catch(err) { console.error(`${TITLE} | ${live.key}'s save did not roll — judge the hit by hand.`, err); }
       const absorbed = (total !== null) && (total < s.dc);
       const effect = actor.effects.get(s.effectId);
-      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(effect.getFlag(MODULE_ID, "recoiled") ?? {}), [attacker.uuid]: s.turn }).catch(() => {});
+      // ⚠ A uuid's dots would expand into nested keys on the flag: the stamp is keyed by the uuid with its dots folded.
+      if ( effect && s.turn && attacker?.uuid ) await effect.setFlag(MODULE_ID, "recoiled", { ...(effect.getFlag(MODULE_ID, "recoiled") ?? {}), [recoilKey(attacker.uuid)]: s.turn }).catch(() => {});
       target.duplicates = { ...d, faces: [], winner: null, absorbed, took: null, left: 1, of: 1, at: null, die: null, feature: true,
         save: { ability: s.ability, dc: s.dc, total } };
       if ( absorbed ) target.verdict = "absorbed";

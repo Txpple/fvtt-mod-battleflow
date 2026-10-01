@@ -812,8 +812,9 @@ async function adoptRegion(region, { kind, key, tok, itemUuid, reach, scaling = 
     flags: { [MODULE_ID]: { [FLAG]: { kind, key, tokenId: tok?.id ?? null, itemUuid, initial } } }
   });
   // C1 — a `bearer` ring's SOURCE is another token (the druid's), the attachment the bearer's.
+  const sourceDoc = (source ?? tok)?.document ?? (source ?? tok) ?? null;   // a placeable has no uuid; its document does
   await region.createEmbeddedDocuments("RegionBehavior", [{ type: TYPE, name: key, disabled,
-    system: { key, source: (source ?? tok)?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
+    system: { key, source: sourceDoc?.uuid ?? null, item: itemUuid, reach, scaling, effect } }]);
   if ( tok && (region.attachment?.token?.id !== tok.id) ) await region.update({ attachment: { token: tok.id } });
 }
 

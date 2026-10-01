@@ -2846,6 +2846,8 @@ export const WARDS = Object.freeze({
  *   match     "feature" (the GM's side, Reflective Carapace): the DEFENDER's own trait, one "duplicate" that is
  *             never destroyed — `only: "rangedSpellAttack"` narrows the hits it answers; `reflectAt` the face
  *             that also reflects the spell (the caster the target — the table's, the card says so)
+ *   save      (C1, Unbreakable Majesty) the ATTACKER's save in place of the die: the pack's save activity of that
+ *             name on the defender's item; a failure absorbs the hit, once per turn per attacker
  * Not a kind: one machine, rows of data.
  */
 export const DUPLICATES = Object.freeze({
@@ -2857,7 +2859,13 @@ export const DUPLICATES = Object.freeze({
   "Reflective Carapace": Object.freeze({ match: "feature", die: 6, at: 1, reflectAt: 6, only: "rangedSpellAttack",
     caveat: "Magic Missile (no attack roll) is the cast-triggered kind, not built; the reflection on a 6 — the caster the target — is the table's",
     rule: Object.freeze({ item: "Reflective Carapace", uuid: "Compendium.dnd-monster-manual.features.Item.mmReflectiveCara" }),
-    from: "monsters (the tarrasque)" })
+    from: "monsters (the tarrasque)" }),
+  // C1 — Unbreakable Majesty: one "duplicate" that is never destroyed; a hit that stands inside the Majestic Presence demands
+  // the ATTACKER's Charisma save (`save`: the pack's activity on the bard's item, the bard's DC) in place of a die — a failure
+  // turns the hit aside (`absorbed`), once per turn per attacker (the `recoiled` stamp on the effect).
+  "Unbreakable Majesty": Object.freeze({ effect: "Majestic Presence", save: "Recoil Save",
+    rule: Object.freeze({ item: "Unbreakable Majesty", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdUnbreakabl" }),
+    from: "Bard — College of Glamour 14" })
 });
 
 /**

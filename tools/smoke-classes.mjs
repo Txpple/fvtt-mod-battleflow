@@ -5223,7 +5223,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok('83a. the sorcerer\'s save against the Attacker\'s Sacred Flame: the gate lists "Spell Resistance", net Advantage', !!dlg && /Spell Resistance/.test(text) && (net === 'advantage'),
             `dlg=${!!dlg} net=${net} text="${text.slice(0, 200)}"`);
           try { await dlg?.close(); } catch { /* gone */ }
-          await Promise.resolve(p).catch(() => {});
+          // ⚠ A closed roll dialog under a PROMPT demand never settles the roll promise: bounded, never awaited bare (a 25-minute hang, 2026-09-30).
+          await Promise.race([Promise.resolve(p).catch(() => {}), sleep(3000)]);
+          await hgClose(/Saving Throw/);
           clearTargets();
         }
       } finally {
@@ -5329,8 +5331,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           ok(`86a. the cantrip's damage landed: "Improved Blessed Strikes — ${2 * wis} Temporary Hit Points for another creature", the cleric and the Halfling among the candidates`,
             !!ask && !!pop && (flag?.amount === 2 * wis) && (flag?.cap === 1) && (flag?.candidates ?? []).some(c => c.uuid === cleric.uuid) && (flag?.candidates ?? []).some(c => c.uuid === halfling.uuid),
             `ask=${!!ask} pop=${!!pop} amount=${flag?.amount} candidates=${JSON.stringify((flag?.candidates ?? []).map(c => c.name))}`);
-          const radio = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song"]') ?? [])].find(i => i.value === halfling.uuid);
-          if (radio) { radio.checked = true; radio.dispatchEvent(new Event('change', { bubbles: true })); }
+          // The rows are checkboxes under a cap of 1: the default tick comes off by a click, the Halfling's goes on by a click.
+          const boxes = [...(pop?.element?.querySelectorAll('input[name="bf-rest-song"]') ?? [])];
+          for (const b of boxes) if (b.checked && (b.value !== halfling.uuid)) b.click();
+          await sleep(100);
+          const mine = boxes.find(i => i.value === halfling.uuid);
+          if (mine && !mine.checked) mine.click();
+          await sleep(100);
           pop?.element?.querySelector('button[data-action="ok"]')?.click();
           await waitFor(() => ask?.getFlag(MOD, 'restSong')?.applied, 8000);
           await sleep(300);
@@ -5374,45 +5381,51 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(88)) {
       await closeA1(); await set('saveRolls', 'prompt');
       const le = await hgLend(bard, 'Leading Evasion', 'feat');
-      const bx = bardDoc.x, by = bardDoc.y;
+      const sorcHP = () => Number(sorcerer.system.attributes.hp.value);
+      const sorcBefore = { value: sorcerer.system._source.attributes.hp.value, temp: sorcerer.system._source.attributes.hp.temp ?? 0 };
       let flameLent = null;
       let priorOnSave = null;
       let flameAct = null;
       try {
         if (!le) log.push('§88 skipped: no Leading Evasion in the PHB');
         else {
-          await bardDoc.update({ x: 1600, y: 2100 });   // 5 ft from the Halfling
-          await sleep(400);
+          // ⚠ The main row (y 2100) is OFF the 2000 x 2000 range: nobody moves there. The sorcerer (1800, 2100) already
+          // stands 5 ft from the bard (1700, 2100): the demand on both, the sorcerer the one who fails.
+          await sorcerer.update({ 'system.attributes.hp.value': sorcerer.system.attributes.hp.max, 'system.attributes.hp.temp': 0 });
+          const sorcMax = sorcHP();
           let flameId = attacker.items.find(i => (i.name === 'Sacred Flame') && (i.type === 'spell'))?.id;
           if (!flameId) { flameLent = await hgLend(attacker, 'Sacred Flame', 'spell', { 'system.prepared': 1, 'system.method': 'atwill' }); flameId = flameLent?.id; }
           flameAct = attacker.items.get(flameId)?.system?.activities?.find(a => a.type === 'save');
           priorOnSave = flameAct?.damage?.onSave ?? null;
           await attacker.items.get(flameId).update({ [`system.activities.${flameAct.id}.damage.onSave`]: 'half' });   // a half-on-save demand, for the section
           flameAct = attacker.items.get(flameId)?.system?.activities?.get(flameAct.id);
-          await healFull();
           attackerToken.control({ releaseOthers: true });
-          halflingToken.setTarget(true, { releaseOthers: true });
+          sorcTokC()?.setTarget(true, { releaseOthers: true });
           bardTokC()?.setTarget(true, { releaseOthers: false });
           await sleep(100);
           faces([[4, 8]]);
           const use = await flameAct.use({ consume: { spellSlot: false } }, { configure: false }, {});
           const card = use?.message ?? null;
           await waitFor(() => (card?.getFlag(MOD, 'saves')?.targets?.length ?? 0) >= 2, 8000);
+          // PROMPT mode: the demand opens each target's own roll dialog; a bare rollSavingThrow is a second, unlinked roll
+          // (its card carries no respondsTo, the entry never folds). The sorcerer's dialog is the one rolled.
+          const sorcDlg = () => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element && /BF Test Sorcerer/.test(textOf(app.element))) ?? null;
+          const dlg = await waitFor(sorcDlg, 8000);
           faces([[1, 20]]);
-          await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
-          const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === halfling.uuid) && x.done) ?? null, 12000);
-          await waitFor(() => hp() < 400, 8000);
+          (dlg?.element?.querySelector('button[data-action="normal"]') ?? dlg?.element?.querySelector('button[autofocus]') ?? dlg?.element?.querySelector('button[type="submit"]'))?.click();
+          const entry = await waitFor(() => card?.getFlag(MOD, 'saves')?.targets?.find(x => (x.uuid === sorcerer.uuid) && x.done) ?? null, 12000);
+          await waitFor(() => sorcHP() < sorcMax, 8000);
           await sleep(500);
           CONFIG.Dice.randomUniform = realPRNG;
-          ok('88a. the Halfling (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF: the entry "Evasion — Leading Evasion (BF Test Bard)"',
-            (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BF Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (hp() === 400 - 2),
-            `entry=${JSON.stringify(entry && { outcome: entry.outcome, evasion: entry.evasion, by: entry.evasionBy })} hp=${hp()} targets=${JSON.stringify((card?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))}`);
+          ok('88a. the sorcerer (5 ft from the bard, both targets of the same Dexterity demand) FAILS and takes HALF (4 → 2): the entry "Evasion — Leading Evasion (BF Test Bard)"',
+            (entry?.outcome === 'failed') && (entry?.evasion === true) && /Leading Evasion \(BF Test Bard\)/.test(String(entry?.evasionBy ?? '')) && (sorcHP() === sorcMax - 2),
+            `dlg=${!!dlg} entry=${JSON.stringify(entry && { outcome: entry.outcome, evasion: entry.evasion, by: entry.evasionBy })} hp=${sorcHP()} of ${sorcMax} targets=${JSON.stringify((card?.getFlag(MOD, 'saves')?.targets ?? []).map(t => [t.name, t.done, t.outcome]))}`);
           clearTargets();
         }
       } finally {
         await closeA1();
         if (flameAct && priorOnSave !== null) await flameAct.item?.update({ [`system.activities.${flameAct.id}.damage.onSave`]: priorOnSave }).catch(() => {});
-        await bardDoc.update({ x: bx, y: by });
+        await sorcerer.update({ 'system.attributes.hp.value': sorcBefore.value, 'system.attributes.hp.temp': sorcBefore.temp });
         if (flameLent) await unlend(attacker, flameLent);
         if (le) await unlend(bard, le);
         await healFull();
@@ -5455,8 +5468,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const saveMsg = game.messages.contents.find(m => m.getFlag(MOD, 'duplicatesSave')?.defenderUuid === bard.uuid) ?? null;
           ok('89a. the hit inside the Majestic Presence: the attacker\'s Charisma save rolled by the machine (a 1 — failed), the verdict ABSORBED, no damage to the bard, the effect stamped for this attacker\'s turn',
             !!presence && (t?.verdict === 'absorbed') && (t?.duplicates?.save?.total !== null) && (t?.duplicates?.absorbed === true) && (bhp() === 400) && !!saveMsg
-              && !!bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled')?.[attacker.uuid],
-            `verdict=${t?.verdict} dup=${JSON.stringify(t?.duplicates ?? null)} hp=${bhp()} save=${!!saveMsg} recoiled=${JSON.stringify(bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled') ?? null)}`);
+              && !!bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled')?.[attacker.uuid.replaceAll('.', '|')],   // the key: the uuid with its dots folded
+            `verdict=${t?.verdict} dup=${JSON.stringify(t?.duplicates ?? null)} hp=${bhp()} save=${!!saveMsg} recoiled=${JSON.stringify(bard.effects.get(presence.id)?.getFlag(MOD, 'recoiled') ?? null)} presence=${JSON.stringify(presence && { name: presence.name, origin: presence.origin, active: presence.active })} umActs=${JSON.stringify([...(um.system.activities ?? [])].map(a => [a.name, a.type, a.save?.dc?.value ?? null, a.save?.dc?.calculation ?? null, [...(a.save?.ability ?? [])]]))} hold=${JSON.stringify(holdOf(msg) && { status: holdOf(msg).status, targets: holdOf(msg).targets?.map(x => [x.name, x.verdict, x.reaction ?? null, !!x.duplicates]) })} combat=${game.combat?.started} msg=${msg?.id ?? null}`);
           // the second hit this turn: no save, the hit stands
           faces([[12, 20], [3, 6], [3, 6]]);
           const usage2 = await act().use({ subsequentActions: false }, { configure: false }, {});
@@ -5492,7 +5505,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else {
           await sleep(400);
           storm = await markOn(halfling, 'Stormborn', gift.uuid);
-          const region = await waitFor(() => regionKeyed('Oceanic Gift', halflingToken.document.id), 12000);
+          // The region lands before its behaviour and its "initial" record (adoptRegion): wait for the adopted ring, not the bare one.
+          const region = await waitFor(() => { const r = regionKeyed('Oceanic Gift', halflingToken.document.id); return (r?.behaviors?.size && r.getFlag(MOD, 'emanation')?.initial) ? r : null; }, 12000);
           const fl = region?.getFlag(MOD, 'emanation');
           const beh = region?.behaviors?.contents?.[0] ?? null;
           ok('90a. Stormborn (from the druid\'s Oceanic Gift) on the Halfling: the ring "Oceanic Gift" stands around the HALFLING, its source the druid\'s token, the range the druid\'s scale',
@@ -5516,7 +5530,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           button?.click();
           const demand = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, 10000);
           const dc = Number(demand?.getFlag(MOD, 'saves')?.dc);
-          const druidDc = Number(cleric.system.attributes?.spell?.dc ?? cleric.system.attributes?.spelldc ?? 0);
+          // The DC the activity resolves for the lent class (Wisdom, a level-14 druid's proficiency), not the sheet's primary spell DC.
+          const druidDc = Number([...(cleric.items.get(wrath.id)?.system?.activities ?? [])].find(a => a.type === 'save')?.save?.dc?.value ?? 0);
           ok('90c. the Attacker picked: the Constitution save demanded at the DRUID\'s DC on the druid\'s Wrath of the Sea', !!demand && (dc > 8) && ((druidDc === 0) || (dc === druidDc)) && (demand.getFlag(MOD, 'saves')?.targets ?? []).some(t => t.uuid === attacker.uuid),
             `demand=${!!demand} dc=${dc} druidDc=${druidDc} targets=${JSON.stringify((demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))}`);
         }

@@ -1058,8 +1058,17 @@ describe("DUPLICATES — the table and decide/duplicates.js (Tier 3)", () => {
     expectPointer(row.rule);
     expect(reg.duplicateEntries().map(e => e.kind)).toEqual([
       "mirror image",
-      "reflective carapace"
+      "reflective carapace",
+      "unbreakable majesty"
     ]);
+  });
+  it("C1 — Unbreakable Majesty is a `save` duplicate: the Majestic Presence effect, the pack's Recoil Save in place of a die, never destroyed", () => {
+    const row = reg.DUPLICATES["Unbreakable Majesty"];
+    expect(Object.isFrozen(row)).toBe(true);
+    expect(row).toMatchObject({ effect: "Majestic Presence", save: "Recoil Save" });
+    expect(row.die).toBeUndefined();
+    expect(row.at).toBeUndefined();
+    expectPointer(row.rule);
   });
   it("the standing duplicates are the row's effects on the sheet, in the row's order — the last is the one destroyed", () => {
     const row = reg.DUPLICATES["Mirror Image"];
