@@ -1,4 +1,4 @@
-# HANDOFF.md — after the overnight run of 2026-10-01: v2.10.0 on prod, the DMG worn items proven, v2.11.0 OWED
+# HANDOFF.md — 2026-10-01: v2.11.0 RELEASED (the DMG worn items), prod still v2.10.0; next the rest of the DMG
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Wait for the user's go.** Rulings the user gave on 2026-10-01: the DMG release stays 2.x (**3.0.0 is the user's to cut by
@@ -6,34 +6,26 @@
 
 ## FIRST — the state
 
-- **On prod: v2.10.0** (CI green, byte-identical, settings CLEAN). It holds the PHB classes bands C (v2.9.0) and D (v2.10.0), so
-  **every band of every PHB class is built**. The process restart for the version string is the user's.
-- **On main, unreleased:** the DMG's worn items (c274611, c175509, plus the §109 suite fix). That is eleven items on existing
-  machines, and `smoke-classes` §106–§112 are **17/17 green** on the sandbox. RULINGS *The DMG — the worn items*.
-- **The touched-suites run for the DMG release is NOT valid.** A second client ("Scribe Assistant", the session-scribe bridge of
-  another Claude session) joined the sandbox mid-run and took the save prompts: smoke-saves read 130/147, with detail lines
-  "waiting on Scribe Assistant". The run was killed and settings were restored CLEAN. **The fixture cleanup chain was NOT run**
-  (the second client was still connected).
+- **On prod: v2.10.0** (every band of every PHB class). **v2.11.0 is RELEASED on GitHub, NOT on prod** (the user's word:
+  "release v2.11.0 -- no prod"). The prod deploy waits for the user.
+- **v2.11.0** (a8d2f05, CI 36828433116 green): the DMG's eleven worn items. Floor: its own suites, clean single-client run
+  (smoke-battleflow, smoke-hold, smoke-saves 147/147, smoke-d20-folds 96/96, smoke-reminders 78/78, smoke-guards 15/15; settings
+  CLEAN) plus `smoke-classes` §106–§112 17/17 from the night run.
+- The sandbox was made single-client by killing the other sessions' scribe and dnd5e bridge processes; it is clean (fixtures
+  rebuilt, settings CLEAN).
+- `battery-status.mjs` counts against the FULL order (47) even for a named run: the bar reads 0/47 while an 8-suite plan runs.
+  Cosmetic; the battery itself runs the plan.
 
 ## Next, in order
 
-1. Make the sandbox single-client: `local-foundry.mjs status` must show 1 user once the suite connects. Find and kill the other
-   sessions' scribe and dnd5e bridge processes (`fvtt-app-sessionscribe/dist/index.js`, `fvtt-mcp-dnd5e/dist/index.js` under a
-   claude.exe that is not yours), or close those sessions.
-2. Run the cleanup chain after the kill: delete every combat → `verify-settings --fix` → `reset-fixture-state` →
-   `scrub-fixture-residue` → `fixture-suite`.
-3. Re-run the DMG release's own suites:
-   `node tools/battery.mjs fixture-d20-folds smoke-d20-folds smoke-saves smoke-hold smoke-reminders smoke-guards`
-   (launch it detached). ⚠ Named suites still pulled the long list last time: watch `battery-status` and kill nothing mid-suite.
-4. Green → **release v2.11.0** ("the DMG, the worn items") and deploy to prod (`--check` first; deploy from a tag checkout if main
-   has moved on since).
-5. The rest of the DMG (audits/plans/dmg-build.md §3), then the 3.0 list below.
+1. **Talk with the user about the rest of the DMG** (the table below, rows 2–6, and the rulings owed) before building.
+2. Prod deploy of v2.11.0 only on the user's word (`--check` first, from the tag checkout if main has moved).
 
 ## Before v3.0.0 (PHB + DMG + MM built, pre-walk — the user's frame)
 
 | # | Work | Size | State |
 | --- | --- | --- | --- |
-| 1 | v2.11.0: the DMG worn items released + prod | an hour | built and proven; needs a clean suite run |
+| 1 | v2.11.0: the DMG worn items released + prod | an hour | RELEASED 2026-10-01; prod deploy on the user's word |
 | 2 | **The enchantment-aware weapon reader** + `CRIT_RIDERS`: Vorpal Sword, Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon, Adamantine Weapon; plus the 2024 enchantments Sword of Wounding (an on-hit DC 15 save, repeated each turn end) and Luck Blade (one reroll of a failed D20 Test per dawn) | a day | planned (dmg-build §3) |
 | 3 | **A made AC effect on the `ac` hold**: Quarterstaff of the Acrobat (+5 AC as a Reaction), Shield of the Cavalier (Protective Field, Half Cover as a Reaction) | half a day | planned |
 | 4 | **Injury poisons**: generalise Poisoner's `COATINGS` (Lolth's Sting, Purple Worm, Serpent Venom, Wyvern) | half a day | planned |
