@@ -28,10 +28,22 @@ const CASTER_EFFECT_NAMES = new Set(CASTER_SIDE.filter(([, r]) => r.match !== "f
 const CASTER_FEATURE_KEYS = [...new Set(CASTER_SIDE.filter(([, r]) => r.match === "feature").map(([k, r]) => String(r.named ?? k)))];
 function casterSnapshot(actor) {
   if ( !(actor instanceof Actor) ) return null;
-  return { uuid: actor.uuid, name: actor.name,
+  // D1 — `type`: the caster's creature type (Holy Ward's Fiend or Undead).
+  return { uuid: actor.uuid, name: actor.name, type: actor.system?.details?.type?.value ?? null,
     effects: actor.effects.filter(e => !e.disabled && CASTER_EFFECT_NAMES.has(String(e.name ?? "").toLowerCase())).map(e => ({ id: e.id, name: e.name })),
     features: CASTER_FEATURE_KEYS.length ? namesAnswering(actor.items.filter(i => i.type === "feat"), CASTER_FEATURE_KEYS) : [],
     statuses: [...(actor.statuses ?? [])] };
+}
+
+/** D1 — is this use a Channel Divinity's: the item itself, or the Channel Divinity uses its activity consumes. */
+function channelDivinityUse(activity) {
+  const actor = activity?.actor;
+  const item = activity?.item;
+  if ( !actor || !item ) return false;
+  const isChannel = i => !!i && ((i.system?.identifier === "channel-divinity") || (String(i.name ?? "").toLowerCase() === "channel divinity"));
+  if ( isChannel(item) ) return true;
+  return (activity.consumption?.targets ?? []).some(c => (c.type === "itemUses") && !!c.target
+    && (isChannel(actor.items.get(c.target)) || /ChannelDiv$/.test(String(c.target))));
 }
 
 /** The caster's identity and side, as Careful's and Heightened's defaults read them. */
@@ -231,6 +243,9 @@ async function stampSaveDemand(activity, message, results) {
       demand: { spell: (activity.item?.type === "spell") || (activity.item?.system?.properties?.has?.("mgc") ?? false),
         abilities,
         item: activity.item?.name ?? null,
+        // D1 — the damage types it deals and whether it is a Channel Divinity use (Corona of Light, Diminish Defiance).
+        types: [...new Set((activity.damage?.parts ?? []).flatMap(p => [...(p.types ?? [])]))],
+        channel: channelDivinityUse(activity),
         source: casterSnapshot(activity.actor),
         statuses: [...new Set(entries.filter(e => !e.onSave && !onSuccess(e)).flatMap(e => [...(e.effect?.statuses ?? [])]))],
         sleep: putsToSleep({ itemName: activity.item?.name ?? null, effectNames: entries.filter(e => !e.onSave).map(e => e.effect?.name) }),

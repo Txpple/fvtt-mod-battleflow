@@ -60,7 +60,8 @@ const sourceFeaturesOf = e => {
 };
 /** The roller's effects as the save gate reads them (B2: statuses, the source, the source's features). */
 const saveEffectFacts = actor => actor.effects.filter(e => !e.disabled).map(e => ({ id: e.id, name: e.name,
-  statuses: [...(e.statuses ?? [])], sourceUuid: effectSourceUuid(e), sourceHas: sourceFeaturesOf(e) }));
+  statuses: [...(e.statuses ?? [])], sourceUuid: effectSourceUuid(e), sourceHas: sourceFeaturesOf(e),
+  member: !!e.getFlag(MODULE_ID, "emanation") }));
 
 /* THE ATTACK GATE: one fieldset in dnd5e's Attack Roll dialog, default button on the net; re-judged
  * on every re-render and re-target. ⚠ FORCED open: dnd5e applies fast-forward keys AFTER the pre-roll

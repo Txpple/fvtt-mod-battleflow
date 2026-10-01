@@ -33,6 +33,8 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 export function lightChanges(row) {
   const bright = Math.max(0, Number(row?.bright) || 0);
   const dim = Math.max(bright, Number(row?.dim) || 0);
+  // D1 — a row with no light (Elder Champion) lands its effect alone: never a 0 written over the token's own light.
+  if ( !bright && !dim ) return [];
   return [
     { key: "token.light.bright", type: "override", value: bright, phase: "initial" },
     { key: "token.light.dim", type: "override", value: dim, phase: "initial" }

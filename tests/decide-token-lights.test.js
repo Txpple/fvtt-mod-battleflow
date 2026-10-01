@@ -62,7 +62,9 @@ describe("lightChanges — the token's own light, Foundry 14's `token.*` changes
   });
   it("a dim below the bright is lifted to it; nonsense reads as nothing", () => {
     expect(tl.lightChanges({ bright: 10, dim: 5 }).map(c => c.value)).toEqual([10, 10]);
-    expect(tl.lightChanges({ bright: "x", dim: null }).map(c => c.value)).toEqual([0, 0]);
+    // D1 — no light at all (nonsense included) writes NOTHING: never a 0 over the token's own light (Elder Champion).
+    expect(tl.lightChanges({ bright: "x", dim: null })).toEqual([]);
+    expect(tl.lightChanges({ bright: 0, dim: 0 })).toEqual([]);
   });
 });
 

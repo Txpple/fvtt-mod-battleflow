@@ -1403,7 +1403,38 @@ export const EMANATIONS = Object.freeze({
     pick: Object.freeze({ on: "sourceTurnStart", activity: "Bonus Action Save", says: "pushed up to 15 feet away from the bearer if Large or smaller — move the token" }),
     caveat: "\"a willing creature\" is the table's; the double manifest's second ring around the druid is Wrath of the Sea's own row when \"Manifesting Ocean Spray\" stands",
     rule: Object.freeze({ item: "Oceanic Gift", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdOceanicGif" }),
-    from: "Druid — Circle of the Sea 14" })
+    from: "Druid — Circle of the Sea 14" }),
+  // THE PHB CLASSES — D1 (RULINGS *The PHB classes — D1*). Each ring stands `while` its feature's own effect stands on the
+  // bearer — landed at the use by TOKEN_LIGHTS (`on: "self"`: Corona of Light's and Holy Nimbus's light; Elder Champion's no
+  // light) or by the cast applier (Avenging Angel's self-aimed effect) — so it lives the pack's own clock.
+  // Corona of Light: a 60-ft harmful ring; the enemies inside wear the pack's "Corona of Light" and EFFECT_BENDS reads the
+  // member copy against the cleric's fire or radiant spells and its Radiance of the Dawn.
+  "Corona of Light": Object.freeze({ kind: "feature", item: "Corona of Light", while: "Corona of Light", reach: "harmful", range: 60,
+    effect: "Corona of Light", incapacitated: false,
+    rule: Object.freeze({ item: "Corona of Light", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcCoronaOfLi" }),
+    from: "Cleric — Light Domain 17 (1 minute)" }),
+  // Holy Nimbus: the Aura of Protection's reach; an enemy STARTING its turn inside takes the activity's radiant damage (no save
+  // — Cloud of Daggers' plain-damage trigger), once per turn. The Holy Ward is EFFECT_BENDS'; the sunlight is the light row.
+  "Holy Nimbus": Object.freeze({ kind: "feature", item: "Holy Nimbus", while: "Holy Nimbus", reach: "harmful", range: "@scale.paladin.aura",
+    effect: null, incapacitated: false, quiet: true,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    rule: Object.freeze({ item: "Holy Nimbus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnHolyNimbus", benefit: "Radiant Damage" }),
+    from: "Paladin — Oath of Devotion 20 (10 minutes)" }),
+  // Avenging Angel's Frightful Aura: an enemy STARTING its turn in the Aura of Protection saves (Wisdom, the activity's DC) or is
+  // Frightened (the activity's effect, landed by the verdict — Fear Aura's shape); attacks against it read Advantage
+  // (EFFECT_BENDS "Avenging Angel: Frightened"). The flight is the pack's effect.
+  "Avenging Angel": Object.freeze({ kind: "feature", item: "Avenging Angel", while: "Avenging Angel", reach: "harmful", range: "@scale.paladin.aura",
+    effect: null, incapacitated: false, quiet: true,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "\"or until it takes any damage\" ends the Frightened early — the table's",
+    rule: Object.freeze({ item: "Avenging Angel", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnAvengingAn", benefit: "Frightful Aura" }),
+    from: "Paladin — Oath of Vengeance 20 (10 minutes)" }),
+  // Elder Champion's Diminish Defiance: the enemies in the Aura of Protection wear the pack's "Diminished Defiance"; EFFECT_BENDS
+  // reads the member copy against the paladin's spells and Channel Divinity. Regeneration is TURN_GRANTS'; Swift Spells the table's.
+  "Elder Champion": Object.freeze({ kind: "feature", item: "Elder Champion", while: "Diminished Defiance", reach: "harmful", range: "@scale.paladin.aura",
+    effect: "Diminished Defiance", incapacitated: false, quiet: true,
+    rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp", benefit: "Diminish Defiance" }),
+    from: "Paladin — Oath of the Ancients 20 (1 minute)" })
 });
 
 /**
@@ -1486,6 +1517,20 @@ export const TOKEN_LIGHTS = Object.freeze({
     caveat: "on a creature's token (user, 2026-09-25: any targeted token) — the rule's object is the table's to name",
     rule: Object.freeze({ item: "Light", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplLight00000" }),
     from: "PHB cantrip (1 hour)" }),
+  // D1 — the uses whose OWN effect marks the form on the bearer (`on: "self"`): the EMANATIONS rows stand while it does.
+  // Corona of Light: Bright Light 60 ft, Dim 30 more.
+  "Corona of Light": Object.freeze({ item: "Corona of Light", activity: "Emit Aura of Sunlight", on: "self", effect: "Corona of Light", bright: 60, dim: 90,
+    rule: Object.freeze({ item: "Corona of Light", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcCoronaOfLi" }),
+    from: "Cleric — Light Domain 17 (1 minute)" }),
+  // Holy Nimbus: the aura filled with Bright Light (the 30-ft Aura of Protection at level 18).
+  "Holy Nimbus": Object.freeze({ item: "Holy Nimbus", activity: "Holy Nimbus", on: "self", effect: "Holy Nimbus", bright: 30, dim: 30,
+    caveat: "the light is sunlight — the table's for what sunlight does",
+    rule: Object.freeze({ item: "Holy Nimbus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnHolyNimbus", benefit: "Sunlight" }),
+    from: "Paladin — Oath of Devotion 20 (10 minutes)" }),
+  // Elder Champion: NO light (`bright` 0 — nothing written to the token's light); the pack's effect on the paladin is the form's mark.
+  "Elder Champion": Object.freeze({ item: "Elder Champion", activity: "Elder Champion", on: "self", effect: "Diminished Defiance", bright: 0, dim: 0,
+    rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp" }),
+    from: "Paladin — Oath of the Ancients 20 (1 minute)" }),
   // The +Cha and the Radiant are the pack's Enchant (NATIVE); the weapon's light rides the paladin's token.
   "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment",
     caveat: "the light is the paladin's token's — the weapon is in hand",
@@ -1940,6 +1985,10 @@ export const CHECK_BENDS = Object.freeze({
  *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
  *   allies    D1 — a `match: "feature"` row read off ANOTHER creature of the attacker's side on the scene (Improved Duplicity)
+ *   saves.by  D1 — the save is against WHOM and WHAT, read off the demand: `caster` (the effect's own source cast it),
+ *             any of `spells` (a spell — with `types`, one dealing a listed damage type), `items` (the demand's item by name),
+ *             `channel` (a Channel Divinity use); or `creatureTypes` (the caster's creature type — Holy Ward)
+ *   itemOnly  D1 — the effect's own item must be the row's `item` (an unattributed effect of the same name never carries it)
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
  *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity", spend?: "attack"|"save", attack?: string,
@@ -2187,6 +2236,24 @@ export const EFFECT_BENDS = Object.freeze({
     from: "Trickery Cleric 17",
     caveat: "listed — Advantage only against a creature within 5 feet of the cleric's illusion",
     rule: Object.freeze({ item: "Improved Duplicity", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcImprovedDu", benefit: "Shared Distraction" }) }),
+  // D1 — the auras' save bends, read off the demand (`saves.by`, decide/reminders.js). Corona of Light's member copy: Disadvantage
+  // against the cleric's own (`caster`) spell dealing fire or radiant damage, or its Radiance of the Dawn.
+  "Corona of Light": Object.freeze({ attacker: null, target: null, scope: "any", member: true, from: "Cleric — Light Domain 17",
+    saves: Object.freeze({ bend: "disadvantage", by: Object.freeze({ caster: true, spells: true, types: Object.freeze(["fire", "radiant"]), items: Object.freeze(["Radiance of the Dawn"]) }) }),
+    rule: Object.freeze({ item: "Corona of Light", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcCoronaOfLi" }) }),
+  // Elder Champion's member copy: Disadvantage against the paladin's spells and Channel Divinity options.
+  "Diminished Defiance": Object.freeze({ attacker: null, target: null, scope: "any", member: true, from: "Paladin — Oath of the Ancients 20",
+    saves: Object.freeze({ bend: "disadvantage", by: Object.freeze({ caster: true, spells: true, channel: true }) }),
+    rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp", benefit: "Diminish Defiance" }) }),
+  // Holy Nimbus's Holy Ward: the paladin's own effect — Advantage on a save a Fiend or an Undead forces (the caster's type).
+  "Holy Nimbus": Object.freeze({ attacker: null, target: null, scope: "any", from: "Paladin — Oath of Devotion 20",
+    saves: Object.freeze({ bend: "advantage", by: Object.freeze({ creatureTypes: Object.freeze(["fiend", "undead"]) }) }),
+    rule: Object.freeze({ item: "Holy Nimbus", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnHolyNimbus", benefit: "Holy Ward" }) }),
+  // Avenging Angel's Frightened: attack rolls against the creature have Advantage — only the copy its Frightful Aura landed
+  // (`itemOnly`: the effect's own item must be Avenging Angel; every other Frightened is the condition's row).
+  "Avenging Angel: Frightened": Object.freeze({ named: "Frightened", item: "Avenging Angel", itemOnly: true, attacker: null, target: "advantage", scope: "any",
+    from: "Paladin — Oath of Vengeance 20",
+    rule: Object.freeze({ item: "Avenging Angel", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnAvengingAn", benefit: "Frightful Aura" }) }),
   "Ambusher": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", counted: false, from: "monsters",
     caveat: "listed — Advantage only in the first round, against a creature it surprised",
     rule: Object.freeze({ item: "Ambusher", uuid: "Compendium.dnd5e.monsterfeatures.Item.EMygUh5uRujWaFYK" }) }),
@@ -2883,7 +2950,11 @@ export const TURN_GRANTS = Object.freeze({
   // D1 — Survivor's Heroic Rally: the pack's heal (5 + Con) at each turn start while Bloodied, no choice (R1).
   "Heroic Rally": Object.freeze({ match: "feature", feature: "Survivor", activity: "Heroic Rally", on: "turnStart", while: "bloodied",
     rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-players-handbook.classes.Item.phbftrSurvivor00", benefit: "Heroic Rally" }),
-    from: "Fighter — Champion 18" })
+    from: "Fighter — Champion 18" }),
+  // D1 — Elder Champion's Regeneration: 10 Hit Points at each turn start while the form stands (its effect on the paladin).
+  "Elder Champion": Object.freeze({ match: "feature", activity: "Regeneration", on: "turnStart", whileEffect: "Diminished Defiance",
+    rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp", benefit: "Regeneration" }),
+    from: "Paladin — Oath of the Ancients 20" })
 });
 
 /**

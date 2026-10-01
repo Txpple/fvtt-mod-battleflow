@@ -24,11 +24,13 @@ export const effectNamedAs = (effectName, key) => {
  * are "Protected" (Aura of Protection, Protection from Evil and Good).
  * @param {{name?: string, item?: string|null}} effect
  * @param {string} key
- * @param {{item?: string}|null} [row] */
+ * @param {{item?: string, itemOnly?: boolean}|null} [row] */
 export const effectCarriesRow = (effect, key, row = null) => {
   if ( !effectNamedAs(effect?.name, key) ) return false;
   const want = row?.item ? String(row.item).toLowerCase() : "";
   const have = effect?.item ? String(effect.item).toLowerCase() : "";
+  // D1 — `itemOnly`: an effect naming no item never carries the row (a plain Frightened is the condition's).
+  if ( row?.itemOnly ) return !!want && (want === have);
   return !want || !have || (want === have);
 };
 
@@ -147,7 +149,7 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
 /** The row's carriers: effects named as it, or one id-less carrier for a `match: "feature"` row (Brave).
  * @param {any} row
  * @param {string} key
- * @param {{id?: string|null, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[]}[]} [effects]
+ * @param {{id?: string|null, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[], member?: boolean}[]} [effects]
  * @param {string[]} [features]
  * @returns {{id?: string|null, name?: string, sourceUuid?: string|null, sourceHas?: string[]}[]} */
 function rowCarriers(row, key, effects = [], features = []) {
@@ -156,7 +158,8 @@ function rowCarriers(row, key, effects = [], features = []) {
   if ( row?.match === "feature" ) {
     return (features ?? []).some(f => String(f).toLowerCase() === name.toLowerCase()) ? [{ id: null }] : [];
   }
-  return (effects ?? []).filter(e => effectNamedAs(e?.name, name));
+  // D1 — `member`: an emanation's member copy alone (Corona of Light's enemies, never the cleric's own copy).
+  return (effects ?? []).filter(e => effectNamedAs(e?.name, name) && (!row?.member || !!e?.member));
 }
 
 /** Effect rows whose `checks` facet bends ability checks; `checksWhen` narrows to statuses/skills.
@@ -182,10 +185,11 @@ export function effectCheckSources({ effects = [], features = [], enabled, table
 /** Effect rows with a `saves` facet, read against the DEMAND (what the save is against). With no
  * demand (a bare sheet roll) every row is LISTED — never guess what a roll is against. A `side: "caster"`
  * row is read off the demand's caster snapshot (`demand.source`) and is nothing without a demand.
- * @param {{effects?: {id: string, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[]}[],
+ * @param {{effects?: {id: string, name: string, statuses?: string[], sourceUuid?: string|null, sourceHas?: string[], member?: boolean}[],
  *          features?: string[], enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          demand?: {spell?: boolean|null, statuses?: string[]|null, sleep?: boolean|null, abilities?: string[]|null, item?: string|null,
- *                    source?: {uuid?: string|null, name?: string|null, effects?: {id?: string|null, name: string}[], features?: string[], statuses?: string[]}|null}|null,
+ *                    types?: string[]|null, channel?: boolean|null,
+ *                    source?: {uuid?: string|null, name?: string|null, type?: string|null, effects?: {id?: string|null, name: string}[], features?: string[], statuses?: string[]}|null}|null,
  *          name?: string}} facts */
 export function effectSaveSources({ effects = [], features = [], enabled, table, demand = null, name = "You" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
@@ -223,6 +227,21 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     } else if ( (facet.charmedBy === "source")
       && !(source?.uuid && effects.some(e => (e.statuses ?? []).includes("charmed") && (e.sourceUuid === source.uuid))) ) {
       continue;   // the roller Charmed by the demand's caster (Mantle of Majesty)
+    } else if ( facet.by ) {
+      // D1 — the demand's caster and what it is (Corona of Light, Diminish Defiance, Holy Ward).
+      const by = facet.by;
+      if ( by.creatureTypes?.length ) {
+        if ( !by.creatureTypes.includes(lower(source?.type)) ) continue;
+        caveat = ` — a save forced by ${source?.name ?? "a creature"} (${lower(source?.type)})`;
+      } else {
+        const types = (demand.types ?? []).map(lower);
+        const spell = !!by.spells && !!demand.spell && (!by.types?.length || by.types.some(t => types.includes(lower(t))));
+        const item = !!by.items?.length && by.items.some(i => lower(i) === lower(demand.item));
+        const channel = !!by.channel && !!demand.channel;
+        if ( !spell && !item && !channel ) continue;
+        caveat = ` — against ${source?.name ?? "its source"}'s ${item ? demand.item : channel ? "Channel Divinity" : "spell"}`;
+      }
+      bend = facet.bend;
     } else if ( facet.fails ) {
       fails = true;
       caveat = `: this save cannot succeed${facet.item ? ` — ${facet.item}` : ""}${(facet.charmedBy === "source") ? `, ${name} Charmed by ${who}` : ""}`;
@@ -256,6 +275,8 @@ export function effectSaveSources({ effects = [], features = [], enabled, table,
     for ( const e of carriers ) {
       // `spells: "source"`: only an effect whose SOURCE is the demand's caster (Struck by this fighter).
       if ( demand && (facet.spells === "source") && !(source?.uuid && (e.sourceUuid === source.uuid)) ) continue;
+      // D1 — `by.caster`: the same — the effect's own source cast what is demanded.
+      if ( demand && facet.by?.caster && !(source?.uuid && (e.sourceUuid === source.uuid)) ) continue;
       // `sourceFeature`: only an effect whose source holds the feature (Eldritch Hex's Hexed).
       if ( facet.sourceFeature && !(e.sourceHas ?? []).some(f => lower(f) === lower(facet.sourceFeature)) ) continue;
       out.push(Object.assign(reminderSource("effect", bend, `${who} — ${key}${caveat}`, row.rule), e.id ? { effectId: e.id } : {},
