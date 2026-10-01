@@ -155,7 +155,7 @@ export function checkSources({ statuses = [], enabled, table, name = "You" }) {
 function rowCarriers(row, key, effects = [], features = []) {
   // `named`: the carrier's own name when the row's key cannot be it (Mantle of Majesty's "Unearthly Appearance").
   const name = String(row?.named ?? key);
-  if ( row?.match === "feature" ) {
+  if ( (row?.match === "feature") || (row?.match === "worn") ) {
     return (features ?? []).some(f => String(f).toLowerCase() === name.toLowerCase()) ? [{ id: null }] : [];
   }
   // D1 — `member`: an emanation's member copy alone (Corona of Light's enemies, never the cleric's own copy).
@@ -372,7 +372,8 @@ export function modeKeys({ kind = null, ability = null, skill = null, tool = nul
  * `spend`, `except: "source"` (Goaded), `only: "source"` (Feinting Attack), `sourceWithin`, `member` (the Wolf).
  * `allyNear` is three-valued: only a measured false skips — never guess an exemption.
  * @param {{attacker?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, offTurnMelee?: boolean|null},
- *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean},
+ *          target?: {uuid?: string|null, effects?: {id: string, name: string, sourceUuid?: string|null, member?: boolean}[], features?: string[], bloodied?: boolean, damaged?: boolean, grappled?: boolean, notActed?: boolean, allyNear?: boolean|null, incapacitated?: boolean, inSpace?: boolean,
+ *                    undamaged?: boolean, speedZero?: boolean, displacementOff?: boolean},
  *          enabled: Iterable<string>, table: Readonly<Record<string, any>>,
  *          scope?: {classification?: string|null, type?: string|null, item?: string|null},
  *          attackerName?: string, targetName?: string, pass?: "both"|"attacker"|"target"}} facts */
@@ -380,7 +381,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
   attackerName = "You", targetName = "the target", pass = "both" }) {
   const on = new Set([...(enabled ?? [])].map(n => String(n).toLowerCase()));
   // The EDGE reads the attacker once, then each target: a row hinging on the TARGET is the target pass's.
-  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget", "notIncapacitated", "targetInSpace"]);
+  const targetJudges = new Set(["targetBloodied", "targetDamaged", "targetGrappled", "targetNotActed", "allyNearTarget", "notIncapacitated", "targetInSpace", "displaced"]);
   const hingesOnTarget = row => targetJudges.has(row.judge) || (row.except === "source") || (row.only === "source") || !!row.against || !!row.plus;
   const notOnlyFor = (row, e, otherUuid) => (row.only === "source") && (!e?.sourceUuid || !otherUuid || (e.sourceUuid !== otherUuid));
   const attackerRowHere = row => (pass === "both") || ((pass === "target") === hingesOnTarget(row));
@@ -402,6 +403,8 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
       case "allyNearTarget": return target.allyNear !== false;
       case "notIncapacitated": return !target.incapacitated;    // Displacement: off while the bearer is Incapacitated
       case "targetInSpace": return !!target.inSpace;             // Object Slam: the target stands inside the attacker's space
+      // The DMG's Cloak of Displacement: undamaged since its own last turn start, its Speed not 0, the pack's switch off.
+      case "displaced": return (target.undamaged !== false) && !target.speedZero && !target.displacementOff;
       case "opportunity": return attacker.offTurnMelee === true;  // B4, Escape the Horde: an off-turn melee attack in combat
       default: return true;
     }
@@ -413,7 +416,7 @@ export function effectSources({ attacker = {}, target = {}, enabled, table, scop
     if ( row.attack ) return (String(scope.item ?? "").toLowerCase() === String(row.attack).toLowerCase()) ? [{ id: null }] : [];
     // `named`: the effect's own name when the row's key cannot be it (a second "Protected")
     const name = String(row.named ?? row.__name).toLowerCase();
-    if ( row.match === "feature" ) {
+    if ( (row.match === "feature") || (row.match === "worn") ) {
       return (who.features ?? []).some(f => String(f).toLowerCase() === name) ? [{ id: null }] : [];
     }
     // `member`: an emanation's member copy alone — the bearer's own effect of the same name never bends.

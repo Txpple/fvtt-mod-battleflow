@@ -43,6 +43,13 @@ export function itemsNamed(actor, key, { types = null } = {}) {
 /** The item on this actor that answers the row, or null. */
 export const itemNamed = (actor, key, options) => itemsNamed(actor, key, options)[0] ?? null;
 
+/** THE DMG — a magic item in use: equipped, and attuned where it requires attunement. */
+export const isWorn = item => !!item && (item.system?.equipped === true)
+  && ((item.system?.attunement !== "required") || (item.system?.attuned === true));
+
+/** THE DMG — the WORN item on this actor that answers the row (equipment, weapons, consumables — never a feat or a spell), or null. */
+export const wornNamed = (actor, key) => itemsNamed(actor, key, { types: ["equipment", "weapon", "consumable", "tool"] }).find(isWorn) ?? null;
+
 /**
  * The sheet in the table's words, for a decide/ function that compares names: each item as the row
  * name it answers (identifier first, then name), else its own name. "Heat Metal - Spellcasting"
@@ -290,7 +297,9 @@ export function reductionFor(item, reactionName) {
   const h = activity?.healing;
   // B4 — a `pool: "ward"` row (Projected Ward): the reduction is the ward's hit points, no formula of its own.
   if ( row.pool === "ward" ) return activity ? { row, activity, formula: "ward" } : null;
-  const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null))) : null;
+  // The DMG — a utility activity's own `roll` (Gloves of Missile Snaring) when it carries no healing.
+  const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null)))
+    : (String(activity?.roll?.formula ?? "").trim() || null);
   if ( !activity || !formula ) return null;
   return { row, activity, formula };
 }

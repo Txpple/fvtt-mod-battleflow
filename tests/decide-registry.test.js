@@ -111,6 +111,8 @@ describe("d20 folds — the spends, one mechanism", () => {
       "succeed",
       "succeed",
       "succeed",
+      "succeed",
+      "succeed",
       "tactical",
       "tactical",
       "tactical",
@@ -289,7 +291,9 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
     expect(Object.keys(reg.SAVE_SUCCEEDS)).toEqual([
       "Mage Slayer",
       "Stroke of Luck",
-      "Unerring Strike"
+      "Unerring Strike",
+      "Ring of Evasion",
+      "Scarab of Protection"
     ]); // D1's two
     const row = reg.SAVE_SUCCEEDS["Mage Slayer"];
     expect(Object.isFrozen(row)).toBe(true);

@@ -10,7 +10,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM,
   from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
-import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20 } from "./lookup.js";
+import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wornNamed } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
@@ -170,8 +170,14 @@ const SUCCEED = {
     if ( row.weapon && ctx.item && (ctx.item.type !== "weapon") ) return null;
     if ( row.whileEffect && !actorWears(actor, row.whileEffect) ) return null;
     if ( row.oncePerTurn && turnChitStands(actor, "rider", `fold:${key}`) ) return null;
-    const item = itemNamed(actor, row.feature ?? key);
+    // The DMG — a `worn` row: the magic item equipped (and attuned); `against`: the demand's school or its caster's type.
+    const item = row.worn ? wornNamed(actor, row.feature ?? key) : itemNamed(actor, row.feature ?? key);
     if ( !item ) return null;
+    if ( row.against && ctx.demand ) {
+      const school = lower(ctx.demand.school ?? "");
+      const type = lower(ctx.demand.source?.type ?? "");
+      if ( !(row.against.schools ?? []).includes(school) && !(row.against.creatureTypes ?? []).includes(type) ) return null;
+    }
     // D1 — `activity: null` (Unerring Strike): nothing pays, nothing counts down.
     if ( row.activity === null ) return { kind: "succeed", key, row, item, activity: null, pool: null, left: null };
     const activity = activityNamed(item, row.activity);
@@ -537,7 +543,9 @@ async function offerFoldOnSave(rollMessage, card, uuid, total, dc, by = null) {
     const actor = await fromUuid(uuid);
     if ( !(actor instanceof Actor) ) return false;
     const ability = rollMessage.system?.ability ?? null;
-    const offers = availableFolds(actor, "save", [], { ability });
+    // The demand the save answers (the DMG's Scarab reads its school and its caster's type).
+    const demand = card?.getFlag?.(MODULE_ID, "saves")?.demand ?? null;
+    const offers = availableFolds(actor, "save", [], { ability, demand });
     if ( !offers.length ) return false;
 
     const window = decisionWindow();

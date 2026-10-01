@@ -245,6 +245,8 @@ async function stampSaveDemand(activity, message, results) {
         item: activity.item?.name ?? null,
         // D1 — the damage types it deals and whether it is a Channel Divinity use (Corona of Light, Diminish Defiance).
         types: [...new Set((activity.damage?.parts ?? []).flatMap(p => [...(p.types ?? [])]))],
+        // The DMG — the spell's school (Scarab of Protection's Necromancy).
+        school: activity.item?.system?.school ?? null,
         channel: channelDivinityUse(activity),
         source: casterSnapshot(activity.actor),
         statuses: [...new Set(entries.filter(e => !e.onSave && !onSuccess(e)).flatMap(e => [...(e.effect?.statuses ?? [])]))],

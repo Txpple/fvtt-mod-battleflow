@@ -57,6 +57,8 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   ally     feet — protects ANOTHER creature in reach; every guard in reach is asked, the first wins
  *   holding  "shieldOrWeapon" — a Shield or a Simple or Martial weapon held
  *   ranged   the hit must be a RANGED attack (Deflect Missile); a melee hit never holds for it
+ *   worn     the DMG — the reactor is a magic item the creature has equipped (and attuned to, where required); its
+ *            activity's `roll` is the reduction when it carries no healing (Gloves of Missile Snaring)
  *   types    the hit's damage must include one of these (read off the attack's activity; unread counts), unless
  *            the defender holds the `anyType` feature (Deflect Energy)
  *   atZero   the feature's activity of that name is OFFERED on the damage card when the reduction took the
@@ -102,7 +104,14 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     eyebrow: "Reaction", spend: "use", hit: "ranged attack", by: "1d10",
     caveat: "\"Bludgeoning, Piercing, or Slashing\" is the table's; the redirect when the damage is reduced to 0 is the sheet's Save",
     rule: Object.freeze({ item: "Deflect Missile", uuid: "Compendium.dnd-monster-manual.features.Item.mmDeflectMissile" }),
-    from: "monsters" })
+    from: "monsters" }),
+  // THE DMG: Deflect Missile's shape on a WORN item (`worn`): a ranged or thrown weapon's hit reduced by the pack's
+  // own roll (1d10 + Dex, a utility activity's `roll`); "a free hand" and the catch at 0 are the table's.
+  "Gloves of Missile Snaring": Object.freeze({ activity: "Snare Missile", pool: false, ranged: true, worn: true,
+    eyebrow: "Reaction", spend: "Reaction", hit: "ranged attack", by: "1d10 plus your Dexterity modifier",
+    caveat: "\"if you have a free hand\" and the catch at 0 are the table's",
+    rule: Object.freeze({ item: "Gloves of Missile Snaring", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgGlovesOfMissi" }),
+    from: "DMG wondrous item" })
 });
 
 /**
@@ -361,6 +370,8 @@ export const ADVANTAGE_BUYS = Object.freeze({
  *   hit       D1 — a missed attack HITS instead (Unerring Strike), a forced verdict, no Critical Hit
  *   feature   the item that carries the row when the key is a benefit's name;  weapon  a weapon attack only
  *   whileEffect  the row stands while the roller wears this effect (Living Legend's 10 minutes);  oncePerTurn  a turn chit
+ *   worn      the DMG — the item must be equipped (and attuned, where required);  against  { schools, creatureTypes } — the
+ *             demanded save's spell school or its caster's type (Scarab of Protection); no demand, offered
  * ⚠ Legendary Resistance is NOT a row: dnd5e ships it NATIVE (the NPC's `resistSave`, its button on the failed
  * save's message, the `legres` resource spent by the system), and the saves machine already honours the flip
  * (saves/verdict.js `forced`; smoke-saves §6). A row would be a second entry path (RULINGS *The GM's side — the five shapes*).
@@ -380,7 +391,17 @@ export const SAVE_SUCCEEDS = Object.freeze({
   "Unerring Strike": Object.freeze({ feature: "Living Legend", activity: null, label: "Unerring Strike", hit: true, weapon: true,
     tests: Object.freeze(["attack"]), whileEffect: "Living Legend: Charismatic", oncePerTurn: true,
     rule: Object.freeze({ item: "Living Legend", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnLivingLege", benefit: "Unerring Strike" }),
-    from: "Paladin — Oath of Glory 20" })
+    from: "Paladin — Oath of Glory 20" }),
+  // THE DMG: the worn items' charges (`worn` — equipped and attuned). Ring of Evasion: a failed Dexterity save, a charge.
+  "Ring of Evasion": Object.freeze({ activity: "Succeed", label: "Ring of Evasion", abilities: Object.freeze(["dex"]), worn: true,
+    rule: Object.freeze({ item: "Ring of Evasion", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgRingOfEvasion" }),
+    from: "DMG ring" }),
+  // Scarab of Protection's Preservation: a failed save against a Necromancy spell or an Undead's effect (`against`, read off
+  // the demand; a save from the sheet with no demand is offered, the roller judging); the crumbling at the last charge is the table's.
+  "Scarab of Protection": Object.freeze({ activity: "Preserve", label: "Preservation", worn: true,
+    against: Object.freeze({ schools: Object.freeze(["nec"]), creatureTypes: Object.freeze(["undead"]) }),
+    rule: Object.freeze({ item: "Scarab of Protection", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgScarabOfProte", benefit: "Preservation" }),
+    from: "DMG wondrous item" })
 });
 
 /**
@@ -1985,13 +2006,17 @@ export const CHECK_BENDS = Object.freeze({
  *             token overlaps the attacker's (Pack Tactics' map reading)
  * ⚠ Names are the packs' own, colons and all.
  *   allies    D1 — a `match: "feature"` row read off ANOTHER creature of the attacker's side on the scene (Improved Duplicity)
+ *   match "worn"  the DMG — the carrier is a magic ITEM of that name the creature has equipped (and attuned to,
+ *             where the item requires attunement): Mantle of Spell Resistance, Cloak of Displacement
+ *   judge "displaced"  Cloak of Displacement — the wearer took no damage since its own last turn start, its Speed is not 0, and
+ *             the pack's "Displacement Suppressed" is not switched on
  *   saves.by  D1 — the save is against WHOM and WHAT, read off the demand: `caster` (the effect's own source cast it),
  *             any of `spells` (a spell — with `types`, one dealing a listed damage type), `items` (the demand's item by name),
  *             `channel` (a Channel Divinity use); or `creatureTypes` (the caster's creature type — Holy Ward)
  *   itemOnly  D1 — the effect's own item must be the row's `item` (an unattributed effect of the same name never carries it)
- * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature", attacker: "advantage"|"disadvantage"|null,
+ * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature"|"worn", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity", spend?: "attack"|"save", attack?: string,
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity"|"displaced", spend?: "attack"|"save", attack?: string,
  *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean|"attacker", plus?: number, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -2309,6 +2334,38 @@ export const EFFECT_BENDS = Object.freeze({
     saves: Object.freeze({ succeeds: true, spells: true }),
     caveat: "counted — the spell attacks that automatically miss are the table's",
     rule: Object.freeze({ item: "Greater Magic Resistance", uuid: "Compendium.dnd-monster-manual.features.Item.mmGreaterMagicRe" }) }),
+  // --- I. THE DMG's magic items (audits/plans/dmg-build.md): Magic Resistance's row on a WORN item (`match: "worn"` —
+  // equipped, and attuned where the item requires it). The demand's `spell` mark reads spells and magical effects alike.
+  "Mantle of Spell Resistance": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG wondrous item",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Mantle of Spell Resistance", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgMantleOfSpell" }) }),
+  "Ring of Spell Turning": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG ring",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    caveat: "counted — the spell of level 7 or lower that has no effect on a success, and the reflection, are the table's",
+    rule: Object.freeze({ item: "Ring of Spell Turning", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgRingOfSpellTu" }) }),
+  "Robe of the Archmagi": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG wondrous item",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Robe of the Archmagi", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgRobeOfTheArch", benefit: "Magic Resistance" }) }),
+  "Scarab of Protection": Object.freeze({ match: "worn", attacker: null, target: null, scope: "any", from: "DMG wondrous item",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Scarab of Protection", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgScarabOfProte", benefit: "Spell Resistance" }) }),
+  // Spellguard Shield: the saves AND spell attack rolls against the bearer at Disadvantage (`scope: "spell"`).
+  "Spellguard Shield": Object.freeze({ match: "worn", attacker: null, target: "disadvantage", scope: "spell", from: "DMG shield",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Spellguard Shield", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSpellguardShi" }) }),
+  // A supernatural gift is a feat on the sheet: the plain feature row.
+  "Blessing of Magic Resistance": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "DMG supernatural gift",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Blessing of Magic Resistance", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgBlessingOfMag" }) }),
+  // Cloak of Displacement: Displacement's Disadvantage on a WORN cloak, off once the wearer took damage since its own last turn
+  // start, while its Speed is 0, or with the pack's "Displacement Suppressed" switched on (`judge: "displaced"`).
+  "Cloak of Displacement": Object.freeze({ match: "worn", attacker: null, target: "disadvantage", scope: "any", judge: "displaced", from: "DMG wondrous item",
+    rule: Object.freeze({ item: "Cloak of Displacement", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgCloakOfDispla" }) }),
+  // Arrow-Catching Shield's +2 AC against RANGED attack rolls, as the gate's −2 on the roll (Multiattack Defense's `plus`);
+  // the pack ships the bonus as an optional toggle. Intercept Attack (become the target) waits for the redirect kind.
+  "Arrow-Catching Shield": Object.freeze({ match: "worn", attacker: null, target: null, scope: "ranged", plus: -2, from: "DMG shield",
+    caveat: "counted — the Reaction to become the target instead is the table's (the redirect waits for its kind)",
+    rule: Object.freeze({ item: "Arrow-Catching Shield", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgArrowcatching" }) }),
   // Disadvantage on attacks AGAINST the bearer, off while it is Incapacitated — the `notIncapacitated` judge.
   "Displacement": Object.freeze({ match: "feature", attacker: null, target: "disadvantage", scope: "any", judge: "notIncapacitated", from: "monsters (the displacer beast)",
     rule: Object.freeze({ item: "Displacement", uuid: "Compendium.dnd-monster-manual.features.Item.mmDisplacement00" }) }),
@@ -3211,7 +3268,9 @@ export const INTERRUPTS = Object.freeze([
   row("Bend Luck", "roll"), row("Cosmic Omen", "roll"), row("Projected Ward", "damage"),
   row("Superior Hunter's Defense", "damage"),
   // the GM's side
-  row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll")
+  row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll"),
+  // the DMG
+  row("Gloves of Missile Snaring", "damage")
 ]);
 /** Which spells a reaction stops outright. */
 export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);
@@ -3227,7 +3286,9 @@ export const D20_FOLDS = Object.freeze([
   row("Lucky", "advantage"), row("Mage Slayer", "succeed"), row("Commanding Presence", "tactical"), row("Tides of Chaos", "advantage"),
   row("Indomitable", "reroll"), row("Fanatical Focus", "reroll"), row("Disciplined Survivor", "reroll"),
   row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical"), row("Peerless Skill", "tactical"),
-  row("Stroke of Luck", "succeed"), row("Unerring Strike", "succeed"), row("Living Legend", "reroll")
+  row("Stroke of Luck", "succeed"), row("Unerring Strike", "succeed"), row("Living Legend", "reroll"),
+  // the DMG
+  row("Ring of Evasion", "succeed"), row("Scarab of Protection", "succeed")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

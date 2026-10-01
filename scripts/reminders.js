@@ -4,7 +4,8 @@
  * (ARCHITECTURE.md §7). RULINGS *The gate before the roll*.
  */
 import { MODULE_ID, TITLE, activeCombatFor, statContext, sheetModeEffects, rollLabelFor, canApplyTo, whisperNoGM } from "./core.js";
-import { featureNamed, lower, namesAnswering, resolveUuid } from "./lookup.js";
+import { featureNamed, isWorn, lower, namesAnswering, resolveUuid } from "./lookup.js";
+import { damagedSince } from "./decide/turn-grants.js";
 import { conditionEntries, effectEntries, reminderEntries } from "./decide/registry.js";
 import { chipSpentOnRecord, grantingActor, turnChitStands } from "./shared.js";
 import { DialogCarried, cardRow, markDefaultButton, pendingDemandsFor } from "./ui.js";
@@ -30,8 +31,32 @@ const RANGE_FEAT_KEYS = Object.keys(RANGE_FEATS);
 /** The items the effect table's `item` discriminator names. */
 const EFFECT_ITEM_KEYS = [...new Set(Object.values(EFFECT_BENDS).map(r => r.item).filter(Boolean))];
 
-/** The actor's feats in the effect table's words. */
-const featuresOf = actor => namesAnswering(actor.items.filter(i => i.type === "feat"), EFFECT_FEATURE_KEYS);
+/** The DMG — the effect table's `worn` rows: a magic item equipped (and attuned) carries them as a feature would. */
+const EFFECT_WORN_KEYS = Object.entries(EFFECT_BENDS).filter(([, r]) => r.match === "worn").map(([k]) => k);
+/** The actor's feats in the effect table's words, and its worn items answering a `worn` row. */
+const featuresOf = actor => [...namesAnswering(actor.items.filter(i => i.type === "feat"), EFFECT_FEATURE_KEYS),
+  ...(EFFECT_WORN_KEYS.length ? namesAnswering(actor.items.filter(i => (i.type !== "feat") && (i.type !== "spell") && isWorn(i)), EFFECT_WORN_KEYS)
+    .filter(n => EFFECT_WORN_KEYS.includes(n)) : [])];
+
+/** The DMG — Cloak of Displacement's facts: damage taken since the bearer's OWN last turn start (the receipts), its Speed 0. */
+function displacedFacts(actor) {
+  const combat = actor ? (game.combats?.find?.(c => c.started && c.combatants.some(x => x.actor?.uuid === actor.uuid)) ?? null) : null;
+  let damaged = false;
+  if ( combat ) {
+    const idx = combat.turns.findIndex(c => c.actor?.uuid === actor.uuid);
+    if ( idx >= 0 ) {
+      // Its most recent turn start: this round's if its turn has come, else the last round's.
+      const startRound = (combat.turn >= idx) ? combat.round : (combat.round - 1);
+      const entries = game.messages.contents.flatMap(m => m.getFlag(MODULE_ID, "receipt")?.targets ?? []);
+      const types = Object.keys(CONFIG.DND5E?.damageTypes ?? {});
+      damaged = damagedSince({ entries, uuid: actor.uuid, combatId: combat.id, round: startRound + 1, turn: idx, types }).blocked;
+    }
+  }
+  const walk = Number(actor?.system?.attributes?.movement?.walk ?? 1);
+  const held = ["grappled", "restrained", "paralyzed", "petrified", "stunned", "unconscious"].some(s => actor?.statuses?.has?.(s));
+  const suppressed = (actor?.appliedEffects ?? []).some(e => !e.disabled && (lower(e.name) === "displacement suppressed"));
+  return { undamaged: !damaged, speedZero: (walk === 0) || held, displacementOff: suppressed };
+}
 
 /** D1 — the `allies` feature rows (Improved Duplicity) another creature of the attacker's side holds on its scene: read as the
  * attacker's own, so the gate lists them for every ally's attack. */
@@ -507,7 +532,8 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),
     incapacitated: !!actor.statuses?.has?.("incapacitated"),
-    notActed: targetNotActed(attacker, actor)
+    notActed: targetNotActed(attacker, actor),
+    ...(EFFECT_WORN_KEYS.length ? displacedFacts(actor) : {})
   });
   const attackerSheet = effectsOn.length ? sheetOf(attacker) : null;
   if ( attackerSheet ) attackerSheet.features = [...new Set([...attackerSheet.features, ...alliedFeaturesOf(attacker, attackerToken)])];

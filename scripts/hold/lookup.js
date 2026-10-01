@@ -5,12 +5,12 @@
  */
 import { MODULE_ID, TITLE, S, setting } from "../core.js";
 import { limitedUses, isReactionItem, isTextOnlyFeature } from "../decide/eligible.js";
-import { INTERRUPT_MULTIPLIERS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
+import { INTERRUPT_MULTIPLIERS, INTERRUPT_REDUCTIONS, INTERRUPT_ROLLS, DUPLICATES, STORED_DICE, answers, duplicateEntries, listedNames } from "../decide/registry.js";
 import { repeatRowFor } from "../decide/repeat-saves.js";
 import { standingDuplicates, seesThrough } from "../decide/duplicates.js";
 import { bystanderMatters, d20ModeOf, dieMaxOf, liveRows, plainRule, rescueRows, signFor } from "../decide/rescue-hit.js";
 import { interruptEntries } from "../decide/registry.js";
-import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf } from "../lookup.js";
+import { lower, activityNamed, cardActivity, reductionFor, holdsFor, itemsNamed, featureNamed, bystanderRows, bystanderDie, d20FactsOf, dealtTypesOf, wornNamed } from "../lookup.js";
 import { alliesWithin, nearestFeet, tokenForUuid } from "../geometry.js";
 import { reactionSpent, poolOf, placeOf, chipData, effectSourceOf, bystanderMuted, grantingActor, STORED_FLAG, storedChipOf, storedFacesUsable } from "../shared.js";
 import { facesThatTurn } from "../decide/stored-dice.js";
@@ -74,6 +74,12 @@ export async function usableReaction(actor, name) {
       if ( (uses === "none") && !hasSpellSlot(actor, item.system.level) ) continue;
     }
     return { item, activity: null };
+  }
+  // THE DMG — a `worn` reduction row (Gloves of Missile Snaring): the magic item equipped (and attuned), its reaction activity.
+  const reduction = /** @type {any} */ (Object.entries(INTERRUPT_REDUCTIONS).find(([k]) => lower(k) === lower(name))?.[1] ?? null);
+  if ( reduction?.worn ) {
+    const item = wornNamed(actor, name);
+    if ( item ) return { item, activity: null };
   }
   return null;
 }
