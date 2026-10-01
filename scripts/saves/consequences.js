@@ -5,7 +5,7 @@
 import { MODULE_ID, TITLE, queueFlagWrite, canApplyTo, whisperNoGM, statContext } from "../core.js";
 import { ruleHTML } from "../rule-text.js";
 import { bfCard } from "../decide/present.js";
-import { applicableProfiles, cardActivity, featureNamed, namesAnswering, resolveUuid } from "../lookup.js";
+import { applicableProfiles, cardActivity, enchantedAs, featureNamed, lower, namesAnswering, resolveUuid } from "../lookup.js";
 import { CARD, castLevelOn, isCard, onSaveOf, originIdOf } from "../decide/card.js";
 import { saveMultiplier } from "../decide/verdict.js";
 import { forceStatus, damagePartsOf, statSourceOf } from "../shared.js";
@@ -25,6 +25,24 @@ import { cleanupSpentTemplates } from "./areas.js";
 const saveApplications = new Set();
 
 const SAVE_PRESS_INDEX = tableIndex(SAVE_PRESSES);
+
+/** The press a save activity answers: its item's row, else (THE DMG) the row of an ENCHANTED item naming this activity
+ * ("Life Stealing" on a "Nine Lives Stealer Longsword"). */
+function pressFor(activity) {
+  const direct = SAVE_PRESS_INDEX.rowFor(activity?.item);
+  if ( direct ) return direct;
+  for ( const [key, row] of Object.entries(SAVE_PRESSES) ) {
+    if ( row.activity && (lower(row.activity) === lower(activity?.name)) && enchantedAs(activity?.item, key) ) return { key, ...row };
+  }
+  return null;
+}
+
+/** THE DMG — a `spend` press: one of the activity's own charges, when the sheet set them (Nine Lives Stealer). */
+async function spendActivityCharge(activity) {
+  const uses = activity?.uses;
+  if ( !activity?.item || !uses || (uses.max === "") || (uses.max === null) || (uses.max === undefined) ) return;
+  await activity.item.update({ [`system.activities.${activity.id}.uses.spent`]: (Number(uses.spent) || 0) + 1 });
+}
 
 /** One target's consequences, once: the verdict pause, effects, then rolled damage. ⚠ RE-READ the
  * flag after the pause: a legendary-resistance flip can land mid-pause. */
@@ -90,7 +108,7 @@ export async function applySaveEffects(card, flag, entry, { successOnly = false 
   const activity = cardActivity(card, flag.activityUuid);
   if ( !activity ) return;
   // A SAVE_PRESSES `success` row's effects land on a success and never on a failure (Stunning Strike's Slowed).
-  const success = new Set((SAVE_PRESS_INDEX.rowFor(activity.item)?.success ?? []).map(n => n.toLowerCase()));
+  const success = new Set((pressFor(activity)?.success ?? []).map(n => n.toLowerCase()));
   const onSuccess = effect => success.has(String(effect?.name ?? "").toLowerCase());
   const toApply = (await applicableProfiles(activity))
     .filter(({ profile, effect }) => onSuccess(effect)
@@ -99,9 +117,9 @@ export async function applySaveEffects(card, flag, entry, { successOnly = false 
   // No pack effect for a failure the text names (Web's Restrained): press the standard status. A press
   // behind the caster's WORD (Command) lands only when the word answered is the pressing one.
   if ( !toApply.length && (entry.outcome === "failed") && !successOnly ) {
-    const press = SAVE_PRESS_INDEX.rowFor(activity.item);
+    const press = pressFor(activity);
     const spoken = !press?.word || ((entry.choice?.kind === "word") && wordPresses(press.word, entry.choice.answer));
-    if ( press?.onFail && spoken ) await pressSaveStatus(card, flag, entry, press);
+    if ( press?.onFail && spoken ) await pressSaveStatus(card, flag, entry, press, activity);
     return;
   }
   if ( !toApply.length ) return;
@@ -198,7 +216,7 @@ export const wordPresses = (word, answer) => word?.statuses ? !!word.statuses[an
 export const wordStatus = (press, answer) => press?.word?.statuses?.[answer] ?? press?.status ?? null;
 
 /** The SAVE_PRESSES status on the failer, receipted as the effect it became (so revert removes it). */
-async function pressSaveStatus(card, flag, entry, press) {
+async function pressSaveStatus(card, flag, entry, press, activity = null) {
   const subject = await fromUuid(entry.uuid).catch(() => null);
   const saver = (subject instanceof Actor) ? subject : (subject?.actor ?? null);
   if ( !(saver instanceof Actor) || !canApplyTo(saver) ) return;
@@ -206,6 +224,9 @@ async function pressSaveStatus(card, flag, entry, press) {
   if ( !status || saver.statuses?.has?.(status) ) return;   // already wearing it — nothing to press, nothing to receipt
   const landed = await forceStatus(saver, status, { origin: flag.sourceUuid ?? null, expiry: press.expiry ?? null, duration: press.lasts ?? null });
   if ( !landed ) return;
+  // THE DMG — `slain` (Nine Lives Stealer): 0 Hit Points too. ⚠ After the status: the platform's own Dead at 0 would race it.
+  if ( press.slain && (Number(saver.system?.attributes?.hp?.value) > 0) ) await saver.update({ "system.attributes.hp.value": 0 });
+  if ( press.spend ) await spendActivityCharge(activity).catch(err => console.warn(`${TITLE} | Could not spend the charge — mark it by hand.`, err));
   const effect = saver.effects.find(e => e.statuses?.has?.(status));
   if ( !effect ) return;
   const description = await ruleHTML(press.rule);

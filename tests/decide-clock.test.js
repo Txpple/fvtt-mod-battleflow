@@ -195,7 +195,9 @@ describe("the registry's clock-rider data", () => {
       // activity carries the extra damage — the text's `@prof` does).
       // …or no damage at all: an effect-only row (the PHB feats, group 3) says what it does instead.
       // …or the die is the granting bard's (A1, Combat Inspiration: `inspired`).
-      if (row.activity === null && !row.says && !row.inspired)
+      // THE DMG (2026-10-01): a weapon's own property names a flat amount (Mace of Smiting's 7) or says what it does.
+      if (row.wields && row.activity === null) expect(row.amount || row.says, key).toBeTruthy();
+      else if (row.activity === null && !row.says && !row.inspired)
         expect(row.amount, key).toMatch(/^@/);
       else if (row.activity === null && !row.inspired)
         expect(row.lands?.name || row.bonusDice || row.random || row.enchant, key).toBeTruthy();
@@ -214,6 +216,8 @@ describe("the registry's clock-rider data", () => {
             row.judge === "opportunity" ||
             row.self === true ||
             row.enchant === true ||
+            // THE DMG: the weapon's own property — the item is the limit (a 20, a crit, or every hit with it).
+            row.wields === true ||
             row.inspired === true ||
             // C1: a summon's rider on the summoner's mark (Bestial Fury, Create Thrall) — the mark is the limit.
             !!row.marked ||
@@ -297,5 +301,153 @@ describe("Sentinel's Halt — an Opportunity Attack's rider (the PHB feats, grou
     expect(chips.TURN_PINNED).toContain("halt");
     expect(chips.TURN_CHITS).toContain("halt"); // out of combat there is no turn — the pack's own duration stands
     expect(chips.chipClock("halt", null)).toBe(null);
+  });
+});
+
+describe("THE DMG — the crit riders and the enchanted weapons (RULINGS, 2026-10-01)", () => {
+  const rider = key => reg.CLOCK_RIDERS[key];
+  it("every DMG weapon row is `wields` and `always` — the weapon's own enchantment, never a pick", () => {
+    const keys = [
+      "vorpal-sword",
+      "sword-of-sharpness",
+      "sword-of-life-stealing",
+      "nine-lives-stealer",
+      "hammer-of-thunderbolts",
+      "mace-of-smiting",
+      "mace-of-smiting-construct",
+      "silvered-weapon",
+      "sword-of-wounding"
+    ];
+    for (const k of keys) {
+      expect(rider(k)).toMatchObject({ wields: true, always: true, when: "any" });
+      expect(rider(k).rule.uuid).toMatch(
+        /^Compendium\.dnd-dungeon-masters-guide\.equipment\.Item\./
+      );
+    }
+    // "roll a 20" for all but Silvered (any Critical Hit) and Wounding (every hit)
+    for (const k of keys.filter(k => !["silvered-weapon", "sword-of-wounding"].includes(k)))
+      expect(rider(k).natural).toBe(true);
+    expect(rider("silvered-weapon")).toMatchObject({
+      crit: true,
+      bonusDice: 1,
+      targets: { shapeshifted: true }
+    });
+    expect(rider("sword-of-wounding")).toMatchObject({
+      save: true,
+      saveOnly: true,
+      activity: "Sword of Wounding Save"
+    });
+    // Giants' Bane's own damage is how it slays: its save keeps it.
+    expect(rider("hammer-of-thunderbolts").saveOnly).toBeUndefined();
+    expect(rider("nine-lives-stealer")).toMatchObject({
+      save: true,
+      charges: true,
+      targets: { notTypes: ["construct", "undead"], hpBelow: 100 }
+    });
+    expect(rider("hammer-of-thunderbolts")).toMatchObject({
+      save: true,
+      activity: "Giants' Bane (On Crit)",
+      targets: { types: ["giant"] }
+    });
+    expect(rider("mace-of-smiting")).toMatchObject({
+      amount: "7",
+      type: "bludgeoning",
+      targets: { notTypes: ["construct"] }
+    });
+    expect(rider("mace-of-smiting-construct")).toMatchObject({
+      amount: "14",
+      type: "bludgeoning",
+      destroy: 25,
+      targets: { types: ["construct"] }
+    });
+    expect(rider("sword-of-life-stealing")).toMatchObject({
+      tempHp: 15,
+      targets: { notTypes: ["construct", "undead"] }
+    });
+    expect(rider("sword-of-sharpness").exhaustion).toBe(1);
+  });
+  it("the other tables: Vorpal's ignored Slashing, Nine Lives' slaying press, Wounding's repeat and heal block, Luck Blade's reroll", () => {
+    expect(reg.DAMAGE_RULES["Vorpal Sword"]).toMatchObject({
+      wields: true,
+      ignores: "resistance",
+      types: ["slashing"]
+    });
+    expect(reg.SAVE_PRESSES["Nine Lives Stealer"]).toMatchObject({
+      activity: "Life Stealing",
+      status: "dead",
+      onFail: true,
+      slain: true,
+      spend: true
+    });
+    expect(reg.REPEAT_SAVES["Sword of Wounding"]).toMatchObject({
+      effect: "Wounded and Cannot Heal",
+      on: ["turnEnd"],
+      activity: "Sword of Wounding Save"
+    });
+    expect(reg.HEAL_BLOCKS["Sword of Wounding"].effect).toBe("Wounded and Cannot Heal");
+    expect(reg.REROLLS["Luck Blade"]).toMatchObject({
+      tests: ["attack", "save", "check"],
+      wields: true,
+      activity: "Luck",
+      notIncapacitated: true,
+      bonus: null
+    });
+  });
+  it("`natural`: a 20 on the d20, not any Critical Hit", () => {
+    const row = rider("vorpal-sword");
+    expect(c.riderDue(row, { weapon: true, critical: true, natural: false })).toEqual({
+      due: false,
+      why: "not a 20 on the d20"
+    });
+    expect(c.riderDue(row, { weapon: true, critical: true, natural: true })).toEqual({
+      due: true,
+      why: "a 20 on the d20"
+    });
+  });
+  it("`targets`: every hit creature must answer; an unread one is never guessed", () => {
+    const row = rider("nine-lives-stealer");
+    const typed = targets => c.targetsAnswer(row.targets, targets);
+    expect(typed([{ name: "Ogre", type: "giant", hp: 59 }])).toEqual({ fits: true, why: "" });
+    expect(typed([{ name: "Zombie", type: "undead", hp: 22 }]).fits).toBe(false);
+    expect(typed([{ name: "Dragon", type: "dragon", hp: 200 }])).toEqual({
+      fits: false,
+      why: "Dragon has 100 Hit Points or more"
+    });
+    expect(typed([{ name: "Thing", type: null, hp: 5 }]).fits).toBe(null);
+    expect(typed([{ name: "Ogre", type: "giant", hp: null }]).fits).toBe(null);
+    expect(
+      c.targetsAnswer({ shapeshifted: true }, [
+        { name: "Werewolf", type: "monstrosity", shapeshifted: true }
+      ]).fits
+    ).toBe(true);
+    expect(
+      c.targetsAnswer({ shapeshifted: true }, [
+        { name: "Goblin", type: "humanoid", shapeshifted: false }
+      ]).fits
+    ).toBe(false);
+    expect(c.targetsAnswer({ types: ["giant"] }, []).fits).toBe(null);
+    expect(
+      c.riderDue(row, { natural: true, typed: { fits: false, why: "Zombie is a undead" } })
+    ).toEqual({ due: false, why: "Zombie is a undead" });
+    expect(
+      c.riderDue(row, { natural: true, typed: { fits: true, why: "" }, chargesLeft: 0 })
+    ).toEqual({ due: false, why: "no charges left" });
+    expect(
+      c.riderDue(row, { natural: true, typed: { fits: true, why: "" }, chargesLeft: null }).due
+    ).toBe(true);
+  });
+  it("Wounding rides every hit; Silvered every Critical Hit on a shape-shifted creature", () => {
+    expect(c.riderDue(rider("sword-of-wounding"), { weapon: true })).toEqual({
+      due: true,
+      why: "every hit with it"
+    });
+    const silvered = rider("silvered-weapon");
+    expect(c.riderDue(silvered, { critical: false, typed: { fits: true, why: "" } }).due).toBe(
+      false
+    );
+    expect(c.riderDue(silvered, { critical: true, typed: { fits: true, why: "" } })).toEqual({
+      due: true,
+      why: "a Critical Hit"
+    });
   });
 });

@@ -419,6 +419,8 @@ export const SAVE_SUCCEEDS = Object.freeze({
  *   advantage  the reroll has Advantage
  *   whileEffect  D1 — the row stands while the roller wears this effect (Living Legend's 10 minutes);  reaction  the cost is
  *              the roller's Reaction (said on the offer; the table tracks it)
+ *   wields     THE DMG — the carrier is a magic item "on your person" (lookup.js `wieldedNamed`: the template's enchantment on a
+ *              weapon, attuned); its `activity`'s own uses pay;  notIncapacitated  not while the roller is Incapacitated
  */
 export const REROLLS = Object.freeze({
   "Indomitable": Object.freeze({ tests: Object.freeze(["save"]), bonus: "@classes.fighter.levels", uses: true,
@@ -435,7 +437,11 @@ export const REROLLS = Object.freeze({
   // D1 — Living Legend's Saving Throw Reroll: a failed save rerolled as a Reaction while the legend stands, the new roll used.
   "Living Legend": Object.freeze({ tests: Object.freeze(["save"]), bonus: null, whileEffect: "Living Legend: Charismatic", reaction: true,
     rule: Object.freeze({ item: "Living Legend", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnLivingLege", benefit: "Saving Throw Reroll" }),
-    from: "Paladin — Oath of Glory 20" })
+    from: "Paladin — Oath of Glory 20" }),
+  // THE DMG — Luck: one failed D20 Test rerolled, the second roll used, once per dawn (the Luck activity's own use).
+  "Luck Blade": Object.freeze({ tests: Object.freeze(["attack", "save", "check"]), bonus: null, wields: true, activity: "Luck", notIncapacitated: true,
+    rule: Object.freeze({ item: "Luck Blade", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgLuckBlade0000", benefit: "Luck" }),
+    from: "DMG weapon" })
 });
 
 /**
@@ -519,6 +525,22 @@ export const DEATH_STRIKE = Object.freeze({
  *             bonded on the sheet, any weapon counts and the card says so (lookup.js pactWeaponFits)
  *   offers    B4 — after the rider rides, the damage card OFFERS the feature's named activity as a button, used at the
  *             attacker (Lifedrinker's heal: a Hit Point Die spent, the sheet's own heal activity — "you can")
+ *   THE DMG's WEAPONS (RULINGS *The DMG — the crit riders and the enchanted weapons*):
+ *   wields    the rider is the ATTACK's own weapon — one wearing the template's applied enchantment `feature` (lookup.js
+ *             `wieldsAs`), or the item by that name; attuned where it requires it. Its `activity` is the WEAPON's (the
+ *             template's riders land there)
+ *   always    an item's property, never a pick: it neither opens nor shows on the damage offer, and always rides
+ *   natural   "roll a 20 on the d20" — the d20's own 20 (or a fold that made it one), not any Critical Hit
+ *   targets   what every hit creature must be — decide/clock.js `targetsAnswer` (`types`, `notTypes`, `hpBelow`, `shapeshifted`)
+ *   save      the `activity` is a SAVE used at the hit creatures once the damage lands (the saves machine takes it); no dice
+ *   saveOnly  that save rolls no damage (an enchantment's legacy damage change lands on every activity of the weapon — the
+ *             save's too; the hit already dealt it). Giants' Bane keeps its own: its damage is how it slays.
+ *   charges   the activity's own charges, when the sheet set them: none left, not due; one spent when the save SLAYS
+ *             (SAVE_PRESSES `spend`)
+ *   tempHp    the attacker gains that many Temporary Hit Points once the damage lands
+ *   exhaustion  the hit creatures gain that many Exhaustion levels once the damage lands
+ *   destroy   once the receipt lands, a hit creature left at or below that many Hit Points is destroyed (0 HP, Dead)
+ *   type      a damage type of its own (Mace of Smiting's Bludgeoning), where `amount` has none
  * Left out: choices the sheet does not record or judgments the module cannot make (Brutal Strike, Hand of
  * Harm, Eldritch Smite, Foe Slayer). Death Strike: DEATH_STRIKE.
  */
@@ -585,6 +607,50 @@ export const CLOCK_RIDERS = Object.freeze({
     maxSize: "lg", label: "Repelling Blast", says: "push it up to 10 feet straight away from you (move the token)",
     rule: Object.freeze({ item: "Repelling Blast", uuid: "Compendium.dnd-players-handbook.classes.Item.phbinvRepellingB" }),
     from: "Eldritch Invocation (Warlock 2)" }),
+  // THE DMG's weapons: the template's enchantment on the weapon (`wields`), an item's property (`always`). The pack's own
+  // crit bonus (Vorpal's 30, Life Stealing's 15, Sharpness's 14) rides every Critical Hit natively; these are the rest.
+  "vorpal-sword": Object.freeze({ feature: "Vorpal Sword", activity: null, wields: true, always: true, natural: true, when: "any",
+    label: "Vorpal Sword", says: "cut off one of its heads — it dies if it can't survive without one (Legendary Resistance can refuse it); headless, too big or immune to Slashing, it takes the extra 30 Slashing instead",
+    rule: Object.freeze({ item: "Vorpal Sword", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgVorpalSword00" }),
+    from: "DMG weapon" }),
+  "sword-of-sharpness": Object.freeze({ feature: "Sword of Sharpness", activity: null, wields: true, always: true, natural: true, when: "any",
+    exhaustion: 1, label: "Sword of Sharpness", says: "1 Exhaustion level",
+    rule: Object.freeze({ item: "Sword of Sharpness", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfSharpn" }),
+    from: "DMG weapon" }),
+  "sword-of-life-stealing": Object.freeze({ feature: "Sword of Life Stealing", activity: null, wields: true, always: true, natural: true, when: "any",
+    targets: Object.freeze({ notTypes: Object.freeze(["construct", "undead"]) }), tempHp: 15,
+    label: "Sword of Life Stealing", says: "you gain 15 Temporary Hit Points",
+    rule: Object.freeze({ item: "Sword of Life Stealing", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfLifeSt" }),
+    from: "DMG weapon" }),
+  "nine-lives-stealer": Object.freeze({ feature: "Nine Lives Stealer", activity: "Life Stealing", wields: true, always: true, natural: true,
+    when: "any", save: true, charges: true, targets: Object.freeze({ notTypes: Object.freeze(["construct", "undead"]), hpBelow: 100 }),
+    label: "Life Stealing", says: "a DC 15 Constitution save or it is slain — a charge spent if it is",
+    rule: Object.freeze({ item: "Nine Lives Stealer", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgNineLivesStea", benefit: "Life Stealing" }),
+    from: "DMG weapon" }),
+  // Giants' Bane rides only with the paired attunement's enchantment applied: its save activity lands on the weapon with it.
+  "hammer-of-thunderbolts": Object.freeze({ feature: "Hammer of Thunderbolts", activity: "Giants' Bane (On Crit)", wields: true, always: true,
+    natural: true, when: "any", save: true, targets: Object.freeze({ types: Object.freeze(["giant"]) }),
+    label: "Giants' Bane", says: "a DC 17 Constitution save or it dies",
+    rule: Object.freeze({ item: "Hammer of Thunderbolts", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgHammerOfThund", benefit: "Giants' Bane" }),
+    from: "DMG weapon" }),
+  "mace-of-smiting": Object.freeze({ feature: "Mace of Smiting", activity: null, wields: true, always: true, natural: true, when: "any",
+    amount: "7", type: "bludgeoning", targets: Object.freeze({ notTypes: Object.freeze(["construct"]) }), label: "Mace of Smiting",
+    rule: Object.freeze({ item: "Mace of Smiting", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgMaceOfSmiting" }),
+    from: "DMG weapon" }),
+  "mace-of-smiting-construct": Object.freeze({ feature: "Mace of Smiting", activity: null, wields: true, always: true, natural: true, when: "any",
+    amount: "14", type: "bludgeoning", targets: Object.freeze({ types: Object.freeze(["construct"]) }), destroy: 25,
+    label: "Mace of Smiting", says: "a Construct left at 25 Hit Points or fewer is destroyed",
+    rule: Object.freeze({ item: "Mace of Smiting", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgMaceOfSmiting" }),
+    from: "DMG weapon" }),
+  "silvered-weapon": Object.freeze({ feature: "Silvered Weapon", activity: null, wields: true, always: true, crit: true, when: "any",
+    targets: Object.freeze({ shapeshifted: true }), bonusDice: 1, label: "Silvered Weapon", says: "one more weapon die against a shape-shifted creature",
+    rule: Object.freeze({ item: "Silvered Weapon", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSilveredWeapo" }),
+    from: "DMG weapon" }),
+  // Every hit: the 2d6 Necrotic is the enchantment's own part; the save, its effect and the repeat (REPEAT_SAVES) are the module's.
+  "sword-of-wounding": Object.freeze({ feature: "Sword of Wounding", activity: "Sword of Wounding Save", wields: true, always: true, when: "any",
+    save: true, saveOnly: true, label: "Sword of Wounding", says: "a DC 15 Constitution save or it can't regain Hit Points for 1 hour, repeating the save at the end of each of its turns",
+    rule: Object.freeze({ item: "Sword of Wounding", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfWoundi" }),
+    from: "DMG weapon" }),
   // Any attack roll (weapon, unarmed or spell), so no `weapon`; the type is the part's own.
   "fires-burn": Object.freeze({ feature: "Fire's Burn", activity: "Burn", label: "Fire's Burn", when: "any", uses: true,
     rule: Object.freeze({ item: "Fire's Burn", uuid: "Compendium.dnd-players-handbook.origins.Item.phbsptFiresBurn0" }),
@@ -779,6 +845,9 @@ export const CARD_CHIPS = Object.freeze({
  *   lasts  the pressed status's duration ({ rounds, seconds }); none → until removed
  *   success  the activity's OWN effects by name that land on a SUCCESS, never a failure (no `status`): the
  *          pack marks Stunning Strike's Slowed failure-only (A2)
+ *   activity  THE DMG — the row answers an ENCHANTED item's save activity of that name (the key is the template's
+ *          enchantment: "Nine Lives Stealer" on a "Nine Lives Stealer Longsword");  slain  the failure takes the
+ *          creature to 0 Hit Points with the status;  spend  one of the activity's own charges spent when it lands
  */
 export const SAVE_PRESSES = Object.freeze({
   "Stunning Strike": Object.freeze({ success: Object.freeze(["Slowed"]),
@@ -799,6 +868,9 @@ export const SAVE_PRESSES = Object.freeze({
     rule: Object.freeze({ item: "Grease", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplGrease0000" }) }),
   "Sleet Storm": Object.freeze({ status: "prone", onFail: true,
     rule: Object.freeze({ item: "Sleet Storm", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSleetStorm" }) }),
+  // THE DMG — Life Stealing: the failure SLAYS (0 Hit Points, Dead) and the weapon loses a charge.
+  "Nine Lives Stealer": Object.freeze({ activity: "Life Stealing", status: "dead", onFail: true, slain: true, spend: true,
+    rule: Object.freeze({ item: "Nine Lives Stealer", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgNineLivesStea", benefit: "Life Stealing" }) }),
   // No effect on the feat's saves: Poisoned is pressed here, ending with the Poisoner's next turn.
   "Poisoner": Object.freeze({ status: "poisoned", onFail: true, expiry: "sourceEnd",
     rule: Object.freeze({ item: "Poisoner", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftPoisoner000", benefit: "Brew Poison" }) })
@@ -2706,6 +2778,14 @@ export const KIT_TENDS = Object.freeze({
     from: "Origin feat (Hermit)" })
 });
 
+/** THE DMG — a creature wearing the `effect` regains no Hit Points (Temporary Hit Points are not regained ones): the heal
+ * is held at the current Hit Points as it is applied (heal-on-hit.js). ⚠ NOT A KIND — a second customer is a row. */
+export const HEAL_BLOCKS = Object.freeze({
+  "Sword of Wounding": Object.freeze({ effect: "Wounded and Cannot Heal",
+    rule: Object.freeze({ item: "Sword of Wounding", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfWoundi" }),
+    from: "DMG weapon" })
+});
+
 /**
  * THE DAMAGE RULES (RULINGS *The fighting styles*; renamed from FIGHTING_STYLES in B4, Q5 ruled): a style,
  * feat or class feature whose rule is a NUMBER on a damage roll, or turns on what the owner HOLDS or WEARS.
@@ -2719,6 +2799,8 @@ export const KIT_TENDS = Object.freeze({
  *   takesOver  the pack's UNGATED effect is switched off; the face carries the rule
  *   block      cut from `types` damage before resistances, at dnd5e.preCalculateDamage (the card's buttons too)
  *   ignores    "resistance" — the owner's `types` damage ignores Resistance (`options.ignore.resistance`)
+ *   wields     THE DMG — the carrier is the damage's own WEAPON (lookup.js `wieldsAs`: the template's enchantment, attuned), not
+ *              a feat: no face; only the ignored Resistance reads it
  *   typed      types read off the feat's NAME ("Elemental Adept (Fire)"); none → a greyed face;  choices  the pick;
  *              pickLine  the type popup's words for what the pick does
  *   spells     spell damage only (true), or "cantrip" — level 0 only;  feat  a feat or class feature (its face wears
@@ -2763,6 +2845,10 @@ export const DAMAGE_RULES = Object.freeze({
     ignores: "resistance", minimum: 2, choices: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
     rule: Object.freeze({ item: "Elemental Adept", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftElementalAd", benefit: "Energy Mastery" }),
     from: "General feat" }),
+  // THE DMG — "the weapon ignores Resistance to Slashing damage".
+  "Vorpal Sword": Object.freeze({ key: "vorpal-sword", gate: "always", wields: true, ignores: "resistance", types: Object.freeze(["slashing"]),
+    rule: Object.freeze({ item: "Vorpal Sword", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgVorpalSword00" }),
+    from: "DMG weapon" }),
   // Beside Two-Weapon Fighting it adds nothing twice (the machine adds one modifier).
   "Crossbow Expert": Object.freeze({ key: "crossbow-expert", gate: "offhandCrossbow", bonus: "@mod", feat: true,
     rule: Object.freeze({ item: "Crossbow Expert", uuid: "Compendium.dnd-players-handbook.feats.Item.phbftCrossbowExp", benefit: "Dual Wielding" }),
@@ -2832,6 +2918,11 @@ export const REPEAT_TRIGGERS = new Set(["turnEnd", "damaged", "action"]);
  * the Blinded anyway — the plane shift is the table's).
  */
 export const REPEAT_SAVES = Object.freeze({
+  // THE DMG — the enchanted weapon is the origin (repeat-saves.js reads it through `answersOrEnchanted`); the weapon's own
+  // save activity ("Sword of Wounding Save") is the repeat's.
+  "Sword of Wounding": Object.freeze({ effect: "Wounded and Cannot Heal", on: Object.freeze(["turnEnd"]), activity: "Sword of Wounding Save",
+    rule: Object.freeze({ item: "Sword of Wounding", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgSwordOfWoundi" }),
+    from: "DMG weapon" }),
   "Hold Person": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]),
     rule: Object.freeze({ item: "Hold Person", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHoldPerson" }),
     from: "Bard / Cleric / Druid / Sorcerer / Warlock / Wizard spell, level 2 (Concentration, 1 minute)" }),
@@ -3317,7 +3408,7 @@ export const D20_FOLDS = Object.freeze([
   row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical"), row("Peerless Skill", "tactical"),
   row("Stroke of Luck", "succeed"), row("Unerring Strike", "succeed"), row("Living Legend", "reroll"),
   // the DMG
-  row("Ring of Evasion", "succeed"), row("Scarab of Protection", "succeed")
+  row("Ring of Evasion", "succeed"), row("Scarab of Protection", "succeed"), row("Luck Blade", "reroll")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

@@ -107,6 +107,7 @@ describe("d20 folds — the spends, one mechanism", () => {
       "reroll",
       "reroll",
       "reroll",
+      "reroll",
       "seeking",
       "succeed",
       "succeed",
@@ -326,6 +327,7 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
       "Beguiling Twist",
       "Command",
       "Grease",
+      "Nine Lives Stealer",
       "Poisoner",
       "Sleet Storm",
       "Stunning Strike",
@@ -373,7 +375,9 @@ describe("SAVE_PRESSES — the bare save presses (the audit's output, 2026-09-03
         expect(row.success.length, name).toBeGreaterThan(0);
         continue;
       }
-      expect(STANDARD.has(row.status), name).toBe(true);
+      // THE DMG (2026-10-01): a `slain` row presses the platform's Dead with the 0 Hit Points (Nine Lives Stealer).
+      if (row.slain) expect(row.status, name).toBe("dead");
+      else expect(STANDARD.has(row.status), name).toBe(true);
       expect(row.onFail, name).toBe(true);
       expectPointer(row.rule, name);
       expect(row.rule.item, name).toBe(name);

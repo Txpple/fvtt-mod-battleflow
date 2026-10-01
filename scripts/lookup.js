@@ -50,6 +50,26 @@ export const isWorn = item => !!item && (item.system?.equipped === true)
 /** THE DMG — the WORN item on this actor that answers the row (equipment, weapons, consumables — never a feat or a spell), or null. */
 export const wornNamed = (actor, key) => itemsNamed(actor, key, { types: ["equipment", "weapon", "consumable", "tool"] }).find(isWorn) ?? null;
 
+/** THE DMG's TEMPLATES — the item carries the APPLIED, enabled enchantment of that name: a Longsword the "Vorpal Sword"
+ * template was dropped on reads "Vorpal Longsword" (identifier `longsword`) and wears the enchantment "Vorpal Sword".
+ * ⚠ The template item carries its own enchantment too, never applied there: only an applied copy counts. */
+export const enchantedAs = (item, key) => !!item?.effects?.some?.(e => (e.type === "enchantment") && !e.disabled
+  && (e.isAppliedEnchantment === true) && sameName(e.name, key));
+
+/** Attuned where the item requires it. No `equipped` test: the attack is made with it, so it is in hand. */
+const attunedEnough = item => (item?.system?.attunement !== "required") || (item?.system?.attuned === true);
+
+/** THE DMG — the item IS the row's magic item: it wears the template's enchantment, or answers the row by name (Mace of
+ * Smiting ships as a weapon of its own); attuned where it requires it. */
+export const wieldsAs = (item, key) => !!item && (enchantedAs(item, key) || answers(key, item)) && attunedEnough(item);
+
+/** A matcher in `answers`' shape that also reads an enchanted item (a repeat save's origin, a save press's item). */
+export const answersOrEnchanted = (key, item) => answers(key, item) || enchantedAs(item, key);
+
+/** THE DMG — the actor's item that is the row's magic item ("on your person": owned, attuned where required), or null. */
+export const wieldedNamed = (actor, key) => [...(actor?.items ?? [])]
+  .find(i => ["weapon", "equipment"].includes(i.type) && wieldsAs(i, key)) ?? null;
+
 /**
  * The sheet in the table's words, for a decide/ function that compares names: each item as the row
  * name it answers (identifier first, then name), else its own name. "Heat Metal - Spellcasting"

@@ -124,13 +124,24 @@ reaches it. Neither module may import the other; Battle Flow publishes events an
 Parked from the scope (no precedent row; un-parked by a player taking one): Charger, Grappler's
 Punch and Grab, Mounted Combatant's rest, War Caster's Reactive Spell.
 
+## Scoped out for good (2026-10-01)
+
+**The user, 2026-10-01: out entirely, never to be revisited when the backlog is reviewed — only on the user's own explicit
+ask.** Not parked, not waiting on a player: a backlog review skips this section.
+
+- **Reaction AC items:** Quarterstaff of the Acrobat (Attack Deflection, +5 AC as a Reaction) and Shield of the Cavalier
+  (Protective Field). The pack ships no effect for either.
+- **The DMG's two optional rules:** Fight or Flight, Success at a Cost.
+- **The held reaction kinds:** the redirect kind (Shield of Missile Attraction, Arrow-Catching Shield's Intercept Attack, the
+  MM's Redirect Attack) and the cast-triggered reaction (Rod of Absorption, Staff of the Magi's absorption, Ioun Stone of
+  Absorption).
+
 ## Features — surveyed, not scheduled
 
 | Item | Shape |
 | --- | --- |
 | **Summons handled by the module** (2026-10-01, [issue #1](https://github.com/Txpple/fvtt-mod-battleflow/issues/1)) | dnd5e's summon activity needs Create Token (and Create Actor for a compendium import) on the PLAYER plus the world's Allow Summoning; the Draconic Spirit ships half-finished (Breath Weapon carries all five types, Shared Resistances is five buttons on the spirit's sheet). The proposal: the caster's client asks every question in one popup and places; the active GM's client lands the creature off a flag on the cast card (ARCHITECTURE §3's channel) and grants ownership. The spells register's TEXT/OUT summon rows (30-odd across PHB, DMG, the classes) wait on it. Prototype: [prototypes/summons.html](prototypes/summons.html); the options to rule are in the issue. **Un-parked by the user's ruling off the prototype** |
 | **Wild Shape and polymorph: a form gallery, forms that end** (2026-10-01, [issue #2](https://github.com/Txpple/fvtt-mod-battleflow/issues/2)) | dnd5e's transform activity needs Create Actor on the player plus Allow Transformation; its chooser is the compendium browser; nothing models Known Forms, the hours, the revert at 0 HP or Polymorph's blank CR cap. The presets (`wildshape`, `polymorph`) are right and stay. The proposal: a gallery filtered to what the rule row allows (pools measured across the six books: 42 → 73 → 95 names), the same GM-client relay, `DROP_TO_ONE` for the revert, the bar for the clock. Prototype: [prototypes/wild-shape.html](prototypes/wild-shape.html); the options to rule are in the issue. **Un-parked by the user's ruling off the prototype** |
-| **The DMG's held items — build when a player holds one** (2026-10-01, the user: edge cases, not worth a day each) | The crit riders (`CRIT_RIDERS`, a table on the damage seam the crit judgement already serves): Vorpal Sword, Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon, Adamantine Weapon. The enchantment-aware weapon reader: Sword of Wounding (an on-hit DC 15 save, `REPEAT_SAVES` at each turn end), Luck Blade (one reroll per dawn). A made AC effect on the `ac` hold: Quarterstaff of the Acrobat (+5 AC as a Reaction), Shield of the Cavalier (Protective Field). Moonblade (the crit threshold — measure the pack's flag first). The two optional rules (Fight or Flight, Success at a Cost) and the held kinds (redirect, cast-triggered reaction) stay out. Sizes in audits/plans/dmg-build.md §3. **Un-parked by** a player holding one. |
 | **Whole-chat-log scans on hot paths** (2026-09-28, the repo review) | `demandCards` (every save roll), `holdPendingFor` (every activity use), `answerHoldsFor`, the riposte and bash-offer lookups walk `game.messages.contents`. Correct — a tail misses, one round emits dozens of messages — and constant work that grows with a world's age; nothing at the table has felt it. ARCHITECTURE §4 *Accepted trade-offs*. **Un-parked by** a measured stall on the house world, or a world past a few tens of thousands of messages. |
 | **Cover against an area's save** (2026-09-27, measured cover) | The 2024 DMG measures an area's cover from its point of origin, for the Dex save's +2/+5; *Measured cover* (RULINGS) is built for attacks only. The corner-line counter (`decide/cover.js`) takes any rectangle as the origin already. **Un-parked by** a table that wants it. |
 | **smoke-metamagic logged "Save consequences failed … reading '_id'" once, in a full battery** (2026-09-27) | 110/111 in the v2.4.0 floor battery (every rule row green; the red was the no-errors row), 111/111 alone. The error names no section and carried no stack — the suite now records each error's top stack frames. **Un-parked by** the next red of it — read the frames. |

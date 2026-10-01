@@ -133,6 +133,9 @@ export async function applyEffectsTo(targets, effects,
         // ⚠ Fresh clock: `toObject()` copies a template's `expired` mark — a copy born suppressed (NOTES §1).
         data.duration = { ...(data.duration ?? {}), expired: false };
         data.start = effect.constructor.getEffectStart();
+        // ⚠ A rider effect's own `dependentOn` (a bare id: the enchantment on the WEAPON that brought it — the DMG's templates)
+        // means nothing on the target, and dnd5e would resolve it there: only the concentration's uuid is kept.
+        if ( !concentration && data.flags?.dnd5e?.dependentOn ) delete data.flags.dnd5e.dependentOn;
         if ( clock ) foundry.utils.mergeObject(data, clock);
         data.system ??= {};
         data.system.changes = await ActiveEffect.implementation.forApplication(

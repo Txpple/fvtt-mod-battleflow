@@ -1650,10 +1650,9 @@ plan's §3. The calls made in the build, **each the user's to overrule**:
 - **Periapt of Wound Closure is a `D20_FLOORS` row on the Death Saving Throw** (`worn`, `minimum: 10`): a 9 or lower counts as a
   10 while the pendant is worn and attuned — the platform's own `minimum` knob (Reliable Talent's), the card "Periapt of Wound
   Closure — the d20's 4 counts as 10". Natural Healing Boost (the Hit Point Die doubled) is the table's.
-- **Held out, to BACKLOG** (the user, 2026-10-01: not worth a day each until a player holds one): the crit riders (Vorpal Sword,
-  Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon,
-  Adamantine Weapon), the enchantment-aware reader (Sword of Wounding, Luck Blade), the made AC effect (Quarterstaff of the
-  Acrobat, Shield of the Cavalier), Moonblade. The DMG is called read.
+- **The crit riders, Sword of Wounding, Luck Blade and Moonblade** were held to BACKLOG at first, then BUILT the same day on
+  the user's word (*The DMG — the crit riders and the enchanted weapons*, below). The made AC effect (Quarterstaff of the
+  Acrobat, Shield of the Cavalier) is scoped out for good (BACKLOG *Scoped out for good*).
 
 **The walk table** (for the batched walk):
 
@@ -1668,6 +1667,68 @@ plan's §3. The calls made in the build, **each the user's to overrule**:
 | Arrow-Catching Shield, a ranged attack at the bearer | the gate "… is Arrow-Catching Shield — −2 to this attack roll" |
 | Serpent Venom (or any injury poison) used | the "Serpent Venom Coating" chip on the character, the vial's dose spent; the next weapon hit demands its DC 11 Constitution save of the creature struck and the vial is left empty; a miss keeps the chip |
 | Periapt of Wound Closure worn and attuned, a Death Saving Throw of 9 or lower | a success — "Periapt of Wound Closure — the d20's 4 counts as 10"; unattuned, the die stands |
+
+## The DMG — the crit riders and the enchanted weapons (2026-10-01; audits/drawings/dm.md)
+
+**The user, 2026-10-01: build them out — the crit riders, the two enchanted weapons, Moonblade.** Measured first
+(`tools/probe-dmg-weapons.mjs`): every one but the Mace of Smiting is a **template** — a weapon item whose Enchant activity (or
+its effect dropped on a weapon's sheet) puts an applied enchantment of the template's name on a real weapon ("Vorpal Longsword",
+identifier `longsword`), and brings over the template's rider activities and effects (the weapon gains "Life Stealing", "Sword
+of Wounding Save", "Luck"). The pack already carries the flat crit damage (Vorpal's 30, Life Stealing's 15, Sharpness's 14, as
+`critical.bonus`) and Moonblade's 19 (its "Rune: Critical Range"). The calls made, **each the user's to overrule**:
+
+- **The reader** (lookup.js `wieldsAs`): the attacking weapon wears the APPLIED, enabled enchantment of the item's name, or IS the
+  item by name (the Mace ships as a weapon); attuned where it requires it. The template item's own unapplied enchantment never
+  counts.
+- **One table, no new kind:** the riders are `CLOCK_RIDERS` rows (`wields`, `always`, `natural`, `targets`, `save`, `charges`,
+  `tempHp`, `exhaustion`, `destroy`). **`always`** — a magic item's property is never a pick: it neither opens nor shows on the
+  damage offer, always rides, and says itself on the damage card.
+- **"Roll a 20 on the d20"** (`natural`) is the d20's own 20, or a fold that made one (Stroke of Luck's twenty, a reroll's 20) —
+  not every Critical Hit: a Moonblade's 19 or a Paralyzed target's automatic crit does not behead. The pack's own crit bonus
+  rides EVERY Critical Hit (the platform's; not the module's to narrow). **Silvered Weapon** reads any Critical Hit, as written.
+- **Vorpal Sword:** the 20 is a card line — the head and whether the creature survives without it are the DM's (the data has no
+  head); the 30 extra is the pack's. **"Ignores Resistance to Slashing"** is a `DAMAGE_RULES` row (`wields`, Elemental Adept's
+  ignored Resistance) read off the damage's own weapon.
+- **Sword of Sharpness:** a 20 against a creature gives it 1 Exhaustion level. ⚠ The pack types its 14 as **Necrotic** (the text
+  says Slashing) — a vendor-data fault, the Vendor Fixes repo's, never patched here. "Maximize against an object" is the table's.
+- **Sword of Life Stealing:** a 20 against a creature that is not a Construct or Undead gives the wielder **15** Temporary Hit
+  Points — the text's "equal to the Necrotic damage taken" read as the flat 15 (a resisted 15 is the table's to trim).
+- **Nine Lives Stealer:** a 20 against a creature under 100 Hit Points that is not a Construct or Undead uses the weapon's own
+  Life Stealing save (DC 15 Con); a failure SLAYS it (0 Hit Points, Dead — `SAVE_PRESSES` `slain`) and spends one of the
+  activity's charges. The charges are the activity's own uses (the pack's Foundry note: set them to the rolled 1d8 + 1); none
+  left, the property is gone; none set, it rides.
+- **Hammer of Thunderbolts:** Giants' Bane rides only when the weapon carries its paired attunement's enchantment (the save
+  activity comes with it): a 20 against a Giant uses that DC 17 Con save, the pack's own 1000 damage on a failure. Hurl Hammer's
+  thunderclap is the pack's attack.
+- **Mace of Smiting:** a 20 adds 7 Bludgeoning, 14 against a Construct; a Construct left at 25 Hit Points or fewer once the
+  receipt lands is destroyed (0 Hit Points, Dead). The +3 against Constructs is the pack's own "Attack Construct" activity.
+- **Adamantine Weapon:** "a hit on an object is a Critical Hit" — an object is a **vehicle** actor (the platform has no object
+  creature); the crit judgement (`critFor`) names it beside the conditions' automatic crits. The weapon or the ammunition
+  carrying the `ada` property counts.
+- **Sword of Wounding:** every hit uses the weapon's own save (DC 15 Con) at the creature hit; a failure lands the pack's
+  "Wounded and Cannot Heal" for its hour, the save repeating at the end of each of its turns (`REPEAT_SAVES`, the enchanted weapon
+  as its origin). **"Unable to regain Hit Points"** is `HEAL_BLOCKS`: a heal applied to the creature is held at its current Hit
+  Points (Temporary Hit Points pass); the 2d6 Necrotic is the enchantment's own part.
+- **Luck Blade:** Luck is a `REROLLS` row (`wields`) — one failed D20 Test (attack, save or check) rerolled, the second roll used,
+  once per dawn (the Luck activity's own use), not while Incapacitated. The +1 to saves is the pack's effect; Wish is the sheet's.
+- **Moonblade:** NATIVE — the pack's "Rune: Critical Range" sets the attack's crit threshold to 19; its other runes are the
+  pack's activities.
+
+**The walk table** (for the batched walk):
+
+| Item | What you should see |
+| --- | --- |
+| Vorpal Sword, a 20 on a creature | the damage card "Vorpal Sword — a 20 on the d20", the head line; Slashing resistance ignored |
+| Sword of Sharpness, a 20 | the card line; the target gains 1 Exhaustion level |
+| Sword of Life Stealing, a 20 on a living creature | the card line; the wielder gains 15 Temporary Hit Points; on an Undead, nothing |
+| Nine Lives Stealer, a 20 on a creature under 100 HP | the Life Stealing save demanded; a failure leaves it at 0 HP and Dead, a charge spent |
+| Hammer of Thunderbolts with Giant's Bane, a 20 on a Giant | the Giants' Bane save demanded |
+| Mace of Smiting, a 20 | +7 Bludgeoning (14 on a Construct); a Construct at 25 HP or fewer after it is destroyed |
+| Silvered Weapon, a crit on a shape-shifted creature | one more weapon die |
+| Adamantine Weapon, a hit on a vehicle | a Critical Hit, the crit line names Adamantine |
+| Sword of Wounding, any hit | its save demanded; a failure lands "Wounded and Cannot Heal" — a heal does nothing; it saves again at its turn end |
+| Luck Blade, a failed attack, save or check | the rescue row "Luck Blade — reroll", once per dawn |
+| Moonblade with the Critical Range rune | a 19 is a Critical Hit (the pack's) |
 
 ## The full release — the order (2026-09-29)
 

@@ -9,7 +9,7 @@ import { MODULE_ID, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./cor
 import { activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
 import { damagePartsOf } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
-import { HEAL_ON_HIT, tableIndex, healOnHitEntries, listedNames } from "./decide/registry.js";
+import { HEAL_BLOCKS, HEAL_ON_HIT, tableIndex, healOnHitEntries, listedNames } from "./decide/registry.js";
 import { healOnHitAmount, healOnHitTitle, killPays } from "./decide/heal-on-hit.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
@@ -134,8 +134,27 @@ const HP = "system.attributes.hp.value";
 /** Stamped before the write (the Hit Points were above 0, the update takes them to 0); read after it lands. */
 const falling = new Map();
 
+/** THE DMG — the heal-blocking effect this creature wears (HEAL_BLOCKS), or null. */
+function healBlockOn(actor) {
+  for ( const [key, row] of Object.entries(HEAL_BLOCKS) ) {
+    const effect = actor?.effects?.find?.(e => e.active && (lower(e.name) === lower(row.effect)));
+    if ( effect ) return { key, row, effect };
+  }
+  return null;
+}
+
 listen("dnd5e.preApplyDamage", "heal-on-hit", (actor, amount, updates, options) => {
   try {
+    // THE DMG — a creature that can't regain Hit Points: the heal is held at the Hit Points it has (Temporary Hit Points
+    // are not regained ones and pass).
+    if ( (actor instanceof Actor) && (HP in (updates ?? {})) ) {
+      const now = Number(actor.system?.attributes?.hp?.value ?? 0);
+      const block = (Number(updates[HP]) > now) ? healBlockOn(actor) : null;
+      if ( block ) {
+        updates[HP] = now;
+        ui.notifications?.info?.(`${actor.name} can't regain Hit Points (${block.effect.name}).`);
+      }
+    }
     if ( !(actor instanceof Actor) || !(Number(amount) > 0) || !(HP in (updates ?? {})) ) return;
     if ( !(Number(actor.system?.attributes?.hp?.value ?? 0) > 0) || (Number(updates[HP]) > 0) ) return;
     const origin = options?.originatingMessage;

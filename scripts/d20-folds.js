@@ -10,7 +10,7 @@ import { MODULE_ID, TITLE, S, setting, queueFlagWrite, canAnswerFor, isActiveGM,
   from "./core.js";
 import { ruleHTML } from "./rule-text.js";
 import { answers, d20FoldEntries, metamagicEntries, listedNames } from "./decide/registry.js";
-import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wornNamed } from "./lookup.js";
+import { activityNamed, cardActivity, featureNamed, itemNamed, itemsNamed, lower, resolveUuid, resolveDie, rerollD20, wieldedNamed, wornNamed } from "./lookup.js";
 import { grantingActor, hitTargets, poolSpendsOn, poolOf, spendPoolUses, turnChitStands, writeTurnChit } from "./shared.js";
 import { bfCard, holdBarHTML, momentBarHTML, popupKey, ruleLine, spendPhrase, RESCUE_KINDS, rescueLabel, rescueView, rescueSourceFor }
   from "./decide/present.js";
@@ -234,6 +234,15 @@ const REROLL = {
     const found = rerollRowOf(entry.name);
     if ( !found ) return null;
     const { key, row } = found;
+    // THE DMG — `wields` (Luck Blade): the magic item on the roller's person, its `activity`'s own use the pay.
+    if ( row.wields ) {
+      if ( row.notIncapacitated && actor.statuses?.has?.("incapacitated") ) return null;
+      const weapon = wieldedNamed(actor, key);
+      const luck = weapon ? activityNamed(weapon, row.activity) : null;
+      const left = Number(luck?.uses?.value ?? 0);
+      if ( !luck || !(left > 0) ) return null;
+      return { kind: "reroll", key, row, item: weapon, rage: null, bonus: 0, pool: null, activity: luck, left };
+    }
     const item = featureNamed(actor, key);
     if ( !item ) return null;
     // C1 — `activity` (Disciplined Survivor): the pool is what the feature's own activity consumes (Monk's Focus by uuid).
@@ -260,6 +269,12 @@ const REROLL = {
   },
   die: () => null,                                        // a REROLL contributes no die; the bonus rides the entry
   spend: async (actor, marker, message) => {
+    // THE DMG — the activity's own use (Luck Blade's Luck, once per dawn).
+    if ( marker.row.wields && marker.activity ) {
+      const spent = (Number(marker.activity.uses?.spent) || 0) + 1;
+      await marker.item.update({ [`system.activities.${marker.activity.id}.uses.spent`]: spent });
+      return true;
+    }
     if ( marker.row.uses || marker.pool ) {
       const record = await spendPoolUses(actor, marker.pool ?? marker.item, marker.key, 1, null);
       if ( !record ) return false;

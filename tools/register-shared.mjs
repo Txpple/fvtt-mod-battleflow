@@ -44,6 +44,8 @@ export const WHERE = {
   CLOCK_RIDERS: ["clock-riders.js", "Rulings the code carried · The hit's sequence"],
   COATINGS: ["use-chips.js", "Bent by choice — the rule of cool"],
   D20_FLOORS: ["d20-folds.js", "The PHB classes — D1"],
+  REROLLS: ["d20-folds.js", "The PHB classes — B1"],
+  HEAL_BLOCKS: ["heal-on-hit.js", "The DMG — the crit riders and the enchanted weapons"],
   USE_CHIPS: ["use-chips.js", "The gate before the roll"],
   DAMAGE_RULES: ["damage-rules.js", "The fighting styles"],
   EVASIONS: ["saves/consequences.js", "The GM's side — the five shapes"],

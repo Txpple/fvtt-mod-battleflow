@@ -221,7 +221,9 @@ async function stampSaveDemand(activity, message, results) {
     // ⚠ `onSave: "full"` marks rider damage the save does NOT modulate (Web's burn): no auto-roll,
     // no per-verdict application; the card's enricher stays GM-judged.
     const onSave = activity.damage?.onSave ?? "half";
-    const saveModulated = !!activity.damage?.parts?.length && (onSave !== "full");
+    // THE DMG — a weapon rider's save (clock-riders.js `save`) is the save alone: the hit carried the damage.
+    const riderSave = !!message.getFlag(MODULE_ID, "riderSave");
+    const saveModulated = !riderSave && !!activity.damage?.parts?.length && (onSave !== "full");
 
     const window = decisionWindow();
     const awaiting = !targets.length;

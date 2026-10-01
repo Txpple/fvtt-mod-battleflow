@@ -164,6 +164,15 @@ function critFor(attackMessage) {
         sources: autoCritSources({ targetStatuses: actor?.statuses ?? [], distanceFeet,
           targetName: token?.document?.name ?? actor?.name ?? "the target", table: CONDITION_BENDS }) };
     });
+    // THE DMG — an Adamantine weapon or piece of ammunition (the enchantment's `ada` property): a hit on an OBJECT is a
+    // Critical Hit — every hit target a vehicle, the platform's object actor.
+    const weapon = attackMessage.getAssociatedItem?.() ?? null;
+    const ammo = attackMessage.system?.ammunitionItem ?? null;
+    const adamantine = [weapon, ammo].some(i => i?.system?.properties?.has?.("ada"));
+    if ( adamantine && hits.every(t => (tokenForUuid(t.uuid)?.actor ?? resolveUuid(t.uuid))?.type === "vehicle") ) {
+      for ( const p of per ) p.sources.push({ status: "adamantine", label: "Adamantine — a hit on an object is a Critical Hit",
+        rule: { item: "Adamantine Weapon", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgAdamantineWea" } });
+    }
     const qualifying = per.filter(p => p.sources.length);
     if ( !qualifying.length ) return out;
     if ( qualifying.length === per.length ) {

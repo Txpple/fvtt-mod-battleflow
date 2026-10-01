@@ -7,9 +7,9 @@
  * here is for the bare ones. The precedent is the emanation's `trigger on "turnEnd"`.
  */
 import { MODULE_ID, TITLE, drivesMomentFor, statContext, decisionWindow, queueFlagWrite, canAnswerFor, canApplyTo } from "./core.js";
-import { activityNamed, activityOfType, resolveUuid } from "./lookup.js";
+import { activityNamed, activityOfType, answersOrEnchanted, resolveUuid } from "./lookup.js";
 import { effectSourceOf, forceStatus } from "./shared.js";
-import { REPEAT_SAVES, answers, repeatSaveEntries, listedNames } from "./decide/registry.js";
+import { REPEAT_SAVES, repeatSaveEntries, listedNames } from "./decide/registry.js";
 import { repeatRowFor, repeatDue, repeatBend, repeatVerdict, needsFloat, repeatTitle } from "./decide/repeat-saves.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
@@ -31,7 +31,8 @@ const originItemOf = effect => effectSourceOf(effect)?.item ?? null;
 function rowOf(effect) {
   if ( !effect || effect.disabled || effect.getFlag(MODULE_ID, COUNT_FLAG)?.locked ) return null;
   const item = originItemOf(effect);
-  const found = repeatRowFor({ table: REPEAT_SAVES, item, effectName: effect.name, listed: listedNames(repeatSaveEntries()), answers });
+  // THE DMG — an enchanted weapon is its row's item too (Sword of Wounding on a "Longsword of Wounding").
+  const found = repeatRowFor({ table: REPEAT_SAVES, item, effectName: effect.name, listed: listedNames(repeatSaveEntries()), answers: answersOrEnchanted });
   return found ? { ...found, item } : null;
 }
 

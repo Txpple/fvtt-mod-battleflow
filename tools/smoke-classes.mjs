@@ -184,6 +184,17 @@ const SECTIONS = {
   112: "Arrow-Catching Shield (the DMG, the Halfling): a ranged attack at it reads -2; a melee attack nothing",
   113: "Serpent Venom (the DMG, the PC Attacker): Use Poison writes the coating chip, the dose spent, no save card; a MISS keeps it; a HIT spends it - the vial's DC 11 Constitution save at the Victim, the last vial left empty",
   114: "Periapt of Wound Closure (the DMG, the Halfling): a Death Saving Throw of 4 counts as 10 - a success, the card line; unattuned, the 4 stands - a failure",
+  115: "Vorpal Sword (the DMG, a Longsword enchanted on the PC Attacker): a 20 says the head line and ignores the Victim's Slashing resistance; a 15 says nothing",
+  116: "Sword of Sharpness: a 20 gives the Victim 1 Exhaustion level; a 15 nothing",
+  117: "Sword of Life Stealing: a 20 on a Humanoid gives the wielder 15 Temporary Hit Points; on an Undead nothing",
+  118: "Nine Lives Stealer: a 20 on a creature under 100 HP demands the weapon's Life Stealing save - failed, it is slain and a charge spent; at 150 HP nothing",
+  119: "Hammer of Thunderbolts with Giant's Bane: a 20 on a Giant demands the Giants' Bane save; the paired enchantment removed, nothing",
+  120: "Mace of Smiting: a 20 adds 7 Bludgeoning; on a Construct 14, and a Construct left at 25 HP or fewer is destroyed",
+  121: "Silvered Weapon: a Critical Hit on a shapechanger adds one weapon die (critical.bonusDice); on a Humanoid nothing",
+  122: "Adamantine Weapon: a hit on a vehicle is a Critical Hit, the crit names Adamantine",
+  123: "Sword of Wounding: a hit demands its save - failed, Wounded and Cannot Heal lands, a heal does nothing, and its turn end repeats the save",
+  124: "Luck Blade: a failed save offers Luck Blade's reroll; pressed, the second roll stands and the Luck use is spent",
+  125: "Moonblade with the Critical Range rune: a 19 is a Critical Hit (the pack's own threshold)",
 };
 const DEPENDS = {};
 
@@ -6531,6 +6542,358 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await clearDown(halfling);
         await halfling.update({ 'system.attributes.hp.value': hp0, 'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 }).catch(() => {});
         if (periapt) await unlend(halfling, periapt);
+      }
+    }
+
+    // ==== THE DMG — the crit riders and the enchanted weapons (§115–§125) ====
+    // The template's enchantment dropped on a PHB weapon the way the item sheet does it (the riders come along), then attuned.
+    const dmgEnchant = async (actor, templateId, baseId, { profiles = null } = {}) => {
+      const template = await fromUuid(`Compendium.dnd-dungeon-masters-guide.equipment.Item.${templateId}`);
+      const base = await fromUuid(`Compendium.dnd-players-handbook.equipment.Item.${baseId}`);
+      if (!template || !base) { log.push(`no template ${templateId} or base ${baseId} on this box`); return null; }
+      const [w] = await actor.createEmbeddedDocuments('Item', [base.toObject()]);
+      lentBy.set(actor, [...(lentBy.get(actor) ?? []), w.id]);
+      const enchant = template.system.activities.getByType('enchant')[0];
+      const all = enchant?.effects ?? [];
+      const picked = profiles ? all.filter(pr => profiles.includes(template.effects.get(pr._id)?.name)) : all.slice(0, 1);
+      for (const pr of picked) {
+        const effect = template.effects.get(pr._id);
+        const data = effect.toObject();
+        data.system.origin.item ??= template.uuid;
+        if (effect.system.isOnActivity) data.transfer = true;
+        await ActiveEffect.create(data, { parent: actor.items.get(w.id), keepOrigin: true, dnd5e: { enchantmentProfile: effect.id, activityId: enchant.id } });
+      }
+      await sleep(300);
+      await actor.items.get(w.id).update({ 'system.equipped': true, 'system.attuned': true });
+      return actor.items.get(w.id);
+    };
+    // One attack by the PC Attacker at the Victim with the d20 pinned to `face`; `after` pins the dice that follow (a save's).
+    const dmgHit = async (weapon, face, { hpTo = 400, after = null, target = null } = {}) => {
+      await victim.update({ 'system.attributes.hp.value': hpTo, 'system.attributes.hp.temp': 0 });
+      pcToken.control({ releaseOthers: true });
+      (target ?? victimToken).setTarget(true, { releaseOthers: true });
+      await sleep(80);
+      const before = new Set(popups());
+      faces([[face, 20], [face, 20]]);
+      const act = weapon.system.activities.find(a => a.type === 'attack');
+      const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
+      const rolls = await act.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+      if (after) faces(after); else CONFIG.Dice.randomUniform = realPRNG;
+      const msg = rolls?.[0]?.parent ?? null;
+      const offer = await waitFor(() => offerApp(before), 2500);
+      offer?.element?.querySelector('button[data-action="roll"]')?.click();
+      const dmg = await waitFor(() => damageFor(msg?.id) ?? null, 12000);
+      await waitFor(() => dmg?.getFlag(MOD, 'receipt'), 10000);
+      await sleep(700);
+      return { msg, dmg, offer };
+    };
+    const dmgKeys = d => (d?.getFlag(MOD, 'clockRiders')?.riders ?? []).map(r => r.key);
+    const alwaysLine = d => textOf(cardEl(d?.id)?.querySelector?.('.bf-rider-always'));
+    const dmgCard = (activityName, since) => game.messages.contents.find(m => (m.timestamp >= since) && m.getFlag(MOD, 'saves') && (m.getAssociatedActivity?.()?.name === activityName)) ?? null;
+    const outcomeOfCard = c => c?.getFlag(MOD, 'saves')?.targets?.find(t => t.uuid === victim.uuid)?.outcome ?? null;
+    const typeNow = () => foundry.utils.deepClone(victim.system._source.details?.type ?? {});
+    if ([115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125].some(n => want(n))) {
+      hgKeep(victim, { 'system.details.type': typeNow(), 'system.attributes.exhaustion': victim.system._source.attributes?.exhaustion ?? 0,
+        'system.traits.dr.value': [...(victim.system._source.traits?.dr?.value ?? [])] });
+      hgKeep(pcAttacker, { 'system.attributes.hp.temp': pcAttacker.system._source.attributes?.hp?.temp ?? 0 });
+      await a1Victim();   // AC 1 and a 400 max: a set HP never clamps
+    }
+    const victimAs = async (value, subtype = '') => victim.update({ 'system.details.type.value': value, 'system.details.type.subtype': subtype });
+
+    // ---- 115. Vorpal Sword
+    if (want(115)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgVorpalSword00', 'phbwepLongsword0');
+      try {
+        if (!w) log.push('§115 skipped');
+        else {
+          await victimAs('humanoid');
+          await victim.update({ 'system.traits.dr.value': ['slashing'] });
+          const r1 = await dmgHit(w, 15);
+          ok('115a. "Vorpal Longsword", a 15: no Vorpal Sword rider', (w.name === 'Vorpal Longsword') && !dmgKeys(r1.dmg).includes('vorpal-sword'), `name=${w.name} keys=${dmgKeys(r1.dmg)}`);
+          const r2 = await dmgHit(w, 20);
+          const rolled = (r2.dmg?.rolls ?? []).reduce((n, r) => n + Number(r.total || 0), 0);
+          const dealt = 400 - Number(victim.system.attributes.hp.value);
+          ok('115b. a 20: the rider rides with no offer row, the card says the head line, and the Slashing resistance is ignored (dealt = rolled)',
+            dmgKeys(r2.dmg).includes('vorpal-sword') && /Vorpal Sword/.test(alwaysLine(r2.dmg)) && /head/.test(alwaysLine(r2.dmg)) && (dealt === rolled) && (rolled > 0),
+            `keys=${dmgKeys(r2.dmg)} line="${alwaysLine(r2.dmg).slice(0, 160)}" rolled=${rolled} dealt=${dealt}`);
+        }
+      } finally {
+        await closeOffers();
+        await victim.update({ 'system.traits.dr.value': [] }).catch(() => {});
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 116. Sword of Sharpness
+    if (want(116)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgSwordOfSharpn', 'phbwepLongsword0');
+      try {
+        if (!w) log.push('§116 skipped');
+        else {
+          await victimAs('humanoid');
+          await victim.update({ 'system.attributes.exhaustion': 0 });
+          const r1 = await dmgHit(w, 20);
+          const ex = await waitFor(() => (Number(victim.system.attributes.exhaustion) === 1) ? 1 : null, 6000);
+          ok('116a. a 20: the Victim gains 1 Exhaustion level', ex === 1 && dmgKeys(r1.dmg).includes('sword-of-sharpness'), `exhaustion=${victim.system.attributes.exhaustion} keys=${dmgKeys(r1.dmg)}`);
+          await dmgHit(w, 15);
+          await sleep(800);
+          ok('116b. a 15: no more Exhaustion', Number(victim.system.attributes.exhaustion) === 1, `exhaustion=${victim.system.attributes.exhaustion}`);
+        }
+      } finally {
+        await closeOffers();
+        await victim.update({ 'system.attributes.exhaustion': 0 }).catch(() => {});
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 117. Sword of Life Stealing
+    if (want(117)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgSwordOfLifeSt', 'phbwepLongsword0');
+      const temp = () => Number(pcAttacker.system.attributes.hp.temp ?? 0);
+      try {
+        if (!w) log.push('§117 skipped');
+        else {
+          await victimAs('humanoid');
+          await pcAttacker.update({ 'system.attributes.hp.temp': 0 });
+          await dmgHit(w, 20);
+          const got = await waitFor(() => (temp() === 15) ? 15 : null, 6000);
+          ok('117a. a 20 on a Humanoid: the wielder gains 15 Temporary Hit Points', got === 15, `temp=${temp()}`);
+          await pcAttacker.update({ 'system.attributes.hp.temp': 0 });
+          await victimAs('undead');
+          const r2 = await dmgHit(w, 20);
+          await sleep(800);
+          ok('117b. a 20 on an Undead: no rider, no Temporary Hit Points', !dmgKeys(r2.dmg).includes('sword-of-life-stealing') && (temp() === 0), `keys=${dmgKeys(r2.dmg)} temp=${temp()}`);
+        }
+      } finally {
+        await closeOffers();
+        await pcAttacker.update({ 'system.attributes.hp.temp': 0 }).catch(() => {});
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 118. Nine Lives Stealer
+    if (want(118)) {
+      await closeA1(); await closeOffers(); await set('saveRolls', 'auto');
+      const w = await dmgEnchant(pcAttacker, 'dmgNineLivesStea', 'phbwepLongsword0');
+      try {
+        const ls = w?.system?.activities?.find?.(a => a.name === 'Life Stealing') ?? null;
+        if (!w || !ls) log.push(`§118 skipped: weapon=${!!w} lifeStealing=${!!ls}`);
+        else {
+          await w.update({ [`system.activities.${ls.id}.uses.max`]: '3', [`system.activities.${ls.id}.uses.spent`]: 0 });
+          await victimAs('humanoid');
+          const t1 = Date.now();
+          await dmgHit(pcAttacker.items.get(w.id), 20, { hpTo: 50, after: [[1, 20]] });
+          const card = await waitFor(() => { const c = dmgCard('Life Stealing', t1); return outcomeOfCard(c) ? c : null; }, 12000);
+          const dead = await waitFor(() => victim.statuses?.has?.('dead') ? true : null, 8000);
+          const spentNow = () => Number(pcAttacker.items.get(w.id)?.system?.activities?.get?.(ls.id)?.uses?.spent ?? -1);
+          await waitFor(() => (spentNow() === 1) ? true : null, 6000);   // the charge goes after the 0 Hit Points
+          const spent = spentNow();
+          ok('118a. a 20 on a Humanoid at 50 HP: the Life Stealing save demanded, failed — slain (0 HP, Dead) and a charge spent',
+            (outcomeOfCard(card) === 'failed') && !!dead && (Number(victim.system.attributes.hp.value) === 0) && (spent === 1),
+            `outcome=${outcomeOfCard(card)} dead=${!!dead} hp=${victim.system.attributes.hp.value} spent=${spent}`);
+          await clearDown(victim);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const r2 = await dmgHit(pcAttacker.items.get(w.id), 20, { hpTo: 150 });
+          ok('118b. at 150 HP: no Life Stealing', !dmgKeys(r2.dmg).includes('nine-lives-stealer'), `keys=${dmgKeys(r2.dmg)}`);
+        }
+      } finally {
+        await closeOffers(); await clearDown(victim);
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 119. Hammer of Thunderbolts — Giants' Bane
+    if (want(119)) {
+      await closeA1(); await closeOffers(); await set('saveRolls', 'auto');
+      const w = await dmgEnchant(pcAttacker, 'dmgHammerOfThund', 'phbwepWarhammer0', { profiles: ['Hammer of Thunderbolts', "Giant's Bane: Paired Attunement Bonuses"] });
+      try {
+        if (!w) log.push('§119 skipped');
+        else {
+          await victimAs('giant');
+          const t1 = Date.now();
+          await dmgHit(w, 20, { after: [[1, 20]] });
+          const card = await waitFor(() => { const c = dmgCard("Giants' Bane (On Crit)", t1); return outcomeOfCard(c) ? c : null; }, 12000);
+          ok("119a. a 20 on a Giant: the Giants' Bane save demanded (DC 17 Con), failed", outcomeOfCard(card) === 'failed', `outcome=${outcomeOfCard(card)}`);
+          await clearDown(victim);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const bane = pcAttacker.items.get(w.id)?.effects?.find(e => e.name === "Giant's Bane: Paired Attunement Bonuses");
+          if (bane) await bane.delete();
+          await sleep(300);
+          const r2 = await dmgHit(pcAttacker.items.get(w.id), 20);
+          ok("119b. the paired enchantment removed: no Giants' Bane", !dmgKeys(r2.dmg).includes('hammer-of-thunderbolts'), `keys=${dmgKeys(r2.dmg)} bane=${!!bane}`);
+        }
+      } finally {
+        await closeOffers(); await clearDown(victim);
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 120. Mace of Smiting
+    if (want(120)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgLend(pcAttacker, 'dmgMaceOfSmiting');
+      try {
+        if (!w) log.push('§120 skipped');
+        else {
+          await victimAs('humanoid');
+          const r1 = await dmgHit(w, 20);
+          const parts = d => (d?.rolls ?? []).map(r => String(r.formula).trim());
+          ok('120a. a 20 on a Humanoid: a 7 Bludgeoning part rides', parts(r1.dmg).includes('7') && dmgKeys(r1.dmg).includes('mace-of-smiting'), `parts=${JSON.stringify(parts(r1.dmg))} keys=${dmgKeys(r1.dmg)}`);
+          await victimAs('construct');
+          const r2 = await dmgHit(w, 20, { hpTo: 30 });
+          const dead = await waitFor(() => victim.statuses?.has?.('dead') ? true : null, 8000);
+          ok('120b. a 20 on a Construct at 30 HP: 14 Bludgeoning, and left at 25 or fewer it is destroyed (0 HP, Dead)',
+            parts(r2.dmg).includes('14') && !!dead && (Number(victim.system.attributes.hp.value) === 0),
+            `parts=${JSON.stringify(parts(r2.dmg))} hp=${victim.system.attributes.hp.value} dead=${!!dead}`);
+        }
+      } finally {
+        await closeOffers(); await clearDown(victim);
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 121. Silvered Weapon
+    if (want(121)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgSilveredWeapo', 'phbwepLongsword0');
+      try {
+        if (!w) log.push('§121 skipped');
+        else {
+          await victimAs('monstrosity', 'shapechanger');
+          const r1 = await dmgHit(w, 20);
+          const bonus = d => Number(d?.rolls?.[0]?.options?.critical?.bonusDice ?? 0);
+          ok('121a. a Critical Hit on a shapechanger: one more weapon die (critical.bonusDice 1)', dmgKeys(r1.dmg).includes('silvered-weapon') && (bonus(r1.dmg) >= 1), `keys=${dmgKeys(r1.dmg)} bonusDice=${bonus(r1.dmg)}`);
+          await victimAs('humanoid');
+          const r2 = await dmgHit(w, 20);
+          ok('121b. on a Humanoid: nothing', !dmgKeys(r2.dmg).includes('silvered-weapon'), `keys=${dmgKeys(r2.dmg)}`);
+        }
+      } finally {
+        await closeOffers();
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 122. Adamantine Weapon — a hit on an object (a vehicle actor)
+    if (want(122)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgAdamantineWea', 'phbwepLongsword0');
+      let cart = null, cartToken = null;
+      try {
+        if (!w) log.push('§122 skipped');
+        else {
+          [cart] = await Actor.createDocuments([{ name: 'BF Test Cart', type: 'vehicle', system: { attributes: { ac: { flat: 5, calc: 'flat' }, hp: { value: 100, max: 100 } } } }]);
+          const td = await cart.getTokenDocument({ x: pcToken.document.x + scene.grid.size, y: pcToken.document.y });
+          [cartToken] = await scene.createEmbeddedDocuments('Token', [td.toObject()]);
+          await sleep(400);
+          const placed = cartToken?.object ?? canvas.tokens.get(cartToken?.id);
+          const r1 = await dmgHit(w, 15, { target: placed });
+          ok('122a. a 15 on a vehicle: a Critical Hit, the crit naming Adamantine',
+            (r1.dmg?.rolls?.[0]?.isCritical === true) && (r1.dmg?.getFlag(MOD, 'autoCrit')?.sources ?? []).some(x => x.status === 'adamantine'),
+            `crit=${r1.dmg?.rolls?.[0]?.isCritical} auto=${JSON.stringify(r1.dmg?.getFlag(MOD, 'autoCrit') ?? null)}`);
+        }
+      } finally {
+        await closeOffers();
+        if (cartToken) await scene.deleteEmbeddedDocuments('Token', [cartToken.id]).catch(() => {});
+        if (cart) await cart.delete().catch(() => {});
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 123. Sword of Wounding
+    if (want(123)) {
+      await closeA1(); await closeOffers(); await set('saveRolls', 'auto');
+      const w = await dmgEnchant(pcAttacker, 'dmgSwordOfWoundi', 'phbwepLongsword0');
+      let combat = null;
+      const wounded = () => victim.effects.find(e => e.name === 'Wounded and Cannot Heal') ?? null;
+      try {
+        if (!w) log.push('§123 skipped');
+        else {
+          await victimAs('humanoid');
+          const t1 = Date.now();
+          await dmgHit(w, 15, { hpTo: 300, after: [[1, 20]] });
+          const card = await waitFor(() => { const c = dmgCard('Sword of Wounding Save', t1); return outcomeOfCard(c) ? c : null; }, 12000);
+          const fx = await waitFor(wounded, 8000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('123a. a hit: the Sword of Wounding save demanded, failed — Wounded and Cannot Heal lands', (outcomeOfCard(card) === 'failed') && !!fx, `outcome=${outcomeOfCard(card)} fx=${!!fx}`);
+          const hp0 = Number(victim.system.attributes.hp.value);
+          await victim.applyDamage([{ value: 10, type: 'healing' }]);
+          await sleep(300);
+          ok('123b. a heal does nothing while it stands', Number(victim.system.attributes.hp.value) === hp0, `hp ${hp0} → ${victim.system.attributes.hp.value}`);
+          const t2 = Date.now();
+          combat = await a2Combat();          // the PC Attacker's turn, then the Victim's
+          await combat.nextTurn(); await sleep(400);
+          await combat.nextTurn();            // the Victim's turn ENDS: its listed effect repeats
+          const rep = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t2) && (m.getFlag(MOD, 'repeatSave')?.effectUuid === wounded()?.uuid)) ?? null, 10000);
+          ok('123c. the Victim\'s turn end repeats the save (the enchanted weapon read as Sword of Wounding)', !!rep, `repeat=${!!rep}`);
+        }
+      } finally {
+        await closeOffers(); await closeA1();
+        if (combat && game.combats.get(combat.id)) await combat.delete().catch(() => {});
+        const fx = wounded(); if (fx) await fx.delete().catch(() => {});
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 124. Luck Blade — the reroll
+    if (want(124)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgLuckBlade0000', 'phbwepLongsword0');
+      const passAll = () => [...document.querySelectorAll('.application')].filter(el => (el.tagName === 'DIALOG') && !!el.querySelector('button[data-action="pass"]')).forEach(el => { el.querySelector('button[data-action="pass"]')?.click(); });
+      try {
+        const luck = w?.system?.activities?.find?.(a => a.name === 'Luck') ?? null;
+        if (!w || !luck) log.push(`§124 skipped: weapon=${!!w} luck=${!!luck}`);
+        else {
+          await w.update({ [`system.activities.${luck.id}.uses.max`]: '1', [`system.activities.${luck.id}.uses.spent`]: 0 });
+          const prior = new Set([...document.querySelectorAll('.application')].map(el => el.id));
+          faces([[3, 20]]);
+          const rolls = await pcAttacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          const m = rolls?.[0]?.parent ?? null;
+          const flag = await waitFor(() => m?.getFlag(MOD, 'd20fold') ?? null, 5000);
+          const re = (flag?.offers ?? []).find(o => (o.kind === 'reroll') && (o.label === 'Luck Blade')) ?? null;
+          ok('124a. a failed save offers Luck Blade\'s reroll', !!re, `offers=${JSON.stringify((flag?.offers ?? []).map(o => [o.kind, o.label]))}`);
+          const pop = await waitFor(() => [...document.querySelectorAll('.application')].find(el => (el.tagName === 'DIALOG') && !prior.has(el.id) && !!el.querySelector('[data-bf-rescue-action="reroll"]')) ?? null, 8000);
+          faces([[15, 20]]);
+          pop?.querySelector('[data-bf-rescue-action="reroll"]')?.click();
+          const done = await waitFor(() => { const cur = m?.getFlag(MOD, 'd20fold'); return (cur?.spends?.length && !cur.spends.some(sp => sp.pendingVerdict)) ? cur : null; }, 15000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          const spent = Number(pcAttacker.items.get(w.id)?.system?.activities?.get?.(luck.id)?.uses?.spent ?? -1);
+          ok('124b. pressed: the reroll stands (15) and the Luck use is spent', (done?.spends?.[0]?.kind === 'reroll') && (spent === 1),
+            `spends=${JSON.stringify(done?.spends ?? null)} spent=${spent}`);
+        }
+      } finally {
+        passAll(); await closeA1();
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 125. Moonblade — the pack's Critical Range rune
+    if (want(125)) {
+      await closeA1(); await closeOffers();
+      const w = await dmgEnchant(pcAttacker, 'dmgMoonblade0000', 'phbwepLongsword0', { profiles: ['Moonblade', 'Rune: Critical Range'] });
+      try {
+        if (!w) log.push('§125 skipped');
+        else {
+          await victimAs('humanoid');
+          const r1 = await dmgHit(w, 19);
+          ok('125a. a 19 is a Critical Hit (the pack\'s threshold)', r1.msg?.rolls?.[0]?.isCritical === true, `crit=${r1.msg?.rolls?.[0]?.isCritical} threshold=${r1.msg?.rolls?.[0]?.options?.criticalSuccess}`);
+        }
+      } finally {
+        await closeOffers();
+        if (w) await unlend(pcAttacker, w);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
       }
     }
 

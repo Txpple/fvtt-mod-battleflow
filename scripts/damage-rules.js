@@ -5,7 +5,7 @@
  * carries the rule. THE ROLL: bonuses join the parts; a die floor is a `minN` on the built rolls.
  */
 import { MODULE_ID, TITLE, drivesMomentFor, canApplyTo, canAnswerFor, keepsMessage, statContext, queueFlagWrite, decisionWindow } from "./core.js";
-import { lower, featureNamed, resolveUuid } from "./lookup.js";
+import { lower, featureNamed, resolveUuid, wieldsAs } from "./lookup.js";
 import { answers, damageRuleEntries, identifierOf, listedNames } from "./decide/registry.js";
 import { DAMAGE_RULES } from "./decide/registry.js";
 import { heldOf, faceState, rollFits, raisedOf, styleLine, diceOf, chipsOf, blockDamages,
@@ -433,6 +433,14 @@ listen("dnd5e.preCalculateDamage", "damage-rules", (actor, damages, options) => 
     const source = message.getAssociatedActor?.();
     if ( !(source instanceof Actor) || (source.uuid === actor.uuid) ) return;
     const rows = heldRows(source).filter(r => (r.row.ignores === "resistance") && r.types.length);
+    // THE DMG — a `wields` row is carried by the damage's own WEAPON (Vorpal Sword), never a feat on the sheet.
+    const weapon = message.getAssociatedItem?.() ?? null;
+    const listed = listedNames(damageRuleEntries());
+    for ( const [name, row] of Object.entries(DAMAGE_RULES) ) {
+      if ( row.wields && (row.ignores === "resistance") && listed.has(lower(name)) && wieldsAs(weapon, name) ) {
+        rows.push({ name, row, feature: weapon, types: [...(row.types ?? [])] });
+      }
+    }
     if ( !rows.length ) return;
     const spell = message.getAssociatedItem?.()?.type === "spell";
     const dealt = new Set(damages.map(d => d?.type).filter(Boolean));

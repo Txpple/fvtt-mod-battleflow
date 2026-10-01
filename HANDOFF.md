@@ -1,4 +1,4 @@
-# HANDOFF.md — 2026-10-01 (late): the DMG called read, v2.11.0 ON PROD; next the 3.0 floor battery
+# HANDOFF.md — 2026-10-01 (late): the DMG built out, v2.11.0 ON PROD; next the 3.0 floor battery
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Wait for the user's go.** A ruling in chat is not a go. 3.0.0 is the user's to cut by hand.
@@ -13,7 +13,18 @@
   - Mantle of Spell Resistance and Ring of Spell Turning are `spells: "cast"` (a spell cast only; the demand's `cast` mark).
   - The four injury poisons are `COATINGS` `item` rows (the vial is the carrier; the last vial stays on the sheet empty).
   - Periapt of Wound Closure is a `D20_FLOORS` `worn` row (a death save of 9 or lower counts as 10).
-  - The rest of the DMG's items are in BACKLOG ("build when a player holds one"). The DMG register is regenerated.
+- **Then (the user: "build these out too") — the DMG's crit riders and enchanted weapons, BUILT** (RULINGS *The DMG — the
+  crit riders and the enchanted weapons*): the enchantment-aware reader (lookup.js `wieldsAs`), nine `CLOCK_RIDERS` rows
+  (`wields`, `always`, `natural`, `targets`, `save`/`saveOnly`, `charges`, `tempHp`, `exhaustion`, `destroy`), Vorpal's
+  ignored Slashing (`DAMAGE_RULES` `wields`), Nine Lives' slaying press, Wounding's repeat save and `HEAL_BLOCKS`, Luck
+  Blade's reroll, Adamantine's crit on a vehicle; Moonblade NATIVE. Two shared fixes rode along: an applied effect copy drops
+  a rider's bare `dependentOn`, and a slaying press sets Dead BEFORE the 0 Hit Points. Suite: `smoke-classes` §115–§125.
+  The DMG register: 39 MODULE, 7 WAITS. ⚠ Sword of Sharpness's pack data types its 14 as Necrotic — a Vendor Fixes task.
+  Proof: verify green (1244 tests); smoke-battleflow, saves 147/147, d20-folds 96/96, riders 10/10, sneak 45/45, clock
+  30/30, spells 43/43, monsters 51/51, heal 8/8, damage-rules 55/55, **classes 396/396**; effects 56/59 in the batch (§7
+  Topple, after reset-fixture-state) and 59/59 alone. Settings CLEAN.
+- **Scoped out for good** (BACKLOG *Scoped out for good*; never raised in a backlog review unless the user names one): the
+  reaction-AC items, Fight or Flight / Success at a Cost, the redirect and cast-triggered kinds.
 - Proof on ca3510b: verify green (1239 tests); smoke-battleflow, smoke-d20-folds 96/96, smoke-classes §94 §98 §106 §113
   §114, smoke-sneak §12 green; smoke-saves 146/147 with the known §32 dialog flake (10/10 alone). Sandbox settings CLEAN.
 

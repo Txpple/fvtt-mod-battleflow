@@ -13,7 +13,7 @@
 > weapon · feature (the DMG's NPC traits). **Rule of cool / bend**: a row in RULINGS *Where the table bends the rule* (bend)
 > or *Bent by choice* (rule of cool) names it. **Walked**: the RULINGS walk table the row sits in.
 
-**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 29 MODULE · 18 WAITS.**
+**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 112 NATIVE · 39 MODULE · 7 WAITS.**
 
 | Kind | Item | Type | Rarity | In scope | Shape | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -21,7 +21,7 @@
 | magic item | **Activate Folding Boat** | equipment · trinket |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Adamantine Ammunition** | consumable · ammunition | Uncommon | NATIVE | — | the pack resolves it: 1 effect | — | — |
 | magic item | **Adamantine Armor** | equipment | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
-| magic item | **Adamantine Weapon** | weapon | Uncommon | WAITS | CRIT_RIDERS | a hit on an object is a crit — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Adamantine Weapon** | weapon | Uncommon | MODULE | CRIT_RIDERS | a hit on an object (a vehicle actor) is a Critical Hit — the crit judgement reads the weapon's or the ammunition's Adamantine property (auto-damage.js critFor; built 2026-10-01) | — | — |
 | magic item | **Air Ring of Elemental Command** | equipment · ring | Legendary | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Alchemy Jug** | container | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ammunition of Slaying** | consumable · ammunition |  | NATIVE | — | the pack resolves it: 14 effects, a save, damage | — | — |
@@ -200,7 +200,7 @@
 | magic item | **Gunpowder, Keg** | consumable · ammunition |  | NATIVE | — | the pack resolves it: a save, damage, uses | — | — |
 | magic item | **Gunpowder, Powder Horn** | consumable · ammunition |  | NATIVE | — | the pack resolves it: a save, damage, uses | — | — |
 | magic item | **Hag Eye** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Hammer of Thunderbolts** | weapon · martial melee | Legendary | WAITS | CRIT_RIDERS | a 20 stuns on a failed save — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Hammer of Thunderbolts** | weapon · martial melee | Legendary | MODULE | CRIT_RIDERS | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Hand of Vecna** | equipment · trinket | Artifact | OUT | — | an artifact's lore powers — the GM's; its spells are the sheet's | — | — |
 | magic item | **Hat of Disguise** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Hat of Many Spells** | equipment · wondrous | Very Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -254,11 +254,11 @@
 | magic item | **Laser Rifle** | weapon · martial ranged |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Lock of Trickery** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Long Compartment** | container |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Luck Blade** | weapon | Legendary | WAITS | The reroll kind | reroll one failed D20 Test per dawn — ⚠ measured 2026-10-01: the 2024 Luck Blade is an ENCHANTMENT applied to a base weapon ("Luck Blade (Longsword)") — its row waits for the enchantment-aware weapon reader the crit riders need (audits/plans/dmg-build.md §3) | — | — |
+| magic item | **Luck Blade** | weapon | Legendary | MODULE | The reroll kind | `REROLLS` (d20-folds.js; RULINGS *The PHB classes — B1*) | — | — |
 | magic item | **Lute of Thunderous Thumping** | weapon · simple melee | Very Rare | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | magic item | **Mac-Fuirmidh Cittern Instrument of the Bards** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Mace of Disruption** | weapon · simple melee | Rare | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, an attack, damage | — | — |
-| magic item | **Mace of Smiting** | weapon · simple melee | Rare | WAITS | CRIT_RIDERS | a 20 destroys a Construct; +1d6 vs Constructs — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Mace of Smiting** | weapon · simple melee | Rare | MODULE | CRIT_RIDERS | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Mace of Terror** | weapon · simple melee | Rare | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, an attack, uses | — | — |
 | magic item | **Mantle of Spell Resistance** | equipment · wondrous | Rare | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Manual of Bodily Health** | equipment · wondrous | Very Rare | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -274,13 +274,13 @@
 | magic item | **Mithral Armor** | equipment | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Moon** | consumable · trinket |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Moon-Touched Sword** | weapon · martial melee | Common | TEXT | — | a utility item — no combat mechanism | — | — |
-| magic item | **Moonblade** | weapon · martial melee | Legendary | WAITS | flags.dnd5e.weaponCriticalThreshold | a 19 crits for an elf: the crit-threshold shape — the pack's flag if it ships one, a row if not; measured when found (2026-10-01) | — | — |
+| magic item | **Moonblade** | weapon · martial melee | Legendary | NATIVE | flags.dnd5e.weaponCriticalThreshold | measured 2026-10-01: the pack's "Rune: Critical Range" sets the attack's crit threshold to 19 — nothing to build. Was: a 19 crits for an elf: the crit-threshold shape — the pack's flag if it ships one, a row if not; measured when found (2026-10-01) | — | — |
 | magic item | **Mystery Key** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Nature's Mantle** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Necklace of Adaptation** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Necklace of Fireballs** | equipment · wondrous | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Necklace of Prayer Beads** | equipment · wondrous | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Nine Lives Stealer** | weapon | Very Rare | WAITS | CRIT_RIDERS | a crit demands a save or the target dies, charges — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Nine Lives Stealer** | weapon | Very Rare | MODULE | CRIT_RIDERS | `SAVE_PRESSES` (saves/; RULINGS *Rulings the code carried · Save demands*); `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Nolzur's Marvelous Pigments** | equipment · wondrous | Very Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Oathbow** | weapon | Very Rare | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Obsidian Steed** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -412,7 +412,7 @@
 | magic item | **Shotgun** | weapon · martial ranged |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Silver Horn of Valhalla** | equipment · wondrous |  | NATIVE | — | the pack resolves it: 1 effect, uses | — | — |
 | magic item | **Silver Raven** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Silvered Weapon** | weapon · simple melee | Common | WAITS | CRIT_RIDERS | +1d8 on a crit vs shape-changers — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Silvered Weapon** | weapon · simple melee | Common | MODULE | CRIT_RIDERS | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Skull** | consumable · trinket |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Slippers of Spider Climbing** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Smoldering Armor** | equipment | Common | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -444,10 +444,10 @@
 | magic item | **Sun Blade** | weapon · martial melee | Rare | NATIVE | — | the pack resolves it: an attack | — | — |
 | magic item | **Sword of Answering** | weapon · martial melee | Legendary | MODULE | REBUKES · INTERRUPTS | `REBUKES` (rebukes.js; RULINGS *A listed reaction cast freestanding · The PHB feats — groups 4–6*) | bend | — |
 | magic item | **Sword of Kas** | weapon · martial melee | Artifact | OUT | — | an artifact's lore powers — the GM's; the weapon's +3 and its extra die are the pack's | — | — |
-| magic item | **Sword of Life Stealing** | weapon · martial melee | Rare | WAITS | CRIT_RIDERS | temp HP on a crit, 10 necrotic to the target — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
-| magic item | **Sword of Sharpness** | weapon · martial melee | Very Rare | WAITS | CRIT_RIDERS | a crit rider (the first scan read it as a utility item): +14 slashing on a 20 and the sever — the `CRIT_RIDERS` table's eighth customer (2026-10-01) | — | — |
+| magic item | **Sword of Life Stealing** | weapon · martial melee | Rare | MODULE | CRIT_RIDERS | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
+| magic item | **Sword of Sharpness** | weapon · martial melee | Very Rare | MODULE | CRIT_RIDERS | `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Sword of Vengeance** | weapon | Uncommon | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
-| magic item | **Sword of Wounding** | weapon | Rare | WAITS | A turn-start rider on the victim | ⚠ measured 2026-10-01: the 2024 sword is an ENCHANTMENT — +2d6 necrotic native — whose hit demands a DC 15 Constitution save or "Wounded and Cannot Heal" for an hour; the save repeats at each turn end — the on-hit save and its REPEAT_SAVES row wait for the enchantment-aware weapon reader (audits/plans/dmg-build.md §3) | — | — |
+| magic item | **Sword of Wounding** | weapon | Rare | MODULE | A turn-start rider on the victim | `HEAL_BLOCKS` (heal-on-hit.js; RULINGS *The DMG — the crit riders and the enchanted weapons*); `REPEAT_SAVES` (repeat-saves.js; RULINGS *The spells slice — Tiers 1 and 2*); `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Sylvan Talon** | weapon | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Talisman of Pure Good** | equipment · wondrous | Legendary | NATIVE | — | the pack resolves it: 1 effect, a save, damage, uses | — | — |
 | magic item | **Talisman of the Sphere** | equipment · wondrous | Legendary | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -470,7 +470,7 @@
 | magic item | **Vicious Weapon** | weapon | Rare | NATIVE | — | the pack resolves it: 1 effect | — | — |
 | magic item | **Vinegar (Pint)** | consumable · food |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Void** | consumable · trinket |  | TEXT | — | a utility item — no combat mechanism | — | — |
-| magic item | **Vorpal Sword** | weapon | Legendary | WAITS | CRIT_RIDERS | a 20 severs a head — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
+| magic item | **Vorpal Sword** | weapon | Legendary | MODULE | CRIT_RIDERS | `DAMAGE_RULES` (damage-rules.js; RULINGS *The fighting styles*); `CLOCK_RIDERS` (clock-riders.js; RULINGS *Rulings the code carried · The hit's sequence*) | — | — |
 | magic item | **Walloping Ammunition** | consumable · ammunition | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Wand of Binding** | equipment · wand | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Wand of Conducting** | equipment · wand | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |

@@ -830,6 +830,7 @@ export const STATE_KEYS = Object.freeze({
   useKey: "an ActiveEffect field — which use-chip this is",
   against: "an ActiveEffect field — the ONE creature a use chip is against (Studied Attacks, B3); the roll at it that spends the chip (chipSpend) is the resolve",
   coat: "an ActiveEffect field — which coating this chip is (use-chips.js COATINGS: the Poisoner's Poison Coating)",
+  riderSave: "provenance on a usage card — a DMG weapon rider's save (clock-riders.js `save`): the save alone, no damage rolled; the saves verdict is the resolve",
   cardKey: "an ActiveEffect field — which card-chip row wrote this chip (Tinker's Tiny Clockwork Device)",
   stacks: "an ActiveEffect field — a deliberate stack, one chip per device; the twin-chip dedupe leaves it alone (effect-riders.js)",
   die: "an ActiveEffect field — the die a chip carries",

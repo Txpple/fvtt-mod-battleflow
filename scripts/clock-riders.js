@@ -3,14 +3,14 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
-import { grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
+import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
 import { momentButton, registerResumable, registerOfferPart } from "./ui.js";
 import { bfCard, optionAskHTML, riderMenuHTML, ruleLine, esc } from "./decide/present.js";
 import { CLOCK_RIDERS, answers } from "./decide/registry.js";
-import { riderDue, riderPartFormula, riderUsesFrom, standingForm } from "./decide/clock.js";
+import { riderDue, riderPartFormula, riderUsesFrom, standingForm, targetsAnswer } from "./decide/clock.js";
 import { attackMessageForDamage } from "./auto-damage.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { creaturesWithin, feetOf, tokenForUuid, tokenOfActor } from "./geometry.js";
@@ -72,6 +72,28 @@ function enchantedFor(attacker, item, feature, row) {
   const anywhere = attacker.items.some(i => enchantedBy(i, feature));
   return !anywhere && !!row.spell && answers(row.spell, item);
 }
+
+/** THE DMG — "roll a 20 on the d20": the attack's kept d20 shows 20, or a fold made it one (Stroke of Luck's twenty, a
+ * reroll that landed a 20). */
+function naturalTwentyOf(attackMessage) {
+  const face = attackMessage?.rolls?.[0]?.dice?.[0]?.results?.find(r => (r.active !== false) && !r.discarded)?.result ?? null;
+  if ( face === 20 ) return true;
+  const spends = attackMessage?.getFlag?.(MODULE_ID, "d20fold")?.spends ?? [];
+  return spends.some(s => Number.isFinite(s?.twenty?.total) || (s?.reroll?.isCritical === true));
+}
+
+/** Is this creature shape-shifted: a shapechanger by its type, or under a transformation (the platform's flags)? */
+const shapeshiftedOf = actor => !!actor && (
+  /shapechanger/i.test(String(actor.system?.details?.type?.subtype ?? ""))
+  || !!(actor.getFlag?.("dnd5e", "isPolymorphed") || actor.isPolymorphed || actor.getFlag?.("dnd5e", "transformed")
+    || actor.getFlag?.("dnd5e", "originalActor")));
+
+/** The hit creatures as `targetsAnswer` reads them; a character with no type of its own is a Humanoid. */
+const hitFactsOf = hits => hits.map(h => {
+  const actor = resolveUuid(h.uuid);
+  const type = actor?.system?.details?.type?.value || ((actor?.type === "character") ? "humanoid" : null);
+  return { name: h.name ?? actor?.name, type, hp: Number(actor?.system?.attributes?.hp?.value), shapeshifted: shapeshiftedOf(actor) };
+});
 
 /** The hit target's Hit Points below their maximum (true / false), or null when none can be read. */
 function targetDamagedOf(hits) {
@@ -161,6 +183,11 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
   facts.unarmed = (activity?.attack?.type?.classification === "unarmed") || (!!attunement && (item.id === attunement.id));
   // ⚠ The item always carries the enchantment's TEMPLATES (transfer false); the APPLIED copy is the transferred one.
   facts.attuned = !!attunement?.effects?.some(e => !e.disabled && (e.isAppliedEnchantment ?? e.transfer) && lower(e.name).startsWith("active attunement"));
+  // THE DMG — "roll a 20 on the d20", and the hit creatures as a `targets` row reads them (once per hit).
+  facts.natural = naturalTwentyOf(attackMessage);
+  /** @type {ReturnType<typeof hitFactsOf>|null} */
+  let hitFacts = null;
+  const hitFactsNow = () => { if ( !hitFacts ) hitFacts = hitFactsOf(hits); return hitFacts; };
   const summoner = summonerOf(attacker);
   for ( const [key, row] of Object.entries(CLOCK_RIDERS) ) {
     if ( !listed.has(lower(row.feature)) ) continue;
@@ -171,7 +198,9 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const bearer = (row.owner === "summoner") ? summoner : attacker;
     if ( !bearer ) continue;
     // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
-    const feature = inspired ? inspired.feature : row.self ? itemNamed(attacker, row.feature) : featureNamed(bearer, row.feature);
+    // THE DMG — a `wields` row's item is the ATTACK's own weapon, wearing the template's enchantment (or named it).
+    const feature = inspired ? inspired.feature : row.wields ? (wieldsAs(item, row.feature) ? item : null)
+      : row.self ? itemNamed(attacker, row.feature) : featureNamed(bearer, row.feature);
     if ( !feature ) continue;
     // C1 — `marked`: every hit target wears the bearer's mark of that name (its origin the bearer's own spell).
     const marked = row.marked ? (hits.length ? hits.every(h => wearsMarkOf(resolveUuid(h.uuid), bearer, row.marked)) : null) : null;
@@ -184,19 +213,24 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     if ( row.self && (item.id !== feature.id) ) continue;
     const act = row.self ? activity : (row.activity ? activityNamed(feature, row.activity) : null);
     const part = row.self ? null : act?.damage?.parts?.[0];
-    const raw = row.self ? null : inspired ? inspired.die : riderFormulaOf(row, act);
+    const raw = (row.self || row.save) ? null : inspired ? inspired.die : riderFormulaOf(row, act);
     let formula = null;
     try {
       const resolved = raw ? Roll.replaceFormulaData(raw, bearer.getRollData()) : null;
       formula = (resolved && Roll.validate(resolved)) ? resolved : null;
     } catch { formula = null; }
     const form = formOn(attacker, row);
-    const type = (row.type === "weapon") ? weaponType : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
+    const type = (row.type === "weapon") ? weaponType : row.type ? row.type : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
     const uses = usesOf(bearer, act, row);
     const usesLeft = uses ? uses.left : null;
     const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked,
       fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
-      enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false });
+      enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false,
+      typed: row.targets ? targetsAnswer(row.targets, hitFactsNow()) : null,
+      chargesLeft: (row.charges && act?.uses && (act.uses.max !== "") && (act.uses.max !== null) && (act.uses.max !== undefined))
+        ? (Number(act.uses.value) || 0) : null });
+    // THE DMG — the weapon carries no such activity (Giants' Bane without its paired attunement's enchantment).
+    if ( row.wields && row.activity && !act && judged.due ) { judged.due = false; judged.why = `${row.activity} is not on the weapon`; }
     // B4 — `enchantBy` (Lifedrinker): the pact weapon bonded through ANOTHER feature; none bonded, any weapon with the caveat.
     const pact = row.enchantBy ? pactWeaponFits(attacker, item, row.enchantBy) : null;
     if ( pact && !pact.fits ) { judged.due = false; judged.why = `not the weapon bonded through ${row.enchantBy}`; }
@@ -215,7 +249,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
 /** Is any listed clock rider due on this hit, or an option to ask? The offer opens for it whatever the auto-damage setting. */
 function clockRidersDue(attackMessage, activity) {
   // A `spread` row (Superior Hunter's Prey) is a pick on the damage card, never a die on the roll.
-  return clockRidersFor(attackMessage, activity).some(r => (r.due && !r.row.spread) || r.unpicked);
+  // An `always` row (a magic item's property) rides without a pick: it never opens the offer.
+  return clockRidersFor(attackMessage, activity).some(r => !r.row.always && ((r.due && !r.row.spread) || r.unpicked));
 }
 
 /** The option asks among these riders, one per feature: every option its rows name, and what it does now. */
@@ -242,7 +277,7 @@ function optionAsks(riders) {
  */
 function clockRiderOfferParts(attackMessage, activity) {
   const all = clockRidersFor(attackMessage, activity);
-  const due = all.filter(r => r.due && !r.unpicked && !r.row.spread);
+  const due = all.filter(r => r.due && !r.unpicked && !r.row.spread && !r.row.always);
   const asks = optionAsks(all);
   if ( !due.length && !asks.length ) return null;
   const chosen = new Set(due.filter(r => (r.formula || r.says) && !r.row.unticked).map(r => r.key));
@@ -309,7 +344,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
     const picked = Array.isArray(pick) ? new Set(pick) : null;
     const riders = clockRidersFor(attackMessage, activity, { dealt: dealtTypesOfRolls(config.rolls),
       critical: (config.isCritical === true) || (config.rolls?.[0]?.options?.isCritical === true) })
-      .filter(r => r.due && !r.unpicked && !r.row.spread && (picked ? picked.has(r.key) : !r.row.unticked));
+      .filter(r => r.due && !r.unpicked && !r.row.spread && (r.row.always || (picked ? picked.has(r.key) : !r.row.unticked)));
     if ( !riders.length ) return;
     const attacker = activity.actor;
     const record = [];
@@ -348,7 +383,13 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         // the activity's own effects land once the damage message exists (settleRiderEffects)
         ...(r.row.effects && r.activity ? { effects: true, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
         // one of them, by the die (Chaos Blade's d4) — rolled when it lands
-        ...(r.row.random && r.activity ? { random: { die: Number(r.row.random.die) }, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}) });
+        ...(r.row.random && r.activity ? { random: { die: Number(r.row.random.die) }, clock: r.row.clock ?? null, featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
+        // THE DMG — the item's property, said on the damage card; its save, its temp HP, its Exhaustion, its destroy
+        ...(r.row.always ? { always: true } : {}),
+        ...(r.row.save && r.activity ? { save: true, ...(r.row.saveOnly ? { saveOnly: true } : {}), featureUuid: r.feature.uuid, activityId: r.activity.id } : {}),
+        ...(r.row.tempHp ? { tempHp: Number(r.row.tempHp) } : {}),
+        ...(r.row.exhaustion ? { exhaustion: Number(r.row.exhaustion) } : {}),
+        ...(r.row.destroy ? { destroy: Number(r.row.destroy) } : {}) });
       // Out of combat there is no turn, so no chit is written.
       if ( r.row.when === "oncePerTurn" ) {
         void writeTurnChit(attacker, "rider", { name: `${r.label} — used this turn`, img: r.feature.img ?? null,
@@ -382,7 +423,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
  * on the elect, receipted — the hit menu's path, the row's `clock` pinned to the attacker. */
 async function settleRiderEffects(message) {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
-  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random);
+  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random || r.save || r.tempHp || r.exhaustion);
   if ( !rows.length || cr.effectsApplied ) return;
   if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
   try {
@@ -397,8 +438,33 @@ async function settleRiderEffects(message) {
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     const attacker = resolveUuid(cr.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
     for ( const r of rows ) {
+      // THE DMG — the attacker's Temporary Hit Points, receipted on the damage card (revertable with it).
+      if ( r.tempHp && attacker ) {
+        await applyDamagesWithReceipt(message, [{ uuid: attacker.uuid, name: attacker.name }], [{ value: r.tempHp, type: "temphp", properties: new Set() }], { note: r.label });
+        if ( !r.save && !r.effects && !r.exhaustion ) continue;
+      }
+      // THE DMG — Exhaustion levels on the hit creatures (the elect drives; capped at the platform's 6).
+      if ( r.exhaustion ) {
+        for ( const h of hits ) {
+          const target = resolveUuid(h.uuid);
+          if ( !(target instanceof Actor) ) continue;
+          const now = Number(target.system?.attributes?.exhaustion ?? 0) || 0;
+          await target.update({ "system.attributes.exhaustion": Math.min(6, now + r.exhaustion) });
+        }
+        if ( !r.save && !r.effects ) continue;
+      }
       // live only: the rider FEATURE is never used up, so the sheet is the truth
       const feature = resolveUuid(r.featureUuid);
+      // THE DMG — the weapon's own SAVE activity used at the hit creatures: the saves machine takes the usage card.
+      if ( r.save ) {
+        const save = feature?.system?.activities?.get?.(r.activityId) ?? null;
+        const tokens = hits.map(h => tokenForUuid(h.uuid)).filter(Boolean);
+        // ⚠ `riderSave`: the save alone. An enchantment's legacy `system.damage.parts` change (Sword of Wounding's 2d6) lands on
+        // EVERY activity of the weapon, the save's too — the hit already dealt it; the card never rolls it again.
+        if ( save && tokens.length ) await withTargets(tokens, () => save.use({ consume: false }, { configure: false },
+          r.saveOnly ? { data: { flags: { [MODULE_ID]: { riderSave: true } } } } : {}));
+        continue;
+      }
       if ( r.lands ) {
         await applyItemEffectOnHit(message, feature, r.lands, hits, { clock: r.clock ?? null, attacker, source: statSourceOf(message) });
         continue;
@@ -425,9 +491,74 @@ async function settleRiderEffects(message) {
 
 // Resumed on arrival and on reload, never on an update.
 registerResumable("clockRiders", {
-  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands || r.random) && !flag.effectsApplied,
+  pending: (flag, _message, cause) => (cause !== "update") && !!flag.riders?.some?.(r => r.effects || r.lands || r.random || r.save || r.tempHp || r.exhaustion)
+    && !flag.effectsApplied,
   drives: flag => drivesMomentFor(flag.sourceUuid ?? null),
   drive: settleRiderEffects
+});
+
+/* --- THE DMG: the destroy after the receipt (Mace of Smiting), and the item's lines on the damage card ---- */
+
+/** Once the receipt lands: a `destroy` row's hit creature left at or below its number is destroyed (0 Hit Points, Dead). */
+async function destroyAfterReceipt(message) {
+  const cr = message.getFlag(MODULE_ID, "clockRiders");
+  const rows = (cr?.riders ?? []).filter(r => (Number(r.destroy) > 0) && !r.destroyed);
+  if ( !rows.length || !drivesMomentFor(cr.sourceUuid ?? null) ) return;
+  const receipt = message.getFlag(MODULE_ID, "receipt");
+  const landed = (receipt?.targets ?? []).filter(t => !t.reverted);
+  if ( !landed.length ) return;
+  let claimed = false;
+  await queueFlagWrite(message, "clockRiders", current => {
+    const mine = (current.riders ?? []).filter(r => (Number(r.destroy) > 0) && !r.destroyed);
+    if ( !mine.length ) return false;
+    for ( const r of mine ) r.destroyed = [];
+    claimed = true;
+  });
+  if ( !claimed ) return;
+  for ( const r of rows ) {
+    const gone = [];
+    for ( const t of landed ) {
+      const actor = resolveUuid(t.uuid);
+      if ( !(actor instanceof Actor) ) continue;
+      const hp = Number(actor.system?.attributes?.hp?.value);
+      if ( !Number.isFinite(hp) || (hp > r.destroy) ) continue;
+      // ⚠ The status first: the platform's own Dead at 0 Hit Points would race it.
+      await forceStatus(actor, "dead");
+      if ( hp > 0 ) await actor.update({ "system.attributes.hp.value": 0 });
+      gone.push(t.name ?? actor.name);
+    }
+    await queueFlagWrite(message, "clockRiders", current => {
+      const row = current.riders?.find(x => x.key === r.key);
+      if ( row ) row.destroyed = gone;
+    });
+  }
+}
+
+listen("updateChatMessage", "clock-riders", message => {
+  try {
+    if ( message.getFlag(MODULE_ID, "receipt") && message.getFlag(MODULE_ID, "clockRiders")?.riders?.some?.(r => r.destroy && !r.destroyed) ) {
+      void destroyAfterReceipt(message).catch(err => console.error(`${TITLE} | The destroy could not land — set it by hand.`, err));
+    }
+  } catch(err) { console.warn(`${TITLE} | The destroy check failed.`, err); }
+});
+
+// The card says it (R5): an item's property rode this hit — what it does, and what it did.
+listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
+  try {
+    const cr = message.getFlag(MODULE_ID, "clockRiders");
+    const rows = (cr?.riders ?? []).filter(r => r.always);
+    if ( !rows.length ) return;
+    const content = html.querySelector?.(SURFACES.messageContent) ?? html;
+    if ( !content || content.querySelector(".bf-rider-always") ) return;
+    const wrap = document.createElement("div");
+    wrap.className = "bf-rider-always";
+    wrap.innerHTML = rows.map(r => {
+      const did = Array.isArray(r.destroyed) && r.destroyed.length ? ` — ${r.destroyed.join(", ")} destroyed` : "";
+      const what = r.formula ? `+${r.formula}${r.type ? ` ${r.type}` : ""}${r.says ? `; ${r.says}` : ""}` : (r.says ?? "");
+      return bfCard({ eyebrow: r.label, tone: "good", title: `${r.label} — ${r.why}`, subtitle: `${what}${did}`, lines: [ruleLine(r.rule)] });
+    }).join("");
+    content.appendChild(wrap);
+  } catch(err) { console.warn(`${TITLE} | The item's rider line could not draw.`, err); }
 });
 
 /* --- the form chip: a transformation that marks nothing on its bearer (Necrotic Shroud) --------- */
