@@ -20,7 +20,7 @@ const rows = await f.evaluate(async () => {
         const text = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
         if (!text) continue;
         const hits = Object.entries(WORDS).filter(([, re]) => re.test(text)).map(([k]) => k);
-        rows.push({ pack: pack.collection, journal: j.name, page: page.name, chars: text.length, hits, snippet: text.slice(0, 160) });
+        rows.push({ pack: pack.collection, journal: j.name, page: page.name, chars: text.length, hits, snippet: text.slice(0, 160), text });
       }
     }
   }

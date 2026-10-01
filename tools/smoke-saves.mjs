@@ -2553,7 +2553,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const sectionText = dlg => (dlg?.querySelector('[data-bf-reminder]')?.textContent ?? '').replace(/\s+/g, ' ').trim();
         const defaultOf = dlg => dlg?.querySelector('button[autofocus]')?.dataset?.action ?? null;
         const dialogFor = async card => {
-          const dlg = await until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);
+          // Read the LIVE card inside the wait: the demand's flag can land after castAt's own wait gave up (the dialog
+          // already open, "Command — Hobgoblin", the handle's flag still empty — the battery's timing-class red, §32 j).
+          const live = () => game.messages.get(card?.id) ?? card;
+          // No flag yet: every §32 cast targets the victim, its token's name in the dialog.
+          const nameOf = () => live()?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? victimToken.document.name;
+          const dlg = await until(() => savePopups().find(p => demandText(p).includes(nameOf())), 12000);
           if (!dlg) log.push(`§32 no dialog for card ${card?.id}: saves=${JSON.stringify(card?.getFlag(MOD, 'saves') && { status: card.getFlag(MOD, 'saves').status, targets: card.getFlag(MOD, 'saves').targets?.map(t => [t.name, t.done ?? null, t.outcome ?? null]) })} apps=${[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => (a.constructor?.name ?? '?') + ':' + String(a.title ?? a.options?.window?.title ?? '').slice(0, 40)).join(' | ')}`);
           return dlg;
         };
@@ -2570,8 +2575,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await sleep(120);
           const use = await activity.use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;
-          if (card) await until(() => card.getFlag(MOD, 'saves'));
-          return card;
+          if (card) await until(() => (game.messages.get(card.id) ?? card).getFlag(MOD, 'saves'));
+          return card ? (game.messages.get(card.id) ?? card) : null;   // the collection's document, never a stale handle
         };
         const roll = async (card, dlg, action = null) => {
           (action ? dlg?.querySelector(`button[data-action="${action}"]`) : dlg?.querySelector('button[autofocus]'))?.click();

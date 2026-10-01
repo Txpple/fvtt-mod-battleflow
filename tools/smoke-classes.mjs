@@ -5145,11 +5145,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         else {
           await combat.createEmbeddedDocuments('Combatant', [{ tokenId: halflingToken.document.id, sceneId: scene.id, actorId: halfling.id }]);
           const hC = combat.combatants.find(c => c.actorId === halfling.id);
+          // This section's cards only: in a full run §37 posted the Halfling's Uncanny Metabolism cards first.
+          const t81 = Date.now();
           await combat.setInitiative(hC.id, 12);
-          const um = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism')[0] ?? null, 8000);
+          const um = await waitFor(() => grantCards(halfling, 'Uncanny Metabolism').find(m => m.timestamp >= t81) ?? null, 8000);
           const pop = await waitFor(() => titled(/^Uncanny Metabolism — /), 6000);
-          ok('81a. at Initiative Uncanny Metabolism asks; Perfect Focus rides its card as the fallback, no card of its own', !!um && !!pop && (um.getFlag(MOD, 'initiativeGrant')?.fallback?.row === 'Perfect Focus') && (grantCards(halfling, 'Perfect Focus').length === 0),
-            `um=${!!um} fallback=${JSON.stringify(um?.getFlag(MOD, 'initiativeGrant')?.fallback ?? null)} own=${grantCards(halfling, 'Perfect Focus').length}`);
+          ok('81a. at Initiative Uncanny Metabolism asks; Perfect Focus rides its card as the fallback, no card of its own', !!um && !!pop && (um.getFlag(MOD, 'initiativeGrant')?.fallback?.row === 'Perfect Focus') && (grantCards(halfling, 'Perfect Focus').filter(m => m.timestamp >= t81).length === 0),
+            `um=${!!um} fallback=${JSON.stringify(um?.getFlag(MOD, 'initiativeGrant')?.fallback ?? null)} own=${grantCards(halfling, 'Perfect Focus').filter(m => m.timestamp >= t81).length}`);
           pop?.element?.querySelector('button[data-action="no"]')?.click();
           const done = await waitFor(() => um?.getFlag(MOD, 'initiativeGrant')?.fallbackApplied ? um : null, 10000);
           await sleep(400);
@@ -5160,7 +5162,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await focus.update({ 'system.uses.spent': 3 });
           await combat.resetAll(); await sleep(600);
           await combat.setInitiative(hC.id, 11);
-          const pf = await waitFor(() => grantCards(halfling, 'Perfect Focus').find(m => m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, 8000);
+          const pf = await waitFor(() => grantCards(halfling, 'Perfect Focus').find(m => (m.timestamp >= t81) && m.getFlag(MOD, 'initiativeGrant')?.applied) ?? null, 8000);
           ok('81c. Uncanny Metabolism spent: Perfect Focus on its own card, automatic — 4 of 5', !!pf && (focusValue() === 4) && /Perfect Focus — Focus Points back up to 4/.test(await grantLine(pf)),
             `card=${!!pf} focus=${focusValue()} line="${await grantLine(pf)}"`);
         }
@@ -5522,18 +5524,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await combat90.startCombat();
           const pick = await waitFor(() => c1Cards(t0, 'emanationPick').find(m => m.getFlag(MOD, 'emanationPick')?.key === 'Oceanic Gift') ?? null, 10000);
           const cands = (pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => c.name);
-          ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BF Test Cleric\'s turn: choose one creature inside", the Attacker (5 ft from the Halfling) among the candidates, the druid not',
-            !!pick && cands.includes(attackerToken.document.name) && !cands.includes(clericToken.document.name) && /BF Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
+          ok('90b. at the DRUID\'s turn start the pick card: "Oceanic Gift — BF Test Cleric\'s turn: choose one creature inside", the creatures inside the Halfling\'s ring the candidates, the druid not',
+            !!pick && (cands.length > 1) && !cands.includes(clericToken.document.name) && /BF Test Cleric's turn: choose one creature inside/.test(cardText(pick?.id)),
             `pick=${!!pick} candidates=${JSON.stringify(cands)} card="${cardText(pick?.id).slice(0, 200)}"`);
           await set('saveRolls', 'prompt');
-          const button = await waitFor(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${attackerToken.document.id}"]`), 6000);
+          // The pick: the Attacker when the ring holds it, else the first creature inside that is not the Halfling — in a full
+          // run §77 leaves the Halfling on the north rows (its restore onto the off-scene main row is refused), away from the Attacker.
+          const candList = pick?.getFlag(MOD, 'emanationPick')?.candidates ?? [];
+          const chosen = candList.find(c => c.tokenId === attackerToken.document.id) ?? candList.find(c => c.tokenId !== halflingToken.document.id) ?? null;
+          const chosenActor = chosen ? scene.tokens.get(chosen.tokenId)?.actor ?? null : null;
+          const button = await waitFor(() => cardEl(pick?.id)?.querySelector(`[data-bf-emanation-pick="${chosen?.tokenId}"]`), 6000);
           button?.click();
           const demand = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && (m.getFlag(MOD, 'emanationTrigger')?.cause === 'pick') && (m.getFlag(MOD, 'emanationTrigger')?.key === 'Oceanic Gift')) ?? null, 10000);
           const dc = Number(demand?.getFlag(MOD, 'saves')?.dc);
           // The DC the activity resolves for the lent class (Wisdom, a level-14 druid's proficiency), not the sheet's primary spell DC.
           const druidDc = Number([...(cleric.items.get(wrath.id)?.system?.activities ?? [])].find(a => a.type === 'save')?.save?.dc?.value ?? 0);
-          ok('90c. the Attacker picked: the Constitution save demanded at the DRUID\'s DC on the druid\'s Wrath of the Sea', !!demand && (dc > 8) && ((druidDc === 0) || (dc === druidDc)) && (demand.getFlag(MOD, 'saves')?.targets ?? []).some(t => t.uuid === attacker.uuid),
-            `demand=${!!demand} dc=${dc} druidDc=${druidDc} targets=${JSON.stringify((demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))}`);
+          ok('90c. a creature inside picked (the Attacker when it stands there): the Constitution save demanded at the DRUID\'s DC on the druid\'s Wrath of the Sea', !!demand && (dc > 8) && ((druidDc === 0) || (dc === druidDc)) && (demand.getFlag(MOD, 'saves')?.targets ?? []).some(t => (t.uuid === chosen?.uuid) || (t.uuid === chosenActor?.uuid)),
+            `demand=${!!demand} dc=${dc} druidDc=${druidDc} targets=${JSON.stringify((demand?.getFlag(MOD, 'saves')?.targets ?? []).map(t => t.name))} button=${!!button} picked=${pick?.getFlag(MOD, 'emanationPick')?.picked?.name ?? null} demanded=${pick?.getFlag(MOD, 'emanationPick')?.demanded ?? null} attackerHp=${attacker.system.attributes.hp.value} chosen=${chosen?.name ?? null} cands=${JSON.stringify((pick?.getFlag(MOD, 'emanationPick')?.candidates ?? []).map(c => [c.tokenId, scene.tokens.get(c.tokenId)?.x, scene.tokens.get(c.tokenId)?.y]))}`);
         }
       } finally {
         await closeA1();
