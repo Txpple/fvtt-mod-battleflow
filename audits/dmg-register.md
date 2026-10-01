@@ -13,7 +13,7 @@
 > weapon · feature (the DMG's NPC traits). **Rule of cool / bend**: a row in RULINGS *Where the table bends the rule* (bend)
 > or *Bent by choice* (rule of cool) names it. **Walked**: the RULINGS walk table the row sits in.
 
-**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 14 MODULE · 33 WAITS.**
+**571 rows (484 magic items · 14 poisons · 20 supernatural gifts · 8 traps · 12 hazards · 10 siege weapons · 23 features): 50 OUT · 363 TEXT · 111 NATIVE · 24 MODULE · 23 WAITS.**
 
 | Kind | Item | Type | Rarity | In scope | Shape | Why not / how | Rule of cool / bend | Walked |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -38,7 +38,7 @@
 | magic item | **Armor of Resistance** | equipment | Rare | NATIVE | — | the pack resolves it: 20 effects | — | — |
 | magic item | **Armor of Vulnerability** | equipment | Rare | NATIVE | — | the pack resolves it: 6 effects | — | — |
 | magic item | **Armor, +1, +2, or +3** | equipment | Rare | TEXT | — | a utility item — no combat mechanism | — | — |
-| magic item | **Arrow-Catching Shield** | equipment · shield | Rare | WAITS | REBUKES · INTERRUPTS | the +2 is an effect; the redirect of a ranged attack on an ally to the bearer is Redirect Attack's kind — rows on lists that exist; the redirect waits for its kind | — | — |
+| magic item | **Arrow-Catching Shield** | equipment · shield | Rare | MODULE | REBUKES · INTERRUPTS | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Art Object (2,000 GP)** | loot · art |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Art Object (2,500 GP)** | loot · art |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Art Object (25 GP)** | loot · art |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -100,7 +100,7 @@
 | magic item | **Cli Lyre Instrument of the Bards** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Cloak of Arachnida** | equipment · wondrous | Very Rare | NATIVE | — | the pack resolves it: 1 effect, uses | — | — |
 | magic item | **Cloak of Billowing** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Cloak of Displacement** | equipment · wondrous | Rare | WAITS | EFFECT_BENDS · until: damaged | Disadvantage against the wearer until they take damage, back at the next turn start — EFFECT_BENDS with an until: damaged clock — Rage's early-end judge reads the same receipt; one customer, waits | — | — |
+| magic item | **Cloak of Displacement** | equipment · wondrous | Rare | MODULE | EFFECT_BENDS · until: damaged | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Cloak of Elvenkind** | equipment · wondrous | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Cloak of Invisibility** | equipment · wondrous | Legendary | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Cloak of Many Fashions** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -188,7 +188,7 @@
 | magic item | **Gemstone (500 GP)** | loot · gem |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Giant Slayer** | weapon | Rare | NATIVE | — | the pack resolves it: 1 effect, an attack, damage | — | — |
 | magic item | **Glamoured Studded Leather** | equipment · light armor | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Gloves of Missile Snaring** | equipment · wondrous | Uncommon | WAITS | REBUKES · INTERRUPTS | Deflect Attacks' shape: ranged, reduce by 1d10 + Dex — rows on lists that exist; the redirect waits for its kind | — | — |
+| magic item | **Gloves of Missile Snaring** | equipment · wondrous | Uncommon | MODULE | REBUKES · INTERRUPTS | `INTERRUPT_REDUCTIONS` (hold/; RULINGS *The reaction hold*); `INTERRUPTS` (hold/; RULINGS *The reaction hold*) | — | — |
 | magic item | **Gloves of Swimming and Climbing** | equipment · wondrous | Uncommon | NATIVE | — | the pack resolves it: 1 effect | — | — |
 | magic item | **Gloves of Thievery** | equipment · wondrous | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Goggles of Night** | equipment · wondrous | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -254,13 +254,13 @@
 | magic item | **Laser Rifle** | weapon · martial ranged |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Lock of Trickery** | equipment · wondrous | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Long Compartment** | container |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Luck Blade** | weapon | Legendary | WAITS | The reroll kind | reroll one d20 per dawn — with Indomitable's kind (the classes drawing) — Luck Blade is a row after it | — | — |
+| magic item | **Luck Blade** | weapon | Legendary | WAITS | The reroll kind | reroll one failed D20 Test per dawn — ⚠ measured 2026-10-01: the 2024 Luck Blade is an ENCHANTMENT applied to a base weapon ("Luck Blade (Longsword)") — its row waits for the enchantment-aware weapon reader the crit riders need (audits/plans/dmg-build.md §3) | — | — |
 | magic item | **Lute of Thunderous Thumping** | weapon · simple melee | Very Rare | NATIVE | — | the pack resolves it: an attack, damage | — | — |
 | magic item | **Mac-Fuirmidh Cittern Instrument of the Bards** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Mace of Disruption** | weapon · simple melee | Rare | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, an attack, damage | — | — |
 | magic item | **Mace of Smiting** | weapon · simple melee | Rare | WAITS | CRIT_RIDERS | a 20 destroys a Construct; +1d6 vs Constructs — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
 | magic item | **Mace of Terror** | weapon · simple melee | Rare | NATIVE | — | the pack resolves it: 1 effect [frightened], a save, an attack, uses | — | — |
-| magic item | **Mantle of Spell Resistance** | equipment · wondrous | Rare | WAITS | vsSpells | with Magic Resistance (MM) and Spell Resistance (Abjurer): EFFECT_BENDS saves — nine customers | — | — |
+| magic item | **Mantle of Spell Resistance** | equipment · wondrous | Rare | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Manual of Bodily Health** | equipment · wondrous | Very Rare | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Manual of Gainful Exercise** | equipment · wondrous | Very Rare | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Manual of Golems** | equipment · wondrous | Very Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -347,14 +347,14 @@
 | magic item | **Quaal's Feather Token (Swan Boat)** | consumable · trinket | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Quaal's Feather Token (Tree)** | consumable · trinket | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Quaal's Feather Token (Whip)** | consumable · trinket | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Quarterstaff of the Acrobat** | weapon · simple melee | Very Rare | WAITS | REBUKES · INTERRUPTS | +2 AC as a reaction while spinning — rows on lists that exist; the redirect waits for its kind | — | — |
+| magic item | **Quarterstaff of the Acrobat** | weapon · simple melee | Very Rare | WAITS | REBUKES · INTERRUPTS | +2 AC as a reaction while spinning — BUILT 2026-10-01: Gloves of Missile Snaring (a worn reduction on Deflect Missile's shape) and Arrow-Catching Shield's +2 against ranged attacks (the gate's −2, plus); the redirect waits for its kind. ⚠ Measured: the 2024 Shield of the Cavalier's Protective Field is a Half Cover Emanation as a Reaction (not an attack), and the Quarterstaff of the Acrobat's Attack Deflection a +5 AC Reaction with no effect to read — each needs a made effect on the ac hold (audits/plans/dmg-build.md §3) | — | — |
 | magic item | **Quiver of Ehlonna** | container | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Revolver** | weapon · martial ranged |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Ring** | equipment · ring |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ring of Animal Influence** | equipment · ring | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ring of Djinni Summoning** | equipment · ring | Legendary | OUT | — | a summons — the creature is the GM's | — | — |
 | magic item | **Ring of Elemental Command** | equipment · ring | Legendary | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
-| magic item | **Ring of Evasion** | equipment · ring | Rare | WAITS | SAVE_SUCCEEDS | a failed Dex save, 3 charges — Mage Slayer's machine; the Ring and the Scarab are rows with a charges pool | — | — |
+| magic item | **Ring of Evasion** | equipment · ring | Rare | MODULE | SAVE_SUCCEEDS | `SAVE_SUCCEEDS` (saves/; RULINGS *The PHB feats — groups 4–6*) | — | — |
 | magic item | **Ring of Feather Falling** | equipment · ring | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ring of Free Action** | equipment · ring | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ring of Invisibility** | equipment · ring | Legendary | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -365,7 +365,7 @@
 | magic item | **Ring of Resistance** | equipment · ring | Rare | NATIVE | — | the pack resolves it: 20 effects | — | — |
 | magic item | **Ring of Shooting Stars** | equipment · ring | Very Rare | NATIVE | — | the pack resolves it: a save, damage, uses | — | — |
 | magic item | **Ring of Spell Storing** | equipment · ring | Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Ring of Spell Turning** | equipment · ring | Legendary | WAITS | vsSpells | with Magic Resistance (MM) and Spell Resistance (Abjurer): EFFECT_BENDS saves — nine customers | — | — |
+| magic item | **Ring of Spell Turning** | equipment · ring | Legendary | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Ring of Swimming** | equipment · ring | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Ring of Telekinesis** | equipment · ring | Very Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Ring of the Ram** | equipment · ring | Rare | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -377,7 +377,7 @@
 | magic item | **Robe of Eyes** | equipment · wondrous | Rare | NATIVE | — | the pack resolves it: 1 effect, a save | — | — |
 | magic item | **Robe of Scintillating Colors** | equipment · wondrous | Very Rare | NATIVE | — | the pack resolves it: 1 effect [stunned], a save, uses | — | — |
 | magic item | **Robe of Stars** | equipment · wondrous | Very Rare | OUT | The reroll kind | The reroll kind: out | — | — |
-| magic item | **Robe of the Archmagi** | equipment · wondrous | Legendary | WAITS | vsSpells | with Magic Resistance (MM) and Spell Resistance (Abjurer): EFFECT_BENDS saves — nine customers | — | — |
+| magic item | **Robe of the Archmagi** | equipment · wondrous | Legendary | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Robe of Useful Items** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Rod of Absorption** | equipment · rod | Very Rare | WAITS | The cast-triggered reaction | with Counterspell, when a player has it | — | — |
 | magic item | **Rod of Alertness** | equipment · rod | Very Rare | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -395,7 +395,7 @@
 | magic item | **Rust Bag of Tricks** | equipment · trinket | Uncommon | OUT | — | a summons — the creature is the GM's | — | — |
 | magic item | **Saddle of the Cavalier** | equipment · wondrous | Uncommon | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Sage** | consumable · trinket |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Scarab of Protection** | equipment · wondrous | Legendary | WAITS | SAVE_SUCCEEDS | a failed save against necromancy, 12 charges — Mage Slayer's machine; the Ring and the Scarab are rows with a charges pool | — | — |
+| magic item | **Scarab of Protection** | equipment · wondrous | Legendary | MODULE | SAVE_SUCCEEDS | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*); `SAVE_SUCCEEDS` (saves/; RULINGS *The PHB feats — groups 4–6*) | — | — |
 | magic item | **Scimitar of Speed** | weapon · martial melee | Very Rare | NATIVE | — | the pack resolves it: an attack | — | — |
 | magic item | **Scroll** | consumable · scroll |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Scroll of Protection** | consumable · scroll | Rare | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -406,7 +406,7 @@
 | magic item | **Serpentine Owl** | equipment · wondrous |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Shield of Expression** | equipment · shield | Common | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Shield of Missile Attraction** | equipment · shield | Rare | WAITS | The redirect kind | ranged attacks within 10 ft target the wearer: the redirect kind, held with the MM's Redirect Attack for a player customer (2026-10-01) | — | — |
-| magic item | **Shield of the Cavalier** | equipment · shield | Very Rare | WAITS | REBUKES · INTERRUPTS | an attack when an ally within 5 ft is hit — rows on lists that exist; the redirect waits for its kind | — | — |
+| magic item | **Shield of the Cavalier** | equipment · shield | Very Rare | WAITS | REBUKES · INTERRUPTS | an attack when an ally within 5 ft is hit — BUILT 2026-10-01: Gloves of Missile Snaring (a worn reduction on Deflect Missile's shape) and Arrow-Catching Shield's +2 against ranged attacks (the gate's −2, plus); the redirect waits for its kind. ⚠ Measured: the 2024 Shield of the Cavalier's Protective Field is a Half Cover Emanation as a Reaction (not an attack), and the Quarterstaff of the Acrobat's Attack Deflection a +5 AC Reaction with no effect to read — each needs a made effect on the ac hold (audits/plans/dmg-build.md §3) | — | — |
 | magic item | **Shield, +1, +2, or +3** | equipment · shield | Uncommon | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Short Compartment** | container |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Shotgun** | weapon · martial ranged |  | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -418,7 +418,7 @@
 | magic item | **Smoldering Armor** | equipment | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Sovereign Glue** | equipment · wondrous | Legendary | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Spell Scroll** | consumable · scroll |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
-| magic item | **Spellguard Shield** | equipment · shield | Very Rare | WAITS | vsSpells | with Magic Resistance (MM) and Spell Resistance (Abjurer): EFFECT_BENDS saves — nine customers | — | — |
+| magic item | **Spellguard Shield** | equipment · shield | Very Rare | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | magic item | **Sphere of Annihilation** | equipment · wondrous | Legendary | NATIVE | — | the pack resolves it: a save, damage | — | — |
 | magic item | **Spirit Board** | equipment · wondrous | Very Rare | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | magic item | **Staff of Adornment** | weapon · simple melee | Common | TEXT | — | a utility item — no combat mechanism | — | — |
@@ -447,7 +447,7 @@
 | magic item | **Sword of Life Stealing** | weapon · martial melee | Rare | WAITS | CRIT_RIDERS | temp HP on a crit, 10 necrotic to the target — a CRIT_RIDERS table on the damage seam, the crit the module already judges (RULINGS *The hit's sequence*); six customers, one table, but every one a found item: built when the first is found | — | — |
 | magic item | **Sword of Sharpness** | weapon · martial melee | Very Rare | WAITS | CRIT_RIDERS | a crit rider (the first scan read it as a utility item): +14 slashing on a 20 and the sever — the `CRIT_RIDERS` table's eighth customer (2026-10-01) | — | — |
 | magic item | **Sword of Vengeance** | weapon | Uncommon | MODULE | — | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
-| magic item | **Sword of Wounding** | weapon | Rare | WAITS | grant · CLOCK_RIDERS · turnStart | 1d4 necrotic per wound at the victim's turn start; no healing until a save — the turn-start grant facet's harmful twin — CLOCK_RIDERS turnStart on the bearer of the wound effect; one customer, waits | — | — |
+| magic item | **Sword of Wounding** | weapon | Rare | WAITS | A turn-start rider on the victim | ⚠ measured 2026-10-01: the 2024 sword is an ENCHANTMENT — +2d6 necrotic native — whose hit demands a DC 15 Constitution save or "Wounded and Cannot Heal" for an hour; the save repeats at each turn end — the on-hit save and its REPEAT_SAVES row wait for the enchantment-aware weapon reader (audits/plans/dmg-build.md §3) | — | — |
 | magic item | **Sylvan Talon** | weapon | Common | TEXT | — | a utility item — no combat mechanism | — | — |
 | magic item | **Talisman of Pure Good** | equipment · wondrous | Legendary | NATIVE | — | the pack resolves it: 1 effect, a save, damage, uses | — | — |
 | magic item | **Talisman of the Sphere** | equipment · wondrous | Legendary | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
@@ -517,7 +517,7 @@
 | poison | **Wyvern Poison** | consumable · poison |  | WAITS | COATINGS | COATINGS (Poisoner's Poison Coating): the four INJURY poisons are rows — the save and the damage are the item's own activity; the ingested, inhaled and contact ones (Assassin's Blood, Carrion Crawler Mucus, Essence of Ether, Malice, Midnight Tears, Oil of Taggit, Pale Tincture, Torpor, Truth Serum) are the item's own save used at the creature, NATIVE, never a coating | — | — |
 | supernatural gift | **Arcane Study Charm** | feat · gift |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |
 | supernatural gift | **Blessing of Health** | feat · gift |  | TEXT | — | a utility item — no combat mechanism | — | — |
-| supernatural gift | **Blessing of Magic Resistance** | feat · gift |  | WAITS | vsSpells | with Magic Resistance (MM) and Spell Resistance (Abjurer): EFFECT_BENDS saves — nine customers | — | — |
+| supernatural gift | **Blessing of Magic Resistance** | feat · gift |  | MODULE | vsSpells | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | supernatural gift | **Blessing of Protection** | feat · gift |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | supernatural gift | **Blessing of Understanding** | feat · gift |  | TEXT | — | a utility item — no combat mechanism | — | — |
 | supernatural gift | **Blessing of Valhalla** | feat · gift |  | TEXT | — | no mechanism to play — the pack ships a paragraph | — | — |

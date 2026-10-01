@@ -27,16 +27,20 @@ Concentration, Hit Points, a death save, a critical hit). Each of the 76 read by
 **The finding:** the DMG's rules chapters add **no row the module owes**; two optional rules could become DM configs
 (Fight or Flight, Success at a Cost) — the user's call, not built.
 
-## 2. Tonight's build — the fourteen rows on machines that exist (the user, 2026-10-01: "do the cheap ones now")
+## 2. Tonight's build — the rows on machines that exist (the user, 2026-10-01: "do the cheap ones now")
+
+**BUILT 2026-10-01** (RULINGS *The DMG — the worn items*; `smoke-classes` §106–§112): eleven items. **Measured on the pack
+first, four of the fourteen are not cheap** and moved to §3: Sword of Wounding and Luck Blade are ENCHANTMENTS in 2024 (applied onto
+a base weapon, renamed "… of Wounding" / "Luck Blade (…)") — they need the same enchantment-aware weapon reader as the crit riders;
+the Quarterstaff of the Acrobat's Attack Deflection (+5 AC as a Reaction) and the Shield of the Cavalier's Protective Field (a Half
+Cover Emanation as a Reaction) carry no effect for the `ac` hold to read — each needs a made effect.
 
 | Rows | Machine / precedent | Notes |
 | --- | --- | --- |
 | Mantle of Spell Resistance, Spellguard Shield, Ring of Spell Turning, Robe of the Archmagi, Blessing of Magic Resistance | `EFFECT_BENDS` `saves: { bend: "advantage", spells: true }` — Magic Resistance / Spell Resistance | the item on the sheet (equipped and attuned where the item needs it) is the carrier |
 | Ring of Evasion, Scarab of Protection | `SAVE_SUCCEEDS` — Mage Slayer's Guarded Mind | the item's charges pay; the Ring: Dexterity saves; the Scarab: saves against necromancy (and its Advantage against spells is the vsSpells row) |
-| Arrow-Catching Shield, Gloves of Missile Snaring, Quarterstaff of the Acrobat, Shield of the Cavalier | `INTERRUPTS` / `REBUKES` — Deflect Attacks, the reaction rows | measured on the pack first; the redirect half (Arrow-Catching) stays with the redirect kind |
-| Sword of Wounding | `TURN_GRANTS` `deals` at the wound's bearer's turn start | the no-healing clause and the save to end it as the pack carries them |
+| Arrow-Catching Shield, Gloves of Missile Snaring | `EFFECT_BENDS` `plus` (the +2 against ranged) · `INTERRUPT_REDUCTIONS` `worn` (Deflect Missile's shape) | the redirect half (Arrow-Catching) stays with the redirect kind |
 | Cloak of Displacement | `EFFECT_BENDS` — Displacement (`target: "disadvantage"`) | the "until damaged, back at your next turn start" clock |
-| Luck Blade | `REROLLS` — the reroll kind | one d20 rerolled per dawn; its +1 and luck bonus are the pack's |
 
 Release: v2.11.0 (after D1's v2.10.0). 3.0.0 is the user's to cut by hand.
 
@@ -44,7 +48,8 @@ Release: v2.11.0 (after D1's v2.10.0). 3.0.0 is the user's to cut by hand.
 
 | Work | Size | Customers |
 | --- | --- | --- |
-| **Critical-hit riders** — a new table and an enchantment-aware weapon reader (the crit six ship as ENCHANTMENTS on a base weapon) | a day | Vorpal Sword, Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon, Adamantine Weapon |
+| **The enchantment-aware weapon reader** — the crit riders' new table, and the rows that are enchantments too (Sword of Wounding's on-hit DC 15 save and its repeat; Luck Blade's reroll) | a day | Vorpal Sword, Sword of Sharpness, Sword of Life Stealing, Nine Lives Stealer, Hammer of Thunderbolts, Mace of Smiting, Silvered Weapon, Adamantine Weapon; Sword of Wounding, Luck Blade |
+| **A made AC effect on the `ac` hold** — a reaction whose AC bonus the pack ships no effect for | half a day | Quarterstaff of the Acrobat (Attack Deflection, +5), Shield of the Cavalier (Protective Field — Half Cover for the bearer and allies within 5 ft) |
 | **Injury poisons** — Poisoner's `COATINGS` machine generalised (the item's own Use Poison activity) | half a day | Lolth's Sting, Purple Worm Poison, Serpent Venom, Wyvern Poison |
 | **The crit threshold** — Moonblade, measured first (the pack may carry the flag) | an hour | Moonblade |
 | **The death-save seam** — Periapt of Wound Closure on Survivor's seam (D1 opens it) | an hour | Periapt of Wound Closure |

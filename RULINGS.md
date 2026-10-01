@@ -1607,6 +1607,47 @@ call; the rest is guidance, exploration time, the GM's procedures or the registe
 of the remaining DMG work: [audits/plans/dmg-build.md](audits/plans/dmg-build.md). **The user, the same night:** the
 fourteen rows on machines that exist are built now (v2.11.0); the crit riders, the injury poisons and the rest tomorrow.
 
+## The DMG — the worn items (2026-10-01; audits/plans/dmg-build.md)
+
+**Eleven DMG items on the shapes the table has — no new kind, no new file, no new table; BUILT (`smoke-classes` §106–§112),
+unwalked.** The user's word: the cheap rows tonight, the rest of the DMG tomorrow. Measured on the pack first: of the fourteen the
+re-review called cheap, **four are not** — Sword of Wounding and Luck Blade are ENCHANTMENTS in 2024 (the crit riders' reader), the
+Quarterstaff of the Acrobat and the Shield of the Cavalier carry no effect for the AC hold to read (a made effect) — all four in the
+plan's §3. The calls made in the build, **each the user's to overrule**:
+
+- **The worn-item carrier** (`match: "worn"`): a magic item is a row's carrier while it is EQUIPPED and, where the item requires
+  attunement, ATTUNED — read off `system.equipped` and `system.attuned`, never guessed. A supernatural gift is a feat on the sheet
+  (the plain feature row).
+- **Against spells** (Magic Resistance's `saves: { spells }`): Mantle of Spell Resistance, Ring of Spell Turning, Robe of the
+  Archmagi, Scarab of Protection, Spellguard Shield and the Blessing of Magic Resistance list Advantage on a save against a spell —
+  the demand's own `spell` mark, which reads magical effects too (the Mantle and the Ring say "spells" alone: counted, the user's to
+  narrow). **Spellguard Shield** also sets spell attack rolls against the bearer at Disadvantage (`scope: "spell"`). The Ring's
+  "no effect on a success" and its reflection are the table's.
+- **Ring of Evasion and Scarab of Protection are `succeed` rows** (Guarded Mind's fold) paid by the item's charges: the Ring on a
+  failed Dexterity save; the Scarab's Preservation on a failed save against a Necromancy spell or an Undead's effect, read off the
+  demand (its spell's school — the demand now carries it — and its caster's type); a save rolled from the sheet with no demand is
+  offered, the roller judging. The Scarab crumbling at its last charge is the table's.
+- **Cloak of Displacement** is Displacement's Disadvantage on the worn cloak (`judge: "displaced"`): off once the wearer took damage
+  since its OWN last turn start (the receipts — Regeneration's reader), while its Speed is 0 (a status that holds it, or a walking
+  speed of 0), or while the pack's "Displacement Suppressed" is switched on.
+- **Gloves of Missile Snaring** are Deflect Missile's reduction on a worn item (`worn`): a ranged or thrown weapon's hit held for the
+  pack's own roll (1d10 + Dex, the utility activity's `roll` — read when the activity carries no healing). "A free hand" and the catch
+  at 0 are the table's.
+- **Arrow-Catching Shield's +2 AC against ranged attacks** is the gate's −2 on the roll (`plus`, Multiattack Defense's shape, `scope:
+  "ranged"`) — the pack ships the bonus as an optional toggle; Intercept Attack (become the target) waits for the redirect kind.
+
+**The walk table** (for the batched walk):
+
+| Item | What you should see |
+| --- | --- |
+| Mantle of Spell Resistance worn and attuned, a save against a spell | the save gate "Mantle of Spell Resistance — against a spell", Advantage; unequipped, nothing |
+| Spellguard Shield, Fire Bolt at the bearer | the attack gate lists it, Disadvantage |
+| Ring of Evasion, a failed Dexterity save | the rescue row "Ring of Evasion — succeed instead", a charge |
+| Scarab of Protection, a failed save | Advantage against spells; the rescue row "Preservation" (against Necromancy or an Undead) |
+| Cloak of Displacement, an attack at the wearer | "Cloak of Displacement", Disadvantage; after it takes damage, nothing until its next turn |
+| Gloves of Missile Snaring, a ranged hit | the hold "Gloves of Missile Snaring — 1d10 + Dex"; a melee hit never |
+| Arrow-Catching Shield, a ranged attack at the bearer | the gate "… is Arrow-Catching Shield — −2 to this attack roll" |
+
 ## The full release — the order (2026-09-29)
 
 **The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all
