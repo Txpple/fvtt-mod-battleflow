@@ -5,7 +5,7 @@
  * card (a raw HP edit offers nothing). "That you can see" is the table's.
  */
 import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow } from "./core.js";
-import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption } from "./lookup.js";
+import { lower, itemNamed, activityNamed, cardActivity, resolveUuid, meleeOptions, preferredMeleeOption, wearsEffectNamed } from "./lookup.js";
 import { rebukeEntries, listedNames } from "./decide/registry.js";
 import { REBUKES } from "./decide/registry.js";
 import { rebukeReach, rebukeBlocked, rebukeCost, rebukeLine, rebukeTypesAdmit } from "./decide/rebukes.js";
@@ -54,7 +54,8 @@ function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = 
   const out = [];
   for ( const [name, row] of Object.entries(REBUKES) ) {
     if ( !listed.has(lower(name)) ) continue;
-    if ( !!row.ward !== ward ) continue;
+    // RAVENLOFT — `wardAlso` (Prowling Retribution): a ward row asked on the bearer's own damage too.
+    if ( (!!row.ward !== ward) && !(row.wardAlso && !ward) ) continue;
     // THE BLOODIED MOMENT, watched (Bloodthirst): a `judge: "enemyBloodied"` row is asked of a bystander when an ENEMY of
     // its became Bloodied — `source` is that enemy; nothing else asks these rows, and they ask on nothing else.
     if ( (row.judge === "enemyBloodied") !== watch ) continue;
@@ -85,15 +86,15 @@ function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = 
       reactionSpent: reactionSpent(actor), distance, reach,
       usesLeft: (item.type === "spell") ? null : usesLeft,              // a spell with no free cast left may still take a slot
       slot: free ? null : slotStands(actor, item),
-      whileStands: row.while ? actor.effects.some(e => !e.disabled && (lower(e.name) === lower(row.while))) : null,
+      whileStands: row.while ? wearsEffectNamed(actor, row.while) : null,
       equipped: row.equipped ? !!item.system?.equipped : null,
       // a ward's: the one who hit stands on another side of the map (the tokens' dispositions)
-      side: row.ward ? (!!bearer && !!damager && (bearer.document.disposition !== damager.document.disposition)) : null
+      side: (row.ward && ward) ? (!!bearer && !!damager && (bearer.document.disposition !== damager.document.disposition)) : null
     });
     if ( blocked ) continue;
     out.push({ name, itemId: item.id, activityId: activity?.id ?? null, img: item.img, reach,
       attack: row.attack ?? null, advantage: !!row.advantage, free, handUse: free && !pool,
-      ...(row.opportunity ? { opportunity: true } : {}), ...(row.ward ? { ward: true } : {}),
+      ...(row.opportunity ? { opportunity: true } : {}), ...((row.ward && ward) ? { ward: true } : {}),
       cost: rebukeCost({ usesLeft, usesMax, spell: !free && (slotStands(actor, item) !== null) }),
       ...(row.follow?.length ? { follow: [...row.follow] } : {}) });
   }

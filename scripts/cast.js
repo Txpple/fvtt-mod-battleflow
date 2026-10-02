@@ -82,7 +82,10 @@ async function applyCastHealing(message) {
     // A target wearing a `max` row's effect (Beacon of Hope's Hopeful) is healed the roll's maximum; a CASTER's `max` row
     // (Supreme Healing, D1) raises every target of its spell or Channel Divinity.
     const casterMax = casterMaxRow(message);
-    const raised = targets.filter(t => casterMax || maxRowOn(t.uuid));
+    // RAVENLOFT — an `atZero` caster row (Return to Life) raises the dice only for a creature at 0 Hit Points.
+    const atZero = casterMax ? !!HEAL_REROLLS[casterMax]?.atZero : false;
+    const zeroHp = uuid => { const s = resolveUuid(uuid); const a = (s instanceof Actor) ? s : (s?.actor ?? null); return !(Number(a?.system?.attributes?.hp?.value ?? 1) > 0); };
+    const raised = targets.filter(t => (casterMax && (!atZero || zeroHp(t.uuid))) || maxRowOn(t.uuid));
     const plain = targets.filter(t => !raised.includes(t));
     if ( plain.length ) await applyDamagesWithReceipt(message, plain, damages, { note: "Healing" });
     if ( raised.length ) {

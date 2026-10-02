@@ -497,7 +497,8 @@ describe("the spell-damage bonuses (B4)", () => {
       "potent-spellcasting-druid",
       "elemental-affinity",
       "radiant-soul",
-      "empowered-evocation"
+      "empowered-evocation",
+      "empowered-channeling" // Ravenloft: Power from Beyond
     ]);
   });
 

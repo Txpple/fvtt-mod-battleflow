@@ -13,7 +13,7 @@
  * other answer is relayed to it.
  */
 import { MODULE_ID, TITLE, keepsMessage, queueFlagWrite, canAnswerFor, statContext, decisionWindow, isActiveGM } from "./core.js";
-import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles } from "./lookup.js";
+import { featureNamed, lower, resolveUuid, activityNamed, activityOfType, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { poolOf } from "./shared.js";
 import { nearestFeet } from "./geometry.js";
 import { riderPartFormula } from "./decide/clock.js";
@@ -79,7 +79,7 @@ function rowFor(actor, { outright }) {
 /** C1 — does the actor wear the row's `while`? "raging" is the Rage effect or status; else an effect by name. */
 function wearsWhile(actor, name) {
   if ( lower(name) === "raging" ) return actor.effects.some(e => e.active && ((lower(e.name) === "rage") || e.statuses?.has?.("raging")));
-  return actor.effects.some(e => e.active && (lower(e.name) === lower(name)));
+  return wearsEffectNamed(actor, name);   // an item's transferred effect too (Ghastly Form)
 }
 
 /** C1 — the keeper of an `ally` row: a creature within `ally` feet holding the feature, wearing its `while`, its activity's pool
@@ -242,7 +242,8 @@ async function rollDropSave(actor, found, { amount, source, dc, saveAct = null }
   }
   const saved = (total !== null) && (total >= dc);
   // C1 — `uses` on a save row (Relentless Rage): the roll itself spends the use, saved or not (the DC climbs with it).
-  if ( found.row.uses && found.item && (total !== null) ) {
+  // RAVENLOFT — `spendOn: "success"` (Strength of the Grave): the success alone spends it.
+  if ( found.row.uses && found.item && (total !== null) && ((found.row.spendOn !== "success") || saved) ) {
     await found.item.update({ "system.uses.spent": Number(found.item.system.uses?.spent ?? 0) + 1 })
       .catch(err => console.warn(`${TITLE} | ${found.name}'s use could not be spent — mark it by hand.`, err));
   }
@@ -280,7 +281,10 @@ async function healOnHold(card, actor, found) {
     const owner = found.keeper ?? actor;
     const roll = await new Roll(raw, activity.getRollData?.() ?? owner.getRollData()).evaluate();
     if ( !(roll.total > 0) ) return;
-    await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value: roll.total, type: "healing", properties: new Set() }], { note: found.name });
+    // RAVENLOFT — `sets` ("your Hit Points instead change to"): the held 1 counts toward the roll.
+    const value = found.row.sets ? Math.max(0, Number(roll.total) - Math.max(0, Number(actor.system?.attributes?.hp?.value ?? 0))) : Number(roll.total);
+    if ( !(value > 0) ) return;
+    await applyDamagesWithReceipt(card, [{ uuid: actor.uuid, name: actor.name }], [{ value, type: "healing", properties: new Set() }], { note: found.name });
   } catch(err) { console.error(`${TITLE} | ${found.name}'s heal failed — heal by hand.`, err); }
 }
 

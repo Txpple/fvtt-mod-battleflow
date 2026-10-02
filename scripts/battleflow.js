@@ -55,6 +55,7 @@ import "./hew.js";
 import "./bash-offer.js";
 import "./command.js";
 import "./rebukes.js";
+import "./mishaps.js";
 import "./damage-shares.js";
 import "./heal-on-hit.js";
 import "./drains.js";

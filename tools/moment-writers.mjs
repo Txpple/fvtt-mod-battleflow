@@ -182,6 +182,7 @@ const WORLD_WRITERS = {
   "precision.js": ["precision"],
   "riposte.js": ["riposte"],
   "rebukes.js": ["rebuke"],
+  "mishaps.js": "the dark gift's save is the pack's activity used at the bearer: the demand card and its verdict are the saves machine's record (saves); `mishap` on that card is provenance",
   "damage-shares.js": ["receipt"],   // the caster's share of the bond's damage, receipted on the share's card; the bond's end deletes the effect
   "heal-on-hit.js": ["receipt"],     // the caster's heal, receipted on the heal's card
   "drains.js": ["effectReceipt"],    // the target's fall — an effect on it, receipted on the drain's card; the prior copy deleted

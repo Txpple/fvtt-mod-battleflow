@@ -3,7 +3,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, activityOfType, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
@@ -61,6 +61,16 @@ function riderFormulaOf(row, act) {
   if ( row.amount ) return row.amount;
   const part = act?.damage?.parts?.[0];
   return part ? riderPartFormula({ number: part.number, denomination: part.denomination, custom: part.custom, bonus: part.bonus }) : null;
+}
+
+/** RAVENLOFT — the actor whose item put the mark of that name on the (first) hit creature, or null (Path to the Grave: the
+ * cleric is the bearer whoever's hit it was). */
+function markerOf(hits, name) {
+  const target = hits.length ? resolveUuid(hits[0].uuid) : null;
+  const mark = target?.effects?.find(e => e.active && (lower(e.name) === lower(name)) && e.origin);
+  const origin = mark ? resolveUuid(mark.origin) : null;
+  const actor = origin?.actor ?? ((origin instanceof Actor) ? origin : null);
+  return (actor instanceof Actor) ? actor : null;
 }
 
 /** The item carries this feature's enchantment (a copy, never the feature's own source effect). */
@@ -205,7 +215,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const inspired = row.inspired ? inspiredFrom(attacker, row.feature) : null;
     if ( row.inspired && !inspired ) continue;
     // C1 — an `owner: "summoner"` row (Bestial Fury): the feature, its dice and its mark are the SUMMONER's.
-    const bearer = (row.owner === "summoner") ? summoner : attacker;
+    // RAVENLOFT — `owner: "marker"` (Path to the Grave): the bearer is whoever's item put the `marked` effect on the target.
+    const bearer = (row.owner === "summoner") ? summoner : (row.owner === "marker") ? markerOf(hits, row.marked) : attacker;
     if ( !bearer ) continue;
     // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
     // THE DMG — a `wields` row's item is the ATTACK's own weapon, wearing the template's enchantment (or named it).
@@ -216,6 +227,8 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     if ( !feature ) continue;
     // C1 — `marked`: every hit target wears the bearer's mark of that name (its origin the bearer's own spell).
     const marked = row.marked ? (hits.length ? hits.every(h => wearsMarkOf(resolveUuid(h.uuid), bearer, row.marked)) : null) : null;
+    // RAVENLOFT — `targetStatus` (Ominous Strikes): every hit creature wears the status.
+    const targetStatus = row.targetStatus ? (hits.length ? hits.every(h => !!resolveUuid(h.uuid)?.statuses?.has?.(row.targetStatus)) : null) : null;
     // An `option` row rides only the option the character took; none recorded yet, the offer asks.
     const option = row.option ? optionOf(feature) : null;
     if ( option && (lower(option) !== lower(row.option)) ) continue;
@@ -237,7 +250,7 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     const type = (row.type === "weapon") ? weaponType : row.type ? row.type : form ? form.type : ([...(part?.types ?? [])][0] ?? null);
     const uses = usesOf(bearer, act, row);
     const usesLeft = uses ? uses.left : null;
-    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked,
+    const judged = riderDue(row, { ...facts, usesLeft, form: form?.form ?? null, chitStands: turnChitStands(attacker, "rider", key), marked, targetStatus,
       fits: row.maxSize ? targetsFit(hits, row.maxSize) : null,
       enchanted: row.enchant ? enchantedFor(attacker, item, feature, row) : false,
       typed: row.targets ? targetsAnswer(row.targets, hitFactsNow()) : null,
@@ -389,6 +402,8 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
         ...(r.inspired ? { spent: `${r.inspired.bard}'s Inspired die spent` } : {}),
         ...(r.row.option ? { option: r.row.option, featureUuid: r.feature.uuid, optionOf: r.feature.name } : {}),
         ...(r.row.lands ? { lands: r.row.lands, clock: r.row.clock ?? null, featureUuid: r.feature.uuid } : {}),
+        // RAVENLOFT — `endsMark` (Path to the Grave): the mark comes off the hit creatures once the rider rode.
+        ...(r.row.endsMark && r.row.marked ? { endsMark: r.row.marked, bearerUuid: r.bearer?.uuid ?? null } : {}),
         ...(r.row.caveat ? { caveat: r.pactCaveat ? `${r.row.caveat}; ${r.pactCaveat}` : r.row.caveat } : (r.pactCaveat ? { caveat: r.pactCaveat } : {})),
         ...(r.row.offers ? { offers: { activity: r.row.offers.activity, label: r.row.offers.label ?? r.row.offers.activity }, featureUuid: r.feature.uuid } : {}),
         // C1 — `follow` (Stalker's Flurry): the follow-up's options, offered on the damage card once the rider rode.
@@ -437,7 +452,7 @@ listen("dnd5e.preRollDamage", "clock-riders", (config, _dialog, message) => {
  * on the elect, receipted — the hit menu's path, the row's `clock` pinned to the attacker. */
 async function settleRiderEffects(message) {
   const cr = message.getFlag(MODULE_ID, "clockRiders");
-  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random || r.save || r.tempHp || r.exhaustion);
+  const rows = (cr?.riders ?? []).filter(r => r.effects || r.lands || r.random || r.save || r.tempHp || r.exhaustion || r.endsMark);
   if ( !rows.length || cr.effectsApplied ) return;
   if ( !drivesMomentFor(cr.sourceUuid ?? null) ) return;
   try {
@@ -452,6 +467,16 @@ async function settleRiderEffects(message) {
     const hits = attackMessage ? hitTargets(attackMessage) : [];
     const attacker = resolveUuid(cr.sourceUuid ?? null) ?? attackMessage?.getAssociatedActor?.() ?? null;
     for ( const r of rows ) {
+      // RAVENLOFT — `endsMark`: the curse ends on the hit creatures (the marker's own effect of that name).
+      if ( r.endsMark ) {
+        for ( const h of hits ) {
+          const target = resolveUuid(h.uuid);
+          const marker = r.bearerUuid ? resolveUuid(r.bearerUuid) : null;
+          const gone = (target?.effects ?? []).filter(e => (lower(e.name) === lower(r.endsMark)) && (!marker || wearsMarkOf(target, marker, r.endsMark))).map(e => e.id);
+          if ( gone.length ) await target.deleteEmbeddedDocuments("ActiveEffect", gone).catch(err => console.warn(`${TITLE} | ${r.label}: the mark could not be removed — end it by hand.`, err));
+        }
+        if ( !r.save && !r.effects && !r.lands && !r.random && !r.tempHp && !r.exhaustion ) continue;
+      }
       // THE DMG — the attacker's Temporary Hit Points, receipted on the damage card (revertable with it).
       if ( r.tempHp && attacker ) {
         await applyDamagesWithReceipt(message, [{ uuid: attacker.uuid, name: attacker.name }], [{ value: r.tempHp, type: "temphp", properties: new Set() }], { note: r.label });
@@ -676,7 +701,7 @@ async function pickThen(message, key, option, attacker) {
 const SPELL_FLAG = "spellRider";
 
 /** The listed `spells` rows due for this caster now, each with its form, value and type. */
-function spellRidersFor(caster, damaged = []) {
+function spellRidersFor(caster, damaged = [], sneakArmed = false) {
   if ( !caster ) return [];
   const listed = listedNames(clockRiderEntries());
   const combat = activeCombatFor(caster);
@@ -686,7 +711,8 @@ function spellRidersFor(caster, damaged = []) {
     const feature = featureNamed(caster, row.feature);
     if ( !feature ) continue;
     const form = formOn(caster, row);
-    const act = row.activity ? activityNamed(feature, row.activity) : null;
+    // RAVENLOFT — a `spread` row with no named activity (Wails from the Grave) reads the feature's first damage activity.
+    const act = row.activity ? activityNamed(feature, row.activity) : (row.spread ? activityOfType(feature, "damage") : null);
     const raw = riderFormulaOf(row, act);
     let value = null;
     let formula = null;
@@ -697,17 +723,21 @@ function spellRidersFor(caster, damaged = []) {
     } catch { value = null; formula = null; }
     // C1 — a `spread` row (Superior Hunter's Prey): a damaged creature under the caster's mark; the candidates are the other
     // creatures within `spread` feet of it. The dice roll at the pick (the scale is a die, not a number).
+    // RAVENLOFT — a `requires: "sneak"` spread (Wails from the Grave) spreads from the Sneak Attack's target: the damage card
+    // of an attack whose Sneak Attack was armed, the first creature damaged.
     let candidates = null;
     if ( row.spread ) {
-      const marked = damaged.find(t => wearsMarkOf(resolveUuid(t.uuid), caster, row.marked));
+      const marked = row.marked ? damaged.find(t => wearsMarkOf(resolveUuid(t.uuid), caster, row.marked))
+        : ((row.requires === "sneak") ? (sneakArmed ? damaged[0] : null) : damaged[0]);
       const at = marked ? tokenForUuid(marked.uuid) : null;
       if ( !at ) continue;
       candidates = creaturesWithin(at, row.spread).filter(t => t.actor && (t.actor.uuid !== marked.uuid) && (t.actor.uuid !== caster.uuid))
         .map(t => ({ uuid: t.actor.uuid, name: t.document?.name ?? t.actor.name }));
       if ( !candidates.length ) continue;
     }
+    const uses = usesOf(caster, act, row);
     const judged = riderDue(row, { inCombat: !!combat, round: combat?.round ?? null, form: form?.form ?? null,
-      chitStands: turnChitStands(caster, "rider", key), marked: row.spread ? true : null });
+      chitStands: turnChitStands(caster, "rider", key), marked: row.spread ? true : null, sneakArmed, usesLeft: uses ? uses.left : null });
     if ( !judged.due || !(formula || (Number(value) > 0)) ) continue;
     const type = form?.type ?? ([...(act?.damage?.parts?.[0]?.types ?? [])][0] ?? null);
     out.push({ key, row, feature, form, value: Number(value) || null, formula, type, why: judged.why, label: row.label ?? row.feature, candidates });
@@ -736,7 +766,10 @@ listen("dnd5e.renderChatMessage", "clock-riders", (message, html) => {
     if ( !canAnswerFor(caster) ) return;
     // A `spells` row reads a no-attack spell's card alone; a `spread` row any damage card of the bearer's.
     const spellCard = (activity?.item?.type === "spell") && (activity.type !== "attack");
-    for ( const r of spellRidersFor(caster, damaged) ) {
+    // RAVENLOFT — the Sneak Attack armed on the attack this damage answers (Wails from the Grave's spread).
+    const sneakArmed = !!game.messages.get(message.getFlag(MODULE_ID, "attackFor") ?? message.getFlag(MODULE_ID, "clockRiders")?.attackId ?? "")?.getFlag?.(MODULE_ID, "sneak")?.armed
+      || !!message.getFlag(MODULE_ID, "sneakDamage");
+    for ( const r of spellRidersFor(caster, damaged, sneakArmed) ) {
       if ( picked[r.key] || (!r.row.spread && !spellCard) ) continue;
       const row = document.createElement("div");
       row.style.cssText = "display:flex;gap:0.35rem;align-items:center;margin-top:0.35rem;flex-wrap:wrap;";
@@ -827,6 +860,16 @@ async function driveSpellRider(message) {
     });
     if ( card && (value > 0) ) await applyDamagesWithReceipt(card, [{ uuid: p.targetUuid, name: p.targetName }],
       [{ value, type: p.type ?? "radiant", properties: new Set(["mgc"]) }], { note: p.label });
+    // RAVENLOFT — a `uses` spread row (Wails from the Grave): the feature's own use spent as the pick lands.
+    if ( caster && feature && CLOCK_RIDERS[p.key]?.uses ) {
+      const act = CLOCK_RIDERS[p.key].activity ? activityNamed(feature, CLOCK_RIDERS[p.key].activity) : activityOfType(feature, "damage");
+      const u = usesOf(caster, act, CLOCK_RIDERS[p.key]);
+      if ( u ) {
+        const write = u.item ? u.item.update({ "system.uses.spent": u.spent + 1 })
+          : (act ? feature.update({ [`system.activities.${act.id}.uses.spent`]: u.spent + 1 }) : Promise.resolve());
+        await write.catch(err => console.warn(`${TITLE} | Could not spend a use of ${p.label}.`, err));
+      }
+    }
     if ( caster && (CLOCK_RIDERS[p.key]?.when === "oncePerTurn") ) {
       await writeTurnChit(caster, "rider", { name: `${p.label} — used this turn`, img: feature?.img ?? null,
         description: `${p.label} has ridden a spell's damage this turn. Once per turn; this chit ends with the turn.`,

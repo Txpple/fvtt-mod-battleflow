@@ -25,7 +25,8 @@ export const INTERRUPT_KINDS = new Set(["ac", "damage", "roll"]);
  *   uses        the item's own uses spent by a write at the cast (the activity consumes nothing)
  *   at          "attacker" — the cast is aimed at the attacker (a save activity's demand lands on it)
  *   failDamage  { type, equalTo: "taken" } — on the demanded save's FAILURE the attacker takes this type, equal to
- *               the damage the reactor took from the hit (saves/consequences.js) */
+ *               the damage the reactor took from the hit (saves/consequences.js)
+ *   (a row whose activity consumes the feature's use carries no `uses` — Elemental Rebuke, Sentinel at Death's Door) */
 export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Uncanny Dodge": Object.freeze({ multiplier: 0.5,
     rule: Object.freeze({ item: "Uncanny Dodge", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeUncannyDod" }) }),
@@ -57,7 +58,14 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Elemental Rebuke": Object.freeze({ multiplier: 0.5, at: "attacker",
     caveat: "the damage type is the activity's first — pick another by hand",
     rule: Object.freeze({ item: "Elemental Rebuke", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofOngElementalR" }),
-    from: "Paladin — Oath of the Noble Genies 15 (Heroes of Faerûn)" })
+    from: "Paladin — Oath of the Noble Genies 15 (Heroes of Faerûn)" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*) — Sentinel at Death's Door, the hit on YOU: Uncanny Dodge's half; the
+  // activity consumes the feature's use itself (Wisdom modifier per Long Rest). The Bloodied ally within 60 ft and the
+  // Critical Hit's effects cancelled WAIT (the register).
+  "Sentinel at Death's Door": Object.freeze({ multiplier: 0.5,
+    caveat: "a Bloodied ally's hit within 60 ft, and a Critical Hit's effects cancelled, are the table's for now",
+    rule: Object.freeze({ item: "Sentinel at Death's Door", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSSentinelaOa" }),
+    from: "Cleric — Grave Domain 6 (Ravenloft)" })
 });
 
 /**
@@ -80,6 +88,7 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
  *   pool "ward" + of  (B4, Projected Ward): the reduction is the guard's WARD (WARD_POOLS `of`, its uses the hit points) —
  *            as much of the damage as the ward holds, spent from it; `any` with `ally`: a guard asked on ANY damage to the
  *            creature beside it, not an attack's alone
+ *   amount   RAVENLOFT — the reduction's own roll where the activity carries no healing and no roll (Deflect Blow's 1d10)
  */
 export const INTERRUPT_REDUCTIONS = Object.freeze({
   "Parry": Object.freeze({ activity: "Heal", pool: true,
@@ -123,7 +132,12 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
     eyebrow: "Reaction", spend: "Reaction", hit: "ranged attack", by: "1d10 plus your Dexterity modifier",
     caveat: "\"if you have a free hand\" and the catch at 0 are the table's",
     rule: Object.freeze({ item: "Gloves of Missile Snaring", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgGlovesOfMissi" }),
-    from: "DMG wondrous item" })
+    from: "DMG wondrous item" }),
+  // RAVENLOFT — Deflect Blow (Laurie Weathermay-Foxgrove): 1d10 off a hit on her or a creature within 5 ft; the pack's utility
+  // carries no roll — the row's `amount` is the reduction.
+  "Deflect Blow": Object.freeze({ activity: "Damage Reduction", amount: "1d10", ally: 5, eyebrow: "Reaction", spend: "Reaction", hit: "attack", by: "1d10",
+    rule: Object.freeze({ item: "Deflect Blow", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.sBUI0I7rRklULU58" }),
+    from: "Ravenloft — monsters (Laurie Weathermay-Foxgrove)" })
 });
 
 /**
@@ -134,6 +148,9 @@ export const INTERRUPT_REDUCTIONS = Object.freeze({
  *   after     what the table still does once the roll is bent — a card line
  *   heal      B4 — a FEATURE whose heal activity lands on the flared creature with the answer (Improved Warding Flare's
  *             Temporary Hit Points), rolled on the answerer's numbers, receipted; absent from the sheet, nothing
+ *   only "self" / abilities / spells   the roller's own save alone, narrowed (Arcana Unleashed; bystanders.js)
+ *   die       a die ("1d4"), a roll-data path, a flat formula ("@prof" — Steel Yourself) or "hitDie" (the roller's
+ *             largest Hit Die — Sustained Symbiosis); `bonus` a reroll's added number (Shared Resilience)
  * ⚠ The 2014 Halfling "Lucky" shares the name with no uses: the lookup demands the item's own uses.
  */
 export const INTERRUPT_ROLLS = Object.freeze({
@@ -255,7 +272,28 @@ export const INTERRUPT_ROLLS = Object.freeze({
   "Shared Resilience": Object.freeze({ reaction: true, uses: true, point: null, activity: null,
     bystander: 60, tests: Object.freeze(["save"]), bend: "reroll", bonus: "@classes.fighter.levels",
     rule: Object.freeze({ item: "Shared Resilience", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofPdkSharedResi" }),
-    from: "Fighter — Banneret 15 (Heroes of Faerûn)" })
+    from: "Fighter — Banneret 15 (Heroes of Faerûn)" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*) — the roller's OWN failed save or check lifted (Transmuted Anatomy's
+  // `only: "self"`): Steel Yourself adds the Proficiency Bonus (a flat `die`) to a failed save against Charmed or Frightened,
+  // the Reaction (the pack's activity names a consumption of its own uses but carries none to count — once per Long Rest is
+  // the table's); Sustained Symbiosis a Hit Die (`die: "hitDie"` — the largest;
+  // the Hit Die itself is spent by hand, the feat's use by the machine); Knowledge from a Past Life 1d6 on a failed ability
+  // CHECK, a use of the trait. ⚠ "Survivor (Ravenloft)": the feat shares its name with the Fighter's Survivor — ALIASES points
+  // the key at the identifier, FEATURE_TYPES keeps it to the feat.
+  "Survivor (Ravenloft)": Object.freeze({ reaction: true, uses: false, point: null, activity: "Steel Yourself", only: "self", self: true,
+    bystander: 5, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "@prof", on: "miss", against: Object.freeze(["charmed", "frightened"]),
+    caveat: "once per Long Rest is the table's — the pack's activity carries no use to count",
+    rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSurvivor2zrM3", benefit: "Steel Yourself" }),
+    from: "Origin feat (Ravenloft)" }),
+  "Symbiotic Being": Object.freeze({ reaction: true, uses: true, point: null, activity: "Sustained Symbiosis (Largest HD)", only: "self", self: true,
+    bystander: 5, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "hitDie", on: "miss",
+    caveat: "the Hit Die is spent by hand",
+    rule: Object.freeze({ item: "Symbiotic Being", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSymbioticBein", benefit: "Sustained Symbiosis" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Knowledge from a Past Life": Object.freeze({ reaction: false, uses: true, point: null, activity: "Past Aids Present", only: "self", self: true,
+    bystander: 5, tests: Object.freeze(["check"]), bend: "die", sign: 1, die: "1d6", on: "miss",
+    rule: Object.freeze({ item: "Knowledge from a Past Life", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwKnowledgefraL", benefit: "Past Aids Present" }),
+    from: "Reborn (Ravenloft)" })
 });
 
 /**
@@ -584,6 +622,10 @@ export const DEATH_STRIKE = Object.freeze({
  *   exhaustion  the hit creatures gain that many Exhaustion levels once the damage lands
  *   destroy   once the receipt lands, a hit creature left at or below that many Hit Points is destroyed (0 HP, Dead)
  *   type      a damage type of its own (Mace of Smiting's Bludgeoning), where `amount` has none
+ *   RAVENLOFT: targetStatus  every hit creature wears the status (Ominous Strikes' Frightened);  owner "marker"  the bearer
+ *             is whoever's item put the `marked` effect on the target — ANY ally's hit rides it (Path to the Grave);
+ *             endsMark  the mark is removed from the hit creatures once the rider rides;  a `spread` row with
+ *             `requires: "sneak"` spreads from the Sneak Attack's target (Wails from the Grave), its `activity` null the first damage
  * Left out: choices the sheet does not record or judgments the module cannot make (Brutal Strike, Hand of
  * Harm, Eldritch Smite, Foe Slayer). Death Strike: DEATH_STRIKE.
  */
@@ -835,7 +877,32 @@ export const CLOCK_RIDERS = Object.freeze({
     activities: Object.freeze({ cha: "Save Using Charisma", dex: "Save Using Dexterity" }), when: "any", save: true, uses: true, unticked: true,
     label: "Flustering Strike", says: "a Wisdom save or Disadvantage on saving throws until the end of your next turn",
     rule: Object.freeze({ item: "Fairy Trickster", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofFairyTrickste", benefit: "Flustering Strike" }),
-    from: "Heroes of Faerûn — general feat" })
+    from: "Heroes of Faerûn — general feat" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*). Pull of Death: Dreadful Strikes' die on a hit against a creature
+  // missing Hit Points (`judge: "targetDamaged"`), once per turn; a spell's damage without an attack roll is the table's.
+  "circle-of-mortality-pull-of-death": Object.freeze({ feature: "Circle of Mortality", activity: "Pull of Death", when: "oncePerTurn", judge: "targetDamaged",
+    label: "Pull of Death", caveat: "a spell's damage without an attack roll is the table's",
+    rule: Object.freeze({ item: "Circle of Mortality", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSCircleofMOG", benefit: "Pull of Death" }),
+    from: "Cleric — Grave Domain 3 (Ravenloft)" }),
+  // Ominous Strikes: the Wisdom modifier on any hit against a FRIGHTENED target (`targetStatus`), no die of its own.
+  "ancient-might-ominous-strikes": Object.freeze({ feature: "Ancient Might", activity: null, when: "any", amount: "@abilities.wis.mod", type: "weapon",
+    targetStatus: "frightened", label: "Ominous Strikes",
+    rule: Object.freeze({ item: "Ancient Might", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHWAncientMibA", benefit: "Ominous Strikes" }),
+    from: "Ranger — Hollow Warden 15 (Ravenloft)" }),
+  // Path to the Grave's End Curse Early: ANY ally's hit on the cursed creature (`marked` — the cleric's own Cursed effect on the
+  // target; `owner: "marker"` makes the cleric the bearer, whoever hit) ends the curse (`endsMark`) for the cleric's level in
+  // Necrotic or Radiant — "you can": unticked, Necrotic the type here.
+  "path-to-the-grave": Object.freeze({ feature: "Path to the Grave", activity: "End Curse Early", when: "any", marked: "Cursed (Path to the Grave)",
+    owner: "marker", endsMark: true, unticked: true, type: "necrotic", label: "End Curse Early",
+    caveat: "Necrotic here; Radiant is the cleric's other choice — change the type by hand",
+    rule: Object.freeze({ item: "Path to the Grave", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSPathtotheCb", benefit: "End Curse Early" }),
+    from: "Cleric — Grave Domain 3 (Ravenloft)" }),
+  // Wails from the Grave: after Sneak Attack damage lands, a second creature within 30 ft of the first takes half the Sneak
+  // dice as Necrotic — Superior Hunter's Prey's `spread` with `requires: "sneak"`, the feature's own uses the pool.
+  "wails-from-the-grave": Object.freeze({ feature: "Wails from the Grave", activity: null, when: "oncePerTurn", requires: "sneak", spread: 30, uses: true,
+    label: "Wails from the Grave",
+    rule: Object.freeze({ item: "Wails from the Grave", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwPRWailsfromLz" }),
+    from: "Rogue — Phantom 3 (Ravenloft)" })
 });
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
@@ -999,7 +1066,9 @@ export const EVASIONS = Object.freeze({
 export const ALIASES = Object.freeze({
   "Laeral's Silver Lance": "silver-lance",
   "Elminster's Effulgent Spheres": "effulgent-spheres",
-  "Elminster's Elusion": "elusion"
+  "Elminster's Elusion": "elusion",
+  // RAVENLOFT: the Survivor feat's rows are keyed with the book's name; the item's identifier is the plain one.
+  "Survivor (Ravenloft)": "survivor"
 });
 
 /**
@@ -1009,7 +1078,10 @@ export const ALIASES = Object.freeze({
  * whose subtype is set and differs answers no row; an item with no subtype (a hand-made copy) still does.
  */
 export const FEATURE_TYPES = Object.freeze({
-  "Survivor": "class"
+  "Survivor": "class",
+  // RAVENLOFT: the Touch of Death feat vs Ankhtepot's action; the Survivor feat's own rows (the key carries the book).
+  "Touch of Death": "feat",
+  "Survivor (Ravenloft)": "feat"
 });
 
 /** The slug dnd5e's packs give a name: lower-case, apostrophes dropped, any other run one hyphen. */
@@ -1393,6 +1465,7 @@ export const MANEUVER_FEATURE_NAMES = new Set([
  *   item / activity / while / pulse   see the Inner Radiance row (`while` may list several — every one must
  *              stand: the Wolf's "Rage of the Wolf" AND the Rage); a `pulse` with `activity: null` rolls the
  *              item's first damage activity at the bearer's turn END (the fire auras — the GM's side)
+ *   a `pulse` whose activity is a SAVE (Unnerving Aura) demands it of everyone inside instead of rolling damage
  * Membership: the Emanations list. What is left out on purpose: RULINGS *Emanations*.
  */
 export const EMANATIONS = Object.freeze({
@@ -1739,7 +1812,35 @@ export const EMANATIONS = Object.freeze({
     pulse: Object.freeze({ on: "sourceTurnStart", activity: "Frozen Soul" }),
     caveat: "\"each creature of your choice\" reads as your enemies; the first pulse at the adoption is the use's own card",
     rule: Object.freeze({ item: "Frozen Haunt", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwFrozenHaun", benefit: "Frozen Soul" }),
-    from: "Ranger — Winter Walker 15 (Heroes of Faerûn)" })
+    from: "Ranger — Winter Walker 15 (Heroes of Faerûn)" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*). Unnerving Aura: Frozen Haunt's ring while Ghastly Form stands, the
+  // Wisdom save demanded of the enemies inside at the ranger's turn START (a save pulse); Frightened the activity's own failure.
+  "Wrath of the Wild": Object.freeze({ kind: "feature", item: "Wrath of the Wild", while: "Ghastly Form", reach: "harmful", range: null, effect: null, incapacitated: true,
+    activity: "Unnerving Aura", pulse: Object.freeze({ on: "sourceTurnStart", activity: "Unnerving Aura" }),
+    caveat: "\"each creature of your choice\" reads as your enemies; the first save at the transform is the use's own card",
+    rule: Object.freeze({ item: "Wrath of the Wild", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHWWrathofth3C", benefit: "Unnerving Aura" }),
+    from: "Ranger — Hollow Warden 3 (Ravenloft)" }),
+  // The bestiary's auras on the Monster Manual's shapes: Terrifying Aura — any enemy starting its turn inside saves (off while
+  // Incapacitated); Viral Aura and Deathly Stench — any creature; Possessive Aura — a creature ENDING its turn inside.
+  "Terrifying Aura": Object.freeze({ kind: "feature", reach: "harmful", range: null, effect: null, incapacitated: true,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "a success's 24-hour immunity to this aura is the table's",
+    rule: Object.freeze({ item: "Terrifying Aura", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.savZZbelcq7RoGtH" }),
+    from: "Ravenloft — monsters (unspeakable horror)" }),
+  "Viral Aura": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    caveat: "a success's 24-hour immunity to this aura is the table's",
+    rule: Object.freeze({ item: "Viral Aura", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.GbjwSWAyF40wLx55" }),
+    from: "Ravenloft — monsters (zombie plague spreader)" }),
+  "Deathly Stench": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnStart"]), oncePerTurn: true }),
+    rule: Object.freeze({ item: "Deathly Stench", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.nz066kOxstTlhYqe" }),
+    from: "Ravenloft — monsters (zombie clot)" }),
+  "Possessive Aura": Object.freeze({ kind: "feature", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["turnEnd"]), oncePerTurn: true }),
+    caveat: "the Charmed's repeat at its turn end is the pack's second save, used by hand",
+    rule: Object.freeze({ item: "Possessive Aura", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.ojxp9YnrooKBkOqD" }),
+    from: "Ravenloft — monsters (Wilfred Godefroy)" })
 });
 
 /**
@@ -1940,6 +2041,8 @@ export const REST_GRANTS = Object.freeze({
  *   named     B4 (Gift of the Protectors): the feature is ANOTHER creature's — the warlock's, whose copy's description
  *             names the dropped creature (the tome's page, read as data); `activity` the one whose own uses pay (Protect,
  *             once per Long Rest); it simply happens (`ask: false`), the card names the keeper
+ *   sets      RAVENLOFT — the `heal` SETS the Hit Points to its roll ("your Hit Points instead change to"), the held 1 counted;
+ *   spendOn   "success" — a `save` row's use is spent on the success alone (Strength of the Grave), else on the roll
  * The GM's side, the waiting rows: RULINGS *The Monster Manual — the waiting rows built*.
  */
 export const DROP_TO_ONE = Object.freeze({
@@ -2007,7 +2110,19 @@ export const DROP_TO_ONE = Object.freeze({
   "Mechanical Determination": Object.freeze({ ask: false, outright: false,
     save: Object.freeze({ ability: "con", dc: "5 + damage", unless: Object.freeze(["lightning", "crit"]) }),
     rule: Object.freeze({ item: "Mechanical Determination", uuid: "Compendium.dnd-heroes-faerun.actors.Item.RTwCRKhLi5Yq7k7k" }),
-    from: "Heroes of Faerûn — the Domestic Wonder" })
+    from: "Heroes of Faerûn — the Domestic Wonder" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*). Strength of the Grave: Undead Fortitude's dice (Charisma, DC 5 + the
+  // damage); a success SETS the Hit Points to Cha + the sorcerer's level ("Heal on Success", `sets`); the use is spent on the
+  // success alone (`spendOn`), once per Long Rest.
+  "Power of Shadow": Object.freeze({ ask: false, uses: true, spendOn: "success", outright: false, heal: "Heal on Success", sets: true,
+    save: Object.freeze({ ability: "cha", dc: "5 + damage" }),
+    rule: Object.freeze({ item: "Power of Shadow", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSSPowerofShNG", benefit: "Strength of the Grave" }),
+    from: "Sorcerer — Shadow Sorcery 3 (Ravenloft)" }),
+  // Persistent Wrath: Undying Sentinel's ask while Ghastly Form stands — Yes SETS the Hit Points to twice the ranger's level.
+  "Ancient Might": Object.freeze({ ask: true, uses: true, outright: false, while: "Ghastly Form", heal: "Persistent Wrath", sets: true,
+    caveat: "the level 4+ slot that restores the use is the sheet's",
+    rule: Object.freeze({ item: "Ancient Might", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHWAncientMibA", benefit: "Persistent Wrath" }),
+    from: "Ranger — Hollow Warden 15 (Ravenloft)" })
 });
 
 
@@ -2026,6 +2141,7 @@ export const DROP_TO_ONE = Object.freeze({
  *   self      the answer is aimed at nobody (a heal on self, a cloud) — no reach is measured
  *   follow    B4 — activities of the feature OFFERED on the card once the answer is driven (Misty Escape's Disappearing
  *             Step or Dreadful Step after the teleport), each a button, the pick the player's
+ *   wardAlso  RAVENLOFT — a `ward` row asked on the bearer's OWN damage too (Prowling Retribution: you or an ally)
  * A spell answers at the lowest slot held — no picker in a Reaction's window.
  */
 export const REBUKES = Object.freeze({
@@ -2112,7 +2228,26 @@ export const REBUKES = Object.freeze({
     rule: Object.freeze({ item: "Elminster's Effulgent Spheres", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofElminstersEff", benefit: "Absorb Energy" }) }),
   // Zhentarim Tactics' Retaliate: Retaliation's row on a MELEE hit alone (`hitMelee`), the answer an Opportunity Attack.
   "Zhentarim Tactics": Object.freeze({ attack: "melee", range: 5, hit: true, hitMelee: true, opportunity: true, from: "Heroes of Faerûn — general feat",
-    rule: Object.freeze({ item: "Zhentarim Tactics", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofZhentarimTact", benefit: "Retaliate" }) })
+    rule: Object.freeze({ item: "Zhentarim Tactics", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofZhentarimTact", benefit: "Retaliate" }) }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*). Prowling Retribution: an Opportunity Attack when a creature within
+  // 5 ft damages the ranger OR an ally (Zhentarim Tactics' row as a ward too — `wardAlso`), while Ghastly Form stands.
+  "Wrath of the Wild": Object.freeze({ activity: null, attack: "melee", range: 5, ward: true, wardAlso: true, opportunity: true, while: "Ghastly Form",
+    rule: Object.freeze({ item: "Wrath of the Wild", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHWWrathofth3C", benefit: "Prowling Retribution" }),
+    from: "Ranger — Hollow Warden 3 (Ravenloft)" }),
+  // Mist Walk: Misty Escape's row — a Reaction on damage, the teleport from the sheet.
+  "Mist Walker": Object.freeze({ activity: "Mist Walk", self: true,
+    caveat: "the teleport itself is the table's move; the failed-save trigger (Grappled or Restrained) is the table's",
+    rule: Object.freeze({ item: "Mist Walker", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwMistWalkerlge", benefit: "Mist Walk" }),
+    from: "Dark Gift (Ravenloft)" }),
+  // Mark of Obsession: Hellish Rebuke's row — the save at the damager within 10 ft, Frightened on the failure.
+  "Mark of Obsession": Object.freeze({ activity: null,
+    rule: Object.freeze({ item: "Mark of Obsession", uuid: "Compendium.dnd-ravenloft-horrors-within.items.Item.rhwMarkofObsesam" }),
+    from: "Blessing (Ravenloft)" }),
+  // Cold Sprint: Elemental Absorption's row on Cold alone; the move and the attack are the sheet's.
+  "Cold Sprint": Object.freeze({ activity: null, self: true, types: Object.freeze(["cold"]),
+    caveat: "the move and the Pseudopod attack with Advantage are the sheet's",
+    rule: Object.freeze({ item: "Cold Sprint", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.oaO60CxJhiY283ZQ" }),
+    from: "Ravenloft — monsters (shoggoth)" })
 });
 
 /**
@@ -2345,7 +2480,7 @@ export const CHECK_BENDS = Object.freeze({
  *   itemOnly  D1 — the effect's own item must be the row's `item` (an unattributed effect of the same name never carries it)
  * @type {Readonly<Record<string, Readonly<{match?: "effect"|"feature"|"worn", attacker: "advantage"|"disadvantage"|null,
  *   target: "advantage"|"disadvantage"|null, scope: "any"|"spell"|"weapon"|"melee"|"ranged", caveat?: string,
- *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity"|"displaced", spend?: "attack"|"save", attack?: string,
+ *   counted?: boolean, judge?: "bloodied"|"targetBloodied"|"targetDamaged"|"targetGrappled"|"targetNotActed"|"allyNearTarget"|"notIncapacitated"|"targetInSpace"|"opportunity"|"displaced"|"targetStatus", status?: string, spend?: "attack"|"save", attack?: string,
  *   only?: "source", except?: "source", side?: "caster", named?: string, against?: boolean|"attacker", plus?: number, rule: object|string|null, from: string}>>>}
  */
 export const EFFECT_BENDS = Object.freeze({
@@ -2385,9 +2520,11 @@ export const EFFECT_BENDS = Object.freeze({
   "Attacks: Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Flash of Light (monsters)",
     rule: Object.freeze({ item: "Flash of Light", uuid: "Compendium.dnd-monster-manual.features.Item.mmFlashOfLight00" }) }),
   "Attack and Save Disadvantage": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Howl (Ravenloft)",
-    rule: Object.freeze({ item: "Howl", uuid: "Compendium.dnd-monster-manual.features.Item.mmHowl0000000000" }) }),
+    saves: Object.freeze({ bend: "disadvantage" }),
+    rule: Object.freeze({ item: "Howl", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHowlA3f2I58L3" }) }),
   "Cursed (Path to the Grave)": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Path to the Grave (Ravenloft)",
-    rule: null }),
+    saves: Object.freeze({ bend: "disadvantage" }),
+    rule: Object.freeze({ item: "Path to the Grave", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSPathtotheCb" }) }),
   "Disadv. Attacks & Saves": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Sunlight (monsters)",
     rule: Object.freeze({ item: "Sunlight", uuid: "Compendium.dnd-monster-manual.features.Item.mmSunlight000000" }) }),
   "Disadv. Attacks & Checks": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Vampire Weakness (monsters)",
@@ -2824,7 +2961,20 @@ export const EFFECT_BENDS = Object.freeze({
   // Fairy Trickster's Flustered: Disadvantage on saving throws until the end of the trickster's next turn.
   "Flustered": Object.freeze({ attacker: null, target: null, scope: "any", from: "Fairy Trickster (Heroes of Faerûn)",
     saves: Object.freeze({ bend: "disadvantage" }),
-    rule: Object.freeze({ item: "Fairy Trickster", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofFairyTrickste", benefit: "Flustering Strike" }) })
+    rule: Object.freeze({ item: "Fairy Trickster", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofFairyTrickste", benefit: "Flustering Strike" }) }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*). Paranoia (Watchers): Disadvantage on D20 Tests — attacks and saves
+  // here, checks the sheet's. The bestiary: Terrorizer's Advantage against a Frightened target (`judge: "targetStatus"`),
+  // Incomprehensible Form (Displacement's row), Susceptible to Charm (a save bend against Charmed).
+  "Paranoia": Object.freeze({ attacker: "disadvantage", target: null, scope: "any", from: "Watchers (Ravenloft)",
+    saves: Object.freeze({ bend: "disadvantage" }), caveat: "counted — Disadvantage on ability checks is the sheet's",
+    rule: Object.freeze({ item: "Watchers", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwWatchersGH8OL", benefit: "Incessant Watchers" }) }),
+  "Terrorizer": Object.freeze({ match: "feature", attacker: "advantage", target: null, scope: "any", judge: "targetStatus", status: "frightened", from: "Ravenloft — monsters (dullahan)",
+    rule: Object.freeze({ item: "Terrorizer", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.S9zgzOtIPHvwUsh5" }) }),
+  "Incomprehensible Form": Object.freeze({ match: "feature", attacker: null, target: "disadvantage", scope: "any", judge: "notIncapacitated", from: "Ravenloft — monsters (unspeakable horror)",
+    rule: Object.freeze({ item: "Incomprehensible Form", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.wppJPti41TkH4BYz" }) }),
+  "Susceptible to Charm": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", from: "Ravenloft — monsters (shoggoth)",
+    saves: Object.freeze({ bend: "disadvantage", statuses: Object.freeze(["charmed"]) }),
+    rule: Object.freeze({ item: "Susceptible to Charm", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.xqj8SpNUMKvlN0D6" }) })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -2901,6 +3051,7 @@ export const DAMAGE_EITHER = Object.freeze({
  *   bonus / slotCast   the owner's levelled spell heals `bonus` more (`@slot` the cast's level), a part on the roll
  *   self      B4 (Blessed Healer): after the owner's slot-cast healing spell lands on ANOTHER creature, the owner regains
  *             `self` (`@slot` the cast's level) — its own card and receipt, once per cast
+ *   atZero    RAVENLOFT (Return to Life): a `caster` `max` row raises the dice only for a creature AT 0 Hit Points
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const HEAL_REROLLS = Object.freeze({
@@ -2927,7 +3078,12 @@ export const HEAL_REROLLS = Object.freeze({
     from: "Cleric — Life Domain 6" }),
   "Starry Form": Object.freeze({ also: "Chalice", while: "Starry Form", form: "chalice", within: 30,
     rule: Object.freeze({ item: "Starry Form", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdStarryForm", benefit: "Chalice" }),
-    from: "Druid — Circle of the Stars 3" })
+    from: "Druid — Circle of the Stars 3" }),
+  // RAVENLOFT — Return to Life (Circle of Mortality): Supreme Healing's maximum for a creature AT 0 Hit Points alone (`atZero`).
+  "Circle of Mortality": Object.freeze({ max: true, caster: true, atZero: true,
+    caveat: "healing applied with a card's own buttons, or typed on a sheet, is not raised; Spare the Dying as a Bonus Action is the sheet's",
+    rule: Object.freeze({ item: "Circle of Mortality", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSCircleofMOG", benefit: "Return to Life" }),
+    from: "Cleric — Grave Domain 3 (Ravenloft)" })
 });
 
 /**
@@ -2964,6 +3120,8 @@ export const WARD_POOLS = Object.freeze({
  *            the number is ADDED to the Initiative of the owner and every ally within `reach` feet — the combatants
  *            already rolled at once, the rest as theirs lands (a combat flag holds what is due); the activity's own
  *            consumption pays (`poolOf`: a Bardic Inspiration use). Musician's give, on the swap's seam.
+ *   reroll   RAVENLOFT (Hypervigilance): the owner's Initiative d20 at or under this face is OFFERED a reroll (the face read as
+ *            the total less the sheet's Initiative modifier); Yes rerolls it, the new roll stands; nothing regained, no use
  * ⚠ NOT A KIND — one table, one machine; Perfect Focus (C1) and Superior Inspiration (D1) are rows.
  */
 export const INITIATIVE_GRANTS = Object.freeze({
@@ -2990,7 +3148,12 @@ export const INITIATIVE_GRANTS = Object.freeze({
   // "you can" is the ask.
   "Ever-Ready Shot": Object.freeze({ regain: "Arcane Shot", unit: "Arcane Shot uses", count: 1, ask: true,
     rule: Object.freeze({ item: "Ever-Ready Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunEverreadyShot" }),
-    from: "Fighter — Arcane Archer 10 (Arcana Unleashed)" })
+    from: "Fighter — Arcane Archer 10 (Arcana Unleashed)" }),
+  // RAVENLOFT — Hypervigilance (the Survivor feat): an Initiative d20 of 9 or lower may be rerolled (`reroll`), the new roll
+  // stands; asked, no use. The key is the feat's (ALIASES → "survivor", FEATURE_TYPES → the feat, not the Fighter's).
+  "Survivor (Ravenloft)": Object.freeze({ reroll: 9, ask: true, regain: null,
+    rule: Object.freeze({ item: "Survivor", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSurvivor2zrM3", benefit: "Hypervigilance" }),
+    from: "Origin feat (Ravenloft)" })
 });
 
 /**
@@ -3051,6 +3214,37 @@ export const STORED_DICE = Object.freeze({
   "Cosmic Omen": Object.freeze({ dice: 1, die: 6, rests: Object.freeze(["long"]), tests: Object.freeze([]), omen: true,
     rule: Object.freeze({ item: "Cosmic Omen", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdCosmicOmen" }),
     from: "Druid — Circle of the Stars 6" })
+});
+
+/**
+ * THE MISHAPS (RULINGS *Ravenloft: The Horrors Within*; mishaps.js): a feature whose bearer, "immediately after you make a
+ * D20 Test and roll a 1 on the d20", makes the feature's own save — the dark gifts. Read on the EVALUATED roll hooks
+ * (an attack roll, a saving throw, an ability check or a Death Saving Throw whose kept d20 shows a 1, on the roller's client); the row's save
+ * `activity` is used at the bearer and the saves machine takes it from there (the DC and the failure's effect the pack's).
+ * Keyed by the feature. A mishap's own save is a D20 Test too: a 1 on it asks again, as the text reads.
+ *   activity  the save activity by name (as the pack spells it)
+ * ⚠ NOT A KIND — one table, one machine; a seventh dark gift is a row.
+ */
+export const MISHAPS = Object.freeze({
+  "Aberrant Anatomy": Object.freeze({ activity: "Warping Flesh",
+    rule: Object.freeze({ item: "Aberrant Anatomy", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwAberrantAnato", benefit: "Warping Flesh" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Echoing Soul": Object.freeze({ activity: "Intrusive Echos",
+    rule: Object.freeze({ item: "Echoing Soul", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwEchoingSoulGK", benefit: "Intrusive Echoes" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Gathered Whispers": Object.freeze({ activity: "Voices from Beyond",
+    rule: Object.freeze({ item: "Gathered Whispers", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwGatheredWhisp", benefit: "Voices from Beyond" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Living Shadow": Object.freeze({ activity: "Ominous Will",
+    caveat: "the Shadow's Will table at your next turn start is the table's",
+    rule: Object.freeze({ item: "Living Shadow", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwLivingShadow2", benefit: "Ominous Will" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Symbiotic Being": Object.freeze({ activity: "Symbiotic Agenda",
+    rule: Object.freeze({ item: "Symbiotic Being", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSymbioticBein", benefit: "Symbiotic Agenda" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Watchers": Object.freeze({ activity: "Incessant Watchers",
+    rule: Object.freeze({ item: "Watchers", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwWatchersGH8OL", benefit: "Incessant Watchers" }),
+    from: "Dark Gift (Ravenloft)" })
 });
 
 /** Trade Initiative with a willing ally: once every combatant has rolled, the owner is asked once per
@@ -3118,6 +3312,7 @@ export const HEAL_BLOCKS = Object.freeze({
  *   school  the spell's school ("evo");  once  "spell" (one roll per cast — Scorching Ray's rays share it) | "turn"
  *   (a turn chit, `rider` keyed `damage-rule:<key>`); absent, every roll. The pack's own Damage activities for these
  *   (measured in M0) are clicked by hand; the row is the mechanism.
+ *   spell    RAVENLOFT — a `spells` row for ONE spell by name (Death Touch's Chill Touch)
  * ⚠ NOT A KIND — one table, one machine; a second customer is a row.
  */
 export const DAMAGE_RULES = Object.freeze({
@@ -3205,7 +3400,21 @@ export const DAMAGE_RULES = Object.freeze({
     from: "Ranger — Winter Walker 3 (Heroes of Faerûn)" }),
   "Spellfire Adept": Object.freeze({ key: "spellfire-adept", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["radiant"]),
     rule: Object.freeze({ item: "Spellfire Adept", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSpellfireAdep", benefit: "Searing Spellfire" }),
-    from: "Heroes of Faerûn — general feat" })
+    from: "Heroes of Faerûn — general feat" }),
+  // RAVENLOFT (RULINGS *Ravenloft: The Horrors Within*) — the ignored Resistances: Death Touch (Touch of Death) on Chill Touch's
+  // Necrotic alone (`spell`); Grave Touched's Arcane Necrosis on the warlock's Necrotic. Power from Beyond: 1d6 on a Bard spell's
+  // damage once per turn (B4's spell bonus; the healing half and "with a spell slot" are the table's).
+  "Touch of Death": Object.freeze({ key: "touch-of-death", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["necrotic"]), spells: true, spell: "Chill Touch",
+    rule: Object.freeze({ item: "Touch of Death", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwTouchofDeathA", benefit: "Death Touch" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Grave Touched": Object.freeze({ key: "grave-touched", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["necrotic"]),
+    caveat: "the Necrotic type swap and Dreaded Necrosis' extra die are the table's",
+    rule: Object.freeze({ item: "Grave Touched", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwUPGraveToucq1", benefit: "Arcane Necrosis" }),
+    from: "Warlock — Undead Patron 6 (Ravenloft)" }),
+  "Empowered Channeling": Object.freeze({ key: "empowered-channeling", gate: "always", feat: true, spells: true, classes: Object.freeze(["bard"]), bonus: "1d6", once: "turn",
+    caveat: "a healing spell's 1d6, and \"with a spell slot\", are the table's",
+    rule: Object.freeze({ item: "Empowered Channeling", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSEmpoweredtO", benefit: "Power from Beyond" }),
+    from: "Bard — College of Spirits 6 (Ravenloft)" })
 });
 
 /** What raises a repeated save — the closed set the R4 tripwire counts (repeat-saves.js). */
@@ -3377,7 +3586,16 @@ export const REPEAT_SAVES = Object.freeze({
   // HEROES OF FAERÛN — Strike Fear's Terrify: the Frightened repeats at the creature's turn end against the Terrify save.
   "Strike Fear": Object.freeze({ effect: "Strike Fear: Terrify", activity: "Terrify", on: Object.freeze(["turnEnd"]),
     rule: Object.freeze({ item: "Strike Fear", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSotStrikeFear", benefit: "Terrify" }),
-    from: "Rogue — Scion of the Three 9 (Heroes of Faerûn)" })
+    from: "Rogue — Scion of the Three 9 (Heroes of Faerûn)" }),
+  // RAVENLOFT — the dark gifts' landed effects: Paranoia (Watchers) repeats at the bearer's turn end; Symbiotic Agenda's Charmed
+  // whenever damage lands on the bearer.
+  "Watchers": Object.freeze({ effect: "Paranoia", activity: "Incessant Watchers", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Watchers", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwWatchersGH8OL", benefit: "Incessant Watchers" }),
+    from: "Dark Gift (Ravenloft)" }),
+  "Symbiotic Being": Object.freeze({ effect: "Symbiotic Agenda (Charmed)", activity: "Symbiotic Agenda", on: Object.freeze(["damaged"]),
+    caveat: "the DM's save for acting against the agenda is the table's",
+    rule: Object.freeze({ item: "Symbiotic Being", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwSymbioticBein", benefit: "Symbiotic Agenda" }),
+    from: "Dark Gift (Ravenloft)" })
 });
 
 /**
@@ -3492,7 +3710,13 @@ export const TURN_GRANTS = Object.freeze({
   // own turn start, rolled on the caster's numbers; the repeat at its turn end is REPEAT_SAVES'.
   "Festering Blast": Object.freeze({ effect: "Poisoned", activity: "Ongoing Poison Damage", on: "turnStart", deals: true,
     rule: Object.freeze({ item: "Festering Blast", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunFesteringBlzT" }),
-    from: "Arcana Unleashed — level 4 spell (Concentration, 1 minute)" })
+    from: "Arcana Unleashed — level 4 spell (Concentration, 1 minute)" }),
+  // RAVENLOFT — Ravenous Bites: Spores' row on the swarm's attack — the Poisoned creature takes the trait's 1d8 at each of its
+  // turn starts (the trait's own damage activity, unnamed: the first).
+  "Ravenous Bites": Object.freeze({ effect: "Poisoned", activity: null, on: "turnStart", deals: true,
+    caveat: "\"ends early if a spell or effect restores Hit Points\" and the death at 0 are the table's",
+    rule: Object.freeze({ item: "Ravenous Bites", uuid: "Compendium.dnd-ravenloft-horrors-within.actors.Item.Gf86wgOqCghVGdJd" }),
+    from: "Ravenloft — monsters (swarm of ravenous insects)" })
 });
 
 /**
@@ -3582,6 +3806,10 @@ export const DAMAGE_SHARES = Object.freeze({
  *           `within` feet of the fallen, the feature's own heal activity lands on the bearer (`temphp`: its
  *           Temporary Hit Points, which never stack) — receipted, no choice (R1). A drop no card dealt (a sheet
  *           edit) names no dealer and pays nothing (RULINGS *Where the table bends the rule*)
+ *   RAVENLOFT: a `kill` row's `pick` (with `within`, `self`) OFFERS the heal to one creature in reach instead of landing it on
+ *           the bearer (Keeper of Souls), `uses` the feature's own, never while Incapacitated; `on: "hit"` — the bearer's own
+ *           attack lands damage: `activity` rolled on the bearer and landed on it, `while` an effect it must wear, `bloodied`
+ *           at half or fewer, `once: "turn"` a turn chit (Hungering Might)
  * Not a kind: one machine, rows of data.
  */
 export const HEAL_ON_HIT = Object.freeze({
@@ -3601,7 +3829,18 @@ export const HEAL_ON_HIT = Object.freeze({
   // ARCANA UNLEASHED — Enervation: Vampiric Touch's row (half the Necrotic landed, the cast's and each Drain Life's).
   "Enervation": Object.freeze({ share: 0.5, type: "necrotic",
     rule: Object.freeze({ item: "Enervation", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunEnervationNxK" }),
-    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" })
+    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" }),
+  // RAVENLOFT — Keeper of Souls: an enemy dies within 60 ft; the heal (twice the cleric's level) OFFERED to one creature within
+  // 60 ft, the cleric too (`pick`, the rest song's popup); the feature's use spent (once per Short Rest); not while Incapacitated.
+  "Divine Reaper": Object.freeze({ on: "kill", within: 60, pick: true, self: true, uses: true, activity: "Keeper of Souls",
+    caveat: "the level 6+ slot that restores the use is the sheet's",
+    rule: Object.freeze({ item: "Divine Reaper", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwCSDivineRea8I", benefit: "Keeper of Souls" }),
+    from: "Cleric — Grave Domain 17 (Ravenloft)" }),
+  // Hungering Might (Wrath of the Wild's own heal activity): on the ranger's hit while Ghastly Form stands and the ranger is
+  // Bloodied, 1d10 + Wis regained, once per turn (`on: "hit"`).
+  "Wrath of the Wild": Object.freeze({ on: "hit", activity: "Hungering Might", while: "Ghastly Form", bloodied: true, once: "turn",
+    rule: Object.freeze({ item: "Wrath of the Wild", uuid: "Compendium.dnd-ravenloft-horrors-within.options.Item.rhwHWWrathofth3C", benefit: "Hungering Might" }),
+    from: "Ranger — Hollow Warden 7 (Ravenloft)" })
 });
 
 /**
@@ -3769,7 +4008,10 @@ export const INTERRUPTS = Object.freeze([
   // Arcana Unleashed
   row("Go to Ground", "damage"), row("Arcane Omens", "roll"), row("Transmuted Anatomy", "roll"), row("Spell Resistant", "roll"),
   // Heroes of Faerûn
-  row("Elemental Rebuke", "damage"), row("Shared Resilience", "roll")
+  row("Elemental Rebuke", "damage"), row("Shared Resilience", "roll"),
+  // RAVENLOFT
+  row("Sentinel at Death's Door", "damage"), row("Deflect Blow", "damage"),
+  row("Survivor (Ravenloft)", "roll"), row("Symbiotic Being", "roll"), row("Knowledge from a Past Life", "roll")
 ]);
 /** Which spells a reaction stops outright. */
 export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);
@@ -3826,6 +4068,7 @@ export const emanationEntries = () => everyRow(Object.keys(EMANATIONS));
 export const damageShieldEntries = () => everyRow(Object.keys(DAMAGE_SHIELDS));
 export const initiativeSwapEntries = () => everyRow(Object.keys(INITIATIVE_SWAPS));
 export const initiativeGrantEntries = () => everyRow(Object.keys(INITIATIVE_GRANTS));
+export const mishapEntries = () => everyRow(Object.keys(MISHAPS));
 export const castRiderEntries = () => everyRow(Object.keys(CAST_RIDERS));
 export const storedDiceEntries = () => everyRow(Object.keys(STORED_DICE));
 export const kitTendEntries = () => everyRow(Object.keys(KIT_TENDS));

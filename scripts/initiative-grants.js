@@ -40,7 +40,7 @@ function healFormulaOf(actor, activity) {
 }
 
 /** The listed rows this actor's sheet holds, each with what it would do now. */
-function grantsFor(actor) {
+function grantsFor(actor, combatant = null) {
   const on = listedNames(initiativeGrantEntries());
   const out = [];
   for ( const [name, row] of Object.entries(INITIATIVE_GRANTS) ) {
@@ -55,6 +55,14 @@ function grantsFor(actor) {
       try { formula = activity?.roll?.formula ? Roll.replaceFormulaData(String(activity.roll.formula), actor.getRollData()) : null; } catch { formula = null; }
       if ( !activity || !pool || !formula || !Roll.validate(formula) || !(Number(pool.system?.uses?.value ?? 0) > 0) ) continue;
       out.push({ name, row, item, regain: null, heal: null, give: { activity, pool, formula } });
+      continue;
+    }
+    // RAVENLOFT — `reroll` (Hypervigilance): the Initiative d20 at or under the face is offered a reroll — the face read as the
+    // total less the sheet's Initiative modifier (the roll itself has no card the module may trust).
+    if ( row.reroll ) {
+      const total = Number(combatant?.initiative);
+      const face = Number.isFinite(total) ? total - (Number(actor.system?.attributes?.init?.total) || 0) : NaN;
+      if ( Number.isFinite(face) && (face <= Number(row.reroll)) ) out.push({ name, row, item, regain: null, heal: null, reroll: { face } });
       continue;
     }
     const regain = featureNamed(actor, row.regain);
@@ -119,7 +127,7 @@ async function readFor(combat, combatant) {
   reading.add(key);
   try {
     // Read the sheet NOW, post, then latch: the in-memory guard covers the posting, the flag every later roll.
-    for ( const g of grantsFor(actor) ) await post(combat, combatant, actor, g);
+    for ( const g of grantsFor(actor, combatant) ) await post(combat, combatant, actor, g);
     await combat.update({ [`flags.${MODULE_ID}.${INITIATIVE_READ_FLAG}.${combatant.id}`]: true });
   } catch(err) {
     console.error(`${TITLE} | The Initiative grants could not be read — regain them from the sheet.`, err);
@@ -128,7 +136,7 @@ async function readFor(combat, combatant) {
   }
 }
 
-async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null, fallback = null }) {
+async function post(combat, combatant, actor, { name, row, item, regain, heal, give = null, fallback = null, reroll = null }) {
   const r = usesOf(regain);
   const formula = give ? give.formula : heal ? healFormulaOf(actor, heal) : null;
   if ( heal && !formula ) console.warn(`${TITLE} | ${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
@@ -143,10 +151,13 @@ async function post(combat, combatant, actor, { name, row, item, regain, heal, g
     ...(row.count ? { count: Number(row.count) } : {}),
     ...(fallback ? { fallback: { row: fallback.name, itemId: fallback.item.id, regainId: fallback.regain?.id ?? null, upTo: Number(fallback.row.upTo) || null, unit: fallback.row.unit ?? null } } : {}),
     ...(give ? { give: true, reach: row.reach ?? 30, activityId: give.activity.id, poolId: give.pool.id, poolName: give.pool.name } : {}),
+    ...(reroll ? { reroll: { face: reroll.face, under: Number(row.reroll), from: Number(combatant.initiative) } } : {}),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
   await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor, token: combatant.token }),
-    content: bfCard({ img: item.img, eyebrow: "Initiative", tone: row.ask ? "pending" : "good", title: row.ask ? `${name} — use it now?` : name }),
+    content: bfCard({ img: item.img, eyebrow: "Initiative", tone: row.ask ? "pending" : "good",
+      title: reroll ? `${row.rule?.benefit ?? name} — reroll the Initiative?` : row.ask ? `${name} — use it now?` : name,
+      ...(reroll ? { subtitle: `the d20 shows ${reroll.face} (${reroll.face <= 9 ? "9 or lower" : "low"}) — the new roll stands` } : {}) }),
     flags: { [MODULE_ID]: { [INITIATIVE_GRANT_FLAG]: flag } }
   });
 }
@@ -228,6 +239,15 @@ async function landGrant(message) {
     const actor = resolveUuid(flag.actorUuid);
     const item = actor?.items?.get(flag.itemId);
     if ( flag.give ) { Object.assign(record, await giveToAllies(flag, actor, item)); return; }
+    // RAVENLOFT — `reroll` (Hypervigilance): the combatant's Initiative rolled again, the new roll stands (the read is latched).
+    if ( flag.reroll ) {
+      const combat = game.combats.get(flag.combatId);
+      const c = combat?.combatants.get(flag.combatantId);
+      if ( !c ) throw new Error("the combatant is gone");
+      await combat.rollInitiative([c.id], { updateTurn: false });
+      record.rerolled = { from: flag.reroll.from, to: Number(combat.combatants.get(c.id)?.initiative) };
+      return;
+    }
     const regain = actor?.items?.get(flag.regainId);
     if ( !(actor instanceof Actor) || !item || !regain ) throw new Error("the feature left the sheet");
     const own = usesOf(item);

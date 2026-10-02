@@ -64,6 +64,7 @@ export const ORDER = Object.freeze([
   "hew",
   "command",            // the last maneuver row, above the saves rows
   "rebukes",
+  "mishaps",            // a dark gift's save after a 1 on the d20 — read after the record hooks, before the damage seams
   "damage-shares",      // the bond's share on the damage that landed — the rebukes' seam
   "heal-on-hit",        // the caster's heal on the damage that landed — the same seam
   "drains",             // the target's fall on the damage that landed — the same seam (Life Drain)

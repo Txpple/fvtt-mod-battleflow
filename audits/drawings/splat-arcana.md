@@ -146,7 +146,7 @@ text trips no combat family, NATIVE otherwise. `| **Row** | NATIVE / MODULE / RO
 | **Evocation Sculptor** | WAITS | Sculpt Spells' protect ask on a monster trait — `METAMAGIC` `asks: "careful"` with no class, its first customer |
 | **Spell Mimicry** | NATIVE | the save; the follow-up damage at the end of the target's next turn is the table's |
 | **Brain Drain** | NATIVE | the attack and the save; the slot expended is the table's |
-| **Spore Spray** | WAITS | the extra damage on an already-Poisoned target — a `CLOCK_RIDERS` judge on the target's status, its first customer |
+| **Spore Spray** | WAITS | the extra damage on an already-Poisoned target — `CLOCK_RIDERS` `targetStatus` exists since Ravenloft's Ominous Strikes; the trait's activity shape is unmeasured, the row waits the measure |
 | **Gore** | NATIVE | the Moving Attack is the pack's own activity |
 | **Arcane Immortality** | TEXT | narrative |
 | **Fiendish Restoration** | TEXT | narrative |

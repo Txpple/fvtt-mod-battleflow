@@ -17,8 +17,13 @@ export const COVERS = [
   'hold/lookup.js',         // §7 — Elemental Rebuke on the hold (the half, the save at the attacker)
   'hold/answer.js',         // §7 — the Cast answer
   'bystanders.js',          // §8 — Shared Resilience: a friend's failed save rerolled with the fighter's level
-  'clock-riders.js',        // §9 — Polar Strikes' die on a weapon hit
-  'damage-rules.js'         // §9 — Biting Cold: the Cold ignores Resistance
+  'clock-riders.js',        // §9 — Polar Strikes' die on a weapon hit; §13 Ominous Strikes against a Frightened target
+  'damage-rules.js',        // §9 — Biting Cold: the Cold ignores Resistance
+  // RAVENLOFT: THE HORRORS WITHIN
+  'mishaps.js',             // §11 — a 1 on the d20 demands the dark gift's save (Warping Flesh)
+  'drop-to-one.js',         // §12 — Strength of the Grave: the drop held while the Charisma save rolls, the Hit Points SET on a success
+  'heal-on-hit.js',         // §14 — Hungering Might: the heal on the ranger's own hit while Ghastly Form stands, Bloodied, once per turn
+  'reminders.js'            // §15 — Terrorizer: Advantage against a Frightened target
 ];
 
 const SECTIONS = {
@@ -32,7 +37,15 @@ const SECTIONS = {
   7: 'ELEMENTAL REBUKE: the Halfling lent it (1 use); the Attacker\'s hit opens the hold popup with the rebuke; Cast halves the damage on the receipt, spends the use and demands the Attacker\'s Dexterity save (it fails and takes the Rebuke\'s own damage)',
   8: 'SHARED RESILIENCE: the PC Attacker lent it and Indomitable (2 uses), 10 ft from the Halfling; the Halfling FAILS a demanded save — the fighter\'s bystander popup; Answer rerolls the Halfling\'s d20 and adds the fighter\'s level, an Indomitable use spent',
   9: 'FRIGID EXPLORER: the PC Attacker lent it; a Longsword hit\'s offer carries the ticked "Polar Strikes" (its cold die rides); the Victim with Cold Resistance takes the cold in FULL (Biting Cold ignores it)',
-  10: 'CHILLING RETRIBUTION: the Halfling lent it (1 use); the Attacker\'s hit offers the rebuke; Use demands the Attacker\'s Wisdom save through the saves machine — a failure lands Stunned on the Attacker'
+  10: 'CHILLING RETRIBUTION: the Halfling lent it (1 use); the Attacker\'s hit offers the rebuke; Use demands the Attacker\'s Wisdom save through the saves machine — a failure lands Stunned on the Attacker',
+  // RAVENLOFT: THE HORRORS WITHIN (RULINGS *Ravenloft: The Horrors Within*)
+  11: 'THE MISHAPS: the Halfling lent Aberrant Anatomy; a Dexterity save rolling a 1 demands Warping Flesh\'s Constitution save of the Halfling (the mishap card); a save rolling a 12 demands nothing',
+  12: 'STRENGTH OF THE GRAVE: the Halfling lent Power of Shadow at 2 HP; the hit that drops it rolls the Charisma save (DC 5 + the damage) — a FAILURE lands the 0 and spends nothing; a SUCCESS keeps it up and spends the use',
+  13: 'OMINOUS STRIKES: the PC Attacker lent Ancient Might (Wis 16); a Longsword hit on the FRIGHTENED Victim offers "Ominous Strikes — +3"; not Frightened, no row',
+  14: 'HUNGERING MIGHT: the PC Attacker lent Wrath of the Wild, Ghastly Form on, at 5 of 20 HP; in a combat a Longsword hit heals it 1d10 + Wis (the heal-on-hit card); a second hit the same turn heals nothing more',
+  15: 'TERRORIZER: the Attacker lent the dullahan\'s Terrorizer; its attack on the FRIGHTENED Halfling records the bend (Advantage); not Frightened, none',
+  16: 'HYPERVIGILANCE: the PC Attacker lent the Survivor feat; an Initiative whose d20 shows 4 asks "reroll?"; Yes rerolls it, the record says so',
+  17: 'STEEL YOURSELF: the PC Attacker lent the Survivor feat; the Attacker\'s Fear save FAILS by 1 — the popup asks; Answer adds the Proficiency Bonus and the save passes, the Reaction spent'
 };
 const DEPENDS = {};
 
@@ -702,6 +715,341 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         await attacker.update({ 'system.abilities.wis.save.roll.bonus': priorActor[attacker.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
         if (chill) await unlend(halfling, chill);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ==== RAVENLOFT: THE HORRORS WITHIN ====
+    const RHW = 'Compendium.dnd-ravenloft-horrors-within.options.Item.';
+    // a monster's trait, lent off the book's bestiary actor by name (an actor pack's items have no uuid of their own to lend by)
+    const lendTrait = async (actor, actorName, traitName) => {
+      const pack = game.packs.get('dnd-ravenloft-horrors-within.actors');
+      const entry = pack?.index.find(e => e.name === actorName) ?? null;
+      const monster = entry ? await pack.getDocument(entry._id) : null;
+      const trait = monster?.items?.getName?.(traitName) ?? null;
+      if (!trait) { log.push(`this box ships no ${actorName}'s ${traitName}`); return null; }
+      const data = trait.toObject();
+      const [item] = await actor.createEmbeddedDocuments('Item', [data]);
+      lentBy.set(actor, [...(lentBy.get(actor) ?? []), item.id]);
+      return actor.items.get(item.id);
+    };
+    const setStatus = async (actor, id, active) => { if (actor.statuses.has(id) !== active) await actor.toggleStatusEffect(id, { active }); await sleep(200); };
+
+    // ---- 11. The mishaps — a 1 on the d20
+    if (want(11)) {
+      const gift = await lendUuid(halfling, `${RHW}rhwAberrantAnato`);
+      try {
+        if (!gift) log.push('§11 skipped: no Aberrant Anatomy on this box');
+        else {
+          await set('saveRolls', 'auto');
+          const t0 = Date.now();
+          faces([[1, 20], [15, 20]]);   // the test's 1, then the mishap save's 15
+          await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
+          const card = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'mishap')) ?? null, 8000);
+          const mish = card?.getFlag(MOD, 'mishap');
+          const saves = await waitFor(() => card?.getFlag(MOD, 'saves') ?? null, 6000);
+          CONFIG.Dice.randomUniform = realPRNG;
+          ok('11a. a Dexterity save rolling a 1: Warping Flesh demanded of the Halfling — the mishap card names the test, a Constitution save at the pack\'s DC',
+            !!card && (mish?.row === 'Aberrant Anatomy') && (mish?.face === 1) && /saving throw/.test(mish?.test ?? '') && !!saves && (saves.abilities?.[0] === 'con')
+              && (Number(saves.dc) > 0) && !!saves.targets?.some(x => x.uuid === halfling.uuid),
+            `card=${!!card} mishap=${JSON.stringify(mish ?? null).slice(0, 200)} saves=${JSON.stringify({ abilities: saves?.abilities, dc: saves?.dc, targets: saves?.targets?.map(x => [x.name, x.outcome]) })}`);
+          const t1 = Date.now();
+          faces([[12, 20]]);
+          await halfling.rollSavingThrow({ ability: 'dex' }, { configure: false }, {});
+          CONFIG.Dice.randomUniform = realPRNG;
+          await sleep(1500);
+          const extra = game.messages.contents.filter(m => (m.timestamp >= t1) && m.getFlag(MOD, 'mishap')).length;
+          ok('11b. a save rolling a 12: no mishap', extra === 0, `cards=${extra}`);
+        }
+      } finally {
+        await closeOurs();
+        for (const e of halfling.effects.filter(e => /Warping Flesh/.test(e.name) || e.statuses?.has?.('stunned'))) await e.delete().catch(() => {});
+        if (gift) await unlend(halfling, gift);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 12. Strength of the Grave — the drop held by the dice, the use spent on the success alone
+    if (want(12)) {
+      const power = await lendUuid(halfling, `${RHW}rhwSSPowerofShNG`, { 'system.uses.max': '1', 'system.uses.spent': 0 });
+      keep(halfling, { 'system.abilities.cha.save.roll.bonus': halfling.system._source.abilities?.cha?.save?.roll?.bonus ?? '' });
+      try {
+        if (!power) log.push('§12 skipped: no Power of Shadow on this box');
+        else {
+          const spent = () => Number(halfling.items.get(power.id)?.system?.uses?.spent ?? NaN);
+          const dropOnce = async (bonus) => {
+            for (const e of halfling.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {});
+            await halfling.update({ 'system.attributes.hp.value': 2, 'system.attributes.hp.temp': 0, 'system.abilities.cha.save.roll.bonus': bonus });
+            const t0 = Date.now();
+            const r0 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
+            if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
+            const drop = await waitFor(() => since(t0, 'dropToOne').find(m => m.getFlag(MOD, 'dropToOne')?.row === 'Power of Shadow') ?? null, 10000);
+            await sleep(800);
+            return drop?.getFlag(MOD, 'dropToOne') ?? null;
+          };
+          const failed = await dropOnce('-30');
+          ok('12a. the hit that drops the Halfling to 0: Strength of the Grave\'s Charisma save rolls (DC 5 + the damage); it FAILS — 0 lands, the use is NOT spent (the success alone spends it)',
+            !!failed && (failed.answer === 'failed') && (failed.save?.ability === 'cha') && (hp(halfling) === 0) && (spent() === 0),
+            `flag=${JSON.stringify(failed).slice(0, 240)} hp=${hp(halfling)} spent=${spent()}`);
+          const saved = await dropOnce('+30');
+          await waitFor(() => spent() === 1, 6000);
+          ok('12b. the same drop, the save SUCCEEDS: the Halfling stays up (its Hit Points set to Cha + the sorcerer level — at least the held 1), the use spent',
+            !!saved && (saved.answer === 'saved') && (hp(halfling) >= 1) && (spent() === 1),
+            `flag=${JSON.stringify(saved).slice(0, 240)} hp=${hp(halfling)} spent=${spent()}`);
+        }
+      } finally {
+        await closeOurs();
+        for (const e of halfling.effects.filter(e => ['Dead', 'Unconscious'].includes(e.name))) await e.delete().catch(() => {});
+        await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0, 'system.abilities.cha.save.roll.bonus': priorActor[halfling.id]['system.abilities.cha.save.roll.bonus'] }).catch(() => {});
+        if (power) await unlend(halfling, power);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 13. Ominous Strikes — the Wisdom modifier against a Frightened target
+    if (want(13)) {
+      const might = await lendUuid(pcAttacker, `${RHW}rhwHWAncientMibA`);
+      const sword = await lendUuid(pcAttacker, `${PHB}phbwepLongsword0`);
+      keep(pcAttacker, { 'system.abilities.wis.value': pcAttacker.system._source.abilities?.wis?.value ?? 10 });
+      try {
+        if (!might || !sword) log.push(`§13 skipped: might=${!!might} sword=${!!sword}`);
+        else {
+          await pcAttacker.update({ 'system.abilities.wis.value': 16 });
+          await victim.update({ 'system.attributes.hp.value': 400 });
+          await setStatus(victim, 'frightened', true);
+          const r0 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken);
+          const row = r0.offer?.element?.querySelector('[data-bf-rider-row="ancient-might-ominous-strikes"]');
+          ok('13a. a Longsword hit on the FRIGHTENED Victim: the offer\'s ticked row "Ominous Strikes — +3" (the Wisdom modifier, the weapon\'s type)',
+            !!r0.offer && !!row && /Ominous Strikes/.test(textOf(row)) && /\+?3\b/.test(textOf(row)),
+            `offer=${!!r0.offer} row="${textOf(row).slice(0, 160)}"`);
+          const dmg = await rollOffer(r0.offer, r0.msg);
+          await sleep(400);
+          const rode = (dmg?.getFlag(MOD, 'clockRiders')?.riders ?? []).some(r => r.key === 'ancient-might-ominous-strikes');
+          ok('13b. the +3 rides the damage (the clockRiders record names it)', !!dmg && rode, `dmg=${!!dmg} riders=${JSON.stringify(dmg?.getFlag(MOD, 'clockRiders')?.riders?.map(r => r.key) ?? null)}`);
+          await setStatus(victim, 'frightened', false);
+          const r1 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken, 19, { offerWait: 2500 });
+          const row1 = r1.offer?.element?.querySelector('[data-bf-rider-row="ancient-might-ominous-strikes"]');
+          ok('13c. the Victim no longer Frightened: no Ominous Strikes row', !row1 || /not frightened/i.test(textOf(row1)), `offer=${!!r1.offer} row="${textOf(row1).slice(0, 120)}"`);
+          if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
+        }
+      } finally {
+        await closeOurs();
+        await setStatus(victim, 'frightened', false);
+        await victim.update({ 'system.attributes.hp.value': 400 }).catch(() => {});
+        await pcAttacker.update({ 'system.abilities.wis.value': priorActor[pcAttacker.id]['system.abilities.wis.value'] }).catch(() => {});
+        for (const it of [might, sword]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 14. Hungering Might — the heal on the ranger's own hit while the form stands, Bloodied, once per turn
+    if (want(14)) {
+      const wrath = await lendUuid(pcAttacker, `${RHW}rhwHWWrathofth3C`);
+      const sword = await lendUuid(pcAttacker, `${PHB}phbwepLongsword0`);
+      keep(pcAttacker, { 'system.attributes.hp.value': pcAttacker.system._source.attributes.hp.value });
+      let combat = null;
+      try {
+        if (!wrath || !sword) log.push(`§14 skipped: wrath=${!!wrath} sword=${!!sword}`);
+        else {
+          // the form is an ENCHANTMENT the feature puts on itself ("Transform Self"): the applied copy made by hand (the sheet's
+          // use consumes a Favored Enemy the fixture has none of, and its enchant flow waits on a drop)
+          const item = pcAttacker.items.get(wrath.id);
+          const transform = item?.system?.activities?.find(a => a.name === 'Transform Self') ?? null;
+          const applied = () => item?.effects?.find(e => (e.name === 'Ghastly Form') && e.isAppliedEnchantment && !e.disabled) ?? null;
+          // ⚠ never `use` the enchant here: its drop-an-item flow waits on a hand the suite has none of
+          if (!applied()) {
+            const template = item?.effects?.find(e => (e.name === 'Ghastly Form') && (e.type === 'enchantment')) ?? null;
+            if (template) {
+              const data = template.toObject(); delete data._id;
+              data.origin = transform?.uuid ?? item.uuid; data.disabled = false;
+              await item.createEmbeddedDocuments('ActiveEffect', [data]);
+              await sleep(300);
+            }
+          }
+          const form = applied();
+          await pcAttacker.update({ 'system.attributes.hp.value': 5 });
+          await victim.update({ 'system.attributes.hp.value': 400 });
+          const [c] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          combat = c; created.combats.push(c.id);
+          await c.createEmbeddedDocuments('Combatant', [
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 20 },
+            { tokenId: victimToken.document.id, sceneId: scene.id, actorId: victim.id, initiative: 10 }]);
+          await c.startCombat();
+          await sleep(400);
+          const t0 = Date.now();
+          const r0 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken);
+          if (r0.offer) await rollOffer(r0.offer, r0.msg); else await settleDamage(r0.msg);
+          const heal = await waitFor(() => game.messages.contents.find(m => (m.timestamp >= t0) && m.getFlag(MOD, 'healOnHit')?.hit && (m.getFlag(MOD, 'healOnHit')?.casterUuid === pcAttacker.uuid)) ?? null, 8000);
+          await waitFor(() => hp(pcAttacker) > 5, 6000);
+          const f = heal?.getFlag(MOD, 'healOnHit');
+          ok('14a. Ghastly Form on, Bloodied: the Longsword hit heals the ranger 1d10 + Wis (the heal-on-hit card, the receipt on it)',
+            !!form && !!heal && (f?.key === 'Wrath of the Wild') && (Number(f?.amount) > 0) && (hp(pcAttacker) === Math.min(20, 5 + Number(f?.amount))),
+            `form=${!!form} card=${!!heal} flag=${JSON.stringify(f ?? null).slice(0, 200)} hp=${hp(pcAttacker)}`);
+          const before = hp(pcAttacker);
+          const t1 = Date.now();
+          const r1 = await strike(pcToken, attackOf(pcAttacker, sword), victimToken);
+          if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
+          await sleep(1500);
+          const second = game.messages.contents.filter(m => (m.timestamp >= t1) && m.getFlag(MOD, 'healOnHit')?.hit).length;
+          ok('14b. a second hit the same turn: once per turn — no second heal, the Hit Points unchanged', (second === 0) && (hp(pcAttacker) === before), `cards=${second} hp=${before}→${hp(pcAttacker)}`);
+        }
+      } finally {
+        await closeOurs();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        for (const e of pcAttacker.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'rider'))) await e.delete().catch(() => {});
+        // the aura's Frightened on whoever stood inside at the ranger's turn start
+        for (const a of [attacker, victim, halfling]) for (const e of a.effects.filter(e => e.statuses?.has?.('frightened') && String(e.origin ?? '').startsWith(pcAttacker.uuid))) await e.delete().catch(() => {});
+        await pcAttacker.update({ 'system.attributes.hp.value': priorActor[pcAttacker.id]['system.attributes.hp.value'] }).catch(() => {});
+        await victim.update({ 'system.attributes.hp.value': 400 }).catch(() => {});
+        for (const it of [wrath, sword]) if (it) await unlend(pcAttacker, it);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 15. Terrorizer — Advantage against a Frightened target (the attack gate's bend)
+    if (want(15)) {
+      const terror = await lendTrait(attacker, 'Dullahan', 'Terrorizer');
+      try {
+        if (!terror) log.push('§15 skipped: no Terrorizer on this box');
+        else {
+          await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
+          await setStatus(halfling, 'frightened', true);
+          await setStatus(attacker, 'frightened', false);   // a stray Frightened on the Attacker would read as its own Disadvantage
+          // THE GATE lives in the roll dialog ("no dialog, no gate"): the attack rolls configured, the suite reads the gate's
+          // section and presses its highlighted default, as a hand would (smoke-reminders' pattern).
+          attackerToken.control({ releaseOthers: true });
+          halflingToken.setTarget(true, { releaseOthers: true });
+          await sleep(80);
+          faces([[19, 20], [19, 20], [3, 6], [3, 6], [3, 6]]);
+          const act = attackOf(attacker, hWeapon);
+          const usage = await act.use({ subsequentActions: false }, { configure: false }, {});
+          const rolling = act.rollAttack({}, { configure: true }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const dialog = await waitFor(() => [...foundry.applications.instances.values()].find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element?.querySelector('[data-bf-reminder]')) ?? null, 6000);
+          const gateText = textOf(dialog?.element?.querySelector('[data-bf-reminder]'));
+          const def = dialog?.element?.querySelector('button[autofocus]')?.dataset?.action ?? null;
+          ok('15a. the Attacker\'s attack on the FRIGHTENED Halfling: the gate opens with Terrorizer, Advantage the highlighted default',
+            !!dialog && /Terrorizer/.test(gateText) && /Advantage/.test(gateText) && (def === 'advantage'), `dialog=${!!dialog} default=${def} text="${gateText.slice(0, 160)}"`);
+          (dialog?.element?.querySelector('button[autofocus]') ?? dialog?.element?.querySelector('[data-application-part="buttons"] button[data-action="advantage"]'))?.click();
+          const rolls = await Promise.race([rolling, sleep(15000)]);
+          const msg = rolls?.[0]?.parent ?? null;
+          const r0 = { msg, offer: null };
+          if (msg) await settleDamage(msg);
+          const rem = r0.msg?.getFlag(MOD, 'reminder');
+          ok('15a2. the attack\'s record names Terrorizer among the sources, the net Advantage (two d20, the higher kept)',
+            !!rem && (rem.sources ?? []).some(s => /Terrorizer/.test(s.label ?? '')) && (rem.net === 'advantage') && ((r0.msg?.rolls?.[0]?.dice?.[0]?.number ?? 1) === 2),
+            `record=${JSON.stringify(rem ?? null).slice(0, 240)} d20s=${r0.msg?.rolls?.[0]?.dice?.[0]?.number}`);
+          await setStatus(halfling, 'frightened', false);
+          const r1 = await strike(attackerToken, attackOf(attacker, hWeapon), halflingToken, 19, { offerWait: 2500 });
+          if (r1.offer) await rollOffer(r1.offer, r1.msg); else await settleDamage(r1.msg);
+          const rem1 = r1.msg?.getFlag(MOD, 'reminder');
+          ok('15b. the Halfling no longer Frightened: no Terrorizer source', !(rem1?.sources ?? []).some(s => /Terrorizer/.test(s.label ?? '')), `record=${JSON.stringify(rem1 ?? null).slice(0, 160)}`);
+        }
+      } finally {
+        await closeOurs();
+        await setStatus(halfling, 'frightened', false);
+        await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 }).catch(() => {});
+        if (terror) await unlend(attacker, terror);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 16. Hypervigilance — the Initiative d20 of 9 or lower offered a reroll
+    if (want(16)) {
+      const surv = await lendUuid(pcAttacker, `${RHW}rhwSurvivor2zrM3`);
+      let combat = null;
+      try {
+        if (!surv) log.push('§16 skipped: no Survivor on this box');
+        else {
+          const [c] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          combat = c; created.combats.push(c.id);
+          await c.createEmbeddedDocuments('Combatant', [{ tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id }]);
+          const pcC = c.combatants.find(x => x.actorId === pcAttacker.id);
+          const mod = Number(pcAttacker.system.attributes.init.total) || 0;
+          const t0 = Date.now();
+          await c.setInitiative(pcC.id, mod + 4);   // the d20 reads as a 4
+          const card = await waitFor(() => since(t0, 'initiativeGrant').find(m => m.getFlag(MOD, 'initiativeGrant')?.row === 'Survivor (Ravenloft)') ?? null, 8000);
+          const pop = await waitFor(() => titled(/^Survivor \(Ravenloft\) — /), 6000);
+          const f = card?.getFlag(MOD, 'initiativeGrant');
+          ok('16a. the PC Attacker\'s Initiative (the d20 a 4) asks "reroll the Initiative?" — the card pending, the face recorded',
+            !!card && (f?.status === 'pending') && (f?.reroll?.face === 4) && !!pop, `card=${!!card} pop=${!!pop} flag=${JSON.stringify(f ?? null).slice(0, 240)}`);
+          pop?.element?.querySelector('button[data-action="yes"]')?.click();
+          const done = await waitFor(() => card?.getFlag(MOD, 'initiativeGrant')?.applied ? card : null, 8000);
+          await sleep(300);
+          const d = done?.getFlag(MOD, 'initiativeGrant');
+          ok('16b. Yes: the Initiative rerolled — the record says from → to, the combatant\'s Initiative is the new roll',
+            !!done && (d?.answer === 'yes') && (d?.rerolled?.from === mod + 4) && Number.isFinite(d?.rerolled?.to) && (Number(c.combatants.get(pcC.id)?.initiative) === d?.rerolled?.to),
+            `record=${JSON.stringify(d ?? null).slice(0, 240)} init=${c.combatants.get(pcC.id)?.initiative}`);
+        }
+      } finally {
+        await closeOurs();
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        if (surv) await unlend(pcAttacker, surv);
+        CONFIG.Dice.randomUniform = realPRNG; clearTargets();
+      }
+    }
+
+    // ---- 17. Steel Yourself — the roller's own failed save against Frightened lifted by the Proficiency Bonus
+    if (want(17)) {
+      const surv = await lendUuid(pcAttacker, `${RHW}rhwSurvivor2zrM3`);
+      const fear = await lendUuid(attacker, 'Compendium.dnd-players-handbook.spells.Item.phbsplFear000000', { 'system.prepared': 1, 'system.method': 'atwill' });
+      keep(pcAttacker, { 'system.abilities.wis.save.roll.bonus': pcAttacker.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
+      let combat = null;
+      try {
+        if (!surv || !fear) log.push(`§17 skipped: survivor=${!!surv} fear=${!!fear}`);
+        else {
+          await set('saveRolls', 'prompt');
+          await dropReactionChips(pcAttacker);
+          const [c] = await Combat.createDocuments([{ scene: scene.id, active: true }]);
+          combat = c; created.combats.push(c.id);
+          await c.createEmbeddedDocuments('Combatant', [
+            { tokenId: attackerToken.document.id, sceneId: scene.id, actorId: attacker.id, initiative: 20 },
+            { tokenId: pcToken.document.id, sceneId: scene.id, actorId: pcAttacker.id, initiative: 10 }]);
+          await c.startCombat();
+          await sleep(400);
+          const saveAct = fear.system.activities.find(a => a.type === 'save');
+          attackerToken.control({ releaseOthers: true });
+          pcToken.setTarget(true, { releaseOthers: true });
+          await sleep(100);
+          // no cone placed (the template would wait on a hand): the save demanded of the targeted PC alone
+          const use = await saveAct?.use({ consume: { spellSlot: false }, create: { measuredTemplate: false } }, { configure: false }, {});
+          const card = use?.message ?? null;
+          await waitFor(() => card?.getFlag(MOD, 'saves'), 6000);
+          const dc = Number(card?.getFlag(MOD, 'saves')?.dc);
+          const prof = Number(pcAttacker.system.attributes.prof) || 2;
+          // a total one short of the DC: the d20 face that lands it, the save bonus zeroed; the Proficiency Bonus then passes it
+          await pcAttacker.update({ 'system.abilities.wis.save.roll.bonus': '' });
+          const mod = Number(pcAttacker.system.abilities.wis.save.value) || 0;
+          const face = Math.min(19, Math.max(2, dc - 1 - mod));
+          faces([[face, 20]]);
+          const rolls = await pcAttacker.rollSavingThrow({ ability: 'wis' }, { configure: false }, {});
+          const rolled = rolls?.[0]?.parent ?? null;
+          CONFIG.Dice.randomUniform = realPRNG;
+          const pop = await waitFor(() => popups().find(app => /Steel Yourself|Survivor/.test(textOf(app.element)) && app.element?.querySelector?.('button[data-action="answer"]')) ?? null, 8000);
+          const bflag = rolled?.getFlag(MOD, 'bystanderRoll');
+          ok('17a. the Fear save fails by 1 (the Frightened demand): the PC Attacker is asked — Steel Yourself, its own save lifted by the Proficiency Bonus',
+            !!card && (dc > 0) && !!pop && !!bflag && (bflag.guards ?? []).some(g => (g.row === 'Survivor (Ravenloft)') && (g.uuid === pcAttacker.uuid)),
+            `dc=${dc} face=${face} mod=${mod} total=${rolls?.[0]?.total} pop=${!!pop} guards=${JSON.stringify(bflag?.guards?.map(g => [g.row, g.name, g.die]) ?? null)} text="${textOf(pop?.element).slice(0, 160)}"`);
+          const guardBox = [...(pop?.element?.querySelectorAll?.('input[name="bf-bystander-roll"]') ?? [])][0] ?? null;
+          if (guardBox && !guardBox.checked) { guardBox.click(); await sleep(50); }
+          pop?.element?.querySelector('button[data-action="answer"]')?.click();
+          const done = await waitFor(() => (rolled?.getFlag(MOD, 'bystanderRoll')?.status === 'resolved') ? rolled.getFlag(MOD, 'bystanderRoll') : null, 12000);
+          await sleep(600);
+          const bent = done?.bent ?? null;
+          const reaction = pcAttacker.effects.some(e => e.getFlag(MOD, 'mastery') === 'reaction');
+          ok('17b. Answer: + the Proficiency Bonus on the roll — the total reaches the DC, the save passes, the Reaction spent',
+            !!done && (done.answer === 'roll') && (Number(bent?.add) === prof) && (Number(bent?.total) >= dc) && reaction
+              && (card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === pcAttacker.uuid)?.outcome === 'saved'),
+            `answer=${done?.answer} bent=${JSON.stringify(bent)} reaction=${reaction} entry=${JSON.stringify(card?.getFlag(MOD, 'saves')?.targets?.find(x => x.uuid === pcAttacker.uuid) ?? null).slice(0, 160)}`);
+        }
+      } finally {
+        await closeOurs();
+        await set('saveRolls', 'auto');
+        if (combat && game.combats.get(combat.id)) await combat.delete();
+        await dropReactionChips(pcAttacker);
+        for (const e of pcAttacker.effects.filter(e => e.statuses?.has?.('frightened'))) await e.delete().catch(() => {});
+        await pcAttacker.update({ 'system.abilities.wis.save.roll.bonus': priorActor[pcAttacker.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
+        if (fear) await unlend(attacker, fear);
+        if (surv) await unlend(pcAttacker, surv);
         CONFIG.Dice.randomUniform = realPRNG; clearTargets();
       }
     }

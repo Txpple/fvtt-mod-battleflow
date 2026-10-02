@@ -532,6 +532,7 @@ function sourcesFor(attacker, enabled, { activity = null, attackMode = null, tar
     bloodied: hpFraction(actor) <= 0.5, damaged: hpFraction(actor) < 1,
     grappled: !!actor.statuses?.has?.("grappled"),
     incapacitated: !!actor.statuses?.has?.("incapacitated"),
+    statuses: [...(actor.statuses ?? [])],
     notActed: targetNotActed(attacker, actor),
     ...(EFFECT_WORN_KEYS.length ? displacedFacts(actor) : {})
   });

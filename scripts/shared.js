@@ -386,6 +386,9 @@ function poolByPackName(actor, target) {
 /** The pool an activity consumes; packs name it by item id, bare identifier or compendium UUID. */
 export function poolOf(actor, activity) {
   for ( const c of (activity?.consumption?.targets ?? []) ) {
+    // RAVENLOFT — an activity that consumes ITS OWN uses (Steel Yourself's once per Long Rest): the activity is the pool;
+    // `poolUsesOf` and `spendPoolUses` read and write it where an item's `system.uses` would be.
+    if ( (c.type === "activityUses") && activity.uses && (activity.uses.max !== "") && (activity.uses.max !== null) && (activity.uses.max !== undefined) ) return activity;
     if ( c.type !== "itemUses" ) continue;
     const target = String(c.target ?? "");
     if ( !target ) return activity.item ?? null;
@@ -414,6 +417,9 @@ export async function noteSuperiorityStandIn(actor, standIn) {
     origin: standIn.item?.uuid ?? null, riderKey: `stand-in:${standIn.feature}` });
 }
 
+/** A pool's uses — an item's `system.uses`, or an activity's own `uses` (RAVENLOFT, activityUses pools). */
+export const poolUsesOf = pool => pool?.system?.uses ?? ((pool && !pool.system && pool.uses) ? pool.uses : {});
+
 /**
  * Spend N uses of a pool, recorded under `poolName` (default the item's).
  * @param {number} n
@@ -422,8 +428,10 @@ export async function noteSuperiorityStandIn(actor, standIn) {
 export async function spendPoolUses(actor, pool, ability, n = 1, poolName = null) {
   if ( !pool ) return null;
   const count = Math.max(1, Number(n) || 1);
-  await pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + count });
-  const uses = pool.system?.uses ?? {};
+  const activityPool = !pool.system && !!pool.uses;
+  if ( activityPool ) await pool.update({ "uses.spent": Number(pool.uses?.spent ?? 0) + count });
+  else await pool.update({ "system.uses.spent": Number(pool.system?.uses?.spent ?? 0) + count });
+  const uses = poolUsesOf(pool);
   return { pool: poolName ?? pool.name, spent: count, left: Math.max(0, Number(uses.value ?? 0)), max: Number(uses.max ?? 0),
     ability: String(ability ?? pool.name), actorUuid: actor?.uuid ?? null, at: Date.now() };
 }

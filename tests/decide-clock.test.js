@@ -198,8 +198,9 @@ describe("the registry's clock-rider data", () => {
       // THE DMG (2026-10-01): a weapon's own property names a flat amount (Mace of Smiting's 7) or says what it does;
       // a WORN item's (Arcana Unleashed's Blood Amulet) the same, its save the item's first.
       // …or one save per ability the feat may raise (Heroes of Faerûn's Fairy Trickster: `activities`), saying what it does.
-      if ((row.wields || row.worn || row.activities) && row.activity === null)
-        expect(row.amount || row.says, key).toBeTruthy();
+      // …or a `spread` row with none named (Ravenloft's Wails from the Grave): the feature's first damage activity.
+      if ((row.wields || row.worn || row.activities || row.spread) && row.activity === null)
+        expect(row.amount || row.says || row.spread, key).toBeTruthy();
       else if (row.activity === null && !row.says && !row.inspired)
         expect(row.amount, key).toMatch(/^@/);
       else if (row.activity === null && !row.inspired)
@@ -224,6 +225,8 @@ describe("the registry's clock-rider data", () => {
             row.inspired === true ||
             // C1: a summon's rider on the summoner's mark (Bestial Fury, Create Thrall) — the mark is the limit.
             !!row.marked ||
+            // RAVENLOFT: a status the target must wear (Ominous Strikes' Frightened) — the status is the limit.
+            !!row.targetStatus ||
             (!!row.lands?.name && !row.amount && !row.bonusDice),
           key
         ).toBe(true);

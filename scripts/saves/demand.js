@@ -199,7 +199,8 @@ async function stampSaveDemand(activity, message, results) {
     const templateShaped = !!activity.target?.template?.type;
     if ( !targets.length && !templateShaped ) return;
     // A self-aimed save's targets are incidental. A BLANK affects is allowed: statblocks often carry none.
-    if ( !contained && ((activity.target?.affects?.type ?? null) === "self") ) return;
+    // RAVENLOFT — a MISHAP's save (mishaps.js) is self-aimed by the pack and IS the demand: the bearer saves against its gift.
+    if ( !contained && ((activity.target?.affects?.type ?? null) === "self") && !message.getFlag(MODULE_ID, "mishap") ) return;
     const dc = activity.save?.dc?.value;
     if ( !(dc > 0) ) return;
     const abilities = [...(activity.save?.ability ?? [])];

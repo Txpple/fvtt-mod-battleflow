@@ -79,6 +79,7 @@ describe("Tier 1 — the rows", () => {
     ).toEqual([
       "beacon of hope",
       "blessed healer",
+      "circle of mortality", // Ravenloft
       "disciple of life",
       "healer",
       "starry form",
@@ -671,7 +672,9 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
       "Vampiric Touch",
       "Dark One's Blessing",
       "Improved Blessed Strikes",
-      "Enervation" // Arcana Unleashed
+      "Enervation", // Arcana Unleashed
+      "Divine Reaper", // Ravenloft
+      "Wrath of the Wild"
     ]);
     const row = reg.HEAL_ON_HIT["Vampiric Touch"];
     expect(row).toMatchObject({ share: 0.5, type: "necrotic" });
@@ -680,7 +683,9 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
       { kind: "vampiric touch" },
       { kind: "dark one's blessing" },
       { kind: "improved blessed strikes" }, // C1
-      { kind: "enervation" }
+      { kind: "enervation" },
+      { kind: "divine reaper" }, // Ravenloft
+      { kind: "wrath of the wild" }
     ]);
     expect(
       hh.healOnHitAmount(row, { taken: 11, parts: [{ value: 11, type: "necrotic" }] })

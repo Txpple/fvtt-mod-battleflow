@@ -36,7 +36,7 @@
 | subclass | **Enchanting Conversation** | Enchanter | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
 | subclass | **Enchantment Savant** | Enchanter | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
 | subclass | **Hypnotic Presence** | Enchanter | press-condition | NATIVE | the pack's save and effect; its early ends (distance, damage) are the table's | — | — |
-| subclass | **Instinctive Charm** | Enchanter | interrupt, reaction, press-condition, half-on-save, aura | MODULE | `REBUKES` (rebukes.js; RULINGS *A listed reaction cast freestanding · The PHB feats — groups 4–6*) | — | — |
+| subclass | **Instinctive Charm** | Enchanter | interrupt, reaction, press-condition, half-on-save, aura | MODULE | `REBUKES` (rebukes.js; RULINGS *A listed reaction cast freestanding · The PHB feats — groups 4–6*) | bend | — |
 | subclass | **Split Enchantment** | Enchanter | — | OUT | cast-triggered | — | — |
 | subclass | **Death's Master** | Necromancer | clock, interrupt, reaction, press-condition, half-on-save, temp-hp, aura | WAITS | Extinguish Undead: a death's-side row keyed to a bystander's feature with a creature type — Searing Vengeance's `ally` shape; Bolster Undead is the pack's heal | — | — |
 | subclass | **Grave Power** | Necromancer | resist | TEXT | the spellbook's passive benefits | — | — |
@@ -263,7 +263,7 @@
 | monster | **Spell Imprint** | actors | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
 | monster | **Spell Mimicry** | actors | half-on-save | NATIVE | the save; the follow-up damage at the end of the target's next turn is the table's | — | — |
 | monster | **Spellcasting** | actors | — | TEXT | no mechanism to play — the pack ships a paragraph | — | — |
-| monster | **Spore Spray** | actors | clock, press-condition | WAITS | the extra damage on an already-Poisoned target — a `CLOCK_RIDERS` judge on the target's status, its first customer | — | — |
+| monster | **Spore Spray** | actors | clock, press-condition | WAITS | the extra damage on an already-Poisoned target — `CLOCK_RIDERS` `targetStatus` exists since Ravenloft's Ominous Strikes; the trait's activity shape is unmeasured, the row waits the measure | — | — |
 | monster | **Sunlight Sensitivity** | actors | — | MODULE | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | monster | **Superior Magic Resistance** | actors | bend-save | MODULE | `EFFECT_BENDS` (reminders.js; RULINGS *The gate before the roll*) | — | — |
 | monster | **Talented** | actors | — | TEXT | no combat mechanism | — | — |

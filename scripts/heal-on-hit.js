@@ -6,8 +6,8 @@
  * Rulings: RULINGS *The spells slice — the held spells*.
  */
 import { MODULE_ID, TITLE, canApplyTo, whisperNoGM, queueFlagWrite } from "./core.js";
-import { activityOfType, cardActivity, featureNamed, lower } from "./lookup.js";
-import { damagePartsOf } from "./shared.js";
+import { activityNamed, activityOfType, cardActivity, featureNamed, lower, wearsEffectNamed } from "./lookup.js";
+import { damagePartsOf, turnChitStands, writeTurnChit } from "./shared.js";
 import { nearestFeet, tokenOfActor } from "./geometry.js";
 import { HEAL_BLOCKS, HEAL_ON_HIT, tableIndex, healOnHitEntries, listedNames } from "./decide/registry.js";
 import { healOnHitAmount, healOnHitTitle, killPays } from "./decide/heal-on-hit.js";
@@ -32,6 +32,8 @@ listen("dnd5e.applyDamage", "heal-on-hit", (actor, amount, options) => {
     const caster = activity?.item?.actor ?? activity?.actor ?? null;
     // C1 — an `on: "damage"` row keyed by a FEATURE on the caster (Improved Blessed Strikes): the card's spell must fit.
     if ( (caster instanceof Actor) && caster.isOwner ) void offerOnDamage({ activity, caster, origin });
+    // RAVENLOFT — an `on: "hit"` row (Hungering Might): the bearer's own attack landed damage on another creature.
+    if ( (caster instanceof Actor) && caster.isOwner && (actor.uuid !== caster.uuid) ) void payHit({ activity, caster, origin, target: actor });
     const row = activity?.item ? rowFor(activity.item) : null;
     if ( !row || row.on || !listedNames(healOnHitEntries()).has(row.key.toLowerCase()) ) return;
     if ( !(caster instanceof Actor) || (caster.uuid === actor.uuid) ) return;
@@ -73,6 +75,55 @@ async function offerOnDamage({ activity, caster, origin }) {
     }
   } catch(err) {
     console.error(`${TITLE} | The temp HP offer failed — give them by hand.`, err);
+  }
+}
+
+/* --- RAVENLOFT — the heal on the bearer's own hit (Hungering Might): while the form stands, Bloodied, once per turn ------ */
+
+const hitPaid = new Set();
+async function payHit({ activity, caster, origin, target }) {
+  try {
+    if ( activity?.type !== "attack" ) return;
+    const listed = listedNames(healOnHitEntries());
+    for ( const [key, row] of Object.entries(HEAL_ON_HIT) ) {
+      if ( (row.on !== "hit") || !listed.has(lower(key)) ) continue;
+      const latch = `${origin.id}|${key}`;
+      if ( hitPaid.has(latch) ) continue;
+      const feature = featureNamed(caster, key);
+      if ( !feature ) continue;
+      if ( row.while && !wearsEffectNamed(caster, row.while) ) continue;
+      const hp = caster.system?.attributes?.hp ?? {};
+      const max = Number(hp.effectiveMax ?? hp.max) || 0;
+      if ( row.bloodied && !((Number(hp.value) || 0) <= Math.floor(max / 2)) ) continue;
+      const chitKey = `heal-on-hit:${key}`;
+      if ( (row.once === "turn") && turnChitStands(caster, "rider", chitKey) ) continue;
+      const heal = row.activity ? activityNamed(feature, row.activity) : activityOfType(feature, "heal");
+      const h = heal?.healing;
+      const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
+      if ( !raw ) { console.warn(`${TITLE} | ${key}: no healing part on its activity — heal by hand.`); continue; }
+      hitPaid.add(latch);
+      const roll = await new Roll(raw, heal.getRollData?.() ?? caster.getRollData()).evaluate();
+      if ( !(roll.total > 0) ) continue;
+      if ( row.once === "turn" ) {
+        void writeTurnChit(caster, "rider", { name: `${row.activity ?? key} — used this turn`, img: feature.img ?? null,
+          description: `${row.activity ?? key} has healed ${caster.name} this turn (${feature.name}). Once per turn; this chit ends with the turn.`,
+          origin: feature.uuid, riderKey: chitKey }).catch(() => {});
+      }
+      if ( !canApplyTo(caster) ) { await whisperNoGM(`${row.activity ?? key} (${roll.total} to ${caster.name})`, "Heal by hand from the card."); continue; }
+      const card = await ChatMessage.create({
+        speaker: ChatMessage.getSpeaker({ actor: caster }),
+        rolls: [roll],
+        content: bfCard({ img: feature.img ?? null, eyebrow: `${row.activity ?? key} — the hit on ${target.name}`, tone: "good",
+          title: `${row.activity ?? key} — ${caster.name} regains ${roll.total} Hit Points`,
+          subtitle: `${row.while ? `${row.while} stands` : ""}${row.bloodied ? " · Bloodied" : ""}${row.once === "turn" ? " · once per turn" : ""}`.replace(/^ · /, ""),
+          lines: [ruleLine(row.rule)] }),
+        flags: { [MODULE_ID]: { [HEAL_ON_HIT_FLAG]: { key, casterUuid: caster.uuid, targetUuid: target.uuid, targetName: target.name,
+          taken: 0, amount: roll.total, why: "the bearer's own hit", originId: origin.id, sourceUuid: caster.uuid, hit: true } } }
+      });
+      if ( card ) await applyDamagesWithReceipt(card, [{ uuid: caster.uuid, name: caster.name }], [{ value: roll.total, type: "healing", properties: new Set() }], { note: key });
+    }
+  } catch(err) {
+    console.error(`${TITLE} | The heal on the hit failed — heal by hand.`, err);
   }
 }
 
@@ -191,6 +242,9 @@ function killBearers(fallen, dealer) {
       seen.add(bearer.uuid);
       const feature = featureNamed(bearer, key);
       if ( !feature ) continue;
+      // RAVENLOFT — a `uses` row with none left pays nothing; an Incapacitated bearer neither (Keeper of Souls).
+      if ( row.uses && !(Number(feature.system?.uses?.value ?? 0) > 0) ) continue;
+      if ( bearer.statuses?.has?.("incapacitated") ) continue;
       const verdict = killPays({ dealt: bearer.uuid === dealer?.uuid,
         feet: fallenToken ? nearestFeet(token, fallenToken) : null, within: row.within ?? null,
         sides: [token.document?.disposition ?? 0, fallenToken?.document?.disposition ?? 0] });
@@ -208,7 +262,7 @@ async function payKill(fallen, origin) {
     if ( paid.has(latch) ) continue;
     paid.add(latch);
     try {
-      const activity = activityOfType(b.feature, "heal");
+      const activity = b.row.activity ? activityNamed(b.feature, b.row.activity) : activityOfType(b.feature, "heal");
       const h = activity?.healing;
       const raw = h ? riderPartFormula({ number: h.number, denomination: h.denomination, custom: h.custom, bonus: h.bonus }) : null;
       let amount = 0;
@@ -218,6 +272,16 @@ async function payKill(fallen, origin) {
       } catch { amount = 0; }
       if ( !(amount > 0) ) { console.warn(`${TITLE} | ${b.key}: no amount could be read off ${b.bearer.name}'s sheet — heal by hand.`); continue; }
       const what = b.row.temphp ? "Temporary Hit Points" : "Hit Points";
+      // RAVENLOFT — `uses`: the feature's own use spent as it pays; `pick`: the heal OFFERED to one creature within reach
+      // (the bearer too) — the rest song's popup, on the bearer's client.
+      if ( b.row.uses ) await b.feature.update({ "system.uses.spent": Number(b.feature.system?.uses?.spent ?? 0) + 1 })
+        .catch(err => console.warn(`${TITLE} | Could not spend a use of ${b.key}.`, err));
+      if ( b.row.pick ) {
+        const roll = await new Roll(String(amount)).evaluate();
+        await askHandOut(b.bearer, { name: b.key, row: { ...b.row, reach: b.row.within ?? null, self: !!b.row.self }, item: b.feature, amount, roll,
+          table: "cast", distribute: false, ...(b.row.temphp ? {} : { heals: true }) });
+        continue;
+      }
       if ( !canApplyTo(b.bearer) ) { await whisperNoGM(`${b.key} (${amount} ${what} to ${b.bearer.name})`, "Apply it from the sheet."); continue; }
       const card = await ChatMessage.create({
         speaker: ChatMessage.getSpeaker({ actor: b.bearer }),

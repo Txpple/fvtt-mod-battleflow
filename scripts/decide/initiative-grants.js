@@ -30,7 +30,8 @@ export function initiativeGrantDue({ own, regain, heals = false, hp = null, upTo
  * @param {{row: string, status?: string, answer?: string|null, applied?: boolean, timedOut?: boolean, unit?: string,
  *          regained?: number, max?: number, healed?: number|null, formula?: string|null, back?: number, actorName?: string,
  *          give?: boolean, given?: {name: string, from: number, to: number}[], rolled?: number, due?: string[], reach?: number,
- *          upTo?: number|null, fallback?: {row: string, upTo: number|null, unit?: string|null}|null, fallbackApplied?: boolean, fallbackRegained?: number}} flag
+ *          upTo?: number|null, fallback?: {row: string, upTo: number|null, unit?: string|null}|null, fallbackApplied?: boolean, fallbackRegained?: number,
+ *          reroll?: {face: number, under: number, from: number}|null, rerolled?: {from: number, to: number}|null}} flag
  */
 export function initiativeGrantLine(flag) {
   const unit = flag.unit ?? "uses";
@@ -41,6 +42,12 @@ export function initiativeGrantLine(flag) {
     return `${kept}; ${flag.fallback.row} — regaining…`;
   }
   if ( flag.answer === "no" ) return `${flag.row} — kept for later${flag.timedOut ? " (timer)" : ""}`;
+  // RAVENLOFT — a `reroll` row (Hypervigilance): the Initiative rolled again.
+  if ( flag.reroll ) {
+    if ( flag.applied ) return `${flag.row} — Initiative rerolled: ${flag.rerolled?.from ?? flag.reroll.from} → ${flag.rerolled?.to ?? "…"}`;
+    if ( flag.status === "resolved" ) return `${flag.row} — rerolling…`;
+    return `${flag.row} — the d20 shows ${flag.reroll.face} (${flag.reroll.under} or lower): reroll the Initiative? The new roll stands`;
+  }
   if ( flag.upTo && flag.applied ) return `${flag.row} — ${unit} back up to ${flag.upTo} (${Number(flag.regained) || 0} regained)`;
   if ( flag.upTo ) return `${flag.row} — ${unit} back up to ${flag.upTo}`;
   // B4 — a `to: "allies"` row (Tandem Footwork): one roll, added to every ally's Initiative within reach.

@@ -6,7 +6,7 @@
  */
 import { MODULE_ID, TITLE, isActiveGM, activeCombatFor, statContext, whisperNoGM, drivesMomentFor, decisionWindow, queueFlagWrite } from "./core.js";
 import { saveDemandData, saveTargetEntry } from "./decide/demand.js";
-import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles } from "./lookup.js";
+import { lower, itemNamed, activityNamed, activityOfType, resolveUuid, namesAnswering, applicableProfiles, wearsEffectNamed } from "./lookup.js";
 import { ruleHTML } from "./rule-text.js";
 import { emanationEntries, listedNames } from "./decide/registry.js";
 import { reactionSpent, turnChitStands, writeTurnChit } from "./shared.js";
@@ -235,7 +235,10 @@ async function maybeTrigger(behType, token, cause) {
     const beh = behType.behavior;
     const sys = behType;   // the type instance IS the system data
     const row = rowNamed(sys.key);
-    if ( !row?.trigger?.on.includes(cause) || beh.disabled || !listed().has(lower(row.key)) ) return;
+    // RAVENLOFT — a save pulse arrives as "sourceTurnStart" / "sourceTurnEnd": the row's `pulse` admits it, never its `trigger`.
+    const pulsed = (cause === "sourceTurnStart") || (cause === "sourceTurnEnd");
+    if ( pulsed ? (row?.pulse?.on !== cause) : !row?.trigger?.on.includes(cause) ) return;
+    if ( !row || beh.disabled || !listed().has(lower(row.key)) ) return;
     const region = behType.region;
     if ( !appliesHere(region) ) return;   // a ring on a scene nobody is playing on demands nothing
     const source = resolveUuid(sys.source);
@@ -246,12 +249,12 @@ async function maybeTrigger(behType, token, cause) {
       const f = flagOf(region);
       if ( f?.initial?.includes(token.id) ) { await forgetInitial(region, token); return; }
     }
-    if ( !(region.tokens?.has?.(token) ?? true) && ((cause === "turnEnd") || (cause === "turnStart")) ) return;   // its turn began or ended OUTSIDE
+    if ( !(region.tokens?.has?.(token) ?? true) && ((cause === "turnEnd") || (cause === "turnStart") || pulsed) ) return;   // its turn began or ended OUTSIDE
     // A trigger narrowed to creature types (Vile Appearance's Beasts and Humanoids): the type is a fact the sheet holds.
-    if ( row.trigger.types?.length && !row.trigger.types.includes(lower(token.actor.system?.details?.type?.value ?? "")) ) return;
+    if ( row.trigger?.types?.length && !row.trigger.types.includes(lower(token.actor.system?.details?.type?.value ?? "")) ) return;
     const item = resolveUuid(sys.item);
     // The save activity judges; an `area` row whose activity is plain damage (Cloud of Daggers) rolls it instead.
-    const activity = activityOfType(item, "save");
+    const activity = (pulsed && row.pulse?.activity) ? activityNamed(item, row.pulse.activity) : activityOfType(item, "save");
     const damage = activity ? null : activityOfType(item, "damage");
     const dc = activity?.save?.dc?.value;
     const abilities = [...(activity?.save?.ability ?? [])];
@@ -261,7 +264,7 @@ async function maybeTrigger(behType, token, cause) {
     const chitKey = `emanation:${region.id}`;
     const due = triggerDue({ inCombat: !!combat, chitStands: turnChitStands(actor, "rider", chitKey) });
     if ( !due.due ) return;
-    if ( row.trigger.oncePerTurn && combat ) {
+    if ( row.trigger?.oncePerTurn && combat ) {
       await writeTurnChit(actor, "rider", { name: `${row.key} — saved this turn`, img: item.img ?? null,
         description: `${actor.name} has made ${row.key}'s save this turn; once per turn. This chit ends with the turn.`,
         origin: item.uuid, riderKey: chitKey }).catch(() => {});
@@ -270,7 +273,9 @@ async function maybeTrigger(behType, token, cause) {
     // An `area` names its caster (nothing is attached); a ring names its source token.
     const whose = (row.kind === "area") ? (casterActor?.name ?? source?.name ?? "the caster") : (source?.name ?? casterActor?.name ?? "the caster");
     const why = (cause === "enter") ? `entered ${whose}'s ${row.key}`
-      : (cause === "turnStart") ? `started its turn inside ${whose}'s ${row.key}` : `ended its turn inside ${whose}'s ${row.key}`;
+      : (cause === "turnStart") ? `started its turn inside ${whose}'s ${row.key}`
+      : (cause === "sourceTurnStart") ? `stands inside ${whose}'s ${row.key} as ${whose}'s turn starts`
+      : (cause === "sourceTurnEnd") ? `stands inside ${whose}'s ${row.key} as ${whose}'s turn ends` : `ended its turn inside ${whose}'s ${row.key}`;
     if ( damage ) return triggerDamage({ region, row, sys, item, damage, token, actor, casterActor, source, why, due, cause });
     const onSave = activity.damage?.onSave ?? "half";
     const hasDamage = !!activity.damage?.parts?.length && (onSave !== "full");
@@ -775,7 +780,17 @@ async function pulse(region, row, token, sys) {
     const item = resolveUuid(sys?.item);
     const bearer = item?.actor ?? token.actor ?? null;
     if ( !item || !bearer ) return;
-    const { raw, type } = pulseDamageOf(item, row);
+    const { activity: pulseActivity, raw, type } = pulseDamageOf(item, row);
+    // RAVENLOFT — a pulse whose activity is a SAVE (Unnerving Aura): demanded of everyone inside on the trigger's path, the
+    // source's turn the cause.
+    if ( pulseActivity?.type === "save" ) {
+      const beh = behaviorOf(region);
+      const cause = (row.pulse?.on === "sourceTurnStart") ? "sourceTurnStart" : "sourceTurnEnd";
+      for ( const t of (tokensInRegions([region]) ?? []).map(e => region.parent.tokens.get(e.tokenId)).filter(t => t?.actor && (t.id !== token.id)) ) {
+        await maybeTrigger(beh?.system ?? sys, t, cause);
+      }
+      return;
+    }
     if ( !raw ) { console.warn(`${TITLE} | ${row.key}: no damage part on "${row.pulse.activity}" — apply the pulse by hand.`); return; }
     const inside = (tokensInRegions([region]) ?? [])
       .map(e => region.parent.tokens.get(e.tokenId))
@@ -892,7 +907,7 @@ function featureSpec(tok, row) {
   const item = itemNamed(actor, row.item ?? row.key);
   if ( !item ) return null;
   for ( const name of [].concat(row.while ?? []) ) {
-    if ( !actor.effects.some(e => e.active && (lower(e.name) === lower(name))) ) return null;
+    if ( !wearsEffectNamed(actor, name) ) return null;   // an item's transferred effect too (Ghastly Form, Frozen Soul)
   }
   const held = row.holding ? heldWeaponFor(actor, row.holding) : null;
   if ( row.holding && !held ) return null;

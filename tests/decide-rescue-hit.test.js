@@ -327,7 +327,8 @@ describe("INTERRUPT_ROLLS — the three rows and the interrupt default", () => {
       expect(typeof row.reaction, name).toBe("boolean");
       expect(typeof row.uses, name).toBe("boolean");
       expectPointer(row.rule, name);
-      expect(row.rule.item, name).toBe(name);
+      // a key carrying the book's name in parentheses (Ravenloft's "Survivor (Ravenloft)", an ALIASES key) points at the item without it
+      expect(row.rule.item, name).toBe(reg.ALIASES[name] ? name.replace(/ \([^)]*\)$/, "") : name);
       // an `inspired` row pays with the answerer's Inspired effect, no activity (A1, Combat Inspiration); a `stored`
       // row with a face off its STORED_DICE chip (A7, Portent); a `reroll` row's pack activity is UNNAMED (B1,
       // Countercharm) — `activity: null` reads the item's first; so does an own-save row whose Reaction is unnamed

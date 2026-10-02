@@ -276,7 +276,10 @@ describe("the one-row facets — the vampire's drop, the curse on a rest, the de
       "undying sentinel",
       "rage of the gods",
       "searing vengeance",
-      "mechanical determination" // Heroes of Faerûn
+      "mechanical determination", // Heroes of Faerûn
+      // Ravenloft
+      "power of shadow",
+      "ancient might"
     ]);
   });
   it("REST_GRANTS: the two block rows name the pack's Cursed and their rests, and grant nothing", () => {
@@ -467,7 +470,8 @@ describe("TURN_GRANTS — the turn-start damage", () => {
       "swarm of proboscises",
       "spores",
       "barbed hide",
-      "festering blast" // Arcana Unleashed: Spores' shape on a spell
+      "festering blast", // Arcana Unleashed: Spores' shape on a spell
+      "ravenous bites" // Ravenloft: Spores' shape on a swarm's bite
     ]);
   });
   it("grantRowFor honours `on`: a turnEnd row is not due at the turn start and the reverse", () => {

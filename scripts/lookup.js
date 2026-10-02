@@ -319,7 +319,8 @@ export function reductionFor(item, reactionName) {
   if ( row.pool === "ward" ) return activity ? { row, activity, formula: "ward" } : null;
   // The DMG — a utility activity's own `roll` (Gloves of Missile Snaring) when it carries no healing.
   const formula = h ? (h.custom?.enabled ? h.custom.formula : ((Number(h.number) > 0 && Number(h.denomination) > 0) ? `${h.number}d${h.denomination}${h.bonus ? ` + ${h.bonus}` : ""}` : (h.bonus || null)))
-    : (String(activity?.roll?.formula ?? "").trim() || null);
+    // RAVENLOFT — the row's own `amount` where the activity carries neither healing nor a roll (Deflect Blow's 1d10).
+    : (String(activity?.roll?.formula ?? "").trim() || (row.amount ? String(row.amount) : null));
   if ( !activity || !formula ) return null;
   return { row, activity, formula };
 }
@@ -357,6 +358,19 @@ export function bystanderDie(actor, row) {
   if ( row.bonus !== undefined ) return String(row.bonus);
   if ( !row.die ) return null;
   if ( /^\d*d\d+/i.test(String(row.die).trim()) ) return String(row.die).trim();   // a plain die (Bend Luck's 1d4, B4)
+  // RAVENLOFT — "hitDie" (Sustained Symbiosis): the roller's largest Hit Die; a flat formula ("@prof", Steel Yourself) resolved
+  // on the roller's numbers to a plain number the die path rolls as is.
+  if ( row.die === "hitDie" ) {
+    const largest = String(actor?.system?.attributes?.hd?.largestAvailable ?? actor?.system?.attributes?.hd?.largestFaces ?? "").replace(/^d/, "");
+    return (Number(largest) > 0) ? `1d${Number(largest)}` : null;
+  }
+  if ( String(row.die).includes("@") ) {
+    try {
+      const resolved = Roll.replaceFormulaData(String(row.die), actor?.getRollData?.() ?? {});
+      const n = Number(Roll.safeEval(resolved));
+      return Number.isFinite(n) && (n > 0) ? String(n) : null;
+    } catch { return null; }
+  }
   const value = foundry.utils.getProperty(actor?.getRollData?.() ?? {}, row.die);
   // ⚠ `formula`/`die` are getters on ScaleValueTypeDice (BARDIC's lesson): a plain string only.
   const formula = (typeof value === "string") ? value : (value?.formula ?? value?.die ?? null);
@@ -381,6 +395,16 @@ export async function rerollD20(original, actor, { advantage = false } = {}) {
   const roll = new RollCls(original.formula, original.data ?? actor?.getRollData?.() ?? {}, options);
   await roll.evaluate();
   return { roll, summary: { total: roll.total, isCritical: roll.isCritical === true, isFumble: roll.isFumble === true } };
+}
+
+/** Does the actor WEAR an active effect of that name? The sheet's applied effects — an item's transferred effect included
+ * (a feature's form, Ghastly Form or Frozen Soul, lives on the item and is never copied onto the actor). */
+export function wearsEffectNamed(actor, name) {
+  const want = lower(name);
+  if ( (actor?.appliedEffects ?? actor?.effects?.contents ?? actor?.effects ?? []).some(e => !e.disabled && (lower(e.name) === want)) ) return true;
+  // A form the pack ships as an ENCHANTMENT the feature puts on itself (Ghastly Form's "Transform Self"): the APPLIED copy on
+  // the item, never the template (Elemental Attunement's lesson).
+  return [...(actor?.items ?? [])].some(i => [...(i.effects ?? [])].some(e => !e.disabled && (e.isAppliedEnchantment === true) && (lower(e.name) === want)));
 }
 
 /** A d20 roll's facts for the gate and the bend: the kept and first faces, the mode, the crit range. */

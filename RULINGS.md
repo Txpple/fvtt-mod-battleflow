@@ -1856,6 +1856,84 @@ the calls made, **each the user's to overrule**:
 | Elminster's Elusion / Fortifying Soul / Bolstered / Stronger Together / Team Tactics | the save gate lists the source |
 | Mechanical Determination, a drop to 0 | held at 1 while the Constitution save rolls (DC 5 + damage); Lightning or a crit lands the 0 |
 
+## Ravenloft: The Horrors Within (2026-10-02; audits/plans/splat-books.md, audits/drawings/splat-ravenloft.md)
+
+**The third splat book, the morning after, on the user's go** (*"lets continue on to ravenloft!"*; the WAITS rows of every book
+kept standing for a pass of their own — *"keep those waits rows hanging"*). The register is
+[audits/ravenloft-register.md](audits/ravenloft-register.md); the calls made, **each the user's to overrule**:
+
+- **One new TABLE, no kind: `MISHAPS`.** Six dark gifts share one shape — "immediately after you make a D20 Test and roll a 1
+  on the d20", the bearer makes the feature's own save (Warping Flesh, Intrusive Echoes, Voices from Beyond, Ominous Will,
+  Symbiotic Agenda, Incessant Watchers). Three or more customers make a table (DESIGN §3): `mishaps.js` reads the kept d20
+  on the roller's client and uses the save activity at the bearer; the saves machine demands it, the pack's DC and failure
+  effect land. No choice (R1). A mishap's save is a D20 Test too — a 1 on it asks again, as the text reads.
+- **The facets, no kind:** the clock riders' `targetStatus` (Ominous Strikes' Frightened — a judge on the TARGET's status, its
+  first customer; Arcana's Spore Spray is its second when measured), `owner: "marker"` and `endsMark` (Path to the Grave:
+  any ally's hit on the cleric's Cursed target ends the curse for the cleric's level), a `spread` from the Sneak Attack's
+  target (Wails from the Grave); the heal on hit's `on: "hit"` with `while`, `bloodied` and `once: "turn"` (Hungering Might)
+  and a `kill` row's `pick` + `uses` (Keeper of Souls); the drop's `sets` ("your Hit Points instead change to") and
+  `spendOn: "success"` (Strength of the Grave); the rebukes' `wardAlso` (Prowling Retribution: you OR an ally); the
+  Initiative grants' `reroll` (Hypervigilance); the damage rules' `spell` (Death Touch's Chill Touch alone); the heal
+  rerolls' `atZero` (Return to Life); the reductions' `amount` (Deflect Blow's 1d10 the activity does not carry); the
+  bystanders' flat `die` ("@prof") and `die: "hitDie"`; the bends' `judge: "targetStatus"` (Terrorizer); an emanation
+  `pulse` whose activity is a SAVE (Unnerving Aura) demands it of everyone inside.
+- **The Survivor feat shares its name with the Fighter's Survivor.** Its own rows are keyed "Survivor (Ravenloft)":
+  `ALIASES` points the key at the identifier, `FEATURE_TYPES` keeps it to the feat (and the Fighter's rows to the class
+  feature — the collision fixed with Arcana). Touch of Death's feat is told from Ankhtepot's action the same way.
+- **Steel Yourself** lifts the bearer's own failed save against Charmed or Frightened by the Proficiency Bonus — the
+  Reaction gates it; the pack's activity names a consumption of its own uses but carries none to count, so **once per Long
+  Rest is the table's** (the register says so). Sustained Symbiosis adds the largest Hit Die; the Hit Die itself is spent by
+  hand (the machine spends the feat's use). Knowledge from a Past Life: 1d6 on a failed ability CHECK.
+- **Sentinel at Death's Door** is Uncanny Dodge's half on the hit on YOU; the Bloodied ally within 60 ft and the Critical
+  Hit's effects cancelled WAIT (an ally guard on the multiplier hold and a crit cancel, their first customers).
+- **The Hollow Warden:** Unnerving Aura is Frozen Haunt's ring while Ghastly Form stands, the Wisdom save demanded of the
+  enemies inside at the ranger's turn START (the transform's own use is the first); Prowling Retribution an Opportunity
+  Attack when a creature within 5 ft damages the ranger or an ally; Hungering Might heals 1d10 + Wis on the ranger's own
+  hit while transformed and Bloodied, once per turn; Ominous Strikes the Wisdom modifier against a Frightened target;
+  Persistent Wrath the drop held at twice the ranger's level while the form stands (asked — "you can").
+- **The Grave Domain:** Pull of Death is Dreadful Strikes' die on a damaged target once per turn (a spell's damage without
+  an attack roll is the table's); Return to Life maxes the healing dice on a creature at 0; Path to the Grave's curse is the
+  pack's effect (its Disadvantage a bend), End Curse Early rides any ally's hit (Necrotic here — Radiant by hand); Keeper of
+  Souls offers its heal to one creature within 60 ft when an enemy dies, the use spent.
+- **The Phantom's Wails from the Grave** spreads half the Sneak dice as Necrotic to a second creature within 30 ft of the
+  Sneak Attack's target — a pick on the damage card, a use of the feature. Death's Lament (both creatures) WAITS.
+- **Strength of the Grave:** the dice decide (Charisma, DC 5 + the damage); a success sets the Hit Points to Cha + the level
+  and spends the use; a failure lands the 0 and spends nothing.
+- **The bestiary:** Terrifying Aura, Viral Aura, Deathly Stench (turn start inside) and Possessive Aura (turn end) are the
+  Monster Manual's aura shapes; Terrorizer, Incomprehensible Form (Displacement's row) and Susceptible to Charm are bends;
+  Deflect Blow a reduction; Cold Sprint a rebuke on Cold; Ravenous Bites' 1d8 at the Poisoned creature's turn start is
+  Spores' row. Aura of Violence WAITS (its failure is a forced Reaction attack, the damage only when nothing is in reach).
+- **Out:** the Reanimator's companion and its modifications (summons-shaped — issue #1), Beasts of Ill Omen, the redirects
+  (Transfer Harm, Redirect Attack), the cast-triggered rows (Magic Allergy, Siphon Spell, Haunted Zone).
+- **What WAITS, its precedent named** (the register): Jolt to Life, Form of Dread's Frightful Avatar, Necrotic Husk's Unholy
+  Resuscitation, Tokens of the Departed's claim, Death's Friend, Divine Reaper's Enhanced Necromancy, Empowered
+  Channeling's Spiritual Manifestation, Grave Touched's type swap and Dreaded Necrosis, Gathered Whispers' Unearthly
+  Scream (a Reaction AC bonus the pack ships without an effect), Sentinel's ally half and crit cancel; the bestiary's
+  Protective Swarm, Bolster Inventions, Warp Mind, Bloodthirsty Slash, Tattoo of Osybus, Meltable, Dreadful Impaling,
+  Trapped Ground, Aura of Violence.
+
+**The walk table** (for the batched walk):
+
+| Row | What you should see |
+| --- | --- |
+| a dark gift, any D20 Test rolling a 1 | the mishap card names the test; the gift's save demanded of you; the pack's effect on a failure |
+| Survivor (Ravenloft), Initiative with a d20 of 9 or lower | "reroll the Initiative?"; Yes rerolls it, the new roll stands |
+| Survivor (Ravenloft), a failed save against Charmed or Frightened | the popup asks; Answer adds your Proficiency Bonus, the Reaction spent |
+| Sentinel at Death's Door, a hit on you | the hold popup; Cast halves the damage, a use spent |
+| Ancient Might, a hit on a Frightened target | the ticked "Ominous Strikes — +Wis" |
+| Ancient Might, a drop to 0 while Ghastly Form stands | the ask; Yes sets your Hit Points to twice your level |
+| Wrath of the Wild transformed | the ring; each of your turn starts demands the Wisdom save of the enemies inside; a hit while Bloodied heals you once per turn; a creature within 5 ft damaging you or an ally offers the Opportunity Attack |
+| Circle of Mortality, a hit on a damaged creature | the ticked "Pull of Death"; healing a creature at 0 lands the dice's maximum |
+| Path to the Grave, an ally's hit on the cursed creature | the unticked "End Curse Early"; ticked, the cleric's level in Necrotic and the curse ends |
+| Divine Reaper, an enemy dies within 60 ft | the pick popup: who regains twice your level; the use spent |
+| Wails from the Grave, a Sneak Attack | the damage card offers a second creature within 30 ft; the half dice land as Necrotic, a use spent |
+| Power of Shadow, a drop to 0 | the Charisma save rolls (DC 5 + the damage); a success keeps you up at Cha + level, the use spent |
+| Mist Walker / Mark of Obsession / Cold Sprint, damage taken | the rebuke card; Use from the sheet |
+| Touch of Death, Chill Touch on a Necrotic-resistant creature | the Necrotic lands in full |
+| Watchers / Symbiotic Being, the landed effect | the repeat save at your turn end / when damaged |
+| Terrorizer / Incomprehensible Form / Susceptible to Charm | the attack and save gates list the source |
+| Terrifying Aura / Viral Aura / Deathly Stench / Possessive Aura | the ring; starting (ending) a turn inside saves, once per turn |
+
 ## The full release — the order (2026-09-29)
 
 **The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all

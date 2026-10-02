@@ -63,7 +63,10 @@ describe("DROP_TO_ONE — the kill moment's two sides", () => {
       "undying sentinel",
       "rage of the gods",
       "searing vengeance",
-      "mechanical determination" // Heroes of Faerûn
+      "mechanical determination", // Heroes of Faerûn
+      // Ravenloft
+      "power of shadow",
+      "ancient might"
     ]);
   });
 });

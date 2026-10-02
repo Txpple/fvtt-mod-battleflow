@@ -13,7 +13,7 @@ import { bystanderMatters, dieMaxOf, dieOutcome, guardSign, neutraliseOutcome, r
 import { bfCard, esc, holdBarHTML, popupKey, tickRowsHTML } from "./decide/present.js";
 import { activityNamed, featureNamed, resolveUuid, bystanderRows, bystanderDie, d20FactsOf, rerollD20 } from "./lookup.js";
 import { nearestFeet, tokenForUuid } from "./geometry.js";
-import { poolOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
+import { poolOf, poolUsesOf, reactionSpent, spendReaction, spendPoolUses, bystanderMuted, muteBystander, STORED_FLAG, spendStoredFace, storedChipOf, storedFacesUsable, withTargets } from "./shared.js";
 import { facesThatTurn, setOutcome } from "./decide/stored-dice.js";
 import { foldRise } from "./decide/dice-chips.js";
 import { armAskTimer, cardRow, livePopups, openMomentPopup, registerRelay, registerWithhold, resumeWithheld, shownMoments } from "./ui.js";
@@ -87,7 +87,7 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       }
       if ( row.reaction && reactionSpent(actor) ) continue;
       const pool = poolOf(actor, activity) ?? item;
-      if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) continue;
+      if ( row.uses && !(Number(poolUsesOf(pool)?.value ?? 0) > 0) ) continue;
       if ( bystanderMuted(actor, key) ) continue;
       const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;
@@ -257,7 +257,7 @@ async function bystanderAnswer(message, guard, choice, face = null) {
   }
   const activity = item.system?.activities?.get(guard.activityId) ?? activityOf(item, row);
   const pool = (activity ? poolOf(actor, activity) : null) ?? item;
-  if ( row.uses && !(Number(pool?.system?.uses?.value ?? 0) > 0) ) {
+  if ( row.uses && !(Number(poolUsesOf(pool)?.value ?? 0) > 0) ) {
     ui.notifications.warn(`${TITLE}: ${guard.name} has no ${pool?.name ?? guard.row} left.`);
     return;
   }

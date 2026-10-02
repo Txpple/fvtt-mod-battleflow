@@ -442,11 +442,14 @@ listen("dnd5e.preCalculateDamage", "damage-rules", (actor, damages, options) => 
       }
     }
     if ( !rows.length ) return;
-    const spell = message.getAssociatedItem?.()?.type === "spell";
+    const spellItem = message.getAssociatedItem?.() ?? null;
+    const spell = spellItem?.type === "spell";
     const dealt = new Set(damages.map(d => d?.type).filter(Boolean));
     const said = [];
     for ( const { name, row, types } of rows ) {
       if ( row.spells && !spell ) continue;
+      // RAVENLOFT — `spell`: one spell by name (Death Touch's Chill Touch).
+      if ( row.spell && (lower(spellItem?.name ?? "") !== lower(row.spell)) ) continue;
       const hit = types.filter(t => dealt.has(t));
       if ( !hit.length ) continue;
       const ignore = (options.ignore && (typeof options.ignore === "object")) ? { ...options.ignore } : {};

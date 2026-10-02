@@ -10,18 +10,18 @@
  * item carries the row's enchantment, or — none on the sheet — it is the row's `spell`.
  * @param {{when: "oncePerTurn"|"firstRound"|"any", uses?: boolean, requires?: string, judge?: string|readonly string[], weapon?: boolean,
  *          dealt?: string, crit?: boolean, maxSize?: string, enchant?: boolean, inspired?: boolean, melee?: boolean, marked?: string, unarmed?: boolean,
- *          natural?: boolean, targets?: object, charges?: boolean, wields?: boolean}} row
+ *          natural?: boolean, targets?: object, charges?: boolean, wields?: boolean, targetStatus?: string}} row
  * @param {{inCombat?: boolean, round?: number|null, chitStands?: boolean, usesLeft?: number|null,
  *          sneakArmed?: boolean, raging?: boolean, reckless?: boolean, targetDamaged?: boolean|null, weapon?: boolean,
  *          form?: string|null, dealt?: string[], critical?: boolean, opportunity?: "driven"|"offTurn"|null,
  *          fits?: boolean|null, enchanted?: boolean, melee?: boolean, wildShape?: boolean, marked?: boolean|null,
  *          unarmed?: boolean, attuned?: boolean, natural?: boolean, typed?: {fits: boolean|null, why: string}|null,
- *          chargesLeft?: number|null}} facts
+ *          chargesLeft?: number|null, targetStatus?: boolean|null}} facts
  * @returns {{due: boolean, why: string}} */
 export function riderDue(row, { inCombat = false, round = null, chitStands = false, usesLeft = null,
   sneakArmed = false, raging = false, reckless = false, targetDamaged = null, weapon = false, form = null, dealt = [],
   critical = false, opportunity = null, fits = null, enchanted = false, melee = false, wildShape = false, marked = null,
-  unarmed = false, attuned = false, natural = false, typed = null, chargesLeft = null } = {}) {
+  unarmed = false, attuned = false, natural = false, typed = null, chargesLeft = null, targetStatus = null } = {}) {
   // C1 — `judge` may list several (Power of the Wilds' Ram: raging AND the form chip); every one must stand.
   const judges = new Set(/** @type {string[]} */ ([]).concat(row.judge ?? []));
   if ( row.weapon && !weapon ) return { due: false, why: "not a weapon attack" };
@@ -40,6 +40,8 @@ export function riderDue(row, { inCombat = false, round = null, chitStands = fal
   if ( (row.requires === "sneak") && !sneakArmed ) return { due: false, why: "no Sneak Attack armed on this hit" };
   // C1 — `marked`: the hit target must wear the bearer's mark (Bestial Fury, Superior Hunter's Prey).
   if ( row.marked && (marked !== true) ) return { due: false, why: `the target is not under your ${row.marked}` };
+  // RAVENLOFT — `targetStatus` (Ominous Strikes): every hit creature wears the status; an unread one is not due.
+  if ( row.targetStatus && (targetStatus !== true) ) return { due: false, why: `the target is not ${row.targetStatus}` };
   if ( (judges.has("raging") || judges.has("reckless")) && !raging ) return { due: false, why: "not raging" };
   if ( judges.has("reckless") && !reckless ) return { due: false, why: "no Reckless Attack this turn" };
   if ( judges.has("targetDamaged") && (targetDamaged !== true) ) {

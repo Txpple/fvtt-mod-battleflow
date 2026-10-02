@@ -54,6 +54,7 @@ export const LAYER_OF = {
   "riposte.js": "machines",
   "bystanders.js": "machines",    // a bystander's bend on another creature's save or check (Q2 option A) — the attack side is hold/'s
   "damage-holds.js": "machines",  // a reduction "when you take damage" held at the applier's claim — Stone's Endurance on any damage
+  "mishaps.js": "machines",       // RAVENLOFT — a dark gift's save after a 1 on any D20 Test (Warping Flesh, Incessant Watchers)
   "rebukes.js": "machines",       // a Reaction to damage, aimed at its dealer — Riposte's shape on the damage
   "damage-shares.js": "machines", // a bond's caster takes what its bearer takes — Warding Bond
   "heal-on-hit.js": "machines",   // a spell's landed damage heals its caster a share — Vampiric Touch
