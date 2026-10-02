@@ -1746,6 +1746,13 @@ faerun, ravenloft). caveat: we will prioritize work if the table needs something
   the way the three core books were.
 - **The caveat is the only priority rule:** a thing the table needs for itself jumps the queue. Nothing else does.
 
+**Re-ruled 2026-10-01 — the splat books land BEFORE 3.0** (the user, in a holding pattern: *"start a new project
+whereby we will add in arcana unleashed, heroes of faerun, and ravenloft to the scope … these will be added prior to
+3.0 … we are still in rapid devmode"*). So v3.0.0 = the PHB, the DMG, the Monster Manual AND the three splat books,
+all built and unwalked; 3.x stays the walkthroughs. The prework is `audits/plans/splat-books.md`; the evidence was read
+OFFLINE (*"stay out of the sandbox"*) by `tools/scan-corpus-offline.mjs`. The epic boons — every book's — are parked
+in BACKLOG as a slice of their own (*"add epic boons to the backlog"*), no longer out.
+
 **The same morning, Q2 and Q3 of the plan:**
 
 - **Q2 — the bystander's bend, the FULL way** (*"this gate type is what we need"*): one popup for another

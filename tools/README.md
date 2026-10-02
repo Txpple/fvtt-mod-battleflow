@@ -190,6 +190,13 @@ already keys a row on and the names the 2024 packs already carry, so the next bo
 buys is measured before it is described; pack indexes only, no sole-GM preflight because it
 asserts on nothing.
 
+`scan-corpus-offline.mjs <out.json> <module-id> [...]` (2026-10-01, the splat books) is scan-corpus's row shape
+WITHOUT Foundry: it copies each LevelDB pack out of the data folder (minus LOCK) and reads the copy with classic-level
+from the sibling `fvtt-mcp-dnd5e` checkout — no bridge, no sole-GM, safe during a battery or while the user is in the
+world; it also flattens Actor packs into one row per embedded feature (`actor`, `cr`), which the live scan never did.
+`classify-corpus.mjs` ranks the three splat books and reads those rows as `monster`; `audit-splat-books.mjs
+<classified.json> <corpus.json>` writes the evidence tables under `audits/splat/`, one file per book.
+
 `probe-identifiers.mjs` snapshots every Item in every pack and on the world's actors — identifier,
 type, rules version, book, compendium source, effect names — to `content/identifier-snapshot.json`
 (git-ignored, ~2 MB); `compact-identifiers.mjs` reduces it to `content/identifiers.json` (committed,

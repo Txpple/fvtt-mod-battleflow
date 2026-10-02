@@ -23,6 +23,10 @@ const PACK_RANK = {
   // the GM's side (the audits of 2026-09-28): the Monster Manual's traits, the SRD 2024 subset, the DMG's own features
   'dnd-monster-manual.features': 1, 'dnd5e.monsterfeatures24': 2, 'dnd-dungeon-masters-guide.features': 1,
 };
+// the splat books (audits/plans/splat-books.md): every pack of the three ranks with the premium books
+const SPLAT = /^dnd-(arcana-unleashed|heroes-faerun|ravenloft-horrors-within)\./;
+for (const r of raw.rows) if (SPLAT.test(r.pack)) PACK_RANK[r.pack] ??= 1;
+for (const o of raw.owners) if (SPLAT.test(o.pack)) PACK_RANK[o.pack] ??= 1;
 const rows2024 = raw.rows.filter(r => PACK_RANK[r.pack]);
 // dedupe by (kind, name): keep the best-ranked pack's copy
 const byKey = new Map();
@@ -51,7 +55,8 @@ function ownerOf(r) {
 
 // ---- the sweep's kinds: (a) race (b) class (c) subclass (d) feat (e) spell
 function kindOf(r) {
-  if (r.pack.startsWith('dnd-dungeon-masters-guide.')) return 'dm';   // before the monster test: the DMG's features are featType monster
+  if (r.actor) return 'monster';   // an offline scan's bestiary row (scan-corpus-offline.mjs)
+  if (r.pack.startsWith('dnd-dungeon-masters-guide.') || /\.items$/.test(r.pack)) return 'dm';   // a book's magic items read like the DMG's equipment   // before the monster test: the DMG's features are featType monster
   if (r.pack.startsWith('dnd-monster-manual.') || r.pack === 'dnd5e.monsterfeatures24' || r.featType === 'monster') return 'monster';
   if (r.itemType === 'spell') return 'spell';
   if (r.featType === 'race') return 'race';
@@ -160,7 +165,7 @@ const out = rows.map(r => {
     kind: kindOf(r), name: r.name, pack: r.pack, level: r.itemType === 'spell' ? r.level : (o?.level ?? r.prereqLevel ?? null),
     owner: o ? o.owner.name : null, ownerType: o?.owner.type ?? null, ownerClass: o ? (o.owner.type === 'class' ? o.owner.identifier : o.owner.classIdentifier) : null,
     itemType: r.itemType, featType: r.featType, uses: r.uses ?? null, school: r.school, fams, struct, known: knownWhere(r),
-    text: r.text.slice(0, 300),
+    actor: r.actor ?? null, cr: r.cr ?? null, reaction: r.activities.some(a => a.activation === 'reaction'), text: r.text.slice(0, 300),
   };
 });
 writeFileSync(file.replace(/\.json$/, '-classified.json'), JSON.stringify(out, null, 2));
