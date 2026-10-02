@@ -232,7 +232,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       'system.attributes.death.success': 0, 'system.attributes.death.failure': 0 });
     keep(victim, { 'system.attributes.hp.value': victim.system._source.attributes.hp.value, 'system.attributes.hp.max': victim.system._source.attributes.hp.max,
       'system.attributes.ac.override': victim.system._source.attributes.ac.override ?? null, 'system.abilities.wis.save.roll.bonus': victim.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
-    keep(attacker, { 'system.abilities.wis.save.roll.bonus': attacker.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
+    keep(attacker, { 'system.abilities.wis.save.roll.bonus': attacker.system._source.abilities?.wis?.save?.roll?.bonus ?? '',
+      'system.abilities.dex.save.roll.bonus': attacker.system._source.abilities?.dex?.save?.roll?.bonus ?? '', 'system.attributes.hp.value': attacker.system._source.attributes.hp.value });
+    keep(halfling, { 'system.abilities.wis.save.roll.bonus': halfling.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
     await halfling.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0, 'system.attributes.ac.override': 1 });
     await victim.update({ 'system.attributes.hp.max': 400, 'system.attributes.hp.value': 400, 'system.attributes.ac.override': 1 });
     // ⚠ The Halfling's Lucky would hold every hit on it for the rescue popup: its uses are spent for the run and put back after.
@@ -511,7 +513,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           await dropReactionChips(halfling);
           await halfling.update({ 'system.attributes.hp.value': 400, 'system.attributes.hp.temp': 0 });
           await attacker.update({ 'system.abilities.dex.save.roll.bonus': '-30' });
-          keep(attacker, { 'system.abilities.dex.save.roll.bonus': attacker.system._source.abilities?.dex?.save?.roll?.bonus ?? '', 'system.attributes.hp.value': attacker.system._source.attributes.hp.value });
           const atkHp = hp(attacker);
           const t0 = Date.now();
           attackerToken.control({ releaseOthers: true });
@@ -582,7 +583,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const hold = await lendUuid(attacker, 'Compendium.dnd-players-handbook.spells.Item.phbsplHoldPerson', { 'system.prepared': 1, 'system.method': 'atwill' });
           // -8, not -30: the margin gate asks only when a reroll CAN turn the verdict (a 1 - 8 fails DC 10; 15 + 15 - 8 passes).
           await halfling.update({ 'system.abilities.wis.save.roll.bonus': '-8' });
-          keep(halfling, { 'system.abilities.wis.save.roll.bonus': halfling.system._source.abilities?.wis?.save?.roll?.bonus ?? '' });
           const t0 = Date.now();
           const saveAct = hold?.system?.activities?.find(a => a.type === 'save');
           attackerToken.control({ releaseOthers: true });
@@ -620,6 +620,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         }
       } finally {
         await closeOurs();
+        await halfling.update({ 'system.abilities.wis.save.roll.bonus': priorActor[halfling.id]['system.abilities.wis.save.roll.bonus'] }).catch(() => {});
         await set('saveRolls', 'auto');
         if (combat && game.combats.get(combat.id)) await combat.delete();
         await dropReactionChips(pcAttacker);

@@ -22,29 +22,27 @@
   `tools/audit-splat-register.mjs <arcana|faerun|ravenloft>` (the per-book register generator),
   `tools/merge-corpus-identifiers.mjs` (the identifier snapshot extended from the offline corpus — the bestiaries are
   Actor packs the live probe never opens), `tools/smoke-splat.mjs` (in ORDER after smoke-classes). ~40 rows, seven facets, no kind.
-- **Heroes of Faerûn BUILT** — in the working tree / the commit after b0357f1 (see below): RULINGS *Heroes of Faerûn*,
+- **Heroes of Faerûn BUILT** — a3fac84 on main, pushed: RULINGS *Heroes of Faerûn*,
   [audits/faerun-register.md](audits/faerun-register.md) (122 rows: 31 MODULE · 16 WAITS · 18 OUT · 41 TEXT · 16 NATIVE),
-  the drawing [audits/drawings/splat-faerun.md](audits/drawings/splat-faerun.md); smoke-splat §6–§10. ~30 rows, five
-  facets (`judge: "enemyBloodied"`, `hitMelee`, the reroll `bonus`, the cast riders' `use`, the clock riders'
-  `activities`, `pulse.on: "sourceTurnStart"`, the evasions' `spells`, the save presses' `types`), no kind. Also the
-  SAVE_PRESSES Command collision guard (the construct's "Command" action is not the spell) and three `ALIASES`.
+  the drawing [audits/drawings/splat-faerun.md](audits/drawings/splat-faerun.md); smoke-splat §6–§10 (the whole suite
+  24/24 on the sandbox). ~35 rows, six facets (`judge: "enemyBloodied"`, `hitMelee`, the reroll `bonus` — counted by the
+  margin gate too, the cast riders' `use`, the clock riders' `activities`, `pulse: "sourceTurnStart"`, the evasions'
+  `spells`/`effect`/`item`, the save presses' `types`), no kind. Also the SAVE_PRESSES Command collision guard (the
+  construct's "Command" action is not the spell) and three `ALIASES`. ⚠ Elemental Rebuke carries NO row `uses`: its
+  activity consumes the feature's use itself (a row spend on top left the cast unpaid — the §7b defect).
 - **Ravenloft is HELD** (the user's stop). Its prework stands in the plan; its Survivor collision is already fixed.
 
 ## The releases — what the run did or was doing when it stopped
 
-The order the run follows (each step the user's precedent of 2026-09-30: release AND prod):
-
-1. The full battery on b0357f1 (Arcana) — launched detached ~00:20 (`dist/battery-arcana.log`, the run dir under
-   `dist/battery/`). **The release floor for v2.12.0.** A red on a suite green an hour earlier is fixture state or timing
-   until proven otherwise (molten-test-box): re-run it alone before believing it.
-2. v2.12.0: `node tools/bump-version.mjs 2.12.0` → a `release: v2.12.0` commit touching module.json ALONE (the Faerûn
-   work stays uncommitted or commits AFTER the tag) → annotated tag → `git push --follow-tags` → CI publishes → prod deploy
-   from the tag's tree (`git stash -u` the Faerûn work first; `FOUNDRY_HOST=molten node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow`,
-   `--check` first — an all-identical hash is a HALF-AWAKE box, wake it with get-world-info) → `BF_TARGET=prod node tools/verify-settings.mjs`
-   (`--fix` on drift) → disconnect the molten bridge → `git stash pop`.
-3. Faerûn: deploy `--local`, `node tools/smoke-splat.mjs` (10 sections; §6–§10 are Faerûn's, UNRUN as of this writing),
-   fix, commit, the full battery again, v2.13.0 the same way.
-4. HANDOFF retired; BACKLOG 5b and the memory updated.
+1. ✅ **v2.12.0 (Arcana) RELEASED and ON PROD** — 85c0ac0, CI run 36974089094 green, prod byte-identical, settings CLEAN.
+2. **v2.13.0 (Faerûn) — the full battery on a3fac84 launched detached 02:53 (`dist/battery-faerun.log`; status =
+   `node tools/battery-status.mjs`).** A red on a suite green an hour earlier is fixture state or timing until proven
+   otherwise (molten-test-box): re-run it alone before believing it (saves §32 is the known dialog-text flake).
+   Then: `node tools/bump-version.mjs 2.13.0` → a `release: v2.13.0` commit touching module.json ALONE → annotated tag →
+   `git push --follow-tags` → CI publishes → prod deploy (`FOUNDRY_HOST=molten node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow`,
+   `--check` first — an all-identical hash is a HALF-AWAKE box, wake it with get-world-info) →
+   `BF_TARGET=prod node tools/verify-settings.mjs` (`--fix` on drift) → disconnect the molten bridge.
+3. HANDOFF retired; BACKLOG 5b and the memory updated.
 
 **If a step is half done, the tags and `git log` tell which; prod's version is `deploy-house-module --check`.**
 
