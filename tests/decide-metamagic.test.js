@@ -495,6 +495,7 @@ describe("the chosen-area table and its list", () => {
         "Conjure Barrage",
         "Conjure Volley",
         "Destructive Wave",
+        "Laeral's Silver Lance",
         "Sleep",
         "Slow",
         "Weird",

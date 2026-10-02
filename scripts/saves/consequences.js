@@ -30,7 +30,8 @@ const SAVE_PRESS_INDEX = tableIndex(SAVE_PRESSES);
  * ("Life Stealing" on a "Nine Lives Stealer Longsword"). */
 function pressFor(activity) {
   const direct = SAVE_PRESS_INDEX.rowFor(activity?.item);
-  if ( direct ) return direct;
+  // A `types` row answers items of those types alone: the Command SPELL, never a construct's "Command" action.
+  if ( direct ) return (!direct.types || direct.types.includes(activity?.item?.type)) ? direct : null;
   for ( const [key, row] of Object.entries(SAVE_PRESSES) ) {
     if ( row.activity && (lower(row.activity) === lower(activity?.name)) && enchantedAs(activity?.item, key) ) return { key, ...row };
   }
@@ -172,6 +173,7 @@ export function evasionApplies(actor, flag) {
   for ( const [key, row] of Object.entries(EVASIONS) ) {
     if ( row.side === "caster" ) continue;   // the caster's mirror (Potent Cantrip) — casterHalfFor
     if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
+    if ( row.spells && !flag.demand?.spell ) continue;   // Crown of Spellfire's Spell Avoidance: a spell or magical effect alone
     // An `effect` row (Aura of Evasion): the saver wears the effect, its origin the row's item — the ring's member copy.
     if ( row.effect ) {
       if ( actor.effects.some(e => e.active && (lower(e.name) === lower(row.effect)) && (!row.item || (lower(originItemName(e)) === lower(row.item)))) ) return key;

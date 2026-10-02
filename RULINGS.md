@@ -1799,6 +1799,63 @@ mode — rows and suites, no walk.** The book's register is [audits/arcana-regis
 | Entrancing Mirrors, Inflict Doubt, Uncertain Footing, Fractured Awareness, Vision of Elapsing Eons, Power Word Pain | the save repeats at the creature's turn end; a success ends it |
 | Superior Magic Resistance | the spell attack's gate reads Disadvantage; the save gate Advantage |
 
+## Heroes of Faerûn (2026-10-02; audits/plans/splat-books.md, audits/drawings/splat-faerun.md)
+
+**The second splat book, the same night, rapid mode.** The register is [audits/faerun-register.md](audits/faerun-register.md);
+the calls made, **each the user's to overrule**:
+
+- **No new kind.** Five facets: the rebukes' `judge: "enemyBloodied"` (a bystander watching an ENEMY become Bloodied) and
+  `hitMelee`; the save bystanders' reroll `bonus`; the cast riders' `use`; the clock riders' `activities` (one save per
+  ability a feat may raise — the ASI's pick, else the higher modifier); the emanations' `pulse.on: "sourceTurnStart"`;
+  the evasions' `spells`; the save presses' `types`.
+- **Bloodthirst is the Bloodied moment watched**: an enemy within 30 ft takes damage and is Bloodied after it (not killed)
+  — the rogue is offered its Reaction with that enemy as the target, after the damage lands; Use spends the use; the
+  teleport beside it and the melee attack are from the sheet. Harvest Undead (Arcana) is the same judge on the bearer.
+- **Shared Resilience** rerolls a friend's failed save within 60 ft with the fighter's level added, paid from Indomitable
+  (the activity's consumption). **Elemental Rebuke** is Beguiling Defenses' row: the half, the Rebuke save at the attacker
+  (its own 2d10 + Cha, half on a success); the damage type is the activity's first. **Chilling Retribution** is Warding
+  Charm's row (Stunned on the failure, the pack's).
+- **The Winter Walker:** Biting Cold ignores Cold Resistance (a feat row, no face); Polar Strikes ride a weapon hit once
+  per turn ("once per creature per turn" read as once per turn); Hunter's Rime uses the feature's heal on the ranger right
+  after Hunter's Mark (no ask); Frozen Haunt is a ring while Frozen Soul stands, pulsing at the ranger's turn START (the
+  first pulse at the adoption is the use's own card). Fortifying Soul's Advantage against Frightened is a bend.
+- **The feats:** Fairy Trickster's Flustering Strike rides any hit, unticked, the save by the ability the feat raised;
+  Lordly Resolve's Bolstered, Order's Resilience' Stronger Together, Zhentarim Tactics' Retaliate (an Opportunity Attack
+  on a melee hit), Spellfire Adept's Searing Spellfire (Radiant ignores Resistance); Strike Fear's Terrify is a Cunning
+  Strike option whose Frightened repeats at the turn end.
+- **The spells:** Cacophonic Shield and Dirge pulse on the caster (Spirit Guardians' trigger), Doomtide and Spellfire Storm
+  are placed areas; Elminster's Elusion is Circle of Power's bend; Laeral's Silver Lance chooses its targets; Crown of
+  Spellfire's Spell Avoidance is Evasion against spells while the crown stands; Effulgent Spheres' Absorb Energy is a
+  rebuke on elemental damage.
+- **Two aliases**: Laeral's Silver Lance and Elminster's Effulgent Spheres carry identifiers without the mage's name
+  (`silver-lance`, `effulgent-spheres`) — `ALIASES` holds them (Elusion's too).
+- **The bestiary:** Mechanical Determination is Undead Fortitude with Lightning; the construct's "Command" action no longer
+  answers the Command SPELL's press (`types: ["spell"]` — a collision the book exposed).
+- **What WAITS, its precedent named** (the register): Group Recovery (a hand-out of healing to several), Elemental Smite
+  (Inspiring Smite's `after` with a pick), Aura of Elemental Shielding, Noble Scion's Minor Wish, Song of Defense (a slot as
+  the reduction), Spellfire Spark, Purple Dragon Rook's Rallying Cry, Lords' Alliance Agent's Inspiring Strike, Zhentarim
+  Ruffian, Cold Caster, Mythal Touched, Moon's Inspiration, Blessing of Moonlight, Spellfire Flare, Backlash, Alustriel's
+  Mooncloak (a dangling effect — Errata 5e's), Songal's Elemental Suffusion, Holy Star's Reaction, Burning Life Force,
+  Fueled Spellfire. **Out:** the cast-triggered rows (Spellfire Burst, Honed Spellfire, Absorb Spells, Simbul's), the
+  summons-shaped (Conjure Constructs, Deryan's Homunculi — issue #1), the thirteen epic boons (the boons slice).
+
+**The walk table** (for the batched walk):
+
+| Row | What you should see |
+| --- | --- |
+| Bloodthirst, an enemy within 30 ft made Bloodied by anyone | the rebuke card "<enemy> is Bloodied" and popup; Use spends the use (teleport and attack from the sheet) |
+| Chilling Retribution, a hit on you | the rebuke; Use demands the attacker's Wisdom save, Stunned on a failure |
+| Elemental Rebuke, a hit on you | the hold popup; Cast halves the damage, the attacker's Dexterity save with its own damage |
+| Shared Resilience, an ally within 60 ft fails a save | the fighter's popup; Answer rerolls the ally's d20 + the fighter's level, an Indomitable use spent |
+| Frigid Explorer, a weapon hit | the ticked "Polar Strikes — 1d4 cold"; Cold against a Cold-resistant creature lands in full |
+| Hunter's Rime, Hunter's Mark cast | the Temporary Hit Points and the rimed mark's effect land on the ranger |
+| Frozen Haunt, the form adopted | the ring; each of the ranger's turn starts deals the Cold to the enemies inside |
+| Fairy Trickster, any hit | the unticked "Flustering Strike"; ticked, the Wisdom save, Flustered on a failure (its saves at Disadvantage) |
+| Strike Fear, a Sneak Attack | Terrify on the Cunning Strike menu; the save, Frightened for a minute repeating at its turn end; your attacks at Advantage |
+| Cacophonic Shield / Dirge / Doomtide / Spellfire Storm | the ring or the area; entering or ending a turn inside saves, once per turn |
+| Elminster's Elusion / Fortifying Soul / Bolstered / Stronger Together / Team Tactics | the save gate lists the source |
+| Mechanical Determination, a drop to 0 | held at 1 while the Constitution save rolls (DC 5 + damage); Lightning or a crit lands the 0 |
+
 ## The full release — the order (2026-09-29)
 
 **The user, ruling Q1 of the Session 0 plan** (`audits/plans/session-0-classes.md`): *"this pass is for all

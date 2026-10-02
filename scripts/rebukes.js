@@ -46,7 +46,7 @@ function reactionActivity(item, row) {
 
 /** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
  * bystander to the hit); `attackHit`: the damage came from an attack. */
-function offersFor(actor, source, { ward = false, attackHit = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false } = {}) {
+function offersFor(actor, source, { ward = false, attackHit = false, hitMelee = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
   const damager = tokenForUuid(source.uuid);
@@ -55,6 +55,10 @@ function offersFor(actor, source, { ward = false, attackHit = false, miss = fals
   for ( const [name, row] of Object.entries(REBUKES) ) {
     if ( !listed.has(lower(name)) ) continue;
     if ( !!row.ward !== ward ) continue;
+    // THE BLOODIED MOMENT, watched (Bloodthirst): a `judge: "enemyBloodied"` row is asked of a bystander when an ENEMY of
+    // its became Bloodied — `source` is that enemy; nothing else asks these rows, and they ask on nothing else.
+    if ( (row.judge === "enemyBloodied") !== watch ) continue;
+    if ( row.hitMelee && !hitMelee ) continue;               // a melee hit alone (Zhentarim Tactics' Retaliate)
     if ( (row.on === "miss") !== miss ) continue;           // a miss row only on a miss, never on damage
     // A miss row answers a melee weapon attack's miss (Sticky Shield); `missOf: "any"` (Masterful Shots) any attack roll's.
     if ( miss && (row.missOf !== "any") && !missMelee ) continue;
@@ -107,10 +111,13 @@ listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
     const source = origin.getAssociatedActor?.();
     if ( !(source instanceof Actor) || (source.uuid === actor.uuid) ) return;
     const attackHit = isAttackDamage(origin);
+    const hitMelee = attackHit && (attackActivityOf(origin)?.attack?.type?.value === "melee");
     // The damage's types, off the card's rolls (a `types` row); a card with none is unreadable and counts.
     const damageTypes = [...new Set((origin.rolls ?? []).map(r => r?.options?.type).filter(Boolean))];
-    void stampRebuke(actor, source, Number(amount), origin, { attackHit, damageTypes, becameBloodied: becameBloodiedBy(actor, Number(amount)) });
+    const becameBloodied = becameBloodiedBy(actor, Number(amount));
+    void stampRebuke(actor, source, Number(amount), origin, { attackHit, hitMelee, damageTypes, becameBloodied });
     if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
+    if ( becameBloodied ) void stampWatchers(actor, source, Number(amount), origin);
   } catch(err) {
     console.error(`${TITLE} | The rebuke offer failed — use the reaction from the sheet.`, err);
   }
@@ -133,8 +140,36 @@ function isAttackDamage(origin) {
   try { return !!resolveAttackMessage(origin); } catch { return false; }
 }
 
-async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false } = {}) {
-  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, missMelee, onAttack, damageTypes, becameBloodied });
+/** The attack activity the damage came from: the card's own, or the attack card's it chains to. */
+function attackActivityOf(origin) {
+  const own = cardActivity(origin);
+  if ( own?.type === "attack" ) return own;
+  try { return cardActivity(resolveAttackMessage(origin)) ?? null; } catch { return null; }
+}
+
+/** THE BLOODIED MOMENT, watched (Bloodthirst): every holder of a `judge: "enemyBloodied"` row on another side than the
+ * creature that just became Bloodied, within its reach, is asked — the Bloodied enemy as the reaction's target. */
+async function stampWatchers(hurt, dealer, amount, origin) {
+  const listed = listedNames(rebukeEntries());
+  if ( !Object.entries(REBUKES).some(([name, row]) => (row.judge === "enemyBloodied") && listed.has(lower(name))) ) return;
+  const hurtToken = tokenForUuid(hurt.uuid);
+  if ( !hurtToken ) return;
+  const seen = new Set();
+  for ( const t of canvas.tokens?.placeables ?? [] ) {
+    const bearer = t.actor;
+    if ( !bearer || seen.has(bearer.uuid) || (bearer.uuid === hurt.uuid) ) continue;
+    seen.add(bearer.uuid);
+    if ( t.document.disposition === hurtToken.document.disposition ) continue;
+    const key = `${origin.id}|${bearer.uuid}|watch`;
+    if ( wardsAsked.has(key) ) continue;
+    if ( !offersFor(bearer, hurt, { watch: true }).options.length ) continue;
+    wardsAsked.add(key);
+    await stampRebuke(bearer, hurt, amount, origin, { watch: true, dealerName: dealer?.name ?? null });
+  }
+}
+
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, hitMelee = false, ward = null, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false, watch = false, dealerName = null } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, hitMelee, miss, missMelee, onAttack, damageTypes, becameBloodied, watch });
   if ( !options.length ) return;
   const window = decisionWindow();
   const flag = {
@@ -144,6 +179,7 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
     ...(ward ? { ward: true, targetUuid: ward.uuid, targetName: ward.name } : {}),
     ...(miss ? { miss: true } : {}),
     ...(onAttack ? { onAttack: true } : {}),
+    ...(watch ? { watch: true, ...(dealerName ? { dealerName } : {}) } : {}),
     ...statContext(source.uuid),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
   };
@@ -151,9 +187,10 @@ async function stampRebuke(actor, source, amount, origin, { attackHit = false, w
   const message = await ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: bfCard({ img: first.img, eyebrow: `Reaction — ${options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : onAttack ? `${source.name} attacked` : `${source.name} damaged ${actor.name}`,
-      subtitle: ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
-        : miss ? `a melee weapon attack${(distance !== null) ? ` · ${distance} ft away` : ""}`
+      title: watch ? `${source.name} is Bloodied` : ward ? `${source.name} hit ${ward.name}` : miss ? `${source.name} missed ${actor.name}` : onAttack ? `${source.name} attacked` : `${source.name} damaged ${actor.name}`,
+      subtitle: watch ? `${actor.name}${(distance !== null) ? ` · ${distance} ft away` : ""}${dealerName ? ` · hurt by ${dealerName}` : ""}`
+        : ward ? `${actor.name}${(distance !== null) ? ` · ${distance} ft from ${source.name}` : ""}`
+        : miss ? `an attack${(distance !== null) ? ` · ${distance} ft away` : ""}`
         : onAttack ? `under ${actor.name}'s ${options[0].name === "Soul of Vengeance" ? "Vow of Enmity" : "mark"}${(distance !== null) ? ` · ${distance} ft away` : ""}`
         : `${amount} damage${(distance !== null) ? ` · ${distance} ft away` : ""}` }),
     flags: { [MODULE_ID]: { [REBUKE_FLAG]: flag } }
@@ -349,8 +386,9 @@ async function showPopup(message) {
   await openMomentPopup(message, REBUKE_FLAG, actor, {
     title: `Reaction — ${flag.actorName}`, icon: "fa-solid fa-bolt",
     content: bfCard({ img: flag.options[0]?.img ?? null, eyebrow: `Reaction — ${flag.options.map(o => o.name).join(" / ")}`, tone: "pending",
-      title: flag.ward ? `${flag.sourceName} hit ${flag.targetName} — strike?` : flag.onAttack ? `${flag.sourceName} attacked — strike?` : `${flag.sourceName} damaged you — answer?`,
-      subtitle: flag.ward ? `${flag.sourceName} is ${flag.distance} ft from you — an Opportunity Attack`
+      title: flag.watch ? `${flag.sourceName} is Bloodied — strike?` : flag.ward ? `${flag.sourceName} hit ${flag.targetName} — strike?` : flag.onAttack ? `${flag.sourceName} attacked — strike?` : flag.miss ? `${flag.sourceName} missed you — answer?` : `${flag.sourceName} damaged you — answer?`,
+      subtitle: flag.watch ? `${flag.sourceName} is ${flag.distance} ft from you`
+        : flag.ward ? `${flag.sourceName} is ${flag.distance} ft from you — an Opportunity Attack`
         : `${flag.amount} damage${(flag.distance !== null) ? ` · ${flag.distance} ft away` : ""}`, lines })
       + holdBarHTML(flag, "to answer"),
     buttons: [

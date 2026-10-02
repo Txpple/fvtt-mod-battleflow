@@ -3,7 +3,8 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, asiAssigned, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
+import { coatSaveAbility } from "./decide/chips.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
@@ -142,6 +143,15 @@ function inspiredFrom(attacker, featureName) {
 /** The damage types a built damage config deals — its rolls' own types. */
 const dealtTypesOfRolls = rolls => [...new Set((rolls ?? []).flatMap(r => r?.options?.types ?? (r?.options?.type ? [r.options.type] : [])))];
 
+/** The activity among a row's `activities` (ability → name) for the ability the feat raised (its ASI record), else the
+ * higher modifier among those the sheet carries (REST_GRANTS' Inspiring Leader pick). */
+function pickedActivityOf(actor, feature, activities) {
+  const offered = Object.entries(activities).filter(([, n]) => activityNamed(feature, n)).map(([a]) => a);
+  const ability = coatSaveAbility({ offered, assigned: asiAssigned(feature),
+    mods: Object.fromEntries(offered.map(a => [a, actor.system?.abilities?.[a]?.mod ?? 0])) });
+  return ability ? activityNamed(feature, activities[ability]) : null;
+}
+
 /**
  * Every listed clock rider on this attacker's sheet, judged for THIS hit. `roll` (at the damage roll):
  * the built parts' types stand over the activity's, and the roll's own crit counts (a Paralyzed target's).
@@ -213,7 +223,9 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     if ( unpicked && row.weapon && !facts.weapon ) continue;
     // A `self` row rides its OWN attack alone (a monster's Chaos Blade): the activity is the attack's, no extra dice.
     if ( row.self && (item.id !== feature.id) ) continue;
-    const act = row.self ? activity : (row.activity ? activityNamed(feature, row.activity) : null);
+    // `activities` (Fairy Trickster): one save per ability the feat may raise — the ASI's pick, else the higher modifier.
+    const act = row.self ? activity : row.activities ? pickedActivityOf(bearer, feature, row.activities)
+      : (row.activity ? activityNamed(feature, row.activity) : null);
     const part = row.self ? null : act?.damage?.parts?.[0];
     const raw = (row.self || row.save) ? null : inspired ? inspired.die : riderFormulaOf(row, act);
     let formula = null;

@@ -50,7 +50,14 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
   "Go to Ground": Object.freeze({ multiplier: 0.5,
     caveat: "only while the groundling is on the ground — the table's",
     rule: Object.freeze({ item: "Go to Ground", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunGoToGround000" }),
-    from: "Arcana Unleashed — monsters (groundlings)" })
+    from: "Arcana Unleashed — monsters (groundlings)" }),
+  // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*): Beguiling Defenses' row — the half, and the paladin's own Rebuke save used
+  // at the attacker (its damage is the activity's own, half on a success). No `uses`: the Rebuke activity consumes the
+  // feature's own use itself (Cha modifier per Long Rest) — a row spend on top would leave the cast nothing to pay with.
+  "Elemental Rebuke": Object.freeze({ multiplier: 0.5, at: "attacker",
+    caveat: "the damage type is the activity's first — pick another by hand",
+    rule: Object.freeze({ item: "Elemental Rebuke", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofOngElementalR" }),
+    from: "Paladin — Oath of the Noble Genies 15 (Heroes of Faerûn)" })
 });
 
 /**
@@ -242,7 +249,13 @@ export const INTERRUPT_ROLLS = Object.freeze({
   "Spell Resistant": Object.freeze({ reaction: false, uses: true, point: null, activity: "Magic Resistant", only: "self", self: true,
     bystander: 5, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "1d6", on: "miss", spells: true,
     rule: Object.freeze({ item: "Spell Resistant", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunSpellResistan", benefit: "Magic Resistant" }),
-    from: "Arcana Unleashed — general feat" })
+    from: "Arcana Unleashed — general feat" }),
+  // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*) — Shared Resilience: Countercharm's reroll on a FRIEND's failed save within
+  // 60 ft, plus a `bonus` read off the answerer (the fighter's level), paid from Indomitable's uses (the activity's consumption).
+  "Shared Resilience": Object.freeze({ reaction: true, uses: true, point: null, activity: null,
+    bystander: 60, tests: Object.freeze(["save"]), bend: "reroll", bonus: "@classes.fighter.levels",
+    rule: Object.freeze({ item: "Shared Resilience", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofPdkSharedResi" }),
+    from: "Fighter — Banneret 15 (Heroes of Faerûn)" })
 });
 
 /**
@@ -506,7 +519,11 @@ export const CUNNING_OPTIONS = Object.freeze({
   stealthAttack: Object.freeze({ feature: "Supreme Sneak", activity: null, cost: 1,
     rule: Object.freeze({ item: "Supreme Sneak", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeSupremeSne", benefit: "Stealth Attack" }) }),
   rendMind: Object.freeze({ feature: "Rend Mind", activity: Object.freeze(["Rend Mind (Free)", "Rend Mind"]), cost: 0, weapon: "Psychic Blade",
-    rule: Object.freeze({ item: "Rend Mind", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeRendMind00" }) })
+    rule: Object.freeze({ item: "Rend Mind", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgeRendMind00" }) }),
+  // HEROES OF FAERÛN — Strike Fear's Terrify: a Cunning Strike option from a subclass; its save lands the pack's Frightened, and
+  // the Advantage while Frightened is EFFECT_BENDS' "Strike Fear: Terrify"; the repeat REPEAT_SAVES'.
+  terrify: Object.freeze({ feature: "Strike Fear", activity: "Terrify", cost: 1,
+    rule: Object.freeze({ item: "Strike Fear", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSotStrikeFear", benefit: "Terrify" }) })
 });
 
 /** Death Strike: a clock rider on the Sneak Attack — the pack's activity is the save; a failure lands the
@@ -805,7 +822,20 @@ export const CLOCK_RIDERS = Object.freeze({
   "namers-needle-identify": Object.freeze({ feature: "Namer's Needle", activity: "Save: Identify Target", wields: true, when: "any", save: true,
     unticked: true, label: "Identify Target", says: "a DC 15 Wisdom save or it says its name; a success makes it immune for 24 hours (the table's)",
     rule: Object.freeze({ item: "Namer's Needle", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunNamersNeedlzm", benefit: "Identify Target" }),
-    from: "Arcana Unleashed — weapon" })
+    from: "Arcana Unleashed — weapon" }),
+  // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*). Polar Strikes: Divine Strike's shape — the feature's own Cold die once per
+  // turn on a weapon hit ("once per creature per turn" reads as once per turn).
+  "frigid-explorer-polar-strikes": Object.freeze({ feature: "Frigid Explorer", activity: "Polar Strike", when: "oncePerTurn", weapon: true,
+    label: "Polar Strikes",
+    rule: Object.freeze({ item: "Frigid Explorer", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwFrigidExpl", benefit: "Polar Strikes" }),
+    from: "Ranger — Winter Walker 3 (Heroes of Faerûn)" }),
+  // Fairy Trickster's Flustering Strike: the pack ships one save per ability the feat may raise (`activities` — the ASI's pick, else
+  // the higher modifier); "you can attempt" is the pick (unticked), the feat's uses the pool; the save lands the pack's Flustered.
+  "fairy-trickster-flustering-strike": Object.freeze({ feature: "Fairy Trickster", activity: null,
+    activities: Object.freeze({ cha: "Save Using Charisma", dex: "Save Using Dexterity" }), when: "any", save: true, uses: true, unticked: true,
+    label: "Flustering Strike", says: "a Wisdom save or Disadvantage on saving throws until the end of your next turn",
+    rule: Object.freeze({ item: "Fairy Trickster", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofFairyTrickste", benefit: "Flustering Strike" }),
+    from: "Heroes of Faerûn — general feat" })
 });
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
@@ -900,7 +930,8 @@ export const SAVE_PRESSES = Object.freeze({
   "Stunning Strike": Object.freeze({ success: Object.freeze(["Slowed"]),
     rule: Object.freeze({ item: "Stunning Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbmnkStunningSt" }) }),
   // Grovel alone lands a condition; Approach, Flee and Halt move or hold the token, the table's.
-  "Command": Object.freeze({ status: "prone", onFail: true,
+  // `types`: the SPELL alone — Heroes of Faerûn's Conjure Constructs ships a construct action named "Command" (its Clockwork Force).
+  "Command": Object.freeze({ status: "prone", onFail: true, types: Object.freeze(["spell"]),
     word: Object.freeze({ ask: "Which word did you speak?", options: Object.freeze(["Approach", "Flee", "Grovel", "Halt"]), presses: "Grovel", default: "Halt" }),
     rule: Object.freeze({ item: "Command", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplCommand000" }) }),
   "Web": Object.freeze({ status: "restrained", onFail: true,
@@ -949,7 +980,12 @@ export const EVASIONS = Object.freeze({
   // its origin `item` the spell), not a feature on the sheet; the Advantage on the save is EFFECT_BENDS' member row.
   "Aura of Evasion": Object.freeze({ ability: "dex", effect: "Aura", item: "Aura of Evasion",
     rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }),
-    from: "Arcana Unleashed — level 7 spell (Concentration, 1 minute)" })
+    from: "Arcana Unleashed — level 7 spell (Concentration, 1 minute)" }),
+  // HEROES OF FAERÛN — Crown of Spellfire's Spell Avoidance: Evasion on every save against a SPELL or magical effect (`spells`:
+  // the demand's mark) while the crown's own effect stands on the sorcerer.
+  "Crown of Spellfire": Object.freeze({ ability: null, spells: true, effect: "Crown of Spellfire", item: "Crown of Spellfire",
+    rule: Object.freeze({ item: "Crown of Spellfire", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSpfCrownofSpe", benefit: "Spell Avoidance" }),
+    from: "Sorcerer — Spellfire Sorcery 18 (Heroes of Faerûn)" })
 });
 
 /*
@@ -959,8 +995,12 @@ export const EVASIONS = Object.freeze({
  * `tools/check-identifiers.mjs` proves every row's identifier against the packs' snapshot.
  */
 
-/** A row whose content's identifier is not its name's slug, name → identifier. None today. */
-export const ALIASES = Object.freeze({});
+/** A row whose content's identifier is not its name's slug, name → identifier: Heroes of Faerûn's spells drop the mage's name. */
+export const ALIASES = Object.freeze({
+  "Laeral's Silver Lance": "silver-lance",
+  "Elminster's Effulgent Spheres": "effulgent-spheres",
+  "Elminster's Elusion": "elusion"
+});
 
 /**
  * A row name a FEAT of another kind shares — the feat subtype (`system.type.value`) the registry's rows of that name
@@ -1667,7 +1707,39 @@ export const EMANATIONS = Object.freeze({
     trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
     caveat: "the four squares are one template placed by hand; Difficult Terrain for your enemies is the table's",
     rule: Object.freeze({ item: "Grave Ground", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunGraveGroundcR" }),
-    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" })
+    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" }),
+  // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*) — the pulsing Emanations on Spirit Guardians' trigger. Cacophonic Shield's
+  // Save (the caster's own "Shielded" is EFFECT_BENDS'); Dirge's save lands its effects by verdict (the pack's); the no-heal
+  // inside is the table's.
+  "Cacophonic Shield": Object.freeze({ kind: "spell", activity: "Save", reach: "harmful", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "\"designate creatures to be unaffected\" reads as your allies — a friend inside is spared",
+    rule: Object.freeze({ item: "Cacophonic Shield", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofCacophonicShi" }),
+    from: "Heroes of Faerûn — level 3 spell (Concentration, 1 minute)" }),
+  "Dirge": Object.freeze({ kind: "spell", activity: "Cast and Save", reach: "harmful", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "\"can't regain Hit Points while in the Emanation\" and the Circle casting are the table's",
+    rule: Object.freeze({ item: "Dirge", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofDirge00000000" }),
+    from: "Heroes of Faerûn — level 6 spell (Concentration, 1 minute)" }),
+  // The placed areas (Moonbeam's kind): Doomtide's fog drifts 10 ft a turn by the caster's drag; Spellfire Storm's "first time on a
+  // turn" is the once-per-turn; the Constitution save to cast inside it is the table's.
+  "Doomtide": Object.freeze({ kind: "area", activity: "Cast and Save", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the Sphere's 10-foot drift at the start of your turn is your drag of the template; the magical Darkness is the table's",
+    rule: Object.freeze({ item: "Doomtide", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofDoomtide00000" }),
+    from: "Heroes of Faerûn — level 4 spell (Concentration, 1 minute)" }),
+  "Spellfire Storm": Object.freeze({ kind: "area", activity: "Cast and Save", reach: "all", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the Constitution save of a creature casting inside the pillar is the table's",
+    rule: Object.freeze({ item: "Spellfire Storm", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSpellfireStor" }),
+    from: "Heroes of Faerûn — level 4 spell (Concentration, 1 minute)" }),
+  // Frozen Haunt's Frozen Soul: Inner Radiance's ring while the form's effect stands, its pulse at the ranger's turn START
+  // ("when you first adopt this form" is the Adopt Form use itself — the table's); the enemies inside take the Cold.
+  "Frozen Haunt": Object.freeze({ kind: "feature", item: "Frozen Haunt", while: "Frozen Soul", reach: "harmful", range: null, effect: null, incapacitated: false,
+    pulse: Object.freeze({ on: "sourceTurnStart", activity: "Frozen Soul" }),
+    caveat: "\"each creature of your choice\" reads as your enemies; the first pulse at the adoption is the use's own card",
+    rule: Object.freeze({ item: "Frozen Haunt", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwFrozenHaun", benefit: "Frozen Soul" }),
+    from: "Ranger — Winter Walker 15 (Heroes of Faerûn)" })
 });
 
 /**
@@ -1930,7 +2002,12 @@ export const DROP_TO_ONE = Object.freeze({
   "Searing Vengeance": Object.freeze({ on: "deathSave", ally: 60, uses: true, activity: "Damage", heal: "halfMax", clock: "halt",
     caveat: "\"can then stand up\" is the table's — the creature is no longer Prone by choice",
     rule: Object.freeze({ item: "Searing Vengeance", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkSearingVen" }),
-    from: "Warlock — Celestial Patron 14" })
+    from: "Warlock — Celestial Patron 14" }),
+  // HEROES OF FAERÛN — the Domestic Wonder's Mechanical Determination: Undead Fortitude's save with Lightning in place of Radiant.
+  "Mechanical Determination": Object.freeze({ ask: false, outright: false,
+    save: Object.freeze({ ability: "con", dc: "5 + damage", unless: Object.freeze(["lightning", "crit"]) }),
+    rule: Object.freeze({ item: "Mechanical Determination", uuid: "Compendium.dnd-heroes-faerun.actors.Item.RTwCRKhLi5Yq7k7k" }),
+    from: "Heroes of Faerûn — the Domestic Wonder" })
 });
 
 
@@ -2015,7 +2092,27 @@ export const REBUKES = Object.freeze({
   // Masterful Shots: Sticky Shield's miss row on ANY attack roll (`missOf: "any"`); the move and the ranged attack are from the sheet.
   "Masterful Shots": Object.freeze({ activity: null, on: "miss", missOf: "any", self: true, from: "Fighter — Arcane Archer 18 (Arcana Unleashed)",
     caveat: "move up to half your Speed away (no Opportunity Attacks) and make one ranged attack at the attacker — from the sheet",
-    rule: Object.freeze({ item: "Masterful Shots", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunMasterfulShot" }) })
+    rule: Object.freeze({ item: "Masterful Shots", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunMasterfulShot" }) }),
+  // HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*). Chilling Retribution: Warding Charm's row — the hit's Wisdom save at the
+  // attacker, Stunned on a failure (the pack's effect); the uses the feature's.
+  // The pack's save carries no range ("when a creature hits you" — from anywhere): a long bow's reach stands in.
+  "Chilling Retribution": Object.freeze({ activity: null, hit: true, range: 600, from: "Ranger — Winter Walker 11 (Heroes of Faerûn)",
+    rule: Object.freeze({ item: "Chilling Retribution", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwChillingRe" }) }),
+  // Bloodthirst — THE BLOODIED MOMENT, WATCHED (`judge: "enemyBloodied"`): an ENEMY within the activity's 30 ft takes damage and is
+  // Bloodied after it (not killed) — the rogue is offered its Reaction with that enemy as the target; Use spends the use (the
+  // pack's Expend Use), the teleport beside it and the melee attack are from the sheet (the activity drives neither).
+  "Bloodthirst": Object.freeze({ activity: null, judge: "enemyBloodied", from: "Rogue — Scion of the Three 3 (Heroes of Faerûn)",
+    caveat: "teleport to a space within 5 feet of it and make one melee attack — from the sheet; Aura of Malevolence's damage is the table's",
+    rule: Object.freeze({ item: "Bloodthirst", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSotBloodthirs" }) }),
+  // Elminster's Effulgent Spheres' Absorb Energy: Elemental Absorption's row on a spell — a sphere (the spell's own uses) for
+  // Resistance to the triggering type (the pack's five effects, the pick by hand); Energy Blast is the sheet's.
+  "Elminster's Effulgent Spheres": Object.freeze({ activity: "Absorb Energy", self: true, from: "Heroes of Faerûn — level 6 spell (Concentration, 1 minute)",
+    types: Object.freeze(["acid", "cold", "fire", "lightning", "thunder"]),
+    caveat: "the Resistance effect of the triggering type is the pack's own — toggle the right sphere; the spell ends with the last sphere",
+    rule: Object.freeze({ item: "Elminster's Effulgent Spheres", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofElminstersEff", benefit: "Absorb Energy" }) }),
+  // Zhentarim Tactics' Retaliate: Retaliation's row on a MELEE hit alone (`hitMelee`), the answer an Opportunity Attack.
+  "Zhentarim Tactics": Object.freeze({ attack: "melee", range: 5, hit: true, hitMelee: true, opportunity: true, from: "Heroes of Faerûn — general feat",
+    rule: Object.freeze({ item: "Zhentarim Tactics", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofZhentarimTact", benefit: "Retaliate" }) })
 });
 
 /**
@@ -2090,7 +2187,8 @@ export const CHOSEN_AREAS = Object.freeze({
   "Word of Radiance": Object.freeze({ data: "PHB, cantrip — “each creature of your choice that you can see in it” (a 5-foot Emanation); the pack flags the choice" }),
   "Destructive Wave": Object.freeze({ data: "PHB, level 5 — “each creature you choose in the Emanation”; the pack flags the choice" }),
   "Weird": Object.freeze({ data: "PHB, level 9 — “each creature of your choice in a 30-foot-radius Sphere”; the pack flags the choice" }),
-  "Wither and Bloom": Object.freeze({ data: "Arcana Unleashed, level 2 — “each creature of your choice in that area” (a 10-foot-radius Sphere); the Bloom's Hit Point Die is the table's" })
+  "Wither and Bloom": Object.freeze({ data: "Arcana Unleashed, level 2 — “each creature of your choice in that area” (a 10-foot-radius Sphere); the Bloom's Hit Point Die is the table's" }),
+  "Laeral's Silver Lance": Object.freeze({ data: "Heroes of Faerûn, level 3 — “each creature of your choice in the Line” (120 feet long, 5 wide)" })
 });
 
 /** The 2024 Rules Glossary on range, as pointers to dnd5e's rules pages (rule-text.js reads them). */
@@ -2696,7 +2794,37 @@ export const EFFECT_BENDS = Object.freeze({
   "Aura (Aura of Evasion)": Object.freeze({ named: "Aura", item: "Aura of Evasion", itemOnly: true, member: true, attacker: null, target: null, scope: "any",
     from: "Aura of Evasion (Arcana Unleashed — level 7 spell)",
     saves: Object.freeze({ bend: "advantage", abilities: Object.freeze(["dex"]) }),
-    rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }) })
+    rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }) }),
+  // --- K. HEROES OF FAERÛN (RULINGS *Heroes of Faerûn*) ----------------------------------------------------------
+  // Team Tactics' effect (Group Recovery's chosen allies): Advantage on D20 Tests until the banneret's next turn — attacks,
+  // saves and checks; the pack's effect carries no change.
+  "Team Tactics": Object.freeze({ attacker: "advantage", target: null, scope: "any", checks: "advantage", from: "Fighter — Banneret 7 (Heroes of Faerûn)",
+    saves: Object.freeze({ bend: "advantage" }),
+    rule: Object.freeze({ item: "Team Tactics", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofPdkTeamTactic" }) }),
+  // Lordly Resolve's Bolstered: Advantage on a new save against Charmed or Frightened; "can't gain the condition" is the table's.
+  "Bolstered": Object.freeze({ attacker: null, target: null, scope: "any", from: "Lordly Resolve (Heroes of Faerûn)",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["charmed", "frightened"]) }),
+    caveat: "counted — a bolstered creature cannot GAIN Charmed or Frightened at all (the table's)",
+    rule: Object.freeze({ item: "Lordly Resolve", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofLordlyResolve", benefit: "Standard Bearer" }) }),
+  // Order's Resilience' Stronger Together: Advantage on Strength saves while an ally stands within 5 ft (the pack's transferred effect).
+  "Stronger Together": Object.freeze({ attacker: null, target: null, scope: "any", from: "Order’s Resilience (Heroes of Faerûn)",
+    saves: Object.freeze({ bend: "advantage", abilities: Object.freeze(["str"]) }),
+    caveat: "counted — press Normal with no ally within 5 feet, or while Incapacitated",
+    rule: Object.freeze({ item: "Order’s Resilience", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofOrdersResilie", benefit: "Stronger Together" }) }),
+  "Fortifying Soul": Object.freeze({ attacker: null, target: null, scope: "any", from: "Ranger — Winter Walker 7 (Heroes of Faerûn)",
+    saves: Object.freeze({ bend: "advantage", statuses: Object.freeze(["frightened"]) }),
+    rule: Object.freeze({ item: "Fortifying Soul", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwFortifying" }) }),
+  // Elminster's Elusion: Circle of Power's row — Advantage against spells and magical effects, a success against half takes none.
+  "Elminster's Elusion": Object.freeze({ attacker: null, target: null, scope: "any", from: "Heroes of Faerûn — level 2 spell (1 minute)",
+    saves: Object.freeze({ bend: "advantage", spells: true, halfToNone: true }),
+    rule: Object.freeze({ item: "Elminster's Elusion", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofElminstersElu" }) }),
+  // Cacophonic Shield's Shielded (the caster's own): ranged attack rolls against it at Disadvantage; the Thunder Resistance is the effect's.
+  "Shielded": Object.freeze({ attacker: null, target: "disadvantage", scope: "ranged", from: "Cacophonic Shield (Heroes of Faerûn)",
+    rule: Object.freeze({ item: "Cacophonic Shield", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofCacophonicShi" }) }),
+  // Fairy Trickster's Flustered: Disadvantage on saving throws until the end of the trickster's next turn.
+  "Flustered": Object.freeze({ attacker: null, target: null, scope: "any", from: "Fairy Trickster (Heroes of Faerûn)",
+    saves: Object.freeze({ bend: "disadvantage" }),
+    rule: Object.freeze({ item: "Fairy Trickster", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofFairyTrickste", benefit: "Flustering Strike" }) })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -2895,7 +3023,12 @@ export const CAST_RIDERS = Object.freeze({
   // paladin's next turn (`clock: "slow"`); the `aura` names the ring whose members are read off the region.
   "Smite of Protection": Object.freeze({ after: "Divine Smite", aura: "Aura of Protection", effect: "Smite of Protection", clock: "slow", self: true,
     rule: Object.freeze({ item: "Smite of Protection", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSmiteOfPro" }),
-    from: "Paladin — Oath of Devotion 15" })
+    from: "Paladin — Oath of Devotion 15" }),
+  // HEROES OF FAERÛN — Hunter's Rime: right after Hunter's Mark is cast, the feature's "Heal and Apply Rime" used on the ranger
+  // itself (`use`): the Temporary Hit Points and the rimed mark's effect, no ask (R1); "can't Disengage" is the table's.
+  "Hunter's Rime": Object.freeze({ after: "Hunter's Mark", use: "Heal and Apply Rime",
+    rule: Object.freeze({ item: "Hunter's Rime", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwHuntersRim" }),
+    from: "Ranger — Winter Walker 3 (Heroes of Faerûn)" })
 });
 
 /**
@@ -3063,7 +3196,16 @@ export const DAMAGE_RULES = Object.freeze({
   "Mage Breaker": Object.freeze({ key: "mage-breaker", gate: "always", wields: true, breaks: "concentration",
     caveat: "counted — Disadvantage only when the damage was Mage Breaker's own hit",
     rule: Object.freeze({ item: "Mage Breaker", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunMageBreakerFf" }),
-    from: "Arcana Unleashed — weapon" })
+    from: "Arcana Unleashed — weapon" }),
+  // HEROES OF FAERÛN — the ignored Resistances (Elemental Adept's shape, no face): Frigid Explorer's Biting Cold on the ranger's
+  // Cold (weapon attacks, Ranger spells and features — read as all its Cold); Spellfire Adept's Searing Spellfire on Radiant.
+  "Frigid Explorer": Object.freeze({ key: "frigid-explorer", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["cold"]),
+    caveat: "counted — Cold from a source that is not the ranger's weapon, spell or feature is the table's",
+    rule: Object.freeze({ item: "Frigid Explorer", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofWiwFrigidExpl", benefit: "Biting Cold" }),
+    from: "Ranger — Winter Walker 3 (Heroes of Faerûn)" }),
+  "Spellfire Adept": Object.freeze({ key: "spellfire-adept", gate: "always", feat: true, ignores: "resistance", types: Object.freeze(["radiant"]),
+    rule: Object.freeze({ item: "Spellfire Adept", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSpellfireAdep", benefit: "Searing Spellfire" }),
+    from: "Heroes of Faerûn — general feat" })
 });
 
 /** What raises a repeated save — the closed set the R4 tripwire counts (repeat-saves.js). */
@@ -3231,7 +3373,11 @@ export const REPEAT_SAVES = Object.freeze({
   "Frightening Appearance": Object.freeze({ effect: "Frightened", activity: "Repeat Frightening Save", on: Object.freeze(["turnEnd"]),
     caveat: "\"no line of sight to the illusion\" and the dropped items are the table's",
     rule: Object.freeze({ item: "Frightening Appearance", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aSPI6eWw42j6t3fs" }),
-    from: "Arcana Unleashed — Illusory Dragon (level 8 spell)" })
+    from: "Arcana Unleashed — Illusory Dragon (level 8 spell)" }),
+  // HEROES OF FAERÛN — Strike Fear's Terrify: the Frightened repeats at the creature's turn end against the Terrify save.
+  "Strike Fear": Object.freeze({ effect: "Strike Fear: Terrify", activity: "Terrify", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Strike Fear", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofSotStrikeFear", benefit: "Terrify" }),
+    from: "Rogue — Scion of the Three 9 (Heroes of Faerûn)" })
 });
 
 /**
@@ -3621,7 +3767,9 @@ export const INTERRUPTS = Object.freeze([
   // the DMG
   row("Gloves of Missile Snaring", "damage"),
   // Arcana Unleashed
-  row("Go to Ground", "damage"), row("Arcane Omens", "roll"), row("Transmuted Anatomy", "roll"), row("Spell Resistant", "roll")
+  row("Go to Ground", "damage"), row("Arcane Omens", "roll"), row("Transmuted Anatomy", "roll"), row("Spell Resistant", "roll"),
+  // Heroes of Faerûn
+  row("Elemental Rebuke", "damage"), row("Shared Resilience", "roll")
 ]);
 /** Which spells a reaction stops outright. */
 export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);

@@ -197,7 +197,8 @@ describe("the registry's clock-rider data", () => {
       // …or the die is the granting bard's (A1, Combat Inspiration: `inspired`).
       // THE DMG (2026-10-01): a weapon's own property names a flat amount (Mace of Smiting's 7) or says what it does;
       // a WORN item's (Arcana Unleashed's Blood Amulet) the same, its save the item's first.
-      if ((row.wields || row.worn) && row.activity === null)
+      // …or one save per ability the feat may raise (Heroes of Faerûn's Fairy Trickster: `activities`), saying what it does.
+      if ((row.wields || row.worn || row.activities) && row.activity === null)
         expect(row.amount || row.says, key).toBeTruthy();
       else if (row.activity === null && !row.says && !row.inspired)
         expect(row.amount, key).toMatch(/^@/);

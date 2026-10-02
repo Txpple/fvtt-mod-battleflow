@@ -62,7 +62,8 @@ describe("DROP_TO_ONE — the kill moment's two sides", () => {
       "relentless rage",
       "undying sentinel",
       "rage of the gods",
-      "searing vengeance"
+      "searing vengeance",
+      "mechanical determination" // Heroes of Faerûn
     ]);
   });
 });
@@ -205,7 +206,8 @@ describe("EVASIONS — Evasion's shape as a table: Evasion on Dexterity, Avoidan
       "Avoidance",
       "Potent Cantrip",
       "Leading Evasion",
-      "Aura of Evasion" // Arcana Unleashed: keyed to the aura's member effect
+      "Aura of Evasion", // Arcana Unleashed: keyed to the aura's member effect
+      "Crown of Spellfire" // Heroes of Faerûn: against spells, while the crown stands
     ]);
     expect(reg.EVASIONS.Evasion.ability).toBe("dex");
     expect(reg.EVASIONS.Avoidance.ability).toBeNull();

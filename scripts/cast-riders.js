@@ -14,7 +14,7 @@ import { CAST_RIDERS, castRiderEntries, listedNames, answers } from "./decide/re
 import { castWithSlot, spellClassOf, surgeLine, surgeOutcome } from "./decide/cast-riders.js";
 import { riderPartFormula } from "./decide/clock.js";
 import { esc } from "./decide/present.js";
-import { poolOf } from "./shared.js";
+import { poolOf, withTargets } from "./shared.js";
 import { askHandOut } from "./rest-grants.js";
 import { applyItemEffectOnHit } from "./effect-riders.js";
 import { tokenOfActor, tokensInRegions } from "./geometry.js";
@@ -67,6 +67,8 @@ listen("dnd5e.postUseActivity", "cast-riders", (activity, usageConfig, results) 
       if ( row.handOut ) void inspire({ name, row, feature, actor });
       // C1 — `aura` (Smite of Protection): the ring's members wear the feature's effect until the caster's next turn start.
       if ( row.aura ) void auraEffect({ name, row, feature, actor, message: results?.message ?? null });
+      // `use` (Hunter's Rime): the feature's named activity used on the caster right after the cast, no ask (R1).
+      if ( row.use ) void useOnSelf({ name, row, feature, actor });
     }
   } catch(err) {
     console.error(`${TITLE} | A cast rider could not be read — play it from the sheet.`, err);
@@ -259,6 +261,18 @@ listen("dnd5e.renderChatMessage", "cast-riders", (message, html) => {
 });
 
 /* --- INSPIRING SMITE ------------------------------------------------------------------------------- */
+
+/** `use`: the feature's activity of that name, used on the caster itself (its own token targeted) — Hunter's Rime's heal and mark. */
+async function useOnSelf({ name, row, feature, actor }) {
+  try {
+    const activity = activityNamed(feature, row.use);
+    if ( !activity ) { console.warn(`${TITLE} | ${name}: no "${row.use}" on the sheet — use it by hand.`); return; }
+    const token = tokenOfActor(actor);
+    await withTargets(token ? [token] : [], () => activity.use({}, { configure: false }, {}));
+  } catch(err) {
+    console.error(`${TITLE} | ${name} could not be used — use it from the sheet.`, err);
+  }
+}
 
 async function inspire({ name, row, feature, actor }) {
   try {

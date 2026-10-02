@@ -91,9 +91,11 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       if ( bystanderMuted(actor, key) ) continue;
       const die = (row.bend === "die") ? bystanderDie(actor, row) : null;
       if ( (row.bend === "die") && !dieMaxOf(die) ) continue;
+      // A reroll row's `bonus` (Shared Resilience's fighter level) lifts the reroll: the gate judges the lifted total.
+      const lift = ((row.bend === "reroll") && row.bonus) ? rerollBonusOf(actor, row.bonus) : 0;
       const matters = (row.bend === "twist") ? true : known
         ? bystanderMatters({ bend: row.bend, sign, dieMax: dieMaxOf(die), want: friendly ? "hit" : "miss",
-            kept: Number(facts.kept), plain: facts.plain, total, target: Number(dc), mode: facts.mode, critAt: 99, fumbleAt: 0 })
+            kept: Number(facts.kept), plain: facts.plain, total: total + lift, target: Number(dc), mode: facts.mode, critAt: 99, fumbleAt: 0 })
         : ((row.bend === "neutralise") ? neutraliseOutcome({ mode: facts.mode, kept: Number(facts.kept), plain: facts.plain, total }).changed : true);
       if ( !matters ) continue;
       out.push({ uuid: actor.uuid, name: other.document?.name ?? actor.name, row: key, itemId: item.id, activityId: activity.id ?? null,
@@ -106,6 +108,18 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
 /** The row's activity on the item — by name, or the item's FIRST where the pack left it unnamed (`activity: null`). */
 const activityOf = (item, row) => (row.activity === null)
   ? ([...(item?.system?.activities ?? [])][0] ?? null) : activityNamed(item, row.activity);
+
+/** A reroll row's `bonus` as a number on the answerer's roll data ("@classes.fighter.levels"); unreadable → 0, said once. */
+function rerollBonusOf(actor, formula) {
+  try {
+    const resolved = Roll.replaceFormulaData(String(formula), actor.getRollData());
+    const n = Number(Roll.safeEval(resolved));
+    return Number.isFinite(n) ? n : 0;
+  } catch {
+    console.warn(`${TITLE} | The reroll bonus "${formula}" could not be read off ${actor.name}'s sheet — the reroll stands without it.`);
+    return 0;
+  }
+}
 
 /**
  * Stamp the offer on the roll message; true when someone is asked.
@@ -293,11 +307,14 @@ async function bystanderAnswer(message, guard, choice, face = null) {
       .catch(err => { console.error(`${TITLE} | ${guard.row}'s reroll failed — reroll the save by hand.`, err); return null; });
     if ( !rolled ) return;
     const newFacts = d20FactsOf(rolled.roll);
-    const rise = foldRise({ mode: "reroll", oldFace: facts.kept, newFace: newFacts.kept, total: rolled.summary.total, on: flag.rollerUuid });
+    // A reroll row's `bonus` (Shared Resilience: the fighter's level) is read off the ANSWERER and added to the new total.
+    const bonus = row.bonus ? rerollBonusOf(actor, row.bonus) : 0;
+    const newTotal = Number(rolled.summary.total) + bonus;
+    const rise = foldRise({ mode: "reroll", oldFace: facts.kept, newFace: newFacts.kept, total: newTotal, on: flag.rollerUuid });
     await rolled.roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: resolveUuid(flag.rollerUuid) ?? actor }),
-      flavor: `${guard.row} — ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"} rerolled${row.advantage ? " with Advantage" : ""}`,
+      flavor: `${guard.row} — ${flag.rollerName}'s ${TEST_WORD[flag.testKind] ?? "roll"} rerolled${row.advantage ? " with Advantage" : ""}${bonus ? ` + ${bonus}` : ""}`,
       flags: { [MODULE_ID]: { respondsTo: message.id, ...(rise ? { diceRise: rise } : {}) } } });
-    bent = rerollOutcome({ kept: Number(facts.kept), total: Number(roll.total), newKept: Number(newFacts.kept), newTotal: Number(rolled.summary.total),
+    bent = rerollOutcome({ kept: Number(facts.kept), total: Number(roll.total), newKept: Number(newFacts.kept), newTotal,
       critAt: 99, fumbleAt: 0, faces: newFacts.faces });
   } else {
     let n = 0;

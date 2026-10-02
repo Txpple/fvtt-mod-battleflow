@@ -33,7 +33,8 @@ describe("CAST_RIDERS", () => {
     expect(reg.castRiderEntries().map(e => e.kind)).toEqual([
       "wild magic surge",
       "inspiring smite",
-      "smite of protection" // C1
+      "smite of protection", // C1
+      "hunter's rime" // Heroes of Faerûn
     ]);
   });
 });

@@ -532,6 +532,12 @@ listen("updateCombat", "emanations", (combat, changes) => {
       if ( !row || !names.has(lower(row.key)) || !appliesHere(region) ) continue;
       if ( row.remind?.on === "sourceTurnStart" ) void remind(region, row, token);
       if ( row.pick?.on === "sourceTurnStart" ) void pickCard(region, row, token, combat);
+      // A pulse at the bearer's turn START (Frozen Haunt's Frozen Soul): the turn-end pulse's twin, keyed by this turn.
+      if ( row.pulse?.on === "sourceTurnStart" ) {
+        const beh = behaviorOf(region);
+        const key = `${region.id}|${combat.round}|${combat.turn}|start`;
+        if ( beh && !beh.disabled && !pulsed.has(key) ) { pulsed.add(key); void pulse(region, row, token, beh.system); }
+      }
     }
   } catch(err) {
     console.error(`${TITLE} | Emanation notice failed.`, err);

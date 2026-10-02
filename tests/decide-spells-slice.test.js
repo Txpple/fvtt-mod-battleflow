@@ -60,7 +60,8 @@ describe("Tier 1 — the rows", () => {
         "Hexed Charisma",
         "Mounted Adept",
         "Wondrous Alteration",
-        "Aura (Aura of Evasion)"
+        "Aura (Aura of Evasion)",
+        "Stronger Together" // Heroes of Faerûn
       ]
     );
     expectPointer(row.rule);

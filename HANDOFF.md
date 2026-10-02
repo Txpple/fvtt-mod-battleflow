@@ -1,93 +1,62 @@
-# HANDOFF.md — 2026-10-01 (night): the splat books ruled in BEFORE 3.0, prework done; next the rulings, then book by book
+# HANDOFF.md — 2026-10-02 (the overnight run): Arcana and Faerûn built; Ravenloft HELD; the releases in flight
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > **Wait for the user's go.** A ruling in chat is not a go. Rapid dev mode stands (no walkthroughs). 3.0.0 is the user's
 > to cut by hand.
 
-## FIRST — the state
+## FIRST — the state (read the bottom section for what is still in flight)
 
-- **On prod: v2.11.0** (2026-10-01, byte-identical, settings CLEAN; the module.json version string waits on a Foundry
-  PROCESS restart, which is the user's).
-- **main, pushed as far as cbc4b02, UNRELEASED:** the DMG built out (crit riders, enchanted weapons via `lookup.js`
-  `wieldsAs`, Luck Blade, Moonblade native; `smoke-classes` §115–§125; verify 1244 tests green). The DMG register: 39
-  MODULE, 7 WAITS. ⚠ Sword of Sharpness's pack data types its 14 as Necrotic — a Vendor Fixes task.
-- **Local commits after cbc4b02 (this session, docs + tools only, NOT pushed):** the epic boons parked in BACKLOG
-  (a63701c), then the splat-books prework (this handoff's commit). Push them.
-- **Scoped out for good** (BACKLOG *Scoped out for good*; never raised unless the user names one): the reaction-AC items,
-  Fight or Flight / Success at a Cost, the redirect and cast-triggered kinds.
+- **The user's brief (2026-10-01 ~23:00):** *"go arcana=>faerun=>ravenloft order. work autonomously. do arcana and
+  faruen. stop at ravenloft."* + *"wrap up e-004"* + *"make sure sword of sharpness needs no other work than the errata"*
+  + *"start up sandbox"*. Everything below was done without the user; the defaults taken for the plan's §7 are in
+  RULINGS *Arcana Unleashed* (one minor per book, bestiaries by name, summons on #1, the Survivor fix first).
+- **E-004 WRAPPED:** Errata 5e v1.0.0 (with E-004) was already released and #754 labelled `worked-around`; tonight Errata 5e
+  was DEPLOYED to prod (it was absent — every path 404) and prod's world config switched: `fvtt-mod-errata5e` ON,
+  `fvtt-mod-vendorfixes` OFF — ⚠ **both take effect at the next world launch, i.e. the user's process restart** (the
+  same restart the v2.11.0 version string waits on). Battle Flow needs nothing for the Sword of Sharpness (RULINGS'
+  line now names E-004).
+- **The Survivor collision FIXED** (`FEATURE_TYPES` in registry.js: a feat name another book shares is told apart by
+  `system.type.value`; Ravenloft's Survivor feat answers none of the Fighter's rows) — smoke-splat §1 proves it live.
+- **Arcana Unleashed BUILT** — b0357f1 on main, pushed: RULINGS *Arcana Unleashed*, [audits/arcana-register.md](audits/arcana-register.md)
+  (257 rows: 38 MODULE · 23 WAITS · 26 OUT · 97 TEXT · 73 NATIVE), the drawing [audits/drawings/splat-arcana.md](audits/drawings/splat-arcana.md),
+  `tools/audit-splat-register.mjs <arcana|faerun|ravenloft>` (the per-book register generator),
+  `tools/merge-corpus-identifiers.mjs` (the identifier snapshot extended from the offline corpus — the bestiaries are
+  Actor packs the live probe never opens), `tools/smoke-splat.mjs` (in ORDER after smoke-classes). ~40 rows, seven facets, no kind.
+- **Heroes of Faerûn BUILT** — in the working tree / the commit after b0357f1 (see below): RULINGS *Heroes of Faerûn*,
+  [audits/faerun-register.md](audits/faerun-register.md) (122 rows: 31 MODULE · 16 WAITS · 18 OUT · 41 TEXT · 16 NATIVE),
+  the drawing [audits/drawings/splat-faerun.md](audits/drawings/splat-faerun.md); smoke-splat §6–§10. ~30 rows, five
+  facets (`judge: "enemyBloodied"`, `hitMelee`, the reroll `bonus`, the cast riders' `use`, the clock riders'
+  `activities`, `pulse.on: "sourceTurnStart"`, the evasions' `spells`, the save presses' `types`), no kind. Also the
+  SAVE_PRESSES Command collision guard (the construct's "Command" action is not the spell) and three `ALIASES`.
+- **Ravenloft is HELD** (the user's stop). Its prework stands in the plan; its Survivor collision is already fixed.
 
-## The re-ruling (2026-10-01, RULINGS *The full release — the order*)
+## The releases — what the run did or was doing when it stopped
 
-The user, in a holding pattern: *"start a new project whereby we will add in arcana unleashed, heroes of faerun, and
-ravenloft to the scope … these will be added prior to 3.0 … we are still in rapid devmode … stay out of the sandbox …
-add epic boons to the backlog."* So:
+The order the run follows (each step the user's precedent of 2026-09-30: release AND prod):
 
-- **v3.0.0 = PHB + DMG + MM + Arcana Unleashed + Heroes of Faerûn + Ravenloft**, all built, unwalked. 3.x = the walks.
-- The 3.0 floor battery moves to AFTER the splat books (it was "next" in the previous handoff).
-- **Epic boons — every book's — are PARKED** in BACKLOG *Features* as a slice of their own, no longer out.
+1. The full battery on b0357f1 (Arcana) — launched detached ~00:20 (`dist/battery-arcana.log`, the run dir under
+   `dist/battery/`). **The release floor for v2.12.0.** A red on a suite green an hour earlier is fixture state or timing
+   until proven otherwise (molten-test-box): re-run it alone before believing it.
+2. v2.12.0: `node tools/bump-version.mjs 2.12.0` → a `release: v2.12.0` commit touching module.json ALONE (the Faerûn
+   work stays uncommitted or commits AFTER the tag) → annotated tag → `git push --follow-tags` → CI publishes → prod deploy
+   from the tag's tree (`git stash -u` the Faerûn work first; `FOUNDRY_HOST=molten node ../fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs fvtt-mod-battleflow`,
+   `--check` first — an all-identical hash is a HALF-AWAKE box, wake it with get-world-info) → `BF_TARGET=prod node tools/verify-settings.mjs`
+   (`--fix` on drift) → disconnect the molten bridge → `git stash pop`.
+3. Faerûn: deploy `--local`, `node tools/smoke-splat.mjs` (10 sections; §6–§10 are Faerûn's, UNRUN as of this writing),
+   fix, commit, the full battery again, v2.13.0 the same way.
+4. HANDOFF retired; BACKLOG 5b and the memory updated.
 
-## The prework — DONE, nothing built
-
-- **The plan:** [audits/plans/splat-books.md](audits/plans/splat-books.md) — the numbers, what fires already, the
-  hazards, the work by shape with the precedent named per row, the proposed order, the questions.
-- **The evidence:** [audits/splat/](audits/splat/) — one file per book, from an OFFLINE scan.
-- **The tools (new):** `tools/scan-corpus-offline.mjs` (copies the LevelDB packs out of the data folder minus LOCK and
-  reads the copies with classic-level from the sibling `fvtt-mcp-dnd5e` checkout — no Foundry, no bridge, no sole-GM;
-  flattens Actor packs into bestiary rows), `tools/classify-corpus.mjs` (ranks the three books; `actor` rows →
-  `monster`, `.items` packs → `dm`), `tools/audit-splat-books.mjs` (the evidence tables). Regenerate in seconds:
-  ```
-  node tools/scan-corpus-offline.mjs dist/splat-corpus.json dnd-arcana-unleashed dnd-heroes-faerun dnd-ravenloft-horrors-within
-  node tools/classify-corpus.mjs dist/splat-corpus.json
-  node tools/audit-splat-books.mjs dist/splat-corpus-classified.json dist/splat-corpus.json
-  ```
-- **The sandbox was touched once** (three read-only index probes, before the user said stay out). Nothing else.
-
-### The findings the next session must carry
-
-1. ⚠ **A live defect — Ravenloft's `Survivor` feat collides with the Fighter's `Survivor`.** `scripts/lookup.js`
-   `featureNamed` matches any `feat`-type item by name, so a holder of the Ravenloft feat gets `D20_FLOORS` Defy Death and
-   the `TURN_GRANTS` Heroic Rally offer. Fix: a type-aware feature match (`system.type.value` `class` vs `feat`/`origin`,
-   or the row's `rule.uuid` source). Its own suite section. Ravenloft's `Touch of Death` feat shares a name with
-   Ankhtepot's action too — no row yet, guard whichever lands first.
-2. **Heroes of Faerûn is half in already** — its `.options` pack has ranked in the corpus since Slice A and three rows are
-   keyed (Death Armor, Purple Dragon Commandant, Street Justice) — but NO register ever read it (the classes and spells
-   registers filter to the PHB packs). Its register is the main gap.
-3. **The MM machine covers the splat bestiaries for free:** ~25 trait/reaction names are MM rows (Magic Resistance on 36
-   bearers, Undead Fortitude, Regeneration, Parry / Shield / Protection, Life Drain, Avoidance, Misty Escape…). Ravenloft's
-   `fallback-actors` (54) are MM-shaped reprints.
-4. **The work by shape** (plan §5): ~110 rows on existing tables; small kinds — Arcane Shot as a hit-menu GROUP row (8
-   options; Piercing/Seeking Shot are TEXT), one new moment (BECOMING Bloodied — Harvest Undead, Bloodthirst, Sentinel at
-   Death's Door; classify the flag key in `decide/moments.js`), initiative-time rows (`INITIATIVE_SWAPS`' moment), a
-   companion-drop reaction (Vestige Recovery), evolving items on the `wieldsAs` reader (measure one first; Arcana's
-   `.effects` pack is the house's first ActiveEffect compendium), halve + crit-cancel interrupt.
-5. **OUT / held:** summons-shaped features park on GitHub issue #1; cast-triggered and redirect stay held; mist talismans,
-   soul trinkets, the Tarokka, factions, bastions are narrative.
-
-## Next, in order (each on the user's go)
-
-1. **The user rules plan §7** — order (default Faerûn → Ravenloft → Arcana), both bestiaries in by name, summons parked
-   on #1, one minor per book (2.12 / 2.13 / 2.14) or one, when the Survivor fix ships (default: first commit).
-2. **The prework commit of the slice:** the Survivor collision fix + its suite section; BACKLOG / DESIGN §3 frame lines
-   if the rulings move anything.
-3. **Book 1 — Heroes of Faerûn:** a register (NATIVE / MODULE / ROW / TABLE / KIND / TEXT / OUT / WAITS, precedent named;
-   a new per-book auditor on `tools/register-shared.mjs`, the way `tools/audit-dmg-register.mjs` was written) → rows → their own suites
-   (`battery.mjs --changed`) → v2.12.0. ~35 rows, the Bloodied moment, the initiative rows.
-4. **Book 2 — Ravenloft:** species, 7 subclasses, 11 feats, 5 dark gifts, then the bestiary's ~40 new monster rows on
-   Slice B's shapes → v2.13.0.
-5. **Book 3 — Arcana Unleashed:** Arcane Shot's group, the 8 school subclasses, 33 spells, 38 combat items → v2.14.0.
-6. **The 3.0 floor battery** (clean the sandbox first: verify-settings --fix, reset-fixture-state, fixture-suite; no
-   other session on the bridge), the docs frame lines ("PHB + DMG + MM + the splat books built"), then the user cuts
-   v3.0.0 by hand; prod only on the user's word.
+**If a step is half done, the tags and `git log` tell which; prod's version is `deploy-house-module --check`.**
 
 ## Suite lessons (keep them)
 
 - ⚠ No `foundry-local5e` MCP call while a battery runs: it joins the bridge and every later suite fails its preflight.
+- The Halfling fixture's Lucky HOLDS every hit on it for the rescue popup: spend its uses for a run that hits the Halfling
+  (smoke-splat does, and puts them back).
+- A hit-menu option whose dice live on its SAVE activity (Arcane Shot) rides them with `saveDice`; the pack's
+  `onSave: "full"` is "the save never modulates them" — the saves machine rolls nothing for a `full` save (Web's burn).
+- A `judge: "becameBloodied"` reads Hit Points AFTER the damage: before = now + the amount landed.
 - The offline scan needs NO bridge — prefer it over `scan-corpus.mjs` for any book census.
-- A vial's Use Poison is both the coating's use and its save: the hit's own use is marked (`hitUses`) so the veto skips it.
-- Never delete an item whose activity a just-posted save card still reads.
-- A ring's MEMBER copy is named `<effect> — <source>`: match it by `startsWith`.
-- A PENDING save demand routes a sheet save of the same creature into the demand's withhold: roll sheet saves first.
-- The off-scene main row (y 2100): a token there cannot be moved back onto it.
 - Heredoc edits mangle backslashes AND `\'`: write edit scripts to a scratchpad FILE (python, `newline=''`).
 - No dates in code comments, no user quotes in code comments (a check fails them in `scripts/`). Commit bodies ASCII.
   `biome --write` on named files only.

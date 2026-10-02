@@ -360,7 +360,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await lendTrait('Barbed Hide');
       // The Victim Grappled BY the Monster: the module's own stamp names the grappler (Unarmed Fighting's finder).
       const [fx] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name: 'Grappled', statuses: ['grappled'], origin: monster.uuid, flags: { [MOD]: { sourceUuid: monster.uuid } } }]);
-      await startCombat();   // the Monster's turn START (round 1)
+      const nBefore = grantCards().length;
+      await startCombat();   // the Monster's turn START (round 1) — its own deal lands first; the measured one is round 2's
+      // ⚠ Round 1's card and receipt arrive on their own clock: read the baseline only once they have landed, or round 2's
+      // damage reads as double (the suite's own race, not the machine's).
+      await waitFor(() => (grantCards().length > nBefore) && grantCards().at(-1)?.getFlag(MOD, 'receipt'), 8000);
+      await sleep(300);
       const n0 = grantCards().length;
       const hp0 = hpNow();
       await combat.nextTurn();   // the Victim

@@ -275,7 +275,8 @@ describe("the one-row facets — the vampire's drop, the curse on a rest, the de
       "relentless rage",
       "undying sentinel",
       "rage of the gods",
-      "searing vengeance"
+      "searing vengeance",
+      "mechanical determination" // Heroes of Faerûn
     ]);
   });
   it("REST_GRANTS: the two block rows name the pack's Cursed and their rests, and grant nothing", () => {
