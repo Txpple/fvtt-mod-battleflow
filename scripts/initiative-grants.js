@@ -61,7 +61,7 @@ function grantsFor(actor) {
     if ( !regain ) continue;
     const heal = row.heal ? activityNamed(item, row.heal) : null;
     const hp = actor.system?.attributes?.hp ?? null;
-    const due = initiativeGrantDue({ own: usesOf(item), regain: usesOf(regain), heals: !!heal, upTo: row.upTo ?? null,
+    const due = initiativeGrantDue({ own: usesOf(item), regain: usesOf(regain), heals: !!heal, upTo: row.upTo ?? null, count: row.count ?? null,
       hp: hp ? { value: Number(hp.value) || 0, max: Number(hp.effectiveMax ?? hp.max) || 0 } : null });
     if ( due.due ) out.push({ name, row, item, regain, heal });
   }
@@ -133,12 +133,14 @@ async function post(combat, combatant, actor, { name, row, item, regain, heal, g
   const formula = give ? give.formula : heal ? healFormulaOf(actor, heal) : null;
   if ( heal && !formula ) console.warn(`${TITLE} | ${name}: its heal could not be read off ${actor.name}'s sheet — roll it by hand.`);
   const window = row.ask ? decisionWindow() : 0;
-  // C1 — `upTo` (Perfect Focus): what comes back is what is missing below the ceiling.
-  const back = row.upTo ? Math.max(0, Math.min(Number(row.upTo) - r.value, r.spent)) : Math.min(r.spent, r.max);
+  // C1 — `upTo` (Perfect Focus): what comes back is what is missing below the ceiling; `count` (Ever-Ready Shot): that many.
+  const back = row.upTo ? Math.max(0, Math.min(Number(row.upTo) - r.value, r.spent))
+    : row.count ? Math.max(0, Math.min(Number(row.count), r.spent)) : Math.min(r.spent, r.max);
   const flag = { status: row.ask ? "pending" : "resolved", answer: row.ask ? null : "auto", row: name, unit: row.unit ?? null,
     actorUuid: actor.uuid, actorName: combatant.name ?? actor.name, itemId: item.id, regainId: regain?.id ?? null,
     back, max: r.max, formula, combatId: combat.id, combatantId: combatant.id, ...statContext(actor.uuid),
     ...(row.upTo ? { upTo: Number(row.upTo) } : {}),
+    ...(row.count ? { count: Number(row.count) } : {}),
     ...(fallback ? { fallback: { row: fallback.name, itemId: fallback.item.id, regainId: fallback.regain?.id ?? null, upTo: Number(fallback.row.upTo) || null, unit: fallback.row.unit ?? null } } : {}),
     ...(give ? { give: true, reach: row.reach ?? 30, activityId: give.activity.id, poolId: give.pool.id, poolName: give.pool.name } : {}),
     ...(window ? { window, deadline: Date.now() + (window * 1000) } : {}) };
@@ -235,6 +237,15 @@ async function landGrant(message) {
     if ( flag.upTo ) {
       if ( r.value < flag.upTo ) await regain.update({ "system.uses.spent": Math.max(0, r.max - Number(flag.upTo)) });
       record.regained = Math.max(0, Math.min(Number(flag.upTo), r.max) - r.value);
+      record.max = r.max;
+      return;
+    }
+    // `count` (Ever-Ready Shot): that many expended uses back, never more than are spent; the feature's own use spent with it.
+    if ( flag.count ) {
+      const back = Math.max(0, Math.min(Number(flag.count), r.spent));
+      if ( back ) await regain.update({ "system.uses.spent": r.spent - back });
+      if ( own.max > 0 ) await item.update({ "system.uses.spent": own.spent + 1 });
+      record.regained = back;
       record.max = r.max;
       return;
     }

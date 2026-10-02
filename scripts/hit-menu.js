@@ -75,7 +75,9 @@ function menuFor(attackMessage, activity) {
       // `dieFrom`: the die is ANOTHER feature's (Improved Brutal Strike's blows ride Brutal Strike's die).
       const dieFeat = row.dieFrom ? featureNamed(attacker, row.dieFrom) : feat;
       if ( row.dieFrom && !dieFeat ) continue;
-      const die = row.noDie ? null : ((named?.type === "damage") ? named : activityOfType(dieFeat, "damage"));
+      // `saveDice` (Arcane Shot): the option's SAVE activity carries the dice — they ride the hit, the save follows without them.
+      const die = row.noDie ? null : row.saveDice ? ((named?.type === "save") ? named : activityOfType(dieFeat, "save"))
+        : ((named?.type === "damage") ? named : activityOfType(dieFeat, "damage"));
       // A no-save press ships a utility activity and no die — its uses are the cost; a no-die option
       // pays through its own activity's consumption (Stunning Strike's save spends the Focus Point).
       const paying = die ?? (row.noDie ? (named ?? activityOfType(feat, row.save ? "save" : "utility"))
@@ -84,7 +86,8 @@ function menuFor(attackMessage, activity) {
       // B4 — `pact`: the pact weapon (bonded through the named feature); none bonded, any weapon with the caveat.
       const pact = row.pact ? pactWeaponFits(attacker, activity.item, row.pact) : null;
       eligible[key] = optionReaches({ row, ...facts, own: activity.item?.id === feat.id }) && (pact?.fits !== false);
-      used[key] = !!row.oncePerTurn && turnChitStands(attacker, "rider", key);
+      // `onceKey` (Arcane Shot): one turn chit for the whole group — any option ridden this turn greys them all.
+      used[key] = !!row.oncePerTurn && turnChitStands(attacker, "rider", row.onceKey ?? key);
       // B4 — `pactSlot`: the Pact Magic slots are the pool (every slot one level: no picker), spent at the ride.
       const pactSlot = (group.pool === "pactSlot") ? (attacker.system?.spells?.pact ?? null) : null;
       const pool = (free || pactSlot) ? null : poolOf(attacker, paying);
@@ -172,6 +175,8 @@ function hitFacts(attacker, activity) {
     unarmed,
     weapon: (activity?.item?.type === "weapon") && !unarmed,
     monkWeapon: isMonkWeapon(activity?.item),
+    // Arcane Shot's weapons: a ranged attack with an Ammunition weapon.
+    ammunition: (activity?.item?.type === "weapon") && (activity?.attack?.type?.value === "ranged") && !!activity.item.system?.properties?.has?.("amm"),
     flurry: activeCombatFor(attacker) ? turnChitStands(attacker, "rider", FLURRY) : null
   };
 }
@@ -371,7 +376,7 @@ listen("dnd5e.preRollDamage", "hit-menu", (config, _dialog, message) => {
         // live only: the paying feature is never used up, so the sheet is the truth (the chit's icon)
         void writeTurnChit(attacker, "rider", { name: `${row.label ?? row.feature} — used this turn`, img: resolveUuid(pick.itemUuid)?.img ?? null,
           description: `${row.label ?? row.feature} has ridden a hit this turn. Once per turn; this chit ends with the turn.`,
-          origin: pick.itemUuid ?? null, riderKey: pick.key })
+          origin: pick.itemUuid ?? null, riderKey: row.onceKey ?? pick.key })
           .catch(err => console.warn(`${TITLE} | Could not write the ${row.feature} chit.`, err));
       }
       out.push({
@@ -447,7 +452,11 @@ async function consequencesOf(damageMessage, hm, { attackMessage, attacker, hits
       const pressUuids = missing.map(id => source?.effects?.get(id)?.uuid).filter(Boolean);
       if ( missing.length && !pressUuids.length ) notes.push(`${hm.feature}: its effect is missing from the sheet and its source could not be read — apply it by hand`);
       // A save that IS the cost (Stunning Strike's Focus Point) pays here; the rider spent nothing for it (`paidBySave`).
-      const results = await withTargets(tokens, () => act.use({}, { configure: false }, {}));
+      // A `saveDice` option's dice rode the hit and its pool was spent there: the save consumes nothing and rolls no damage
+      // of its own (`riderSave`, the weapon riders' mark — saves/demand.js reads it).
+      const saveDice = !!HIT_OPTIONS[hm.key]?.saveDice;
+      const results = await withTargets(tokens, () => act.use(saveDice ? { consume: { resources: false, action: false, spellSlot: false } } : {}, { configure: false },
+        saveDice ? { data: { flags: { [MODULE_ID]: { riderSave: true } } } } : {}));
       const card = results?.message;
       if ( card instanceof ChatMessage ) {
         // The follow-up's effect: a condition the pack left on the ITEM, unlinked (Trip's Prone).

@@ -148,6 +148,11 @@ export const ORDER = [
     name: "smoke-classes", note: "the PHB classes — §A3 the bystander's bend on a hit: the margin gate, the popup, the quiet road off the damage, Restore Balance's first d20, the reach, \"Not this combat\" and its sweep",
     needs: ["fixture-suite"]
   },
+  // The splat books: Ravenloft's Survivor against the Fighter's rows, Arcane Shot's group, the Bloodied rebuke, Instinctive Charm, Ever-Ready Shot.
+  {
+    name: "smoke-splat", note: "the splat books — the Survivor collision (no Heroic Rally, no Defy Death on a feat), Arcane Shot's group and its one turn chit, Harvest Undead on becoming Bloodied, Instinctive Charm's save at the attacker, Ever-Ready Shot's one use back",
+    needs: ["fixture-suite"]
+  },
   // ⚠ ITS OWN SEED: the probe reads the fixture tokens, which smoke-metamagic and smoke-emanations
   // move and sweep; the seed runs only when the probe is selected.
   { name: "fixture-suite", note: "not a suite — re-places the tokens probe-effect-view needs", reset: true },

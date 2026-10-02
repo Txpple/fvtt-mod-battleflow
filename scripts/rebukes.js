@@ -46,7 +46,7 @@ function reactionActivity(item, row) {
 
 /** The rebukes this bearer may take at this damager now. `ward`: the WARD rows only (Sentinel, a
  * bystander to the hit); `attackHit`: the damage came from an attack. */
-function offersFor(actor, source, { ward = false, attackHit = false, miss = false, onAttack = false, damageTypes = [] } = {}) {
+function offersFor(actor, source, { ward = false, attackHit = false, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false } = {}) {
   const listed = listedNames(rebukeEntries());
   const bearer = tokenForUuid(actor.uuid);
   const damager = tokenForUuid(source.uuid);
@@ -56,7 +56,11 @@ function offersFor(actor, source, { ward = false, attackHit = false, miss = fals
     if ( !listed.has(lower(name)) ) continue;
     if ( !!row.ward !== ward ) continue;
     if ( (row.on === "miss") !== miss ) continue;           // a miss row only on a miss, never on damage
+    // A miss row answers a melee weapon attack's miss (Sticky Shield); `missOf: "any"` (Masterful Shots) any attack roll's.
+    if ( miss && (row.missOf !== "any") && !missMelee ) continue;
     if ( (row.on === "attack") !== onAttack ) continue;     // C1 — an attack row only on the marked creature's attack card
+    // THE BLOODIED MOMENT (Harvest Undead): the damage took the bearer from above half its Hit Points to half or fewer.
+    if ( (row.judge === "becameBloodied") && !becameBloodied ) continue;
     // C1 — `mark` (Soul of Vengeance): the attacker must wear the bearer's effect of that name.
     if ( row.mark && !source.effects?.some?.(e => e.active && (lower(e.name) === lower(row.mark)) && (grantingActor(e)?.uuid === actor.uuid)) ) continue;
     if ( row.hit && !attackHit ) continue;
@@ -105,12 +109,23 @@ listen("dnd5e.applyDamage", "rebukes", (actor, amount, options) => {
     const attackHit = isAttackDamage(origin);
     // The damage's types, off the card's rolls (a `types` row); a card with none is unreadable and counts.
     const damageTypes = [...new Set((origin.rolls ?? []).map(r => r?.options?.type).filter(Boolean))];
-    void stampRebuke(actor, source, Number(amount), origin, { attackHit, damageTypes });
+    void stampRebuke(actor, source, Number(amount), origin, { attackHit, damageTypes, becameBloodied: becameBloodiedBy(actor, Number(amount)) });
     if ( attackHit ) void stampWards(actor, source, Number(amount), origin);
   } catch(err) {
     console.error(`${TITLE} | The rebuke offer failed — use the reaction from the sheet.`, err);
   }
 });
+
+/** Did this damage take the creature from above half its Hit Points to half or fewer, and not to 0 — the Bloodied moment
+ * (`judge: "becameBloodied"`)? Read after the damage landed: the Hit Points before are the ones now plus what landed
+ * (Temporary Hit Points absorbed are not counted back — a creature they spared never crossed the line). */
+function becameBloodiedBy(actor, amount) {
+  const hp = actor.system?.attributes?.hp ?? {};
+  const now = Number(hp.value) || 0;
+  const max = Number(hp.effectiveMax ?? hp.max) || 0;
+  if ( !(max > 0) || !(now > 0) || !(now * 2 <= max) ) return false;
+  return (now + amount) * 2 > max;
+}
 
 /** Did this damage come from an attack's hit — its card's activity an attack, or chained to one? */
 function isAttackDamage(origin) {
@@ -118,8 +133,8 @@ function isAttackDamage(origin) {
   try { return !!resolveAttackMessage(origin); } catch { return false; }
 }
 
-async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, onAttack = false, damageTypes = [] } = {}) {
-  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, onAttack, damageTypes });
+async function stampRebuke(actor, source, amount, origin, { attackHit = false, ward = null, miss = false, missMelee = true, onAttack = false, damageTypes = [], becameBloodied = false } = {}) {
+  const { distance, options } = offersFor(actor, source, { ward: !!ward, attackHit, miss, missMelee, onAttack, damageTypes, becameBloodied });
   if ( !options.length ) return;
   const window = decisionWindow();
   const flag = {
@@ -178,9 +193,13 @@ listen("createChatMessage", "rebukes", async message => {
     if ( !isActiveGM() || !isCard(message, CARD.attack) ) return;
     if ( message.getFlag(MODULE_ID, "rebukeFor") ) return;            // a driven attack never chains re-offers
     const listed = listedNames(rebukeEntries());
-    if ( !Object.entries(REBUKES).some(([name, row]) => (row.on === "miss") && listed.has(lower(name))) ) return;
+    const missRows = Object.entries(REBUKES).filter(([name, row]) => (row.on === "miss") && listed.has(lower(name)));
+    if ( !missRows.length ) return;
     const activity = cardActivity(message);
-    if ( (activity?.attack?.type?.value !== "melee") || (activity?.item?.type !== "weapon") ) return;
+    if ( activity?.type !== "attack" ) return;
+    // Sticky Shield's rows want a melee weapon attack; a `missOf: "any"` row (Masterful Shots) any attack roll.
+    const missMelee = (activity.attack?.type?.value === "melee") && (activity.item?.type === "weapon");
+    if ( !missMelee && !missRows.some(([, row]) => row.missOf === "any") ) return;
     const attacker = message.getAssociatedActor?.();
     if ( !(attacker instanceof Actor) ) return;
     const hitSet = new Set(hitTargets(message).map(t => t.uuid));
@@ -188,7 +207,7 @@ listen("createChatMessage", "rebukes", async message => {
       if ( hitSet.has(t.uuid) ) continue;
       const actor = await fromUuid(t.uuid).catch(() => null);
       if ( !(actor instanceof Actor) || (actor.uuid === attacker.uuid) ) continue;
-      void stampRebuke(actor, attacker, 0, message, { miss: true });
+      void stampRebuke(actor, attacker, 0, message, { miss: true, missMelee });
     }
   } catch(err) {
     console.error(`${TITLE} | The miss rebuke offer failed — use the reaction from the sheet.`, err);

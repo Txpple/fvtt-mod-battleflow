@@ -43,6 +43,7 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Greater Magic Resistance**: "the attack rolls of spells automatically miss it" | the save cannot fail (the Succeeds button); a spell attack rolls as any attack — the miss is the table's | the attack gate has no auto-miss verdict; one customer, the row's caveat says so | 2026-09-28 |
 | **Regeneration**: "if it takes Acid or Fire damage, this trait doesn't function on its next turn" | the block is read off the receipts the MODULE wrote since the bearer's last turn started; damage applied with the card's own buttons or typed on a sheet writes no receipt and blocks nothing | only the module's applier receipts the type (`auto-apply.js`); a sheet edit carries none | 2026-09-28 |
 | **Warding Charm, Jinx**: on a failed save "the attack misses instead" | the save is put to the attacker AFTER the hit's damage has landed; a failure's miss is the table's (revert the receipt from the card) | the rebukes' seam is `dnd5e.applyDamage` — the one that knows the dealer; the hold's seam knows the hit but no save can pause the attacker's damage roll on the defender's client | 2026-09-28 |
+| **Instinctive Charm** (Arcana Unleashed): "when a creature … hits you with an attack roll … on a failed save, the attack misses instead" | Warding Charm's road: the save after the damage landed; the miss and the redirect to another creature are the table's | the same | 2026-10-02 |
 | **Fiendish Blood**: a save "each creature of the sahuagin's choice in a 10-foot Emanation" on taking Piercing or Slashing | not built — use the trait from the sheet | a Reaction whose answer is an Emanation save with a pick has no machine: Death Throes' corpse save asks everyone, a rebuke aims at one | 2026-09-28 |
 | **Brave / Fey Ancestry / Dwarven Resilience** on a save to END the condition | the row is listed on the gate, not counted — except on a repeat the module raises itself (`REPEAT_SAVES`, 2026-09-28), whose demand says what it is against: there the row COUNTS | an end-of-turn repeat rolled from the sheet is a bare roll with no demand to read what it is against (R1: never guessed) | 2026-09-24; narrowed 2026-09-28 |
 | **Disadvantage imposed on an attack rolled WITH Advantage** (the two cancel) | the plain roll is the FIRST d20 rolled — the first face a reroll modifier did not replace — and no second d20 is rolled | both dice are already on the table, and the first was chosen before anyone saw a face (`decide/rescue-hit.js` `d20Faces`, `disadvantageOutcome`) | 2026-09-24 |
@@ -1690,7 +1691,8 @@ of Wounding Save", "Luck"). The pack already carries the flat crit damage (Vorpa
   head); the 30 extra is the pack's. **"Ignores Resistance to Slashing"** is a `DAMAGE_RULES` row (`wields`, Elemental Adept's
   ignored Resistance) read off the damage's own weapon.
 - **Sword of Sharpness:** a 20 against a creature gives it 1 Exhaustion level. ⚠ The pack types its 14 as **Necrotic** (the text
-  says Slashing) — a vendor-data fault, the Vendor Fixes repo's, never patched here. "Maximize against an object" is the table's.
+  says Slashing) — a vendor-data fault, never patched here: Errata 5e's **E-004** (`../fvtt-mod-errata5e`, v1.0.0) retypes it in
+  memory; the module leaves the 14 to the pack's own crit bonus either way. "Maximize against an object" is the table's.
 - **Sword of Life Stealing:** a 20 against a creature that is not a Construct or Undead gives the wielder **15** Temporary Hit
   Points — the text's "equal to the Necrotic damage taken" read as the flat 15 (a resisted 15 is the table's to trim).
 - **Nine Lives Stealer:** a 20 against a creature under 100 Hit Points that is not a Construct or Undead uses the weapon's own
@@ -1729,6 +1731,73 @@ of Wounding Save", "Luck"). The pack already carries the flat crit damage (Vorpa
 | Sword of Wounding, any hit | its save demanded; a failure lands "Wounded and Cannot Heal" — a heal does nothing; it saves again at its turn end |
 | Luck Blade, a failed attack, save or check | the rescue row "Luck Blade — reroll", once per dawn |
 | Moonblade with the Critical Range rune | a 19 is a Critical Hit (the pack's) |
+
+## Arcana Unleashed (2026-10-02; audits/plans/splat-books.md, audits/drawings/splat-arcana.md)
+
+**The user, 2026-10-01 night: the splat books before 3.0, Arcana first, then Faerûn, Ravenloft held; autonomous, rapid
+mode — rows and suites, no walk.** The book's register is [audits/arcana-register.md](audits/arcana-register.md) (257 rows:
+38 MODULE, 23 WAITS, 26 OUT, 97 TEXT, 73 NATIVE); the calls made, **each the user's to overrule**:
+
+- **No new kind.** Every Arcana row sits on a table that exists; the book added seven facets, no machine: the hit menu's
+  `weapons: "ammunition"` and `onceKey` (one turn chit for a whole group), the rebukes' `judge: "becameBloodied"` and
+  `missOf: "any"`, the Initiative grants' `count`, the concentration exempts' `school`, the evasions' `effect`, the clock
+  riders' `worn`, the save bystanders' `only: "self"` / `abilities` / `spells`.
+- **Arcane Shot is a hit-menu GROUP** (Combat Superiority's shape): the Arcane Shot item's uses are the pool, one option
+  per hit on a ranged Ammunition weapon, **once per turn for the whole group**. The pack puts five options' dice on their
+  SAVE activity (`onSave: full` — the save never modulates them): the module rides those dice on the hit's damage roll
+  (`saveDice`: the creature hit takes them whatever the save, crit-doubled with the hit), then the save follows with no dice
+  of its own and no second spend; the condition lands on the failure. Bursting Shot's die rides the hit, its Emanation to
+  the others a card line. **Piercing Shot and Seeking Shot are text**: they replace the attack roll with a save, used from
+  the sheet.
+- **The Bloodied moment is a rebuke facet, not a kind** (`judge: "becameBloodied"`): Harvest Undead is offered when a hit
+  takes the wizard from above half its Hit Points to half or fewer (not to 0), read AFTER the damage lands (the rebukes'
+  seam). Faerûn's Bloodthirst (an enemy becoming Bloodied) takes the same judge on a ward row when its book comes.
+- **Instinctive Charm is Warding Charm's row** — the hit's Wisdom save at the attacker after the damage landed; "the attack
+  misses instead" and the redirect are the table's (the bends register, Warding Charm's row). **Masterful Shots** is Sticky
+  Shield's miss row widened to any attack roll; the move and the ranged attack are from the sheet.
+- **The magic items' "you can" riders are UNTICKED** (a charge is a pick; the DMG's `always` was for properties): Blood
+  Amulet (a WORN item on any damage the wearer deals — `worn`), Diamond Staff's Stunning Hit, the Martialist's
+  Quarterstaff's Trip, Namer's Needle's Identify Target. Keyholes Dagger's Reroll Miss is Luck Blade's row on an attack.
+  Mage Breaker is Mage Slayer's breaker on a wielded weapon.
+- **Aura of Evasion** is three rows, no kind: the spell emanation (the pack's "Aura" on the allies inside), the member
+  copy's Dexterity-save Advantage (`EFFECT_BENDS`), and Evasion keyed to that effect (`EVASIONS` `effect`).
+- **The save bystanders** take Arcana's three: Arcane Omens' Helpful Premonition (1d4 to a friend's or its own failed save
+  within 30 ft), and two own-save rows — Transmuted Anatomy on a Constitution save, Spell Resistant against a spell or
+  magical effect (the demand's spell mark; a bare sheet save is never asked — never guess what it is against).
+- **Summons-shaped features park on GitHub issue #1** (Vestige Companion / Recovery / Semblance of Life, Durable and
+  Splintered Summons, Battle Familiar, Summon Plant / Dinosaur, Spirit Lantern); **cast-triggered rows stay held** (Modify
+  Magic, Dispelling Recovery, Split Enchantment, Empowered Transmutation, Abjuration and Necromancy Adept); **the redirect
+  stays held** (Curving Shot, Warlike Familiar's Intercept Attack); the three epic boons are the boons slice's.
+- **What WAITS, its precedent named** (the register): Goading Ammunition (a rider read off the attack's consumed ammunition —
+  measure the seam first), Focused Strike (the pack's activity names an effect it does not ship — Errata 5e's), Death's
+  Master's Extinguish Undead, Divination Adept (Advantage after the roll), Soothing Familiar, Evocation Adept, Arcane
+  Overload, Boon Companions' Bands, Arcanist's Bestiary, Lucky Foot, Named Target, Dissuader, the Scholar's Anchoring
+  Bangle, Distorted Distance, Transfix, Moment of Prescience, Reweave Fate, Defensive Divination, Evocation Sculptor,
+  Spore Spray — each one row or one facet when its first player is found.
+- **The bestiary rides the Monster Manual's rows by name** (Magic Resistance on the archmages) and adds its own:
+  Superior Magic Resistance (Spellguard Shield's row), Marshaled (Arcana's own effect name), Mounted Adept (while mounted —
+  the table's), the vestige's Cursed (Divine Power's copy alone), Go to Ground (Uncanny Dodge's half; "on the ground" the
+  table's), Frightening Appearance's repeat.
+
+**The walk table** (for the batched walk):
+
+| Row | What you should see |
+| --- | --- |
+| Arcane Shot, a Longbow hit | the damage offer's group "Arcane Shot" (N uses left); Beguiling Shot ticked: the Wisdom save demanded, its dice land, a use spent; a second hit this turn greys the group; a Longsword hit shows no group |
+| Ever-Ready Shot at Initiative | "use it now?" — Yes gives one Arcane Shot use back |
+| Harvest Undead, a hit that makes you Bloodied | the rebuke card and popup; Use heals your Wizard level |
+| Instinctive Charm, a hit within 30 ft | the rebuke; Use demands the attacker's Wisdom save |
+| Masterful Shots, any miss on you | the rebuke card (the move and the shot from the sheet) |
+| Blood Amulet, any hit | the offer's unticked "Blood Amulet"; ticked, the save at the target with its 2d10, a charge spent |
+| Diamond Staff / Martialist's Quarterstaff, a melee hit | the unticked Stunning Hit / Trip; ticked, the save, a charge |
+| Keyholes Dagger, a miss | the rescue row "Keyholes Dagger — reroll"; pressed, Reroll Miss's use spent |
+| Mage Breaker, a hit on a concentrating creature | its Concentration save at Disadvantage, the ask says why |
+| Aura of Evasion, an ally inside saving on Dexterity | the save gate lists the aura (Advantage); a success takes none, a failure half |
+| Lightning Ring / Grave Ground | the ring or the placed area; an enemy entering or ending its turn inside saves |
+| Festering Blast | the Poisoned creature takes 2d10 at its turn start and saves again at its turn end |
+| Enervation | the caster regains half the Necrotic that landed |
+| Entrancing Mirrors, Inflict Doubt, Uncertain Footing, Fractured Awareness, Vision of Elapsing Eons, Power Word Pain | the save repeats at the creature's turn end; a success ends it |
+| Superior Magic Resistance | the spell attack's gate reads Disadvantage; the save gate Advantage |
 
 ## The full release — the order (2026-09-29)
 

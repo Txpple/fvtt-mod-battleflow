@@ -489,7 +489,7 @@ const FIREBALL_HTML =
   "<p>A bright streak flashes from you to a point you pick within range and then blossoms with a low roar into a fiery explosion.</p>";
 
 describe("the chosen-area table and its list", () => {
-  it("names the PHB's seven, by name, and stores no numbers (N1: the cap is the spell's own text)", () => {
+  it("names the PHB's seven and Arcana Unleashed's Wither and Bloom, by name, and stores no numbers (N1: the cap is the spell's own text)", () => {
     expect(Object.keys(CHOSEN_AREAS).sort()).toEqual(
       [
         "Conjure Barrage",
@@ -498,6 +498,7 @@ describe("the chosen-area table and its list", () => {
         "Sleep",
         "Slow",
         "Weird",
+        "Wither and Bloom",
         "Word of Radiance"
       ].sort()
     );

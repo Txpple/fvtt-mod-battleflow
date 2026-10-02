@@ -195,8 +195,10 @@ describe("the registry's clock-rider data", () => {
       // activity carries the extra damage — the text's `@prof` does).
       // …or no damage at all: an effect-only row (the PHB feats, group 3) says what it does instead.
       // …or the die is the granting bard's (A1, Combat Inspiration: `inspired`).
-      // THE DMG (2026-10-01): a weapon's own property names a flat amount (Mace of Smiting's 7) or says what it does.
-      if (row.wields && row.activity === null) expect(row.amount || row.says, key).toBeTruthy();
+      // THE DMG (2026-10-01): a weapon's own property names a flat amount (Mace of Smiting's 7) or says what it does;
+      // a WORN item's (Arcana Unleashed's Blood Amulet) the same, its save the item's first.
+      if ((row.wields || row.worn) && row.activity === null)
+        expect(row.amount || row.says, key).toBeTruthy();
       else if (row.activity === null && !row.says && !row.inspired)
         expect(row.amount, key).toMatch(/^@/);
       else if (row.activity === null && !row.inspired)

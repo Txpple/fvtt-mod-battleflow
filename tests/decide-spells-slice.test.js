@@ -48,7 +48,7 @@ describe("Tier 1 — the rows", () => {
     expect(row).toMatchObject({ attacker: "disadvantage", target: "advantage", scope: "any" });
     expect(row.saves).toMatchObject({ bend: "disadvantage" });
     expect([...row.saves.abilities]).toEqual(["dex"]);
-    // …and B2's six Hexed rows (Eldritch Hex) share the scope, one ability each.
+    // …and B2's six Hexed rows (Eldritch Hex) share the scope, one ability each; Arcana Unleashed adds three.
     expect(Object.keys(reg.EFFECT_BENDS).filter(k => reg.EFFECT_BENDS[k].saves?.abilities)).toEqual(
       [
         "Irresistible Dance",
@@ -57,7 +57,10 @@ describe("Tier 1 — the rows", () => {
         "Hexed Constitution",
         "Hexed Intelligence",
         "Hexed Wisdom",
-        "Hexed Charisma"
+        "Hexed Charisma",
+        "Mounted Adept",
+        "Wondrous Alteration",
+        "Aura (Aura of Evasion)"
       ]
     );
     expectPointer(row.rule);
@@ -259,8 +262,11 @@ describe("REPEAT_SAVES — the table (Tier 2)", () => {
       Object.keys(reg.REPEAT_SAVES).filter(k => reg.REPEAT_SAVES[k].on.includes("action"))
     ).toEqual(["Otto's Irresistible Dance"]);
     expect(reg.REPEAT_SAVES["Phantasmal Killer"].onSave).toBe("none");
+    // Arcana Unleashed's Fractured Awareness and Vision of Elapsing Eons end on a success the same way.
     expect(Object.keys(reg.REPEAT_SAVES).filter(k => reg.REPEAT_SAVES[k].onSave)).toEqual([
-      "Phantasmal Killer"
+      "Phantasmal Killer",
+      "Fractured Awareness",
+      "Vision of Elapsing Eons"
     ]);
   });
   it("the counters: Contagion's three saves end it and three failures lock it; Flesh to Stone's three failures press Petrified", () => {
@@ -663,7 +669,8 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
     expect(Object.keys(reg.HEAL_ON_HIT)).toEqual([
       "Vampiric Touch",
       "Dark One's Blessing",
-      "Improved Blessed Strikes"
+      "Improved Blessed Strikes",
+      "Enervation" // Arcana Unleashed
     ]);
     const row = reg.HEAL_ON_HIT["Vampiric Touch"];
     expect(row).toMatchObject({ share: 0.5, type: "necrotic" });
@@ -671,7 +678,8 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
     expect(reg.healOnHitEntries()).toEqual([
       { kind: "vampiric touch" },
       { kind: "dark one's blessing" },
-      { kind: "improved blessed strikes" } // C1
+      { kind: "improved blessed strikes" }, // C1
+      { kind: "enervation" }
     ]);
     expect(
       hh.healOnHitAmount(row, { taken: 11, parts: [{ value: 11, type: "necrotic" }] })

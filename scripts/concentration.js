@@ -5,7 +5,7 @@
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
 import { MODULE_ID, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
-import { cardItem, featureNamed, lower, resolveUuid } from "./lookup.js";
+import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
 import { CONCENTRATION_EXEMPTS, DAMAGE_RULES } from "./decide/registry.js";
@@ -64,7 +64,9 @@ function breakerFor(concentrator, dealerUuid) {
   const listed = listedNames(damageRuleEntries());
   for ( const [name, row] of Object.entries(DAMAGE_RULES) ) {
     if ( (row.breaks !== "concentration") || !listed.has(lower(name)) ) continue;
-    if ( featureNamed(dealer, name) ) return { feat: name, by: dealer.name, uuid: dealer.uuid, rule: row.rule };
+    // A `wields` row (Mage Breaker): the dealer holds the weapon of that name, attuned where it requires it.
+    const carrier = row.wields ? wieldedNamed(dealer, name) : featureNamed(dealer, name);
+    if ( carrier ) return { feat: name, by: dealer.name, uuid: dealer.uuid, rule: row.rule };
   }
   return null;
 }
@@ -98,11 +100,15 @@ listen("dnd5e.damageActor", "concentration", (actor, changes) => {
 /** The CONCENTRATION_EXEMPTS row that spares this concentrator now: `{ key, row, item }` or null. */
 function concentrationExemptFor(actor) {
   const on = listedNames(concentrationExemptEntries());
+  const held = [...(actor?.concentration?.effects ?? [])];
   const names = concentratingOn(actor).map(lower);
   if ( !names.length ) return null;
+  // A `school` row (Focused Conjuration): every spell held is of that school, read off the concentrated items.
+  const schools = held.map(e => { const data = e.getFlag("dnd5e", "item"); return actor.items.get(data?.id)?.system?.school ?? data?.system?.school ?? null; });
   for ( const [key, row] of Object.entries(CONCENTRATION_EXEMPTS) ) {
     if ( !on.has(lower(key)) ) continue;
-    if ( !names.every(n => n === lower(row.spell)) ) continue;
+    if ( row.spell && !names.every(n => n === lower(row.spell)) ) continue;
+    if ( row.school && !(schools.length && schools.every(s => s === row.school)) ) continue;
     const item = featureNamed(actor, key);
     if ( item ) return { key, row, item };
   }

@@ -34,7 +34,8 @@ const TEST_WORD = { save: "saving throw", check: "check" };
  * @param {any} roll
  * @param {"save"|"check"} testKind
  * @param {number|null} dc
- * @param {{statuses?: string[]}} [demand]  what the save is against (the demand card's), for a row's `against`
+ * @param {{statuses?: string[], ability?: string|null, spell?: boolean}} [demand]  what the save is against (the demand
+ *        card's statuses for a row's `against`, its ability for `abilities`, its spell mark for `spells`)
  */
 function bystandersFor(roller, roll, testKind, dc, demand = {}) {
   const token = tokenForUuid(roller?.uuid);
@@ -63,6 +64,11 @@ function bystandersFor(roller, roll, testKind, dc, demand = {}) {
       // A twist (Beguiling Twist, B2) rides anyone's SUCCESS against the row's conditions — any side, the DC known.
       if ( (row.bend === "twist") && (!known || !(total >= Number(dc))) ) continue;
       if ( row.against && !(demand.statuses ?? []).some(s => row.against.includes(s)) ) continue;
+      // Arcana Unleashed's own-save rows: `only: "self"` the ROLLER alone (Transmuted Anatomy, Spell Resistant); `abilities` the
+      // save's own ability; `spells` the demand's spell mark (a bare sheet save is not asked — never guess what it is against).
+      if ( (row.only === "self") && (actor.uuid !== roller?.uuid) ) continue;
+      if ( row.abilities && !(demand.ability && row.abilities.includes(demand.ability)) ) continue;
+      if ( row.spells && !demand.spell ) continue;
       const feet = nearestFeet(other, token);
       if ( (feet === null) || (Number.isFinite(row.bystander) && (feet > row.bystander)) ) continue;
       const item = featureNamed(actor, key);
@@ -106,7 +112,7 @@ const activityOf = (item, row) => (row.activity === null)
  * @param {ChatMessage} rollMessage
  * @param {Actor} roller
  * @param {"save"|"check"} testKind
- * @param {{dc?: number|null, resume?: object|null, demand?: {statuses?: string[]}}} [opts]
+ * @param {{dc?: number|null, resume?: object|null, demand?: {statuses?: string[], ability?: string|null, spell?: boolean}}} [opts]
  */
 async function stampBystanders(rollMessage, roller, testKind, { dc = null, resume = null, demand = {} } = {}) {
   const roll = rollMessage.rolls?.[0];
@@ -141,7 +147,10 @@ registerWithhold(KEY, {
       const roller = await fromUuid(uuid);
       if ( !(roller instanceof Actor) ) return false;
       const demand = card.getFlag(MODULE_ID, "saves")?.demand ?? {};
-      return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [] }, resume: { cardId: card.id, uuid, ...(by ? { by } : {}) } });
+      // The save's own ability off the roll (dnd5e's roll flag), for a row's `abilities`; the demand's spell mark for `spells`.
+      const ability = rollMessage.getFlag("dnd5e", "roll")?.ability ?? demand.ability ?? null;
+      return await stampBystanders(rollMessage, roller, "save", { dc, demand: { statuses: demand.statuses ?? [], ability, spell: !!demand.spell },
+        resume: { cardId: card.id, uuid, ...(by ? { by } : {}) } });
     } catch(err) {
       console.error(`${TITLE} | The bystander offer on a save failed — the save folds as rolled.`, err);
       return false;

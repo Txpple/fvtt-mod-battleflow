@@ -83,13 +83,16 @@ export function pluralOf(label) {
 
 /**
  * Is this hit one the option reaches? The facts are read off the sheet and the card by the caller.
- * @param {{row: any, unarmed: boolean, weapon: boolean, monkWeapon: boolean, own: boolean, flurry: boolean|null}} facts
- *        `flurry` null: no turn to read it in (out of combat) — the option stands, its caveat says so
+ * @param {{row: any, unarmed: boolean, weapon: boolean, monkWeapon: boolean, own: boolean, flurry: boolean|null, ammunition?: boolean}} facts
+ *        `flurry` null: no turn to read it in (out of combat) — the option stands, its caveat says so; `ammunition` a ranged
+ *        attack with an Ammunition weapon (Arcane Shot)
  */
-export function optionReaches({ row, unarmed, weapon, monkWeapon, own, flurry }) {
+export function optionReaches({ row, unarmed, weapon, monkWeapon, own, flurry, ammunition = false }) {
   if ( row.unarmed && !unarmed ) return false;
   if ( row.weapon && !weapon ) return false;
   if ( (row.weapons === "monk") && !(unarmed || monkWeapon) ) return false;
+  // Arcane Shot: a RANGED attack with a weapon that has the Ammunition property.
+  if ( (row.weapons === "ammunition") && !ammunition ) return false;
   if ( (row.only === "own") && !own ) return false;
   if ( row.only === "flurry" ) return unarmed && (flurry !== false);
   return true;

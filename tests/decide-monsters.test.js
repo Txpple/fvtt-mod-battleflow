@@ -465,7 +465,8 @@ describe("TURN_GRANTS — the turn-start damage", () => {
       "smother",
       "swarm of proboscises",
       "spores",
-      "barbed hide"
+      "barbed hide",
+      "festering blast" // Arcana Unleashed: Spores' shape on a spell
     ]);
   });
   it("grantRowFor honours `on`: a turnEnd row is not due at the turn start and the reverse", () => {

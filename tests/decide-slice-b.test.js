@@ -204,7 +204,8 @@ describe("EVASIONS — Evasion's shape as a table: Evasion on Dexterity, Avoidan
       "Evasion",
       "Avoidance",
       "Potent Cantrip",
-      "Leading Evasion"
+      "Leading Evasion",
+      "Aura of Evasion" // Arcana Unleashed: keyed to the aura's member effect
     ]);
     expect(reg.EVASIONS.Evasion.ability).toBe("dex");
     expect(reg.EVASIONS.Avoidance.ability).toBeNull();

@@ -108,6 +108,7 @@ describe("d20 folds — the spends, one mechanism", () => {
       "reroll",
       "reroll",
       "reroll",
+      "reroll", // Arcana Unleashed: Keyholes Dagger's Reroll Miss
       "seeking",
       "succeed",
       "succeed",
@@ -313,11 +314,12 @@ describe("SAVE_SUCCEEDS — a failed save made a success (the PHB feats, group 4
       feat: true,
       breaks: "concentration"
     });
+    // Arcana Unleashed's Mage Breaker is the second breaker — on a wielded weapon, not a feat.
     expect(
       Object.values(reg.DAMAGE_RULES)
         .filter(r => r.breaks)
         .map(r => r.key)
-    ).toEqual(["mage-slayer"]);
+    ).toEqual(["mage-slayer", "mage-breaker"]);
   });
 });
 
@@ -487,6 +489,32 @@ describe("how a row names its content — the identifier, then the name", () => 
         system: { identifier: "fireball" }
       })
     ).toBe(null);
+  });
+
+  it("tells a shared name apart by the feat subtype (FEATURE_TYPES): Ravenloft's Survivor feat is not the Fighter's Survivor", () => {
+    expect(reg.FEATURE_TYPES.Survivor).toBe("class");
+    const fighters = {
+      name: "Survivor",
+      type: "feat",
+      system: { identifier: "survivor", type: { value: "class" } }
+    };
+    const ravenloft = {
+      name: "Survivor",
+      type: "feat",
+      system: { identifier: "survivor", type: { value: "feat", subtype: "origin" } }
+    };
+    const bare = { name: "Survivor", type: "feat", system: { identifier: "survivor" } };
+    expect(reg.matchOf("Survivor", fighters, ["feat"])).toBe("identifier");
+    expect(reg.matchOf("Survivor", ravenloft, ["feat"])).toBe(null);
+    expect(reg.matchOf("Survivor", bare, ["feat"])).toBe("identifier");
+    // An unlisted name never reads the subtype.
+    expect(
+      reg.matchOf("Evasion", {
+        name: "Evasion",
+        type: "feat",
+        system: { identifier: "evasion", type: { value: "feat" } }
+      })
+    ).toBe("identifier");
   });
 
   it("scopes by type: a +1 Shield is not the Shield spell", () => {

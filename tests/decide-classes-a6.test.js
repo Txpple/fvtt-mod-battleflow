@@ -38,7 +38,8 @@ describe("INITIATIVE_GRANTS", () => {
       "uncanny metabolism",
       "tandem footwork", // B4
       "perfect focus", // C1
-      "superior inspiration" // D1
+      "superior inspiration", // D1
+      "ever-ready shot" // Arcana Unleashed
     ]);
   });
 });

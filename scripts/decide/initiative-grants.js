@@ -9,15 +9,17 @@
  * Is the grant due? The feature's own use must stand, and something must come back — an expended use of the
  * regained item, or (a healing row) a missing Hit Point: a once-per-Long-Rest use is never burnt on nothing.
  * @param {{own: {value: number, max: number}|null, regain: {spent: number, max: number}|null, heals?: boolean,
- *          hp?: {value: number, max: number}|null, upTo?: number|null}} facts
+ *          hp?: {value: number, max: number}|null, upTo?: number|null, count?: number|null}} facts
  * @returns {{due: boolean, why: string}}
  */
-export function initiativeGrantDue({ own, regain, heals = false, hp = null, upTo = null }) {
+export function initiativeGrantDue({ own, regain, heals = false, hp = null, upTo = null, count = null }) {
   if ( own && (Number(own.max) > 0) && !(Number(own.value) > 0) ) return { due: false, why: "used since the last Long Rest" };
-  // C1 — `upTo` (Perfect Focus): only what is missing below the ceiling comes back.
+  // C1 — `upTo` (Perfect Focus): only what is missing below the ceiling comes back. `count` (Ever-Ready Shot): that many
+  // expended uses come back, never more than are spent.
   const value = Math.max(0, (Number(regain?.max) || 0) - (Number(regain?.spent) || 0));
   const back = upTo ? Math.max(0, Math.min(Number(upTo) - value, Number(regain?.spent) || 0))
-    : Math.max(0, Math.min(Number(regain?.spent) || 0, Number(regain?.max) || 0));
+    : count ? Math.max(0, Math.min(Number(count), Number(regain?.spent) || 0))
+      : Math.max(0, Math.min(Number(regain?.spent) || 0, Number(regain?.max) || 0));
   const hurt = heals && hp ? (Number(hp.value) || 0) < (Number(hp.max) || 0) : false;
   if ( !back && !hurt ) return { due: false, why: "nothing to regain" };
   return { due: true, why: back ? `${back} expended` : "Hit Points missing" };

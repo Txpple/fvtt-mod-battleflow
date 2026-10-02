@@ -3,7 +3,7 @@
  */
 import { MODULE_ID, TITLE, activeCombatFor, canAnswerFor, drivesMomentFor, queueFlagWrite, statContext } from "./core.js";
 import { ruleHTML } from "./rule-text.js";
-import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs } from "./lookup.js";
+import { lower, featureNamed, itemNamed, activityNamed, cardActivity, resolveUuid, dealtTypesOf, pactWeaponFits, wieldsAs, wornNamed } from "./lookup.js";
 import { clockRiderEntries, listedNames } from "./decide/registry.js";
 import { forceStatus, grantingActor, hitTargets, poolOf, statSourceOf, turnChitStands, writeTurnChit, withTargets } from "./shared.js";
 import { applyActivityEffectsOnHit, applyItemEffectOnHit } from "./effect-riders.js";
@@ -199,7 +199,9 @@ function clockRidersFor(attackMessage, activity, roll = {}) {
     if ( !bearer ) continue;
     // A `self` row's item is whatever the pack typed it (Chaos Blade is a weapon); a feature row's is a feat.
     // THE DMG — a `wields` row's item is the ATTACK's own weapon, wearing the template's enchantment (or named it).
+    // A `worn` row's item is a WORN item on the attacker (Blood Amulet: equipped, attuned where required), riding any attack.
     const feature = inspired ? inspired.feature : row.wields ? (wieldsAs(item, row.feature) ? item : null)
+      : row.worn ? wornNamed(attacker, row.feature)
       : row.self ? itemNamed(attacker, row.feature) : featureNamed(bearer, row.feature);
     if ( !feature ) continue;
     // C1 — `marked`: every hit target wears the bearer's mark of that name (its origin the bearer's own spell).

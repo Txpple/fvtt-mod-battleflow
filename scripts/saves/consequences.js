@@ -157,6 +157,13 @@ async function applyFailDamage(card, flag, entry) {
     { note: `${by} — ${fd.type ?? "psychic"}, equal to the damage taken (${amount})` });
 }
 
+/** The name of the item an effect came from — its origin item, or the parent item of an origin activity; "" when none resolves. */
+function originItemName(effect) {
+  const origin = effect?.origin ? resolveUuid(effect.origin) : null;
+  const item = (origin instanceof Item) ? origin : (origin?.item instanceof Item) ? origin.item : null;
+  return item?.name ?? "";
+}
+
 /** Which EVASIONS row (registry.js) applies — its key (Evasion, Avoidance) or null. Read at the fold and
  * stamped on the entry. A row's `ability` narrows it; null reaches every save. Never while Incapacitated. */
 export function evasionApplies(actor, flag) {
@@ -165,6 +172,11 @@ export function evasionApplies(actor, flag) {
   for ( const [key, row] of Object.entries(EVASIONS) ) {
     if ( row.side === "caster" ) continue;   // the caster's mirror (Potent Cantrip) — casterHalfFor
     if ( row.ability && !flag.abilities?.includes?.(row.ability) ) continue;
+    // An `effect` row (Aura of Evasion): the saver wears the effect, its origin the row's item — the ring's member copy.
+    if ( row.effect ) {
+      if ( actor.effects.some(e => e.active && (lower(e.name) === lower(row.effect)) && (!row.item || (lower(originItemName(e)) === lower(row.item)))) ) return key;
+      continue;
+    }
     if ( featureNamed(actor, key) ) return key;
   }
   // C1 — a `share` row (Leading Evasion): ANOTHER target of the same demand holds it within `share` feet of this one,

@@ -45,7 +45,12 @@ export const INTERRUPT_MULTIPLIERS = Object.freeze({
   // current turn (`effects: "type"` — "Hunter's Defense: Fire" for fire; the `halt` window).
   "Superior Hunter's Defense": Object.freeze({ multiplier: 0.5, any: true, activity: "Resistances", effects: "type", effectPrefix: "Hunter's Defense: ", clock: "halt",
     rule: Object.freeze({ item: "Superior Hunter's Defense", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrSuperiorDe" }),
-    from: "Ranger — Hunter 15" })
+    from: "Ranger — Hunter 15" }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*): the groundling's Uncanny Dodge — "while it is on the ground" is the table's.
+  "Go to Ground": Object.freeze({ multiplier: 0.5,
+    caveat: "only while the groundling is on the ground — the table's",
+    rule: Object.freeze({ item: "Go to Ground", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunGoToGround000" }),
+    from: "Arcana Unleashed — monsters (groundlings)" })
 });
 
 /**
@@ -220,7 +225,24 @@ export const INTERRUPT_ROLLS = Object.freeze({
     omen: Object.freeze({ even: "Weal (Even)", odd: "Woe (Odd)" }),
     bystander: 30, tests: Object.freeze(["attack", "save", "check"]), bend: "die", sign: "omen", die: "1d6", on: "both",
     rule: Object.freeze({ item: "Cosmic Omen", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdCosmicOmen" }),
-    from: "Druid — Circle of the Stars 6" })
+    from: "Druid — Circle of the Stars 6" }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*) — the save bystanders on a FAILED save, Guided Strike's die added
+  // (`on: "miss"`: a friend's failure). Arcane Omens' Helpful Premonition: 1d4 to a friend's or its own save within 30 ft
+  // (the roller counts as its own bystander on a save). `only: "self"` on a save (bystanders.js): the ROLLER's own row alone —
+  // Transmuted Anatomy's Resilient Anatomy on a Constitution save (`abilities`), Spell Resistant's Magic Resistant against a
+  // spell or magical effect (`spells`: the demand's spell mark; a bare sheet save is not asked).
+  "Arcane Omens": Object.freeze({ reaction: true, uses: true, point: null, activity: "Helpful Premonition", self: true,
+    bystander: 30, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "1d4", on: "miss",
+    rule: Object.freeze({ item: "Arcane Omens", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunArcaneOmensJK", benefit: "Helpful Premonition" }),
+    from: "Arcana Unleashed — origin feat" }),
+  "Transmuted Anatomy": Object.freeze({ reaction: true, uses: true, point: null, activity: null, only: "self", self: true,
+    bystander: 5, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "1d4", on: "miss", abilities: Object.freeze(["con"]),
+    rule: Object.freeze({ item: "Transmuted Anatomy", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunTransmutedAqb", benefit: "Resilient Anatomy" }),
+    from: "Arcana Unleashed — origin feat" }),
+  "Spell Resistant": Object.freeze({ reaction: false, uses: true, point: null, activity: "Magic Resistant", only: "self", self: true,
+    bystander: 5, tests: Object.freeze(["save"]), bend: "die", sign: 1, die: "1d6", on: "miss", spells: true,
+    rule: Object.freeze({ item: "Spell Resistant", uuid: "Compendium.dnd-arcana-unleashed.feats.Item.aunSpellResistan", benefit: "Magic Resistant" }),
+    from: "Arcana Unleashed — general feat" })
 });
 
 /**
@@ -441,7 +463,11 @@ export const REROLLS = Object.freeze({
   // THE DMG — Luck: one failed D20 Test rerolled, the second roll used, once per dawn (the Luck activity's own use).
   "Luck Blade": Object.freeze({ tests: Object.freeze(["attack", "save", "check"]), bonus: null, wields: true, activity: "Luck", notIncapacitated: true,
     rule: Object.freeze({ item: "Luck Blade", uuid: "Compendium.dnd-dungeon-masters-guide.equipment.Item.dmgLuckBlade0000", benefit: "Luck" }),
-    from: "DMG weapon" })
+    from: "DMG weapon" }),
+  // ARCANA UNLEASHED — Keyholes Dagger's Reroll Miss (Luck Blade's shape on a missed attack): the dagger's own activity, its uses.
+  "Keyholes Dagger": Object.freeze({ tests: Object.freeze(["attack"]), bonus: null, wields: true, activity: "Reroll Miss",
+    rule: Object.freeze({ item: "Keyholes Dagger", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunKeyholesDagoQ", benefit: "Reroll Miss" }),
+    from: "Arcana Unleashed — weapon" })
 });
 
 /**
@@ -758,7 +784,28 @@ export const CLOCK_RIDERS = Object.freeze({
   "superior-hunters-prey": Object.freeze({ feature: "Superior Hunter's Prey", activity: "Damage", when: "oncePerTurn", marked: "Hunter's Mark", spread: 30,
     label: "Superior Hunter's Prey",
     rule: Object.freeze({ item: "Superior Hunter's Prey", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrSuperiorHu" }),
-    from: "Ranger — Hunter 11" })
+    from: "Ranger — Hunter 11" }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*) — the magic items' "you can" riders: offered UNTICKED (a charge is a
+  // pick), the weapon's own save activity used at the hit creatures once the damage lands (its dice roll with the save).
+  // `worn` (new): the carrier is a WORN item (equipped, attuned where required) on the attacker, not the attack's weapon
+  // — Blood Amulet rides any damage the wearer deals.
+  "blood-amulet": Object.freeze({ feature: "Blood Amulet", activity: null, worn: true, when: "any", save: true, uses: true, unticked: true,
+    label: "Blood Amulet", says: "a charge: 2d10 Necrotic more, and a Constitution save or 1 Exhaustion level",
+    rule: Object.freeze({ item: "Blood Amulet", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunBloodAmuletFw" }),
+    from: "Arcana Unleashed — wondrous item" }),
+  "diamond-staff-stunning-hit": Object.freeze({ feature: "Diamond Staff", activity: "Stunning Hit", wields: true, when: "any", save: true, uses: true,
+    unticked: true, melee: true, label: "Stunning Hit", says: "a charge: a Constitution save or Stunned until the start of your next turn",
+    rule: Object.freeze({ item: "Diamond Staff", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunDiamondStaftz", benefit: "Stunning Hit" }),
+    from: "Arcana Unleashed — staff" }),
+  "martialists-quarterstaff-trip": Object.freeze({ feature: "Martialist's Quarterstaff", activity: "Trip Save", wields: true, when: "any", save: true, uses: true,
+    unticked: true, melee: true, label: "Trip", says: "a charge: a Strength save or Prone",
+    rule: Object.freeze({ item: "Martialist's Quarterstaff", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunMartialistsnF", benefit: "Trip" }),
+    from: "Arcana Unleashed — weapon" }),
+  // No charge: "you can compel" is the pick; Named Target's chosen Critical Hit waits (the register).
+  "namers-needle-identify": Object.freeze({ feature: "Namer's Needle", activity: "Save: Identify Target", wields: true, when: "any", save: true,
+    unticked: true, label: "Identify Target", says: "a DC 15 Wisdom save or it says its name; a success makes it immune for 24 hours (the table's)",
+    rule: Object.freeze({ item: "Namer's Needle", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunNamersNeedlzm", benefit: "Identify Target" }),
+    from: "Arcana Unleashed — weapon" })
 });
 
 /** Text-only features whose whole consequence is a bend on the next roll: use-chips.js writes a chip named
@@ -897,7 +944,12 @@ export const EVASIONS = Object.freeze({
   // the same demanded save within 5 ft of it — the consequences pass reads the demand card's other targets off the map.
   "Leading Evasion": Object.freeze({ ability: "dex", share: 5,
     rule: Object.freeze({ item: "Leading Evasion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdLeadingEva" }),
-    from: "Bard — College of Dance 14" })
+    from: "Bard — College of Dance 14" }),
+  // ARCANA UNLEASHED — Aura of Evasion: Evasion keyed to an EFFECT (`effect`, the ring's member copy of the spell's "Aura",
+  // its origin `item` the spell), not a feature on the sheet; the Advantage on the save is EFFECT_BENDS' member row.
+  "Aura of Evasion": Object.freeze({ ability: "dex", effect: "Aura", item: "Aura of Evasion",
+    rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }),
+    from: "Arcana Unleashed — level 7 spell (Concentration, 1 minute)" })
 });
 
 /*
@@ -909,6 +961,16 @@ export const EVASIONS = Object.freeze({
 
 /** A row whose content's identifier is not its name's slug, name → identifier. None today. */
 export const ALIASES = Object.freeze({});
+
+/**
+ * A row name a FEAT of another kind shares — the feat subtype (`system.type.value`) the registry's rows of that name
+ * mean. Ravenloft's "Survivor" is a feat (`feat`) with the Fighter's name (a `class` feature); its identifier is the same
+ * slug, so the name and the identifier both collide, and only the subtype tells them apart. An item of a listed name
+ * whose subtype is set and differs answers no row; an item with no subtype (a hand-made copy) still does.
+ */
+export const FEATURE_TYPES = Object.freeze({
+  "Survivor": "class"
+});
 
 /** The slug dnd5e's packs give a name: lower-case, apostrophes dropped, any other run one hyphen. */
 const slug = name => String(name ?? "").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -923,14 +985,20 @@ export function identifierOf(name) {
 /**
  * How an item answers a row: "identifier", "name" (the fallback), or null.
  * @param {string} key  the row's name
- * @param {{ name?: string|null, identifier?: string|null, type?: string|null, system?: { identifier?: string|null } }|null|undefined} item
- *   an Item (its `system.identifier` is read) or a plain `{ name, identifier, type }`
+ * @param {{ name?: string|null, identifier?: string|null, type?: string|null, system?: { identifier?: string|null, type?: { value?: string|null } } }|null|undefined} item
+ *   an Item (its `system.identifier` is read; a feat's `system.type.value` for a FEATURE_TYPES name) or a plain `{ name, identifier, type }`
  * @param {string[]|null} [types]  the item types the row means; null for any
  * @returns {"identifier"|"name"|null}
  */
 export function matchOf(key, item, types = null) {
   if ( !item || !key ) return null;
   if ( types && !types.includes(String(item.type ?? "")) ) return null;
+  // A name another book's feat shares (FEATURE_TYPES): the feat subtype must agree where the item declares one.
+  const wanted = /** @type {Record<string, string>} */ (FEATURE_TYPES)[String(key)];
+  if ( wanted && (item.type === "feat") ) {
+    const subtype = item.system?.type?.value ?? null;
+    if ( subtype && (subtype !== wanted) ) return null;
+  }
   const identifier = item.system?.identifier ?? item.identifier ?? null;
   if ( identifier && (identifier === identifierOf(key)) ) return "identifier";
   return (String(item.name ?? "").toLowerCase() === String(key).toLowerCase()) ? "name" : null;
@@ -1007,6 +1075,9 @@ export function tableIndex(table, keyOf = null) {
  *   ownType  the option's die keeps its own damage type (a shared-pool group's dice otherwise take the weapon's)
  *   dieFrom  the die is ANOTHER feature's damage activity (Improved Brutal Strike's blows ride Brutal Strike's die)
  *   requires { forgo } — the group opens only on a hit whose attack recorded that forgo (Brutal Strike, B3)
+ *   saveDice the die is the option's SAVE activity's damage (Arcane Shot: the pack puts the dice on the save): it rides the hit
+ *            and the save follows with no dice and no second spend;  weapons "ammunition"  a ranged Ammunition weapon
+ *   onceKey  the turn chit's key, shared by every option of a group that is once per turn as a whole (Arcane Shot)
  * A group's `feature` is the paying feature (null: nothing to carry — Giant Ancestry); `pool` "feature"
  * (one shared pool) | "option" (each option's own uses) | "free" (nothing paid) | "pactSlot" (B4, Eldritch Smite: a
  * Pact Magic slot — `system.spells.pact`, every slot one level, so no picker; Q9's `poolOf` branch); `max` picks
@@ -1057,7 +1128,14 @@ export const HIT_GROUPS = Object.freeze({
   // (the feature's own once per Long Rest); the removal and the return are the table's, the pact-slot Regain Use the sheet's.
   "hurl-through-hell": Object.freeze({ feature: "Hurl Through Hell", pool: "feature", label: "Hurl Through Hell", max: 1,
     dieLabel: "use", eyebrow: "Warlock", heading: "Hurl Through Hell", per: "once per turn, once per Long Rest", from: "Warlock — Fiend Patron 14",
-    rule: Object.freeze({ item: "Hurl Through Hell", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkHurlThroug" }) })
+    rule: Object.freeze({ item: "Hurl Through Hell", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkHurlThroug" }) }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*) — Arcane Shot: the pool is the Arcane Shot item's uses (each option's save
+  // consumes them), one option per hit on a ranged Ammunition weapon, once per turn for the WHOLE group (`onceKey`). Every
+  // option but Bursting Shot is a save that carries its own dice (`noDie` + `save`: the extra damage rolls with the save, the
+  // condition lands on the failure); Bursting's die rides the hit (`ownDice`). Piercing and Seeking Shot replace the attack roll — text.
+  "arcane-shot": Object.freeze({ feature: "Arcane Shot", pool: "feature", ownDice: true, label: "Arcane Shot", max: 1,
+    dieLabel: "use", eyebrow: "Arcane Archer", heading: "Arcane Shot", per: "one option per hit, once per turn, on a ranged Ammunition weapon", from: "Fighter — Arcane Archer 3 (Arcana Unleashed)",
+    rule: Object.freeze({ item: "Arcane Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunArcaneShot000" }) })
 });
 
 export const HIT_OPTIONS = Object.freeze({
@@ -1139,7 +1217,28 @@ export const HIT_OPTIONS = Object.freeze({
   "hurl-through-hell": Object.freeze({ feature: "Hurl Through Hell", group: "hurl-through-hell", activity: "Hurl Through Hell", label: "Hurl Through Hell",
     save: true, noDie: true, oncePerTurn: true,
     line: "Played at the table: on a failed save the target vanishes to the Lower Planes until the end of your next turn, then returns to the space it left (or the nearest unoccupied one); Regain Use from the sheet spends a Pact slot for another use.",
-    rule: Object.freeze({ item: "Hurl Through Hell", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkHurlThroug" }) })
+    rule: Object.freeze({ item: "Hurl Through Hell", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwlkHurlThroug" }) }),
+  // ARCANA UNLEASHED — the Arcane Shot options (`weapons: "ammunition"`: a ranged attack with an Ammunition weapon; `onceKey`:
+  // one turn chit for the group). The pack puts each option's dice on its SAVE activity: `saveDice` rides them on the hit's
+  // damage roll (the hit creature takes them whatever the save), the save then follows with no dice of its own and no second
+  // spend. "Until the start/end of your next turn" is the pack's clock.
+  "banishing-shot": Object.freeze({ feature: "Banishing Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
+    line: "Played at the table: a banished creature has Speed 0 and reappears at the end of its next turn where it left (or the nearest unoccupied space).",
+    rule: Object.freeze({ item: "Banishing Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunBanishingShot" }) }),
+  "beguiling-shot": Object.freeze({ feature: "Beguiling Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
+    line: "Played at the table: you or an ally within 30 feet of the target is the charmer; the Charmed ends early if the charmer attacks it, damages it or forces it to save.",
+    rule: Object.freeze({ item: "Beguiling Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunBeguilingShot" }) }),
+  "bursting-shot": Object.freeze({ feature: "Bursting Shot", group: "arcane-shot", oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition", ownType: true,
+    line: "Played at the table: each other creature within a 10-foot Emanation of the target takes the same Force damage.",
+    rule: Object.freeze({ item: "Bursting Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunBurstingShot0" }) }),
+  "enfeebling-shot": Object.freeze({ feature: "Enfeebling Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
+    line: "Played at the table: while Poisoned this way, its hits deal one roll of your Arcane Shot Die less damage.",
+    rule: Object.freeze({ item: "Enfeebling Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunEnfeeblingSho" }) }),
+  "grasping-shot": Object.freeze({ feature: "Grasping Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
+    line: "Played at the table: the brambles hold for 1 minute or until you use this option again; the Escape Check (Athletics against your Arcane Shot DC) is the sheet's.",
+    rule: Object.freeze({ item: "Grasping Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunGraspingShot0" }) }),
+  "shadow-shot": Object.freeze({ feature: "Shadow Shot", group: "arcane-shot", save: true, saveDice: true, ownType: true, oncePerTurn: true, onceKey: "arcane-shot", weapons: "ammunition",
+    rule: Object.freeze({ item: "Shadow Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunShadowShot000" }) })
 });
 
 
@@ -1548,7 +1647,27 @@ export const EMANATIONS = Object.freeze({
   "Elder Champion": Object.freeze({ kind: "feature", item: "Elder Champion", while: "Diminished Defiance", reach: "harmful", range: "@scale.paladin.aura",
     effect: "Diminished Defiance", incapacitated: false, quiet: true,
     rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp", benefit: "Diminish Defiance" }),
-    from: "Paladin — Oath of the Ancients 20 (1 minute)" })
+    from: "Paladin — Oath of the Ancients 20 (1 minute)" }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*). Aura of Evasion: Aura of Protection's spell shape — the pack's "Aura" worn
+  // by the allies inside; EFFECT_BENDS reads the member copy for the Dexterity saves' Advantage, EVASIONS for the Evasion.
+  "Aura of Evasion": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Aura", incapacitated: false,
+    caveat: "an Incapacitated creature gains nothing from the aura — the Evasion half already skips it",
+    rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }),
+    from: "Arcana Unleashed — level 7 spell (Concentration, 1 minute)" }),
+  // Lightning Ring: Spirit Guardians' trigger on the "Emanation Save" (enter, or end the turn inside, once per turn); the
+  // Lightning Line is the sheet's own action.
+  "Lightning Ring": Object.freeze({ kind: "spell", activity: "Emanation Save", reach: "harmful", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "\"you can force\" reads as every enemy; a friend inside is spared — the table's",
+    rule: Object.freeze({ item: "Lightning Ring", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunLightningRiWL" }),
+    from: "Arcana Unleashed — level 8 spell (Concentration, 1 minute)" }),
+  // Grave Ground: a placed area (Moonbeam's kind) whose enemies save on entering or ending their turn inside — the "Grave
+  // Ground Save"; the cast's own save is the pack's. Difficult Terrain is the table's.
+  "Grave Ground": Object.freeze({ kind: "area", activity: "Grave Ground Save", reach: "harmful", range: null, effect: null, incapacitated: false,
+    trigger: Object.freeze({ on: Object.freeze(["enter", "turnEnd"]), oncePerTurn: true }),
+    caveat: "the four squares are one template placed by hand; Difficult Terrain for your enemies is the table's",
+    rule: Object.freeze({ item: "Grave Ground", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunGraveGroundcR" }),
+    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" })
 });
 
 /**
@@ -1649,7 +1768,11 @@ export const TOKEN_LIGHTS = Object.freeze({
   "Sacred Weapon": Object.freeze({ activity: null, on: "self", effect: null, bright: 20, dim: 40, ends: "enchantment",
     caveat: "the light is the paladin's token's — the weapon is in hand",
     rule: Object.freeze({ item: "Sacred Weapon", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSacredWeap" }),
-    from: "Paladin — Oath of Devotion 3 (10 minutes)" })
+    from: "Paladin — Oath of Devotion 3 (10 minutes)" }),
+  // ARCANA UNLEASHED — Diamond Staff's Dazzling Light: Bright 40 ft, Dim 40 more, riding the pack's own effect for its minute.
+  "Diamond Staff": Object.freeze({ item: "Diamond Staff", activity: "Dazzling Light", on: "self", effect: "Dazzling Light", bright: 40, dim: 80,
+    rule: Object.freeze({ item: "Diamond Staff", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunDiamondStaftz", benefit: "Dazzling Light" }),
+    from: "Arcana Unleashed — staff (1 minute)" })
 });
 
 
@@ -1878,7 +2001,21 @@ export const REBUKES = Object.freeze({
   // "Vow of Enmity" makes an attack roll (`on: "attack"`: the attack card, hit or miss), the paladin within 5 ft is offered
   // one melee attack at it (a Reaction).
   "Soul of Vengeance": Object.freeze({ attack: "melee", range: 5, on: "attack", mark: "Vow of Enmity", from: "Paladin — Oath of Vengeance 15",
-    rule: Object.freeze({ item: "Soul of Vengeance", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSoulOfVeng" }) })
+    rule: Object.freeze({ item: "Soul of Vengeance", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnSoulOfVeng" }) }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*). Instinctive Charm: Warding Charm's row on a wizard — the hit's Wisdom save
+  // at the attacker (its own unnamed reaction, 30 ft, once per Long Rest); the miss and the redirect are the table's.
+  "Instinctive Charm": Object.freeze({ activity: null, hit: true, from: "Wizard — Enchanter 10 (Arcana Unleashed)",
+    caveat: "\"the attack misses instead\" on a failure is the table's — the damage has landed; the redirect to another creature is the held kind",
+    rule: Object.freeze({ item: "Instinctive Charm", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunInstinctiveCh" }) }),
+  // Harvest Undead — THE BLOODIED MOMENT: `judge: "becameBloodied"` — the damage took the bearer from above half its Hit Points
+  // to half or fewer (and not to 0); `self` aims at nobody. The heal (the wizard's level) is the answer; the Undead reduced to 0 is the table's.
+  "Harvest Undead": Object.freeze({ activity: null, self: true, judge: "becameBloodied", from: "Wizard — Necromancer 10 (Arcana Unleashed)",
+    caveat: "an Undead under your control that you can see is reduced to 0 Hit Points — the table's",
+    rule: Object.freeze({ item: "Harvest Undead", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunHarvestUndead" }) }),
+  // Masterful Shots: Sticky Shield's miss row on ANY attack roll (`missOf: "any"`); the move and the ranged attack are from the sheet.
+  "Masterful Shots": Object.freeze({ activity: null, on: "miss", missOf: "any", self: true, from: "Fighter — Arcane Archer 18 (Arcana Unleashed)",
+    caveat: "move up to half your Speed away (no Opportunity Attacks) and make one ranged attack at the attacker — from the sheet",
+    rule: Object.freeze({ item: "Masterful Shots", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunMasterfulShot" }) })
 });
 
 /**
@@ -1952,7 +2089,8 @@ export const CHOSEN_AREAS = Object.freeze({
   "Conjure Volley": Object.freeze({ data: "PHB, level 5 — “each creature of your choice that you can see in a 40-foot-radius, 20-foot-high Cylinder”; the pack's choose flag is off" }),
   "Word of Radiance": Object.freeze({ data: "PHB, cantrip — “each creature of your choice that you can see in it” (a 5-foot Emanation); the pack flags the choice" }),
   "Destructive Wave": Object.freeze({ data: "PHB, level 5 — “each creature you choose in the Emanation”; the pack flags the choice" }),
-  "Weird": Object.freeze({ data: "PHB, level 9 — “each creature of your choice in a 30-foot-radius Sphere”; the pack flags the choice" })
+  "Weird": Object.freeze({ data: "PHB, level 9 — “each creature of your choice in a 30-foot-radius Sphere”; the pack flags the choice" }),
+  "Wither and Bloom": Object.freeze({ data: "Arcana Unleashed, level 2 — “each creature of your choice in that area” (a 10-foot-radius Sphere); the Bloom's Hit Point Die is the table's" })
 });
 
 /** The 2024 Rules Glossary on range, as pointers to dnd5e's rules pages (rule-text.js reads them). */
@@ -2528,7 +2666,37 @@ export const EFFECT_BENDS = Object.freeze({
     saves: Object.freeze({ bend: "disadvantage" }),
     rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Staggering Blow" }) }),
   "Sundered": Object.freeze({ attacker: null, target: null, scope: "any", plus: 5, except: "source", spend: "attack", from: "Barbarian 13 (Improved Brutal Strike)",
-    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) })
+    rule: Object.freeze({ item: "Improved Brutal Strike", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrbImpBrutalS", benefit: "Sundering Blow" }) }),
+  // --- J. ARCANA UNLEASHED (RULINGS *Arcana Unleashed*) ---------------------------------------------------------
+  // Superior Magic Resistance: Spellguard Shield's row on a monster's trait — spell attack rolls at Disadvantage, saves
+  // against spells and magical effects at Advantage.
+  "Superior Magic Resistance": Object.freeze({ match: "feature", attacker: null, target: "disadvantage", scope: "spell", from: "Arcana Unleashed — monsters (spellguards)",
+    saves: Object.freeze({ bend: "advantage", spells: true }),
+    rule: Object.freeze({ item: "Superior Magic Resistance", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunSuperiorMagic" }) }),
+  // Arcana's Marshal Undead ships its own effect ("Marshaled") where the Monster Manual's is "Adv: Attacks & Saves".
+  "Marshaled": Object.freeze({ attacker: "advantage", target: null, scope: "any", from: "Marshal Undead (Arcana Unleashed — the necromancer archmage)",
+    saves: Object.freeze({ bend: "advantage" }),
+    rule: Object.freeze({ item: "Marshal Undead", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunMarshalUndead" }) }),
+  // Venger's Mounted Adept: Advantage on Dexterity saves while mounted and not Incapacitated; the mount's own and the redirect are the table's.
+  "Mounted Adept": Object.freeze({ match: "feature", attacker: null, target: null, scope: "any", judge: "notIncapacitated", from: "Arcana Unleashed — monsters (Venger)",
+    saves: Object.freeze({ bend: "advantage", abilities: Object.freeze(["dex"]) }),
+    caveat: "counted — press Normal if Venger is not mounted; the mount's Advantage and \"target him instead\" are the table's",
+    rule: Object.freeze({ item: "Mounted Adept", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunMountedAdept0" }) }),
+  // The vestige's Cursed Invocation: the pack's "Cursed" from Divine Power alone (`itemOnly` — Cursed Touch's Cursed is a rest block).
+  "Cursed (Divine Power)": Object.freeze({ named: "Cursed", item: "Divine Power", itemOnly: true, attacker: "disadvantage", target: null, scope: "any",
+    from: "Divine Power (Arcana Unleashed — the Vestige Companion)",
+    caveat: "counted — press Normal if this attack is not at the warlock or the vestige",
+    rule: Object.freeze({ item: "Divine Power", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aunDivinePower00", benefit: "Cursed Invocation" }) }),
+  // Wondrous Alteration's Natural Weapons: Advantage on the Constitution save to keep Concentration while its effect stands.
+  "Wondrous Alteration": Object.freeze({ attacker: null, target: null, scope: "any", from: "Wizard — Transmuter 3 (Arcana Unleashed)",
+    saves: Object.freeze({ bend: "advantage", abilities: Object.freeze(["con"]) }),
+    caveat: "counted — a Constitution save to maintain Concentration alone; press Normal on any other",
+    rule: Object.freeze({ item: "Wondrous Alteration", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunWondrousAlter", benefit: "Natural Weapons" }) }),
+  // Aura of Evasion's member copy (EMANATIONS "Aura of Evasion"): Advantage on Dexterity saves inside; the Evasion half is EVASIONS'.
+  "Aura (Aura of Evasion)": Object.freeze({ named: "Aura", item: "Aura of Evasion", itemOnly: true, member: true, attacker: null, target: null, scope: "any",
+    from: "Aura of Evasion (Arcana Unleashed — level 7 spell)",
+    saves: Object.freeze({ bend: "advantage", abilities: Object.freeze(["dex"]) }),
+    rule: Object.freeze({ item: "Aura of Evasion", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunAuraofEvasiIJ" }) })
 });
 
 /** The table's rows, in the order the table reads them. */
@@ -2689,7 +2857,12 @@ export const INITIATIVE_GRANTS = Object.freeze({
   // feature has no uses of its own — nothing spent, nothing asked).
   "Superior Inspiration": Object.freeze({ regain: "Bardic Inspiration", unit: "Bardic Inspiration uses", upTo: 2,
     rule: Object.freeze({ item: "Superior Inspiration", uuid: "Compendium.dnd-players-handbook.classes.Item.phbbrdSuperiorIn" }),
-    from: "Bard 18" })
+    from: "Bard 18" }),
+  // ARCANA UNLEASHED — Ever-Ready Shot: ONE expended use of Arcane Shot back at Initiative (`count` — never past the maximum);
+  // "you can" is the ask.
+  "Ever-Ready Shot": Object.freeze({ regain: "Arcane Shot", unit: "Arcane Shot uses", count: 1, ask: true,
+    rule: Object.freeze({ item: "Ever-Ready Shot", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunEverreadyShot" }),
+    from: "Fighter — Arcane Archer 10 (Arcana Unleashed)" })
 });
 
 /**
@@ -2884,7 +3057,13 @@ export const DAMAGE_RULES = Object.freeze({
   "Empowered Evocation": Object.freeze({ key: "empowered-evocation", gate: "always", feat: true, spells: true, once: "spell",
     school: "evo", classes: Object.freeze(["wizard"]), bonus: "@abilities.int.mod",
     rule: Object.freeze({ item: "Empowered Evocation", uuid: "Compendium.dnd-players-handbook.classes.Item.phbwzdEmpoweredE" }),
-    from: "Wizard — Evoker 10" })
+    from: "Wizard — Evoker 10" }),
+  // ARCANA UNLEASHED — Mage Breaker: Mage Slayer's breaker on a WIELDED weapon (`wields` — the dealer holds the staff; which
+  // weapon dealt the blow is the caveat's).
+  "Mage Breaker": Object.freeze({ key: "mage-breaker", gate: "always", wields: true, breaks: "concentration",
+    caveat: "counted — Disadvantage only when the damage was Mage Breaker's own hit",
+    rule: Object.freeze({ item: "Mage Breaker", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunMageBreakerFf" }),
+    from: "Arcana Unleashed — weapon" })
 });
 
 /** What raises a repeated save — the closed set the R4 tripwire counts (repeat-saves.js). */
@@ -3015,7 +3194,44 @@ export const REPEAT_SAVES = Object.freeze({
     count: Object.freeze({ saves: 1, fails: 1, press: "petrified", swap: true }),
     caveat: "the medusa's own reflection is the table's; freed by Greater Restoration or the like — the table's",
     rule: Object.freeze({ item: "Petrifying Gaze", uuid: "Compendium.dnd-monster-manual.features.Item.mmPetrifyingGaze" }),
-    from: "monsters (medusa)" })
+    from: "monsters (medusa)" }),
+  // ARCANA UNLEASHED (RULINGS *Arcana Unleashed*) — the repeating saves at the bearer's turn end, the spell's own save activity
+  // (named where the first save is the cast's, not the repeat's).
+  "Festering Blast": Object.freeze({ effect: "Poisoned", activity: "Repeat Save", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Festering Blast", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunFesteringBlzT" }),
+    from: "Arcana Unleashed — level 4 spell (Concentration, 1 minute)" }),
+  "Entrancing Mirrors": Object.freeze({ effect: "Stunned", on: Object.freeze(["turnEnd"]),
+    caveat: "the halved Speed while Stunned is the table's",
+    rule: Object.freeze({ item: "Entrancing Mirrors", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunEntrancingMlx" }),
+    from: "Arcana Unleashed — level 8 spell (1 minute)" }),
+  "Fractured Awareness": Object.freeze({ effect: "Disadv. D20 Tests", on: Object.freeze(["turnEnd"]), onSave: "none",
+    rule: Object.freeze({ item: "Fractured Awareness", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunFracturedAwZD" }),
+    from: "Arcana Unleashed — level 7 spell (Concentration, 1 minute)" }),
+  "Inflict Doubt": Object.freeze({ effect: "Disadv. D20 Tests", on: Object.freeze(["turnEnd"]),
+    rule: Object.freeze({ item: "Inflict Doubt", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunInflictDoubTp" }),
+    from: "Arcana Unleashed — level 3 spell (Concentration, 1 minute)" }),
+  "Uncertain Footing": Object.freeze({ effect: "Hampered", on: Object.freeze(["turnEnd"]),
+    caveat: "\"can't take the Dash action\" is the table's",
+    rule: Object.freeze({ item: "Uncertain Footing", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunUncertainForz" }),
+    from: "Arcana Unleashed — level 2 spell (Concentration, 1 minute)" }),
+  "Vision of Elapsing Eons": Object.freeze({ effect: "Paralyzed", on: Object.freeze(["turnEnd"]), onSave: "none",
+    caveat: "each FAILED repeat gives 1 Exhaustion level — the table's; someone within 5 feet shaking it free ends the spell",
+    rule: Object.freeze({ item: "Vision of Elapsing Eons", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunVisionofElaMG" }),
+    from: "Arcana Unleashed — level 9 spell (Concentration, 1 minute)" }),
+  "Power Word Pain": Object.freeze({ effect: "Power Word Pain", activity: "Repeat Save", on: Object.freeze(["turnEnd"]),
+    caveat: "the Constitution save to cast a spell while in pain is the table's (the pack's Spellcasting Save, from the sheet)",
+    rule: Object.freeze({ item: "Power Word Pain", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunPowerWordPaww" }),
+    from: "Arcana Unleashed — level 7 spell (1 minute)" }),
+  // A worn item's save: the bellows' Incapacitated repeats at the creature's turn end against the First Command Word's DC.
+  "Bellows of Strangulation": Object.freeze({ effect: "Incapacitated", activity: "First Command Word", on: Object.freeze(["turnEnd"]),
+    caveat: "the Second Command Word's creatures repeat against the same DC",
+    rule: Object.freeze({ item: "Bellows of Strangulation", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunBellowsofStJo" }),
+    from: "Arcana Unleashed — wondrous item" }),
+  // The GM's side — the illusory dragon's Frightened repeats on its own "Repeat Frightening Save" (the monster's-own-activity shape).
+  "Frightening Appearance": Object.freeze({ effect: "Frightened", activity: "Repeat Frightening Save", on: Object.freeze(["turnEnd"]),
+    caveat: "\"no line of sight to the illusion\" and the dropped items are the table's",
+    rule: Object.freeze({ item: "Frightening Appearance", uuid: "Compendium.dnd-arcana-unleashed.actors.Item.aSPI6eWw42j6t3fs" }),
+    from: "Arcana Unleashed — Illusory Dragon (level 8 spell)" })
 });
 
 /**
@@ -3125,7 +3341,12 @@ export const TURN_GRANTS = Object.freeze({
   // D1 — Elder Champion's Regeneration: 10 Hit Points at each turn start while the form stands (its effect on the paladin).
   "Elder Champion": Object.freeze({ match: "feature", activity: "Regeneration", on: "turnStart", whileEffect: "Diminished Defiance",
     rule: Object.freeze({ item: "Elder Champion", uuid: "Compendium.dnd-players-handbook.classes.Item.phbpdnElderChamp", benefit: "Regeneration" }),
-    from: "Paladin — Oath of the Ancients 20" })
+    from: "Paladin — Oath of the Ancients 20" }),
+  // ARCANA UNLEASHED — Festering Blast: Spores' shape — the Poisoned creature takes the spell's "Ongoing Poison Damage" at its
+  // own turn start, rolled on the caster's numbers; the repeat at its turn end is REPEAT_SAVES'.
+  "Festering Blast": Object.freeze({ effect: "Poisoned", activity: "Ongoing Poison Damage", on: "turnStart", deals: true,
+    rule: Object.freeze({ item: "Festering Blast", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunFesteringBlzT" }),
+    from: "Arcana Unleashed — level 4 spell (Concentration, 1 minute)" })
 });
 
 /**
@@ -3230,7 +3451,11 @@ export const HEAL_ON_HIT = Object.freeze({
   "Improved Blessed Strikes": Object.freeze({ on: "damage", spell: "cantrip", spellClass: "cleric", temphp: true, pick: true, self: true, within: 60,
     activity: "Potent Spellcasting: Heal",
     rule: Object.freeze({ item: "Improved Blessed Strikes", uuid: "Compendium.dnd-players-handbook.classes.Item.phbclcImprovedBl" }),
-    from: "Cleric 14" })
+    from: "Cleric 14" }),
+  // ARCANA UNLEASHED — Enervation: Vampiric Touch's row (half the Necrotic landed, the cast's and each Drain Life's).
+  "Enervation": Object.freeze({ share: 0.5, type: "necrotic",
+    rule: Object.freeze({ item: "Enervation", uuid: "Compendium.dnd-arcana-unleashed.spells.Item.aunEnervationNxK" }),
+    from: "Arcana Unleashed — level 5 spell (Concentration, 1 minute)" })
 });
 
 /**
@@ -3297,7 +3522,11 @@ export const RAY_TABLES = Object.freeze({
 export const CONCENTRATION_EXEMPTS = Object.freeze({
   "Relentless Hunter": Object.freeze({ spell: "Hunter's Mark",
     rule: Object.freeze({ item: "Relentless Hunter", uuid: "Compendium.dnd-players-handbook.classes.Item.phbrgrRelentless" }),
-    from: "Ranger 13" })
+    from: "Ranger 13" }),
+  // ARCANA UNLEASHED — Focused Conjuration: every spell held is of the `school` (Conjuration), not one spell by name.
+  "Focused Conjuration": Object.freeze({ school: "con",
+    rule: Object.freeze({ item: "Focused Conjuration", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunFocusedConjur" }),
+    from: "Wizard — Conjurer 10 (Arcana Unleashed)" })
 });
 
 /**
@@ -3390,7 +3619,9 @@ export const INTERRUPTS = Object.freeze([
   // the GM's side
   row("Toxic Escape", "damage"), row("Deflect Missile", "damage"), row("Limited Foresight", "roll"),
   // the DMG
-  row("Gloves of Missile Snaring", "damage")
+  row("Gloves of Missile Snaring", "damage"),
+  // Arcana Unleashed
+  row("Go to Ground", "damage"), row("Arcane Omens", "roll"), row("Transmuted Anatomy", "roll"), row("Spell Resistant", "roll")
 ]);
 /** Which spells a reaction stops outright. */
 export const BLOCKS = Object.freeze([Object.freeze({ spell: "Magic Missile", reaction: "Shield" })]);
@@ -3408,7 +3639,9 @@ export const D20_FOLDS = Object.freeze([
   row("Dark One's Own Luck", "tactical"), row("Soul Blades", "tactical"), row("Peerless Skill", "tactical"),
   row("Stroke of Luck", "succeed"), row("Unerring Strike", "succeed"), row("Living Legend", "reroll"),
   // the DMG
-  row("Ring of Evasion", "succeed"), row("Scarab of Protection", "succeed"), row("Luck Blade", "reroll")
+  row("Ring of Evasion", "succeed"), row("Scarab of Protection", "succeed"), row("Luck Blade", "reroll"),
+  // Arcana Unleashed
+  row("Keyholes Dagger", "reroll")
 ]);
 /** Which marks pay, by system identifier. What they pay is read from the mark. */
 export const RIDERS = Object.freeze(["hunters-mark", "hex", "great-old-one-hex"].map(name => Object.freeze({ name })));

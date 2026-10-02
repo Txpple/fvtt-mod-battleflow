@@ -50,7 +50,7 @@ describe("the table", () => {
       "Improved Brutal Strike",
       "Improved Brutal Strike"
     ]);
-    expect(rows).toHaveLength(22); // + Eldritch Smite (B4), Hurl Through Hell (C1)
+    expect(rows).toHaveLength(28); // + Eldritch Smite (B4), Hurl Through Hell (C1), Arcana Unleashed's six Arcane Shot options
     for (const row of rows) {
       expect(reg.HIT_GROUPS[row.group]).toBeTruthy();
       expectPointer(row.rule, row.feature);
