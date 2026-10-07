@@ -272,7 +272,7 @@ to turn off.
 `ApplicationV2#_postRender` focuses the `[autofocus]` element on first render
 (application.mjs:1801), and `DialogV2` puts `autofocus` on the `default` button — so a moment popup
 opened by SOMEONE ELSE's roll pulled focus out of the chat box, a sheet field or the canvas, and
-the next Enter or Space (the pause key) answered it. Session 8: a Battle Master PC's Tactical Mind offer was
+the next Enter or Space (the pause key) answered it. In play: a Battle Master PC's Tactical Mind offer was
 answered PASS twenty seconds in, not by the timer. `openManagedPopup` hands the focus back
 (`returnTheKeyboard`) — a moment is answered with the pointer; the system's own roll dialogs keep
 Enter, because the roller opened those (`markDefaultButton`). Pinned by smoke-d20-folds ("an Enter
@@ -532,7 +532,7 @@ behind it — an area from a used-up scroll loses its activity on the platform's
 
 ### An applied copy carries its TEMPLATE'S lineage: `system.origin.item` names the PACK (2026-09-23)
 
-Session 8: a ranger PC's Hunter's Mark paid no 1d6 on six hits. The 6.0 migration moved every world
+In play: a ranger PC's Hunter's Mark paid no 1d6 on six hits. The 6.0 migration moved every world
 item's effect-template `origin` — the pack's own uuid — into `system.origin.item` (**207 of the
 world's 243 applied templates**). Both appliers copy the template and MERGE their provenance over
 it (the tray's `_prepareEffectData` writes `activity` or `item`, `effect`, `message`, `profile`),
@@ -559,7 +559,7 @@ moved twice (`movement.speed` → `movement.walk` → `movement.speeds.walk`). T
 in-memory 35-foot ranger read walk, climb and swim **3510**; the chain followed, 45. A platform
 fix, so Misc Patches' `shim-chains.js` points each entry at the end of its chain at `setup`
 (smoke-shim-chains 5/5), enabled on prod since 2026-09-23 (v1.1.0). 6.0.5 still ships the one-hop
-table. Moved 2026-09-25 to Vendor Fixes (`../fvtt-mod-vendorfixes`) as **VF-001**, unchanged;
+table. Moved 2026-09-25 to Vendor Fixes (a sister module) as **VF-001**, unchanged;
 its register lists this module as a dependent (Half Speed), and Misc Patches is retired.
 
 ### 6.0.4 and 6.0.5, read against the module — nothing on our paths (2026-09-23)
@@ -577,7 +577,7 @@ The 6.0.3 → 6.0.5 diff is 48 files, most of them scroll packs, read file by fi
   level off the card and the item, unchanged.
 - **Hooks:** `check-hook-dispatch --regen`: 0 added, 0 removed.
 
-### "Creatures of your choice" in an area: the pack flags half of them (2026-09-24, Session 8's Slow)
+### "Creatures of your choice" in an area: the pack flags half of them (2026-09-24, a play session's Slow)
 
 dnd5e models a caster's choice inside an area as `target.affects.choice`. Read off the 2024 PHB
 spell pack (a copy of its LevelDB through `classic-level`): the area-and-save spells whose TEXT
@@ -589,17 +589,17 @@ Areas list names them (`CHOSEN_AREAS`), the number is read off the text (`choice
 ruling is [RULINGS.md](RULINGS.md) *Spells that choose their targets*. "Of your choice" WITHOUT
 an area (Bane, Enthrall, Healing Word…) is a targeting choice and needs nothing.
 
-### Arcana Unleashed is installed on both boxes, and nothing reads it yet (2026-09-24, `tools/probe-premium-module.mjs`, Foundry 14.368 / dnd5e 6.0.5, pack indexes only)
+### Arcana Unleashed: nothing reads it yet (2026-09-24, `tools/probe-premium-module.mjs`, Foundry 14.368 / dnd5e 6.0.5, pack indexes only)
 
-The house's fifth premium book: `dnd-arcana-unleashed` v1.0.1, a 2024-rules core expansion on
-magic. Same pack ids on both boxes; its Item packs are `.subclasses` (71 rows: 8 subclasses, 61
+The fifth supported premium module: `dnd-arcana-unleashed` v1.0.1, a 2024-rules core expansion on
+magic. Its Item packs are `.subclasses` (71 rows: 8 subclasses, 61
 features), `.feats` (37), `.spells` (33, levels 2–9), `.items` (69), `.backgrounds` (11),
 `.bastions` (9); beside them `.effects` (40), `.actors` (38), `.book` (36), `.tables`, `.scenes`,
 `.adventures`.
 - **No name-keyed row fires on it.** Zero collisions between its Item names and the registry's
   keys, feature fields or settings defaults; none of its spells shares a name with a PHB spell. The
   book is unswept — SWEEP §2 has the counts and the names to read first, BACKLOG *Features* the row.
-- **It ships a standalone ActiveEffect compendium** — the house's first: 38 enchantments (the
+- **It ships a standalone ActiveEffect compendium** — the first among the supported books: 38 enchantments (the
   evolving magic items, applied to ITEMS) and 2 base effects, *Dodging* (`statuses: ["dodging"]`)
   and *Darkening Ammunition*. Effect readers match effects ON AN ACTOR by name, which holds for an
   effect applied from a pack; a pack feature that links a compendium effect by uuid rather than
@@ -1302,7 +1302,7 @@ put every platform finding on a public page.
 
 ### Testing against the live sandbox
 
-The sandbox is a local Foundry, often a copy of the live table's world, and suites MUTATE it. Every harness
+The sandbox is a local Foundry, often a copy of a live world, and suites MUTATE it. Every harness
 resolves its target in one place (`tools/target.mjs`): the MCP client's `local` preset (the world its .env
 names) unless `BF_HOST` names another preset deliberately, and it prints it.
 
@@ -1357,8 +1357,8 @@ against Microsoft's cloud reputation service and caches the verdict on the file;
 and the re-query came back "unknown". The tells: CodeIntegrity event 3077
 (`Microsoft-Windows-CodeIntegrity/Operational`) naming the file, and a cluster of unrelated unsigned
 binaries refused the same days (this repo's `rollup.win32-x64-msvc.node`, so vitest too). SAC has no
-exclusion list; the user turned it off on 2026-08-28. ⚠ That switch is one-way (re-enabling needs a
-Windows reset) — the user's call, never a session's.
+exclusion list; turning it off is the machine owner's call, never a session's. ⚠ That switch is
+one-way (re-enabling needs a Windows reset).
 
 ⚠ **`/api/status` "users" is not a socket count, and it blocks the prod→local refresh.** The
 refresh refuses to image the world while users are connected (a mid-write LevelDB snapshot tears),
@@ -1385,23 +1385,27 @@ apply/sweep), and bridge and suite are both role 3: with no role-4 client they *
 decides, so the suite may not be the elect. The bridge is a hot standby that inherits the elect the
 moment no role-4 client is around — why leaked processes matter.
 
-⚠ **The sole-GM preflight cannot see a second suite** (2026-08-23): two suites both join as `Tester
-Assistant`, and it counts **users, not sockets**. A second suite started mid-`smoke-maneuvers`,
+⚠ **The sole-GM preflight cannot see a second suite** (2026-08-23): two suites both join as the suite
+identity, and it counts **users, not sockets**. A second suite started mid-`smoke-maneuvers`,
 re-pinned six settings underneath it and left an orphaned fixture. The harness's pid lockfile is the
 guard now ([tools/README.md](tools/README.md)). Before it, a chained back-to-back battery produced one
 polluted assertion (a message-count delta of −20), green in isolation twice — a prior suite's
 teardown landing late.
 
-**The world-settings reference table lives in `tools/verify-settings.mjs`, and only there.** A mirror
-in a doc drifts. When the user changes a setting, update that table — never fight the world to match
-a stale copy. The shipped defaults in `scripts/settings.js` agree with it, so a change is two edits. Since
-2026-09-27 it holds the seven world settings and clears a scene's leftover `noCover` flag. ⚠ The tool exits 1 on unfixed drift (a
-battery once printed "settings clean" over six drifted settings).
+**There is no hand-kept settings table (2026-10-07).** `tools/verify-settings.mjs` checks every world
+setting against a REFERENCE it does not hold: in a battery, the world's own values recorded before
+the run (`settings-before.json` in the run directory), so whatever a table has tuned is protected;
+by hand, the registered defaults (from `scripts/settings.js` itself), plus a git-ignored
+`tools/settings.local.json` of single-key overrides. A new setting is covered by registering it. It
+also clears a scene's leftover `noCover` flag. ⚠ The tool exits 1 on unfixed drift (a battery once
+printed "settings clean" over six drifted settings).
 
 ⚠ **A crashed run launders its pins into the next run's "prior".** A suite crashed with its settings
 pinned; the next green run snapshotted those pins as the prior it faithfully restored — eleven
 settings drifted with every suite reporting success. Settings-first restore cannot catch this; only
-an external reference can. Verify settings against the reference table after every battery.
+an external reference can — the battery's before-the-run snapshot is that reference. A KILLED suite
+is the same case (2026-10-07: smoke-twoclient's watchdog left four settings pinned and three later
+suites failed on them): `verify-settings --against <the run's settings-before.json> --fix`.
 
 ⚠ **A MID-RUN RESTORE GOES BACK TO THE SUITE'S OWN BASELINE, NEVER THE WORLD'S PRIOR (2026-09-02).**
 `smoke-reminders` §6 put the Reminder Sources list back to `prior.reminderList`; the world still
@@ -1410,8 +1414,8 @@ full run and passed under `--section 10`. `prior` is for the TEARDOWN. The tell,
 launder: a section-only run that is greener than the full run.
 
 **Every teardown restores SETTINGS FIRST, in its own guard.** One try/catch around the whole cleanup
-let an earlier error skip the restore, and a night of failed runs left residue on the live table
-that was then misread as the user's tuning. **The user's config is sacred; deletes and sweeps are
+let an earlier error skip the restore, and a night of failed runs left residue on a live world
+that was then misread as the table's tuning. **A table's config is sacred; deletes and sweeps are
 best-effort.**
 
 **Testing that fits the size of the change (2026-09-23, user ruling — Shape A).** The full battery

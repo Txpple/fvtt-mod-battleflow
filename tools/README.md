@@ -6,6 +6,17 @@ Suites drive a **live Foundry world** through the sibling MCP repo's headless
 browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm install` once, and it needs that repo's `.env` and a built `dist/`). Read
 [NOTES.md §5](../NOTES.md) before running anything — the protocol there is not optional.
 
+**What the live tier needs** (all in the MCP repo's `.env`, none in this repo):
+
+| Variable | What |
+| --- | --- |
+| `LOCAL_FOUNDRY_DATA`, `LOCAL_WORLD_ID`, `LOCAL_SERVER_URL`, `LOCAL_ADMIN_KEY` | the local Foundry and the world it runs — any world; the suites assume nothing in it |
+| `FOUNDRY_SUITE_USER` / `BF_SUITE_USER` (+ password) | the GM user every suite joins as |
+| `FOUNDRY_USER` (+ password) | the MCP bridge's GM user (the preflight names it when it blocks) |
+| `FOUNDRY_PLAYER_USER` (+ password) | a player-role user: the two-client suites and the player-owned fixtures |
+
+The three users must exist in the world. Everything else a suite needs, `fixture-suite.mjs` builds from the compendia.
+
 ```bash
 node tools/battery.mjs                     # build the fixtures, every suite in order (each captured to a file), tear down
 node tools/battery.mjs --keep              # ...and leave the fixtures in the world
@@ -187,8 +198,8 @@ live table's Steady Aim chip and attack records without touching anything;
 (NOTES §2 *What the platform applies for a 2024 condition*), restoring the fixture in `finally`.
 `probe-premium-module.mjs <module-id> <out.json>` (2026-09-24, Arcana Unleashed) reads what a
 premium module ships pack by pack — counts, types, names — and lists the names the registry
-already keys a row on and the names the 2024 packs already carry, so the next book the house
-buys is measured before it is described; pack indexes only, no sole-GM preflight because it
+already keys a row on and the names the 2024 packs already carry, so the next supported book
+is measured before it is described; pack indexes only, no sole-GM preflight because it
 asserts on nothing.
 
 `scan-corpus-offline.mjs <out.json> <module-id> [...]` (2026-10-01, the splat books) is scan-corpus's row shape
@@ -198,7 +209,7 @@ world; it also flattens Actor packs into one row per embedded feature (`actor`, 
 `classify-corpus.mjs` ranks the three splat books and reads those rows as `monster`; `audit-splat-books.mjs
 <classified.json> <corpus.json>` writes the evidence tables under `audits/splat/`, one file per book.
 
-`probe-identifiers.mjs` snapshots every Item in every pack and on the world's actors — identifier,
+`probe-identifiers.mjs` snapshots every Item in every pack — identifier,
 type, rules version, book, compendium source, effect names — to `content/identifier-snapshot.json`
 (git-ignored, ~2 MB); `compact-identifiers.mjs` reduces it to `content/identifiers.json` (committed,
 what `check-identifiers.mjs` reads). Re-measure after a dnd5e bump or a new premium book.
@@ -211,7 +222,7 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | Tool | Job |
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
-| `verify-settings.mjs` | diffs the live world against the reference table it carries — **the single source for the user's configuration**. `--fix` restores drift. Run after every battery. |
+| `verify-settings.mjs` | diffs the world's Battle Flow settings against a reference it does not hold: `--against <snapshot>` (the battery records the world's own values before it runs, `--snapshot <file>`), else the registered defaults plus a git-ignored `tools/settings.local.json`. `--fix` restores drift. Run after every battery. |
 | `fixture-suite.mjs` | **builds every fixture from the COMPENDIA** (2026-10-07: no campaign character, scene or item is read — NOTES §5 *The world is a blank slate*). The battery runs it FIRST and a failed build stops the run; run it by hand before a single suite. The test range scene, the two goblins and the bare monster and dummy NPCs (imported by shape or created bare), the player-owned PC attacker, and the `BUILT` PCs from the PHB (a class item at a level resolves its scale values): the Shielder and the player-owned Mage (Sorcerer 6, a real Shield), the d20-fold Fighter (Fighter 5 at Strength 14 — the +5 band `smoke-d20-folds` states) and Bard (Bard 8 — the 1d8 inspiration die), the Vanguard (Paladin 6, an attuned Cloak of Protection, Shield Master, the longsword mastery), and the Paladin, Cleric, Rogue, Ranger, Sorcerer, Goliath and Halfling. All under `Test Suite` folders, idempotent, ownership and abilities re-seeded every run. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (2026-09-24). Pair with `fixture-d20-folds.mjs`, which runs second. |
 | `teardown-fixtures.mjs` | **removes every fixture** — the `Test Suite` folders and what is in them, any `BF …` / `Battle Flow …` actor or scene, and any combat they stand in. The battery runs it LAST unless `--keep`, so the sandbox is left as it was found; `--list` says what would go. |
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BF Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
@@ -246,13 +257,13 @@ Decide before simplifying (ARCHITECTURE *Decided against, and why*).
 
 ## Release and deploy — the chain
 
-The steps, once. Why each is there: NOTES §5 *Deploy* and *Release*. A prod deploy happens only on
-the user's word.
+The steps, once. Why each is there: NOTES §5 *Deploy* and *Release*. A deploy to a live world happens
+only on the maintainer's word.
 
 1. **The floor.** `npm run verify` green, and the full battery unattended
-   (`node tools/battery.mjs --snapshot`), then `node tools/verify-settings.mjs` (`--fix` on drift).
+   (`node tools/battery.mjs --snapshot`); the battery checks the settings against its own before-the-run snapshot.
 2. **The bump.** `node tools/bump-version.mjs <patch|minor>` moves both `module.json` fields;
-   `--check` is part of `verify`. **The frame (the user, 2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
+   `--check` is part of `verify`. **The frame (2026-09-30):** 2.x carries the PHB, DMG and MM work, a minor
    per letter series or book stage; **v3.0.0 is the release where the PHB, the DMG and the MM are all done, before any
    walkthrough**; 3.x is the walkthroughs and the supplement books.
 3. **The commits.** The change commit(s) — code, its suites and its docs together — then a

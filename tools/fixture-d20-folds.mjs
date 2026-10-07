@@ -130,7 +130,9 @@ const out = await f.evaluate(async () => {
 
   // ⚠ Restore the target: the suite's applied damage leaves the foe at 0 HP (and Graze then skips
   // a dead target). Heal it and clear any forced AC; sections pin their own.
-  const foeToken = game.scenes.active?.tokens.find(t => t.actor && (t.actor.type === "npc"));
+  // ⚠ The test range's goblin only — never the first NPC on the world's active scene (2026-10-07).
+  const foeToken = game.scenes.getName("Battle Flow Test Range")?.tokens.find(t => t.actor && (t.actor.type === "npc")
+    && /^BF Test /.test(t.actor.name ?? ""));
   if (foeToken) {
     const foe = foeToken.actor;
     const src = foe.system._source.attributes.ac;

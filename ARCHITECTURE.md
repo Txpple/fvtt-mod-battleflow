@@ -939,8 +939,8 @@ dedupe on.
 
 Ten settings (RULINGS *The settings*): seven world configs for the DM, three per-client
 preferences. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
-in [settings.js](scripts/settings.js) agree. The shipped defaults and the reference table in
-`tools/verify-settings.mjs` agree. A Foundry default applies only where a setting has never been
+in [settings.js](scripts/settings.js) agree. `tools/verify-settings.mjs` reads the
+shipped defaults from the registrations themselves, so there is no second copy to keep in step. A Foundry default applies only where a setting has never been
 written, so a default flip never touches an existing world.
 
 ### Rules

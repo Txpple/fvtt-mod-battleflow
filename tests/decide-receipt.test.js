@@ -42,7 +42,7 @@ describe("traitOutcome — what the traits made of one part", () => {
   it("divides the caller's multiplier out — a halved save is not a resistance", () => {
     // dnd5e folds options.multiplier into active.multiplier before the traits (actor.mjs):
     // saved, no trait → 0.5 raw; saved AND resistant → 0.25 raw; saved AND vulnerable → 1 raw.
-    // Session 8's breath (2026-09-24): Bramm 32 → 16 was labelled resistant, Aster 32 → 8 not.
+    // a play session's breath (2026-09-24): Bramm 32 → 16 was labelled resistant, Aster 32 → 8 not.
     expect(r.traitOutcome({ multiplier: 0.5 }, 0.5)).toBe(null);
     expect(r.traitOutcome({ multiplier: 0.25 }, 0.5)).toBe("resistant");
     expect(r.traitOutcome({ multiplier: 1 }, 0.5)).toBe("vulnerable");

@@ -42,7 +42,7 @@ export function playerConfig(env) {
  * logs out only the calling one: when the other GM is the bridge, the message names another session.
  */
 export async function preflightSoleGM(f, { requireElect = true, allowBridge = false, env = null } = {}) {
-  const bridgeUser = env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER ?? 'MCP-Claude';
+  const bridgeUser = env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER ?? null;
   const who = await f.evaluate(async () => ({
     self: game.user.name,
     elect: game.users.activeGM?.name ?? null,

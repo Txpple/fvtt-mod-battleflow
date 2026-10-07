@@ -18,8 +18,9 @@
  *    `| tail` would throw the evidence away.
  * 2. The order matters: ORDER's `needs` (tools/coverage-map.mjs) are pulled into any subset.
  *    ⚠ The two-client entries need the player test account free (no human logged in as it).
- * 3. Settings are VERIFIED after (the reference table): a crashed run launders its pins into
- *    the next run's "prior".
+ * 3. Settings are VERIFIED after, against the world's own values recorded before the run
+ *    (`settings-before.json` in the run directory): a crashed run launders its pins into the next
+ *    run's "prior", and `verify-settings --against <that file> --fix` puts them back.
  * 4. SELF-CONTAINED (2026-10-07): every plan opens with `fixture-suite` (every fixture built from the
  *    compendia; a failed build stops the run) and closes with `teardown-fixtures` (unless --keep), so
  *    the sandbox world can be any world, a fresh copy of prod included, and is left as it was found.
@@ -190,13 +191,21 @@ const sectionFor = values.section ? positionals[0] : null;
 const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
 const runDir = join(REPO, "dist", "battery", stamp);
 mkdirSync(runDir, { recursive: true });
+// Each row's output file, in order — `plan.json` is what battery-status draws its bar from, so a partial
+// run's bar counts its own rows. A repeated row (fixture-suite stands three times) gets `-2`, `-3`.
+const seen = {};
+for (const suite of plan) {
+  seen[suite.name] = (seen[suite.name] ?? 0) + 1;
+  suite.file = suite.setup ? "setup-fixtures" : (seen[suite.name] > 1) ? `${suite.name}-${seen[suite.name]}` : suite.name;
+}
+writeFileSync(join(runDir, "plan.json"), `${JSON.stringify(plan.map(s => s.file))}\n`);
 console.log(`[battery] output -> ${runDir}\n`);
 
 // ⚠ Clear the hook ledgers first: hook-coverage.mjs unions whatever it finds, and a previous
 // battery's ledger would report coverage this run never had.
 rmSync(join(REPO, "dist", "hook-ledger"), { recursive: true, force: true });
 
-const run = (script, args = []) => {
+const run = (script, args = [], label = script) => {
   const r = spawnSync(node, [join(REPO, "tools", `${script}.mjs`), ...args], {
     cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024
   });
@@ -204,7 +213,7 @@ const run = (script, args = []) => {
   const err = (r.stderr ?? "").trim();
   const SEP = "\n──────── stderr (not interleaved) ────────\n";
   const body = err ? `${r.stdout ?? ""}${SEP}${err}\n` : (r.stdout ?? "");
-  writeFileSync(join(runDir, `${script}.txt`), body);
+  writeFileSync(join(runDir, `${label}.txt`), body);
   return { code: r.status ?? -1, body };
 };
 
@@ -225,12 +234,24 @@ const verdictOf = body => {
   return line ? line.trim() : "(no summary line — read the file)";
 };
 
+// The world's own settings are the reference: recorded before anything runs, checked after.
+const BEFORE = join(runDir, "settings-before.json");
+const snap = run("verify-settings", ["--snapshot", BEFORE], "settings-snapshot");
+if (snap.code !== 0) {
+  console.error(`[battery] the settings snapshot failed — refusing to run without a reference. See ${join(runDir, "settings-snapshot.txt")}`);
+  process.exit(2);
+}
+console.log(`[battery] ${snap.body.split("\n").find(l => l.startsWith("[verify] SNAPSHOT")) ?? "settings recorded"}`);
+
 const results = [];
 let failed = 0;
 for (const suite of plan) {
   process.stdout.write(`[battery] ${suite.name}… `);
   const t0 = Date.now();
-  const { code, body } = run(suite.name, (suite.name === sectionFor) ? ["--section", values.section] : []);
+  // The setup row writes its own file (`setup-fixtures.txt`): fixture-suite also stands in ORDER, and
+  // battery-status counts a row done by its file.
+  const { code, body } = run(suite.name, (suite.name === sectionFor) ? ["--section", values.section] : [],
+    suite.file);
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
   const verdict = suite.reset ? "swept" : verdictOf(body);
   const bad = !suite.reset && (code !== 0);
@@ -238,7 +259,7 @@ for (const suite of plan) {
   results.push({ name: suite.name, code, secs, verdict, bad });
   console.log(`${bad ? "FAILED" : "ok"} (${secs}s) — ${verdict}`);
   if (suite.setup && (code !== 0)) {
-    console.log(`\n[battery] the fixture build failed — nothing can run. See ${join(runDir, `${suite.name}.txt`)}`);
+    console.log(`\n[battery] the fixture build failed — nothing can run. See ${join(runDir, "setup-fixtures.txt")}`);
     for (const l of body.split("\n")) if (/FAIL|FATAL|ERROR|⚠/.test(l)) console.log(l);
     process.exit(2);
   }
@@ -246,7 +267,7 @@ for (const suite of plan) {
   if (bad) {
     console.log(`\n──────── ${suite.name} — the failing lines ────────`);
     for (const l of body.split("\n")) if (/FAIL|FATAL|ERROR/.test(l)) console.log(l);
-    console.log(`──────── full output: ${join(runDir, `${suite.name}.txt`)}\n`);
+    console.log(`──────── full output: ${join(runDir, `${suite.file}.txt`)}\n`);
   }
 }
 
@@ -264,17 +285,17 @@ if (coverage.code !== 0) {
   else console.log(`  ${lines.find(l => l.startsWith("REPORT")) ?? ""}`);
 }
 
-console.log("\n[battery] the settings reference table…");
-const settings = run("verify-settings");
+console.log("\n[battery] the settings, against the world's own before the run…");
+const settings = run("verify-settings", ["--against", BEFORE]);
 const clean = settings.code === 0;
 console.log(clean ? "  CLEAN" : `  ⚠ DRIFTED — see ${join(runDir, "verify-settings.txt")}, `
-  + "then `node tools/verify-settings.mjs --fix`");
+  + `then \`node tools/verify-settings.mjs --against ${BEFORE} --fix\``);
 
 if (values.keep) console.log("\n[battery] --keep: the fixtures stay in the world");
 else {
   console.log("\n[battery] tearing the fixtures down…");
   const down = run("teardown-fixtures");
-  console.log(`  ${down.body.split("\n").find(l => l.startsWith("[teardown-fixtures]")) ?? `⚠ exit ${down.code} — see the file`}`);
+  console.log(`  ${down.body.split("\n").find(l => /^\[teardown-fixtures\] removed/.test(l)) ?? `⚠ exit ${down.code} — see the file`}`);
 }
 
 if (values.snapshot) {

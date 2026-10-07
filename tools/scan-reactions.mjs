@@ -1,7 +1,9 @@
 // Survey every reaction-cost item in the world's compendia, so the curated interrupt list
 // in ARCHITECTURE.md §6 is built from what this table can actually encounter rather than memory.
-// Writes raw JSON to scratchpad; classification happens afterwards against the text.
+// Writes raw JSON (argv[2], else the temp dir); classification happens afterwards against the text.
 import { writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 import { disposeSafely } from './harness.mjs';
@@ -62,7 +64,7 @@ const result = await f.evaluate(async () => {
   return { rows, errors, packStats };
 }, null);
 
-const out = 'C:/Users/sippelmc/AppData/Local/Temp/claude/D--Workbench-FVTT-Repos-fvtt-mod-battleflow/d9db5525-972f-4d65-b16b-fb7bf4f6d994/scratchpad/reactions-raw.json';
+const out = process.argv[2] || join(tmpdir(), 'battleflow-reactions-raw.json');
 writeFileSync(out, JSON.stringify(result, null, 2));
 console.log('\n# pack coverage');
 for (const p of result.packStats) console.log(`  ${p.pack}: ${p.indexed} indexed, ${p.reactions} reaction-cost`);

@@ -6,8 +6,8 @@ import { askOutcome, askTicks, askWords } from "../scripts/decide/area-ask.js";
 // where they were born; this file pins what the machine reads off an answer.
 
 const G = { uuid: "Actor.aster", name: "Aster", disposition: 1, party: true };
-const inv = { uuid: "Actor.inv", name: "Dorian", disposition: 1, party: true };
-const bram = { uuid: "Actor.bram", name: "Mirefang", disposition: -1 };
+const ally = { uuid: "Actor.dorian", name: "Dorian", disposition: 1, party: true };
+const foe = { uuid: "Actor.mirefang", name: "Mirefang", disposition: -1 };
 const croc = { uuid: "Actor.croc", name: "Giant Crocodile", disposition: -1 };
 const caster = { casterUuid: G.uuid, casterDisposition: 1, casterName: "Aster" };
 
@@ -17,22 +17,22 @@ describe("the outcome of an answer", () => {
       kind: "careful",
       feature: "Careful Spell",
       cap: 1,
-      candidates: [G, inv, bram],
+      candidates: [G, ally, foe],
       ...caster
     };
-    const out = askOutcome(ask, [inv.uuid, G.uuid]);
+    const out = askOutcome(ask, [ally.uuid, G.uuid]);
     expect(out.protectedList.map(c => c.name)).toEqual(["Dorian"]);
     expect(out.mark).toBeNull();
     expect(out.areaChoice).toBeNull();
-    expect(out.stays(inv.uuid)).toBe(false);
-    expect(out.stays(bram.uuid)).toBe(true);
+    expect(out.stays(ally.uuid)).toBe(false);
+    expect(out.stays(foe.uuid)).toBe(true);
   });
   it("Careful on the clock: the defaults — the caster and the party first", () => {
     const ask = {
       kind: "careful",
       feature: "Careful Spell",
       cap: 2,
-      candidates: [bram, inv, G],
+      candidates: [foe, ally, G],
       ...caster
     };
     const out = askOutcome(ask, null, { timedOut: true });
@@ -43,12 +43,12 @@ describe("the outcome of an answer", () => {
     const ask = {
       kind: "heightened",
       feature: "Heightened Spell",
-      candidates: [inv, bram, croc],
+      candidates: [ally, foe, croc],
       ...caster
     };
     expect(askOutcome(ask, [croc.uuid]).mark?.name).toBe("Giant Crocodile");
     expect(askOutcome(ask, null).mark?.name).toBe("Mirefang");
-    expect(askOutcome(ask, [croc.uuid]).stays(inv.uuid)).toBe(true);
+    expect(askOutcome(ask, [croc.uuid]).stays(ally.uuid)).toBe(true);
   });
   it("a chosen area: the ticked up to the spell's number are the choice, the rest are left, and only the chosen keep their save", () => {
     const ask = {
@@ -56,14 +56,14 @@ describe("the outcome of an answer", () => {
       feature: "Slow",
       spell: "Slow",
       cap: 1,
-      candidates: [inv, bram, croc],
+      candidates: [ally, foe, croc],
       ...caster
     };
-    const out = askOutcome(ask, [bram.uuid, croc.uuid]);
+    const out = askOutcome(ask, [foe.uuid, croc.uuid]);
     expect(out.areaChoice.chosen.map(c => c.name)).toEqual(["Mirefang"]);
     expect(out.areaChoice.left.map(c => c.name)).toEqual(["Dorian", "Giant Crocodile"]);
     expect(out.areaChoice.asked).toBe(true);
-    expect(out.stays(bram.uuid)).toBe(true);
+    expect(out.stays(foe.uuid)).toBe(true);
     expect(out.stays(croc.uuid)).toBe(false);
   });
   it("a chosen area cast with Heightened carries the mark among the chosen", () => {
@@ -72,14 +72,14 @@ describe("the outcome of an answer", () => {
       feature: "Slow",
       spell: "Slow",
       cap: 6,
-      candidates: [inv, bram, croc],
+      candidates: [ally, foe, croc],
       ...caster,
       heightened: { feature: "Heightened Spell", rule: "…" }
     };
-    expect(askOutcome(ask, [bram.uuid, croc.uuid], { mark: croc.uuid }).mark?.name).toBe(
+    expect(askOutcome(ask, [foe.uuid, croc.uuid], { mark: croc.uuid }).mark?.name).toBe(
       "Giant Crocodile"
     );
-    expect(askOutcome(ask, [bram.uuid], { mark: croc.uuid }).mark?.name).toBe("Mirefang");
+    expect(askOutcome(ask, [foe.uuid], { mark: croc.uuid }).mark?.name).toBe("Mirefang");
   });
 });
 
@@ -94,7 +94,7 @@ describe("the words and the shape", () => {
       kind: "careful",
       feature: "Careful Spell",
       cap: 2,
-      candidates: [inv, bram]
+      candidates: [ally, foe]
     });
     expect(careful.title).toBe("Who does the spell spare? Up to 2.");
     expect(careful.eyebrow).toBe("Metamagic — Careful Spell");
@@ -103,7 +103,7 @@ describe("the words and the shape", () => {
       feature: "Slow",
       spell: "Slow",
       cap: 6,
-      candidates: [inv, bram, croc],
+      candidates: [ally, foe, croc],
       heightened: { feature: "Heightened Spell" }
     });
     expect(choose.title).toBe("Who does Slow affect? Up to 6.");
@@ -115,7 +115,7 @@ describe("the words and the shape", () => {
       kind: "heightened",
       feature: "Heightened Spell",
       spell: "Fireball",
-      candidates: [bram]
+      candidates: [foe]
     });
     expect(heightened.question).toBe("who saves at Disadvantage?");
     expect(heightened.carrierSubtitle).toBe("Fireball — the card follows the answer");

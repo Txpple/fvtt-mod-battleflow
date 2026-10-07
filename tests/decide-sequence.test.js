@@ -49,7 +49,7 @@ describe("hitOfferStep — a queued offer waits for the damage and the mastery's
 });
 
 /**
- * Shield Master's reach (Session 8, 2026-09-22): the bash was offered on hits well beyond 5 feet.
+ * Shield Master's reach (a play session, 2026-09-22): the bash was offered on hits well beyond 5 feet.
  * The feat's own clause — "a creature within 5 feet of you" — is settled by the map.
  */
 describe("withinBashReach — the feat's 5 feet, judged off the map", () => {

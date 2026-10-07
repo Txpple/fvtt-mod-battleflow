@@ -225,10 +225,10 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
   });
 
   it("finds the marks a creature holds on others by origin, and names the bearer", () => {
-    const held = marksHeldBy("Actor.inv", [
+    const held = marksHeldBy("Actor.dorian", [
       {
         bearer: "Goblin Boss",
-        fact: fact({ id: "s", name: "Sapped", chipKey: "sap", origin: "Actor.inv.Item.sword" })
+        fact: fact({ id: "s", name: "Sapped", chipKey: "sap", origin: "Actor.dorian.Item.sword" })
       },
       {
         bearer: "Ogre",
@@ -240,7 +240,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
           id: "x",
           name: "Dead chip",
           chipKey: "sap",
-          origin: "Actor.inv",
+          origin: "Actor.dorian",
           active: false
         })
       }

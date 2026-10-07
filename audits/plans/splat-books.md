@@ -57,7 +57,7 @@ Row counts are deduplicated by name (one Multiattack). Backgrounds, bastions and
    first must carry a type/actor guard.
 3. Monster "spell actions" named `Slow`, `Dominate Person`, `Command` are the spells themselves — the spell lists are right
    to fire; no action.
-4. **Arcana's `.effects` pack** (38 enchantments + the `Dodging` base effect) is the house's first ActiveEffect compendium;
+4. **Arcana's `.effects` pack** (38 enchantments + the `Dodging` base effect) is the first ActiveEffect compendium among the supported books;
    the evolving items (Keyholes Dagger, Blossom Rod, Wave-Swept Weapon, Staff of Skulls, Diamond Staff) apply enchantments
    to ITEMS. The enchantment-aware reader (`lookup.js` `wieldsAs`, cbc4b02) is the precedent — measure one evolving item on
    an actor before writing a row.
@@ -119,7 +119,7 @@ small table + reader at a moment the spine has), **kind** (a day + a ruling: a n
 | # | Book | Why here | Rough size |
 | --- | --- | --- | --- |
 | 0 | **Prework commit** | the Survivor collision fix; the offline reader into `tools/`; the three books ranked in the classifier; a per-book renderer; BACKLOG 5b moved before 3.0 + RULINGS the order | half a session |
-| 1 | **Heroes of Faerûn → v2.12.0** | smallest, half-keyed, the house's longest-held splat book; the register is the main gap | ~35 rows · the Bloodied moment · initiative rows |
+| 1 | **Heroes of Faerûn → v2.12.0** | smallest, half-keyed, the longest-supported splat book; the register is the main gap | ~35 rows · the Bloodied moment · initiative rows |
 | 2 | **Ravenloft → v2.13.0** | player side (species, 7 subclasses, 11 feats, 5 dark gifts) then the bestiary — the MM reprints are free, ~40 new monster rows on Slice B's shapes | ~50 rows · the companion-drop reaction · crit-cancel interrupt |
 | 3 | **Arcana Unleashed → v2.14.0** | the biggest and most UI-shaped (Arcane Shot's hit-menu group, 8 school subclasses, 33 spells, 38 combat items incl. evolving ones) — last so the smaller books prove the pattern first | ~60 rows · Arcane Shot group · evolving-item reader |
 | 4 | **The 3.0 floor battery**, docs frame lines, the user cuts v3.0.0 | | |

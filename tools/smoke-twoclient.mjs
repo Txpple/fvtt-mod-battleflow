@@ -604,7 +604,7 @@ if (want('pull')) {
     const palTok = scene?.tokens.find(t => t.actorId === paladin?.id);
     const rgrTok = scene?.tokens.find(t => t.actorId === ranger?.id);
     if (!palTok || !rgrTok) return { fatal: 'missing fixture: BF Test Paladin or BF Test Ranger on the range — run tools/fixture-suite.mjs' };
-    if (!game.settings.get(MOD, 'emanations')) return { fatal: 'Emanations are off — the reference has them on (tools/verify-settings.mjs)' };
+    if (!game.settings.get(MOD, 'emanations')) return { fatal: 'Emanations are off — the shipped default has them on (scripts/settings.js)' };
     const st = globalThis.__bf2c;
     st.pull = { priorActive: game.scenes.active?.id ?? null, rangerId: rgrTok.id, rangerHome: { x: rgrTok.x, y: rgrTok.y } };
     const elsewhere = await Scene.create({ name: 'BF Test Elsewhere (2client)', width: 2000, height: 2000, grid: { size: 100, distance: 5 } });

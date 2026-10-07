@@ -8,8 +8,8 @@
 //              what landed and what cleaned up.
 // Usage: node probe-platform-emanations.mjs read|walk
 import { Foundry } from "fvtt-mcp-dnd5e/client";
-import { loadEnv } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battleflow/tools/harness.mjs";
-import { foundryConfig } from "file:///D:/Workbench/FVTT/Repos/fvtt-mod-battleflow/tools/target.mjs";
+import { loadEnv } from "./harness.mjs";
+import { foundryConfig } from "./target.mjs";
 
 const phase = process.argv[2] ?? "read";
 const SPELLS = ["Crusader's Mantle", "Aura of Life", "Aura of Vitality", "Antilife Shell", "Spirit Guardians"];

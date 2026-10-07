@@ -38,7 +38,8 @@ const out = await f.evaluate(async () => {
 
   /* --- 1: the measured-template CRUD hooks ---------------------------------------------- */
   // Does `createMeasuredTemplate` dispatch at all, and if not, what name DOES the create fire under?
-  const scene = game.scenes.active ?? game.scenes.viewed ?? game.scenes.contents[0];
+  // ⚠ The test range only (fixture-suite), never the world's own active scene.
+  const scene = game.scenes.getName("Battle Flow Test Range");
   report.templates = { scene: scene?.name ?? null };
   if (scene) {
     let tpl = null;

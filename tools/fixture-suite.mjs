@@ -231,6 +231,10 @@ const out = await f.evaluate(async ({ playerName }) => {
     const PHB_FEATS = [...PHB_CLASSES, "dnd-players-handbook.origins", "dnd-players-handbook.feats"];
     const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24", "dnd-dungeon-masters-guide.equipment"];
     const PHB_SPELLS = ["dnd-players-handbook.spells", "dnd5e.spells24"];
+    // ⚠ A spell is PREPARED by `system.method` + `system.prepared` (dnd5e 5.1+). The legacy
+    // `preparation` key migrates only when `prepared` is absent, and a pack's spell carries
+    // `prepared: 0` — so it never did, and the hold skips a character's unprepared spell (2026-10-07).
+    const prepare = data => { delete data.system.preparation; data.system.method = "spell"; data.system.prepared = 1; };
     const BUILT = [
       // The shield casters (were clones of a campaign Sorcerer): a real Shield ("Imperceptible Barrier"),
       // real slots, an AC on its normal calculation (smoke-hold asserts +5 on it), no poison resistance
@@ -314,7 +318,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         }
         for (const n of spec.spells ?? []) {
           const data = await findPackItem(PHB_SPELLS, n);
-          if (data) { data.system.preparation = { mode: "prepared", prepared: true }; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
+          if (data) { prepare(data); items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
         }
         actor = await Actor.create({
           name: spec.name, type: "character", folder: actorFolder.id, items,
@@ -331,9 +335,23 @@ const out = await f.evaluate(async ({ playerName }) => {
       if (lacking.length || lackingSpells.length) {
         const add = [];
         for (const n of lacking) { const data = await findPackItem(PHB_FEATS, n); if (data) add.push(data); else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
-        for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { data.system.preparation = { mode: "prepared", prepared: true }; add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
+        for (const n of lackingSpells) { const data = await findPackItem(PHB_SPELLS, n); if (data) { prepare(data); add.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`); }
         if (add.length) { await actor.createEmbeddedDocuments("Item", add); log.push(`gave ${spec.name} ${add.map(i => i.name).join(", ")}`); }
       }
+      // A listed spell left unprepared (built before the fix, or by hand) is prepared in place.
+      const unprepared = actor.items.filter(i => (i.type === "spell") && (spec.spells ?? []).includes(i.name)
+        && (i.system.level > 0) && !i.system.prepared);
+      if (unprepared.length) {
+        await actor.updateEmbeddedDocuments("Item", unprepared.map(i => ({ _id: i.id, "system.method": "spell", "system.prepared": 1 })));
+        log.push(`prepared ${spec.name}'s ${unprepared.map(i => i.name).join(", ")}`);
+      }
+      // ⚠ Full slots every run: a built character has each slot's MAX from its class levels but a VALUE of
+      // 0 until it rests, and the hold offers a levelled spell only with a slot in hand (2026-10-07).
+      const slots = {};
+      for (const [key, slot] of Object.entries(actor.system.spells ?? {})) {
+        if ((slot?.max > 0) && ((slot.value ?? 0) < slot.max)) slots[`system.spells.${key}.value`] = slot.max;
+      }
+      if (Object.keys(slots).length) { await actor.update(slots); log.push(`refilled ${spec.name}'s spell slots`); }
       // An unstamped item is healed in place, so a rebuilt world and a healed one agree.
       const unstamped = actor.items.filter(i => !i._stats?.compendiumSource);
       if (unstamped.length) {

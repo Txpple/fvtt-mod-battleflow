@@ -342,7 +342,7 @@ events. **Nothing here measures a distance or counts a turn.** `emanations.js`, 
   membership on every event and every move, one write per creature per region. With no GM the
   flow-elect law holds.
 - **An emanation exists on every LIVE scene — the active one and every scene a connected user is
-  viewing — with ONE copy per aura** (2026-09-04 active-only; amended 2026-09-23 after Session 8
+  viewing — with ONE copy per aura** (2026-09-04 active-only; amended 2026-09-23 after a play session
   played on scenes nobody activated). The count is per AURA (the bearer's item and the row,
   `emanationGroup`), so two scenes can never stack; a lift reads every actor. A GM's view counts
   only while no player is connected; an Assistant GM is a GM for this. Pinned by
@@ -903,14 +903,12 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
   `item` discriminator never knew the item — Protection from Evil and Good's "Protected" matched
   every "Protected" (the Aura of Protection's included). The gate reads through to the item now.
 
-## The PHB feats — the party's own (2026-09-26)
+## The PHB feats — the first batch (2026-09-26)
 
-**The feats the table's players took, first.** The slice opened on the party's sheets (prod):
-the origin feats and styles were in already; of the PHB general feats, Great Weapon Master and
-Heavy Armor Master (Bramm), Shield Master (Dorian), Fey-Touched (Aster). The user: *"i cant
-beleive weve been missing damage on gwm!"*; *"heavy armor master should have that blocking damage
-like stones endurance / protectin does"*; *"great weapon master is also the situational bonus w
-damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-damage-rules`
+**The feats a table first played, first.** The origin feats and styles were in already; of the PHB
+general feats, Great Weapon Master, Heavy Armor Master, Shield Master and Fey-Touched came first.
+Rulings: Great Weapon Master's damage rides the hit; Heavy Armor Master blocks damage the way Stone's
+Endurance and Protection do; Great Weapon Master is also the situational bonus with damage; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-damage-rules`
 §11–§12, `tests/decide-damage-rules.test.js`.
 
 - **Two rows on `DAMAGE_RULES`** (the table's comment asked for it: a second customer is a row),
@@ -1691,7 +1689,7 @@ of Wounding Save", "Luck"). The pack already carries the flat crit damage (Vorpa
   head); the 30 extra is the pack's. **"Ignores Resistance to Slashing"** is a `DAMAGE_RULES` row (`wields`, Elemental Adept's
   ignored Resistance) read off the damage's own weapon.
 - **Sword of Sharpness:** a 20 against a creature gives it 1 Exhaustion level. ⚠ The pack types its 14 as **Necrotic** (the text
-  says Slashing) — a vendor-data fault, never patched here: Errata 5e's **E-004** (`../fvtt-mod-errata5e`, v1.0.0) retypes it in
+  says Slashing) — a vendor-data fault, never patched here: Errata 5e's **E-004** (the sister module, v1.0.0) retypes it in
   memory; the module leaves the 14 to the pack's own crit bonus either way. "Maximize against an object" is the table's.
 - **Sword of Life Stealing:** a 20 against a creature that is not a Construct or Undead gives the wielder **15** Temporary Hit
   Points — the text's "equal to the Necrotic damage taken" read as the flat 15 (a resisted 15 is the table's to trim).

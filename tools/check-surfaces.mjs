@@ -26,7 +26,9 @@ import { SURFACES, SURFACE_SOURCES } from "../scripts/surfaces.js";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPTS = join(ROOT, "scripts");
 const ARTIFACT = join(ROOT, "tools", "dnd5e-surfaces.json");
-const DEFAULT_SYSTEM_DIR = "C:/Users/sippelmc/AppData/Local/FoundryVTT/Data/systems/dnd5e";
+// The installed system: BF_DND5E_DIR, else the default Foundry data path (as check-hook-dispatch.mjs).
+const DEFAULT_SYSTEM_DIR = process.env.BF_DND5E_DIR
+  || join(process.env.LOCALAPPDATA ?? "", "FoundryVTT", "Data", "systems", "dnd5e");
 
 /**
  * THE FRAGMENTS THE LITERAL RULE POLICES — the recognisable piece of each anchor, so a composed

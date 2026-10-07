@@ -2,3 +2,5 @@
 /dist/
 /node_modules/
 tools/content/identifier-snapshot.json
+# one table's own settings overrides for a hand-run verify-settings
+tools/settings.local.json

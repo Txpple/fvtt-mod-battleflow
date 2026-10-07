@@ -37,7 +37,7 @@
   .field{position:relative;height:150px}
   .tok{position:absolute;width:50px;height:50px;border-radius:50%;display:grid;place-items:center;font-size:11px;font-weight:700;border:3px solid var(--ally);background:#2d3b44;color:var(--ink)}
   .tok.foe{border-color:var(--bad);background:#3f2a2a}
-  .tok.inv{opacity:.35;border-style:dashed}
+  .tok.ally{opacity:.35;border-style:dashed}
   .tok .nm{position:absolute;top:54px;white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink-2);text-shadow:0 1px 2px #000}
   .float{position:absolute;white-space:nowrap;font-weight:700;font-size:15px;color:#fff;text-shadow:0 0 4px #000,0 0 2px #000;transform:translate(-50%,0);animation:rise 2.4s ease-out forwards;pointer-events:none}
   @keyframes rise{0%{opacity:0;transform:translate(-50%,6px)}12%{opacity:1}80%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px)}}
@@ -203,7 +203,7 @@ function barHTML(who, efs){ return `<div class="bar5"><div class="who">${who} â€
 function card(speaker, tone, e, t, sub, lines){ return `<div class="msg"><div class="spk">${speaker}</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${t}</div>${sub?`<div style="font-size:11px;opacity:.75">${sub}</div>`:""}<div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
 function rowHTML(id, name, dice, cost, rule, on, dis){ return `<label class="row ${on?"on":""} ${dis?"dis":""}"><input type="checkbox" id="${id}" ${on?"checked":""} ${dis?"disabled":""}><span class="nm">${name}<span class="dc">${dice}</span></span><span class="cost">${cost}</span><details><summary>the rule</summary><p>${rule}</p></details></label>`; }
 function popup(title, eb, h2, sub, rows, btns){ return `<div class="offer" role="dialog" aria-label="${title}"><div class="title"><i></i>${title}<span class="x">âœ•</span></div><div class="body"><div class="head"><div class="img"></div><div><div class="eb">${eb}</div><h2>${h2}</h2><div class="sub">${sub}</div></div></div><div class="bar"><div class="trk"><div class="fill"></div></div><span>12s to answer</span></div>${rows}<div class="btnrow">${btns}</div></div></div>`; }
-function field(toks, extra=""){ return `<div class="field">${extra}${toks.map(t=>`<div class="tok ${t.foe?"foe":""} ${t.inv?"inv":""}" style="left:${t.x}px;top:${t.y}px">${t.l}<span class="nm">${t.n}</span></div>`).join("")}${state.float?`<div class="float" style="left:${state.float.x}px;top:${state.float.y}px">${state.float.t}</div>`:""}</div>`; }
+function field(toks, extra=""){ return `<div class="field">${extra}${toks.map(t=>`<div class="tok ${t.foe?"foe":""} ${t.ally?"ally":""}" style="left:${t.x}px;top:${t.y}px">${t.l}<span class="nm">${t.n}</span></div>`).join("")}${state.float?`<div class="float" style="left:${state.float.x}px;top:${state.float.y}px">${state.float.t}</div>`:""}</div>`; }
 const resetBtn = `<button class="reset" data-act="reset">Back to the start</button>`;
 
 /* ---------- 1. the damage styles ---------- */
@@ -369,7 +369,7 @@ function unarmedScene(){
 function blindScene(){
   const c=state.c;
   const far = c==="far";
-  const toks=[{x:60,y:40,l:"R",n:"Rowan"},{x:far?210:125,y:40,l:"G",n:"Goblin (Invisible)",foe:true,inv:true}];
+  const toks=[{x:60,y:40,l:"R",n:"Rowan"},{x:far?210:125,y:40,l:"G",n:"Goblin (Invisible)",foe:true,ally:true}];
   const ring = `<div class="ring blind" style="left:-35px;top:-55px;width:250px;height:250px"></div>`;
   const efs=[efHTML("Blind Fighting", true, "Blindsight 10 ft")];
   const def = c==="def";

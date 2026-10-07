@@ -53,8 +53,8 @@ Everything a future session needs to start the sweep without re-deriving it:
    there, a unit test in `tests/decide-registry.test.js`, a section in the matching
    `tools/smoke-*.mjs` suite is the whole cost of a band-1 item.
 6. **Slice A is §6** — the measured inventory, the tiers in build, what is parked and held.
-   Nothing else here blocks anything. Prod is at v2.0.8 (2026-09-24); the sandbox is the test
-   area, and a release goes out only on the user's word.
+   Nothing else here blocks anything. The sandbox is the test area, and a release goes out only on
+   the maintainer's word.
 
 ## 1. What the walk taught — the families of change
 

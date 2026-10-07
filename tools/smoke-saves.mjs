@@ -2390,7 +2390,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dialogFor = card => until(() => savePopups().find(p => demandText(p).includes(card?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? ' ')), 12000);   // 12 s: a 6 s wait was the battery's timing-class red (§32 g)
         const ward = async name => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false }]); wards.push(e); return e; };
         const castAt = async activity => {
-          target(victimToken);
+          // ⚠ The LIVE token, and the target confirmed before the cast: a stale placeable takes the click and the
+          // cast goes out with no target, so nothing is stamped (no dialog, §32 h or j, 1 run in 3 on 2026-10-07).
+          const liveVictim = canvas.tokens.get(victimToken.id) ?? victimToken;
+          target(liveVictim);
+          await until(() => [...game.user.targets].some(t => t.id === liveVictim.id), 4000);
           // The previous demand's dialog must be GONE first: cast over a closing dialog, the next one never shows (the battery's timing-class red, §32 f/g).
           await until(() => !savePopups().length, 8000);
           await sleep(120);
@@ -2558,8 +2562,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           const live = () => game.messages.get(card?.id) ?? card;
           // No flag yet: every §32 cast targets the victim, its token's name in the dialog.
           const nameOf = () => live()?.getFlag(MOD, 'saves')?.targets?.[0]?.name ?? victimToken.document.name;
+          // Timed: a dialog opens within ~300 ms or not at all (2026-10-07); the log says which.
+          const t0 = Date.now();
           const dlg = await until(() => savePopups().find(p => demandText(p).includes(nameOf())), 12000);
-          if (!dlg) log.push(`§32 no dialog for card ${card?.id}: saves=${JSON.stringify(card?.getFlag(MOD, 'saves') && { status: card.getFlag(MOD, 'saves').status, targets: card.getFlag(MOD, 'saves').targets?.map(t => [t.name, t.done ?? null, t.outcome ?? null]) })} apps=${[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => (a.constructor?.name ?? '?') + ':' + String(a.title ?? a.options?.window?.title ?? '').slice(0, 40)).join(' | ')}`);
+          log.push(`§32 dialog for card ${card?.id}: ${dlg ? `${Date.now() - t0} ms` : 'none in 12 s'}`);
+          if (!dlg) log.push(`§32 no dialog for card ${card?.id}: victimHp=${victim.system.attributes.hp.value} statuses=${[...victim.statuses].join(',')} targets=${JSON.stringify((live()?.system?.targets ?? live()?.getFlag('dnd5e', 'targets') ?? []).map?.(t => t.name) ?? null)} userTargets=${game.user.targets.size} saves=${JSON.stringify(live()?.getFlag(MOD, 'saves') && { status: live().getFlag(MOD, 'saves').status, targets: live().getFlag(MOD, 'saves').targets?.map(t => [t.name, t.done ?? null, t.outcome ?? null]) })} apps=${[...foundry.applications.instances.values()].filter(a => a.rendered).map(a => (a.constructor?.name ?? '?') + ':' + String(a.title ?? a.options?.window?.title ?? '').slice(0, 40)).join(' | ')}`);
           return dlg;
         };
         const ward = async (name, data = {}) => { const [e] = await victim.createEmbeddedDocuments('ActiveEffect', [{ name, img: 'icons/svg/aura.svg', transfer: false, disabled: false, ...data }]); wards.push(e); return e; };
@@ -2573,6 +2580,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           // The previous demand's dialog must be GONE first: cast over a closing dialog, the next one never shows (the battery's timing-class red, §32 f/g).
           await until(() => !savePopups().length, 8000);
           await sleep(120);
+          // ⚠ The victim ALIVE at the cast: an earlier demand's damage can land after the last heal, and a dead
+          // target is rightly dropped by the dead-target gate — no demand, no dialog (§32 h or j, 2026-10-07).
+          await healFull(victim);
+          await until(() => !victim.statuses.has('dead') && (victim.system.attributes.hp.value > 0), 5000);
           const use = await activity.use({}, { configure: false }, {});
           const card = use?.message instanceof ChatMessage ? use.message : null;
           if (card) await until(() => (game.messages.get(card.id) ?? card).getFlag(MOD, 'saves'));
@@ -2669,6 +2680,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             }
           }
         }]);
+        // ⚠ An item added to the BASE actor reaches its unlinked tokens' synthetic actors asynchronously: cast before
+        // they carry it and the demand is never stamped (no dialog, 1 run in 3 on 2026-10-07). Wait for every token.
+        await until(() => (canvas.scene?.tokens.filter(t => t.actorId === npc.id) ?? []).every(t => t.actor?.items.get(commandItem.id)?.system.activities?.size), 8000);
         const cmdAct = () => npc.items.get(commandItem.id).system.activities.get('bfb2command00000');
         const [ua] = await npc.createEmbeddedDocuments('ActiveEffect', [{ name: 'Unearthly Appearance', img: 'icons/svg/aura.svg', transfer: false, disabled: false }]);
         await ward('Charmed', { statuses: ['charmed'], flags: { [MOD]: { sourceUuid: npc.uuid } } });

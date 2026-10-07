@@ -100,7 +100,7 @@ Combat should move. Every design choice is weighed against whether it makes the 
   queue.** Dogfooding stays the proof (a walk before a release), never the pacing.
 - **Batteries included: every machine is always on**, and a DM gets a few configs (ten settings,
   RULINGS *The settings*). A table that wants to configure everything wants midi. The shipped
-  defaults are the reference table in `tools/verify-settings.mjs`.
+  defaults are the registrations in `scripts/settings.js`; `tools/verify-settings.mjs` reads them.
 - **Every feature must be individually deletable** the day the system ships it natively. Being
   made redundant is the success condition.
 

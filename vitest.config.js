@@ -1,6 +1,6 @@
 import { defineConfig } from "vitest/config";
 
-// UNIT TIER ONLY (PLAN.md Phase 5). Everything here runs offline, with NO Foundry, in
+// UNIT TIER ONLY. Everything here runs offline, with NO Foundry, in
 // milliseconds: pure DECISION and REGISTRY functions taking plain data (ARCHITECTURE.md §2).
 //
 // The live tier is `tools/smoke-*.mjs`, driven through the sibling MCP repo's headless

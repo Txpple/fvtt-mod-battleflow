@@ -813,7 +813,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
           await sleep(2500);
           const feet = canvas.grid.measurePath([pcToken.center, victimToken.center]).distance;
-          ok('B4e. a HIT from beyond 5 feet stamps no bash offer — the feat\'s own reach (Session 8)',
+          ok('B4e. a HIT from beyond 5 feet stamps no bash offer — the feat\'s own reach (a play report, 2026-09-22)',
             !!far && (feet > 5) && !far.getFlag(MOD, 'bashOffer'),
             `hit=${!!far} feet=${feet} offer=${JSON.stringify(far?.getFlag(MOD, 'bashOffer') ?? null)}`);
         }

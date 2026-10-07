@@ -132,7 +132,7 @@
   <header class="top">
     <div class="eyebrow">Battle Flow · prototype · ruled 2026-09-24: ask only when there's a choice · Careful greyed on these spells</div>
     <h1>Area spells that let the caster choose who they affect</h1>
-    <p>Session 8: Aster cast Slow, and Dorian, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
+    <p>In play: Aster cast Slow, and Dorian, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
   </header>
 
   <div class="scenes" id="scenes"></div>
@@ -153,11 +153,11 @@ const RULES = {
   sleep: "Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save."
 };
 const WHO = {
-  bram: { name:"Mirefang", side:"hostile", ini:"B" },
+  foe: { name:"Mirefang", side:"hostile", ini:"B" },
   croc: { name:"Giant Crocodile", side:"hostile", ini:"C" },
-  inv:  { name:"Dorian", side:"party", ini:"I" },
+  ally:  { name:"Dorian", side:"party", ini:"I" },
   aster: { name:"Aster", side:"party", ini:"G" },
-  jet:  { name:"Elra", side:"party", ini:"J" },
+  elra:  { name:"Elra", side:"party", ini:"J" },
   gob:  { name:"Goblin", side:"hostile", ini:"g" },
   boss: { name:"Goblin Boss", side:"hostile", ini:"b" },
   mule: { name:"Pack Mule", side:"neutral", ini:"m" },
@@ -168,13 +168,13 @@ const FILL = { party:"rgb(70,150,95)", hostile:"rgb(180,70,60)", neutral:"rgb(12
 /* ---------- the maps, in grid squares (5 ft each) ---------- */
 const MAPS = {
   slow: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
-    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["aster",2,2.5]] },
+    toks:[["foe",9.5,4],["croc",13,8],["ally",8.6,8.4],["aster",2,2.5]] },
   slowOut: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
-    toks:[["bram",9.5,4],["croc",13,8],["inv",4,9],["aster",2,2.5]] },
+    toks:[["foe",9.5,4],["croc",13,8],["ally",4,9],["aster",2,2.5]] },
   sleep: { w:11, h:6, cell:40, area:{ type:"circle", x:5.5, y:3, r:1 },
-    toks:[["gob",5.05,2.55],["boss",5.95,2.55],["jet",5.05,3.45],["mule",5.95,3.45],["aster",1,5]] },
+    toks:[["gob",5.05,2.55],["boss",5.95,2.55],["elra",5.05,3.45],["mule",5.95,3.45],["aster",1,5]] },
   ys: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
-    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["ys",2,2.5]] }
+    toks:[["foe",9.5,4],["croc",13,8],["ally",8.6,8.4],["ys",2,2.5]] }
 };
 
 /* ---------- state ---------- */
@@ -252,7 +252,7 @@ function needsAsk(cands, cap) {
 
 /* ---------- scenes ---------- */
 function choiceFlow({ mapKey, spell, cap, rule, cands, save, kind, toggle = false }) {
-  const tog = toggle ? `<p class="step"><label for="inv-in" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inv-in" data-act="invIn" ${S.invIn ? "checked" : ""}> Dorian stands in the cube</label></p>` : "";
+  const tog = toggle ? `<p class="step"><label for="ally-in" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="ally-in" data-act="invIn" ${S.invIn ? "checked" : ""}> Dorian stands in the cube</label></p>` : "";
   if ( S.step === 0 ) {
     if ( needsAsk(cands, cap) ) {
       return `<div class="lane">${map(mapKey)}${ask({ spell, owner:"Aster", candidates:cands, cap, rule })}</div>${tog}
@@ -268,10 +268,10 @@ function choiceFlow({ mapKey, spell, cap, rule, cands, save, kind, toggle = fals
     <p class="step">${left.length ? `${names(left)} ${left.length > 1 ? "are" : "is"} never asked to save.` : "No popup — nothing to choose."} <button data-act="reset">Replay</button></p>`;
 }
 const STAGE = {
-  slow() { return choiceFlow({ mapKey: S.invIn ? "slow" : "slowOut", spell:"Slow", cap:6, rule:RULES.slow, cands: S.invIn ? ["bram","croc","inv"] : ["bram","croc"], save:"Wisdom Save DC 16", kind:"Save · 3rd Level Transmutation", toggle:true }); },
-  sleep() { return choiceFlow({ mapKey:"sleep", spell:"Sleep", cap:null, rule:RULES.sleep, cands:["gob","boss","jet","mule"], save:"Wisdom Save DC 16", kind:"Save · 1st Level Enchantment" }); },
+  slow() { return choiceFlow({ mapKey: S.invIn ? "slow" : "slowOut", spell:"Slow", cap:6, rule:RULES.slow, cands: S.invIn ? ["foe","croc","ally"] : ["foe","croc"], save:"Wisdom Save DC 16", kind:"Save · 3rd Level Transmutation", toggle:true }); },
+  sleep() { return choiceFlow({ mapKey:"sleep", spell:"Sleep", cap:null, rule:RULES.sleep, cands:["gob","boss","elra","mule"], save:"Wisdom Save DC 16", kind:"Save · 1st Level Enchantment" }); },
   hi() {
-    const cands = ["bram","croc","inv"];
+    const cands = ["foe","croc","ally"];
     if ( S.step === 0 ) {
       const rows = [
         row({ key:"careful", name:"Careful Spell", off:true, tag:"you choose its targets" }),
@@ -318,7 +318,7 @@ const ASK_OPTS = [
   ["never", "Never — hostiles only", false, "No popup: hostiles are chosen by side, the way Spirit Guardians' aura already reaches."]
 ];
 function side() {
-  const s8 = S.scene === "slow" ? `<div class="panel"><h3>Session 8, as it happened</h3><div class="s8">
+  const s8 = S.scene === "slow" ? `<div class="panel"><h3>A play session, as it happened</h3><div class="s8">
     <div><span>9:57:51</span>Aster casts Slow over Mirefang, the crocodile and Dorian</div>
     <div><span>9:58:12</span>Mirefang rolls 11</div>
     <div><span>9:58:33</span>Dorian is asked too, and rolls 8</div></div></div>` : "";
@@ -334,9 +334,9 @@ function side() {
 /* ---------- render + events ---------- */
 function enterScene(key) {
   Object.assign(S, { scene:key, step:0, ping:null, used:null, chosen:null, markDone:null, tick: key === "hi" ? "heightened" : null });
-  const cands = key === "sleep" ? ["gob","boss","jet","mule"] : (key === "slow" && !S.invIn) ? ["bram","croc"] : ["bram","croc","inv"];
+  const cands = key === "sleep" ? ["gob","boss","elra","mule"] : (key === "slow" && !S.invIn) ? ["foe","croc"] : ["foe","croc","ally"];
   S.ticks = chooseDefaults(cands, key === "sleep" ? null : 6);
-  S.mark = "bram";
+  S.mark = "foe";
 }
 function render() {
   document.getElementById("scenes").innerHTML = SCENES.map(s => `<button data-scene="${s.key}" aria-pressed="${S.scene === s.key}">${s.label}</button>`).join("");

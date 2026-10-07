@@ -475,7 +475,7 @@ describe("the party comes first in Careful's defaults", () => {
 });
 
 /* ---------------------------------------------------------------------------------------------
- * A SPELL THAT CHOOSES ITS TARGETS (2026-09-24, Session 8's Slow — the Chosen Areas list)
+ * A SPELL THAT CHOOSES ITS TARGETS (2026-09-24, a play session's Slow — the Chosen Areas list)
  * ------------------------------------------------------------------------------------------- */
 
 // The 2024 PHB pack's own descriptions, as the scan read them (2026-09-24).
@@ -543,15 +543,15 @@ describe("reading the choice off the spell's own words", () => {
 
 describe("who a chosen area affects, and whether to ask", () => {
   const G = { uuid: "Actor.aster", name: "Aster", disposition: 1 };
-  const bram = { uuid: "Actor.bram", name: "Mirefang", disposition: -1 };
+  const foe = { uuid: "Actor.mirefang", name: "Mirefang", disposition: -1 };
   const croc = { uuid: "Actor.croc", name: "Giant Crocodile", disposition: -1 };
-  const inv = { uuid: "Actor.inv", name: "Dorian", disposition: 1, party: true };
+  const ally = { uuid: "Actor.dorian", name: "Dorian", disposition: 1, party: true };
   const mule = { uuid: "Actor.mule", name: "Pack Mule", disposition: 0 };
   const shade = { uuid: "Actor.shade", name: "???", disposition: -2 };
   const caster = { casterUuid: G.uuid, casterDisposition: 1 };
 
   it("the default is the hostiles in area order, up to the cap — never the caster, the party, a neutral or a secret token", () => {
-    const candidates = [inv, bram, G, mule, croc, shade];
+    const candidates = [ally, foe, G, mule, croc, shade];
     expect(chosenByDefault({ candidates, ...caster, cap: 6 }).map(c => c.name)).toEqual([
       "Mirefang",
       "Giant Crocodile"
@@ -565,24 +565,24 @@ describe("who a chosen area affects, and whether to ask", () => {
     ]);
   });
   it("a hostile caster's default is the party — the rule is sides, not names", () => {
-    const monster = { casterUuid: bram.uuid, casterDisposition: -1 };
+    const monster = { casterUuid: foe.uuid, casterDisposition: -1 };
     expect(
-      chosenByDefault({ candidates: [inv, bram, croc, G], ...monster, cap: 6 }).map(c => c.name)
+      chosenByDefault({ candidates: [ally, foe, croc, G], ...monster, cap: 6 }).map(c => c.name)
     ).toEqual(["Dorian", "Aster"]);
   });
   it("a caster with no side has no default", () => {
     expect(
-      chosenByDefault({ candidates: [bram, inv], casterUuid: null, casterDisposition: 0, cap: 6 })
+      chosenByDefault({ candidates: [foe, ally], casterUuid: null, casterDisposition: 0, cap: 6 })
     ).toEqual([]);
   });
 
   it("asks only when there is a choice: someone not hostile in the area, or more hostiles than the spell allows", () => {
-    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: 6 })).toBe(false); // all hostile, within six
-    expect(choiceNeedsAsk({ candidates: [bram, croc, inv], ...caster, cap: 6 })).toBe(true); // Session 8's cube
-    expect(choiceNeedsAsk({ candidates: [bram, mule], ...caster, cap: null })).toBe(true); // a neutral is a choice
-    expect(choiceNeedsAsk({ candidates: [bram, shade], ...caster, cap: null })).toBe(true); // so is a secret token
-    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: 1 })).toBe(true); // two hostiles, room for one
-    expect(choiceNeedsAsk({ candidates: [bram, croc], ...caster, cap: null })).toBe(false); // Sleep has no number
+    expect(choiceNeedsAsk({ candidates: [foe, croc], ...caster, cap: 6 })).toBe(false); // all hostile, within six
+    expect(choiceNeedsAsk({ candidates: [foe, croc, ally], ...caster, cap: 6 })).toBe(true); // a play session's cube
+    expect(choiceNeedsAsk({ candidates: [foe, mule], ...caster, cap: null })).toBe(true); // a neutral is a choice
+    expect(choiceNeedsAsk({ candidates: [foe, shade], ...caster, cap: null })).toBe(true); // so is a secret token
+    expect(choiceNeedsAsk({ candidates: [foe, croc], ...caster, cap: 1 })).toBe(true); // two hostiles, room for one
+    expect(choiceNeedsAsk({ candidates: [foe, croc], ...caster, cap: null })).toBe(false); // Sleep has no number
     expect(choiceNeedsAsk({ candidates: [G], ...caster, cap: 6 })).toBe(false); // only the caster: nobody to ask about
     expect(choiceNeedsAsk({ candidates: [], ...caster, cap: 6 })).toBe(false);
   });
@@ -590,26 +590,26 @@ describe("who a chosen area affects, and whether to ask", () => {
   it("the ask's defaults for the new kind, and the merged Heightened mark among the chosen", () => {
     const ask = {
       kind: "choose",
-      candidates: [inv, bram, croc],
+      candidates: [ally, foe, croc],
       casterUuid: G.uuid,
       casterDisposition: 1,
       cap: 6
     };
     expect(askDefaults(ask).map(c => c.name)).toEqual(["Mirefang", "Giant Crocodile"]);
-    expect(askMark(ask, [bram.uuid, croc.uuid])?.name).toBe("Mirefang");
-    expect(askMark(ask, [bram.uuid, croc.uuid], croc.uuid)?.name).toBe("Giant Crocodile");
-    expect(askMark(ask, [bram.uuid], croc.uuid)?.name).toBe("Mirefang"); // a mark on someone not chosen falls back
+    expect(askMark(ask, [foe.uuid, croc.uuid])?.name).toBe("Mirefang");
+    expect(askMark(ask, [foe.uuid, croc.uuid], croc.uuid)?.name).toBe("Giant Crocodile");
+    expect(askMark(ask, [foe.uuid], croc.uuid)?.name).toBe("Mirefang"); // a mark on someone not chosen falls back
     expect(askMark(ask, [])).toBeNull();
   });
 
   it("the card line: source, then result", () => {
-    expect(areaChoiceLine({ spell: "Slow", chosen: [bram, croc], left: [inv] })).toBe(
+    expect(areaChoiceLine({ spell: "Slow", chosen: [foe, croc], left: [ally] })).toBe(
       "Slow — chosen: Mirefang, Giant Crocodile · not chosen: Dorian"
     );
-    expect(areaChoiceLine({ spell: "Sleep", chosen: [bram], left: [] })).toBe(
+    expect(areaChoiceLine({ spell: "Sleep", chosen: [foe], left: [] })).toBe(
       "Sleep — chosen: Mirefang"
     );
-    expect(areaChoiceLine({ spell: "Slow", chosen: [], left: [inv] })).toBe(
+    expect(areaChoiceLine({ spell: "Slow", chosen: [], left: [ally] })).toBe(
       "Slow — nobody chosen · not chosen: Dorian"
     );
   });

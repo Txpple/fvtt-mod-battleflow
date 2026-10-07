@@ -2,7 +2,7 @@
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
 > Nothing is handed over. **Wait for the user's go.** A ruling in chat is not a go. **Rapid dev mode is OVER** (the user, 2026-10-02): walks are back on the table.
-> **Between campaigns: no prod deploys** (the user, 2026-10-02) — prod runs v2.13.0 and stays there until a campaign is on.
+> **No deploy to a live world is owed with a release**; one goes out only on the maintainer's word.
 
 ## Where things stand
 
@@ -14,4 +14,5 @@
   to go through those"*): 23 Arcana · 16 Faerûn · 14 Ravenloft, each register naming the precedent. The Spellfire rows are
   among them. That pass is the next piece of splat work — talk first, the rulings, then the build on the user's go.
 - **Then 3.0.0** = PHB + DMG + MM + the three books, pre-walk — the user's to cut by hand.
-- The suite lessons of the three-book run are in the memory (overnight-run-2026-10-01) and in the registry's table docs.
+- The suite lessons of the three-book run are in the registry's table docs and NOTES §5.
+- **The suites assume nothing about the world** (2026-10-07): the battery builds every fixture from the compendia and tears them down (NOTES §5).

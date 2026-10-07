@@ -2,6 +2,8 @@
 //
 //   node tools/battery-status.mjs            the newest run under dist/battery
 //   node tools/battery-status.mjs <runDir>   a named run
+//   node tools/battery-status.mjs --watch 60  redraw in place every 60 s until the run is done
+//   node tools/battery-status.mjs --watch 60 --follow   ...and keep going across runs (Ctrl-C to stop)
 //
 // Reads nothing live: the battery writes one <suite>.txt per FINISHED entry into its run directory
 // (tools/battery.mjs), so a missing file is an entry still to come and the first missing one in the
@@ -14,17 +16,43 @@ import { execFileSync } from "node:child_process";
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const BATTERY_DIR = join(REPO, "dist", "battery");
 
-const runDir = process.argv[2] ? process.argv[2] : newestRun();
-if ( !runDir || !existsSync(runDir) ) { console.error("no battery run under dist/battery"); process.exit(2); }
+const args = process.argv.slice(2);
+const w = args.indexOf("--watch");
+const watchSecs = (w >= 0) ? Math.max(5, Number(args[w + 1]) || 60) : 0;
+if ( w >= 0 ) args.splice(w, (Number(args[w + 1]) ? 2 : 1));
+const follow = args.includes("--follow");
+if ( follow ) args.splice(args.indexOf("--follow"), 1);
+const named = args[0] ?? null;
 
 const order = listOrder();
+if ( !watchSecs ) {
+  const r = draw(named ?? newestRun());
+  process.exit(r.failed ? 1 : 0);
+}
+// --watch: redraw in place; follows the newest run, so it can be started before the battery is.
+const tick = () => {
+  process.stdout.write("\x1b[2J\x1b[H");
+  const r = draw(named ?? newestRun());
+  console.log(`\n(refreshing every ${watchSecs}s — ${new Date().toLocaleTimeString()} — Ctrl-C to stop)`);
+  if ( r.finished && !follow ) process.exit(r.failed ? 1 : 0);
+  setTimeout(tick, watchSecs * 1000);
+};
+tick();
+
+/** Print the bar for one run; `{ finished, failed }`. */
+function draw(runDir) {
+if ( !runDir || !existsSync(runDir) ) { console.log("no battery run under dist/battery yet"); return { finished: false, failed: 0 }; }
 const started = startOf(runDir);
 const now = Date.now();
-const entries = order.map(name => {
+// The run's own plan (battery.mjs writes plan.json since 2026-10-07); an older run falls back to the full order.
+const planFile = join(runDir, "plan.json");
+const rows = existsSync(planFile) ? JSON.parse(readFileSync(planFile, "utf8"))
+  : existsSync(join(runDir, "setup-fixtures.txt")) ? ["setup-fixtures", ...order] : order;
+const entries = rows.map(name => {
   const file = join(runDir, `${name}.txt`);
   if ( !existsSync(file) ) return { name, state: "pending" };
   const body = readFileSync(file, "utf8");
-  const verdict = verdictOf(body);
+  const verdict = verdictOf(body, /^(fixture-|reset-|setup-)/.test(name));
   return { name, state: verdict.ok ? "ok" : "failed", ...verdict, at: statSync(file).mtimeMs };
 });
 const done = entries.filter(e => e.state !== "pending");
@@ -50,7 +78,8 @@ if ( running ) {
   const left = entries.slice(entries.indexOf(running) + 1).filter(e => e.state === "pending").map(e => e.name);
   if ( left.length ) console.log(`next ${left.slice(0, 4).join(", ")}${left.length > 4 ? ` … +${left.length - 4}` : ""}`);
 }
-process.exit(failed.length ? 1 : 0);
+return { finished: !running, failed: failed.length };
+}
 
 function newestRun() {
   if ( !existsSync(BATTERY_DIR) ) return null;
@@ -71,7 +100,7 @@ function startOf(dir) {
 }
 
 /** A suite's verdict off its output: `N/M passed`, `ALL PASS`, `N FAILURE(S)`, `swept` (a fixture step). */
-function verdictOf(body) {
+function verdictOf(body, step = false) {
   const lines = body.split(/\r?\n/).reverse();
   const line = lines.find(l => /ALL PASS|FAILURE\(S\)|\d+\/\d+ passed|\d+\/\d+$|swept|FATAL/.test(l)) ?? "";
   const ratio = /(\d+)\/(\d+)/.exec(line);
@@ -79,7 +108,10 @@ function verdictOf(body) {
   if ( /ALL PASS/.test(line) ) { const n = (body.match(/^\s*PASS /gm) ?? []).length; return { ok: true, pass: n, all: n, summary: "ALL PASS" }; }
   if ( /swept/.test(line) && !/FAIL|FATAL/.test(line) ) return { ok: true, pass: 0, all: 0, summary: "swept" };
   const n = (body.match(/^\s*PASS /gm) ?? []).length, f = (body.match(/^\s*FAIL /gm) ?? []).length;
-  return { ok: !f && !/FATAL/.test(body), pass: n, all: n + f, summary: /FATAL/.test(body) ? "FATAL" : `${n}/${n + f}` };
+  // ⚠ No verdict line and no assertions is a crash (a setup error, a refused preflight), never a pass.
+  // A seed or sweep step asserts nothing: only a crash marker fails it.
+  const crashed = /FATAL|FAILED|PREFLIGHT|Error:/.test(body) || (!step && (n + f === 0));
+  return { ok: !f && !crashed, pass: n, all: n + f, summary: /FATAL/.test(body) ? "FATAL" : (crashed && !f) ? "crashed" : `${n}/${n + f}` };
 }
 
 function mins(ms) {
