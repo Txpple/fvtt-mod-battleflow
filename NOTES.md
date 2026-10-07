@@ -1321,8 +1321,9 @@ a new world carries no fixtures AND none of the campaign PCs `fixture-suite` clo
 suites read by name (Gren in smoke-hold and smoke-twoclient, Invictus in probe-effect-view). The rebuild after a prod
 pull, with the old world still on disk: `node tools/carry-fixtures.mjs --from the-broken-heart-of-greenrest`, then
 `reset-fixture-state` → `scrub-fixture-residue` → `fixture-suite`. The two-client suites join as the player identity
-(`FOUNDRY_PLAYER_USER` in the MCP repo's .env, "PC Assistant"); a prod pull wipes that user too, so it is re-created
-by hand before smoke-twoclient, check-popup-routing and smoke-nogm can run.
+(`FOUNDRY_PLAYER_USER` in the MCP repo's .env). The test accounts are prod users, so a pull brings them down:
+"Assistant Tester" (the suites), "Assistant DM" (the bridge) and "Assistant PC" (the player, kept on prod by the user
+from 2026-10-07). The interim sandbox-only "PC Assistant" is gone after the next pull; point the .env at "Assistant PC".
 
 ⚠ **A friendly fixture must never stand where a suite plays** (2026-09-24, smoke-reminders §11e).
 BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
