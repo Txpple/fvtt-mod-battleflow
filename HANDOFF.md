@@ -9,7 +9,7 @@
 - **The splat books are BUILT**: Arcana Unleashed (v2.12.0), Heroes of Faerûn (v2.13.0), Ravenloft: The Horrors Within
   (v2.14.0 — GitHub only). Each has its RULINGS section with a walk table, its register and drawing under audits/, its
   unit test and its smoke-splat sections (40 checks across the three books). Battery floor for v2.14.0: 47/48, the red the
-  known smoke-saves §32 dialog flake (10/10 alone).
+  smoke-saves §32 (then called a dialog flake; found 2026-10-07 to be a dead-victim race, fixed).
 - **The WAITS rows of all three books stand for a pass of their own** (the user: *"keep those waits rows hanging, we'll have
   to go through those"*): 23 Arcana · 16 Faerûn · 14 Ravenloft, each register naming the precedent. The Spellfire rows are
   among them. That pass is the next piece of splat work — talk first, the rulings, then the build on the user's go.
