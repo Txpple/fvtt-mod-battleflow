@@ -187,7 +187,7 @@ const fx = await f.evaluate(async () => {
 report('fixtures (scene, actors, tokens, canvas)', fx.ok, fx.ok ? `${fx.itemName}; ${fx.log.join('; ') || 'reused'}` : fx.why);
 if (!fx.ok) { process.exit(1); }
 // The player TEST account's name rides into §5c so BF Test PC Attacker can be granted to it.
-fx.playerName = loadEnv().MOLTEN_TEST_USER ?? null;
+{ const e = loadEnv(); fx.playerName = e.FOUNDRY_PLAYER_USER ?? e.MOLTEN_TEST_USER ?? null; }
 
 // ---- 3. the hit chain
 if (want('3')) {

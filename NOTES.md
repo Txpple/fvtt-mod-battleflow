@@ -1316,6 +1316,14 @@ a fixture: after a refresh on 2026-09-23 Gren arrived with his first-level slots
 `smoke-hold` §7's direct Shield cast was refused before `preUseActivity` resolved, and no chip was
 written. The cast consumes nothing now, as smoke-shields' already did.
 
+⚠ **The sandbox world changed campaigns on 2026-10-07** (echoes-of-halruaa, Foundry 14.368, dnd5e 6.0.6): a mirror of
+a new world carries no fixtures AND none of the campaign PCs `fixture-suite` clones from (Gren, Morgash, Salyth) or the
+suites read by name (Gren in smoke-hold and smoke-twoclient, Invictus in probe-effect-view). The rebuild after a prod
+pull, with the old world still on disk: `node tools/carry-fixtures.mjs --from the-broken-heart-of-greenrest`, then
+`reset-fixture-state` → `scrub-fixture-residue` → `fixture-suite`. The two-client suites join as the player identity
+(`FOUNDRY_PLAYER_USER` in the MCP repo's .env, "PC Assistant"); a prod pull wipes that user too, so it is re-created
+by hand before smoke-twoclient, check-popup-routing and smoke-nogm can run.
+
 ⚠ **A friendly fixture must never stand where a suite plays** (2026-09-24, smoke-reminders §11e).
 BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
 the gate judged Pack Tactics true and the suite read Advantage it never set up. Every suite places
