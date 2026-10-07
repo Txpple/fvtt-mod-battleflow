@@ -96,9 +96,9 @@
   </header>
 
   <div class="scenes" role="tablist" aria-label="Scenarios">
-    <button aria-pressed="true" data-scene="bm">Thomas, Battle Master 5 — three maneuvers, 4 dice left</button>
+    <button aria-pressed="true" data-scene="bm">Tavin, Battle Master 5 — three maneuvers, 4 dice left</button>
     <button aria-pressed="false" data-scene="mix">Kestrel, Fighter 3 / Rogue 5 — maneuvers and Cunning Strike</button>
-    <button aria-pressed="false" data-scene="empty">Thomas, no Superiority Dice left</button>
+    <button aria-pressed="false" data-scene="empty">Tavin, no Superiority Dice left</button>
   </div>
 
   <div class="studio">
@@ -166,9 +166,9 @@
     maneuvering:{nm:"Maneuvering Attack",save:"an ally may spend its Reaction to move"}
   };
   const SCENES = {
-    bm:{ who:"Thomas", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:4, dc:15, man:["trip","goading","menacing"], sneak:null },
+    bm:{ who:"Tavin", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:4, dc:15, man:["trip","goading","menacing"], sneak:null },
     mix:{ who:"Kestrel", weapon:"Rapier", wf:"1d8 + 4", target:"Bugbear (Medium)", die:"d8", dice:2, dc:14, man:["trip","pushing","sweeping","maneuvering"], sneak:{dice:3,dc:14,max:1,rows:[["poison","Poison",1,"you must have a Poisoner’s Kit on your person"],["ctrip","Trip",1,"the target must be Large or smaller"],["withdraw","Withdraw",1,null]]} },
-    empty:{ who:"Thomas", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:0, dc:15, man:["trip","goading","menacing"], sneak:null }
+    empty:{ who:"Tavin", weapon:"Longsword", wf:"1d8 + 4", target:"Goblin Warrior (Small)", die:"d8", dice:0, dc:15, man:["trip","goading","menacing"], sneak:null }
   };
   let scene = "bm", pickM = null, pickC = new Set();
   const offer = document.getElementById("offer"), after = document.getElementById("after");

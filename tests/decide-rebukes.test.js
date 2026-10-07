@@ -104,16 +104,16 @@ describe("Sentinel's Guardian — a ward, asked of a bystander (the PHB feats, g
   });
   it("the card line names the one it hit", () => {
     const f = {
-      actorName: "Morgash",
+      actorName: "Bramm",
       sourceName: "Hobgoblin",
-      targetName: "Gren",
+      targetName: "Aster",
       distance: 5,
       ward: true
     };
-    expect(rb.rebukeLine(f)).toBe("Morgash may strike Hobgoblin (5 ft) — it hit Gren");
+    expect(rb.rebukeLine(f)).toBe("Bramm may strike Hobgoblin (5 ft) — it hit Aster");
     expect(rb.rebukeLine({ ...f, answer: "use", choice: "Sentinel" })).toBe(
-      "Sentinel — Morgash strikes Hobgoblin for hitting Gren"
+      "Sentinel — Bramm strikes Hobgoblin for hitting Aster"
     );
-    expect(rb.rebukeLine({ ...f, answer: "pass" })).toBe("Morgash lets Hobgoblin's hit on Gren go");
+    expect(rb.rebukeLine({ ...f, answer: "pass" })).toBe("Bramm lets Hobgoblin's hit on Aster go");
   });
 });

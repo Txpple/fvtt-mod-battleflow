@@ -310,9 +310,9 @@
     },
     poly: {
       caption: () => O.polyPick === "caster" ? "The save machine already exists. The caster picks the beast before the save, capped at the target's CR or level (the pack leaves the cap blank today, so the browser offers a T-Rex). On a fail the GM's client transforms the ogre; the temp HP are the beast's HP, from the polymorph preset." : "The caster casts and the save runs; the GM picks the beast from the card, capped the same way. The caster's intent is in chat, the pick is the adjudicator's.",
-      stage: () => tok(300, 330, "pc", "Gren") + (S.saved ? tok(520, 200, "form", S.polyPick || "Frog") : tok(520, 200, "", "Ogre")) + (O.polyPick === "caster" && !S.saved ? offer("Polymorph", "a Beast of CR 2 or lower · Wisdom save DC 15 · Concentration, 1 hour", "Target: the Ogre · CR 2 · 59 HP · its HP and mind stay, its body goes",
+      stage: () => tok(300, 330, "pc", "Aster") + (S.saved ? tok(520, 200, "form", S.polyPick || "Frog") : tok(520, 200, "", "Ogre")) + (O.polyPick === "caster" && !S.saved ? offer("Polymorph", "a Beast of CR 2 or lower · Wisdom save DC 15 · Concentration, 1 hour", "Target: the Ogre · CR 2 · 59 HP · its HP and mind stay, its body goes",
         `<div class="grp-l">The form<small>${eligible(RULE.poly).length} eligible · the whole pool, no known forms</small></div>${gallery(RULE.poly, { pins: false, lock: false })}`, S.pick ? `Cast · ${S.pick}` : "Cast", !!S.pick, 600) : ""),
-      log: () => msg("Gren", "pending", "Battle Flow · demand", "Polymorph · Wisdom save DC 15", `Ogre${O.polyPick === "caster" && S.pick ? ` · into a ${S.pick}` : ""}`, S.saved
+      log: () => msg("Aster", "pending", "Battle Flow · demand", "Polymorph · Wisdom save DC 15", `Ogre${O.polyPick === "caster" && S.pick ? ` · into a ${S.pick}` : ""}`, S.saved
         ? `<div>Ogre · 7 <span class="verdict fail">failed</span></div><div><b>Transformed by the GM's client</b> into a ${S.polyPick} · ${P.find(p => p[0] === S.polyPick)?.[4].match(/\d+ HP/)?.[0] ?? "HP"} as temp HP · concentration 1 hour</div>`
         : `<div><span class="cardbtn" id="rollsave">Roll the save (GM)</span>${O.polyPick === "gm" ? ` <span class="cardbtn" id="gmpick">Pick the form (GM)</span>` : ""}</div>`)
     },

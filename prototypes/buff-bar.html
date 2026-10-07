@@ -149,7 +149,7 @@
       <div class="tracker" id="tracker"><b>Round 3</b> · Ysolde's turn</div>
 
       <div class="token pc ctrl" style="left:205px;top:300px">Y<span class="nm">Ysolde</span></div>
-      <div class="token pc" style="left:120px;top:380px">G<span class="nm">Gren</span></div>
+      <div class="token pc" style="left:120px;top:380px">G<span class="nm">Aster</span></div>
       <div class="token foe" style="left:330px;top:250px">B<span class="nm">Goblin Boss</span></div>
       <div class="token foe" style="left:420px;top:380px">O<span class="nm">Ogre</span></div>
 
@@ -192,7 +192,7 @@
         <h3>Scenario</h3>
         <div class="seg" id="segScene">
           <button data-v="rogue" aria-pressed="true">Ysolde, her turn</button>
-          <button data-v="fighter" aria-pressed="false">Gren, after a Cleave hit</button>
+          <button data-v="fighter" aria-pressed="false">Aster, after a Cleave hit</button>
           <button data-v="ooc" aria-pressed="false">Out of combat</button>
         </div>
       </div>
@@ -248,7 +248,7 @@
   };
   const SCENES={
     rogue:{who:"Ysolde",sub:"Rogue 5 · Round 3, your turn",tracker:"<b>Round 3</b> · Ysolde's turn",you:["steadyAim","sneakSpent","reactionUsed","sappedYou"],marks:["vexedBoss"],cond:["prone"],later:["later1","later3"]},
-    fighter:{who:"Gren",sub:"Fighter 5 · Round 3, your turn",tracker:"<b>Round 3</b> · Gren's turn",you:["cleaveArmed","dreadful"],marks:["slowedOgre","sappedBoss"],cond:[],later:["later2","later3"]},
+    fighter:{who:"Aster",sub:"Fighter 5 · Round 3, your turn",tracker:"<b>Round 3</b> · Aster's turn",you:["cleaveArmed","dreadful"],marks:["slowedOgre","sappedBoss"],cond:[],later:["later2","later3"]},
     ooc:{who:"Ysolde",sub:"Rogue 5 · no combat running",tracker:"<b>No combat</b> · chits are not counted",you:["steadyAim"],marks:[],cond:[],later:["later1"]}
   };
   const state={place:"hotbar",scene:"rogue",marks:true,spent:true,cond:false,collapse:false,later:false};

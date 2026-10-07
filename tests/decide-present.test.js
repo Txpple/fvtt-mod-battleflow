@@ -265,7 +265,7 @@ describe("rescueView — two machines, one window", () => {
       offers: [
         { kind: "bardic", name: "Inspired", label: "Bardic Inspiration", dieFormula: "1d8" }
       ],
-      targets: [{ uuid: "a", name: "Practice Dummy", ac: 18, margin: 8 }]
+      targets: [{ uuid: "a", name: "Training Dummy", ac: 18, margin: 8 }]
     },
     precision: {
       status: "pending",
@@ -275,7 +275,7 @@ describe("rescueView — two machines, one window", () => {
       itemName: "Precision Attack",
       itemImg: "icons/skills/targeting/target.webp",
       dieFormula: "@scale.battle-master.superiority.die",
-      targets: [{ uuid: "a", name: "Practice Dummy", ac: 18, margin: 8 }]
+      targets: [{ uuid: "a", name: "Training Dummy", ac: 18, margin: 8 }]
     }
   };
 
@@ -422,7 +422,7 @@ describe("rescueView — two machines, one window", () => {
       composed: { total: 13, added: 3 },
       reveal: true
     });
-    expect(view.headerLines).toEqual(["10 + 3 = 13 vs AC 18 — misses Practice Dummy by 5"]);
+    expect(view.headerLines).toEqual(["10 + 3 = 13 vs AC 18 — misses Training Dummy by 5"]);
   });
 
   it("a reroll reads with an arrow, because it REPLACED the d20 rather than adding to it", () => {
@@ -430,7 +430,7 @@ describe("rescueView — two machines, one window", () => {
       composed: { total: 24, added: 0, replaced: true },
       reveal: true
     });
-    expect(view.headerLines).toEqual(["10 → 24 vs AC 18 — hits Practice Dummy"]);
+    expect(view.headerLines).toEqual(["10 → 24 vs AC 18 — hits Training Dummy"]);
   });
 
   it("reveal OFF hides what the roll must beat, never what the roll now totals", () => {
@@ -694,7 +694,7 @@ describe("reminderSectionHTML / reminderFieldsetHTML — the header line and the
     head: { title: "3 Modifiers — Net", net: "normal", why: "they cancel" },
     boxes: [
       { label: "Gruk — Sapped", bend: "disadvantage", rule: "sap rule" },
-      { label: "Gruk Vexed Thomas", bend: "advantage", rule: "vex rule" },
+      { label: "Gruk Vexed Tavin", bend: "advantage", rule: "vex rule" },
       { label: "Prone — distance unknown", bend: null, rule: "" }
     ]
   };

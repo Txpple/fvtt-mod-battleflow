@@ -203,7 +203,7 @@ function popupHTML(){
   </div>`;
 }
 
-function card(tone,e,lines){ return `<div class="msg"><div class="spk">BF Feat Savage Attacker</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${ROLLS[state.roll].w}</div><div class="s" style="font-size:11px;opacity:.75">→ Practice Dummy</div><div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
+function card(tone,e,lines){ return `<div class="msg"><div class="spk">BF Feat Savage Attacker</div><div class="bf ${tone}"><div class="e">${e}</div><div class="t">${ROLLS[state.roll].w}</div><div class="s" style="font-size:11px;opacity:.75">→ Training Dummy</div><div class="l">${lines.map(l=>`<div>${l}</div>`).join("")}</div></div></div>`; }
 
 function render(){
   const r=ROLLS[state.roll], s=stats(r);

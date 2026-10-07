@@ -236,7 +236,7 @@
 
   /* ---------------- TAVERN BRAWLER ---------------- */
   function brawler(){
-    const atk = (weapon, dmg) => card("neutral","Attack", weapon, "BF Feat Tavern Brawler → Practice Dummy", [`d20 14 +6 = <b>20</b> vs AC 12 <span class="verdict hit">HIT</span>`, `damage <b>${dmg}</b> bludgeoning — applied`]);
+    const atk = (weapon, dmg) => card("neutral","Attack", weapon, "BF Feat Tavern Brawler → Training Dummy", [`d20 14 +6 = <b>20</b> vs AC 12 <span class="verdict hit">HIT</span>`, `damage <b>${dmg}</b> bludgeoning — applied`]);
     if ( state.scene === "t3" ) {
       document.getElementById("popup").innerHTML = `<div class="nothing">A Longsword hit: the push is the Unarmed Strike's alone, so there's no popup.</div>`;
       document.getElementById("chat").innerHTML = log(msg("BF Feat Tavern Brawler", atk("Longsword", 9)));
@@ -245,32 +245,32 @@
     if ( state.scene === "t2" ) {
       document.getElementById("popup").innerHTML = `<div class="nothing">A second Unarmed Strike this turn (Extra Attack): the push has been used this turn, so there's no popup.</div>`;
       document.getElementById("chat").innerHTML = log(
-        msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 6) + card("good","Feat — Tavern Brawler","BF Feat Tavern Brawler pushes Practice Dummy 5 feet","Move the token by hand")),
+        msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 6) + card("good","Feat — Tavern Brawler","BF Feat Tavern Brawler pushes Training Dummy 5 feet","Move the token by hand")),
         msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 5) + `<div style="margin-top:4px"><span class="chip used">Push used this turn</span></div>`));
       return;
     }
     if ( state.done ) {
       document.getElementById("popup").innerHTML = `<div class="nothing">Answered. Nothing moves the token for you; slide it 5 feet, the way the Push mastery and Shield Master's bash do.</div>`;
       document.getElementById("chat").innerHTML = log(msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 6) + (state.done === "push"
-        ? card("good","Feat — Tavern Brawler","BF Feat Tavern Brawler pushes Practice Dummy 5 feet","Move the token by hand")
+        ? card("good","Feat — Tavern Brawler","BF Feat Tavern Brawler pushes Training Dummy 5 feet","Move the token by hand")
         : card("neutral","Feat — Tavern Brawler","Tavern Brawler — passed",""))));
       return;
     }
     document.getElementById("popup").innerHTML = popup("Tavern Brawler — BF Feat Tavern Brawler",
-      head("fighter", "Tavern Brawler — push Practice Dummy 5 feet?", "Feat · once per turn")
+      head("fighter", "Tavern Brawler — push Training Dummy 5 feet?", "Feat · once per turn")
       + fold("brawler") + bar(20)
       + `<div class="btnrow"><button class="btn primary" data-act="push">Push 5 feet</button><button class="btn" data-act="pass">Pass</button></div>`);
-    document.getElementById("chat").innerHTML = log(msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 6) + card("pending","Feat — Tavern Brawler","Tavern Brawler — offered after the damage","Practice Dummy") ));
+    document.getElementById("chat").innerHTML = log(msg("BF Feat Tavern Brawler", atk("Unarmed Strike", 6) + card("pending","Feat — Tavern Brawler","Tavern Brawler — offered after the damage","Training Dummy") ));
   }
 
   /* ---------------- ALERT ---------------- */
   const ORDER = [
-    { n:"Gren", i:19 }, { n:"BF Feat Savage Attacker", i:17 }, { n:"Practice Dummy", i:15, foe:true },
+    { n:"Aster", i:19 }, { n:"BF Feat Savage Attacker", i:17 }, { n:"Training Dummy", i:15, foe:true },
     { n:"BF Feat Alert", i:11, me:true }, { n:"BF Feat Healer", i:9, inc:true }, { n:"BF Feat Tavern Brawler", i:6 }
   ];
   function alert(){
     let order = ORDER.map(o => ({...o}));
-    if ( state.scene === "a2" ) order = [{ n:"BF Feat Alert", i:11, me:true }, { n:"Practice Dummy", i:15, foe:true }, { n:"BF Feat Healer", i:9, inc:true }];
+    if ( state.scene === "a2" ) order = [{ n:"BF Feat Alert", i:11, me:true }, { n:"Training Dummy", i:15, foe:true }, { n:"BF Feat Healer", i:9, inc:true }];
     const allies = order.filter(o => !o.me && !o.foe && !o.inc);
     const me = order.find(o => o.me);
     if ( state.done === "swap" && state.ally ) {
@@ -302,7 +302,7 @@
 
   /* ---------------- MUSICIAN ---------------- */
   const NEAR = [
-    { n:"Gren", party:true, ft:15 }, { n:"BF Feat Savage Attacker", ft:10 }, { n:"BF Feat Alert", ft:20 },
+    { n:"Aster", party:true, ft:15 }, { n:"BF Feat Savage Attacker", ft:10 }, { n:"BF Feat Alert", ft:20 },
     { n:"BF Feat Healer", ft:25, has:true }, { n:"BF Feat Tavern Brawler", ft:30 }
   ];
   const CAP = 3;

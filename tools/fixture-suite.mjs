@@ -1,5 +1,7 @@
-// Build (or rebuild) the shared suite fixtures: idempotent, and the first thing to run after a
-// prod refresh (a mirror of prod deletes them). Everything a suite needs lives in a fixture step.
+// Build (or rebuild) the shared suite fixtures: idempotent, and the first thing to run on a sandbox world.
+// Everything a suite needs lives in a fixture step, built from the COMPENDIA (the PHB, the DMG, the
+// system's packs): no campaign character, scene or item is read, so any world serves, a blank one
+// included (2026-10-07 — the clones of a campaign's party were retired).
 // ⚠ Everything lands in the "Test Suite" folder (Actors and Scenes); strays are adopted into it.
 //
 // Run:  node tools/fixture-suite.mjs   (⚠ disconnect the MCP bridge first)
@@ -109,31 +111,18 @@ const out = await f.evaluate(async ({ playerName }) => {
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === "attack"));
     if (!weapon) throw new Error("BF Test Attacker has no item with an attack activity");
 
-    // --- the shielder: a GM-owned clone of Gren (a real spell, caster and slots)
-    // ⚠ Not Gren: the module refuses a GM answering for a player-owned character. Not a Shield on
-    // the goblin: an item added to a base actor reaches an unlinked token stripped of activities,
-    // and an NPC's slots are derived (0).
-    let shielder = game.actors.getName("BF Test Shielder");
-    if (!shielder) {
-      const gren = game.actors.getName("Gren Greenmantle");
-      if (!gren) throw new Error("Gren Greenmantle not found — the shielder is a clone of him");
-      const data = gren.toObject();
-      delete data._id;
-      data.name = "BF Test Shielder";
-      data.folder = actorFolder.id;
-      data.ownership = { default: 0 };        // GM-only: no player may answer for it
-      data.prototypeToken.actorLink = true;   // linked: no delta to lose items through
-      data.prototypeToken.name = "BF Test Shielder";
-      // ⚠ Clone the sheet, not the evening: actor-level applied effects are play state (items keep theirs).
-      data.effects = [];
-      shielder = await Actor.create(data);
-      made.push("BF Test Shielder");
-      log.push("created BF Test Shielder from Gren Greenmantle");
-    } else if (shielder.effects.size) {
-      // ⚠ The same strip for an existing Shielder a suite left dressed.
-      const stale = shielder.effects.map(e => e.name);
-      await shielder.deleteEmbeddedDocuments("ActiveEffect", shielder.effects.map(e => e.id));
-      log.push(`cleared BF Test Shielder's play-state effects (${stale.join(", ")})`);
+    // --- the dummy: a sturdy bare NPC a probe swings at (probe-hit-sequence, probe-web); no token here,
+    // the probes place their own.
+    let dummy = game.actors.getName("BF Test Dummy");
+    if (!dummy) {
+      dummy = await Actor.create({
+        name: "BF Test Dummy", type: "npc", folder: actorFolder.id, ownership: { default: 0 },
+        prototypeToken: { name: "BF Test Dummy", actorLink: false, disposition: -1 },
+        system: { abilities: { str: 10, dex: 10, con: 10, int: 1, wis: 10, cha: 1 },
+          attributes: { hp: { value: 100, max: 100 }, ac: { calc: "flat", flat: 10 }, movement: { walk: 0 } }, details: { cr: 0 } }
+      });
+      made.push("BF Test Dummy");
+      log.push("created BF Test Dummy (a bare NPC, 100 HP, AC 10)");
     }
 
     // --- the monster: a bare GM-owned NPC for the GM's side (smoke-drop's Undead Fortitude and Death
@@ -190,7 +179,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         { diff: false, recursive: false });
       log.push(`granted BF Test PC Attacker to ${playerUser.name}`);
     } else {
-      log.push(`⚠ no player test user (MOLTEN_TEST_USER=${playerName ?? "unset"}) — PC left ownerless`);
+      log.push(`⚠ no player test user (FOUNDRY_PLAYER_USER=${playerName ?? "unset"}) — PC left ownerless`);
     }
     if (!(pc.system.attributes?.hp?.max > 0)) {
       await pc.update({ "system.attributes.hp.max": 20, "system.attributes.hp.value": 20 });
@@ -213,41 +202,6 @@ const out = await f.evaluate(async ({ playerName }) => {
           log.push(`stripped the mastery a walk left on BF Test PC Attacker's ${clone.name}`);
         }
       }
-    }
-
-    // --- the d20-fold PCs: clones of two party members
-    // ⚠ Clones, not builds: `level-up-pc` does not persist advancement (subclass, granted features,
-    // HP), and the party sheets already are it. Morgash (Fighter 5 Battle Master): Second Wind,
-    // Tactical Mind, Combat Superiority, Precision Attack. Salyth (Bard 8): `@scale.bard.inspiration`
-    // at 1d8, so the level is load-bearing. GM-owned, as the shielder.
-    const CLONES = [
-      ["BF Test Fighter", "Morgash the Gravemaker"],
-      ["BF Test Bard", "Salyth"]
-    ];
-    // ⚠ The Fighter swings at +5: smoke-d20-folds asserts literal composed totals against that band.
-    // Proficiency +3 at level 5, so Strength 14 (+2). Re-seeded every run.
-    const calibrate = async (actor, name) => {
-      if (name !== "BF Test Fighter") return;
-      if (actor.system.abilities?.str?.value === 14) return;
-      await actor.update({ "system.abilities.str.value": 14 });
-      log.push("calibrated BF Test Fighter to Strength 14 (+5 to hit — the suite's stated band)");
-    };
-    for (const [name, sourceName] of CLONES) {
-      let clone = game.actors.getName(name);
-      if (clone) { await calibrate(clone, name); continue; }
-      const source = game.actors.getName(sourceName);
-      if (!source) { log.push(`⚠ ${sourceName} not found — ${name} not built`); continue; }
-      const data = source.toObject();
-      delete data._id;
-      data.name = name;
-      data.folder = actorFolder.id;
-      data.ownership = { default: 0 };
-      data.prototypeToken.actorLink = true;
-      data.prototypeToken.name = name;
-      clone = await Actor.create(data);
-      made.push(name);
-      log.push(`created ${name} from ${sourceName}`);
-      await calibrate(clone, name);
     }
 
     // --- the BUILT PCs from the PHB pack. A class item created with `system.levels` resolves its
@@ -275,9 +229,37 @@ const out = await f.evaluate(async ({ playerName }) => {
     // Species traits live in `origins`, origin feats in `feats`: a FEATURE is looked up in all
     // three, the class pack first; a class or subclass stays on PHB_CLASSES.
     const PHB_FEATS = [...PHB_CLASSES, "dnd-players-handbook.origins", "dnd-players-handbook.feats"];
-    const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24"];
+    const PHB_GEAR = ["dnd-players-handbook.equipment", "dnd5e.equipment24", "dnd-dungeon-masters-guide.equipment"];
     const PHB_SPELLS = ["dnd-players-handbook.spells", "dnd5e.spells24"];
     const BUILT = [
+      // The shield casters (were clones of a campaign Sorcerer): a real Shield ("Imperceptible Barrier"),
+      // real slots, an AC on its normal calculation (smoke-hold asserts +5 on it), no poison resistance
+      // (smoke-saves §2 takes exactly 5 of 10). Bless leads the concentration spells (smoke-concentration
+      // picks the first one), Guiding Bolt is the attack spell with an effect smoke-effects casts, Web is
+      // what probe-web reads. The Shielder is GM-owned (smoke-hold §4b clicks Cast as the GM); the Mage is
+      // the PLAYER's (smoke-hold's attacked PC, smoke-twoclient's clone source) and places no token here.
+      { name: "BF Test Shielder", classes: [["Sorcerer", 6]], feats: [],
+        spells: ["Bless", "Shield", "Guiding Bolt", "Magic Missile", "Web", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",
+        abilities: { cha: 18, con: 14, dex: 14, wis: 12, str: 8, int: 10 }, hp: 38, x: 1500, clearEffects: true },
+      { name: "BF Test Mage", classes: [["Sorcerer", 6]], feats: [],
+        spells: ["Bless", "Shield", "Guiding Bolt", "Magic Missile", "Web", "Fire Bolt"], gear: ["Dagger"], spellcasting: "cha",
+        abilities: { cha: 18, con: 14, dex: 14, wis: 12, str: 8, int: 10 }, hp: 38, owner: "player", noToken: true, clearEffects: true },
+      // The d20-fold PCs (were clones of two campaign characters). The Fighter: Fighter 5 (proficiency +3)
+      // at Strength 14 swings at +5, the band smoke-d20-folds states; Second Wind and Tactical Mind carry
+      // their compendium stamp so Tactical Mind's pool remaps. fixture-d20-folds adds the Battle Master
+      // kit and the Longsword. The Bard: Bard 8 makes `@scale.bard.inspiration` the 1d8 the suites pin;
+      // Charisma 16 gives Bardic Inspiration three uses. Both GM-owned, no token on the range.
+      { name: "BF Test Fighter", classes: [["Fighter", 5]], feats: ["Second Wind", "Tactical Mind"], gear: [],
+        abilities: { str: 14, con: 14, dex: 10, wis: 12, int: 8, cha: 10 }, hp: 44, noToken: true, reseedAbilities: true },
+      { name: "BF Test Bard", classes: [["Bard", 8]], feats: ["Bardic Inspiration"], gear: ["Dagger"], spellcasting: "cha",
+        abilities: { cha: 16, dex: 14, con: 12, wis: 10, int: 12, str: 8 }, hp: 51, noToken: true },
+      // The effect view's and the hit sequence's Paladin (was a campaign Paladin): an attuned Cloak of
+      // Protection is the standing "Bonus AC" passive probe-effect-view reads; the Longsword's Sap with the
+      // longsword mastery chosen, and Shield Master on the sheet, are probe-hit-sequence's. The probes
+      // place its token.
+      { name: "BF Test Vanguard", classes: [["Paladin", 6]], feats: ["Shield Master"], gear: ["Longsword", "Cloak of Protection"],
+        attune: ["Cloak of Protection"], masteries: ["longsword"],
+        abilities: { str: 16, con: 14, cha: 14, wis: 10, dex: 10, int: 10 }, hp: 52, noToken: true },
       // The emanations suite: a Paladin with three auras and a Cleric who can cast Spirit Guardians.
       // ⚠ Both home on the BOTTOM ROW: the Paladin's aura is always on.
       { name: "BF Test Paladin", classes: [["Paladin", 10], ["Oath of the Ancients", null]],
@@ -328,7 +310,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         }
         for (const n of spec.gear) {
           const data = await findPackItem(PHB_GEAR, n);
-          if (data) { data.system.equipped = true; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
+          if (data) { data.system.equipped = true; if (spec.attune?.includes(n)) data.system.attuned = true; items.push(data); } else log.push(`⚠ ${n} not found — ${spec.name} lacks it`);
         }
         for (const n of spec.spells ?? []) {
           const data = await findPackItem(PHB_SPELLS, n);
@@ -372,6 +354,34 @@ const out = await f.evaluate(async ({ playerName }) => {
         await actor.update({ "system.attributes.spellcasting": spec.spellcasting });
         log.push(`set ${spec.name}'s spellcasting ability to ${spec.spellcasting}`);
       }
+      // The spec's owner, its chosen masteries, its abilities and a clean effect list, every run.
+      const playerUser = playerName ? game.users.getName(playerName) : null;
+      if (spec.owner === "player") {
+        if (playerUser && ((actor.ownership?.[playerUser.id] ?? 0) < 3)) {
+          await actor.update({ ownership: { default: 0, [playerUser.id]: 3 } }, { diff: false, recursive: false });
+          log.push(`granted ${spec.name} to ${playerUser.name}`);
+        } else if (!playerUser) log.push(`⚠ no player test user (FOUNDRY_PLAYER_USER=${playerName ?? "unset"}) — ${spec.name} left GM-owned`);
+      }
+      if (spec.masteries) {
+        const have = [...(actor.system._source.traits?.weaponProf?.mastery?.value ?? [])];
+        if (spec.masteries.some(m => !have.includes(m))) {
+          await actor.update({ "system.traits.weaponProf.mastery.value": [...new Set([...have, ...spec.masteries])] });
+          log.push(`gave ${spec.name} the ${spec.masteries.join(", ")} mastery`);
+        }
+      }
+      if (spec.reseedAbilities) {
+        const drift = Object.entries(spec.abilities).filter(([k, v]) => actor.system._source.abilities?.[k]?.value !== v);
+        if (drift.length) {
+          await actor.update(Object.fromEntries(drift.map(([k, v]) => [`system.abilities.${k}.value`, v])));
+          log.push(`re-seeded ${spec.name}'s ${drift.map(([k]) => k).join(", ")}`);
+        }
+      }
+      // ⚠ Actor-level applied effects are play state a suite left behind (items keep theirs).
+      if (spec.clearEffects && actor.effects.size) {
+        const stale = actor.effects.map(e => e.name);
+        await actor.deleteEmbeddedDocuments("ActiveEffect", actor.effects.map(e => e.id));
+        log.push(`cleared ${spec.name}'s play-state effects (${stale.join(", ")})`);
+      }
       // A bare character walks at 0; give it a speed so a feature that zeroes it can be seen to.
       if (!(actor.system._source.attributes?.movement?.walk > 0)) { await actor.update({ 'system.attributes.movement.walk': 30 }); log.push(`gave ${spec.name} a walking speed of 30`); }
       // Full HP every run: a dead fixture is silently filtered from every demand and list.
@@ -383,7 +393,7 @@ const out = await f.evaluate(async ({ playerName }) => {
         await actor.update({ "system.attributes.hp.max": spec.hp, "system.attributes.hp.value": spec.hp });
         log.push(`seeded ${spec.name}'s HP pool (${spec.hp}/${spec.hp})`);
       }
-      built.push({ actor, x: spec.x, y: spec.y ?? 1000 });
+      if (!spec.noToken) built.push({ actor, x: spec.x, y: spec.y ?? 1000 });
     }
 
     // --- adopt strays: every BF Test actor into the folder
@@ -415,7 +425,6 @@ const out = await f.evaluate(async ({ playerName }) => {
     };
     const attackerToken = await ensureToken(attacker, 900, false);
     const victimToken = await ensureToken(victim, 1100, false);
-    await ensureToken(shielder, 1500, true);
     await ensureToken(monster, 1300, true);
     for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
@@ -437,12 +446,12 @@ const out = await f.evaluate(async ({ playerName }) => {
     }
     if (!canvas.tokens.get(victimToken)) throw new Error("canvas never readied");
 
-    const missing = CLONES.map(([n]) => n).filter(n => !game.actors.getName(n));
+    const missing = BUILT.map(spec => spec.name).filter(n => !game.actors.getName(n));
     return { ok: true, log, made, missing, folderId: actorFolder.id };
   } catch (err) {
     return { ok: false, why: `${err.message}\n${err.stack}`, log };
   }
-}, { playerName: env.FOUNDRY_PLAYER_USER ?? env.MOLTEN_TEST_USER ?? null });
+}, { playerName: env.FOUNDRY_PLAYER_USER ?? null });
 
 for (const line of out.log ?? []) console.log(`  ${line}`);
 if (!out.ok) {

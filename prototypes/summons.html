@@ -248,19 +248,19 @@
   const scenes = {
     dragon: {
       caption: () => O.form === "one" ? "One popup asks everything the spell asks, in the house offer shape, before the card posts. One profile means no form question; the dragon's one question is its damage type." : "The system's dialog casts; the choices the data model cannot hold are chips on the card, answered afterwards. Two steps instead of one.",
-      stage: () => tok(300, 220, "pc", "Salyth") + (O.form === "one"
+      stage: () => tok(300, 220, "pc", "Corin") + (O.form === "one"
         ? offer("Summon Dragon", "Draconic Spirit · 5th-level slot · Concentration, 1 hour", typePick(), "Place the dragon", !!S.type, "Large · AC 19 · 50 HP · fly 60 · 2 Rends + Breath (DC 16) · acts right after you")
         : systemDialog("Summon Dragon", `<div class="fg"><span>Summon</span><select><option>Draconic Spirit</option></select></div>`)),
       log: () => O.form === "one"
-        ? card("Salyth", "pending", "Battle Flow · cast", "Summon Dragon", "the card posts once the dragon is placed", "")
-        : card("Salyth", "pending", "Summon Dragon", "Draconic Spirit", "Concentration · 1 hour", `<div>Damage type: <span class="chip pick">pick</span> <span class="chip">acid</span><span class="chip">cold</span><span class="chip">fire</span><span class="chip">lightning</span><span class="chip">poison</span></div><div><span class="cardbtn">Summon</span> <span class="kbd">hidden from a player today</span></div>`)
+        ? card("Corin", "pending", "Battle Flow · cast", "Summon Dragon", "the card posts once the dragon is placed", "")
+        : card("Corin", "pending", "Summon Dragon", "Draconic Spirit", "Concentration · 1 hour", `<div>Damage type: <span class="chip pick">pick</span> <span class="chip">acid</span><span class="chip">cold</span><span class="chip">fire</span><span class="chip">lightning</span><span class="chip">poison</span></div><div><span class="cardbtn">Summon</span> <span class="kbd">hidden from a player today</span></div>`)
     },
     familiar: {
       caption: () => "A CR-mode summon (Find Familiar, Wild Companion) gets a gallery of what the rule allows, with the spell's second question beside it. Today it is the full compendium browser.",
-      stage: () => tok(300, 220, "pc", "Gren") + offer("Find Familiar", "a CR 0 Beast · then Celestial, Fey or Fiend · 1 hour cast",
+      stage: () => tok(300, 220, "pc", "Aster") + offer("Find Familiar", "a CR 0 Beast · then Celestial, Fey or Fiend · 1 hour cast",
         `<div class="grp-l">The form · PHB appendix, 12 shown of 26 CR 0 beasts</div>${familiarPick()}<div class="grp-l">Its creature type</div><div class="pick">${["celestial", "fey", "fiend"].map(t => `<button type="button" class="opt" data-famtype="${t}" aria-pressed="${S.famType === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>`,
         "Place the familiar", !!S.familiar),
-      log: () => card("Gren", "pending", "Battle Flow · cast", "Find Familiar", "the card posts once the familiar is placed", "")
+      log: () => card("Aster", "pending", "Battle Flow · cast", "Find Familiar", "the card posts once the familiar is placed", "")
     },
     objects: {
       caption: () => "Animate Objects' profiles carry a count formula per size; the form turns the budget into numbers and refuses an overspend. Today each size is a separate profile with the count rolled for you.",
@@ -271,25 +271,25 @@
       log: () => card("Lio", "pending", "Battle Flow · cast", "Animate Objects", "the card posts once the objects are placed", "")
     },
     place: {
-      caption: () => S.landed ? "The GM's client saw the record, imported the spirit with its own permissions, applied the spell-level bonuses, created the token and gave Salyth's player ownership. The card is stamped applied; a reload never re-drives it." : "The placement is a canvas preview on the player's own client (no permission needed). The record goes on the card; the orange chip is what the GM's client reacts to.",
-      stage: () => tok(300, 220, "pc", "Salyth") + (S.landed ? tok(380, 150, "sum big", "Draconic Spirit") : tok(380, 150, "sum big ghost", "Draconic Spirit")) +
+      caption: () => S.landed ? "The GM's client saw the record, imported the spirit with its own permissions, applied the spell-level bonuses, created the token and gave Corin's player ownership. The card is stamped applied; a reload never re-drives it." : "The placement is a canvas preview on the player's own client (no permission needed). The record goes on the card; the orange chip is what the GM's client reacts to.",
+      stage: () => tok(300, 220, "pc", "Corin") + (S.landed ? tok(380, 150, "sum big", "Draconic Spirit") : tok(380, 150, "sum big ghost", "Draconic Spirit")) +
         (S.landed ? `<div class="bar"><div class="fx conc">Concentration · Summon Dragon <span class="clk">1 h</span></div><div class="fx">Draconic Spirit · fire <span class="clk">1 h</span><span class="act">Dismiss</span></div><div class="fx">Shared Resistance · fire <span class="clk">1 h</span></div></div>` :
           `<div class="caption" style="bottom:auto;top:16px;left:auto;right:12px;width:220px"><b>Place the dragon</b><br>click a square · Esc cancels<br><button type="button" class="btn primary" id="land" style="margin-top:6px">Confirm placement</button></div>`),
-      log: () => card("Salyth", S.landed ? "ward" : "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", `5th level · fire · placed at (18, 11)`,
-        S.landed ? `<div><b>Landed by the GM's client</b> · AC 19 · 50 HP · Rend ×2 + Breath (DC 16, fire) · Salyth's player owns it${O.seat === "after" ? "<div>Tracker: a slot right after Salyth</div>" : "<div>Acts on Salyth's turn · a reminder at her turn start</div>"}</div>` : `<div><span class="chip wait">waiting for the GM's client</span></div>`)
+      log: () => card("Corin", S.landed ? "ward" : "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", `5th level · fire · placed at (18, 11)`,
+        S.landed ? `<div><b>Landed by the GM's client</b> · AC 19 · 50 HP · Rend ×2 + Breath (DC 16, fire) · Corin's player owns it${O.seat === "after" ? "<div>Tracker: a slot right after Corin</div>" : "<div>Acts on Corin's turn · a reminder at her turn start</div>"}</div>` : `<div><span class="chip wait">waiting for the GM's client</span></div>`)
     },
     nogm: {
       caption: () => "No degraded mode (DESIGN §4). With no GM online the card holds and says so; the preview stays on the map as a ghost. When a GM connects, the record is driven exactly once.",
-      stage: () => tok(300, 220, "pc", "Salyth") + tok(380, 150, "sum big ghost", "Draconic Spirit"),
-      log: () => card("Salyth", "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", "5th level · fire · placed at (18, 11)", `<div><span class="chip wait">no GM online</span> the dragon lands when a GM connects</div>`)
+      stage: () => tok(300, 220, "pc", "Corin") + tok(380, 150, "sum big ghost", "Draconic Spirit"),
+      log: () => card("Corin", "pending", "Battle Flow · summon", "Summon Dragon · Draconic Spirit", "5th level · fire · placed at (18, 11)", `<div><span class="chip wait">no GM online</span> the dragon lands when a GM connects</div>`)
     },
     fight: {
       caption: () => "The pick narrowed Breath Weapon to one type on the spirit's own card, and the resistance sits on the caster's bar until the spell ends. Dismiss runs on the GM's client; concentration's end cascades to the token.",
-      stage: () => tok(300, 220, "pc", "Salyth") + tok(380, 150, "sum big", "Draconic Spirit") + tok(560, 120, "", "Ogre") + tok(600, 230, "", "Ogre") +
+      stage: () => tok(300, 220, "pc", "Corin") + tok(380, 150, "sum big", "Draconic Spirit") + tok(560, 120, "", "Ogre") + tok(600, 230, "", "Ogre") +
         `<div class="bar"><div class="fx conc">Concentration · Summon Dragon <span class="clk">8 rounds</span></div><div class="fx">Draconic Spirit · fire <span class="clk">8 rounds</span><span class="act" id="dismiss">${S.dismissed ? "dismissed" : "Dismiss"}</span></div><div class="fx">Shared Resistance · fire <span class="clk">8 rounds</span></div></div>`,
       log: () => card("Draconic Spirit", "bad", "Breath Weapon", "Fire · DC 16 Dexterity · 30-foot cone", "2 targets", `<div>Ogre · <b>failed</b> · 9 fire</div><div>Ogre · <b>saved</b> · 4 fire</div>`) +
         card("Draconic Spirit", "neutral", "Multiattack", "Rend ×2 · reach 10 ft", "+8 to hit · 1d6 + 4 + 5", "") +
-        (S.dismissed ? card("Salyth", "ward", "Battle Flow · summon", "Draconic Spirit dismissed", "the token removed by the GM's client · Shared Resistance ended", "") : "")
+        (S.dismissed ? card("Corin", "ward", "Battle Flow · summon", "Draconic Spirit dismissed", "the token removed by the GM's client · Shared Resistance ended", "") : "")
     }
   };
 

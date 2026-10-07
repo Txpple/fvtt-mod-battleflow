@@ -5,7 +5,7 @@
 // targets (the PHB's Slow, added for the run).
 // Fixtures: BF Test Sorcerer (tools/fixture-suite.mjs), the goblins, BF Test Ranger. Settings,
 // messages, pool, slots, token positions and dialogs are all restored.
-import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './harness.mjs';
+import { announcePlan, connectSuite, finish, loadEnv, sectionArg, sectionPlan } from './harness.mjs';
 
 // The coverage map (tools/coverage-map.mjs) parses this; ⚠ never import a suite (it connects on evaluation).
 export const COVERS = [
@@ -43,7 +43,7 @@ const SECTIONS = {
   19: 'the cantrip (2026-09-10): Fire Bolt has no slot, template or scaling, so the system never opened the usage dialog and the group never showed - the module opens it; Distant, Quickened, Subtle and Transmuted fit, Careful, Heightened, Extended and Twinned (no slot to raise) do not; Transmuted\'s type radios are inert until Transmuted is ticked',
   20: 'a spell that chooses its targets (2026-09-24, Session 8\'s Slow): Careful greys in Slow\'s window ("you choose its targets") and stays live on Fireball; the cast raises the picture\'s hold and the stamp lowers it; the cube over the Sorcerer, the Ranger and both goblins asks WHO IT AFFECTS — three rows, never the caster, the goblins ticked, the Ranger not, in the spell\'s own words — while the demand waits; OK → the goblins owe the save, the Ranger does not, the card names both sides, one "choice" moment',
   21: '…and asks nobody when there is nothing to choose: the cube over the two goblins alone chooses them both with no popup; the default rides the card (not asked) and publishes no moment',
-  23: 'Empowered after Elemental Adept (the PHB feats walk, 2026-09-26 — Gren): Fire Bolt pinned [1, 7] — the chip shows 2 (rolled 1, counts 2) and the total is 9; the 1 rerolled to another 1 still counts 2 (the die keeps its min2 floor), the total stands at 9',
+  23: 'Empowered after Elemental Adept (the PHB feats walk, 2026-09-26): Fire Bolt pinned [1, 7] — the chip shows 2 (rolled 1, counts 2) and the total is 9; the 1 rerolled to another 1 still counts 2 (the die keeps its min2 floor), the total stands at 9',
   22: 'Slow with Heightened Spell: ONE popup — the choice ticks with a Disadvantage radio beside each row, live only on the ticked; the second goblin picked is the one the demand and the record mark; the Ranger never owes the save',
 };
 const DEPENDS = { 4: ['3'], 11: ['9'] };
@@ -52,7 +52,7 @@ const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'metamagic', watchdogMs: 600_000 });
 announcePlan('metamagic', plan, pulled);
 
-const out = await f.evaluate(async ({ sections, titles }) => {
+const out = await f.evaluate(async ({ sections, titles, extra }) => {
   const MOD = 'fvtt-mod-battleflow';
   const results = [];
   const log = [];
@@ -94,7 +94,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const sorcHome = { x: sorcTok.x, y: sorcTok.y };
   // poolSpendsOn draws the flash and card line for PLAYER-OWNED actors only: grant a player owner
   // for the run.
-  const player = game.users.find(u => !u.isGM && (u.name === 'PC Assistant')) ?? game.users.find(u => !u.isGM) ?? null;
+  const player = game.users.find(u => !u.isGM && (u.name === extra?.playerName)) ?? game.users.find(u => !u.isGM) ?? null;
   const ownership0 = foundry.utils.deepClone(sorc.ownership);
   if (player) await sorc.update({ [`ownership.${player.id}`]: CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER });
 
@@ -700,7 +700,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await app?.close();
       await closeDialogs();
       const gone = await castArea('careful');
-      ok('18y. the ask at the area lists exactly the four inside — never the Paladin or Gren out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Gren|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
+      ok('18y. the ask at the area lists exactly the four inside — never the Paladin or the Mage out on the range', gone.askRows?.length === 4 && !gone.askRows.some(r => /Paladin|Mage|Cleric|Rogue|Shielder/.test(r.name)), gone.why || gone.askRows?.map(r => r.name).join(','));
       await scatter();
     } else if (want(18)) ok('18. fixtures', false, 'BF Test Ranger missing');
 
@@ -956,6 +956,6 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     await teardown();
   }
   return { results, log, skips };
-}, sectionArg(plan, SECTIONS));
+}, sectionArg(plan, SECTIONS, { playerName: loadEnv().FOUNDRY_PLAYER_USER ?? null }));
 
 await finish({ tag: 'metamagic', out, plan, f });

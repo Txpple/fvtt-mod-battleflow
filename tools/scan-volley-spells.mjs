@@ -3,7 +3,6 @@
 // rays" / "additional beam"), then read every WORLD copy of the candidates to measure per-copy drift.
 //
 //   node tools/scan-volley-spells.mjs             (local sandbox)
-//   BF_TARGET=prod node tools/scan-volley-spells.mjs
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
 import { foundryConfig } from './target.mjs';
 

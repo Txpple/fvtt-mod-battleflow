@@ -684,7 +684,7 @@ moved.
 | Hunter's Prey (Colossus Slayer) on a target below its maximum | the ticked rider "Colossus Slayer — 1d8 · the target is damaged"; at full HP the row is off with why |
 | Hunter's Prey (Horde Breaker) | after the hit a reminder: "Horde Breaker — one more attack at a different creature within 5 ft of the Goblin" |
 | Tides of Chaos, any d20 dialog | Lucky's box: "Tides of Chaos — Advantage · 1 use"; a surge later gives it back with a card line |
-| Dark One's Blessing, a kill by the warlock's Eldritch Blast | "Dark One's Blessing — Gren gains 8 Temporary Hit Points" with a receipt; a kill by the fighter gives nothing |
+| Dark One's Blessing, a kill by the warlock's Eldritch Blast | "Dark One's Blessing — Aster gains 8 Temporary Hit Points" with a receipt; a kill by the fighter gives nothing |
 | Repelling Blast, an Eldritch Blast hit | the damage card's line per beam: "Repelling Blast — pushed 10 feet (move the token)" |
 
 ### A2 — the hit menu's next groups (≈ 1 session)
@@ -752,7 +752,7 @@ the hold (the popup after the roll shows its verdict — the same timing bend as
 all three); a DEMANDED save rides the withhold (`registerWithhold`, Guarded Mind's seam — the verdict waits
 while the bystander is asked); a CHECK rides the rescue window's offer (the raw-check shape: the arithmetic
 stated, "ask your DM"). A sheet save with no demand is listed, not asked. The bystander's popup is the hold's
-popup with the roller named in the title ("Cutting Words — the Bugbear's attack at Gren"), one row per source,
+popup with the roller named in the title ("Cutting Words — the Bugbear's attack at Aster"), one row per source,
 a Pass, the clock passing.
 
 **Machines touched:** `hold/trigger.js` (stamp bystanders beside guards: every creature holding a
@@ -786,11 +786,11 @@ routes to the bard's owner, the relay folds it: the one section that needs two c
 
 | Trait | What you should see |
 | --- | --- |
-| Cutting Words, a Bugbear hits Gren, Salyth within 60 ft of the Bugbear | Salyth's popup "Cutting Words — the Bugbear's attack at Gren · 17 vs AC 15": the row "Cutting Words — −1d8 · a Reaction, a use (3 left)"; Answer: the d8 rises off Salyth, "17 − 5 = 12 — MISS" on the attack card, the Reaction chip on Salyth |
+| Cutting Words, a Bugbear hits Aster, Corin within 60 ft of the Bugbear | Corin's popup "Cutting Words — the Bugbear's attack at Aster · 17 vs AC 15": the row "Cutting Words — −1d8 · a Reaction, a use (3 left)"; Answer: the d8 rises off Corin, "17 − 5 = 12 — MISS" on the attack card, the Reaction chip on Corin |
 | Cutting Words on a miss | no popup (the roll already missed); a hit that stands after the die: "still a HIT", the damage reduced by the same die when the row's `reduce` applies |
-| Cutting Words on a check (the Bugbear's Athletics) | the rescue window on Salyth's client: "Cutting Words — subtract 1d8 from the Bugbear's 14?"; the arithmetic on the card, "ask your DM" |
+| Cutting Words on a check (the Bugbear's Athletics) | the rescue window on Corin's client: "Cutting Words — subtract 1d8 from the Bugbear's 14?"; the arithmetic on the card, "ask your DM" |
 | Guided Strike, the cleric misses | the rescue window row "Guided Strike — +10 · Channel Divinity (1 of 2)"; the miss becomes a hit, the use spent |
-| Guided Strike, an ally within 30 ft misses | the cleric's popup for the ally's roll; the ally's attack card reads "Guided Strike (Thomas) — +10, 13 → 23, HIT" |
+| Guided Strike, an ally within 30 ft misses | the cleric's popup for the ally's roll; the ally's attack card reads "Guided Strike (Tavin) — +10, 13 → 23, HIT" |
 | Restore Balance, the Bugbear rolls with Advantage against anyone within 60 ft | the sorcerer's popup after the roll: "Restore Balance — cancel the Advantage? the first d20 (9) stands"; Answer: "17 → 14, MISS" |
 | A bystander with its Reaction spent | no popup; the card's quiet line "Cutting Words — Reaction spent" |
 
@@ -980,7 +980,7 @@ Mind's row); Countercharm's sight is not judged.
 | --- | --- |
 | Indomitable, a demanded save failed | the rescue window: "Indomitable — reroll, +9 · 1 of 1 use"; Use: the new d20 rises, "+9", the verdict retaken, the use spent |
 | Fanatical Focus, raging, a failed save | "Fanatical Focus — reroll, +2 · once this Rage"; a second failure the same Rage shows the row greyed |
-| Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — reroll Gren's save with Advantage? · a Reaction"; the two d20s rise off Gren, the verdict retaken |
+| Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — reroll Aster's save with Advantage? · a Reaction"; the two d20s rise off Aster, the verdict retaken |
 
 ### B2 — the save bends by name (≈ ½ session)
 
@@ -1008,7 +1008,7 @@ none. **Bends:** a save to END a condition rolled from the sheet is listed, not 
 | Trait | What you should see |
 | --- | --- |
 | Mantle of Majesty, Command at a creature Charmed by the bard | the save dialog's section "Mantle of Majesty — this save fails", the red Fails button the default |
-| Eldritch Strike, a hit then Fireball at the target | the hit lands "Eldritch Strike" on the target; the Dexterity save's section "Eldritch Strike — Disadvantage against Morgash's spells" |
+| Eldritch Strike, a hit then Fireball at the target | the hit lands "Eldritch Strike" on the target; the Dexterity save's section "Eldritch Strike — Disadvantage against Bramm's spells" |
 | Beguiling Twist, the ranger saves against Charmed | after the SUCCESS a popup: "Beguiling Twist — turn it on the Hag? · a Reaction"; the Hag's Wisdom save demanded |
 | Magical Ambush, the invisible rogue casts Tasha's Hideous Laughter | the target's section "Magical Ambush — the caster is Invisible", Net Disadvantage |
 | Eldritch Hex, a Hexed (Dexterity) creature's Dexterity save | "Eldritch Hex — a Dexterity save", Net Disadvantage; a Wisdom save shows nothing |
@@ -1081,7 +1081,7 @@ rebuke).
 
 | Trait | What you should see |
 | --- | --- |
-| Blessed Healer, Cure Wounds at an ally | "Healing — … · Blessed Healer: Salyth regains 4" on the same card |
+| Blessed Healer, Cure Wounds at an ally | "Healing — … · Blessed Healer: Corin regains 4" on the same card |
 | Bend Luck, the Bugbear's save | the sorcerer's popup "Bend Luck — −1d4 on the Bugbear's save · 1 Sorcery Point"; the verdict retaken |
 | Cosmic Omen (Woe) | "Cosmic Omen — −1d6" on any attack, save or check within 30 ft; the uses read off the feature |
 | Eldritch Smite | the hit menu's row "Eldritch Smite — a level 2 Pact slot · 3d8 force, Prone"; the slot spent, Prone pressed on a Huge-or-smaller target |

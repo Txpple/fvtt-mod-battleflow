@@ -332,16 +332,16 @@ describe("liveScenes — the active scene and every scene a connected user views
   });
   it("a scene a user is viewing is live too, named for the viewer; the active scene keeps its own why", () => {
     const live = em.liveScenes("camp", [
-      { sceneId: "upper-floor", name: "Jetten's player" },
+      { sceneId: "upper-floor", name: "Elra's player" },
       { sceneId: "camp", name: "GM" }
     ]);
     expect(live.get("camp")).toBe("the active scene");
-    expect(live.get("upper-floor")).toBe("Jetten's player is viewing it");
+    expect(live.get("upper-floor")).toBe("Elra's player is viewing it");
     expect(live.size).toBe(2);
   });
   it("no active scene is fine — the viewed scenes still count; a viewer on no scene adds nothing", () => {
     const live = em.liveScenes(null, [
-      { sceneId: "apothecary", name: "Gren" },
+      { sceneId: "apothecary", name: "Aster" },
       { sceneId: null, name: "Idle" }
     ]);
     expect([...live.keys()]).toEqual(["apothecary"]);
@@ -351,24 +351,24 @@ describe("liveScenes — the active scene and every scene a connected user views
   });
   it("a GM's view does NOT count while a player is connected — a preview of an old scene never raises its rings (user, 2026-09-23: 'if it keeps accuracy')", () => {
     const live = em.liveScenes("camp", [
-      { sceneId: "apothecary", name: "Gren", isGM: false },
-      { sceneId: "old-camp", name: "Matt the DM", isGM: true },
+      { sceneId: "apothecary", name: "Aster", isGM: false },
+      { sceneId: "old-camp", name: "Game Master", isGM: true },
       { sceneId: "vault", name: "Claude (bridge)", isGM: true }
     ]);
     expect([...live.keys()].sort()).toEqual(["apothecary", "camp"]);
   });
   it("a connected player on no scene still makes it a session — the GM's view does not count", () => {
     const live = em.liveScenes(null, [
-      { sceneId: null, name: "Gren", isGM: false },
-      { sceneId: "old-camp", name: "Matt the DM", isGM: true }
+      { sceneId: null, name: "Aster", isGM: false },
+      { sceneId: "old-camp", name: "Game Master", isGM: true }
     ]);
     expect(live.size).toBe(0);
   });
   it("the GM alone — prepping, testing — counts: the view is the only one there is", () => {
     const live = em.liveScenes("camp", [
-      { sceneId: "test-range", name: "Matt the DM", isGM: true }
+      { sceneId: "test-range", name: "Game Master", isGM: true }
     ]);
-    expect(live.get("test-range")).toBe("Matt the DM is viewing it");
+    expect(live.get("test-range")).toBe("Game Master is viewing it");
   });
 });
 
@@ -383,13 +383,13 @@ describe("appliesOnScene — only a LIVE scene's emanations apply (user, 2026-09
     expect(
       em.appliesOnScene(
         "apothecary",
-        em.liveScenes("camp", [{ sceneId: "apothecary", name: "Gren" }])
+        em.liveScenes("camp", [{ sceneId: "apothecary", name: "Aster" }])
       )
-    ).toEqual({ applies: true, why: "Gren is viewing it" });
+    ).toEqual({ applies: true, why: "Aster is viewing it" });
   });
   it("a ring on a scene nobody is on applies nothing — a linked actor's effect would show on every scene it stands on", () => {
     expect(
-      em.appliesOnScene("old-camp", em.liveScenes("battle", [{ sceneId: "battle", name: "Gren" }]))
+      em.appliesOnScene("old-camp", em.liveScenes("battle", [{ sceneId: "battle", name: "Aster" }]))
         .applies
     ).toBe(false);
   });
@@ -433,21 +433,21 @@ describe("groupMembers — ONE copy per aura per creature across every live scen
     inside,
     ...extra
   });
-  const gren = (tokenId, disposition = FRIENDLY) => ({
+  const aster = (tokenId, disposition = FRIENDLY) => ({
     tokenId,
-    actorKey: "Actor.gren",
+    actorKey: "Actor.aster",
     disposition
   });
   it("a linked ally inside the ring on two live scenes wears ONE copy — the first region's", () => {
-    const m = em.groupMembers([area("camp", [gren("g1")]), area("battle", [gren("g2")])]);
-    expect([...m]).toEqual([["Actor.gren", "camp"]]);
+    const m = em.groupMembers([area("camp", [aster("g1")]), area("battle", [aster("g2")])]);
+    expect([...m]).toEqual([["Actor.aster", "camp"]]);
   });
   it("inside on one scene and outside on the other: still a member", () => {
-    const m = em.groupMembers([area("camp", []), area("battle", [gren("g2")])]);
-    expect(m.get("Actor.gren")).toBe("battle");
+    const m = em.groupMembers([area("camp", []), area("battle", [aster("g2")])]);
+    expect(m.get("Actor.aster")).toBe("battle");
   });
   it("a region on a scene nobody plays on admits nobody", () => {
-    const m = em.groupMembers([area("old-camp", [gren("g1")], { applies: false })]);
+    const m = em.groupMembers([area("old-camp", [aster("g1")], { applies: false })]);
     expect(m.size).toBe(0);
   });
   it("the reach still decides, per region; a feature's bearer never wears its own ring, a spell's caster does", () => {

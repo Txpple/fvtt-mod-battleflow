@@ -267,14 +267,14 @@ function gateScene(){
 /* ---------- 3. Interception ---------- */
 function interScene(){
   const c=state.c, opt=state.opt.inter;
-  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Gren"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
+  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Aster"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
   if(c==="two") toks.push({x:110,y:105,l:"M",n:"Mira"});
   const rings = `<div class="ring" style="left:5px;top:5px;width:120px;height:120px"></div>`;
   const rule=RULES.inter;
   const stage=document.getElementById("stage");
-  const attack = card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Interception</span>"]);
+  const attack = card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Aster",["19 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Interception</span>"]);
   if(!state.done){
-    const mk = (who, dis) => popup(`Reaction — Interception — ${who}`,"Reaction — Interception",`The Goblin hits Gren — intercept?`,`Scimitar · 19 vs AC 15 · Gren is 5 ft from you`,
+    const mk = (who, dis) => popup(`Reaction — Interception — ${who}`,"Reaction — Interception",`The Goblin hits Aster — intercept?`,`Scimitar · 19 vs AC 15 · Aster is 5 ft from you`,
       rowHTML("t-"+who,"Interception","1d10 + 3", dis?"no Shield or weapon held":"a Reaction", rule, !dis && (state.ticked[who] ?? true), dis),
       `<button class="btn primary" data-act="inter" data-who="${who}" ${dis?"disabled":""}>Intercept</button><button class="btn" data-act="pass">Pass</button>`);
     let pops = mk("Rowan", c==="noshield");
@@ -285,56 +285,56 @@ function interScene(){
   }
   if(state.done==="pass"){
     stage.innerHTML = field(toks, rings) + `<div class="nothing">Passed. The damage lands in full.<br>${resetBtn}</div>`;
-    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>"]) + card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Gren",["1d6 + 2 → <b>7</b>","Gren −7 HP"]);
+    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Aster",["19 vs AC 15 — <b>HIT</b>"]) + card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Aster",["1d6 + 2 → <b>7</b>","Aster −7 HP"]);
     return;
   }
   const r=8, dmg=7;
-  stage.innerHTML = field(toks, rings) + `<div class="nothing">${state.done} intercepts: ${r} off Gren's damage.${c==="two"&&opt==="P1"?` Mira's popup closed ("Rowan intercepted").`:""}<br>${resetBtn}</div>`;
+  stage.innerHTML = field(toks, rings) + `<div class="nothing">${state.done} intercepts: ${r} off Aster's damage.${c==="two"&&opt==="P1"?` Mira's popup closed ("Rowan intercepted").`:""}<br>${resetBtn}</div>`;
   document.getElementById("chat").innerHTML =
-    card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["19 vs AC 15 — <b>HIT</b>"]) +
-    card(state.done,"good","Reaction","Interception","→ Gren",[`1d10 + 3 → <b>${r}</b>`,`<span class="chip used">${state.done} — Reaction used</span>`]) +
-    card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Gren",[`1d6 + 2 → <s class="old">7</s> <b>0</b>`,`<span class="sline">Interception (${state.done}) — ${Math.min(r,dmg)} prevented</span>`,"Gren −0 HP"]);
+    card("Goblin","good","Attack","Goblin — Scimitar","→ Aster",["19 vs AC 15 — <b>HIT</b>"]) +
+    card(state.done,"good","Reaction","Interception","→ Aster",[`1d10 + 3 → <b>${r}</b>`,`<span class="chip used">${state.done} — Reaction used</span>`]) +
+    card("Goblin","good","Damage Roll","Goblin — Scimitar","→ Aster",[`1d6 + 2 → <s class="old">7</s> <b>0</b>`,`<span class="sline">Interception (${state.done}) — ${Math.min(r,dmg)} prevented</span>`,"Aster −0 HP"]);
 }
 
 /* ---------- 4. Protection ---------- */
 function protScene(){
   const c=state.c, opt=state.opt.prot;
-  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Gren"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
+  const toks=[{x:40,y:40,l:"R",n:"Rowan"},{x:110,y:40,l:"Gr",n:"Aster"},{x:180,y:40,l:"G",n:"Goblin",foe:true}];
   if(c==="later") toks.push({x:180,y:105,l:"G2",n:"Goblin 2",foe:true});
   const rings = `<div class="ring" style="left:5px;top:5px;width:120px;height:120px"></div>`;
   const stage=document.getElementById("stage");
-  const grenBar = (on)=> barHTML("Gren", [efHTML("Protected — Rowan", on, on?"attacks vs Gren at Disadvantage · until Rowan's turn":"—", "ally")]);
+  const grenBar = (on)=> barHTML("Aster", [efHTML("Protected — Rowan", on, on?"attacks vs Aster at Disadvantage · until Rowan's turn":"—", "ally")]);
   if(c==="later"){
     stage.innerHTML = grenBar(true) + field(toks, rings) +
       `<div class="gate"><div class="title">Goblin 2 — Scimitar attack</div><div class="body">
-        <div class="src dis"><span>Gren — Protected (Rowan, 5 ft)</span><span class="tag">Disadvantage</span></div>
+        <div class="src dis"><span>Aster — Protected (Rowan, 5 ft)</span><span class="tag">Disadvantage</span></div>
         <div class="net">Net: <b>Disadvantage</b></div>
         <div class="modes"><span>Advantage</span><span>Normal</span><span class="def">Disadvantage</span></div></div></div>
-       <div class="nothing">Rowan stepped away? The row drops out as soon as Rowan is more than 5 ft from Gren.</div>`;
-    document.getElementById("chat").innerHTML = card("Rowan","good","Reaction","Protection","→ Gren",["Goblin's attack: 17 → 9, <b>MISS</b>","<span class='chip used'>Rowan — Reaction used</span>"]);
+       <div class="nothing">Rowan stepped away? The row drops out as soon as Rowan is more than 5 ft from Aster.</div>`;
+    document.getElementById("chat").innerHTML = card("Rowan","good","Reaction","Protection","→ Aster",["Goblin's attack: 17 → 9, <b>MISS</b>","<span class='chip used'>Rowan — Reaction used</span>"]);
     return;
   }
   if(!state.done){
     const eb = opt==="R1" ? "Rescue the hit — Protection" : "Reaction — Protection";
-    const h2 = opt==="R1" ? "The Goblin hits Gren — impose Disadvantage?" : "The Goblin attacks Gren — interpose your Shield?";
-    const sub = opt==="R1" ? "Scimitar · 17 vs AC 15 · Gren is 5 ft from you" : "Scimitar · before the roll · Gren is 5 ft from you";
+    const h2 = opt==="R1" ? "The Goblin hits Aster — impose Disadvantage?" : "The Goblin attacks Aster — interpose your Shield?";
+    const sub = opt==="R1" ? "Scimitar · 17 vs AC 15 · Aster is 5 ft from you" : "Scimitar · before the roll · Aster is 5 ft from you";
     stage.innerHTML = grenBar(false) + field(toks, rings) + popup("Protection — Rowan", eb, h2, sub,
       rowHTML("t-p","Protection","Disadvantage","a Reaction", RULES.prot, state.ticked.p ?? true, false),
       `<button class="btn primary" data-act="prot">${opt==="R1"?"Answer":"Interpose"}</button><button class="btn" data-act="pass">Pass</button>`);
     document.getElementById("chat").innerHTML = opt==="R1"
-      ? card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Gren",["17 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Protection</span>"])
-      : card("Goblin","pending","Attack — waiting","Goblin — Scimitar","→ Gren",["<span class='chip'>Waiting on Protection</span>"]);
+      ? card("Goblin","pending","Attack — held for a Reaction","Goblin — Scimitar","→ Aster",["17 vs AC 15 — <b>HIT</b>","<span class='chip'>Waiting on Protection</span>"])
+      : card("Goblin","pending","Attack — waiting","Goblin — Scimitar","→ Aster",["<span class='chip'>Waiting on Protection</span>"]);
     return;
   }
   if(state.done==="pass"){
     stage.innerHTML = grenBar(false) + field(toks, rings) + `<div class="nothing">Passed. The hit stands.<br>${resetBtn}</div>`;
-    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Gren",["17 vs AC 15 — <b>HIT</b>"]);
+    document.getElementById("chat").innerHTML = card("Goblin","good","Attack","Goblin — Scimitar","→ Aster",["17 vs AC 15 — <b>HIT</b>"]);
     return;
   }
-  stage.innerHTML = grenBar(true) + field(toks, rings) + `<div class="nothing">A second d20: 9. The lower stands and the attack misses. Gren is Protected until the start of Rowan's next turn.<br>${resetBtn}</div>`;
+  stage.innerHTML = grenBar(true) + field(toks, rings) + `<div class="nothing">A second d20: 9. The lower stands and the attack misses. Aster is Protected until the start of Rowan's next turn.<br>${resetBtn}</div>`;
   document.getElementById("chat").innerHTML =
-    card("Goblin","bad","Attack","Goblin — Scimitar","→ Gren",[`<s class="old">17</s> 9 vs AC 15 — <b>MISS</b>`,`<span class="sline">Protection (Rowan) bent the roll — Disadvantage, 17 → 9, MISS</span>`]) +
-    card("Rowan","good","Reaction","Protection","→ Gren",["Gren Protected until the start of Rowan's next turn","<span class='chip used'>Rowan — Reaction used</span>"]);
+    card("Goblin","bad","Attack","Goblin — Scimitar","→ Aster",[`<s class="old">17</s> 9 vs AC 15 — <b>MISS</b>`,`<span class="sline">Protection (Rowan) bent the roll — Disadvantage, 17 → 9, MISS</span>`]) +
+    card("Rowan","good","Reaction","Protection","→ Aster",["Aster Protected until the start of Rowan's next turn","<span class='chip used'>Rowan — Reaction used</span>"]);
 }
 
 /* ---------- 5. Unarmed Fighting ---------- */
@@ -410,9 +410,9 @@ const SIDE = {
   },
   gate:()=>`<div class="panel"><h3>How the gate reads</h3><p><b>Holding</b> means <b>equipped</b> on the sheet: weapons with the Equipped box ticked. A shield is not a weapon, so Longsword + Shield keeps Dueling live.</p><p><b>Defense</b> reads equipped body armor (Light, Medium or Heavy). A shield alone doesn't count.</p><p>The bar shows the reason when a style is off, and Dueling's card says why it didn't add (the second case).</p></div>
     <div class="panel q"><h3>To rule</h3><ul><li><b>Dueling's "off" line</b> on the damage card: keep it, or show nothing when it's off?</li><li><b>Versatile one-handed</b> (a Longsword swung one-handed) counts for Dueling. The same Longsword swung two-handed turns Dueling off and Great Weapon Fighting on, read from the attack's own grip.</li></ul></div>`,
-  inter:()=>`<div class="panel"><h3>How it fires</h3><p>The attack against Gren is held, as Parry holds one against its owner. The difference is who is asked: every creature within 5 ft of Gren with Interception listed, a Reaction free and a Shield or Simple/Martial weapon equipped. The click rolls 1d10 + PB and the damage lands reduced, receipted.</p><p>Warding Flare's reach to others (30 ft, the recorded gap) rides the same new ask.</p></div>
+  inter:()=>`<div class="panel"><h3>How it fires</h3><p>The attack against Aster is held, as Parry holds one against its owner. The difference is who is asked: every creature within 5 ft of Aster with Interception listed, a Reaction free and a Shield or Simple/Martial weapon equipped. The click rolls 1d10 + PB and the damage lands reduced, receipted.</p><p>Warding Flare's reach to others (30 ft, the recorded gap) rides the same new ask.</p></div>
     <div class="panel q"><h3>To rule</h3><ul><li><b>Two in reach:</b> P1 each gets a popup and the first answer closes the others, or P2 only the nearest is asked.</li><li><b>Stack?</b> The rule gives one reduction per Reaction, so two interceptors can't both reduce one hit under P1: the first wins.</li><li><b>Greyed row</b> when the protector holds nothing (third case), or no popup at all?</li></ul></div>`,
-  prot:()=>`<div class="panel"><h3>How it fires</h3><p>R1 is the Lucky / Warding Flare shape: asked once the roll shows a hit, a second d20, the lower stands. R2 is RAW-exact: asked when the attack is declared, before the roll, which means every attack against an adjacent ally stops to ask.</p><p>After it's used, Gren carries "Protected — Rowan" in the bar, and every later attack against Gren meets it in the roll gate while Rowan stays within 5 ft (second case).</p></div>
+  prot:()=>`<div class="panel"><h3>How it fires</h3><p>R1 is the Lucky / Warding Flare shape: asked once the roll shows a hit, a second d20, the lower stands. R2 is RAW-exact: asked when the attack is declared, before the roll, which means every attack against an adjacent ally stops to ask.</p><p>After it's used, Aster carries "Protected — Rowan" in the bar, and every later attack against Aster meets it in the roll gate while Rowan stays within 5 ft (second case).</p></div>
     <div class="panel q"><h3>To rule</h3><ul><li><b>R1 or R2.</b> R1 is the house precedent and a register bend (the same as Lucky's). R2 asks on every swing.</li><li><b>A shield is required</b> ("interpose your Shield"): no shield equipped, no ask.</li><li>Its own effect key, so it never collides with Protection from Evil and Good's "Protected".</li></ul></div>`,
   unarmed:()=>`<div class="panel"><h3>How it fires</h3><p>The sheet's plain Unarmed Strike rolls the style's die, picked by what's equipped at the attack (Unarmed Strike Dice, the Tavern Brawler row's shape): d8 with nothing held, d6 otherwise.</p><p>The turn-start 1d4 goes to one creature Rowan grapples.</p></div>
     <div class="panel q"><h3>To rule</h3><ul><li><b>U1 or U2</b> for the turn-start damage. The rule says "can", so U1 asks; the clock deals it, since there's rarely a reason to hold back. U2 deals it with no question.</li><li>Two grappled creatures: the popup lists both with a pick.</li></ul></div>`,

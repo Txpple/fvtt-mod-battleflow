@@ -30,7 +30,7 @@ describe("deadlineIsLive — the roof on the moment clocks", () => {
   });
 
   it("still arms across the widest measured cold boot", () => {
-    // A cold Molten start has needed ~540s of headroom; that must not read as history.
+    // A cold start on a hosted box has needed ~540s of headroom; that must not read as history.
     expect(core.deadlineIsLive(now() - 540_000)).toBe(true);
   });
 

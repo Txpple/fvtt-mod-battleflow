@@ -3,18 +3,18 @@
 // nothing. `--fix` replaces a mismatched item with the pack's copy (same name, the pool re-resolved
 // by identifier — hit-menu.js reads all three shapes).
 //
-//   node tools/fixture-morgash-maneuvers.mjs [--actor "Morgash the Gravemaker"] [--fix]
+//   node tools/fixture-maneuvers.mjs [--actor "BF Test Fighter"] [--fix]
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight). Read-only without --fix.
 import { connectSuite, disposeSafely, loadEnv } from "./harness.mjs";
 
 const args = process.argv.slice(2);
 const fix = args.includes("--fix");
 const at = args.indexOf("--actor");
-const actorName = at >= 0 ? args[at + 1] : "Morgash the Gravemaker";
+const actorName = at >= 0 ? args[at + 1] : "BF Test Fighter";
 const NAMES = ["Trip Attack", "Goading Attack", "Menacing Attack", "Pushing Attack", "Disarming Attack",
   "Distracting Strike", "Maneuvering Attack", "Sweeping Attack", "Precision Attack", "Riposte", "Rally"];
 
-const f = await connectSuite({ tag: "fixture-morgash", watchdogMs: 180_000, requireElect: false, env: loadEnv() });
+const f = await connectSuite({ tag: "fixture-maneuvers", watchdogMs: 180_000, requireElect: false, env: loadEnv() });
 const out = await f.evaluate(async ({ actorName, NAMES, fix }) => {
   const actor = game.actors.getName(actorName);
   if (!actor) return { error: `no actor named ${actorName}` };
@@ -47,4 +47,4 @@ const out = await f.evaluate(async ({ actorName, NAMES, fix }) => {
   return { actor: actor.name, rows, fixed };
 }, { actorName, NAMES, fix });
 console.log(JSON.stringify(out, null, 2));
-await disposeSafely(f, "fixture-morgash");
+await disposeSafely(f, "fixture-maneuvers");

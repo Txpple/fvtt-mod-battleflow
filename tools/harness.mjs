@@ -82,12 +82,12 @@ export function sectionArg(plan, titles = {}, extra = null) {
 }
 
 /**
- * One suite at a time. ⚠ Two suites on one box both join as `Tester Assistant`, and the preflight
+ * One suite at a time. ⚠ Two suites on one box both join as the suite identity, and the preflight
  * counts users, not sockets, so it passes and the runs fight over settings and fixtures.
  * A pid file held by a LIVE pid refuses the second run; a stale lock is taken over and reported.
  */
 function takeSuiteLock(tag) {
-  const lock = join(tmpdir(), `bf-suite-${(process.env.BF_TARGET ?? "local").toLowerCase()}.lock`);
+  const lock = join(tmpdir(), `bf-suite-${process.env.BF_HOST || "local"}.lock`);
   let held = null;
   try { held = JSON.parse(readFileSync(lock, "utf8")); } catch { /* no lock, or unreadable */ }
   if (held?.pid) {

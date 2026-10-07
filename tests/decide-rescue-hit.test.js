@@ -480,12 +480,12 @@ describe("the bystander's bend (Q2, option A) — the margin gate and the two ne
     expect(o).toMatchObject({ how: "die", total: 12, add: -5, isCritical: false, changed: true });
     expect(r.bentChips(o)).toEqual([{ label: "−5", up: true }]);
     const lines = r.bentLines({
-      rescue: "Cutting Words (Salyth)",
+      rescue: "Cutting Words (Corin)",
       bent: o,
       verdict: "miss",
       ac: 15
     });
-    expect(lines.headline).toBe("Cutting Words (Salyth) −5 — 17 → 12, MISS");
+    expect(lines.headline).toBe("Cutting Words (Corin) −5 — 17 → 12, MISS");
   });
 
   it("neutraliseOutcome stands the first d20 (Q3, a rule of cool)", () => {

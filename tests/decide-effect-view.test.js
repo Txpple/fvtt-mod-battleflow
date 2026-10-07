@@ -60,7 +60,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
     expect(listed(fact({ temporary: false, worn: true, statuses: ["poisoned"] }))).toBe(true);
   });
 
-  it('lists the bearer\'s own standing aura, worn as it is (user, 2026-09-15: "protected doesnt show on invictus tho, even tho he is")', () => {
+  it('lists the bearer\'s own standing aura, worn as it is (user, 2026-09-15: "protected doesnt show on dorian tho, even tho he is")', () => {
     // Aura of Protection's "Protected" on the Paladin: the pack's transfer effect, no clock, no status
     const protectedOnPaladin = fact({
       name: "Protected",
@@ -232,7 +232,7 @@ describe("the effect view's rows (DESIGN §6, 2026-09-15: buffs and debuffs, nev
       },
       {
         bearer: "Ogre",
-        fact: fact({ id: "v", name: "Vexed", chipKey: "vex", origin: "Actor.gren.Item.axe" })
+        fact: fact({ id: "v", name: "Vexed", chipKey: "vex", origin: "Actor.aster.Item.axe" })
       },
       {
         bearer: "Ogre",

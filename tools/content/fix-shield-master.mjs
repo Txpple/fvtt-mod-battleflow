@@ -5,7 +5,6 @@
 //
 //   node tools/content/fix-shield-master.mjs                 → report the sandbox (read-only)
 //   node tools/content/fix-shield-master.mjs --graft         → graft the Prone effect if missing
-//   BF_TARGET=prod node tools/content/fix-shield-master.mjs  → report prod (read-only)
 //
 // The sweep: every actor-held feature with a save activity whose bound-effect list is EMPTY.
 // Report-only; most are correct as data (the consequence is damage or narration).

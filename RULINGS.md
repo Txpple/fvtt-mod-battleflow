@@ -907,7 +907,7 @@ Fighting **U1**, *"truesight yes"*. `smoke-damage-rules` (31 checks), `smoke-gua
 
 **The feats the table's players took, first.** The slice opened on the party's sheets (prod):
 the origin feats and styles were in already; of the PHB general feats, Great Weapon Master and
-Heavy Armor Master (Morgash), Shield Master (Invictus), Fey-Touched (Gren). The user: *"i cant
+Heavy Armor Master (Bramm), Shield Master (Dorian), Fey-Touched (Aster). The user: *"i cant
 beleive weve been missing damage on gwm!"*; *"heavy armor master should have that blocking damage
 like stones endurance / protectin does"*; *"great weapon master is also the situational bonus w
 damage"*; Interpose Shield **B**, bent by choice (the rule-of-cool table above). `smoke-damage-rules`
@@ -998,7 +998,7 @@ one sensible answer, the way Great Weapon Fighting's does.
   lands once, the new die on its own card and over the healer on the canvas (`heal-rerolls.js`, the
   same road, the ask taken out).
 - **A reroll keeps its die's floor** (`decide/damage-dice.js` `rerollFaces`): a new face under the
-  term's `minN` counts N, the way Foundry's `Die#minimum` counts it — so Gren's Empowered reroll that
+  term's `minN` counts N, the way Foundry's `Die#minimum` counts it — so Aster's Empowered reroll that
   lands on a fire 1 is still a 2, and a Piercer reroll under Great Weapon Fighting is still a 3.
 - **The choices keep their popups**: Empowered Spell (a point, the dice picked), Savage Attacker and
   Piercer (once per turn).
@@ -1073,7 +1073,7 @@ outright ("Creatures that don't sleep, such as elves … automatically succeed")
 ## The PHB feats — groups 1–3 (2026-09-26)
 
 **Built in one autonomous pass** (the user: *"work autonomously til done with 1-3"*), off the scope
-above. The calls made while the user was away are marked ⓐ. **WALKED 2026-09-26 on Party Camp**
+above. The calls made while the user was away are marked ⓐ. **WALKED 2026-09-26 on the walk scene**
 (`tools/content/place-feats-walk.mjs`), feat by feat, all eight good; every ⓐ call stands, with one
 later ruling: Elemental Adept's floor stays automatic and survives a reroll (*The dice changers*,
 above). The range feats keep no list of their own
@@ -1143,7 +1143,7 @@ spends the item's one use, back on a Short or Long Rest), and nothing for the br
   Adept's and Poisoner's damage rules are. The precedent is Extended Spell's mark on a
   concentration save: the concentration ask RECORDS the damage's dealer (the card that dealt it
   names its actor — `concentration.js` `breakerFor`), the ask card and its dialog say
-  "Mage Slayer (Morgash) — the save is made at Disadvantage", and the save gate lists it, counted.
+  "Mage Slayer (Bramm) — the save is made at Disadvantage", and the save gate lists it, counted.
   The roll carries `disadvantage` alone, so dnd5e nets it with the concentrator's own Advantage:
   War Caster beside Mage Slayer is a plain roll. The buzzer and auto mode roll it too (Heightened
   Spell's buzzer, the same shape). Damage with no card (a sheet edit) names no dealer — nothing.
@@ -1207,7 +1207,7 @@ swung (`rebukes.js`).
 - **Guardian** — a `REBUKES` row with `ward`: the bearer is a BYSTANDER. When an attack's damage lands
   (`hit`: its card an attack's), every OTHER creature on the scene holding a listed ward — not the one
   hit, not the one hitting — within 5 ft of the hitter is asked (`stampWards`), Riposte's popup and
-  card: "Hobgoblin hit Gren — strike?". Use drives the melee attack at the hitter, its cards marked
+  card: "Hobgoblin hit Aster — strike?". Use drives the melee attack at the hitter, its cards marked
   `opportunity`; the Reaction is spent. ⓐ Asked only when the hitter stands on ANOTHER side of the map
   (token disposition): RAW any creature's hit triggers it, but a popup on every friend's hit is noise
   — punishing a friend stays a sheet attack. ⓐ Offered when the hit's damage LANDS (the rebukes' seam:
@@ -1249,7 +1249,7 @@ swung (`rebukes.js`).
     `range: "weaponReach"`, `effect: null`, `quiet`); a hostile creature MOVING into it — Foundry's own
     `tokenMoveIn`, raised only when the creature itself moved (measured: the ring sliding over a
     standing creature raises none, and a teleport-style drag raises it) — posts Hew's reminder on the
-    owner, "Reactive Strike — Hobgoblin entered Morgash's reach" (`alert`), unless its Reaction is
+    owner, "Reactive Strike — Hobgoblin entered Bramm's reach" (`alert`), unless its Reaction is
     spent or it is Incapacitated. Nothing is applied to the hostile: the "buff" is the ring's own entry
     event (ⓐ — a mark on every foe that stepped close would be noise on its token; the user asked,
     2026-09-27, whether the buff's own application would catch more — it is raised by the same entry
@@ -1277,8 +1277,8 @@ Un-parked from BACKLOG's *Cover, measured on hover*; DESIGN §8's cover row amen
   object's). The DMG counts a creature as an obstacle for the lines; lines only a creature blocks
   never lift the degree past Half. Ally or foe alike. A hidden token and a dead one are not counted.
 - **Total** is "no line reaches": every line from every corner to every square meets a wall.
-- **The measure is not symmetric, and stays so** (the user, 2026-09-27, the walk: Jetten had Half
-  against Invictus's shot while Invictus had none against Jetten's; offered a symmetric bend, ruled
+- **The measure is not symmetric, and stays so** (the user, 2026-09-27, the walk: Elra had Half
+  against Dorian's shot while Dorian had none against Elra's; offered a symmetric bend, ruled
   "keep the DMG rule as written"). The lines run from ONE corner of the attacker's space to ALL
   four corners of the target's square, so the creature standing beside an obstacle is the covered
   one.
@@ -1418,7 +1418,7 @@ save — the table's). ⚠ Contagion's pack lands all six Infected effects on a 
 disease is the caster's pick — fix at the data, never a carve-out).
 
 **The walk — Tier 1** (`tools/content/place-spells-walk.mjs` puts BF Walk Cleric with the slice's spells
-and two targets on Party Camp):
+and two targets on the walk scene):
 
 | Spell | What you should see |
 | --- | --- |
@@ -1988,16 +1988,16 @@ bent by someone who is neither the roller nor its target: vocabulary on the `rol
 
 | Test | Where it rides | Rows | What the player sees |
 | --- | --- | --- | --- |
-| **an attack that HITS** | the reaction hold — the bystanders stamped beside the guards (`hold/lookup.js` `bystandersOf`) | Cutting Words (−Bardic die), Restore Balance (the first d20) | a popup titled "Cutting Words — the Bugbear's attack at Gren", the situation line with the margin ("A d8 can turn it: 17 − 8 = 9"), one tick row, Answer / Pass / **Not this combat**; the attack card: "Cutting Words (Salyth) −5 — 17 → 12, MISS" |
-| **an attack that MISSES** | a hold of its own on the miss (`stampMissHoldIfBystanders`), one judged target; a turned miss rolls its damage at the resolve | Guided Strike (+10; the cleric's own miss with no Reaction), Restore Balance | the same popup, "You missed …" on the cleric's own roll; "Guided Strike (Thomas) +10 — 13 → 23, HIT" |
+| **an attack that HITS** | the reaction hold — the bystanders stamped beside the guards (`hold/lookup.js` `bystandersOf`) | Cutting Words (−Bardic die), Restore Balance (the first d20) | a popup titled "Cutting Words — the Bugbear's attack at Aster", the situation line with the margin ("A d8 can turn it: 17 − 8 = 9"), one tick row, Answer / Pass / **Not this combat**; the attack card: "Cutting Words (Corin) −5 — 17 → 12, MISS" |
+| **an attack that MISSES** | a hold of its own on the miss (`stampMissHoldIfBystanders`), one judged target; a turned miss rolls its damage at the resolve | Guided Strike (+10; the cleric's own miss with no Reaction), Restore Balance | the same popup, "You missed …" on the cleric's own roll; "Guided Strike (Tavin) +10 — 13 → 23, HIT" |
 | **a DEMANDED save** | the save's verdict WITHHELD (`bystanders.js`, `registerWithhold`); the bent roll REPLACES the total (`SAVE_FOLDS`) | Restore Balance | "Restore Balance — the Halfling's saving throw"; the verdict lands after the answer; the roll's card names the bend |
-| **a check** | an offer on the check's own card (`bystanders.js`), nothing withheld | Cutting Words (a hostile's check), Restore Balance | the popup says no DC is known; the card: "Cutting Words (Salyth) −5: 15 → 10 — ask your DM whether it still succeeds" |
+| **a check** | an offer on the check's own card (`bystanders.js`), nothing withheld | Cutting Words (a hostile's check), Restore Balance | the popup says no DC is known; the card: "Cutting Words (Corin) −5: 15 → 10 — ask your DM whether it still succeeds" |
 
 - **The margin gate**: asked only when the bend can change the verdict (a die up to its maximum across the AC or
   DC, the first d20 across it). A check has no DC, so it asks. With "Hold Shows the Math" off, a die bend is asked
   on every hit but a natural 20 or 1 (the gate would leak the AC — `holdWouldMatter`'s rule).
 - **The quiet road**: a bystander the gate is silent on, whose row has a damage half (Cutting Words), rides a hold
-  that already stands, on the attack card only and only on its own client — "Cutting Words (Salyth) — −d8 off
+  that already stands, on the attack card only and only on its own client — "Cutting Words (Corin) — −d8 off
   the damage [Answer] [Not this combat]". It never opens a hold of its own (the register's row).
 - **"Not this combat"**: on the popup and on the card row, only while a combat runs; an effect on the bearer
   ("Cutting Words — muted this combat", flag `bystanderMute`), listed by the effect view, swept when the combat
@@ -2013,9 +2013,9 @@ bent by someone who is neither the roller nor its target: vocabulary on the `rol
 
 | Trait | What you should see |
 | --- | --- |
-| Cutting Words, a Bugbear hits Gren by 2, Salyth within 60 ft of the Bugbear | Salyth's popup with "A d8 can turn it"; Answer: the die rolls, "Cutting Words (Salyth) −5 … MISS" on the attack card, a Bardic Inspiration spent |
+| Cutting Words, a Bugbear hits Aster by 2, Corin within 60 ft of the Bugbear | Corin's popup with "A d8 can turn it"; Answer: the die rolls, "Cutting Words (Corin) −5 … MISS" on the attack card, a Bardic Inspiration spent |
 | The same Bugbear hits by 9 | nobody asked, the damage lands |
-| A hit that holds for someone else (Gren's Lucky) and Cutting Words can't turn it | no popup for Salyth; her row on the attack card, "−d8 off the damage" — Answer lands the hit 1d8 lighter |
+| A hit that holds for someone else (Aster's Lucky) and Cutting Words can't turn it | no popup for Corin; her row on the attack card, "−d8 off the damage" — Answer lands the hit 1d8 lighter |
 | Restore Balance, the Bugbear hits with Advantage, its first die a miss | the sorcerer's popup naming the first d20; Answer: a MISS |
 | Guided Strike, an ally misses by 7 within 30 ft of the cleric | the cleric's popup "+10 · a Reaction"; Answer: HIT, the damage rolls |
 | Guided Strike, the cleric misses | its own popup, "No Reaction" |
@@ -2346,7 +2346,7 @@ Calls the plan left open — **each is the user's to overrule**:
    condition read off the demand card's effects (a save the module did not demand is not offered, the register's row). A
    reroll is a GIFT: only a FRIEND's failure (the bard's own included — the roller is a bystander at 0 ft), and only where a 20
    on the new die reaches the DC. The new d20 rolls at Advantage off the ROLLER (its dice rise on the roller), the new roll
-   stands whatever it shows, and the card says "Countercharm (Salyth) — the d20 (4) rerolled with Advantage (17, 3) — the 17
+   stands whatever it shows, and the card says "Countercharm (Corin) — the d20 (4) rerolled with Advantage (17, 3) — the 17
    stands: 9 → 22 vs DC 15". "A creature you can see" is not judged (Q6's rule).
 5. **Living Legend's save (D1) and Disciplined Survivor (C1) are rows of `REROLLS`** when their band comes (`advantage`, `pool`
    already facets); the plan's `tests` facet on the `tactical` spend waits for its first customer (Dark One's Own Luck, B4).
@@ -2365,7 +2365,7 @@ Calls the plan left open — **each is the user's to overrule**:
 | Indomitable, a Wisdom save rolled from the sheet (no demand) | the same offer, the roller judges ("… — ask your DM whether that lands") |
 | Fanatical Focus, raging, a failed save | "Fanatical Focus — Rerolls the d20, +2 — once this Rage, the new roll stands"; a second failure the same Rage shows no row; a new Rage offers it again |
 | Fanatical Focus, not raging | no row |
-| Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — Gren's saving throw … The d20 (4) is rolled again with Advantage; the new roll stands"; Answer: the two d20s rise off Gren, the verdict retaken |
+| Countercharm, an ally within 30 ft fails a save against Frightened | the bard's popup: "Countercharm — Aster's saving throw … The d20 (4) is rolled again with Advantage; the new roll stands"; Answer: the two d20s rise off Aster, the verdict retaken |
 | Countercharm, the save is against Paralyzed (Hold Person) | no popup |
 | Countercharm, the bard's own failed save against Charmed | the popup to the bard, "your saving throw" |
 
@@ -2426,10 +2426,10 @@ check-mode change. Calls the plan left open — **each is the user's to overrule
 | --- | --- |
 | Psychic Defenses, a demand that would frighten | the save dialog's section "Psychic Defenses — against Frightened", Net Advantage |
 | Magical Ambush, the invisible rogue casts Tasha's Hideous Laughter | the target's section "Vex — Magical Ambush — against a spell, Vex Invisible as it cast", Net Disadvantage; visible, nothing |
-| Mantle of Majesty on (Unearthly Appearance), Command at a creature the bard Charmed | "Salyth — Mantle of Majesty: this save cannot succeed — Command, Gren Charmed by Salyth"; the red Fails button the default; Fails: the entry failed, no die |
-| Eldritch Strike, a weapon hit then Hold Person at the target | the damage offer's rider row "Eldritch Strike" ticked; "Struck" on the target; its Wisdom save's section "Struck — against Morgash's spell", Net Disadvantage; after the roll Struck is gone |
+| Mantle of Majesty on (Unearthly Appearance), Command at a creature the bard Charmed | "Corin — Mantle of Majesty: this save cannot succeed — Command, Aster Charmed by Corin"; the red Fails button the default; Fails: the entry failed, no die |
+| Eldritch Strike, a weapon hit then Hold Person at the target | the damage offer's rider row "Eldritch Strike" ticked; "Struck" on the target; its Wisdom save's section "Struck — against Bramm's spell", Net Disadvantage; after the roll Struck is gone |
 | Eldritch Hex, a Hexed (Dexterity) creature's Dexterity save | "Hexed Dexterity — a Dexterity save", Net Disadvantage; a Wisdom save shows nothing |
-| Beguiling Twist, anyone within 120 ft succeeds against Charm Person | the ranger's popup "Beguiling Twist — Gren's saving throw — it succeeded; target ONE other creature, then Answer"; the target's Wisdom save demanded; on its failure "Charmed or Frightened?" — the pick lands for a minute |
+| Beguiling Twist, anyone within 120 ft succeeds against Charm Person | the ranger's popup "Beguiling Twist — Aster's saving throw — it succeeded; target ONE other creature, then Answer"; the target's Wisdom save demanded; on its failure "Charmed or Frightened?" — the pick lands for a minute |
 | Beguiling Defenses, a creature hits the warlock | the hold's popup with Beguiling Defenses (1 use); Cast: the damage halved on the receipt, the attacker's Wisdom save demanded; on its failure psychic damage equal to the damage taken, receipted |
 
 ## The PHB classes — B3 (2026-09-30, Session 0 stage B3)
@@ -2485,7 +2485,7 @@ the user's to overrule**:
 | Brutal Strike, the box not ticked | no group on the hit |
 | Brutal Strike, Hamstring Blow picked | the die rode the roll, "the forgone Advantage paid for it"; Hamstrung on the target (−15 ft) until the start of your next turn |
 | Sundering Blow, then an ally attacks the target | the ally's dialog: "Ogre is Sundered — +5 to this attack roll" and +5 in the formula; the roll spends it; the barbarian's own attack shows nothing |
-| Studied Attacks, a miss then an attack at the same creature | after the miss: "Studied Attacks — vs Goblin" on the fighter; the next attack's gate "Morgash — Studied Attacks — vs Goblin", Net Advantage; against another creature nothing; the roll spends it |
+| Studied Attacks, a miss then an attack at the same creature | after the miss: "Studied Attacks — vs Goblin" on the fighter; the next attack's gate "Bramm — Studied Attacks — vs Goblin", Net Advantage; against another creature nothing; the roll spends it |
 | Relentless, no dice left, a maneuver picked | the offer's group "Combat Superiority" with "1d8 Superiority Die"; the card: "Relentless — a 1d8 stood in for the Superiority Die; none spent"; the pool still 0 |
 | Tactical Master, a Longsword (Sap) attack | the attack dialog's Mastery select: Sap · Push · Slow; Push picked: the module's Push ask after the hit |
 
@@ -2988,7 +2988,7 @@ gate holds; the judge hinges on the target, so the target pass reads it).
 
 | Trait | Setup | What you should see |
 | --- | --- | --- |
-| Sticky Shield | a kuo-toa, a PC's melee weapon attack that misses it | "Gren missed Kuo-toa" — Use; a Strength save demanded of Gren |
+| Sticky Shield | a kuo-toa, a PC's melee weapon attack that misses it | "Aster missed Kuo-toa" — Use; a Strength save demanded of Aster |
 | Elemental Absorption | a creature with it takes fire from a card | the rebuke offer; slashing offers nothing; damage typed on the sheet offers nothing (no card) |
 | Deflect Missile | a monster with it hit by an arrow, then by a sword | the hold and the reduce on the arrow; nothing on the sword |
 | Toxic Escape | a monster with it hit | the hold; Use halves the damage; the teleport and the save are yours from the sheet |

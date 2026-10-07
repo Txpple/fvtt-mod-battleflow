@@ -5,6 +5,7 @@
  *   node tools/battery.mjs --from smoke-saves resume after a failure, in order
  *   node tools/battery.mjs smoke-hold smoke-saves   just these, still in the canonical order
  *   node tools/battery.mjs --snapshot         roll the world back afterwards (see below)
+ *   node tools/battery.mjs --keep             leave the fixtures in the world afterwards
  *   node tools/battery.mjs --list             the order, without running anything
  *   node tools/battery.mjs --changed          what the working tree's change needs, and only that
  *   node tools/battery.mjs --changed main     ...the branch since main, plus the working tree
@@ -19,6 +20,9 @@
  *    ⚠ The two-client entries need the player test account free (no human logged in as it).
  * 3. Settings are VERIFIED after (the reference table): a crashed run launders its pins into
  *    the next run's "prior".
+ * 4. SELF-CONTAINED (2026-10-07): every plan opens with `fixture-suite` (every fixture built from the
+ *    compendia; a failed build stops the run) and closes with `teardown-fixtures` (unless --keep), so
+ *    the sandbox world can be any world, a fresh copy of prod included, and is left as it was found.
  * ⚠ `--snapshot` rolls the world back after the last suite, undoing even a crashed teardown. It
  * needs the local sandbox with no clients, costs two world bounces, and discards table changes.
  */
@@ -82,6 +86,7 @@ const { values, positionals } = parseArgs({
   options: {
     from: { type: "string" },
     snapshot: { type: "boolean" },
+    keep: { type: "boolean" },
     list: { type: "boolean" },
     section: { type: "string" }
   },
@@ -165,6 +170,11 @@ if (byChange) {
   plan = ORDER;
 }
 
+// The setup row: every fixture built from the compendia before anything runs, whatever the plan.
+const SETUP = { name: "fixture-suite", note: "setup — every fixture built from the compendia", reset: true, setup: true };
+if (plan[0]?.name !== "fixture-suite") plan = [SETUP, ...plan];
+else plan = [{ ...plan[0], setup: true }, ...plan.slice(1)];
+
 if (values.list) {
   printPlan(plan, "The plan, in order:");
   process.exit(0);
@@ -227,6 +237,11 @@ for (const suite of plan) {
   if (bad) failed++;
   results.push({ name: suite.name, code, secs, verdict, bad });
   console.log(`${bad ? "FAILED" : "ok"} (${secs}s) — ${verdict}`);
+  if (suite.setup && (code !== 0)) {
+    console.log(`\n[battery] the fixture build failed — nothing can run. See ${join(runDir, `${suite.name}.txt`)}`);
+    for (const l of body.split("\n")) if (/FAIL|FATAL|ERROR|⚠/.test(l)) console.log(l);
+    process.exit(2);
+  }
   // Failures print here in full, as well as landing in the file.
   if (bad) {
     console.log(`\n──────── ${suite.name} — the failing lines ────────`);
@@ -254,6 +269,13 @@ const settings = run("verify-settings");
 const clean = settings.code === 0;
 console.log(clean ? "  CLEAN" : `  ⚠ DRIFTED — see ${join(runDir, "verify-settings.txt")}, `
   + "then `node tools/verify-settings.mjs --fix`");
+
+if (values.keep) console.log("\n[battery] --keep: the fixtures stay in the world");
+else {
+  console.log("\n[battery] tearing the fixtures down…");
+  const down = run("teardown-fixtures");
+  console.log(`  ${down.body.split("\n").find(l => l.startsWith("[teardown-fixtures]")) ?? `⚠ exit ${down.code} — see the file`}`);
+}
 
 if (values.snapshot) {
   console.log("\n[battery] rolling the world back to the snapshot…");

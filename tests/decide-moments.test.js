@@ -62,7 +62,7 @@ describe("the moment registry — shape", () => {
         sourceUuid: "Actor.r",
         formula: "1d8",
         type: "slashing",
-        directedBy: "Morgash",
+        directedBy: "Bramm",
         weapon: "Longsword",
         cardId: "c"
       },
@@ -152,7 +152,7 @@ describe("the moment registry — shape", () => {
         actorUuid: "Actor.al",
         actorName: "Alert",
         initiative: 11,
-        allies: [{ combatantId: "c1", name: "Gren", initiative: 19, uuid: "Actor.g" }],
+        allies: [{ combatantId: "c1", name: "Aster", initiative: 19, uuid: "Actor.g" }],
         answer: "swap",
         pick: "c1",
         applied: true,
@@ -196,7 +196,7 @@ describe("the moment registry — shape", () => {
         actorUuid: "Actor.h",
         actorName: "Healer",
         targetUuid: "Actor.g",
-        targetName: "Gren",
+        targetName: "Aster",
         pools: [{ key: "c", faces: 10, label: "Fighter", value: 3, max: 5 }],
         answer: "tend",
         pick: "c",
@@ -367,9 +367,9 @@ describe("the moment registry — shape", () => {
       },
       useChip: { sourceUuid: "Actor.rogue", effectId: "e", name: "Steady Aim", bend: "advantage" },
       typePick: {
-        sourceUuid: "Actor.gren",
+        sourceUuid: "Actor.aster",
         row: "Elemental Adept",
-        itemUuid: "Actor.gren.Item.x",
+        itemUuid: "Actor.aster.Item.x",
         left: ["fire", "cold"],
         chosen: "fire"
       },
@@ -495,8 +495,8 @@ describe("the moment registry — shape", () => {
       },
       areaChoice: {
         spell: "Slow",
-        chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
-        left: [{ uuid: "Actor.i", name: "Invictus" }],
+        chosen: [{ uuid: "Actor.b", name: "Mirefang" }],
+        left: [{ uuid: "Actor.i", name: "Dorian" }],
         asked: true,
         cap: 6,
         sourceUuid: "Actor.g"
@@ -522,7 +522,7 @@ describe("the moment registry — the edges", () => {
   it("a chosen area's default — nothing to choose, nobody asked — resolves nothing; an answered one resolves once, the chosen as its targets", () => {
     const base = {
       spell: "Slow",
-      chosen: [{ uuid: "Actor.b", name: "Bramblemaw" }],
+      chosen: [{ uuid: "Actor.b", name: "Mirefang" }],
       left: [],
       cap: 6,
       sourceUuid: "Actor.g"
@@ -531,7 +531,7 @@ describe("the moment registry — the edges", () => {
     const out = resolves("areaChoice", { ...base, asked: true });
     expect(out.length).toBe(1);
     expect(out[0].events).toEqual(["choice"]);
-    expect(out[0].facts.targets).toEqual([{ uuid: "Actor.b", name: "Bramblemaw" }]);
+    expect(out[0].facts.targets).toEqual([{ uuid: "Actor.b", name: "Mirefang" }]);
   });
   it("a pending hold resolves nothing; each answered target is one resolve, Parry's die under two words, on the answerer's client", () => {
     const pending = {

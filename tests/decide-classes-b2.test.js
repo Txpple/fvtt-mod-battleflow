@@ -115,11 +115,11 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
   const facts = () => ({
     enabled: Object.keys(reg.EFFECT_BENDS),
     table: reg.EFFECT_BENDS,
-    name: "Gren"
+    name: "Aster"
   });
   const bard = {
     uuid: "Actor.bard",
-    name: "Salyth",
+    name: "Corin",
     effects: [{ id: "ua", name: "Unearthly Appearance" }],
     features: [],
     statuses: []
@@ -132,7 +132,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
       demand: { spell: true, statuses: ["charmed"] }
     });
     expect(out.map(s => [s.bend, s.label])).toEqual([
-      ["advantage", "Gren — Psychic Defenses — against Charmed"]
+      ["advantage", "Aster — Psychic Defenses — against Charmed"]
     ]);
     expect(
       r.effectSaveSources({
@@ -158,7 +158,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ autoFail: true, statusName: "Mantle of Majesty", bend: null });
     expect(out[0].label).toBe(
-      "Salyth — Mantle of Majesty: this save cannot succeed — Command, Gren Charmed by Salyth"
+      "Corin — Mantle of Majesty: this save cannot succeed — Command, Aster Charmed by Corin"
     );
   });
   it("…and nothing when the spell is not Command, the Charmed is another's, the bard wears no mantle, or there is no demand", () => {
@@ -237,7 +237,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
     const struck = { id: "s1", name: "Struck", statuses: [], sourceUuid: "Actor.fighter" };
     const fighter = {
       uuid: "Actor.fighter",
-      name: "Morgash",
+      name: "Bramm",
       effects: [],
       features: [],
       statuses: []
@@ -252,7 +252,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
       bend: "disadvantage",
       effectId: "s1",
       spend: "save",
-      label: "Gren — Struck — against Morgash's spell"
+      label: "Aster — Struck — against Bramm's spell"
     });
     expect(
       r.effectSaveSources({
@@ -277,7 +277,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
     });
     expect(out.map(s => s.bend)).toEqual([null]);
     expect(out[0].label).toMatch(
-      /^Gren — Struck \(listed — a save against a spell or other magical effect/
+      /^Aster — Struck \(listed — a save against a spell or other magical effect/
     );
   });
 
@@ -295,7 +295,7 @@ describe("B2 — the save gate's new facets (effectSaveSources)", () => {
       demand: { spell: false, statuses: [], abilities: ["dex"] }
     });
     expect(dex.map(s => [s.bend, s.label, s.effectId])).toEqual([
-      ["disadvantage", "Gren — Hexed Dexterity — a Dexterity save", "h1"]
+      ["disadvantage", "Aster — Hexed Dexterity — a Dexterity save", "h1"]
     ]);
     expect(
       r.effectSaveSources({

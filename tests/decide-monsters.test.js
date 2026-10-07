@@ -238,17 +238,17 @@ describe("DRAINS — the fall on the damage that landed", () => {
     ]);
     expect(data.flags.bf.drain).toEqual({ key: "Life Drain", amount: 9 });
     expect(
-      dn.drainTitle({ key: "Life Drain", target: "Gren", what: "max", amount: 4, total: 9 })
-    ).toBe("Life Drain — Gren's Hit Point maximum falls by 4 (9 in all)");
+      dn.drainTitle({ key: "Life Drain", target: "Aster", what: "max", amount: 4, total: 9 })
+    ).toBe("Life Drain — Aster's Hit Point maximum falls by 4 (9 in all)");
     expect(
       dn.drainTitle({
         key: "Draining Swipe",
-        target: "Gren",
+        target: "Aster",
         what: "ability",
         amount: 2,
         ability: "Strength"
       })
-    ).toBe("Draining Swipe — Gren's Strength falls by 2");
+    ).toBe("Draining Swipe — Aster's Strength falls by 2");
   });
 });
 
@@ -341,7 +341,7 @@ describe("Object Slam and Reflective Carapace — the last two rows", () => {
       attacker: { uuid: "a", effects: [], features: [] },
       pass: "target",
       attackerName: "The mimic",
-      targetName: "Gren"
+      targetName: "Aster"
     };
     const inside = rm.effectSources({
       ...facts,
@@ -515,14 +515,14 @@ describe("TURN_GRANTS — the turn-start damage", () => {
     expect(
       tg.grantTitle({
         spell: "Constricting Vine",
-        bearer: "Gren",
+        bearer: "Aster",
         total: 5,
         type: "bludgeoning",
         deals: true
       })
-    ).toBe("Constricting Vine — Gren takes 5 bludgeoning damage");
-    expect(tg.grantTitle({ spell: "Heroism", bearer: "Gren", total: 5, type: "temphp" })).toBe(
-      "Heroism — Gren gains 5 Temporary Hit Points"
+    ).toBe("Constricting Vine — Aster takes 5 bludgeoning damage");
+    expect(tg.grantTitle({ spell: "Heroism", bearer: "Aster", total: 5, type: "temphp" })).toBe(
+      "Heroism — Aster gains 5 Temporary Hit Points"
     );
   });
 });

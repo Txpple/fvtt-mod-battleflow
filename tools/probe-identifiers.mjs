@@ -1,6 +1,6 @@
-// Read-only probe: every Item in every Item pack, and every item on the world's actors, with its
-// identifier, rules version, book and compendium source, plus the names of its effects: what the
-// code tables are measured against.
+// Read-only probe: every Item in every Item pack, with its identifier, rules version, book and compendium source, plus the names of its effects: what the
+// code tables are measured against. Packs only: a world's own actors are one table's content, never
+// the measure (2026-10-07 — a campaign's homebrew item had leaked into the list).
 //
 //   node tools/probe-identifiers.mjs [out.json]     default: tools/content/identifier-snapshot.json
 // ⚠ Disconnect the MCP bridge first (the sole-GM preflight).
@@ -30,14 +30,10 @@ const out = await f.evaluate(async () => {
     packs.push({ id, label: pack.metadata.label, count: docs.length });
     for ( const doc of docs ) items.push({ uuid: doc.uuid, ...rowOf(doc, id) });
   }
-  const actors = [];
-  for ( const actor of game.actors ) {
-    for ( const doc of actor.items ) actors.push({ actor: actor.name, uuid: doc.uuid, ...rowOf(doc, "world") });
-  }
-  return { system: game.system.version, foundry: game.version, packs, items, actors };
+  return { system: game.system.version, foundry: game.version, packs, items };
 });
 writeFileSync(outFile, JSON.stringify(out, null, 1));
-console.log(`[probe-identifiers] dnd5e ${out.system}, ${out.packs.length} packs, ${out.items.length} pack items, ${out.actors.length} actor items → ${outFile}`);
+console.log(`[probe-identifiers] dnd5e ${out.system}, ${out.packs.length} packs, ${out.items.length} pack items → ${outFile}`);
 for ( const p of out.packs ) console.log(`  ${p.id} (${p.count})`);
 await disposeSafely(f, "probe-identifiers");
 process.exit(0);

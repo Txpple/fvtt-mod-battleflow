@@ -101,8 +101,8 @@
   </header>
 
   <div class="scenes" role="group" aria-label="Scenario">
-    <button type="button" data-scene="fireball" aria-pressed="true">Gren · Fireball (Empowered + Elemental Adept)</button>
-    <button type="button" data-scene="bolt">Gren · Fire Bolt (Adept alone)</button>
+    <button type="button" data-scene="fireball" aria-pressed="true">Aster · Fireball (Empowered + Elemental Adept)</button>
+    <button type="button" data-scene="bolt">Aster · Fire Bolt (Adept alone)</button>
     <button type="button" data-scene="cure">Healer · Cure Wounds</button>
     <button type="button" data-scene="rapier">Piercer + Savage Attacker · Rapier</button>
   </div>
@@ -146,7 +146,7 @@
 (() => {
   const SCENES = {
     fireball: {
-      who: "Gren Greenmantle", title: "Fireball", kind: "fire damage", sub: "8d6 fire · 3rd level · Empowered at the cast (1 SP)",
+      who: "Aster", title: "Fireball", kind: "fire damage", sub: "8d6 fire · 3rd level · Empowered at the cast (1 SP)",
       dice: [1,4,2,6,1,3,5,2].map(v => ({ v, f: 6, type: "fire" })),
       rows: [
         { key: "emp", name: "Empowered Spell", what: "reroll up to 3 dice", cost: "1 SP · paid", mode: "pick", cap: 3, on: true, auto: d => d.v <= 2,
@@ -156,7 +156,7 @@
       ]
     },
     bolt: {
-      who: "Gren Greenmantle", title: "Fire Bolt", kind: "fire damage", sub: "2d10 fire · cantrip",
+      who: "Aster", title: "Fire Bolt", kind: "fire damage", sub: "2d10 fire · cantrip",
       dice: [1,7].map(v => ({ v, f: 10, type: "fire" })),
       rows: [
         { key: "adept", name: "Elemental Adept", what: "treat fire 1s as 2", cost: "free", mode: "lift", type: "fire", on: true,
@@ -164,7 +164,7 @@
       ]
     },
     cure: {
-      who: "Gren Greenmantle", title: "Cure Wounds", kind: "healing", sub: "2d8 + 3 · 1st level",
+      who: "Aster", title: "Cure Wounds", kind: "healing", sub: "2d8 + 3 · 1st level",
       bonus: 3, dice: [1,6].map(v => ({ v, f: 8, type: "healing" })),
       rows: [
         { key: "healer", name: "Healer", what: "reroll the 1s", cost: "free", mode: "pick", onlyOnes: true, on: true, auto: d => d.v === 1,

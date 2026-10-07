@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it } from "vitest";
  *
  * ⚠ This is the arithmetic that MOVES HIT POINTS: what a card says the hit dealt, and what a
  * revert restores. It moved here from code with no unit coverage at all — three of the cases
- * below are live table reports (the 0-HP Ice Mephit, the "−-25 HP" heal, Morgash's temp-HP
+ * below are live table reports (the 0-HP Ice Mephit, the "−-25 HP" heal, Bramm's temp-HP
  * Dash), and each one is a sentence the numbers chose wrongly.
  */
 /** @type {typeof import("../scripts/decide/receipt.js")} */
@@ -42,7 +42,7 @@ describe("traitOutcome — what the traits made of one part", () => {
   it("divides the caller's multiplier out — a halved save is not a resistance", () => {
     // dnd5e folds options.multiplier into active.multiplier before the traits (actor.mjs):
     // saved, no trait → 0.5 raw; saved AND resistant → 0.25 raw; saved AND vulnerable → 1 raw.
-    // Session 8's breath (2026-09-24): Morgash 32 → 16 was labelled resistant, Gren 32 → 8 not.
+    // Session 8's breath (2026-09-24): Bramm 32 → 16 was labelled resistant, Aster 32 → 8 not.
     expect(r.traitOutcome({ multiplier: 0.5 }, 0.5)).toBe(null);
     expect(r.traitOutcome({ multiplier: 0.25 }, 0.5)).toBe("resistant");
     expect(r.traitOutcome({ multiplier: 1 }, 0.5)).toBe("vulnerable");
@@ -165,10 +165,10 @@ describe("receiptEntry — one entry, from the snapshots either side", () => {
   });
 
   it("carries the data-plane context PER ENTRY — a held target's late landing keeps its own turn", () => {
-    const context = { combat: "combatA:2:1", sourceUuid: "Actor.morgash" };
+    const context = { combat: "combatA:2:1", sourceUuid: "Actor.bramm" };
     const entry = r.receiptEntry({ ...base, calc: summary(14), context });
     expect(entry.combat).toBe("combatA:2:1");
-    expect(entry.sourceUuid).toBe("Actor.morgash");
+    expect(entry.sourceUuid).toBe("Actor.bramm");
   });
 
   it("leaves note and multiplier OFF unless they say something", () => {
@@ -221,7 +221,7 @@ describe("effectRecord — THE constructor for every applied-effect record", () 
   it("shapes the record with the stamp riding it", () => {
     const record = r.effectRecord(
       { id: "e1", name: "Slowed", img: "icons/s.webp", description: "−10 ft." },
-      { combat: "c:3:2", sourceUuid: "Actor.morgash" }
+      { combat: "c:3:2", sourceUuid: "Actor.bramm" }
     );
     expect(record).toEqual({
       id: "e1",
@@ -230,7 +230,7 @@ describe("effectRecord — THE constructor for every applied-effect record", () 
       description: "−10 ft.",
       reverted: false,
       combat: "c:3:2",
-      sourceUuid: "Actor.morgash"
+      sourceUuid: "Actor.bramm"
     });
   });
 
@@ -446,7 +446,7 @@ describe("receiptAmounts — the numbers, and the voice they speak in", () => {
     expect(a.healed).toBe(true);
   });
 
-  it("a pure TEMP grant is a third kind — Morgash's Dash, not a −0 HP hit", () => {
+  it("a pure TEMP grant is a third kind — Bramm's Dash, not a −0 HP hit", () => {
     const a = r.receiptAmounts({
       prior: { value: 30, temp: 0 },
       delta: { value: 0, temp: 7 },

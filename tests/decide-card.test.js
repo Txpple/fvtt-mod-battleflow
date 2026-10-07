@@ -39,7 +39,7 @@ const descriptor = (actor, token, extra = {}) => ({
   token,
   ac: 15,
   img: "t.png",
-  name: "Gren",
+  name: "Aster",
   ...extra
 });
 
@@ -114,7 +114,7 @@ describe("targetsOf — 6.0's token-keyed descriptors, in the house shape (uuid 
       uuid: "Actor.v1",
       actor: "Actor.v1",
       token: "Scene.s.Token.t1",
-      name: "Gren",
+      name: "Aster",
       img: "t.png",
       ac: 15
     });

@@ -132,7 +132,7 @@
   <header class="top">
     <div class="eyebrow">Battle Flow · prototype · ruled 2026-09-24: ask only when there's a choice · Careful greyed on these spells</div>
     <h1>Area spells that let the caster choose who they affect</h1>
-    <p>Session 8: Gren cast Slow, and Invictus, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
+    <p>Session 8: Aster cast Slow, and Dorian, standing in the cube, was asked to save. Slow reads “up to six creatures of your choice”, but Battle Flow asks everyone in the area. Here the caster is asked instead. Pick a scene, click through it, rule on the right.</p>
   </header>
 
   <div class="scenes" id="scenes"></div>
@@ -153,11 +153,11 @@ const RULES = {
   sleep: "Each creature of your choice in a 5-foot-radius Sphere centered on a point within range must succeed on a Wisdom saving throw or have the Incapacitated condition until the end of its next turn, at which point it must repeat the save."
 };
 const WHO = {
-  bram: { name:"Bramblemaw", side:"hostile", ini:"B" },
+  bram: { name:"Mirefang", side:"hostile", ini:"B" },
   croc: { name:"Giant Crocodile", side:"hostile", ini:"C" },
-  inv:  { name:"Invictus", side:"party", ini:"I" },
-  gren: { name:"Gren Greenmantle", side:"party", ini:"G" },
-  jet:  { name:"Jetten Elisedil", side:"party", ini:"J" },
+  inv:  { name:"Dorian", side:"party", ini:"I" },
+  aster: { name:"Aster", side:"party", ini:"G" },
+  jet:  { name:"Elra", side:"party", ini:"J" },
   gob:  { name:"Goblin", side:"hostile", ini:"g" },
   boss: { name:"Goblin Boss", side:"hostile", ini:"b" },
   mule: { name:"Pack Mule", side:"neutral", ini:"m" },
@@ -168,11 +168,11 @@ const FILL = { party:"rgb(70,150,95)", hostile:"rgb(180,70,60)", neutral:"rgb(12
 /* ---------- the maps, in grid squares (5 ft each) ---------- */
 const MAPS = {
   slow: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
-    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["gren",2,2.5]] },
+    toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["aster",2,2.5]] },
   slowOut: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
-    toks:[["bram",9.5,4],["croc",13,8],["inv",4,9],["gren",2,2.5]] },
+    toks:[["bram",9.5,4],["croc",13,8],["inv",4,9],["aster",2,2.5]] },
   sleep: { w:11, h:6, cell:40, area:{ type:"circle", x:5.5, y:3, r:1 },
-    toks:[["gob",5.05,2.55],["boss",5.95,2.55],["jet",5.05,3.45],["mule",5.95,3.45],["gren",1,5]] },
+    toks:[["gob",5.05,2.55],["boss",5.95,2.55],["jet",5.05,3.45],["mule",5.95,3.45],["aster",1,5]] },
   ys: { w:22, h:12, cell:20, area:{ type:"rect", x:7, y:2, w:8, h:8 },
     toks:[["bram",9.5,4],["croc",13,8],["inv",8.6,8.4],["ys",2,2.5]] }
 };
@@ -181,7 +181,7 @@ const MAPS = {
 const R = { ask:"choice" };
 const S = { scene:"slow", step:0, tick:null, used:null, ticks:new Set(), mark:null, markDone:null, chosen:null, invIn:true, ping:null, open:new Set() };
 const SCENES = [
-  { key:"slow", label:"Slow over Invictus" },
+  { key:"slow", label:"Slow over Dorian" },
   { key:"sleep", label:"Sleep in a crowd" },
   { key:"hi", label:"Slow with Heightened" }
 ];
@@ -252,10 +252,10 @@ function needsAsk(cands, cap) {
 
 /* ---------- scenes ---------- */
 function choiceFlow({ mapKey, spell, cap, rule, cands, save, kind, toggle = false }) {
-  const tog = toggle ? `<p class="step"><label for="inv-in" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inv-in" data-act="invIn" ${S.invIn ? "checked" : ""}> Invictus stands in the cube</label></p>` : "";
+  const tog = toggle ? `<p class="step"><label for="inv-in" style="display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="inv-in" data-act="invIn" ${S.invIn ? "checked" : ""}> Dorian stands in the cube</label></p>` : "";
   if ( S.step === 0 ) {
     if ( needsAsk(cands, cap) ) {
-      return `<div class="lane">${map(mapKey)}${ask({ spell, owner:"Gren Greenmantle", candidates:cands, cap, rule })}</div>${tog}
+      return `<div class="lane">${map(mapKey)}${ask({ spell, owner:"Aster", candidates:cands, cap, rule })}</div>${tog}
         <p class="step">The area landed. ${R.ask === "choice" ? "Asked because the area holds someone who is not hostile" + (cap ? ` (or more hostiles than ${cap})` : "") + "." : "Asked on every cast."} When the clock runs out, the ticked choice stands.</p>`;
     }
     S.chosen = chooseDefaults(cands, cap); S.step = 1;
@@ -264,7 +264,7 @@ function choiceFlow({ mapKey, spell, cap, rule, cands, save, kind, toggle = fals
   const why = R.ask === "never" ? " · hostiles only" : !needsAsk(cands, cap) ? " · every creature in the area is hostile" : "";
   const lines = [`${spell} — chosen: ${names(chosen) || "nobody"}${left.length ? ` · not chosen: ${names(left)}` : ""}${why}`];
   const targets = chosen.map(k => ({ name:WHO[k].name, status:"waiting", pill:"wait" }));
-  return `<div class="lane">${map(mapKey)}<div><p class="caption">The spell's card</p>${spellCard({ caster:"Gren Greenmantle", name:spell, kind, save, targets, lines })}</div></div>${tog}
+  return `<div class="lane">${map(mapKey)}<div><p class="caption">The spell's card</p>${spellCard({ caster:"Aster", name:spell, kind, save, targets, lines })}</div></div>${tog}
     <p class="step">${left.length ? `${names(left)} ${left.length > 1 ? "are" : "is"} never asked to save.` : "No popup — nothing to choose."} <button data-act="reset">Replay</button></p>`;
 }
 const STAGE = {
@@ -299,7 +299,7 @@ const STAGE = {
 
 /* ---------- the side ---------- */
 const SIDE = {
-  slow: `<ul><li>Slow says <em>“up to six creatures of your choice”</em>. Today Battle Flow asks everyone in the cube — that's why Invictus rolled at 9:58 pm.</li><li>Now Gren is asked who it affects: hostiles ticked, party and neutrals not, up to the spell's own number. When the clock runs out, the ticked choice stands.</li><li>Untick <em>Invictus stands in the cube</em> to see the recommended mode skip the popup when there's nothing to choose.</li></ul>`,
+  slow: `<ul><li>Slow says <em>“up to six creatures of your choice”</em>. Today Battle Flow asks everyone in the cube — that's why Dorian rolled at 9:58 pm.</li><li>Now Aster is asked who it affects: hostiles ticked, party and neutrals not, up to the spell's own number. When the clock runs out, the ticked choice stands.</li><li>Untick <em>Dorian stands in the cube</em> to see the recommended mode skip the popup when there's nothing to choose.</li></ul>`,
   sleep: `<ul><li>Sleep's text sets no number, so there's no cap.</li><li>The mule is neutral, so it isn't ticked by default. The default only ticks hostiles.</li></ul>`,
   hi: `<ul><li>A Sorcerer who knows Heightened. Today Heightened on an area spell asks its own question once the area lands.</li><li>On a spell that chooses, that becomes one popup: the tick chooses, the radio picks who saves at Disadvantage among the chosen.</li><li><b>Careful greys</b> with the reason <em>you choose its targets</em> (ruled): by the rules it does nothing on these spells, so no point is spent on it. Every other row stays as it is.</li></ul>`
 };
@@ -319,9 +319,9 @@ const ASK_OPTS = [
 ];
 function side() {
   const s8 = S.scene === "slow" ? `<div class="panel"><h3>Session 8, as it happened</h3><div class="s8">
-    <div><span>9:57:51</span>Gren casts Slow over Bramblemaw, the crocodile and Invictus</div>
-    <div><span>9:58:12</span>Bramblemaw rolls 11</div>
-    <div><span>9:58:33</span>Invictus is asked too, and rolls 8</div></div></div>` : "";
+    <div><span>9:57:51</span>Aster casts Slow over Mirefang, the crocodile and Dorian</div>
+    <div><span>9:58:12</span>Mirefang rolls 11</div>
+    <div><span>9:58:33</span>Dorian is asked too, and rolls 8</div></div></div>` : "";
   const rule = `<div class="panel"><h3>Ruled 2026-09-24</h3><div class="rule">
     <div class="q">When is the caster asked “who does it affect?”</div>
     <div class="seg" role="group" aria-label="When is the caster asked">${ASK_OPTS.map(([v, label, rec]) => `<button data-val="${v}" aria-pressed="${R.ask === v}">${label}${rec ? `<span class="rec">ruled</span>` : ""}</button>`).join("")}</div>

@@ -30,8 +30,8 @@ const out = await f.evaluate(async () => {
 
   const scene = game.scenes.getName("Battle Flow Test Range");
   const attacker = game.actors.getName("BF Test Attacker");
-  const gren = game.actors.getName("Gren Greenmantle");
-  if ( !scene || !attacker || !gren ) return { fatal: "missing fixture: the range, BF Test Attacker or Gren — run tools/fixture-suite.mjs" };
+  const mage = game.actors.getName("BF Test Mage");
+  if ( !scene || !attacker || !mage ) return { fatal: "missing fixture: the range, BF Test Attacker or the Mage — run tools/fixture-suite.mjs" };
   const priorActiveScene = game.scenes.active?.id ?? null;
   const priorActiveCombats = game.combats.filter(c => c.active).map(c => c.id);
 
@@ -67,10 +67,10 @@ const out = await f.evaluate(async () => {
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
     await waitFor(() => canvas.ready);
 
-    // The stand-in: a GM-owned, linked copy of Gren.
+    // The stand-in: a GM-owned, linked copy of the Mage.
     shielder = game.actors.getName("BF Test Shielder");
     if ( !shielder ) {
-      const data = gren.toObject(); delete data._id;
+      const data = mage.toObject(); delete data._id;
       data.name = "BF Test Shielder"; data.ownership = { default: 0 };
       data.prototypeToken.actorLink = true; data.prototypeToken.name = "BF Test Shielder";
       shielder = await Actor.create(data); log("created BF Test Shielder");

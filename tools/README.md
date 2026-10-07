@@ -7,12 +7,13 @@ browser (`fvtt-mcp-dnd5e/client` — a `file:../fvtt-mcp-dnd5e` dependency: `npm
 [NOTES.md §5](../NOTES.md) before running anything — the protocol there is not optional.
 
 ```bash
-node tools/battery.mjs                     # every suite, in order, each captured to a file
+node tools/battery.mjs                     # build the fixtures, every suite in order (each captured to a file), tear down
+node tools/battery.mjs --keep              # ...and leave the fixtures in the world
 node tools/battery.mjs --changed --list    # what this change needs re-run, and why — then drop --list
-node tools/smoke-saves.mjs                 # one suite, the local sandbox (default)
+node tools/fixture-suite.mjs               # once, before any suite run by hand
+node tools/smoke-saves.mjs                 # one suite, against the local sandbox (BF_HOST picks another preset)
 node tools/smoke-saves.mjs --list          # its sections, without connecting
 node tools/smoke-saves.mjs --section 8     # just §8 (plus anything §8 depends on)
-BF_TARGET=prod node tools/smoke-saves.mjs  # the live world, deliberately
 ```
 
 **Every suite is section-filterable.** `--list` prints the table; `--section 3,5` runs a subset
@@ -36,7 +37,7 @@ it quietly runs the prerequisite and says so.
 | `check-identifiers.mjs` | every content row of the code tables (a key, or the `item` / `feature` / `named` / `effect` / `spell` it names) resolves against `content/identifiers.json`: its name slugs to an identifier the packs carry, or it names an effect they carry. A row naming nothing installed is on its `NOT_CONTENT` list with the reason. `npm run identifiers`. |
 | `check-imports.mjs` | every relative import resolves, and every named binding is really exported — including through a dynamic `await import()`. |
 | `check-comments.mjs` | every `/**` block sits on a declaration, so an extraction cannot strand a doc. |
-| `check-card-reads.mjs` | a card's ITEM or ACTIVITY is read through `lookup.js` `cardItem` / `cardActivity` — never a bare `fromUuid` / `fromUuidSync` / `resolveUuid` of an `activityUuid`, `itemUuid` or `itemUuidOf(…)` (2026-09-22, Gren's potion: dnd5e deletes a used-up item BEFORE its card exists, and only the card's snapshot still has it). A deliberately live read says `// live only: <reason>` on the line above. |
+| `check-card-reads.mjs` | a card's ITEM or ACTIVITY is read through `lookup.js` `cardItem` / `cardActivity` — never a bare `fromUuid` / `fromUuidSync` / `resolveUuid` of an `activityUuid`, `itemUuid` or `itemUuidOf(…)` (2026-09-22, a PC's potion: dnd5e deletes a used-up item BEFORE its card exists, and only the card's snapshot still has it). A deliberately live read says `// live only: <reason>` on the line above. |
 | `check-moments.mjs` | **the moment gate's coverage** (ARCHITECTURE §7 *The moment events*, version 2): every flag key the module writes — every write shape, constants resolved — is classified in `decide/moments.js` as a RESOLVE (published by the gate) or STATE (with a reason), no row is stale, every world-writing file is pinned to the record its writes resolve into, and the registry's own shape holds. Prints the classification as a table. A new key fails the build until somebody says what it is. |
 | `check-doc-links.mjs` | every cross-reference in the docs and in code comments resolves: a markdown link or a bare `scripts/` · `tools/` · `tests/` · `prototypes/` path to a file that exists; `DOC §n` to a numbered section; `DOC *heading*` to a heading or a bold lead-in in that doc (DESIGN, RULINGS, ARCHITECTURE, NOTES, BACKLOG, SWEEP). Written for the documentation pass of 2026-09-24, when nothing had ever said a reference rotted. A bare `§n` with no doc named is not checked — name the doc. |
 | `bump-version.mjs --check` | `module.json`'s `version` and its `download` URL name the same tag. |
@@ -67,9 +68,9 @@ quote that, never a copy of it here.
 
 ⚠ **`smoke-saves` §23 (2026-09-05)** puts the auras' effects on the victim BY NAME (Aura of Purity, Circle's Power) and gives the fixture's failed-save effect a status for the run, so the save gate's `saves` facet has a demand to judge; it lists `effect` in Reminder Sources and the two names in Effect Sources for the section and restores both.
 
-⚠ **The three suites of 2026-09-05** — `smoke-shields` (the damage shields: the Cleric warded with Fire Shield / Armor of Agathys, the Ranger with the Cleric's Death Armor, the goblin striking them; §8 is the cast-time CHOICE — Fire Shield cast through the cast slice, the warm-or-chill popup clicked on this page, one shield landing), `smoke-heatmetal` (the damage casts: Heat Metal on the Cleric at the goblin), `smoke-superiority` (the rest of the Battle Master's maneuvers on the CLONED fighter, the Ranger as the willing ally; §9 is Commander's Strike as a NOTICE plus a chip on the Ranger whose own attack carries the die — no driven attack since 2026-09-05; §11 is Tactical Assessment and Ambush ARMED from the sheet, the die folding into the next scoped check with no ask) — each gives its spells or maneuvers to the fixture for the run and removes them after; none needs a fixture step of its own beyond `fixture-suite`.
+⚠ **The three suites of 2026-09-05** — `smoke-shields` (the damage shields: the Cleric warded with Fire Shield / Armor of Agathys, the Ranger with the Cleric's Death Armor, the goblin striking them; §8 is the cast-time CHOICE — Fire Shield cast through the cast slice, the warm-or-chill popup clicked on this page, one shield landing), `smoke-heatmetal` (the damage casts: Heat Metal on the Cleric at the goblin), `smoke-superiority` (the rest of the Battle Master's maneuvers on the built fighter, the Ranger as the willing ally; §9 is Commander's Strike as a NOTICE plus a chip on the Ranger whose own attack carries the die — no driven attack since 2026-09-05; §11 is Tactical Assessment and Ambush ARMED from the sheet, the die folding into the next scoped check with no ask) — each gives its spells or maneuvers to the fixture for the run and removes them after; none needs a fixture step of its own beyond `fixture-suite`.
 
-⚠ **`smoke-hitmenu` drives the CLONED fighter fixture** — `BF Test Fighter` (Morgash, Fighter 5 Battle Master: Combat Superiority and its Longsword), with the eight on-hit maneuvers added from the 2024 PHB pack for the run and removed after; the second goblin (`BF Test Attacker`) stands one square from the victim as the sweep's second creature.
+⚠ **`smoke-hitmenu` drives the built fighter fixture** — `BF Test Fighter` (a PHB-built Fighter 5; `fixture-d20-folds` makes it a Battle Master with Combat Superiority and its Longsword), with the eight on-hit maneuvers added from the 2024 PHB pack for the run and removed after; the second goblin (`BF Test Attacker`) stands one square from the victim as the sweep's second creature.
 
 ⚠ **`smoke-sneak` and `smoke-clock` drive the BUILT fixtures** — `BF Test Rogue` (Rogue 14 /
 Thief, the whole Cunning Strike option set, Assassinate) and `BF Test Ranger` (Ranger 5 / Gloom
@@ -211,12 +212,11 @@ ships, never from what the party owns (DESIGN N1). Re-run after adding content.
 | --- | --- |
 | `target.mjs` | **which instance a suite talks to** — one decision, one place. Every harness resolves through it and prints the target it chose. |
 | `verify-settings.mjs` | diffs the live world against the reference table it carries — **the single source for the user's configuration**. `--fix` restores drift. Run after every battery. |
-| `fixture-suite.mjs` | **builds the shared fixtures — run it first after every prod refresh** (a refresh wipes them: NOTES §5). The scene, the two goblins, the shielder and the player-owned PC attacker, all filed under a `Test Suite` folder. Idempotent; adopts strays into the folder. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (HP, AC override, save bonuses, legendary resistances — what a fresh unlinked token inherits; 2026-09-24). The d20-fold PCs are CLONES of Morgash (Fighter 5 Battle Master) and Salyth (Bard 8 — the level that makes the inspiration die the 1d8 the suite pins), with the fighter calibrated to the +5 attack bonus `smoke-d20-folds` states in its own band comment. Pair with `fixture-d20-folds.mjs`, which runs second. |
-| `carry-fixtures.mjs` | **seeds an EMPTY sandbox world from an offline one** (2026-10-07, the move to echoes-of-halruaa): `--from <world id>` reads that world's LevelDB on disk, rebuilds every actor of its `Test Suite` folder plus the campaign PCs the suites read by name (Gren Greenmantle, Invictus, Practice Dummy) with items and effects, and creates them in the launched world, ids kept, filed under `Test Suite`, the campaign PCs owned by the player identity. Skips what exists. Then the usual chain: `reset-fixture-state` → `scrub-fixture-residue` → `fixture-suite`. |
+| `fixture-suite.mjs` | **builds every fixture from the COMPENDIA** (2026-10-07: no campaign character, scene or item is read — NOTES §5 *The world is a blank slate*). The battery runs it FIRST and a failed build stops the run; run it by hand before a single suite. The test range scene, the two goblins and the bare monster and dummy NPCs (imported by shape or created bare), the player-owned PC attacker, and the `BUILT` PCs from the PHB (a class item at a level resolves its scale values): the Shielder and the player-owned Mage (Sorcerer 6, a real Shield), the d20-fold Fighter (Fighter 5 at Strength 14 — the +5 band `smoke-d20-folds` states) and Bard (Bard 8 — the 1d8 inspiration die), the Vanguard (Paladin 6, an attuned Cloak of Protection, Shield Master, the longsword mastery), and the Paladin, Cleric, Rogue, Ranger, Sorcerer, Goliath and Halfling. All under `Test Suite` folders, idempotent, ownership and abilities re-seeded every run. Every token it places carries the `fixtureHome` stamp `reset-fixture-state` spares, and the base goblins go back to their statblock every run (2026-09-24). Pair with `fixture-d20-folds.mjs`, which runs second. |
+| `teardown-fixtures.mjs` | **removes every fixture** — the `Test Suite` folders and what is in them, any `BF …` / `Battle Flow …` actor or scene, and any combat they stand in. The battery runs it LAST unless `--keep`, so the sandbox is left as it was found; `--list` says what would go. |
 | `reset-fixture-state.mjs` | shared fixtures back to a known state (conditions off, pools full), and **every LINKED `BF Test` token on the range without the `fixtureHome` stamp swept** — a killed suite's leftovers (2026-09-24). The battery's first row; run it by hand after any killed run outside the battery. |
 | `scrub-fixture-residue.mjs` | clears what a suite's 5.x restore no longer clears at dnd5e 6.0 — the AC `override` and the per-ability `save.roll.bonus` — on every BF Test actor (`--check` reports only). Run it whenever a suite reports an AC or a save that cannot be (the dnd5e 6.0 pass, 2026-09-16). |
 | `reload-clients.mjs` | refresh every other connected client after a hot-deploy. |
-| `maintain-party.mjs` | strip temporary actor-level effects, on demand. |
 | `build-release.mjs` | the release zip: the gate, then the archive, then the archive read back. CI runs it on a pushed tag and publishes; run by hand it is the dry run. **Never use `Compress-Archive`** (why: NOTES §5 *Release*). |
 | `world-snapshot.mjs` | `take` / `restore` / `status` / `drop` — roll the sandbox's databases back after a battery. The copy is 24 MB and takes 0.05s; the ~75s cost is the world bounce either side. **Local only.** |
 | `harness.mjs` | the twenty lines every suite used to copy — env, watchdog, connect, preflight, the section plan, one reporter, the **suite lock**, and the **hook ledger** it arms at connect and writes at teardown. Not a suite; nothing runs it directly. |
@@ -270,7 +270,7 @@ the user's word.
    The workflow run by hand (`gh workflow run release.yml`) is the dry run on CI: the zip kept as
    an artifact, nothing published.
 6. **The deploy** (run in the sibling MCP repo, `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs`):
-   `FOUNDRY_HOST=molten node <that script> fvtt-mod-battleflow --check` first. ⚠ An
+   `FOUNDRY_HOST=<the live host's preset> node <that script> fvtt-mod-battleflow --check` first. ⚠ An
    all-identical hash is a half-awake box: wake it through the bridge (`get-world-info`), re-check,
    and never deploy on that reading. Then the same command without `--check`. WebDAV never prunes —
    a file removed from the tree is deleted on the box by hand, or the zip shipped instead. `--local`
@@ -278,7 +278,7 @@ the user's word.
 7. **After.** Scripts are live on the next world reload; `module.json` (the version) on the next
    Foundry **process restart**, which is the user's. Refresh the other connected clients
    (`reload-clients.mjs`, or ask the table), wait a few minutes before any suite (the front cache),
-   and re-run `verify-settings` against the world. Say plainly what is live, what needs an F5 and
+   and re-run `verify-settings` against the world (`BF_HOST=<the live host preset> node tools/verify-settings.mjs`). Say plainly what is live, what needs an F5 and
    what needs the restart.
 
 ## content/

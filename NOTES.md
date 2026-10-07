@@ -191,14 +191,14 @@ clears the mark on its own.
 **The registry tracks any embedded effect that is temporary, active and has a non-null `start`
 — it never asks whether the effect is an application or an item's TEMPLATE.** The MM pack ships
 `start: {time: 0, …}` on 61 of its feature effects (the PHB's ship `start: null`), so a monster
-feature's template (Bramblemaw's Noxious Miasma, *1 turn, turnStart*) is registered at world load
+feature's template (a boss NPC's Noxious Miasma, *1 turn, turnStart*) is registered at world load
 and the first `updateWorldTime` out of combat (a `turns` clock reframed, remaining `Infinity`,
 which COUNTS as reached) or the monster's next turn start marks the template expired. Every
 application then copies the mark (`toObject()` carries `duration.expired`) and is born
 suppressed. The tray's `_prepareEffectData` has the same hole. The applier (effect-riders.js)
 writes `duration.expired: false` and a fresh `getEffectStart()` on create as well as refresh; a
 template already marked stays marked until someone clears it, and `start: null` on it ends the
-tracking (done on the sandbox's Bramblemaw 2026-09-21).
+tracking (done on the sandbox's copy of that NPC 2026-09-21).
 
 ### v14 models an emanation end to end — MEASURED (2026-09-03, tools/probe-emanations.mjs)
 
@@ -272,7 +272,7 @@ to turn off.
 `ApplicationV2#_postRender` focuses the `[autofocus]` element on first render
 (application.mjs:1801), and `DialogV2` puts `autofocus` on the `default` button — so a moment popup
 opened by SOMEONE ELSE's roll pulled focus out of the chat box, a sheet field or the canvas, and
-the next Enter or Space (the pause key) answered it. Session 8: Morgash's Tactical Mind offer was
+the next Enter or Space (the pause key) answered it. Session 8: a Battle Master PC's Tactical Mind offer was
 answered PASS twenty seconds in, not by the timer. `openManagedPopup` hands the focus back
 (`returnTheKeyboard`) — a moment is answered with the pointer; the system's own roll dialogs keep
 Enter, because the roller opened those (`markDefaultButton`). Pinned by smoke-d20-folds ("an Enter
@@ -301,7 +301,7 @@ clients: the GM heard a player's navigation within 2 s, one render.
 
 ⚠ **An Assistant GM cannot pull a player to a scene.** The server forwards `pullToScene` only when
 the sender `isGM` on the SERVER, which a role-3 user is not (dist/database/documents/scene.mjs,
-14.368): `Scene#pullUsers` from the suite's Tester Assistant was dropped silently. A suite that
+14.368): `Scene#pullUsers` from the suite identity was dropped silently. A suite that
 needs a player on a scene makes the PLAYER navigate. `pullUsers` also skips a user the GM does not
 yet see as `active`.
 
@@ -382,7 +382,7 @@ object keyed by id.
   mixin; `addDependent` is gone — the dependent is a `flags.dnd5e.dependents` row), so a
   `deleteActiveEffect` sweep ends a duration area: the saves machine's (areas.js) for a cast with a
   demand, and emanations.js `endConcentrationAreas` for every other concentration cast (2026-09-19,
-  Fog Cloud outliving Jetten's concentration) — exactly the areas the caster's client tied to the
+  Fog Cloud outliving a ranger PC's concentration) — exactly the areas the caster's client tied to the
   concentration effect at the cast (`areas`, `dnd5e.postUseActivity`); the activity match only
   for an untied area no other concentration of the spell can claim (a Region carries no creation
   time on the client, measured).
@@ -508,7 +508,7 @@ ruling each); `aggregateDamageTerms` for a per-type receipt breakdown;
 
 `TokenDocument5e#updateFalling` asks `actor.getDependentTokens({linked: true, concreteOnly:
 true}).some(t => t._isFalling())` — every linked token on every scene — and re-toggles `falling`
-on the ACTOR on every related update. Gren and Jetten each had a token parked at elevation 5 on
+on the ACTOR on every related update. Two PCs each had a token parked at elevation 5 on
 *Hidden Temple*; deleting the effect re-created it within the second. The platform's: ground the
 stray tokens and the status drops. ⚠ Updating a token's elevation on an UNVIEWED scene throws in
 core 14.368 (`RegionDocument#testSamples` reads the private `#polygonTree` the lazy getter
@@ -519,7 +519,7 @@ builds — touch `region.polygonTree` on each region first, or view the scene).
 `Activity#use` (6.0.3) runs `#applyUsageUpdates` — which DELETES an item whose last use this was
 (`uses.autoDestroy`, quantity 1: potions, scrolls, vials) — and only then creates the usage card.
 Every uuid stamped for the used thing names a document already gone, so a bare
-`fromUuid(activityUuid)` answers nothing, silently: Gren's Potion of Poison Resistance applied
+`fromUuid(activityUuid)` answers nothing, silently: a PC's Potion of Poison Resistance applied
 nothing, a vial's failed-save effect never landed, a scroll's volley never drove (a healing potion
 survived only because its heal rides the roll; a stack of two keeps its item until the last
 drink, which made it look intermittent). The card keeps a SNAPSHOT of the deleted item
@@ -532,7 +532,7 @@ behind it — an area from a used-up scroll loses its activity on the platform's
 
 ### An applied copy carries its TEMPLATE'S lineage: `system.origin.item` names the PACK (2026-09-23)
 
-Session 8: Jetten's Hunter's Mark paid no 1d6 on six hits. The 6.0 migration moved every world
+Session 8: a ranger PC's Hunter's Mark paid no 1d6 on six hits. The 6.0 migration moved every world
 item's effect-template `origin` — the pack's own uuid — into `system.origin.item` (**207 of the
 world's 243 applied templates**). Both appliers copy the template and MERGE their provenance over
 it (the tray's `_prepareEffectData` writes `activity` or `item`, `effect`, `message`, `profile`),
@@ -661,7 +661,7 @@ So `rerolled` alone does not mean *a second result follows*: `changedDice` pairs
   `mergeObject`). An explicit `{ disadvantage: true }` merges beside an `advantage: true` and dnd5e
   rolls it plain (`D20Roll`: both true → NORMAL) — so Mage Slayer passes Disadvantage ALONE, never
   `advantage: false`. Measured live: the Shielder fixture, whose sheet rolls its concentration saves
-  at Advantage (The Tideheart's effect, listed by the gate), rolls 0 with the breaker, 1 without
+  at Advantage (a homebrew item's effect, listed by the gate), rolls 0 with the breaker, 1 without
   (`smoke-concentration` §16d).
 - **A save's roll message names its ability** — `message.system.ability` (`type: "save"`); the
   `dnd5e.rollSavingThrow` hook's data is `{ ability, subject }`.
@@ -843,7 +843,7 @@ the statuses its failed-save effects carry). A spell whose condition is not a st
 is invisible to it.
 
 **The emanation names what it applies "Effect — Source"** (2026-09-05, the walk): Aura of Purity
-stood on Morgash as "Aura of Purity — Thomas", and every effect reader matched names EXACTLY, so
+stood on a PC as "Aura of Purity — <the paladin>", and every effect reader matched names EXACTLY, so
 the table saw nothing (Holy Protection had been unread by the attack gate since the second slice
 shipped). One helper, `effectNamedAs` (the bare name, or the name with " — " and anything after),
 serves every reader. **A reader that matches by name must know every shape the module itself
@@ -951,15 +951,15 @@ reads it off them.
 
 #### The pack ships Goaded as a TRANSFER effect (2026-09-04, the walk)
 
-Goading Attack's save failed and nothing landed: the item on Morgash no longer carried the effect
+Goading Attack's save failed and nothing landed: the item on a Battle Master PC no longer carried the effect
 its save activity linked (`applicableEffects: []`). **Goaded is `transfer: true` in the pack**, so
-with `legacyTransferral` off it is a PASSIVE on the wielder (Morgash's sheet listed Goaded), and a
+with `legacyTransferral` off it is a PASSIVE on the wielder (a Battle Master's sheet listed Goaded), and a
 turn expiry or a hand tidy of the wielder's Effects tab deletes the ITEM's only copy. The other
 seven maneuvers' effects are `transfer: false`. hit-menu.js `repairTransferEffects` corrects a
 row's target-facing effects to `transfer: false` on the WIELDER's copy (world data, never the
 compendium), by the owning client, at `ready` and when the item lands; a copy that already lost
 the effect presses it from the compendium's own copy (`compendiumCopyOf`, by recorded source or by
-NAME in the premium packs). `smoke-hitmenu` §9c and §11; `tools/fixture-morgash-maneuvers.mjs`
+NAME in the premium packs). `smoke-hitmenu` §9c and §11; `tools/fixture-maneuvers.mjs`
 compares and `--fix`es an actor's maneuvers, `tools/probe-hitmenu-table.mjs` reads a demand card.
 **When a save "applies nothing", first read whether the activity's effect entries RESOLVE.**
 
@@ -969,7 +969,7 @@ The pack models Bait and Switch's rolled AC bonus as TWELVE effects ("Baited AC 
 one activity, and the cast slice applied all twelve: AC 13 → 91. Evasive Footwork's "Evasive AC"
 is the same class. superiority-uses.js strips the `castApply` stamp for every Battle Master
 maneuver card in `preCreateChatMessage`, one hook after polish.js writes it. Fire Shield ships
-Warm AND Chill Shield on one activity, marked nothing to say they are alternatives, and Gren wore
+Warm AND Chill Shield on one activity, marked nothing to say they are alternatives, and a PC wore
 both resistances; the `EFFECT_CHOICES` row is where "one of these" lives and the cast slice asks
 ([RULINGS.md](RULINGS.md) *Effect choices*). **A pack that models a rolled number as a fan of
 effects is not content for the cast slice; the machine that rolls the number applies the one.**
@@ -1270,7 +1270,7 @@ on a process restart, so every deploy between two releases shares one cache key 
 launched seconds after a deploy runs minutes-old code (half a night of phantom failures). Wait a few
 minutes before any suite, or install a staging build (a new version string is a virgin cache key).
 
-⚠ **A HALF-AWAKE Molten box answers every WebDAV GET with a 404 page**, so
+⚠ **A HALF-AWAKE hosted box answers every WebDAV GET with a 404 page**, so
 `fvtt-mcp-dnd5e/scripts/deploy-house-module.mjs --check` reports every file DIFFER with ONE identical hash (2026-09-10).
 It is not stopped: a read through the MCP bridge (`get-world-info`) wakes it. **Never deploy on an
 all-identical check.** ⚠ **WebDAV never prunes**: a file removed from the tree stays on the box
@@ -1302,28 +1302,24 @@ put every platform finding on a public page.
 
 ### Testing against the live sandbox
 
-The sandbox is a byte copy of prod — same world id, same users — which is exactly why a suite
-pointed at the wrong instance is easy to miss. Every harness resolves its target in one place
-(`tools/target.mjs`) and prints it.
+The sandbox is a local Foundry, often a copy of the live table's world, and suites MUTATE it. Every harness
+resolves its target in one place (`tools/target.mjs`): the MCP client's `local` preset (the world its .env
+names) unless `BF_HOST` names another preset deliberately, and it prints it.
 
-⚠ **Not the same FIXTURES.** The `BF Test` actors and their scene are deleted from PROD on purpose,
-and the MCP repo's `fvtt-mcp-dnd5e/scripts/pull-prod-to-local.mjs` MIRRORS prod — so every refresh wipes them and
-every suite dies at its preflight (the fix: `tools/fixture-suite.mjs` first). A mirror once also
-deleted BF Test PC Attacker's player OWNERSHIP, and two suites failed for a reason that looked
-nothing like the cause (found 2026-08-27; `smoke-battleflow.mjs` now grants it on every run). **The world is
-disposable, so everything a suite needs lives in a fixture step** — and a campaign PC's state is not
-a fixture: after a refresh on 2026-09-23 Gren arrived with his first-level slots spent at the table,
-`smoke-hold` §7's direct Shield cast was refused before `preUseActivity` resolved, and no chip was
-written. The cast consumes nothing now, as smoke-shields' already did.
+⚠ **THE WORLD IS A BLANK SLATE (2026-10-07).** No suite reads anything the world brings: not a
+character, scene, item, macro or folder. `tools/fixture-suite.mjs` builds every fixture from the
+COMPENDIA (the PHB, the DMG, the system's packs) into "Test Suite" folders, and the battery runs it
+first and `tools/teardown-fixtures.mjs` last (`--keep` leaves them), so any world serves, a fresh copy
+of the live table included, and is left as it was found. Running one suite by hand: `fixture-suite`
+first. Before 2026-10-07 some fixtures were clones of a campaign's characters and three suites read
+those characters by name; a campaign PC's play state leaked in (spent slots refused a Shield cast,
+2026-09-23) and a change of campaign broke the suites outright. Both shapes are retired.
 
-⚠ **The sandbox world changed campaigns on 2026-10-07** (echoes-of-halruaa, Foundry 14.368, dnd5e 6.0.6): a mirror of
-a new world carries no fixtures AND none of the campaign PCs `fixture-suite` clones from (Gren, Morgash, Salyth) or the
-suites read by name (Gren in smoke-hold and smoke-twoclient, Invictus in probe-effect-view). The rebuild after a prod
-pull, with the old world still on disk: `node tools/carry-fixtures.mjs --from the-broken-heart-of-greenrest`, then
-`reset-fixture-state` → `scrub-fixture-residue` → `fixture-suite`. The two-client suites join as the player identity
-(`FOUNDRY_PLAYER_USER` in the MCP repo's .env). The test accounts are prod users, so a pull brings them down:
-"Assistant Tester" (the suites), "Assistant DM" (the bridge) and "Assistant PC" (the player, kept on prod by the user
-from 2026-10-07). The interim sandbox-only "PC Assistant" is gone after the next pull; point the .env at "Assistant PC".
+The accounts are the MCP repo's .env, never names in this repo: the suite identity
+(`FOUNDRY_SUITE_USER`, GM), the bridge (`FOUNDRY_USER`, GM) and the player identity
+(`FOUNDRY_PLAYER_USER`, a player role) the two-client suites and the player-owned fixtures use. They
+are world users, so a world without them cannot run the suites; the fixtures grant ownership by
+that env name on every run.
 
 ⚠ **A friendly fixture must never stand where a suite plays** (2026-09-24, smoke-reminders §11e).
 BF Test Goliath first homed at y=1400, beside smoke-reminders' target: an ALLY within 5 feet, so
@@ -1376,7 +1372,7 @@ only with the world otherwise empty.
 
 ⚠ **Another Claude session's bridge is a second GM, and `disconnect-bridge` cannot reach it**
 (2026-09-24). Every open session runs its own MCP server holding the bridge identity; a second
-session's ("DM Assistant") joined the sandbox mid-battery and the preflight refused every suite
+session's (the bridge identity) joined the sandbox mid-battery and the preflight refused every suite
 after it (two GM-capable clients). The run was BLOCKED, not red — read the refusal line before the
 counts. `disconnect-bridge` logs out only the calling session's; the cure was ending the other
 session's MCP server processes.

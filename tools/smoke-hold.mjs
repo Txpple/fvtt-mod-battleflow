@@ -1,8 +1,8 @@
-// Reaction-hold smoke suite: drives the hold end to end with Gren's own Shield against real
+// Reaction-hold smoke suite: drives the hold end to end with the Mage's own Shield against real
 // attacks. The hold pauses the APPLICATION, never the dice: a held hit rolls damage at once,
 // born attackHoldPending; a cast re-tests AC and a miss releases with nothing applied; a pass
 // releases and applies; a crit skips the hold; a spent reaction suppresses it.
-// Restores settings, its chat, and Gren's HP, AC and slots. Setup and teardown always run.
+// Restores settings, its chat, and the Mage's HP, AC and slots. Setup and teardown always run.
 //
 // ⚠ The page half COLLECTS and the Node half ASSERTS, so each `report()` sits under the same
 // `want()` as the block that fills it — else a skipped section reports FAIL on `undefined`.
@@ -107,10 +107,10 @@ const r = await f.evaluate(async ({ sections }) => {
 
   try {
     // ---- setup
-    const gren = game.actors.getName('Gren Greenmantle');
-    if (!gren) return { ok: false, why: 'Gren Greenmantle not found' };
-    const shield = gren.items.find(i => i.name === 'Shield' && i.type === 'spell');
-    if (!shield) return { ok: false, why: 'Gren has no Shield spell' };
+    const mage = game.actors.getName('BF Test Mage');
+    if (!mage) return { ok: false, why: 'BF Test Mage not found' };
+    const shield = mage.items.find(i => i.name === 'Shield' && i.type === 'spell');
+    if (!shield) return { ok: false, why: 'the Mage has no Shield spell' };
 
     const scene = game.scenes.getName('Battle Flow Test Range');
     const attacker = game.actors.getName('BF Test Attacker');
@@ -134,9 +134,9 @@ const r = await f.evaluate(async ({ sections }) => {
         masteryRiders: game.settings.get(MOD, 'masteryRiders'),
         volleys: game.settings.get(MOD, 'volleys'),
       },
-      grenHP: foundry.utils.deepClone(gren.system._source.attributes.hp),
-      grenAC: foundry.utils.deepClone(gren.system._source.attributes.ac),
-      grenSlots: foundry.utils.deepClone(gren.system._source.spells),
+      mageHP: foundry.utils.deepClone(mage.system._source.attributes.hp),
+      mageAC: foundry.utils.deepClone(mage.system._source.attributes.ac),
+      mageSlots: foundry.utils.deepClone(mage.system._source.spells),
     };
     await game.settings.set(MOD, 'autoDamage', 'all');
     await game.settings.set(MOD, 'autoApply', true);
@@ -166,24 +166,24 @@ const r = await f.evaluate(async ({ sections }) => {
       }
     }
 
-    // ⚠ Gren's AC stays on its normal calculation: a flat AC ignores ac.bonus, the field
+    // ⚠ the Mage's AC stays on its normal calculation: a flat AC ignores ac.bonus, the field
     // Shield's effect writes, so the +5 could never appear.
     // ⚠ The module refuses a GM answering for a character a logged-in player owns, so the
-    // real-cast path runs on a GM-owned stand-in; the flag-write path still covers Gren.
-    const grenOwnedByActivePlayer = game.users.some(u =>
-      !u.isGM && u.active && gren.testUserPermission(u, 'OWNER'));
-    log.push(`gren owned by an active player: ${grenOwnedByActivePlayer}`);
-    const baseAC = gren.system.attributes.ac.value;
-    let grenToken = scene.tokens.find(t => t.actorId === gren.id);
-    if (!grenToken) {
-      [grenToken] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(
-        gren.prototypeToken.toObject(),
-        { x: 1300, y: 1000, actorId: gren.id, actorLink: true }, { inplace: false })]);
+    // real-cast path runs on a GM-owned stand-in; the flag-write path still covers the Mage.
+    const mageOwnedByActivePlayer = game.users.some(u =>
+      !u.isGM && u.active && mage.testUserPermission(u, 'OWNER'));
+    log.push(`mage owned by an active player: ${mageOwnedByActivePlayer}`);
+    const baseAC = mage.system.attributes.ac.value;
+    let mageToken = scene.tokens.find(t => t.actorId === mage.id);
+    if (!mageToken) {
+      [mageToken] = await scene.createEmbeddedDocuments('Token', [foundry.utils.mergeObject(
+        mage.prototypeToken.toObject(),
+        { x: 1300, y: 1000, actorId: mage.id, actorLink: true }, { inplace: false })]);
     }
     if (canvas.scene?.id !== scene.id) await scene.view();
-    await waitFor(() => canvas.ready && canvas.tokens.get(grenToken.id));
-    const grenTokenObj = canvas.tokens.get(grenToken.id);
-    if (!grenTokenObj) return { ok: false, why: 'Gren token never appeared on canvas' };
+    await waitFor(() => canvas.ready && canvas.tokens.get(mageToken.id));
+    const mageTokenObj = canvas.tokens.get(mageToken.id);
+    if (!mageTokenObj) return { ok: false, why: 'the Mage token never appeared on canvas' };
 
     const weapon = attacker.items.find(i => i.system.activities?.some?.(a => a.type === 'attack'));
     const activity = () => attacker.items.get(weapon.id).system.activities.find(a => a.type === 'attack');
@@ -193,8 +193,8 @@ const r = await f.evaluate(async ({ sections }) => {
     restore.weaponMastery = { id: weapon.id, mastery: weapon.system._source.mastery ?? '' };
     if (restore.weaponMastery.mastery) await weapon.update({ 'system.mastery': '' });
 
-    const attackGren = async (opts = {}) => {
-      grenTokenObj.setTarget(true, { releaseOthers: true });
+    const attackMage = async (opts = {}) => {
+      mageTokenObj.setTarget(true, { releaseOthers: true });
       const usage = await activity().use({ subsequentActions: false }, { configure: false }, {});
       const usageId = usage?.message?.id;
       const rolls = await activity().rollAttack(
@@ -206,20 +206,20 @@ const r = await f.evaluate(async ({ sections }) => {
 
     // A plain hit: no crit (it skips an AC hold) and no fumble. `window` demands a total in
     // [AC, AC+4], where Shield's +5 flips the outcome.
-    // ⚠ `live` measures against Gren's AC at roll time: under §4a2's standing Shield a hit by
+    // ⚠ `live` measures against the Mage's AC at roll time: under §4a2's standing Shield a hit by
     // the captured `baseAC` is a miss to the module, and the assert flakes.
-    const plainHitOnGren = async ({ window = false, live = false } = {}) => {
+    const plainHitOnMage = async ({ window = false, live = false } = {}) => {
       const tries = (window || live) ? 40 : 12;
       for (let i = 0; i < tries; i++) {
-        const floor = live ? (gren.system.attributes.ac.value ?? baseAC) : baseAC;
-        const a = await attackGren((window || live) ? { advantage: true } : {});
+        const floor = live ? (mage.system.attributes.ac.value ?? baseAC) : baseAC;
+        const a = await attackMage((window || live) ? { advantage: true } : {});
         const hits = a.total >= floor;
         const flips = !window || (a.total < baseAC + 5);
         if (!a.crit && !a.fumble && hits && flips) return a;
         log.push(`discarded: total=${a.total} crit=${a.crit} fumble=${a.fumble} (AC ${floor})`);
         await sleep(120);
       }
-      throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''}${live ? ' over Gren\'s LIVE AC' : ''} in ${tries} attempts`);
+      throw new Error(`could not roll a plain hit${window ? ` in [${baseAC}, ${baseAC + 4}]` : ''}${live ? ' over the Mage\'s LIVE AC' : ''} in ${tries} attempts`);
     };
     // ⚠ Search the WHOLE log: the origin id is unique, and a tail window loses real damage cards
     // behind late stray-hold announcements.
@@ -242,23 +242,23 @@ const r = await f.evaluate(async ({ sections }) => {
         (m.type === 'damage')
         && (m._source.system?.origin === usageId)),
       attackTotal: total ?? null,
-      grenLiveAC: gren.system.attributes.ac.value,
-      grenBaseAC: baseAC,
-      grenHP: gren.system.attributes.hp.value,
-      grenEffects: gren.effects.map(e => `${e.name}/disabled=${e.disabled}`),
+      mageLiveAC: mage.system.attributes.ac.value,
+      mageBaseAC: baseAC,
+      mageHP: mage.system.attributes.hp.value,
+      mageEffects: mage.effects.map(e => `${e.name}/disabled=${e.disabled}`),
       messagesSinceUsage: game.messages.contents.length
         - game.messages.contents.findIndex(m => m.id === usageId),
     });
 
     /**
-     * A GM-owned full clone of Gren, so the Shield cast is a real spell with real slots.
+     * A GM-owned full clone of the Mage, so the Shield cast is a real spell with real slots.
      * ⚠ Not Shield on the test NPC: an item added to a base actor reaches an unlinked token's
      * delta stripped of effects and activities, and an NPC's spell1.max derives to 0.
      */
     const ensureShielder = async () => {
       let actor = game.actors.getName('BF Test Shielder');
       if (!actor) {
-        const data = gren.toObject();
+        const data = mage.toObject();
         delete data._id;
         data.name = 'BF Test Shielder';
         data.ownership = { default: 0 };           // GM-only: no player may answer for it
@@ -404,7 +404,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
     // ---- 1. the hold fires; the damage rolls while it is pending, claimed and unapplied
     if (want('1')) {
-      const { usageId, msg, total } = await plainHitOnGren({ window: true });
+      const { usageId, msg, total } = await plainHitOnMage({ window: true });
       const held = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
@@ -422,21 +422,21 @@ const r = await f.evaluate(async ({ sections }) => {
       };
 
       // ---- 2. CAST answers it; live AC re-test turns the hit into a miss
-      const hpBefore = gren.system._source.attributes.hp.value;
+      const hpBefore = mage.system._source.attributes.hp.value;
       const holdDoc = game.messages.get(msg.id);
       const merged = foundry.utils.deepClone(holdDoc.getFlag(MOD, 'hold'));
-      merged.targets.find(t => t.uuid === gren.uuid).answer = 'cast';
+      merged.targets.find(t => t.uuid === mage.uuid).answer = 'cast';
       // Stand in for the effect the player's own client would apply on their cast.
       const effectData = shield.effects.contents[0].toObject();
       effectData.disabled = false;
       effectData.origin = shield.effects.contents[0].uuid;
-      await gren.createEmbeddedDocuments('ActiveEffect', [effectData]);
+      await mage.createEmbeddedDocuments('ActiveEffect', [effectData]);
       await holdDoc.setFlag(MOD, 'hold', merged);
       await sleep(800);
       const afterWrite = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
       results.diag = {
         targets: afterWrite?.targets,
-        grenUuid: gren.uuid,
+        mageUuid: mage.uuid,
         allAnsweredNow: afterWrite?.targets?.every(t => t.answer),
         statusNow: afterWrite?.status,
       };
@@ -446,26 +446,26 @@ const r = await f.evaluate(async ({ sections }) => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'resolved' ? h : null;
       }, 25000);
-      // Resolution releases the claim; the miss drops Gren from hitTargets, so nothing applies.
+      // Resolution releases the claim; the miss drops the Mage from hitTargets, so nothing applies.
       const released = await waitFor(() =>
         damageFor(usageId)?.getFlag(MOD, 'attackHoldPending') === false, 10000);
       await sleep(1200);
       results.castResolves = {
         resolved: !!resolved,
-        verdict: resolved?.targets?.find(t => t.uuid === gren.uuid)?.verdict,
-        liveAC: gren.system.attributes.ac.value,
+        verdict: resolved?.targets?.find(t => t.uuid === mage.uuid)?.verdict,
+        liveAC: mage.system.attributes.ac.value,
         attackTotal: total,
         released: !!released,
         dmg: dmgStateFor(usageId),
-        hpUnchanged: gren.system._source.attributes.hp.value === hpBefore,
+        hpUnchanged: mage.system._source.attributes.hp.value === hpBefore,
       };
-      for (const e of gren.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
-      await clearReaction(gren);
+      for (const e of mage.effects.filter(e => e.name === 'Imperceptible Barrier')) await e.delete();
+      await clearReaction(mage);
     }
 
     // ---- 3. PASS lets the attack through: the released dice APPLY (the receipt is the proof)
     if (want('3')) {
-      const { usageId, msg } = await plainHitOnGren();
+      const { usageId, msg } = await plainHitOnMage();
       const held = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
@@ -473,33 +473,33 @@ const r = await f.evaluate(async ({ sections }) => {
       if (!held) throw new Error('hold never went pending — cannot test the pass answer');
       const doc = game.messages.get(msg.id);
       const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
-      merged.targets.find(t => t.uuid === gren.uuid).answer = 'pass';
+      merged.targets.find(t => t.uuid === mage.uuid).answer = 'pass';
       await doc.setFlag(MOD, 'hold', merged);
       const dmg = await waitFor(() => damageFor(usageId), 15000);
       const applied = await waitFor(() =>
         damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000);
       results.passProceeds = { held: !!held, damageRolled: !!dmg,
         released: dmg?.getFlag(MOD, 'attackHoldPending') === false, applied: !!applied };
-      await clearReaction(gren);
+      await clearReaction(mage);
     }
 
     // ---- 4. reaction already spent ⇒ no hold at all
     if (want('4')) {
-      await spendReactionOf(gren);
-      const { usageId, msg, total } = await plainHitOnGren();
+      await spendReactionOf(mage);
+      const { usageId, msg, total } = await plainHitOnMage();
       await sleep(2500);
       results.spentSuppresses = {
         held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
-      await clearReaction(gren);
+      await clearReaction(mage);
     }
 
     // ---- 4a2. an AC reaction ALREADY STANDING ⇒ no hold; independent of reactionSpent (out of combat)
     if (want('4a2')) {
-      await clearReaction(gren);
-      const shieldItem = gren.items.find(i => (i.name.toLowerCase() === 'shield')
+      await clearReaction(mage);
+      const shieldItem = mage.items.find(i => (i.name.toLowerCase() === 'shield')
         && i.effects.size);
       const src = shieldItem?.effects.contents[0];
       let standing = null;
@@ -507,20 +507,20 @@ const r = await f.evaluate(async ({ sections }) => {
         const data = src.toObject();
         data.disabled = false;
         data.origin = src.uuid;
-        [standing] = await gren.createEmbeddedDocuments('ActiveEffect', [data]);
+        [standing] = await mage.createEmbeddedDocuments('ActiveEffect', [data]);
       }
       // LIVE AC: the standing Shield just moved it +5.
-      const { usageId, msg, total } = await plainHitOnGren({ live: true });
+      const { usageId, msg, total } = await plainHitOnMage({ live: true });
       await sleep(2500);
       results.standingSuppresses = {
         hadSource: !!src,
-        effectUp: !!(standing && gren.effects.get(standing.id)),
+        effectUp: !!(standing && mage.effects.get(standing.id)),
         held: !!game.messages.get(msg.id)?.getFlag(MOD, 'hold'),
         damageRolled: !!damageFor(usageId),
         why: diagnose(usageId, total),
       };
-      if (standing) await gren.effects.get(standing.id)?.delete();
-      await clearReaction(gren);
+      if (standing) await mage.effects.get(standing.id)?.delete();
+      await clearReaction(mage);
     }
 
     // ---- 4b. THE REAL CAST PATH on a GM-answerable stand-in: cast → effect → AC moves → re-test
@@ -713,10 +713,10 @@ const r = await f.evaluate(async ({ sections }) => {
       const victimBase = game.actors.getName('BF Test Victim');
       const vTokDoc = scene.tokens.find(t => t.actorId === victimBase.id);
       const vActor = vTokDoc.actor;    // unlinked: build on the TOKEN actor or lose the pieces
-      const grenShield = gren.items.find(i => i.name === 'Shield' && i.type === 'spell');
+      const mageShield = mage.items.find(i => i.name === 'Shield' && i.type === 'spell');
 
       // Shield as a statblock stores it: one use, no slots.
-      const data = grenShield.toObject();
+      const data = mageShield.toObject();
       delete data._id;
       data.system.uses = { max: '1', spent: 0, recovery: [] };
       data.system.prepared = 0;        // as a 2024 NPC statblock actually stores it
@@ -950,7 +950,7 @@ const r = await f.evaluate(async ({ sections }) => {
     // ---- 4e. THE TIMER: an unanswered hold passes itself
     if (want('4e')) {
       await game.settings.set(MOD, 'holdTimer', 4);
-      const { usageId, msg } = await plainHitOnGren({ window: true });
+      const { usageId, msg } = await plainHitOnMage({ window: true });
       const pending = await waitFor(() => {
         const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
         return h?.status === 'pending' ? h : null;
@@ -968,7 +968,7 @@ const r = await f.evaluate(async ({ sections }) => {
         damageRolled: !!dmg,
       };
       await game.settings.set(MOD, 'holdTimer', 0);
-      await clearReaction(gren);
+      await clearReaction(mage);
     }
 
     // ---- 4f. HOPELESS HOLDS ARE SKIPPED, only under full disclosure: with the math hidden, a
@@ -978,7 +978,7 @@ const r = await f.evaluate(async ({ sections }) => {
       // Shield adds +5, so AC+5 or more is hopeless.
       let hopeless = null;
       for (let i = 0; i < 40 && !hopeless; i++) {
-        const a = await attackGren({ advantage: true });
+        const a = await attackMage({ advantage: true });
         if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hopeless = a;
         else await sleep(80);
       }
@@ -992,10 +992,10 @@ const r = await f.evaluate(async ({ sections }) => {
 
       // With the math hidden it must still hold.
       await game.settings.set(MOD, 'holdReveal', false);
-      await clearReaction(gren);
+      await clearReaction(mage);
       let hidden = null;
       for (let i = 0; i < 40 && !hidden; i++) {
-        const a = await attackGren({ advantage: true });
+        const a = await attackMage({ advantage: true });
         if (!a.crit && !a.fumble && (a.total >= baseAC + 5)) hidden = a;
         else await sleep(80);
       }
@@ -1013,14 +1013,14 @@ const r = await f.evaluate(async ({ sections }) => {
         }
       }
       await game.settings.set(MOD, 'holdReveal', false);
-      await clearReaction(gren);
+      await clearReaction(mage);
     }
 
     // ---- 5. a natural 20 skips an AC-type hold
     if (want('5')) {
       let crit = null;
       for (let i = 0; i < 60 && !crit; i++) {
-        const a = await attackGren({ advantage: true });
+        const a = await attackMage({ advantage: true });
         if (a.crit) crit = a; else await sleep(80);
       }
       if (crit) {
@@ -1034,7 +1034,7 @@ const r = await f.evaluate(async ({ sections }) => {
       } else {
         results.critSkipsHold = { rolled: false }; // no crit in 60 tries; reported, not failed
       }
-      await clearReaction(gren);
+      await clearReaction(mage);
     }
 
     // ---- 6. THE SECOND TRIGGER: Magic Missile has no attack roll, so a spell USAGE stamps a
@@ -1276,20 +1276,20 @@ const r = await f.evaluate(async ({ sections }) => {
     // ---- 8. a text-only feature (the 2024 Uncanny Dodge: no activities) found by name
     if (want('8')) {
       // The Interrupt list is the code table, and it lists Shield (and Absorb Elements) AHEAD of
-      // Uncanny Dodge: with no slot left, Gren's spells are unusable and the dodge is the reaction found.
+      // Uncanny Dodge: with no slot left, the Mage's spells are unusable and the dodge is the reaction found.
       let dodge = null;
       try {
         const noSlots = {};
-        for (const [key, slot] of Object.entries(gren.system.spells ?? {})) {
+        for (const [key, slot] of Object.entries(mage.system.spells ?? {})) {
           if (slot?.max) noSlots[`system.spells.${key}.value`] = 0;
         }
-        await gren.update(noSlots);
-        [dodge] = await gren.createEmbeddedDocuments('Item', [{
+        await mage.update(noSlots);
+        [dodge] = await mage.createEmbeddedDocuments('Item', [{
           name: 'Uncanny Dodge', type: 'feat',
           system: { type: { value: 'class' }, description: { value: '<p>When an attacker that you can see hits you with an attack roll, you can take a Reaction to halve the attack’s damage against you (round down).</p>' } }
         }]);
-        await clearReaction(gren);
-        const { usageId, msg } = await plainHitOnGren();
+        await clearReaction(mage);
+        const { usageId, msg } = await plainHitOnMage();
         const held = await waitFor(() => {
           const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
           return h?.status === 'pending' ? h : null;
@@ -1298,7 +1298,7 @@ const r = await f.evaluate(async ({ sections }) => {
         if (held) {
           const doc = game.messages.get(msg.id);
           const merged = foundry.utils.deepClone(doc.getFlag(MOD, 'hold'));
-          merged.targets.find(t => t.uuid === gren.uuid).answer = 'cast';
+          merged.targets.find(t => t.uuid === mage.uuid).answer = 'cast';
           await doc.setFlag(MOD, 'hold', merged);
           resolved = await waitFor(() => {
             const h = game.messages.get(msg.id)?.getFlag(MOD, 'hold');
@@ -1306,7 +1306,7 @@ const r = await f.evaluate(async ({ sections }) => {
           }, 20000);
         }
         const applied = held ? await waitFor(() => damageFor(usageId)?.getFlag(MOD, 'receipt') ?? null, 15000) : null;
-        const entry = applied?.targets?.find?.(e => e.uuid === gren.uuid) ?? null;
+        const entry = applied?.targets?.find?.(e => e.uuid === mage.uuid) ?? null;
         results.textOnlyHold = {
           multiplier: entry?.multiplier ?? null, note: entry?.note ?? null,
           activities: dodge?.system?.activities?.size ?? null,
@@ -1315,9 +1315,9 @@ const r = await f.evaluate(async ({ sections }) => {
           resolved: !!resolved, verdict: resolved?.targets?.[0]?.verdict, applied: !!applied,
         };
       } finally {
-        await gren.update({ 'system.spells': restore.grenSlots }).catch(() => {});
+        await mage.update({ 'system.spells': restore.mageSlots }).catch(() => {});
         if (dodge) await dodge.delete().catch(() => {});
-        await clearReaction(gren);
+        await clearReaction(mage);
       }
     }
 
@@ -1327,9 +1327,9 @@ const r = await f.evaluate(async ({ sections }) => {
       // are not gated on the feature toggle (turning it off mid-combat must not strand flags).
       let combat = null;
       // The spent Reaction chip: standing and not marked expired.
-      const spent = () => reactionSpentOf(game.actors.get(gren.id));
-      const shieldActivity = () => gren.items.get(shield.id)?.system.activities?.contents?.[0];
-      // ⚠ Consume nothing: Gren is a campaign PC whose slots may be spent, and dnd5e then refuses
+      const spent = () => reactionSpentOf(game.actors.get(mage.id));
+      const shieldActivity = () => mage.items.get(shield.id)?.system.activities?.contents?.[0];
+      // ⚠ Consume nothing: the Mage's slots may be spent by an earlier section, and dnd5e then refuses
       // the use before postUseActivity fires.
       const castShield = async () => {
         await shieldActivity()?.use({ consume: { spellSlot: false, resources: false, action: false }, subsequentActions: false },
@@ -1337,7 +1337,7 @@ const r = await f.evaluate(async ({ sections }) => {
         await sleep(500);
       };
       try {
-        await clearReaction(gren);
+        await clearReaction(mage);
         if (game.combat) await game.combat.delete();
         await sleep(300);
 
@@ -1348,10 +1348,10 @@ const r = await f.evaluate(async ({ sections }) => {
         // (b) IN a running combat, the same reaction DOES set it.
         // ⚠ Two combatants: with one, there is no turn to advance to and (c) is unobservable.
         const foeToken = scene.tokens.find(t => t.actorId === attacker.id)
-          ?? scene.tokens.find(t => t.actorId !== gren.id);
+          ?? scene.tokens.find(t => t.actorId !== mage.id);
         combat = await Combat.create({ scene: scene.id });
         await combat.createEmbeddedDocuments('Combatant', [
-          { actorId: gren.id, tokenId: grenToken.id, sceneId: scene.id },
+          { actorId: mage.id, tokenId: mageToken.id, sceneId: scene.id },
           ...(foeToken ? [{ actorId: foeToken.actorId, tokenId: foeToken.id, sceneId: scene.id }] : [])
         ]);
         await combat.rollAll();
@@ -1361,30 +1361,30 @@ const r = await f.evaluate(async ({ sections }) => {
         await sleep(400);
         // What the module will see; a false here explains a false below.
         const combatSeen = { gameCombatIsOurs: game.combat?.id === combat.id, combatActive: combat.active,
-          viewed: canvas.scene?.name ?? null, grenOwner: !!gren.isOwner, grenInTracker: combat.getCombatantsByActor(gren).length };
-        // ⚠ Step off Gren first: updateCombat clears the current combatant's flag, so (c) would
+          viewed: canvas.scene?.name ?? null, mageOwner: !!mage.isOwner, mageInTracker: combat.getCombatantsByActor(mage).length };
+        // ⚠ Step off the Mage first: updateCombat clears the current combatant's flag, so (c) would
         // pass for the wrong reason.
-        for (let i = 0; (i < 4) && (combat.combatant?.actor?.id === gren.id); i++) {
+        for (let i = 0; (i < 4) && (combat.combatant?.actor?.id === mage.id); i++) {
           await combat.nextTurn();
           await sleep(250);
         }
-        const startedOnGren = combat.combatant?.actor?.id === gren.id;
-        await clearReaction(gren);
+        const startedOnMage = combat.combatant?.actor?.id === mage.id;
+        await clearReaction(mage);
         await castShield();
         // Wait for the chip (written after the cast resolves); the out-of-combat read asserts absence.
         const inCombat = !!(await waitFor(spent, 6000));
 
-        // (c) `updateCombat`: Gren's own turn comes round and the flag clears.
+        // (c) `updateCombat`: the Mage's own turn comes round and the flag clears.
         let reached = false;
         for (let i = 0; i < 6; i++) {
           await combat.nextTurn();
           await sleep(300);
-          if (combat.combatant?.actor?.id === gren.id) { reached = true; break; }
+          if (combat.combatant?.actor?.id === mage.id) { reached = true; break; }
         }
         const clearedOnTurn = reached && !(await spent());
 
         // (d) `deleteCombat` clears it for every combatant.
-        await spendReactionOf(gren);
+        await spendReactionOf(mage);
         await sleep(200);
         const setBeforeDelete = await spent();
         await combat.delete();
@@ -1393,15 +1393,15 @@ const r = await f.evaluate(async ({ sections }) => {
         const clearedOnDelete = !(await spent());
 
         results.turnClears = {
-          outOfCombatSet: outOfCombat, startedOnGren, inCombatSet: inCombat, ...combatSeen,
+          outOfCombatSet: outOfCombat, startedOnMage, inCombatSet: inCombat, ...combatSeen,
           turnReached: reached, clearedOnTurn, setBeforeDelete, clearedOnDelete
         };
       } finally {
         // ⚠ A leftover combat poisons later suites (hold and mastery read inRunningCombat).
         try { if (combat) await combat.delete(); } catch { /* already gone */ }
         try { if (game.combat) await game.combat.delete(); } catch { /* ditto */ }
-        await clearReaction(gren);
-        await clearBarriers(gren);
+        await clearReaction(mage);
+        await clearBarriers(mage);
       }
     }
 
@@ -1471,16 +1471,16 @@ const r = await f.evaluate(async ({ sections }) => {
   } finally {
     // ---- always: put the world back
     try {
-      const gren = game.actors.getName('Gren Greenmantle');
+      const mage = game.actors.getName('BF Test Mage');
       if (restore) {
         for (const [k, v] of Object.entries(restore.settings)) await game.settings.set(MOD, k, v);
-        await gren?.update({
-          'system.attributes.hp.value': restore.grenHP.value,
-          'system.attributes.hp.temp': restore.grenHP.temp,
-          'system.spells': restore.grenSlots,
+        await mage?.update({
+          'system.attributes.hp.value': restore.mageHP.value,
+          'system.attributes.hp.temp': restore.mageHP.temp,
+          'system.spells': restore.mageSlots,
         });
-        await clearReaction(gren);
-        for (const e of gren?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
+        await clearReaction(mage);
+        for (const e of mage?.effects?.filter(e => e.name === 'Imperceptible Barrier') ?? []) await e.delete();
         if (restore.weaponMastery?.mastery) {
           await game.actors.getName('BF Test Attacker')?.items.get(restore.weaponMastery.id)
             ?.update({ 'system.mastery': restore.weaponMastery.mastery });
@@ -1522,7 +1522,7 @@ const r = await f.evaluate(async ({ sections }) => {
 
       const mine = game.messages.filter(m =>
         m.speaker?.alias?.startsWith('BF Test') || m.speaker?.alias === 'Battle Flow'
-        || (m.speaker?.alias === 'Gren Greenmantle' && m.getFlag(MOD, 'respondsTo')));
+        || (m.speaker?.alias === 'BF Test Mage' && m.getFlag(MOD, 'respondsTo')));
       await ChatMessage.deleteDocuments(mine.map(m => m.id));
     } catch (cleanupErr) {
       console.error('cleanup failed', cleanupErr);
@@ -1752,7 +1752,7 @@ if (want('7')) {
   report('OUT of combat, a reaction does NOT set reactionSpent (the stranding guard)',
     t?.outOfCombatSet === false, `set=${t?.outOfCombatSet}`);
   report('IN a running combat, the same reaction DOES set it',
-    t?.inCombatSet === true, `set=${t?.inCombatSet} (startedOnGren=${t?.startedOnGren} gameCombatIsOurs=${t?.gameCombatIsOurs} active=${t?.combatActive} viewed=${t?.viewed} owner=${t?.grenOwner} inTracker=${t?.grenInTracker})`);
+    t?.inCombatSet === true, `set=${t?.inCombatSet} (startedOnMage=${t?.startedOnMage} gameCombatIsOurs=${t?.gameCombatIsOurs} active=${t?.combatActive} viewed=${t?.viewed} owner=${t?.mageOwner} inTracker=${t?.mageInTracker})`);
   report("updateCombat: the actor's own turn comes round and the flag clears",
     t?.turnReached === true && t?.clearedOnTurn === true,
     `reached=${t?.turnReached} cleared=${t?.clearedOnTurn}`);

@@ -231,7 +231,7 @@
     smite: "Once per turn when you hit a creature with your pact weapon, you can expend a Pact Magic spell slot to deal an extra 1d8 Force damage to the target, plus another 1d8 per level of the spell slot, and you can give the target the Prone condition if it is Huge or smaller."
   };
   const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
-  const state = { scene:"nA", pick:null, done:null, open:new Set(), give:{gren:4,thomas:4,salyth:4}, gates:null };
+  const state = { scene:"nA", pick:null, done:null, open:new Set(), give:{aster:4,thomas:4,corin:4}, gates:null };
 
   /* ---------- pieces ---------- */
   const bar = (secs, label="to answer") => `<div class="bar"><div class="trk"><div class="fill"></div></div><span>${secs}s ${label}</span></div>`;
@@ -260,43 +260,43 @@
   const S = {};
 
   /* ---------- A · the bystander's bend ---------- */
-  const mapA = (extraBard="", extraBug="") => tok(140,150,"BB","Bugbear Warrior",{extra:extraBug}) + tok(240,170,"GR","Gren",{pc:true}) + tok(430,300,"SA","Salyth",{pc:true,extra:extraBard}) + tok(60,320,"TH","Thomas",{pc:true});
+  const mapA = (extraBard="", extraBug="") => tok(140,150,"BB","Bugbear Warrior",{extra:extraBug}) + tok(240,170,"GR","Aster",{pc:true}) + tok(430,300,"SA","Corin",{pc:true,extra:extraBard}) + tok(60,320,"TH","Tavin",{pc:true});
 
   S.a1 = () => {
     if ( state.done === "answer" ) return {
-      stage: stage(mapA(dice([{v:5,neg:true}]) , `<div class="float">17 − 5 = 12</div>`), "The d8 rises off Salyth and drifts to the Bugbear; the attack card re-reads the verdict."),
-      chat: log(atk("Bugbear Warrior","Morningstar","Gren",`d20 12 +5 = <s class="old">17</s> → <b>12</b> vs AC 15 <span class="verdict miss">MISS</span> · <b>Cutting Words (Salyth) −5</b>`,"good"),
-        msg("Salyth", card("good","Reaction — Cutting Words","−5 on the Bugbear's attack at Gren","Salyth",[`1d8 → <b>5</b> · Bardic Inspiration: 2 of 3 remaining`, `<span class="chip used">Reaction — used</span>`]))),
+      stage: stage(mapA(dice([{v:5,neg:true}]) , `<div class="float">17 − 5 = 12</div>`), "The d8 rises off Corin and drifts to the Bugbear; the attack card re-reads the verdict."),
+      chat: log(atk("Bugbear Warrior","Morningstar","Aster",`d20 12 +5 = <s class="old">17</s> → <b>12</b> vs AC 15 <span class="verdict miss">MISS</span> · <b>Cutting Words (Corin) −5</b>`,"good"),
+        msg("Corin", card("good","Reaction — Cutting Words","−5 on the Bugbear's attack at Aster","Corin",[`1d8 → <b>5</b> · Bardic Inspiration: 2 of 3 remaining`, `<span class="chip used">Reaction — used</span>`]))),
       side: sideA1() + resetBtn() };
     if ( state.done === "pass" ) return {
       stage: stage(mapA(), "Passed: the hit lands and the damage rolls."),
-      chat: log(atk("Bugbear Warrior","Morningstar","Gren",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`), msg("Salyth", card("neutral","Reaction — passed","Cutting Words","Salyth",["No reaction — the attack lands."]))),
+      chat: log(atk("Bugbear Warrior","Morningstar","Aster",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`), msg("Corin", card("neutral","Reaction — passed","Cutting Words","Corin",["No reaction — the attack lands."]))),
       side: sideA1() + resetBtn() };
     return {
-      stage: stage(mapA() + popup("Cutting Words — Salyth",
-        head("bard","The Bugbear's attack at Gren","Morningstar · 17 vs AC 15 — a hit · within 60 ft of you") + bar(20)
+      stage: stage(mapA() + popup("Cutting Words — Corin",
+        head("bard","The Bugbear's attack at Aster","Morningstar · 17 vs AC 15 — a hit · within 60 ft of you") + bar(20)
         + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left")
         + `<div class="btnrow"><button class="btn primary" data-act="answer" ${state.pick?"":"disabled"}>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
-        "Salyth is 60 ft from the Bugbear, not the one hit. The popup opens on Salyth's client, after the roll shows its verdict."),
-      chat: log(atk("Bugbear Warrior","Morningstar","Gren",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`, "pending").replace("Attack","Attack — held for a reaction") + `<div class="msg"><span class="chip">waiting on Salyth · 20s</span></div>`),
+        "Corin is 60 ft from the Bugbear, not the one hit. The popup opens on Corin's client, after the roll shows its verdict."),
+      chat: log(atk("Bugbear Warrior","Morningstar","Aster",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`, "pending").replace("Attack","Attack — held for a reaction") + `<div class="msg"><span class="chip">waiting on Corin · 20s</span></div>`),
       side: sideA1() };
   };
   function sideA1(){
     return panel("What this is", [
         "<b>The hold's popup, opened for a BYSTANDER.</b> Today it opens for the creature hit (Shield, Lucky) or a guard beside it (Protection, 5 ft). Cutting Words is the guard generalised: any creature holding a bystander row within its feet of the <b>attacker</b>, its Reaction free.",
         "<b>The row is name + dice, then the rule.</b> The tag is the cost: a Reaction and a use. A subtracted die is an <code>add</code> fold with the sign flipped — Precision's shape — never Disadvantage.",
-        "<b>The die rises off the bard</b> and drifts to the roller (the dice-that-rise rule, a reaction that changed a roll); the attack card shows the struck 17 and the 12 that stands, naming Salyth."])
+        "<b>The die rises off the bard</b> and drifts to the roller (the dice-that-rise rule, a reaction that changed a roll); the attack card shows the struck 17 and the 12 that stands, naming Corin."])
       + panel("The seam", "The attack roll rides the hold — the same place Shield is asked, so the same timing bend: after the roll shows, before the damage. One register row for every bystander (Cutting Words, Guided Strike, Bend Luck, Cosmic Omen, Restore Balance).")
-      + rulings(["<b>Q2 — vocabulary on the <code>roll</code> interrupt (<code>bystander</code>, <code>tests</code>, <code>die</code>), or a new kind?</b> Drawn as vocabulary: it still changes the roll itself, which is what the kind means.", "The title names the roller and the target (\"the Bugbear's attack at Gren\") — or the house's \"Name — who\"? Drawn as the roller and target, since the bard is neither."]);
+      + rulings(["<b>Q2 — vocabulary on the <code>roll</code> interrupt (<code>bystander</code>, <code>tests</code>, <code>die</code>), or a new kind?</b> Drawn as vocabulary: it still changes the roll itself, which is what the kind means.", "The title names the roller and the target (\"the Bugbear's attack at Aster\") — or the house's \"Name — who\"? Drawn as the roller and target, since the bard is neither."]);
   }
 
   S.a2 = () => ({
-    stage: stage(mapA() + popup("Cutting Words — Salyth",
+    stage: stage(mapA() + popup("Cutting Words — Corin",
       head("bard","The Bugbear's Athletics check","Strength (Athletics) · 14 · within 60 ft of you") + bar(20)
       + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left")
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
       "The check has no DC the module knows: the popup asks, the card states the arithmetic and hands the verdict to the DM."),
-    chat: log(msg("Bugbear Warrior", card("neutral","Check","Strength (Athletics)","Bugbear Warrior",[`d20 11 +3 = <b>14</b>`])), `<div class="msg"><span class="chip">waiting on Salyth · 20s</span></div>`),
+    chat: log(msg("Bugbear Warrior", card("neutral","Check","Strength (Athletics)","Bugbear Warrior",[`d20 11 +3 = <b>14</b>`])), `<div class="msg"><span class="chip">waiting on Corin · 20s</span></div>`),
     side: panel("What this shows", [
         "<b>The check half rides the rescue window's seam</b> — the raw-check shape the module already has (Tactical Mind): the arithmetic is stated, \"ask your DM whether 9 still passes\", no verdict claimed.",
         "<b>The same popup, the same row.</b> The seam differs, the surface does not: one machine to walk.",
@@ -304,40 +304,40 @@
       + rulings(["The check popup: keep it (drawn), or leave checks to the table? A check seldom has a DC the module can read; the bend still states the arithmetic on the card."]) });
 
   S.a3 = () => ({
-    stage: stage(tok(140,150,"BB","Bugbear Warrior") + tok(240,170,"GR","Gren",{pc:true}) + tok(300,290,"TH","Thomas",{pc:true}) + popup("Guided Strike — Thomas",
-      head("cleric","Gren missed the Bugbear","Rapier · 13 vs AC 16 — a miss · Gren within 30 ft of you") + bar(20)
+    stage: stage(tok(140,150,"BB","Bugbear Warrior") + tok(240,170,"GR","Aster",{pc:true}) + tok(300,290,"TH","Tavin",{pc:true}) + popup("Guided Strike — Tavin",
+      head("cleric","Aster missed the Bugbear","Rapier · 13 vs AC 16 — a miss · Aster within 30 ft of you") + bar(20)
       + row("guided","Guided Strike","+10","a Reaction · Channel Divinity 1 of 2")
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
       "An ally's miss within 30 ft: the cleric's popup. On the cleric's own miss the same row sits in the rescue window beside Heroic Inspiration, with no Reaction."),
-    chat: log(atk("Gren","Rapier","Bugbear Warrior",`d20 6 +7 = <b>13</b> vs AC 16 <span class="verdict miss">MISS</span>`,"good"), `<div class="msg"><span class="chip">waiting on Thomas · 20s</span></div>`),
+    chat: log(atk("Aster","Rapier","Bugbear Warrior",`d20 6 +7 = <b>13</b> vs AC 16 <span class="verdict miss">MISS</span>`,"good"), `<div class="msg"><span class="chip">waiting on Tavin · 20s</span></div>`),
     side: panel("What this shows", [
         "<b>The bystander shape on a MISS</b> — the trigger word is the row's (<code>on: \"miss\"</code>), the bonus flat (+10 folded as <code>add</code>), the pool Channel Divinity.",
         "<b>Self and ally are two seams, one row.</b> The cleric's own miss: the rescue window (Precision Attack's place), no Reaction spent. An ally's miss: the bystander popup, the Reaction spent — as the text says.",
-        "<b>The ally's card names the cleric:</b> \"Guided Strike (Thomas) — +10, 13 → 23, HIT\"."])
+        "<b>The ally's card names the cleric:</b> \"Guided Strike (Tavin) — +10, 13 → 23, HIT\"."])
       + rulings(["Guided Strike on the attacker's rescue after a defender's Lucky turned a hit into a miss: not offered — DESIGN §8's known gap stands (drawn so)."]) });
 
   S.a4 = () => ({
-    stage: stage(mapA().replace("SA","CL").replace("Salyth","Clockwork Sorcerer") + popup("Restore Balance — Clockwork Sorcerer",
-      head("sorc","The Bugbear rolled with Advantage","Morningstar at Gren · d20 18 and 9 · 23 vs AC 15 — a hit") + bar(20)
+    stage: stage(mapA().replace("SA","CL").replace("Corin","Clockwork Sorcerer") + popup("Restore Balance — Clockwork Sorcerer",
+      head("sorc","The Bugbear rolled with Advantage","Morningstar at Aster · d20 18 and 9 · 23 vs AC 15 — a hit") + bar(20)
       + `<div class="situ">Cancel the Advantage: the <b>first d20 (9)</b> stands — 14 vs AC 15.</div>`
       + row("restore","Restore Balance","the first die stands","a Reaction · 3 uses left")
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
       "\"About to roll\" cannot be caught on another client; the popup opens after the roll, and the outcome is the register's own arithmetic for a cancelled Advantage."),
-    chat: log(atk("Bugbear Warrior","Morningstar","Gren",`d20 [18, 9] +5 = <b>23</b> vs AC 15 <span class="verdict hit">HIT</span> · Advantage`,"pending"), `<div class="msg"><span class="chip">waiting on the Clockwork Sorcerer · 20s</span></div>`),
+    chat: log(atk("Bugbear Warrior","Morningstar","Aster",`d20 [18, 9] +5 = <b>23</b> vs AC 15 <span class="verdict hit">HIT</span> · Advantage`,"pending"), `<div class="msg"><span class="chip">waiting on the Clockwork Sorcerer · 20s</span></div>`),
     side: fix("Correction to the drawing: after the roll, not before", "The drawing put Restore Balance before the roll. The roller's client cannot be paused by another player's Reaction (Shield's row in the register) — so it is offered after, and \"prevent the roll from being affected\" becomes the first d20 standing. The situation line says which die that is BEFORE the answer, so the sorcerer chooses knowing.")
       + panel("What this shows", ["<b>The one <code>neutralise</code> outcome:</b> Advantage or Disadvantage, the first face stands — the same rule the register already keeps for a cancelled Advantage (2026-09-24).", "<b>A roll with neither</b> never opens the popup."])
       + rulings(["<b>Q3 — accept the after-the-roll bend for Restore Balance</b> (a register row beside Shield's), or leave it WAITS? Drawn as accepted."]) });
 
   S.a5 = () => ({
-    stage: stage(mapA() + tok(330,60,"WZ","the Diviner",{pc:true}) + popup("Rescue Gren — three creatures asked",
-      head("bard","The Bugbear's attack at Gren","Morningstar · 17 vs AC 15 — a hit") + bar(20)
+    stage: stage(mapA() + tok(330,60,"WZ","the Diviner",{pc:true}) + popup("Rescue Aster — three creatures asked",
+      head("bard","The Bugbear's attack at Aster","Morningstar · 17 vs AC 15 — a hit") + bar(20)
       + `<div class="situ">Each bystander gets its own popup on its own client; the first act settles the hit, a pass settles it only when everyone has passed (the guards' rule, P1).</div>`
-      + row("cutting","Cutting Words — Salyth","−1d8","a Reaction · 3 uses left")
+      + row("cutting","Cutting Words — Corin","−1d8","a Reaction · 3 uses left")
       + row("portent","Portent — the Diviner","replace with 3","a stored die · 2 left",{off:true})
       + row("bend","Bend Luck — the Sorcerer","−1d4","1 Sorcery Point",{off:true})
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
-      "Drawn on one screen for the eye; at the table each row is a separate popup on its owner's client. Gren's own Shield row sits in Gren's popup as today."),
-    chat: log(atk("Bugbear Warrior","Morningstar","Gren",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, Salyth, the Diviner, the Sorcerer · 20s</span></div>`),
+      "Drawn on one screen for the eye; at the table each row is a separate popup on its owner's client. Aster's own Shield row sits in Aster's popup as today."),
+    chat: log(atk("Bugbear Warrior","Morningstar","Aster",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, Corin, the Diviner, the Sorcerer · 20s</span></div>`),
     side: panel("What this shows", [
         "<b>One hold, several askers.</b> The defender's rows (Shield, Lucky) and each bystander's row are stamped on the same hold; every owner sees only their own popup (<code>canAnswerFor</code>). The first answer folds; the rest close (law 4: a popup asking something already answered is a lie).",
         "<b>Order is the hold's:</b> the answers compose as folds do — the attacker's move the total, the defender's move the AC, one verdict (never precedence).",
@@ -345,37 +345,37 @@
       + rulings(["Several bystanders on one roll: every owner asked at once (drawn), or the nearest only? Drawn as everyone — the rules let them all react."]) });
 
   /* ---------- N · the noise gate: one scripted fight, three rounds, every D20 Test ---------- */
-  // Party: Gren (AC 15), Salyth the Lore Bard (AC 13, Cutting Words d8), Thomas the cleric (AC 18, Guided Strike),
+  // Party: Aster (AC 15), Corin the Lore Bard (AC 13, Cutting Words d8), Tavin the cleric (AC 18, Guided Strike),
   // the Diviner (AC 12, Portent 17 and 3). Foes: two Bugbear Warriors, a Goblin Boss (two attacks), a Green Hag.
   // t = the AC or DC the module can read; null = a check with no DC it knows. turn = whose turn the roll is on.
   const FIGHT = [
-    { r:1, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Gren", d:12, mod:5, t:15 },
-    { r:1, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Thomas", d:19, mod:5, t:18 },
-    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Salyth", d:17, mod:4, t:13 },
-    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Salyth", d:6, mod:4, t:13 },
-    { r:1, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Bugbear A", d:6, mod:7, t:16 },
-    { r:1, turn:"thomas", who:"Thomas", kind:"attack", foe:false, at:"Bugbear B", d:15, mod:5, t:16 },
+    { r:1, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Aster", d:12, mod:5, t:15 },
+    { r:1, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Tavin", d:19, mod:5, t:18 },
+    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Corin", d:17, mod:4, t:13 },
+    { r:1, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Corin", d:6, mod:4, t:13 },
+    { r:1, turn:"aster", who:"Aster", kind:"attack", foe:false, at:"Bugbear A", d:6, mod:7, t:16 },
+    { r:1, turn:"thomas", who:"Tavin", kind:"attack", foe:false, at:"Bugbear B", d:15, mod:5, t:16 },
     { r:1, turn:"div", who:"Bugbear A", kind:"save", foe:true, at:"Dex vs the Diviner's DC", d:14, mod:1, t:15 },
-    { r:1, turn:"sal", who:"Salyth", kind:"attack", foe:false, at:"Goblin Boss", d:4, mod:6, t:17 },
-    { r:2, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Gren", d:20, mod:5, t:15, big:true },
-    { r:2, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Thomas", d:8, mod:5, t:18 },
+    { r:1, turn:"sal", who:"Corin", kind:"attack", foe:false, at:"Goblin Boss", d:4, mod:6, t:17 },
+    { r:2, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Aster", d:20, mod:5, t:15, big:true },
+    { r:2, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Tavin", d:8, mod:5, t:18 },
     { r:2, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"the Diviner", d:15, mod:4, t:12 },
-    { r:2, turn:"hag", who:"Gren", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:9, mod:1, t:14, big:true },
-    { r:2, turn:"hag", who:"Salyth", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:16, mod:2, t:14 },
-    { r:2, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Bugbear A", d:18, mod:7, t:16 },
-    { r:2, turn:"thomas", who:"Thomas", kind:"attack", foe:false, at:"Bugbear B", d:3, mod:5, t:16 },
+    { r:2, turn:"hag", who:"Aster", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:9, mod:1, t:14, big:true },
+    { r:2, turn:"hag", who:"Corin", kind:"save", foe:false, at:"Wis vs the Hag's DC", d:16, mod:2, t:14 },
+    { r:2, turn:"aster", who:"Aster", kind:"attack", foe:false, at:"Bugbear A", d:18, mod:7, t:16 },
+    { r:2, turn:"thomas", who:"Tavin", kind:"attack", foe:false, at:"Bugbear B", d:3, mod:5, t:16 },
     { r:2, turn:"bbA", who:"Bugbear A", kind:"check", foe:true, at:"Athletics, escaping", d:16, mod:3, t:null },
-    { r:3, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Salyth", d:16, mod:5, t:13 },
-    { r:3, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Gren", d:13, mod:5, t:15 },
-    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Thomas", d:19, mod:4, t:18 },
-    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Thomas", d:2, mod:4, t:18 },
-    { r:3, turn:"gren", who:"Gren", kind:"attack", foe:false, at:"Goblin Boss", d:9, mod:7, t:17 },
-    { r:3, turn:"sal", who:"Salyth", kind:"attack", foe:false, at:"Bugbear B", d:2, mod:6, t:16 },
+    { r:3, turn:"bbA", who:"Bugbear A", kind:"attack", foe:true, at:"Corin", d:16, mod:5, t:13 },
+    { r:3, turn:"bbB", who:"Bugbear B", kind:"attack", foe:true, at:"Aster", d:13, mod:5, t:15 },
+    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Tavin", d:19, mod:4, t:18 },
+    { r:3, turn:"gob", who:"Goblin Boss", kind:"attack", foe:true, at:"Tavin", d:2, mod:4, t:18 },
+    { r:3, turn:"aster", who:"Aster", kind:"attack", foe:false, at:"Goblin Boss", d:9, mod:7, t:17 },
+    { r:3, turn:"sal", who:"Corin", kind:"attack", foe:false, at:"Bugbear B", d:2, mod:6, t:16 },
     { r:3, turn:"div", who:"the Diviner", kind:"attack", foe:false, at:"Bugbear B", d:11, mod:5, t:16 }
   ];
   const BYS = [
-    { key:"cw", name:"Salyth", feat:"Cutting Words", reaction:true },
-    { key:"gs", name:"Thomas", feat:"Guided Strike", reaction:true },
+    { key:"cw", name:"Corin", feat:"Cutting Words", reaction:true },
+    { key:"gs", name:"Tavin", feat:"Guided Strike", reaction:true },
     { key:"pt", name:"the Diviner", feat:"Portent", reaction:false }
   ];
   const passes = x => x.t === null ? true : (x.kind === "attack" ? (x.d === 20 || (x.d !== 1 && x.d + x.mod >= x.t)) : x.d + x.mod >= x.t);
@@ -457,7 +457,7 @@
     ["mute","\"Not this combat\"","a player presses it after passing three in a row"],
     ["card","Card only","no popup at all, a button on the card"],
     ["toast","Toast instead of popup","a small corner note with Answer; the roll waits 8 s, not 20"],
-    ["answer","Players take the chances they want","Salyth and Thomas any flip; the Diviner only the crit and the Hag's save; off = every popup passed"]
+    ["answer","Players take the chances they want","Corin and Tavin any flip; the Diviner only the crit and the Hag's save; off = every popup passed"]
   ];
   function meter(){
     const g = state.gates, { rows, st } = simulate(g);
@@ -495,36 +495,36 @@
       return `<button class="opt3 ${state.scene === o.key ? "cur" : ""}" data-goto="${o.key}"><span class="h">${o.h}${o.rec ? `<span class="rec">★ recommended</span>` : ""}</span><span class="n">${cnt}<br>took ${n.useful} of ${n.wanted}${n.missed ? ` · <span style="color:var(--hit-ink)">${n.missed} missed</span>` : ""}</span><span class="d">${o.d}</span></button>`;
     }).join("")}</div></div>`;
   }
-  const mapN = (extraBard="", extraBug="") => tok(140,150,"BB","Bugbear A",{extra:extraBug}) + tok(240,170,"GR","Gren",{pc:true}) + tok(430,300,"SA","Salyth",{pc:true,extra:extraBard}) + tok(60,320,"TH","Thomas",{pc:true}) + tok(330,70,"WZ","the Diviner",{pc:true});
+  const mapN = (extraBard="", extraBug="") => tok(140,150,"BB","Bugbear A",{extra:extraBug}) + tok(240,170,"GR","Aster",{pc:true}) + tok(430,300,"SA","Corin",{pc:true,extra:extraBard}) + tok(60,320,"TH","Tavin",{pc:true}) + tok(330,70,"WZ","the Diviner",{pc:true});
   const btns3 = mute => `<div class="btnrow"><button class="btn primary" ${state.pick?"":"disabled"}>Answer</button><button class="btn" data-act="pass">Pass</button>${mute?`<button class="btn" data-act="mute" title="Mute Cutting Words until this combat ends">Not this combat</button>`:""}</div>`;
-  const cwPopup = (situ, mute) => popup("Cutting Words — Salyth",
-    head("bard","Bugbear B's attack at Thomas","Morningstar · 24 vs AC 18 — a hit · within 60 ft of you") + bar(20)
+  const cwPopup = (situ, mute) => popup("Cutting Words — Corin",
+    head("bard","Bugbear B's attack at Tavin","Morningstar · 24 vs AC 18 — a hit · within 60 ft of you") + bar(20)
     + (situ ? `<div class="situ">${situ}</div>` : "")
     + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left") + btns3(mute));
 
   S.n1 = () => ({
     stage: stage(mapN()
-      + popup("Portent — the Diviner", head("wiz","Bugbear A's attack at Gren","Morningstar · 17 vs AC 15 — a hit") + bar(20) + row("pt1","Portent — replace the 12 with the 3","3 +5 = 8","a stored die · 2 left"))
+      + popup("Portent — the Diviner", head("wiz","Bugbear A's attack at Aster","Morningstar · 17 vs AC 15 — a hit") + bar(20) + row("pt1","Portent — replace the 12 with the 3","3 +5 = 8","a stored die · 2 left"))
       + cwPopup("", false).replace('<div class="offer">', '<div class="offer" style="left:60px;top:70px">')
-      + popup("Portent — the Diviner", head("wiz","Bugbear B's attack at Thomas","24 vs AC 18 — a hit") + row("pt2","Portent — replace the 19 with the 3","3 +5 = 8","a stored die · 2 left")).replace('<div class="offer">', '<div class="offer" style="left:96px;top:130px">'),
+      + popup("Portent — the Diviner", head("wiz","Bugbear B's attack at Tavin","24 vs AC 18 — a hit") + row("pt2","Portent — replace the 19 with the 3","3 +5 = 8","a stored die · 2 left")).replace('<div class="offer">', '<div class="offer" style="left:96px;top:130px">'),
       "No gate: every roll a bystander's rule names opens a popup. Portent names every D20 Test, so the Diviner is asked on almost every roll of the fight."),
-    chat: log(atk("Bugbear A","Morningstar","Gren",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, Salyth, the Diviner · 20s</span></div>`,
-      atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Thomas, Salyth, the Diviner · 20s</span></div>`),
+    chat: log(atk("Bugbear A","Morningstar","Aster",`d20 12 +5 = <b>17</b> vs AC 15 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, Corin, the Diviner · 20s</span></div>`,
+      atk("Bugbear B","Morningstar","Tavin",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Tavin, Corin, the Diviner · 20s</span></div>`),
     side: optionsPanel() + meter() + (() => { const n = popupsWith(GATE_PRESETS.n1); return panel("What this shows", [`<b>The worry, measured.</b> In three rounds of an ordinary fight the three bystanders get <b>${n.total}</b> popups. Portent alone is <b>${n.pt}</b> of them, because its rule reaches every D20 Test and the Diviner is holding the dice.`, `<b>The players take ${n.useful} of them.</b> The rest are noise: a bend that cannot change the verdict, or one the player is saving, still interrupts.`]); })() });
 
   S.n2 = () => ({
     stage: stage(mapN() + cwPopup("A d8 can turn this: 24 − 8 = 16, under AC 18.", false),
       "The margin gate asks only when the bend can change the verdict. A 25 against AC 15, or a natural 20, never opens the popup."),
-    chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
-      atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+    chat: log(atk("Bugbear A","Morningstar","Aster",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
+      atk("Bugbear B","Morningstar","Tavin",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Tavin, Corin · 20s</span></div>`),
     side: optionsPanel() + meter() + panel("What this shows", ["<b>The situation line says why you are asked</b>, with the arithmetic in plain numbers. The line is only there because the gate is.", "<b>The crit asks no one.</b> Cutting Words cannot undo a natural 20, and Portent's dice are checked against it: a stored 3 would turn it into a miss, so the Diviner <i>is</i> asked for that one.", "<b>Precedent:</b> <code>holdSkipped</code>, the futile-skip gate that already declines a hopeless Shield.", "<b>A check with no DC</b> cannot be judged, so the gate asks (the Bugbear's Athletics in round 2)."])
       + rulings(["The margin gate as the default for every bystander row (recommended)?"]) });
 
   S.n3 = () => ({
-    stage: stage(mapN() + `<div class="nothing">No popup. Salyth was asked on the Goblin Boss's first attack this turn; the second attack on the same turn is not asked again.</div>`,
+    stage: stage(mapN() + `<div class="nothing">No popup. Corin was asked on the Goblin Boss's first attack this turn; the second attack on the same turn is not asked again.</div>`,
       "Once per turn: a multiattack creature asks each bystander on its first qualifying roll only."),
-    chat: log(atk("Goblin Boss","Scimitar","Thomas",`d20 19 +4 = <b>23</b> vs AC 18 <span class="verdict hit">HIT</span> · Salyth passed`),
-      atk("Goblin Boss","Scimitar","Thomas",`d20 16 +4 = <b>20</b> vs AC 18 <span class="verdict hit">HIT</span>`), `<div class="msg"><span class="chip">Cutting Words — asked once this turn</span></div>`),
+    chat: log(atk("Goblin Boss","Scimitar","Tavin",`d20 19 +4 = <b>23</b> vs AC 18 <span class="verdict hit">HIT</span> · Corin passed`),
+      atk("Goblin Boss","Scimitar","Tavin",`d20 16 +4 = <b>20</b> vs AC 18 <span class="verdict hit">HIT</span>`), `<div class="msg"><span class="chip">Cutting Words — asked once this turn</span></div>`),
     side: optionsPanel() + meter() + panel("What this shows", ["<b>Small effect in this fight.</b> Only the Goblin Boss attacks twice. Once per turn pays off against dragons and other multiattack monsters.", "<b>It also hides chances.</b> If the second attack is the one that could flip, the player never hears about it. Precedent: the rider chit (<code>TURN_CHITS</code>)."])
       + rulings(["Once per turn: keep it out of the recommendation (drawn), or add it on top?"]) });
 
@@ -532,19 +532,19 @@
     const muted = state.done === "mute";
     return {
       stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
-        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("", true)),
-        muted ? "Muted: Salyth is not asked again this combat. The effect view names the mute and holds the Unmute button; the combat's end clears it." : "A third button on the popup: mute this feature until the combat ends."),
-      chat: log(atk("Bugbear B","Morningstar","Thomas",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, muted ? "bad" : "pending"),
-        muted ? msg("Salyth", card("neutral","Cutting Words","muted until the combat ends","Salyth",["Unmute from the effect view."])) : `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+        + (muted ? `<div class="ev"><div class="e">Effect view · Corin</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("", true)),
+        muted ? "Muted: Corin is not asked again this combat. The effect view names the mute and holds the Unmute button; the combat's end clears it." : "A third button on the popup: mute this feature until the combat ends."),
+      chat: log(atk("Bugbear B","Morningstar","Tavin",`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, muted ? "bad" : "pending"),
+        muted ? msg("Corin", card("neutral","Cutting Words","muted until the combat ends","Corin",["Unmute from the effect view."])) : `<div class="msg"><span class="chip">waiting on Tavin, Corin · 20s</span></div>`),
       side: optionsPanel() + meter() + panel("What this shows", ["<b>The player's own switch.</b> The mute lasts until the combat ends and shows on the effect view (R5: an icon is never a mystery). Precedent: the mastery chips' combat sweep.", "<b>The meter's model</b> is a player who mutes after passing three times, which is when a player would get tired of it."]) + resetBtn() };
   };
 
   S.n5 = () => {
     const late = state.done === "late";
     return {
-      stage: stage(mapN(), late ? "Too late: damage was rolled, so the button is greyed out." : "No popup. The attack card carries the button, which only Salyth's client makes live, and it stays live until the damage is rolled."),
-      chat: log(msg("Bugbear B", card("pending","Attack","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,
-        late ? `<button class="cardbtn dead" disabled>Cutting Words — damage already rolled</button>` : `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button> <button class="cardbtn" data-act="late" style="border-color:var(--line);background:transparent;color:var(--ink-3)">▸ the GM rolls damage</button>`])) ),
+      stage: stage(mapN(), late ? "Too late: damage was rolled, so the button is greyed out." : "No popup. The attack card carries the button, which only Corin's client makes live, and it stays live until the damage is rolled."),
+      chat: log(msg("Bugbear B", card("pending","Attack","Morningstar","Bugbear B → Tavin",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`,
+        late ? `<button class="cardbtn dead" disabled>Cutting Words — damage already rolled</button>` : `<button class="cardbtn">Cutting Words −1d8 (Corin)</button> <button class="cardbtn" data-act="late" style="border-color:var(--line);background:transparent;color:var(--ink-3)">▸ the GM rolls damage</button>`])) ),
       side: optionsPanel() + meter() + panel("What this shows", ["<b>No interruptions at all.</b> The hold does not wait for a button nobody was asked about, so the GM rolls damage straight away and the chance closes.", "<b>The cost:</b> the \"left to the card\" count. At a live table most of those chances are missed, and N3 wants a proactive reminder.", "<b>As the quiet road under a gate, it works well:</b> whatever the gate stays silent on still has its button."]) + resetBtn() };
   };
 
@@ -563,11 +563,11 @@
     const muted = state.done === "mute";
     return {
       stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
-        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("A d8 can turn this: 24 − 8 = 16, under AC 18.", true)),
+        + (muted ? `<div class="ev"><div class="e">Effect view · Corin</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>` : cwPopup("A d8 can turn this: 24 − 8 = 16, under AC 18.", true)),
         "Option A (recommended): the margin gate, the Reaction gate and the mute button; Portent narrowed to saves and crits; the card's button under everything the gate skips."),
-      chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
-        msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button>`])),
-        `<div class="msg"><span class="chip">waiting on Thomas, Salyth · 20s</span></div>`),
+      chat: log(atk("Bugbear A","Morningstar","Aster",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`),
+        msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Tavin",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Corin)</button>`])),
+        `<div class="msg"><span class="chip">waiting on Tavin, Corin · 20s</span></div>`),
       side: optionsPanel() + meter() + panel("Why A", [(() => { const a = popupsWith(GATE_PRESETS.n1), b = popupsWith(GATE_PRESETS.nA); return `<b>Asked only when it matters.</b> ${b.total} popups against ${a.total} with no gate; the players take ${b.useful} of the ${b.wanted} chances they want${b.missed ? `, and miss ${b.missed} because a mute was pressed` : ""}.`; })(), "<b>Nothing is hidden.</b> A skipped roll still has the card button, and a mute shows on the effect view.", "<b>No setting, no new kind.</b> The margin read is a pure function beside <code>holdSkipped</code>; the mute is a chip swept with the combat."])
         + panel("Portent is the noise", ["<b>A stored 3 flips almost any enemy hit</b>, so the margin gate alone barely quiets Portent. Without the narrowing the Diviner is asked on most enemy turns, presses the mute, and then misses the crit and the Hag's save (toggle it off in the meter to see).", "<b>Saves and crits are where Portent earns its keep</b>: a dragon's breath, a hold person, a critical hit. An ordinary hit still has the card button."])
         + rulings(["<b>Q2's noise gate: A, B or C?</b> A is recommended: the fewest popups, every chance the players want taken, nothing new to learn.", "<b>Portent narrowed to saves and crits</b> (part of A), or asked on every hit a stored face would flip?"]) + resetBtn() };
@@ -577,25 +577,25 @@
     const muted = state.done === "mute";
     return {
       stage: stage(mapN(muted ? `<span class="chip used" style="position:absolute;top:-22px;left:50%;transform:translateX(-50%);white-space:nowrap">CW muted</span>` : "")
-        + (muted ? `<div class="ev"><div class="e">Effect view · Salyth</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>`
-          : popup("Cutting Words — Salyth", head("bard","Bugbear A's attack at Gren","Morningstar · natural 20 — a critical hit · within 60 ft of you") + bar(20)
+        + (muted ? `<div class="ev"><div class="e">Effect view · Corin</div>Cutting Words — muted until the combat ends <button class="cardbtn" data-act="reset">Unmute</button></div>`
+          : popup("Cutting Words — Corin", head("bard","Bugbear A's attack at Aster","Morningstar · natural 20 — a critical hit · within 60 ft of you") + bar(20)
             + row("cutting","Cutting Words","−1d8","a Reaction · 3 uses left") + btns3(true))),
-        "Option B: every roll the rule names is asked, once per creature's turn. Here Salyth is asked about a natural 20 that no d8 can undo. The player's answer to the noise is the mute."),
-      chat: log(atk("Bugbear A","Morningstar","Gren",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, Salyth, the Diviner · 20s</span></div>`),
+        "Option B: every roll the rule names is asked, once per creature's turn. Here Corin is asked about a natural 20 that no d8 can undo. The player's answer to the noise is the mute."),
+      chat: log(atk("Bugbear A","Morningstar","Aster",`d20 <b>20</b> +5 = <b>25</b> vs AC 15 <span class="verdict crit">CRIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, Corin, the Diviner · 20s</span></div>`),
       side: optionsPanel() + meter() + panel("B, fairly", ["<b>In this fight the Diviner mutes Portent</b> after three passes and misses both big moments; the mute is a blunt tool.", "<b>Closest to the rule's \"you can\".</b> The module never decides a bend is useless; Cutting Words on a crit to cut its damage is a real play (the damage half).", "<b>The cost is the popup count</b> and Portent's popup on nearly every turn. The mute is the relief, and a muted player misses the good moments too.", "<b>Once per turn</b> keeps a multiattack dragon from asking three times."]) + resetBtn() };
   };
 
   S.nC = () => {
     const late = state.done === "late";
     return {
-      stage: stage(mapN() + (late ? "" : `<div class="toast"><b>Cutting Words could turn this</b><br>Bugbear B → Thomas · 24 vs AC 18 · −1d8<div class="btnrow"><button class="btn primary">Answer</button><button class="btn" data-act="late">Let it go</button></div><div class="trk"><div></div></div></div>`),
+      stage: stage(mapN() + (late ? "" : `<div class="toast"><b>Cutting Words could turn this</b><br>Bugbear B → Tavin · 24 vs AC 18 · −1d8<div class="btnrow"><button class="btn primary">Answer</button><button class="btn" data-act="late">Let it go</button></div><div class="trk"><div></div></div></div>`),
         late ? "The toast closed; the roll went on. The card still shows the button until the damage is rolled." : "Option C: the margin gate picks the moments, but the ask is a small corner note, not a popup over the map. The roll waits 8 seconds for it, not 20."),
-      chat: log(msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Thomas",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Salyth)</button>`]))),
+      chat: log(msg("Bugbear B", card("pending","Attack — held for a reaction","Morningstar","Bugbear B → Tavin",[`d20 19 +5 = <b>24</b> vs AC 18 <span class="verdict hit">HIT</span>`, `<button class="cardbtn">Cutting Words −1d8 (Corin)</button>`]))),
       side: optionsPanel() + meter() + panel("C, fairly", ["<b>Softest on the eye.</b> Nothing covers the map; the player keeps moving their mouse and the note fades.", "<b>The cost:</b> a new surface. Every other reaction in the module (Shield, Lucky, Protection) is a popup, so a toast teaches the table a second shape for the same kind of choice. The 8-second window is easy to miss.", "<b>The count is A's</b> with the margin gate, only quieter per ask."]) + resetBtn() };
   };
 
   /* ---------- B · Portent ---------- */
-  const mapB = (extra="") => tok(120,120,"DR","Young Green Dragon",{extra}) + tok(360,300,"WZ","BF Test Wizard",{pc:true}) + tok(260,330,"GR","Gren",{pc:true});
+  const mapB = (extra="") => tok(120,120,"DR","Young Green Dragon",{extra}) + tok(360,300,"WZ","BF Test Wizard",{pc:true}) + tok(260,330,"GR","Aster",{pc:true});
   S.b1 = () => ({
     stage: stage(mapB(), "After the Long Rest the rest card shows the two dice; the effect view keeps them as chips on the wizard until they are used."),
     chat: log(msg("BF Test Wizard", card("neutral","Long Rest","Portent","BF Test Wizard",[`two d20s rolled and kept: <span class="pchip">17</span><span class="pchip">3</span>`, `<span class="chip">Portent — 2 dice kept until the next Long Rest</span>`]))),
@@ -616,15 +616,15 @@
       + rulings(["<b>Q6 — any D20 Test the wizard can see</b> (drawn: the whole scene, sight not judged), or the wizard's own only?"]) });
   S.b3 = () => ({
     stage: stage(mapB() + popup("Portent — BF Test Wizard",
-      head("wiz","The dragon's attack at Gren","Bite · d20 18 +7 = 25 vs AC 16 — a hit") + bar(20)
+      head("wiz","The dragon's attack at Aster","Bite · d20 18 +7 = 25 vs AC 16 — a hit") + bar(20)
       + row("portent","Portent — replace the 18 with the 3","3 +7 = 10","a stored die · 1 left")
       + `<div class="btnrow"><button class="btn primary" disabled>Answer</button><button class="btn" data-act="pass">Pass</button></div>`),
       "Another creature's roll: the bystander's popup (group A) after the roll, one row per stored die worth using."),
-    chat: log(atk("Young Green Dragon","Bite","Gren",`d20 18 +7 = <b>25</b> vs AC 16 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Gren, BF Test Wizard · 20s</span></div>`),
+    chat: log(atk("Young Green Dragon","Bite","Aster",`d20 18 +7 = <b>25</b> vs AC 16 <span class="verdict hit">HIT</span>`,"pending"), `<div class="msg"><span class="chip">waiting on Aster, BF Test Wizard · 20s</span></div>`),
     side: panel("What this shows", ["<b>The same bystander popup as Cutting Words,</b> the row a stored die; the bent card reads \"Portent (BF Test Wizard) — 18 → 3, MISS\".", "<b>\"Before the roll\" bends to after</b> for another creature's roll — the register's row for every bystander; the wizard sees the face, as Lucky's ruling of 2026-09-25 accepted.", "<b>A die worth nothing is not offered:</b> a stored 17 against a roll of 18 that hit shows no row; against a save the wizard wants failed it does."]) });
 
   /* ---------- C · the cast riders ---------- */
-  const mapC = () => tok(140,150,"BB","Bugbear Warrior") + tok(330,290,"WM","Wild Mage",{pc:true}) + tok(230,320,"GR","Gren",{pc:true});
+  const mapC = () => tok(140,150,"BB","Bugbear Warrior") + tok(330,290,"WM","Wild Mage",{pc:true}) + tok(230,320,"GR","Aster",{pc:true});
   S.c1 = () => ({
     stage: stage(mapC(), "A slot cast: the d20 rolls on the cast card, once per turn, with no click."),
     chat: log(msg("Wild Mage", card("neutral","Cast","Scorching Ray · level 2","Wild Mage → Bugbear Warrior",[`<b>Wild Magic Surge</b> — d20: <b>14</b> · nothing this time`, `<span class="chip">once per turn</span>`]))),
@@ -636,24 +636,24 @@
       msg("Wild Mage", card("neutral","Controlled Chaos (level 14)","two rolls — pick one","Wild Mage",[`<button class="btn" style="margin-right:6px">67–68 · ethereal music</button><button class="btn">09–10 · Fireball centred on you</button>`]))),
     side: panel("What this shows", ["<b>The table is the pack's RollTable,</b> rolled through the platform (never a copy in the code — N1); the result card is Foundry's own, the surge line names it.", "<b>Controlled Chaos</b> (14) is two rolls and two buttons on the card; <b>Tamed Surge</b> (18) is a pick from the table instead of a roll — a select on the card, once per Long Rest.", "<b>What plays is the table's:</b> a Fireball centred on the sorcerer is cast from the sheet; the module does not aim it."]) });
   S.c3 = () => {
-    const g = state.give, total = 12, given = g.gren + g.thomas + g.salyth, left = total - given;
+    const g = state.give, total = 12, given = g.aster + g.thomas + g.corin, left = total - given;
     const num = (k, nm, at) => `<div class="row"><span></span><span class="nm">${esc(nm)}<span class="dice">${at}</span></span><input type="number" min="0" max="${total}" value="${g[k]}" data-give="${k}" aria-label="${esc(nm)}"></div>`;
     return {
-      stage: stage(tok(140,150,"BB","Bugbear Warrior") + tok(300,300,"TH","Thomas",{pc:true}) + tok(220,330,"GR","Gren",{pc:true}) + tok(390,340,"SA","Salyth",{pc:true}) + popup("Inspiring Smite — Thomas",
+      stage: stage(tok(140,150,"BB","Bugbear Warrior") + tok(300,300,"TH","Tavin",{pc:true}) + tok(220,330,"GR","Aster",{pc:true}) + tok(390,340,"SA","Corin",{pc:true}) + popup("Inspiring Smite — Tavin",
         head("pal","12 Temporary Hit Points to divide","2d8 + 3 → 12 · creatures within 30 ft") + bar(20)
-        + num("gren","Gren","2 of 24 HP") + num("thomas","Thomas (you)","30 of 30 HP") + num("salyth","Salyth","18 of 26 HP")
+        + num("aster","Aster","2 of 24 HP") + num("thomas","Tavin (you)","30 of 30 HP") + num("corin","Corin","18 of 26 HP")
         + `<div class="situ">${left === 0 ? "<b>12 given</b> — all of it." : left > 0 ? `<b>${left} left</b> to give.` : `<b class="cost no">${-left} over</b> — 12 is the total.`}</div>`
         + `<div class="btnrow"><button class="btn primary" ${left===0?"":"disabled"}>Give</button><button class="btn">All to me</button></div>`),
         "After Divine Smite: the popup lists creatures within 30 ft with a number each; Give is live when the numbers sum to the total. The clock gives it all to the paladin."),
-      chat: log(msg("Thomas", card("pending","Cast — Inspiring Smite","Divine Smite · level 1","Thomas",[`2d8 + 3 → <b>12</b> Temporary Hit Points to divide`, `<span class="chip">waiting on Thomas · 20s</span>`]))),
+      chat: log(msg("Tavin", card("pending","Cast — Inspiring Smite","Divine Smite · level 1","Tavin",[`2d8 + 3 → <b>12</b> Temporary Hit Points to divide`, `<span class="chip">waiting on Tavin · 20s</span>`]))),
       side: panel("What this shows", ["<b>The split is the paladin's genuine choice</b> (R1 holds); the popup makes the arithmetic visible — the remainder line, Give live only at zero.", "<b>Temp HP do not stack:</b> a creature holding more is shown greyed (Inspiring Leader's rule); one holding fewer is raised.", "<b>Each grant is receipted</b> on the smite's card; the clock's default gives everything to the paladin so the fight moves."])
         + rulings(["<b>Q8 — a number per creature</b> (drawn), or \"split evenly\" only?", "The clock's default: all to the paladin (drawn), or split evenly?"]) };
   };
 
   /* ---------- D · Brutal Strike ---------- */
-  const mapD = () => tok(140,150,"BB","Bugbear Warrior") + tok(240,170,"MG","Morgash",{pc:true});
+  const mapD = () => tok(140,150,"BB","Bugbear Warrior") + tok(240,170,"MG","Bramm",{pc:true});
   S.d1 = () => ({
-    stage: stage(mapD() + `<div class="dlg"><div class="title">Greataxe: Attack — Morgash</div><div class="body">
+    stage: stage(mapD() + `<div class="dlg"><div class="title">Greataxe: Attack — Bramm</div><div class="body">
       <div class="fg"><span>Target</span><select><option>Bugbear Warrior</option></select></div>
       <fieldset class="gate"><legend>Before you roll <span class="net ${state.pick==="brutal"?"norm":"adv"}">${state.pick==="brutal"?"Normal":"Advantage"}</span></legend>
         <div class="row"><span></span><span class="nm">Reckless Attack<span class="dice">Advantage</span></span><span class="cost">a chip on you</span></div>
@@ -665,15 +665,15 @@
     side: panel("What this is", ["<b>Lucky's buy box, mirrored:</b> a FORGO row in the gate's section (<code>ADVANTAGE_BUYS</code> <code>forgo: true</code>). Ticked, the tick is recorded on the attack's <code>reminder</code> and the net reads Normal; the pack's Reckless effect stays for the rest of the turn.", "<b>Before the roll, as the rule says</b> — a d20 already rolled is never rewritten (DESIGN §4). A roll with no dialog cannot forgo, and the card says so.", "<b>A roll at Disadvantage greys the row</b> (\"mustn't have Disadvantage\")."])
       + rulings(["<b>Q4 — the tick in the dialog</b> (drawn) is the only shape DESIGN allows; rule the wording."]) });
   S.d2 = () => ({
-    stage: stage(mapD() + popup("Brutal Strike — Morgash",
+    stage: stage(mapD() + popup("Brutal Strike — Bramm",
       head("barb","You hit! — Greataxe","1d12 + 5 → 11 · the Advantage was forgone") + bar(20)
       + `<div class="situ">Brutal Strike · one pick</div>`
       + row("forceful","Forceful Blow","+1d10","pushed 15 ft — a card line")
       + row("hamstring","Hamstring Blow","+1d10","Speed −15 ft until your next turn")
       + `<div class="btnrow"><button class="btn primary" ${state.pick?"":"disabled"}>Roll damage</button><button class="btn">No effect</button></div>`),
       "The hit menu's group opens only on a hit whose attack recorded the forgo; the extra d10 rides the damage roll, the effect lands or is said."),
-    chat: log(atk("Morgash","Greataxe","Bugbear Warrior",`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span> · <span class="chip">Brutal Strike — Advantage forgone</span>`),
-      msg("Morgash", card("pending","Damage — the hit menu","Greataxe","Morgash → Bugbear Warrior",[`1d12 + 5 → <b>11</b>`, `<span class="chip">Brutal Strike · waiting · 20s</span>`]))),
+    chat: log(atk("Bramm","Greataxe","Bugbear Warrior",`d20 14 +7 = <b>21</b> vs AC 16 <span class="verdict hit">HIT</span> · <span class="chip">Brutal Strike — Advantage forgone</span>`),
+      msg("Bramm", card("pending","Damage — the hit menu","Greataxe","Bramm → Bugbear Warrior",[`1d12 + 5 → <b>11</b>`, `<span class="chip">Brutal Strike · waiting · 20s</span>`]))),
     side: panel("What this shows", ["<b>The Combat Superiority precedent:</b> a group (<code>requires: { forgo }</code>, <code>max: 1</code>, 2 from 17), its options rows — the d10 rides the roll as its own part, crit-doubled.", "<b>Forceful Blow</b> is a card line (the table moves the token — Pushing Attack's rule); <b>Hamstring Blow</b> lands the pack's effect on the target (the effect-riders seam). Level 13 adds Staggering Blow (the gate's <code>saves</code> facet reads the effect) and Sundering Blow (a +5 give to the next ally — a use chip on the ally).", "<b>A Battle Master Barbarian</b> gets two groups and a pick in each — the 2026-09-27 ruling."]) });
   S.d3 = () => ({
     stage: stage(tok(140,150,"BB","Bugbear Warrior") + tok(240,170,"WL","Blade Warlock",{pc:true}) + popup("Eldritch Smite — Blade Warlock",

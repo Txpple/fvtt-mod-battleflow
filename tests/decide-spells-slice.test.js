@@ -101,7 +101,7 @@ describe("Tier 1 — the rows", () => {
 });
 
 describe("the saves facet's `abilities` scope, and the demand's own bend", () => {
-  const facts = () => ({ enabled: ["Irresistible Dance"], table: reg.EFFECT_BENDS, name: "Gren" });
+  const facts = () => ({ enabled: ["Irresistible Dance"], table: reg.EFFECT_BENDS, name: "Aster" });
   const dance = { id: "d1", name: "Irresistible Dance" };
 
   it("Irresistible Dance counts Disadvantage against a Dexterity save demanded of the dancer, and says which save", () => {
@@ -112,7 +112,7 @@ describe("the saves facet's `abilities` scope, and the demand's own bend", () =>
     });
     expect(out).toHaveLength(1);
     expect(out[0].bend).toBe("disadvantage");
-    expect(out[0].label).toBe("Gren — Irresistible Dance — a Dexterity save");
+    expect(out[0].label).toBe("Aster — Irresistible Dance — a Dexterity save");
     expect(out[0].effectId).toBe("d1");
   });
   it("…and says nothing against a Wisdom save (its own repeat), or a demand that names no ability", () => {
@@ -137,12 +137,12 @@ describe("the saves facet's `abilities` scope, and the demand's own bend", () =>
     const f = {
       enabled: ["Poison Protection"],
       table: reg.EFFECT_BENDS,
-      name: "Gren",
+      name: "Aster",
       effects: [{ id: "pp", name: "Poison Protection" }]
     };
     const out = r.effectSaveSources({ ...f, demand: { spell: true, statuses: ["poisoned"] } });
     expect(out.map(s => [s.bend, s.label])).toEqual([
-      ["advantage", "Gren — Poison Protection — against Poisoned"]
+      ["advantage", "Aster — Poison Protection — against Poisoned"]
     ]);
     expect(r.effectSaveSources({ ...f, demand: { spell: true, statuses: [] } })).toEqual([]);
   });
@@ -155,13 +155,13 @@ describe("the saves facet's `abilities` scope, and the demand's own bend", () =>
           rule: reg.REPEAT_SAVES["Tasha's Hideous Laughter"].rule
         }
       },
-      "Gren"
+      "Aster"
     );
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({
       kind: "effect",
       bend: "advantage",
-      label: "Gren — Tasha's Hideous Laughter — the save was raised by damage"
+      label: "Aster — Tasha's Hideous Laughter — the save was raised by damage"
     });
     expect(r.demandBendSources({ spell: true, statuses: [] })).toEqual([]);
     expect(r.demandBendSources(null)).toEqual([]);
@@ -535,14 +535,14 @@ describe("decide/turn-grants.js — the turn-start grant", () => {
     expect(tg.grantDue({ paid: new Set(), place: null }).due).toBe(false);
   });
   it("the words: temporary Hit Points name the spell and the bearer", () => {
-    expect(tg.grantTitle({ spell: "Heroism", bearer: "Gren", total: 4, type: "temphp" })).toBe(
-      "Heroism — Gren gains 4 Temporary Hit Points"
+    expect(tg.grantTitle({ spell: "Heroism", bearer: "Aster", total: 4, type: "temphp" })).toBe(
+      "Heroism — Aster gains 4 Temporary Hit Points"
     );
-    expect(tg.grantTitle({ spell: "Heroism", bearer: "Gren", total: 1, type: "temphp" })).toBe(
-      "Heroism — Gren gains 1 Temporary Hit Point"
+    expect(tg.grantTitle({ spell: "Heroism", bearer: "Aster", total: 1, type: "temphp" })).toBe(
+      "Heroism — Aster gains 1 Temporary Hit Point"
     );
-    expect(tg.grantTitle({ spell: "Aura", bearer: "Gren", total: 3, type: "healing" })).toBe(
-      "Aura — Gren regains 3 Hit Points"
+    expect(tg.grantTitle({ spell: "Aura", bearer: "Aster", total: 3, type: "healing" })).toBe(
+      "Aura — Aster regains 3 Hit Points"
     );
   });
 });
@@ -663,8 +663,8 @@ describe("Tier 4 — the held spells (RULINGS *The spells slice — the held spe
     expect(ds.shareEnds(row, { casterHp: 0 })).toMatchObject({ ends: true });
     expect(ds.shareEnds(row, { casterHp: 3 })).toMatchObject({ ends: false });
     expect(
-      ds.shareTitle({ spell: "Warding Bond", bearer: "Gren", caster: "Ysolde", amount: 9 })
-    ).toBe("Warding Bond — Ysolde takes 9 with Gren");
+      ds.shareTitle({ spell: "Warding Bond", bearer: "Aster", caster: "Ysolde", amount: 9 })
+    ).toBe("Warding Bond — Ysolde takes 9 with Aster");
   });
 
   it("Vampiric Touch: the one HEAL_ON_HIT row — half the necrotic damage; the amount by the parts' proportion, floored", () => {

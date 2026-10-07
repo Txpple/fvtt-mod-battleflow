@@ -199,7 +199,7 @@ async function stampConcentrationAsk(actor, changes) {
 
 const breakerLine = breaker => `<strong>${esc(breaker.feat)}</strong> (${esc(breaker.by)}) — the save is made at Disadvantage.`;
 
-/** "Took 12 damage from Morgash's Greatsword.", with whatever parts the cause has. */
+/** "Took 12 damage from the Ogre's Greatclub.", with whatever parts the cause has. */
 function causeLine(cause, damage) {
   let from = "";
   if ( cause?.attacker && cause?.source && (cause.attacker !== cause.source) ) {

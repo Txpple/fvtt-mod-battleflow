@@ -1,5 +1,5 @@
-// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3*) on Party Camp.
-// CLEARS every token on Party Camp, then places BF Walk Cleric (friendly; every spell of the slice at
+// Build the spells slice's walk scene (RULINGS *The spells slice — Tiers 1 and 2*, *Tier 3*) on its own scene, Battle Flow Walk.
+// CLEARS every token on the walk scene, then places BF Walk Cleric (friendly; every spell of the slice at
 // will, Cure Wounds beside them) with two targets 5 ft east of it: BF Walk Target (hostile — the
 // one Hold Person, Command and the rest land on) and BF Walk Ally (friendly — Heroism, Beacon of Hope
 // and Protection from Poison go on it). The targets are CLEAN copies of BF Test Victim's shape with
@@ -11,10 +11,19 @@ import { connectSuite } from '../harness.mjs';
 const f = await connectSuite({ tag: 'place-spells-walk', watchdogMs: 240_000 });
 const out = await f.evaluate(async () => {
   const log = [];
-  const scene = game.scenes.getName('Party Camp');
-  if (!scene) return { error: 'no Party Camp' };
+  // ⚠ The walk's OWN scene, built here, never a campaign's map (2026-10-07: these once cleared a campaign scene).
+  // 4200 × 3500 at a 140 px grid: every SPOT below is in that grid's squares.
+  const WALK = 'Battle Flow Walk';
+  let scene = game.scenes.getName(WALK);
+  if (!scene) {
+    const sceneFolder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Scene'))
+      ?? await Folder.create({ name: 'Test Suite', type: 'Scene' });
+    scene = await Scene.create({ name: WALK, folder: sceneFolder.id, width: 4200, height: 3500, padding: 0,
+      grid: { size: 140, distance: 5, units: 'ft' }, backgroundColor: '#3f4a3c', tokenVision: false,
+      ownership: { default: 2 } });
+    log.push(`created the ${WALK} scene`);
+  }
   const cleric = game.actors.getName('BF Test Cleric');
-  const dummyArt = game.actors.getName('Practice Dummy');
   if (!cleric) return { error: 'BF Test Cleric is missing — run fixture-suite first' };
   const folder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Actor'))
     ?? await Folder.create({ name: 'Test Suite', type: 'Actor', color: '#4b5563' });
@@ -33,10 +42,10 @@ const out = await f.evaluate(async () => {
     return obj;
   };
 
-  // --- 1. clear Party Camp
+  // --- 1. clear the walk scene
   const ids = scene.tokens.map(t => t.id);
   if (ids.length) await scene.deleteEmbeddedDocuments('Token', ids);
-  log.push(`cleared ${ids.length} token(s) from Party Camp`);
+  log.push(`cleared ${ids.length} token(s) from the walk scene`);
 
   // --- 2. the walk's actors, rebuilt fresh
   const CASTER = 'BF Walk Cleric';
@@ -73,8 +82,8 @@ const out = await f.evaluate(async () => {
     made[CASTER] = await Actor.create(o);
     await made[CASTER].update({ 'system.attributes.hp.value': made[CASTER].system.attributes.hp.max });
   }
-  const img = dummyArt?.img ?? 'icons/svg/mystery-man.svg';
-  const tex = dummyArt?.prototypeToken?.texture?.src ?? img;
+  const img = 'icons/svg/mystery-man.svg';
+  const tex = img;
   const morningstar = await phb('Morningstar', 'weapon');
   for (const [name, disposition] of [[TARGET, -1], [ALLY, 1]]) {
     made[name] = await Actor.create({
@@ -89,7 +98,7 @@ const out = await f.evaluate(async () => {
     });
   }
 
-  // --- 3. placed (Party Camp's grid is 140 px: one square, 5 ft)
+  // --- 3. placed (the walk scene's grid is 140 px: one square, 5 ft)
   const SPOTS = { [CASTER]: [1680, 1400], [TARGET]: [1820, 1400], [ALLY]: [1820, 1540] };
   const tokens = [];
   for (const [name, [x, y]] of Object.entries(SPOTS)) {

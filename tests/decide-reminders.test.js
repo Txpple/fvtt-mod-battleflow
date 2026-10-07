@@ -110,18 +110,18 @@ describe("proneSources — both roles, from plain facts", () => {
       r.proneSources({
         targetProne: true,
         distanceFeet: 30,
-        targetName: "Morgash",
+        targetName: "Bramm",
         targetProneBy: "Cunning Strike: Tripped"
       })[0].label
-    ).toBe("Morgash is Prone (Cunning Strike: Tripped) — 30 feet away");
+    ).toBe("Bramm is Prone (Cunning Strike: Tripped) — 30 feet away");
     expect(
       r.proneSources({
         targetProne: true,
         distanceFeet: 5,
-        targetName: "Morgash",
+        targetName: "Bramm",
         targetProneBy: "Prone"
       })[0].label
-    ).toBe("Morgash is Prone — within 5 feet");
+    ).toBe("Bramm is Prone — within 5 feet");
     expect(r.proneSources({})).toEqual([]);
     expect(r.proneSources()).toEqual([]);
   });
@@ -329,8 +329,8 @@ describe("rangeSources — a ranged attack's own geometry, both glossary rules",
 describe("reminderView — the header line and the boxes the section draws", () => {
   it("one box per source: the fact, the bend as a badge, the rule; the net line only when sources contend", () => {
     const sources = [
-      r.reminderSource("sap", "disadvantage", "Gruk — Sapped by Thomas", "sap rule"),
-      r.reminderSource("vex", "advantage", "Gruk Vexed Thomas", "vex rule")
+      r.reminderSource("sap", "disadvantage", "Gruk — Sapped by Tavin", "sap rule"),
+      r.reminderSource("vex", "advantage", "Gruk Vexed Tavin", "vex rule")
     ];
     expect(r.reminderView(sources, "normal")).toEqual({
       head: {
@@ -339,8 +339,8 @@ describe("reminderView — the header line and the boxes the section draws", () 
         why: "Advantage (1) and Disadvantage (1) cancel — a normal roll, however many of each."
       },
       boxes: [
-        { label: "Gruk — Sapped by Thomas", bend: "disadvantage", rule: "sap rule" },
-        { label: "Gruk Vexed Thomas", bend: "advantage", rule: "vex rule" }
+        { label: "Gruk — Sapped by Tavin", bend: "disadvantage", rule: "sap rule" },
+        { label: "Gruk Vexed Tavin", bend: "advantage", rule: "vex rule" }
       ]
     });
   });
@@ -416,11 +416,11 @@ describe("effectSources — the sixth kind: an ability on either sheet, by name 
       enabled: all(),
       table: T(),
       scope: {},
-      attackerName: "Gren"
+      attackerName: "Aster"
     });
     expect(out).toHaveLength(1);
     expect(out[0].bend).toBeNull();
-    expect(out[0].label).toBe("Gren — Demon Armor (listed — Disadvantage only against demons)");
+    expect(out[0].label).toBe("Aster — Demon Armor (listed — Disadvantage only against demons)");
   });
   it("a feature row matches an Item's name, never an effect; a counted caveat stays OFF the label", () => {
     const out = r.effectSources({
@@ -758,17 +758,17 @@ describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the 
   const facts = () => ({
     enabled: ["Feinting Attack"],
     table: reg.EFFECT_BENDS,
-    attackerName: "Morgash",
+    attackerName: "Bramm",
     targetName: "the goblin"
   });
   it("the feinting fighter attacking the marked target gets Advantage; anyone else attacking it gets nothing", () => {
     const marked = {
       uuid: "Actor.gob",
-      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.morgash" }]
+      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.bramm" }]
     };
     const mine = r.effectSources({
       ...facts(),
-      attacker: { uuid: "Actor.morgash" },
+      attacker: { uuid: "Actor.bramm" },
       target: marked,
       pass: "target"
     });
@@ -787,7 +787,7 @@ describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the 
     expect(
       r.effectSources({
         ...facts(),
-        attacker: { uuid: "Actor.morgash" },
+        attacker: { uuid: "Actor.bramm" },
         target: unsourced,
         pass: "target"
       })
@@ -796,12 +796,12 @@ describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the 
   it("a row that admits only its source hinges on the target: the attacker pass leaves it alone", () => {
     const marked = {
       uuid: "Actor.gob",
-      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.morgash" }]
+      effects: [{ id: "f1", name: "Feinting Attack", sourceUuid: "Actor.bramm" }]
     };
     expect(
       r.effectSources({
         ...facts(),
-        attacker: { uuid: "Actor.morgash" },
+        attacker: { uuid: "Actor.bramm" },
         target: marked,
         pass: "attacker"
       })
@@ -809,7 +809,7 @@ describe('effectSources — `only: "source"` (Feinting Attack, 2026-09-05): the 
   });
 });
 
-describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "vow of enmity is not giving invictus advantage reminder when he swings")', () => {
+describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "vow of enmity is not giving dorian advantage reminder when he swings")', () => {
   // The 2024 packs put every one of these effects on the creature the feature is used ON, with
   // the user as its source — the paladin's sheet never carries a Vow. Read where the pack puts
   // it, judged by the source facet, on the target pass.
@@ -817,18 +817,18 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
   it("Vow of Enmity: the sworn creature wears the marker; the paladin swinging at it gets Advantage, nobody else does, and the paladin gets nothing elsewhere", () => {
     const sworn = {
       uuid: "Scene.s.Token.t.Actor.dummy",
-      effects: [{ id: "v1", name: "Vow of Enmity", sourceUuid: "Actor.invictus" }]
+      effects: [{ id: "v1", name: "Vow of Enmity", sourceUuid: "Actor.dorian" }]
     };
     const facts = {
       enabled: ["Vow of Enmity"],
       table: T(),
       scope: {},
-      attackerName: "Invictus",
+      attackerName: "Dorian",
       targetName: "the dummy"
     };
     const mine = r.effectSources({
       ...facts,
-      attacker: { uuid: "Actor.invictus", effects: [] },
+      attacker: { uuid: "Actor.dorian", effects: [] },
       target: sworn,
       pass: "target"
     });
@@ -840,7 +840,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(
       r.effectSources({
         ...facts,
-        attacker: { uuid: "Actor.morgash", effects: [] },
+        attacker: { uuid: "Actor.bramm", effects: [] },
         target: sworn,
         pass: "target"
       })
@@ -849,7 +849,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(
       r.effectSources({
         ...facts,
-        attacker: { uuid: "Actor.invictus", effects: [] },
+        attacker: { uuid: "Actor.dorian", effects: [] },
         target: { uuid: "Actor.other", effects: [] },
         pass: "target"
       })
@@ -857,7 +857,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(
       r.effectSources({
         ...facts,
-        attacker: { uuid: "Actor.invictus", effects: [] },
+        attacker: { uuid: "Actor.dorian", effects: [] },
         target: sworn,
         pass: "attacker"
       })
@@ -866,7 +866,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(
       r.effectSources({
         ...facts,
-        attacker: { uuid: "Actor.invictus", effects: [{ id: "v0", name: "Vow of Enmity" }] },
+        attacker: { uuid: "Actor.dorian", effects: [{ id: "v0", name: "Vow of Enmity" }] },
         target: { uuid: "Actor.other", effects: [] },
         pass: "both"
       })
@@ -889,7 +889,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(atSeer).toHaveLength(1);
     expect(atSeer[0]).toMatchObject({ bend: "disadvantage", effectId: "c1" });
     expect(
-      r.effectSources({ ...facts, attacker: bonded, target: { uuid: "Actor.jetten", effects: [] } })
+      r.effectSources({ ...facts, attacker: bonded, target: { uuid: "Actor.elra", effects: [] } })
     ).toEqual([]);
     // the seer attacks the bonded creature: Advantage; anyone else attacking it: nothing
     const seerAt = r.effectSources({
@@ -902,12 +902,12 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
     expect(seerAt).toHaveLength(1);
     expect(seerAt[0]).toMatchObject({ bend: "advantage", effectId: "c1" });
     expect(
-      r.effectSources({ ...facts, attacker: { uuid: "Actor.jetten", effects: [] }, target: bonded })
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.elra", effects: [] }, target: bonded })
     ).toEqual([]);
   });
   it("Compelled and Taunted: Disadvantage against everyone but the one who caused it — judged, no caveat left on the label", () => {
     for (const name of ["Compelled", "Taunted"]) {
-      const me = { uuid: "Actor.gob", effects: [{ id: "x1", name, sourceUuid: "Actor.invictus" }] };
+      const me = { uuid: "Actor.gob", effects: [{ id: "x1", name, sourceUuid: "Actor.dorian" }] };
       const facts = {
         attacker: me,
         enabled: [name],
@@ -918,8 +918,8 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
       };
       const atOther = r.effectSources({
         ...facts,
-        target: { uuid: "Actor.jetten", effects: [] },
-        targetName: "Jetten"
+        target: { uuid: "Actor.elra", effects: [] },
+        targetName: "Elra"
       });
       expect(atOther).toHaveLength(1);
       expect(atOther[0]).toMatchObject({
@@ -930,8 +930,8 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
       expect(
         r.effectSources({
           ...facts,
-          target: { uuid: "Actor.invictus", effects: [] },
-          targetName: "Invictus"
+          target: { uuid: "Actor.dorian", effects: [] },
+          targetName: "Dorian"
         })
       ).toEqual([]);
     }
@@ -959,7 +959,7 @@ describe('effectSources — the marker sits on the OTHER creature (2026-09-21: "
 
 describe("effectCheckSources — an effect that bends ability checks by its text (Heat Metal, 2026-09-04)", () => {
   it("Heated Metal on the roller's sheet is Disadvantage on a check; off the list, or absent, nothing", () => {
-    const facts = { table: reg.EFFECT_BENDS, name: "Jetten" };
+    const facts = { table: reg.EFFECT_BENDS, name: "Elra" };
     const on = r.effectCheckSources({
       ...facts,
       effects: [{ id: "h1", name: "heated metal" }],
@@ -969,7 +969,7 @@ describe("effectCheckSources — an effect that bends ability checks by its text
     expect(on[0]).toMatchObject({
       kind: "effect",
       bend: "disadvantage",
-      label: "Jetten — Heated Metal",
+      label: "Elra — Heated Metal",
       effectId: "h1"
     });
     expect(on[0].detail).toBe(reg.EFFECT_BENDS["Heated Metal"].rule);
@@ -1108,15 +1108,15 @@ describe('effectSources — `except: "source"`: the bend stands against everyone
   const T = () => reg.EFFECT_BENDS;
   it("Goaded: Disadvantage against anyone but the goader — judged on the target pass, per target", () => {
     const me = {
-      uuid: "Actor.jetten",
-      effects: [{ id: "g1", name: "Goaded", sourceUuid: "Actor.morgash" }]
+      uuid: "Actor.elra",
+      effects: [{ id: "g1", name: "Goaded", sourceUuid: "Actor.bramm" }]
     };
     const facts = {
       attacker: me,
       enabled: ["Goaded"],
       table: T(),
       scope: {},
-      attackerName: "Jetten"
+      attackerName: "Elra"
     };
     // The attacker pass leaves it alone: the row hinges on WHICH target.
     expect(r.effectSources({ ...facts, pass: "attacker" })).toEqual([]);
@@ -1131,41 +1131,41 @@ describe('effectSources — `except: "source"`: the bend stands against everyone
     expect(
       r.effectSources({
         ...facts,
-        target: { uuid: "Actor.morgash" },
-        targetName: "Morgash",
+        target: { uuid: "Actor.bramm" },
+        targetName: "Bramm",
         pass: "target"
       })
     ).toEqual([]);
   });
   it("Distracted: Advantage for any attacker but the distracter", () => {
     const target = {
-      uuid: "Actor.jetten",
-      effects: [{ id: "d1", name: "Distracted", sourceUuid: "Actor.morgash" }]
+      uuid: "Actor.elra",
+      effects: [{ id: "d1", name: "Distracted", sourceUuid: "Actor.bramm" }]
     };
     const facts = {
       target,
       enabled: ["Distracted"],
       table: T(),
       scope: {},
-      targetName: "Jetten",
+      targetName: "Elra",
       pass: "target"
     };
     expect(
-      r.effectSources({ ...facts, attacker: { uuid: "Actor.thomas" }, attackerName: "Thomas" })
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.thomas" }, attackerName: "Tavin" })
     ).toHaveLength(1);
     expect(
-      r.effectSources({ ...facts, attacker: { uuid: "Actor.morgash" }, attackerName: "Morgash" })
+      r.effectSources({ ...facts, attacker: { uuid: "Actor.bramm" }, attackerName: "Bramm" })
     ).toEqual([]);
   });
   it("an effect with no known source is counted — the gate never guesses an exemption", () => {
-    const me = { uuid: "Actor.jetten", effects: [{ id: "g1", name: "Goaded" }] };
+    const me = { uuid: "Actor.elra", effects: [{ id: "g1", name: "Goaded" }] };
     expect(
       r.effectSources({
         attacker: me,
         enabled: ["Goaded"],
         table: T(),
         scope: {},
-        target: { uuid: "Actor.morgash" },
+        target: { uuid: "Actor.bramm" },
         pass: "target"
       })
     ).toHaveLength(1);
@@ -1173,10 +1173,10 @@ describe('effectSources — `except: "source"`: the bend stands against everyone
 });
 
 describe('modeSources — the platform\'s own roll mode, read off the effect CHANGES (user, 2026-09-04: "see the calculus for why there is advantage")', () => {
-  const duskheart = {
+  const amulet = {
     id: "e1",
-    name: "The Duskheart",
-    item: "The Duskheart",
+    name: "The Amulet",
+    item: "The Amulet",
     changes: [{ key: "system.abilities.wis.save.roll.mode", value: "1" }]
   };
   const robe = {
@@ -1188,9 +1188,9 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
       { key: "system.bonuses.abilities.save", value: "1" }
     ]
   };
-  it("Harrow Vane's Wisdom save: The Duskheart is one Advantage box, the Robe (a bonus, not a mode) none", () => {
+  it("Harrow Vane's Wisdom save: The Amulet is one Advantage box, the Robe (a bonus, not a mode) none", () => {
     const out = r.modeSources({
-      effects: [duskheart, robe],
+      effects: [amulet, robe],
       roll: { kind: "save", ability: "wis" },
       rollLabel: "Wisdom saving throws",
       name: "Harrow Vane"
@@ -1198,7 +1198,7 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
     expect(out).toHaveLength(1);
     expect(out[0].kind).toBe("effect");
     expect(out[0].bend).toBe("advantage");
-    expect(out[0].label).toBe("Harrow Vane — The Duskheart");
+    expect(out[0].label).toBe("Harrow Vane — The Amulet");
     expect(out[0].detail).toBe(
       "An effect on the sheet sets Wisdom saving throws to roll with Advantage."
     );
@@ -1206,7 +1206,7 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
   });
   it("the same effect says nothing on a Dexterity save — the key names the ability", () => {
     expect(
-      r.modeSources({ effects: [duskheart], roll: { kind: "save", ability: "dex" } })
+      r.modeSources({ effects: [amulet], roll: { kind: "save", ability: "dex" } })
     ).toHaveLength(0);
   });
   it("−1 is Disadvantage; an effect whose name differs from its item names both", () => {
@@ -1239,9 +1239,9 @@ describe('modeSources — the platform\'s own roll mode, read off the effect CHA
     });
     expect(out.map(s => s.label)).toEqual(["You — Blessed Focus"]);
   });
-  it("nets with the status sources as the attack gate nets: The Duskheart against a Disadvantage row is Normal", () => {
+  it("nets with the status sources as the attack gate nets: The Amulet against a Disadvantage row is Normal", () => {
     const status = r.reminderSource("condition", "disadvantage", "Harrow Vane — Restrained");
-    const [mode] = r.modeSources({ effects: [duskheart], roll: { kind: "save", ability: "wis" } });
+    const [mode] = r.modeSources({ effects: [amulet], roll: { kind: "save", ability: "wis" } });
     expect(r.saveGate([status, mode]).net).toBe("normal");
     expect(r.saveGate([mode]).net).toBe("advantage");
     expect(r.saveGate([mode]).view.head.title).toBe("1 Modifier — Net");
@@ -1308,7 +1308,7 @@ describe('effectSaveSources — `spells: "cast"` (the DMG: the Mantle and the Ri
     enabled: ["Mantle of Spell Resistance", "Magic Resistance"],
     table: reg.EFFECT_BENDS,
     features: ["Mantle of Spell Resistance", "Magic Resistance"],
-    name: "Gren"
+    name: "Aster"
   });
   it("a spell cast: both list Advantage; the Mantle says 'against a spell'", () => {
     const out = r.effectSaveSources({
@@ -1316,8 +1316,8 @@ describe('effectSaveSources — `spells: "cast"` (the DMG: the Mantle and the Ri
       demand: { spell: true, cast: true, statuses: [] }
     });
     expect(out.map(s => s.label).sort()).toEqual([
-      "Gren — Magic Resistance — against a spell",
-      "Gren — Mantle of Spell Resistance — against a spell"
+      "Aster — Magic Resistance — against a spell",
+      "Aster — Mantle of Spell Resistance — against a spell"
     ]);
   });
   it("a magic item's effect (a Wand, a Necklace of Fireballs): Magic Resistance alone — the Mantle wants a spell", () => {
@@ -1325,7 +1325,7 @@ describe('effectSaveSources — `spells: "cast"` (the DMG: the Mantle and the Ri
       ...facts(),
       demand: { spell: true, cast: false, statuses: [] }
     });
-    expect(out.map(s => s.label)).toEqual(["Gren — Magic Resistance — against a spell"]);
+    expect(out.map(s => s.label)).toEqual(["Aster — Magic Resistance — against a spell"]);
   });
   it("the registry: the Mantle and the Ring are `cast`; the Robe, the Scarab and Magic Resistance stay `true`", () => {
     expect(reg.EFFECT_BENDS["Mantle of Spell Resistance"].saves.spells).toBe("cast");
@@ -1339,7 +1339,7 @@ describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Pur
   const facts = () => ({
     enabled: ["Aura of Purity", "Circle's Power"],
     table: reg.EFFECT_BENDS,
-    name: "Gren"
+    name: "Aster"
   });
   const purity = { id: "p1", name: "Aura of Purity" };
   const circle = { id: "c1", name: "Circle's Power" };
@@ -1352,7 +1352,7 @@ describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Pur
     });
     expect(out).toHaveLength(1);
     expect(out[0].bend).toBe("advantage");
-    expect(out[0].label).toBe("Gren — Aura of Purity — against Paralyzed");
+    expect(out[0].label).toBe("Aster — Aura of Purity — against Paralyzed");
     expect(out[0].effectId).toBe("p1");
   });
 
@@ -1369,7 +1369,7 @@ describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Pur
       demand: { spell: true, statuses: [] }
     });
     expect(spell.map(s => [s.bend, s.label])).toEqual([
-      ["advantage", "Gren — Circle's Power — against a spell"]
+      ["advantage", "Aster — Circle's Power — against a spell"]
     ]);
     expect(
       r.effectSaveSources({
@@ -1384,7 +1384,7 @@ describe("effectSaveSources — the `saves` facet (user, 2026-09-05: Aura of Pur
     const out = r.effectSaveSources({ ...facts(), effects: [purity, circle], demand: null });
     expect(out.map(s => s.bend)).toEqual([null, null]);
     expect(out[0].label).toMatch(
-      /^Gren — Aura of Purity \(listed — a save against Blinded, Charmed/
+      /^Aster — Aura of Purity \(listed — a save against Blinded, Charmed/
     );
     expect(out[0].label).toMatch(/press Advantage if this is one\)$/);
     expect(out[1].label).toMatch(/a save against a spell or other magical effect/);
@@ -1509,33 +1509,33 @@ describe("effectSaveSources — FEATURE rows (Slice A, 2026-09-24: Brave, Fey An
   });
 });
 
-describe('effectNamedAs — the emanation\'s suffix (2026-09-05: "Aura of Purity — Thomas" stood on Morgash and no reader saw it)', () => {
+describe('effectNamedAs — the emanation\'s suffix (2026-09-05: "Aura of Purity — Tavin" stood on Bramm and no reader saw it)', () => {
   it("matches the bare name, the region's suffixed name, and nothing that merely starts alike", () => {
     expect(r.effectNamedAs("Aura of Purity", "Aura of Purity")).toBe(true);
-    expect(r.effectNamedAs("Aura of Purity — Thomas", "aura of purity")).toBe(true);
+    expect(r.effectNamedAs("Aura of Purity — Tavin", "aura of purity")).toBe(true);
     expect(r.effectNamedAs("Aura of Purity Lite", "Aura of Purity")).toBe(false);
     expect(r.effectNamedAs("", "Aura of Purity")).toBe(false);
   });
-  it("every effect reader honours it: the attack gate (Holy Protection — Thomas), the check gate, the save facet", () => {
+  it("every effect reader honours it: the attack gate (Holy Protection — Tavin), the check gate, the save facet", () => {
     const enabled = ["Holy Protection", "Heated Metal", "Aura of Purity"];
     const attack = r.effectSources({
       enabled,
       table: reg.EFFECT_BENDS,
       attacker: {},
-      target: { uuid: "t", effects: [{ id: "h", name: "Holy Protection — Thomas" }] },
+      target: { uuid: "t", effects: [{ id: "h", name: "Holy Protection — Tavin" }] },
       pass: "target"
     });
     expect(attack.map(s => s.bend)).toEqual(["disadvantage"]);
     const check = r.effectCheckSources({
       enabled,
       table: reg.EFFECT_BENDS,
-      effects: [{ id: "m", name: "Heated Metal — Jetten" }]
+      effects: [{ id: "m", name: "Heated Metal — Elra" }]
     });
     expect(check.map(s => s.bend)).toEqual(["disadvantage"]);
     const save = r.effectSaveSources({
       enabled,
       table: reg.EFFECT_BENDS,
-      effects: [{ id: "p", name: "Aura of Purity — Thomas" }],
+      effects: [{ id: "p", name: "Aura of Purity — Tavin" }],
       demand: { spell: true, statuses: ["paralyzed"] }
     });
     expect(save.map(s => s.bend)).toEqual(["advantage"]);
@@ -1546,7 +1546,7 @@ describe("effectCarriesRow — a row's `item` tells two pack effects of one name
   const T = () => reg.EFFECT_BENDS;
   it("the Aura of Protection's Protected on an ally never fires Protection from Evil and Good's row", () => {
     const aura = {
-      effects: [{ id: "a1", name: "Protected — Invictus", item: "Aura of Protection" }]
+      effects: [{ id: "a1", name: "Protected — Dorian", item: "Aura of Protection" }]
     };
     expect(
       r.effectSources({
@@ -1554,7 +1554,7 @@ describe("effectCarriesRow — a row's `item` tells two pack effects of one name
         enabled: ["Protected"],
         table: T(),
         scope: {},
-        targetName: "Gren"
+        targetName: "Aster"
       })
     ).toEqual([]);
   });
@@ -1569,9 +1569,9 @@ describe("effectCarriesRow — a row's `item` tells two pack effects of one name
         enabled: ["Protected"],
         table: T(),
         scope: {},
-        targetName: "Gren"
+        targetName: "Aster"
       });
-      expect(out.map(s => [s.bend, s.label])).toEqual([["disadvantage", "Gren is — Protected"]]);
+      expect(out.map(s => [s.bend, s.label])).toEqual([["disadvantage", "Aster is — Protected"]]);
     }
   });
   it("effectCarriesRow itself: name first, then the item only when both sides know it", () => {

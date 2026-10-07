@@ -5,11 +5,11 @@ import { askOutcome, askTicks, askWords } from "../scripts/decide/area-ask.js";
 // the readers of a spell's text and the merged mark are covered in decide-metamagic.test.js,
 // where they were born; this file pins what the machine reads off an answer.
 
-const G = { uuid: "Actor.gren", name: "Gren", disposition: 1, party: true };
-const inv = { uuid: "Actor.inv", name: "Invictus", disposition: 1, party: true };
-const bram = { uuid: "Actor.bram", name: "Bramblemaw", disposition: -1 };
+const G = { uuid: "Actor.aster", name: "Aster", disposition: 1, party: true };
+const inv = { uuid: "Actor.inv", name: "Dorian", disposition: 1, party: true };
+const bram = { uuid: "Actor.bram", name: "Mirefang", disposition: -1 };
 const croc = { uuid: "Actor.croc", name: "Giant Crocodile", disposition: -1 };
-const caster = { casterUuid: G.uuid, casterDisposition: 1, casterName: "Gren" };
+const caster = { casterUuid: G.uuid, casterDisposition: 1, casterName: "Aster" };
 
 describe("the outcome of an answer", () => {
   it("Careful: the ticked are protected, up to the cap, and leave the demand", () => {
@@ -21,7 +21,7 @@ describe("the outcome of an answer", () => {
       ...caster
     };
     const out = askOutcome(ask, [inv.uuid, G.uuid]);
-    expect(out.protectedList.map(c => c.name)).toEqual(["Invictus"]);
+    expect(out.protectedList.map(c => c.name)).toEqual(["Dorian"]);
     expect(out.mark).toBeNull();
     expect(out.areaChoice).toBeNull();
     expect(out.stays(inv.uuid)).toBe(false);
@@ -36,7 +36,7 @@ describe("the outcome of an answer", () => {
       ...caster
     };
     const out = askOutcome(ask, null, { timedOut: true });
-    expect(out.protectedList.map(c => c.name)).toEqual(["Gren", "Invictus"]);
+    expect(out.protectedList.map(c => c.name)).toEqual(["Aster", "Dorian"]);
     expect(out.timedOut).toBe(true);
   });
   it("Heightened: one mark, the first tick", () => {
@@ -47,7 +47,7 @@ describe("the outcome of an answer", () => {
       ...caster
     };
     expect(askOutcome(ask, [croc.uuid]).mark?.name).toBe("Giant Crocodile");
-    expect(askOutcome(ask, null).mark?.name).toBe("Bramblemaw");
+    expect(askOutcome(ask, null).mark?.name).toBe("Mirefang");
     expect(askOutcome(ask, [croc.uuid]).stays(inv.uuid)).toBe(true);
   });
   it("a chosen area: the ticked up to the spell's number are the choice, the rest are left, and only the chosen keep their save", () => {
@@ -60,8 +60,8 @@ describe("the outcome of an answer", () => {
       ...caster
     };
     const out = askOutcome(ask, [bram.uuid, croc.uuid]);
-    expect(out.areaChoice.chosen.map(c => c.name)).toEqual(["Bramblemaw"]);
-    expect(out.areaChoice.left.map(c => c.name)).toEqual(["Invictus", "Giant Crocodile"]);
+    expect(out.areaChoice.chosen.map(c => c.name)).toEqual(["Mirefang"]);
+    expect(out.areaChoice.left.map(c => c.name)).toEqual(["Dorian", "Giant Crocodile"]);
     expect(out.areaChoice.asked).toBe(true);
     expect(out.stays(bram.uuid)).toBe(true);
     expect(out.stays(croc.uuid)).toBe(false);
@@ -79,7 +79,7 @@ describe("the outcome of an answer", () => {
     expect(askOutcome(ask, [bram.uuid, croc.uuid], { mark: croc.uuid }).mark?.name).toBe(
       "Giant Crocodile"
     );
-    expect(askOutcome(ask, [bram.uuid], { mark: croc.uuid }).mark?.name).toBe("Bramblemaw");
+    expect(askOutcome(ask, [bram.uuid], { mark: croc.uuid }).mark?.name).toBe("Mirefang");
   });
 });
 

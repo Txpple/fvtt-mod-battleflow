@@ -247,7 +247,7 @@ describe("Careful and Heightened (Stage 2)", () => {
   const CASTER = "Actor.sorc";
   const contained = [
     { uuid: "Actor.orc", name: "Orc", disposition: -1 },
-    { uuid: CASTER, name: "Gren", disposition: 1 },
+    { uuid: CASTER, name: "Aster", disposition: 1 },
     { uuid: "Actor.aldric", name: "Aldric", disposition: 1 },
     { uuid: "Actor.brenna", name: "Brenna", disposition: 1 },
     { uuid: "Actor.cass", name: "Cass", disposition: 1 },
@@ -255,7 +255,7 @@ describe("Careful and Heightened (Stage 2)", () => {
   ];
   it("protects the caster's allies by default, the caster first, up to the cap", () => {
     const list = carefulProtects({ contained, casterUuid: CASTER, casterDisposition: 1, cap: 3 });
-    expect(list.map(p => p.name)).toEqual(["Gren", "Aldric", "Brenna"]);
+    expect(list.map(p => p.name)).toEqual(["Aster", "Aldric", "Brenna"]);
   });
   it("a cap below one still protects one", () => {
     expect(
@@ -290,7 +290,7 @@ describe("Careful and Heightened (Stage 2)", () => {
   });
   it("with no enemy in reach, a neutral is marked before nothing", () => {
     const only = [
-      { uuid: CASTER, name: "Gren", disposition: 1 },
+      { uuid: CASTER, name: "Aster", disposition: 1 },
       { uuid: "Actor.n", name: "Villager", disposition: 0 }
     ];
     expect(
@@ -369,7 +369,7 @@ describe("Careful's default is every non-hostile (the second look, 2026-09-09)",
   const scene = [
     { uuid: "Actor.orc", name: "Orc", disposition: -1 },
     { uuid: "Actor.villager", name: "Villager", disposition: 0 },
-    { uuid: CASTER, name: "Gren", disposition: 1 },
+    { uuid: CASTER, name: "Aster", disposition: 1 },
     { uuid: "Actor.aldric", name: "Aldric", disposition: 1 },
     { uuid: "Actor.spy", name: "Spy", disposition: -2 }
   ];
@@ -378,12 +378,12 @@ describe("Careful's default is every non-hostile (the second look, 2026-09-09)",
       carefulProtects({ contained: scene, casterUuid: CASTER, casterDisposition: 1, cap: 5 }).map(
         p => p.name
       )
-    ).toEqual(["Gren", "Aldric", "Villager"]);
+    ).toEqual(["Aster", "Aldric", "Villager"]);
     expect(
       carefulProtects({ contained: scene, casterUuid: CASTER, casterDisposition: 1, cap: 2 }).map(
         p => p.name
       )
-    ).toEqual(["Gren", "Aldric"]);
+    ).toEqual(["Aster", "Aldric"]);
   });
   it("a hostile caster's non-hostiles are its own side and the neutrals", () => {
     const list = carefulProtects({
@@ -399,7 +399,7 @@ describe("Careful's default is every non-hostile (the second look, 2026-09-09)",
 describe("the ask at the area (the third look, 2026-09-09)", () => {
   const candidates = [
     { uuid: "Actor.g1", name: "Goblin", disposition: -1 },
-    { uuid: "Actor.gren", name: "Gren", disposition: 1 },
+    { uuid: "Actor.aster", name: "Aster", disposition: 1 },
     { uuid: "Actor.rgr", name: "Ranger", disposition: 1 },
     { uuid: "Actor.v", name: "Villager", disposition: 0 },
     { uuid: "Actor.g2", name: "Hobgoblin", disposition: -1 }
@@ -409,27 +409,27 @@ describe("the ask at the area (the third look, 2026-09-09)", () => {
       askDefaults({
         kind: "careful",
         candidates,
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1,
         cap: 2
       }).map(c => c.name)
-    ).toEqual(["Gren", "Ranger"]);
+    ).toEqual(["Aster", "Ranger"]);
     expect(
       askDefaults({
         kind: "careful",
         candidates,
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1,
         cap: 5
       }).map(c => c.name)
-    ).toEqual(["Gren", "Ranger", "Villager"]);
+    ).toEqual(["Aster", "Ranger", "Villager"]);
   });
   it("Heightened's default is the first hostile in the area", () => {
     expect(
       askDefaults({
         kind: "heightened",
         candidates,
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1
       }).map(c => c.name)
     ).toEqual(["Goblin"]);
@@ -437,7 +437,7 @@ describe("the ask at the area (the third look, 2026-09-09)", () => {
       askDefaults({
         kind: "heightened",
         candidates: [candidates[1]],
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1
       })
     ).toEqual([]);
@@ -447,9 +447,9 @@ describe("the ask at the area (the third look, 2026-09-09)", () => {
 describe("the party comes first in Careful's defaults", () => {
   const candidates = [
     { uuid: "Actor.ally", name: "Hired Guard", disposition: 1, party: false },
-    { uuid: "Actor.jetten", name: "Jetten", disposition: 1, party: true },
-    { uuid: "Actor.gren", name: "Gren", disposition: 1, party: true },
-    { uuid: "Actor.morgash", name: "Morgash", disposition: 1, party: true },
+    { uuid: "Actor.elra", name: "Elra", disposition: 1, party: true },
+    { uuid: "Actor.aster", name: "Aster", disposition: 1, party: true },
+    { uuid: "Actor.bramm", name: "Bramm", disposition: 1, party: true },
     { uuid: "Actor.orc", name: "Orc", disposition: -1, party: false }
   ];
   it("ticks the caster, then the party, then the rest, up to the cap", () => {
@@ -457,20 +457,20 @@ describe("the party comes first in Careful's defaults", () => {
       askDefaults({
         kind: "careful",
         candidates,
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1,
         cap: 3
       }).map(c => c.name)
-    ).toEqual(["Gren", "Jetten", "Morgash"]);
+    ).toEqual(["Aster", "Elra", "Bramm"]);
     expect(
       askDefaults({
         kind: "careful",
         candidates,
-        casterUuid: "Actor.gren",
+        casterUuid: "Actor.aster",
         casterDisposition: 1,
         cap: 4
       }).map(c => c.name)
-    ).toEqual(["Gren", "Jetten", "Morgash", "Hired Guard"]);
+    ).toEqual(["Aster", "Elra", "Bramm", "Hired Guard"]);
   });
 });
 
@@ -542,10 +542,10 @@ describe("reading the choice off the spell's own words", () => {
 });
 
 describe("who a chosen area affects, and whether to ask", () => {
-  const G = { uuid: "Actor.gren", name: "Gren", disposition: 1 };
-  const bram = { uuid: "Actor.bram", name: "Bramblemaw", disposition: -1 };
+  const G = { uuid: "Actor.aster", name: "Aster", disposition: 1 };
+  const bram = { uuid: "Actor.bram", name: "Mirefang", disposition: -1 };
   const croc = { uuid: "Actor.croc", name: "Giant Crocodile", disposition: -1 };
-  const inv = { uuid: "Actor.inv", name: "Invictus", disposition: 1, party: true };
+  const inv = { uuid: "Actor.inv", name: "Dorian", disposition: 1, party: true };
   const mule = { uuid: "Actor.mule", name: "Pack Mule", disposition: 0 };
   const shade = { uuid: "Actor.shade", name: "???", disposition: -2 };
   const caster = { casterUuid: G.uuid, casterDisposition: 1 };
@@ -553,14 +553,14 @@ describe("who a chosen area affects, and whether to ask", () => {
   it("the default is the hostiles in area order, up to the cap — never the caster, the party, a neutral or a secret token", () => {
     const candidates = [inv, bram, G, mule, croc, shade];
     expect(chosenByDefault({ candidates, ...caster, cap: 6 }).map(c => c.name)).toEqual([
-      "Bramblemaw",
+      "Mirefang",
       "Giant Crocodile"
     ]);
     expect(chosenByDefault({ candidates, ...caster, cap: 1 }).map(c => c.name)).toEqual([
-      "Bramblemaw"
+      "Mirefang"
     ]);
     expect(chosenByDefault({ candidates, ...caster, cap: null }).map(c => c.name)).toEqual([
-      "Bramblemaw",
+      "Mirefang",
       "Giant Crocodile"
     ]);
   });
@@ -568,7 +568,7 @@ describe("who a chosen area affects, and whether to ask", () => {
     const monster = { casterUuid: bram.uuid, casterDisposition: -1 };
     expect(
       chosenByDefault({ candidates: [inv, bram, croc, G], ...monster, cap: 6 }).map(c => c.name)
-    ).toEqual(["Invictus", "Gren"]);
+    ).toEqual(["Dorian", "Aster"]);
   });
   it("a caster with no side has no default", () => {
     expect(
@@ -595,22 +595,22 @@ describe("who a chosen area affects, and whether to ask", () => {
       casterDisposition: 1,
       cap: 6
     };
-    expect(askDefaults(ask).map(c => c.name)).toEqual(["Bramblemaw", "Giant Crocodile"]);
-    expect(askMark(ask, [bram.uuid, croc.uuid])?.name).toBe("Bramblemaw");
+    expect(askDefaults(ask).map(c => c.name)).toEqual(["Mirefang", "Giant Crocodile"]);
+    expect(askMark(ask, [bram.uuid, croc.uuid])?.name).toBe("Mirefang");
     expect(askMark(ask, [bram.uuid, croc.uuid], croc.uuid)?.name).toBe("Giant Crocodile");
-    expect(askMark(ask, [bram.uuid], croc.uuid)?.name).toBe("Bramblemaw"); // a mark on someone not chosen falls back
+    expect(askMark(ask, [bram.uuid], croc.uuid)?.name).toBe("Mirefang"); // a mark on someone not chosen falls back
     expect(askMark(ask, [])).toBeNull();
   });
 
   it("the card line: source, then result", () => {
     expect(areaChoiceLine({ spell: "Slow", chosen: [bram, croc], left: [inv] })).toBe(
-      "Slow — chosen: Bramblemaw, Giant Crocodile · not chosen: Invictus"
+      "Slow — chosen: Mirefang, Giant Crocodile · not chosen: Dorian"
     );
     expect(areaChoiceLine({ spell: "Sleep", chosen: [bram], left: [] })).toBe(
-      "Sleep — chosen: Bramblemaw"
+      "Sleep — chosen: Mirefang"
     );
     expect(areaChoiceLine({ spell: "Slow", chosen: [], left: [inv] })).toBe(
-      "Slow — nobody chosen · not chosen: Invictus"
+      "Slow — nobody chosen · not chosen: Dorian"
     );
   });
 });

@@ -1,4 +1,4 @@
-// Compact the probe's snapshot into what the build checks against: every pack and world item's
+// Compact the probe's snapshot into what the build checks against: every pack item's
 // identifier by type, and every effect name. No Foundry.
 //
 //   node tools/compact-identifiers.mjs [in.json] [out.json]
@@ -16,7 +16,7 @@ for ( const row of snap.items ) {
   if ( m ) (ids[m[1]] ??= []).push(m[2]);
 }
 const effects = new Set();
-for ( const row of [...snap.items, ...snap.actors] ) {
+for ( const row of snap.items ) {
   if ( row.identifier ) (byType[row.type] ??= new Set()).add(row.identifier);
   for ( const e of row.effects ?? [] ) effects.add(e);
 }

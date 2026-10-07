@@ -209,9 +209,9 @@ describe("pendingDemands — mid-answer, without a roll", () => {
 
 describe("the saves flag's constructors and reader", () => {
   it("a target entry is the array shape with a uuid FIELD, undone", () => {
-    expect(d.saveTargetEntry("Actor.x", "Gren")).toEqual({
+    expect(d.saveTargetEntry("Actor.x", "Aster")).toEqual({
       uuid: "Actor.x",
-      name: "Gren",
+      name: "Aster",
       done: false,
       outcome: null,
       total: null,

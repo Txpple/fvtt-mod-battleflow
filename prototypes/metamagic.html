@@ -83,9 +83,9 @@
   </header>
 
   <div class="scenes" role="tablist" aria-label="Scenarios">
-    <button aria-pressed="true" data-scene="gren">Gren, Sorcerer 5 — Fireball over two allies (Careful, Subtle known; 4 SP)</button>
+    <button aria-pressed="true" data-scene="aster">Aster, Sorcerer 5 — Fireball over two allies (Careful, Subtle known; 4 SP)</button>
     <button aria-pressed="false" data-scene="ten">Sorcerer 10 — Hold Person, every option known (7 SP)</button>
-    <button aria-pressed="false" data-scene="broke">Gren — 0 Sorcery Points</button>
+    <button aria-pressed="false" data-scene="broke">Aster — 0 Sorcery Points</button>
     <button aria-pressed="false" data-scene="empowered">Moment 2 — Empowered on the damage roll</button>
     <button aria-pressed="false" data-scene="seeking">Moment 3 — Seeking on a miss</button>
   </div>
@@ -120,17 +120,17 @@ const OPTIONS = {
   twinned:    { name:"Twinned Spell",    cost:1, when:s=>s.scalesTargets,   why:"does not add a target at a higher level" }
 };
 const SCENES = {
-  gren: { who:"Gren Greenmantle", cha:3, sp:4, spMax:5, known:["careful","subtle"],
+  aster: { who:"Aster", cha:3, sp:4, spMax:5, known:["careful","subtle"],
     spell:{ name:"Fireball", slot:3, save:true, rangeFt:150, touch:false, minutes:0, action:true, dtype:"fire", scalesTargets:false,
-      under:[["Gren",true],["Aldric",true],["Brenna",true],["Hobgoblin captain",false],["Hobgoblin",false],["Hobgoblin",false]] } },
+      under:[["Aster",true],["Aldric",true],["Brenna",true],["Hobgoblin captain",false],["Hobgoblin",false],["Hobgoblin",false]] } },
   ten: { who:"Ysolde, Sorcerer 10", cha:5, sp:7, spMax:10, known:Object.keys(OPTIONS),
     spell:{ name:"Hold Person", slot:2, save:true, rangeFt:60, touch:false, minutes:1, action:true, dtype:null, scalesTargets:true,
       under:[["Bandit leader",false],["Bandit",false]] } },
-  broke: { who:"Gren Greenmantle", cha:3, sp:0, spMax:5, known:["careful","subtle"],
+  broke: { who:"Aster", cha:3, sp:0, spMax:5, known:["careful","subtle"],
     spell:{ name:"Fireball", slot:3, save:true, rangeFt:150, touch:false, minutes:0, action:true, dtype:"fire", scalesTargets:false,
-      under:[["Gren",true],["Aldric",true],["Hobgoblin",false]] } }
+      under:[["Aster",true],["Aldric",true],["Hobgoblin",false]] } }
 };
-const state = { scene:"gren", picked:null, protect:new Set(), heightenedOn:null, twin:null, dtype:null, rerolls:new Set(), ruleOpen:new Set() };
+const state = { scene:"aster", picked:null, protect:new Set(), heightenedOn:null, twin:null, dtype:null, rerolls:new Set(), ruleOpen:new Set() };
 
 function fold(key){ return `<details ${state.ruleOpen.has(key)?"open":""} data-fold="${key}"><summary>the rule</summary><p>${RULES[key]}</p></details>`; }
 function row(key, sc){

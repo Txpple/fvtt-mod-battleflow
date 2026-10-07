@@ -1,8 +1,8 @@
 // THE EFFECT VIEW, live: the bar above the hotbar for the controlled token, the hover card beside
 // a token, the held key (Foundry's highlightObjects) over every creature. A battery entry (it is
 // the only suite driving effect-view.js's hooks); `fixture-suite` seeds it.
-// Fixtures: the Battle Flow Test Range and INVICTUS (a campaign PC, not a BF Test fixture) wearing
-// the Cloak. Bless, Prone and an applied clockless effect are written for the run; his token is
+// Fixtures: the Battle Flow Test Range and BF Test Vanguard (fixture-suite) wearing an attuned Cloak
+// of Protection. Bless, Prone and an applied clockless effect are written for the run; its token is
 // placed if missing. Switches, effects, sheet numbers, token and active scene are all restored.
 //
 //   node tools/probe-effect-view.mjs              the whole probe
@@ -47,11 +47,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if ( !mod?.active ) return { fatal: `module active=${mod?.active}` };
   if ( !game.settings.settings.has(`${MOD}.effectBar`) ) return { fatal: "effectBar not registered — OLD code (deploy --local, reload)" };
   const scene = game.scenes.getName("Battle Flow Test Range");
-  const invictus = game.actors.getName("Invictus");
-  if ( !scene || !invictus ) return { fatal: `missing fixture: ${!scene ? "the Battle Flow Test Range (run tools/fixture-suite.mjs)" : "Invictus (a campaign PC — the sandbox is not a prod copy)"}` };
-  // §1 and §6e read the Cloak the world carries on Invictus: refuse up front if it is missing.
-  const standing = [...invictus.allApplicableEffects()].map(e => e.name);
-  if ( !standing.some(n => n.startsWith("Bonus AC")) ) return { fatal: "Invictus lacks the Cloak's \"Bonus AC\" passive — the prod copy carries it; refresh the sandbox" };
+  const vanguard = game.actors.getName("BF Test Vanguard");
+  if ( !scene || !vanguard ) return { fatal: `missing fixture: ${!scene ? "the Battle Flow Test Range (run tools/fixture-suite.mjs)" : "BF Test Vanguard (run tools/fixture-suite.mjs)"}` };
+  // §1 and §6e read the Cloak of Protection fixture-suite gives the Vanguard: refuse up front if it is missing.
+  const standing = [...vanguard.allApplicableEffects()].map(e => e.name);
+  if ( !standing.some(n => n.startsWith("Bonus AC")) ) return { fatal: "BF Test Vanguard lacks the Cloak's \"Bonus AC\" passive — run tools/fixture-suite.mjs" };
   log.push(`module ${mod.version}`);
 
   const priorActiveScene = game.scenes.active?.id ?? null;
@@ -67,33 +67,33 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await sleep(1500); }
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
     await until(() => canvas.ready);
-    let doc = scene.tokens.find(t => t.actorId === invictus.id);
+    let doc = scene.tokens.find(t => t.actorId === vanguard.id);
     if ( !doc ) {
-      [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(invictus.prototypeToken.toObject(), { x: 500, y: 1400, actorId: invictus.id, actorLink: true }, { inplace: false })]);
+      [doc] = await scene.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(vanguard.prototypeToken.toObject(), { x: 500, y: 1400, actorId: vanguard.id, actorLink: true }, { inplace: false })]);
       placed.push(doc.id);
     }
     await sleep(300);
     const token = canvas.tokens.get(doc.id);
-    if ( !token ) return { fatal: `Invictus's token ${doc.id} is not on the canvas`, results, log, skips };
+    if ( !token ) return { fatal: `the Vanguard's token ${doc.id} is not on the canvas`, results, log, skips };
 
     // two effects the sheet lists: a status (Prone, paints an icon) and a timed buff (Bless, no icon)
-    made = await invictus.createEmbeddedDocuments("ActiveEffect", [
+    made = await vanguard.createEmbeddedDocuments("ActiveEffect", [
       { name: "Bless", img: "icons/svg/upgrade.svg", duration: { seconds: 60 }, changes: [] },
       { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], changes: [] }
     ]);
     // An applied, clockless effect, always the run's own: a real cast at the table is clocked (an
     // empty clock takes the spell's), so reusing his would test play state, not the class.
-    seeded = await invictus.createEmbeddedDocuments("ActiveEffect", [
+    seeded = await vanguard.createEmbeddedDocuments("ActiveEffect", [
       { name: CLOCKLESS, img: "icons/svg/skull.svg", changes: [] }
     ]);
     log.push(`seeded an applied, clockless "${CLOCKLESS}" for the run`);
     await sleep(300);
-    const facts = [...invictus.allApplicableEffects()].filter(e => e.isTemporary || e.statuses.size).map(e => ({ name: e.name, active: e.active, temporary: e.isTemporary, statuses: [...e.statuses], label: e.duration?.label ?? null }));
+    const facts = [...vanguard.allApplicableEffects()].filter(e => e.isTemporary || e.statuses.size).map(e => ({ name: e.name, active: e.active, temporary: e.isTemporary, statuses: [...e.statuses], label: e.duration?.label ?? null }));
     log.push(`facts: ${JSON.stringify(facts)}`);
 
     // THE SHEET ROWS: temp HP and Heroic Inspiration are numbers on the sheet, not effects
-    priorSheet = { temp: invictus.system.attributes.hp.temp, insp: invictus.system.attributes.inspiration };
-    await invictus.update({ "system.attributes.hp.temp": 7, "system.attributes.inspiration": true });
+    priorSheet = { temp: vanguard.system.attributes.hp.temp, insp: vanguard.system.attributes.inspiration };
+    await vanguard.update({ "system.attributes.hp.temp": 7, "system.attributes.inspiration": true });
 
     // Control the token so the bar draws; read in setup because §2's card is held to the same list.
     token.control({ releaseOthers: true });
@@ -142,8 +142,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if ( want(3) ) {
       Hooks.callAll("highlightObjects", true);
       const overlay = await until(() => document.querySelectorAll(".bf-ev-card").length ? document.querySelectorAll(".bf-ev-card") : null, 3000);
-      ok("3. the held key shows a card for every creature with effects (Invictus at least)",
-        !!overlay && [...overlay].some(c => c.querySelector("h4")?.textContent.includes("Invictus")), `cards=${overlay?.length}`);
+      ok("3. the held key shows a card for every creature with effects (the Vanguard at least)",
+        !!overlay && [...overlay].some(c => c.querySelector("h4")?.textContent.includes("BF Test Vanguard")), `cards=${overlay?.length}`);
       Hooks.callAll("highlightObjects", false);
       await sleep(100);
       ok("3b. and clears on release", document.querySelectorAll(".bf-ev-card").length === 0, "");
@@ -154,9 +154,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const hold = async section => {
       const live = canvas.tokens.get(doc.id);
       if ( live && !live.controlled ) live.control({ releaseOthers: true });
-      const held = await until(() => (canvas.tokens.controlled[0]?.actor === invictus)
-        && (document.getElementById("bf-effect-view-bar")?.dataset.actor === invictus.uuid), 3000);
-      if ( !held ) log.push(`§${section}: could not hold Invictus — controlled=${canvas.tokens.controlled.map(t => t.name).join(",") || "none"} `
+      const held = await until(() => (canvas.tokens.controlled[0]?.actor === vanguard)
+        && (document.getElementById("bf-effect-view-bar")?.dataset.actor === vanguard.uuid), 3000);
+      if ( !held ) log.push(`§${section}: could not hold the Vanguard — controlled=${canvas.tokens.controlled.map(t => t.name).join(",") || "none"} `
         + `bar.actor=${document.getElementById("bf-effect-view-bar")?.dataset.actor ?? null} token=${!!live}`);
       return !!held;
     };
@@ -165,7 +165,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Delete Bless, the chip leaves.
     if ( want(4) ) {
       await hold(4);
-      await invictus.deleteEmbeddedDocuments("ActiveEffect", [made[0].id]);
+      await vanguard.deleteEmbeddedDocuments("ActiveEffect", [made[0].id]);
       const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
       ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
     }
@@ -184,15 +184,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!fold && foldActions.length === 1 && foldActions[0] === "remove",
         `actions=${JSON.stringify(foldActions)} proneChip=${!!proneChip} chips=${JSON.stringify([...(barEl()?.querySelectorAll(".bf-ev-chip .nm") ?? [])].map(n => n.textContent))}`);
       fold?.querySelector('button[data-action="remove"]')?.click();
-      const proneGone = await until(() => invictus.effects.get(made[1].id) ? null : true, 4000);
+      const proneGone = await until(() => vanguard.effects.get(made[1].id) ? null : true, 4000);
       ok("6c. Remove deletes the effect, and the bar redraws without it",
         proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, 3000)), "");
       chipNamed("Temporary HP")?.click();
       const fold3 = await until(() => barEl()?.querySelector(".bf-ev-fold"), 2000);
       const clearLabel = fold3?.querySelector('button[data-action="clear"]')?.textContent ?? null;
       fold3?.querySelector('button[data-action="clear"]')?.click();
-      const cleared = await until(() => (invictus.system.attributes.hp.temp ?? 0) === 0 ? true : null, 4000);
-      ok("6d. a sheet row's fold says Clear, and Clear zeroes the temp HP", clearLabel === "Clear" && cleared === true, `label=${clearLabel} temp=${invictus.system.attributes.hp.temp}`);
+      const cleared = await until(() => (vanguard.system.attributes.hp.temp ?? 0) === 0 ? true : null, 4000);
+      ok("6d. a sheet row's fold says Clear, and Clear zeroes the temp HP", clearLabel === "Clear" && cleared === true, `label=${clearLabel} temp=${vanguard.system.attributes.hp.temp}`);
       barEl()?.querySelector("button.who")?.click();
       const panel = await until(() => barEl()?.querySelector(".bf-ev-panel"), 2000);
       const panelNames = panel ? [...panel.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : [];
@@ -219,8 +219,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     return { fatal: `${err?.message ?? err}\n${err?.stack ?? ""}`, results, log, skips };
   } finally {
     try { for ( const c of document.querySelectorAll(".bf-ev-card") ) c.remove(); } catch { /* fine */ }
-    try { const ids = [...made, ...seeded].map(e => e.id).filter(id => invictus.effects.get(id)); if ( ids.length ) await invictus.deleteEmbeddedDocuments("ActiveEffect", ids); } catch(err) { log.push(`cleanup effects: ${err?.message}`); }
-    try { if ( priorSheet ) await invictus.update({ "system.attributes.hp.temp": priorSheet.temp ?? 0, "system.attributes.inspiration": priorSheet.insp ?? false }); } catch(err) { log.push(`cleanup sheet: ${err?.message}`); }
+    try { const ids = [...made, ...seeded].map(e => e.id).filter(id => vanguard.effects.get(id)); if ( ids.length ) await vanguard.deleteEmbeddedDocuments("ActiveEffect", ids); } catch(err) { log.push(`cleanup effects: ${err?.message}`); }
+    try { if ( priorSheet ) await vanguard.update({ "system.attributes.hp.temp": priorSheet.temp ?? 0, "system.attributes.inspiration": priorSheet.insp ?? false }); } catch(err) { log.push(`cleanup sheet: ${err?.message}`); }
     try { canvas.tokens?.releaseAll?.(); } catch { /* fine */ }
     try { if ( placed.length ) await scene.deleteEmbeddedDocuments("Token", placed); } catch(err) { log.push(`cleanup tokens: ${err?.message}`); }
     try { await game.settings.set(MOD, "effectBar", priorBar); await game.settings.set(MOD, "effectHover", priorHover); } catch { /* fine */ }

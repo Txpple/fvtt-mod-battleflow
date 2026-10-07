@@ -142,12 +142,12 @@ describe("B3 — the gate's `against` and `plus` (effectSources)", () => {
       enabled: all(),
       table: T(),
       scope: { classification: "weapon", type: "melee" },
-      attackerName: "Morgash",
+      attackerName: "Bramm",
       targetName: "Goblin",
       pass: "target"
     });
     expect(atGoblin.map(s => [s.bend, s.label, s.spend, s.effectId])).toEqual([
-      ["advantage", "Morgash — Studied Attacks — vs Goblin", "attack", "c1"]
+      ["advantage", "Bramm — Studied Attacks — vs Goblin", "attack", "c1"]
     ]);
     const atOther = r.effectSources({
       attacker: me,

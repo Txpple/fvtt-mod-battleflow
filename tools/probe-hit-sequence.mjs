@@ -1,5 +1,5 @@
 // Probe: the hit's sequence: damage first, then the mastery rider, then any other offer.
-// Invictus swings Midnight (a Sap longsword) at the Practice Dummy with Shield Master on the sheet,
+// BF Test Vanguard swings its Longsword (Sap) at BF Test Dummy with Shield Master on the sheet,
 // and this measures the order: the offer QUEUED at the hit with no popup, the damage landing, the
 // Sap notice, and only then the offer promoted to pending with its clock started.
 //
@@ -29,12 +29,12 @@ const out = await f.evaluate(async () => {
   const set = (k, v) => game.settings.set(MOD, k, v);
 
   const scene = game.scenes.getName("Battle Flow Test Range");
-  const invictus = game.actors.getName("Invictus");
-  const dummy = game.actors.getName("Practice Dummy");
-  if ( !scene || !invictus || !dummy ) return { fatal: "missing: the range (fixture-suite), Invictus or the Practice Dummy" };
-  const midnight = invictus.items.getName("Midnight");
-  const activity = midnight?.system.activities?.contents?.find(a => a.type === "attack");
-  if ( !activity ) return { fatal: "Invictus has no Midnight attack activity" };
+  const vanguard = game.actors.getName("BF Test Vanguard");
+  const dummy = game.actors.getName("BF Test Dummy");
+  if ( !scene || !vanguard || !dummy ) return { fatal: "missing: the range, BF Test Vanguard or BF Test Dummy (run tools/fixture-suite.mjs)" };
+  const blade = vanguard.items.getName("Longsword");
+  const activity = blade?.system.activities?.contents?.find(a => a.type === "attack");
+  if ( !activity ) return { fatal: "BF Test Vanguard has no Longsword attack activity" };
   const { livePopups } = await import("/modules/fvtt-mod-battleflow/scripts/ui.js");
   const dialogsWith = text => [...document.querySelectorAll(".application")].filter(el => (el.innerHTML ?? "").includes(text));
   const zOf = el => Number(el?.style?.zIndex ?? 0);
@@ -59,13 +59,13 @@ const out = await f.evaluate(async () => {
     if ( game.scenes.active?.id !== scene.id ) { await scene.activate(); await sleep(1500); }
     if ( canvas.scene?.id !== scene.id ) { await scene.view(); await sleep(1500); }
     await until(() => canvas.ready);
-    await ensureToken(invictus, 500, true);
+    await ensureToken(vanguard, 500, true);
     const dumTok = await ensureToken(dummy, 600, false);
     await sleep(300);
-    await invictus.unsetFlag(MOD, "bashUsed").catch(() => {});
+    await vanguard.unsetFlag(MOD, "bashUsed").catch(() => {});
     const dummyActor = canvas.tokens.get(dumTok.id)?.actor ?? dummy;
-    report.masteries = [...(invictus.system.traits?.weaponProf?.mastery?.value ?? [])];
-    report.midnight = { base: midnight.system.type?.baseItem, mastery: midnight.system.mastery };
+    report.masteries = [...(vanguard.system.traits?.weaponProf?.mastery?.value ?? [])];
+    report.blade = { base: blade.system.type?.baseItem, mastery: blade.system.mastery };
 
     let atk = null, queuedAtHit = null, bashPopupAtHit = null;
     for ( let i = 0; i < 8 && !atk; i++ ) {
@@ -91,7 +91,7 @@ const out = await f.evaluate(async () => {
     ok("2. the damage lands (auto-rolled here; at the table the prompt's Roll Damage)", !!dmg, `damage=${!!dmg}`);
     const receipt = await until(() => dmg?.getFlag(MOD, "receipt"), 10000);
     const notice = await until(() => game.messages.contents.find(m => (m.timestamp >= started)
-      && (m.getFlag(MOD, "masteryNotice")?.attackerUuid === invictus.uuid)), 10000);
+      && (m.getFlag(MOD, "masteryNotice")?.attackerUuid === vanguard.uuid)), 10000);
     ok("3. the mastery rider — the Sap notice posts after the damage", !!notice && !!dmg && (notice.timestamp >= dmg.timestamp), `notice=${!!notice} key=${notice?.getFlag(MOD, "masteryNotice")?.key}`);
     const sapped = await until(() => dummyActor.effects.find(e => e.getFlag(MOD, "mastery")?.key === "sap" || e.name === "Sapped"), 6000);
     ok("3b. the Sapped chip lands on the dummy", !!sapped, `effect=${sapped?.name ?? null}`);
@@ -115,7 +115,7 @@ const out = await f.evaluate(async () => {
       if ( doomed.length ) await dummy.deleteEmbeddedDocuments("ActiveEffect", doomed);
       await dummy.update({ "system.attributes.hp.value": dummyHP.value });
     } catch(err) { log(`cleanup dummy: ${err?.message}`); }
-    try { await invictus.unsetFlag(MOD, "bashUsed"); } catch { /* fine */ }
+    try { await vanguard.unsetFlag(MOD, "bashUsed"); } catch { /* fine */ }
     try {
       const mine = game.messages.filter(m => (m.timestamp >= started));
       if ( mine.length ) await ChatMessage.deleteDocuments(mine.map(m => m.id));

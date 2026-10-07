@@ -1,5 +1,5 @@
-// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on Party Camp.
-// CLEARS every token on Party Camp, then builds one walker per feat and the dummies each rule needs:
+// Build the PHB feats walk (groups 1–3, RULINGS *The PHB feats — groups 1–3*) on its own scene, Battle Flow Walk.
+// CLEARS every token on the walk scene, then builds one walker per feat and the dummies each rule needs:
 //   melee (north):  Slasher W, Piercer E, Crusher N of the Dummy; the Huge Dummy beside Crusher
 //                   (its push must NOT be offered — two sizes larger); Poisoner beside the
 //                   Resistant Dummy (fire, poison), Elemental Adept 15 ft from it
@@ -15,11 +15,20 @@ import { connectSuite } from '../harness.mjs';
 const f = await connectSuite({ tag: 'place-feats-walk', watchdogMs: 240_000 });
 const out = await f.evaluate(async () => {
   const log = [];
-  const scene = game.scenes.getName('Party Camp');
-  if (!scene) return { error: 'no Party Camp' };
+  // ⚠ The walk's OWN scene, built here, never a campaign's map (2026-10-07: these once cleared a campaign scene).
+  // 4200 × 3500 at a 140 px grid: every SPOT below is in that grid's squares.
+  const WALK = 'Battle Flow Walk';
+  let scene = game.scenes.getName(WALK);
+  if (!scene) {
+    const sceneFolder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Scene'))
+      ?? await Folder.create({ name: 'Test Suite', type: 'Scene' });
+    scene = await Scene.create({ name: WALK, folder: sceneFolder.id, width: 4200, height: 3500, padding: 0,
+      grid: { size: 140, distance: 5, units: 'ft' }, backgroundColor: '#3f4a3c', tokenVision: false,
+      ownership: { default: 2 } });
+    log.push(`created the ${WALK} scene`);
+  }
   const fighter = game.actors.getName('BF Test Fighter');
   const sorcerer = game.actors.getName('BF Test Sorcerer');
-  const dummyArt = game.actors.getName('Practice Dummy');
   if (!fighter || !sorcerer) return { error: 'BF Test Fighter or BF Test Sorcerer is missing — run fixture-suite first' };
   const folder = game.folders.find(x => (x.name === 'Test Suite') && (x.type === 'Actor'))
     ?? await Folder.create({ name: 'Test Suite', type: 'Actor', color: '#4b5563' });
@@ -38,10 +47,10 @@ const out = await f.evaluate(async () => {
     return obj;
   };
 
-  // --- 1. clear Party Camp
+  // --- 1. clear the walk scene
   const ids = scene.tokens.map(t => t.id);
   if (ids.length) await scene.deleteEmbeddedDocuments('Token', ids);
-  log.push(`cleared ${ids.length} token(s) from Party Camp`);
+  log.push(`cleared ${ids.length} token(s) from the walk scene`);
 
   // --- 2. the walk's actors, rebuilt fresh
   const WALKERS = {
@@ -114,8 +123,8 @@ const out = await f.evaluate(async () => {
     made[name] = await Actor.create(o);
   }
   for (const [name, d] of Object.entries(DUMMIES)) {
-    const img = dummyArt?.img ?? 'icons/svg/mystery-man.svg';
-    const tex = dummyArt?.prototypeToken?.texture?.src ?? img;
+    const img = 'icons/svg/mystery-man.svg';
+    const tex = img;
     const cells = d.cells ?? 1;
     const a = await Actor.create({
       name, type: 'npc', img, folder: folder.id,

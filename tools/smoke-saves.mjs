@@ -1809,9 +1809,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Diagnostic only: the Reminder Sources list as the world holds it (its `effect` kind is the switch).
       const kindsOn = (() => { try { return String(game.settings.get(MOD, 'reminderList') ?? ''); } catch { return '(unreadable)'; } })();
       const [trinket] = await victim.createEmbeddedDocuments('Item', [{
-        name: 'BF Test Duskheart', type: 'equipment',
+        name: 'BF Test Amulet', type: 'equipment',
         system: { equipped: true, type: { value: 'trinket' } },
-        effects: [{ name: 'BF Test Duskheart', transfer: true, disabled: false,
+        effects: [{ name: 'BF Test Amulet', transfer: true, disabled: false,
           changes: [{ key: 'system.abilities.dex.save.roll.mode', mode: 2, value: '1' }] }]
       }]);
       try {
@@ -1821,7 +1821,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dlgA = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
         const textA = sectionText(dlgA);
         ok('22a. a Dexterity save opens at the platform\'s Advantage AND the section names the trinket as the one Advantage box, the default on Advantage',
-          !!dlgA && /BF Test Duskheart/.test(textA) && /1 Modifier/.test(textA) && /Advantage/.test(textA)
+          !!dlgA && /BF Test Amulet/.test(textA) && /1 Modifier/.test(textA) && /Advantage/.test(textA)
             && /Dexterity saving throws to roll with Advantage/.test(textA) && (defaultOf(dlgA) === 'advantage'),
           `dialog=${!!dlgA} reminderList="${kindsOn}" default=${defaultOf(dlgA)} formula="${formulaOf(dlgA)}" text="${textA.slice(0, 220)}"`);
         await closeVia(dlgA, 'normal');
@@ -1844,7 +1844,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         const dlgC = await until(() => { const d = sheetDialog(); return d?.querySelector('[data-bf-reminder]') ? d : null; }, 6000);
         const textC = sectionText(dlgC);
         ok('22c. Restrained beside the trinket: two boxes, one Advantage and one Disadvantage, netting Normal — the default on Normal',
-          !!dlgC && /2 Modifiers/.test(textC) && /Restrained/.test(textC) && /BF Test Duskheart/.test(textC) && (defaultOf(dlgC) === 'normal'),
+          !!dlgC && /2 Modifiers/.test(textC) && /Restrained/.test(textC) && /BF Test Amulet/.test(textC) && (defaultOf(dlgC) === 'normal'),
           `default=${defaultOf(dlgC)} text="${textC.slice(0, 260)}"`);
         await closeVia(dlgC, 'normal');
       } finally {

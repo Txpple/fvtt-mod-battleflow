@@ -461,7 +461,7 @@ describe("EFFECT_BENDS — Displacement and Blurred Form: Disadvantage against t
   const facts = () => ({
     enabled: ["Displacement", "Blurred Form"],
     table: reg.EFFECT_BENDS,
-    attackerName: "Gren",
+    attackerName: "Aster",
     targetName: "the beast"
   });
   it("the rows: target-side feature rows on the `notIncapacitated` judge", () => {
@@ -595,18 +595,18 @@ describe("the reaction rows — the interrupts, the rebukes, Reactive", () => {
     expect(rb.rebukeTypesAdmit(["fire", "cold"], ["slashing"])).toBe(false);
     expect(rb.rebukeTypesAdmit(["fire", "cold"], [])).toBe(true);
     expect(rb.rebukeTypesAdmit(null, ["slashing"])).toBe(true);
-    expect(rb.rebukeLine({ actorName: "Kuo-toa", sourceName: "Gren", miss: true })).toBe(
-      "Kuo-toa may answer Gren — it missed"
+    expect(rb.rebukeLine({ actorName: "Kuo-toa", sourceName: "Aster", miss: true })).toBe(
+      "Kuo-toa may answer Aster — it missed"
     );
     expect(
       rb.rebukeLine({
         actorName: "Kuo-toa",
-        sourceName: "Gren",
+        sourceName: "Aster",
         miss: true,
         answer: "use",
         choice: "Sticky Shield"
       })
-    ).toBe("Sticky Shield — Kuo-toa answers Gren's miss");
+    ).toBe("Sticky Shield — Kuo-toa answers Aster's miss");
   });
   it("Reactive: the spent Reaction stands only for the turn it was spent on", () => {
     expect(Object.keys(reg.REACTION_RESETS)).toEqual(["Reactive"]);

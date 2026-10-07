@@ -1,46 +1,36 @@
 /**
  * Which instance a suite talks to, decided in one place; every run prints its target.
- * The local sandbox is a byte copy of prod's world (same world id, users, fixtures), and suites
- * MUTATE settings, actors and chat, so pointing at the wrong one is easy to miss.
- *
- *   node tools/smoke-saves.mjs               → the local sandbox (default)
- *   BF_TARGET=prod node tools/smoke-saves.mjs → Molten prod, deliberately
- *
- * Both are the MCP's own host presets (`fvtt-mcp-dnd5e/client`): `local` launches a cold world
- * with FOUNDRY_ADMIN_KEY; `prod` is the `molten` preset, whose wake URL rides on the Host.
+ * The local sandbox by default: the MCP client's `local` host preset (LOCAL_WORLD_ID, LOCAL_FOUNDRY_DATA in
+ * its .env), whatever world that names. Suites MUTATE settings, actors and chat, and are tied to no world:
+ * their fixtures are built from the compendia by `fixture-suite.mjs`, never cloned from a campaign's
+ * characters, so any world the sandbox runs serves (2026-10-07).
+ *   BF_HOST=<an MCP host preset> node tools/verify-settings.mjs   → another instance, deliberately (the
+ *   settings check after a deploy). No instance is named here: the presets live in the MCP repo's .env.
  */
 import { foundryConfig as clientConfig } from 'fvtt-mcp-dnd5e/client';
 
-const HOST_OF = { local: 'local', prod: 'molten' };
+const host = () => process.env.BF_HOST || 'local';
 
-function target() {
-  const t = (process.env.BF_TARGET ?? 'local').toLowerCase();
-  if ((t !== 'local') && (t !== 'prod')) {
-    throw new Error(`BF_TARGET must be "local" or "prod" — got "${t}"`);
-  }
-  return t;
-}
-
-/** Resolve the Foundry connection config for the chosen target. */
+/** Resolve the Foundry connection config: the sandbox unless BF_HOST names another preset. */
 export function foundryConfig(env) {
-  const t = target();
-  if (t === 'prod') {
-    console.log('[target] PROD (Molten) — this run mutates the live world');
-    return clientConfig(env, HOST_OF[t], 'bridge');
+  const h = host();
+  if (h !== 'local') {
+    console.log(`[target] ⚠ host preset "${h}" — NOT the sandbox; this run mutates that world`);
+    return clientConfig(env, h, 'bridge');
   }
   // ⚠ Suites join as their OWN identity (FOUNDRY_SUITE_USER, alias BF_SUITE_USER), not the bridge's,
   // so a bridge/suite overlap is detectable: `game.users` and `/api/status` count USERS, not sockets.
-  const cfg = clientConfig(env, HOST_OF[t], 'suite');
+  const cfg = clientConfig(env, 'local', 'suite');
   console.log(`[target] local sandbox (${cfg.serverUrl}) as "${cfg.user}"`);
   return cfg;
 }
 
 /**
  * The second client's config for two-client probes: the same instance, joined as the player test
- * identity (FOUNDRY_PLAYER_USER, alias MOLTEN_TEST_USER). No adminKey: a player never launches the world.
+ * identity (FOUNDRY_PLAYER_USER). No adminKey: a player never launches the world.
  */
 export function playerConfig(env) {
-  return clientConfig(env, HOST_OF[target()], 'player');
+  return clientConfig(env, host(), 'player');
 }
 
 /**
@@ -84,6 +74,3 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
   }
   return who;
 }
-
-/** True when this run is pointed at the live world — for guards that must not fire locally. */
-export const isProdTarget = () => (process.env.BF_TARGET ?? 'local').toLowerCase() === 'prod';

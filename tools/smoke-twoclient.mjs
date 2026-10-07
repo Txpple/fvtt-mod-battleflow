@@ -14,7 +14,7 @@
 //
 // ⚠ THIS SUITE MUTATES (check-popup-routing.mjs is the read-only two-client check).
 //
-// Fixture: `BF Test Player Shielder`, a clone of Gren (a real Shield) OWNED BY THE PLAYER TEST USER,
+// Fixture: `BF Test Player Shielder`, a clone of the Mage (a real Shield) OWNED BY THE PLAYER TEST USER,
 // deleted on the way out. ⚠ Separate from `BF Test Shielder`, which is GM-only for smoke-hold.
 //
 // Sections: `--section relay`, `--section close`, `--section ack`, `--section pull`, `--list`.
@@ -79,8 +79,8 @@ const setup = await gm.evaluate(async ({ playerId }) => {
 
   const scene = game.scenes.getName('Battle Flow Test Range');
   const attacker = game.actors.getName('BF Test Attacker');
-  const gren = game.actors.getName('Gren Greenmantle');
-  if (!scene || !attacker || !gren) return { fatal: 'missing fixture: scene, BF Test Attacker or Gren' };
+  const mage = game.actors.getName('BF Test Mage');
+  if (!scene || !attacker || !mage) return { fatal: 'missing fixture: scene, BF Test Attacker or the Mage' };
   if (canvas.scene?.id !== scene.id) { await scene.view(); await sleep(800); }
 
   await set('reactionHold', true);
@@ -105,10 +105,10 @@ const setup = await gm.evaluate(async ({ playerId }) => {
     return { fatal: 'the interrupt table does not carry Shield:ac — this suite has nothing to hold' };
   }
 
-  // The player-owned shielder: Gren's sheet (a real Shield, real slots), the player as OWNER.
+  // The player-owned shielder: the Mage's sheet (a real Shield, real slots), the player as OWNER.
   let shielder = game.actors.getName('BF Test Player Shielder');
   if (!shielder) {
-    const data = gren.toObject();
+    const data = mage.toObject();
     delete data._id;
     data.name = 'BF Test Player Shielder';
     data.prototypeToken.actorLink = true;

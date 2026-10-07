@@ -402,8 +402,8 @@ describe("the reminders and the bends (B4)", () => {
       mm.metamagicCardLine({
         key: "sculpt",
         feature: "Sculpt Spells",
-        protected: [{ name: "Gren" }]
+        protected: [{ name: "Aster" }]
       })
-    ).toBe("Sculpt Spells — Gren spared: no save, no damage");
+    ).toBe("Sculpt Spells — Aster spared: no save, no damage");
   });
 });
