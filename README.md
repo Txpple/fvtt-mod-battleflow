@@ -1,4 +1,4 @@
-# Battle Flow
+# Open Roll 5e: Battle Flow
 
 Battle Flow is a combat automation module for D&D 5e (2024 rules) on Foundry VTT. It is one
 module with no dependencies beyond the dnd5e system.
@@ -13,27 +13,29 @@ Every automatic action leaves a receipt with a one-click revert.
 
 ## Status
 
-**Usable now, and in nightly use at our own table.** It is not finished. The plan is core rules
-first, supplemental books later.
+**Usable now, and in use at our own table.** Every book is built; the walks, playing each rule at
+the table, are what remains before 3.0.
 
-| Done | Next |
+| Built | Next |
 | --- | --- |
-| The combat chain: hit, damage, apply, reactions, saves, concentration, auras, cover | Spells (the PHB spell list, beyond the ones already in) |
-| Every Player's Handbook species and origin feat | More classes and subclasses |
-| Every Player's Handbook general feat that touches a fight | The Monster Manual (traits like Magic Resistance, Undead Fortitude, Regeneration) |
-| Fighting styles, weapon masteries, Battle Master maneuvers, Sorcerer metamagic | Supplemental books, after the core three |
+| The combat chain: hit, damage, apply, reactions, saves, concentration, auras, cover | The walks: each built rule played at the table, book by book |
+| The Player's Handbook: every species, feat, fighting style, class and subclass feature, and spell that touches a fight | The rows that wait for a first customer (the rare shapes no table has needed yet) |
+| The Dungeon Master's Guide: the crit riders and the enchanted weapons | Summons and Wild Shape ([#1](https://github.com/Txpple/fvtt-mod-battleflow/issues/1), [#2](https://github.com/Txpple/fvtt-mod-battleflow/issues/2)) |
+| The Monster Manual: Magic Resistance, Undead Fortitude, Regeneration, the auras, the reactions | The epic boons |
+| Heroes of Faerûn, Arcana Unleashed, Ravenloft: The Horrors Within | |
 | Ten settings; every feature always on | |
 
-Nothing ships until it has been played. What is in works; what is not in yet is simply left to
-the table, the way vanilla dnd5e does.
+Nothing is finished until it has been played. What is in works; what is not in yet is simply left
+to the table, the way vanilla dnd5e does.
 
 ## Requirements
 
 - Foundry VTT 14
 - dnd5e 6.x (2024 rules). v1.42.0 is the last release for dnd5e 5.3.x.
 - No other modules. No libWrapper, no socketlib, no DAE.
-- The free 2024 rules that ship with dnd5e are enough. The premium Player's Handbook, Monster
-  Manual and Dungeon Master's Guide unlock everything the free rules leave out.
+- The free 2024 rules that ship with dnd5e are enough. The premium Player's Handbook, Dungeon
+  Master's Guide and Monster Manual unlock everything the free rules leave out; Heroes of Faerûn,
+  Arcana Unleashed and Ravenloft: The Horrors Within are read when installed.
 - A GM must be logged in. The GM's client is the one that applies damage and effects.
 
 Install with the manifest URL:
@@ -142,11 +144,20 @@ Every feature is always on. There is no per-feature switch. A table that wants o
 Dev tooling is in [tools/](tools/README.md) and ships in nothing. `npm run verify` runs the
 static checks and unit tests in seconds; the live battery runs against a real Foundry world.
 
-## Family
+## Sister modules
 
-Sibling of [Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus), which does combat UX
-(music, gates, cues). Battle Flow does combat resolution. They are separate so a dnd5e update can
-never take both down.
+Battle Flow is one of the Open Roll 5e modules for Foundry VTT. Each installs and works on its own
+and none needs another; together they cover the table from the fog of war to the loot. The rest of
+the family:
+
+- [Open Roll 5e: Autoexplore](https://github.com/Txpple/fvtt-mod-autoexplore): lets a scene start fully explored, so the whole map shows through the fog of war while tokens still need line of sight.
+- [Open Roll 5e: Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus): automates the chores of running a fight: combat music, an initiative gate, an out-of-turn movement block, defeated marking at 0 HP and turn alerts. Battle Flow does combat resolution; Combat Plus does combat UX. They are separate so a dnd5e update can never take both down.
+- [Open Roll 5e: Errata](https://github.com/Txpple/fvtt-mod-errata5e): corrects, in memory, bugs in the premium D&D 2024 books, the dnd5e system and Foundry itself, each fix held until the vendor ships its own.
+- [Open Roll 5e: FX Studio](https://github.com/Txpple/fvtt-mod-fxstudio): plays visual and sound effects from what actually happened at the table, through Sequencer with JB2A and PSFX; with Battle Flow installed it also plays on the outcomes Battle Flow resolves.
+- [Open Roll 5e: Loot Shelf](https://github.com/Txpple/fvtt-mod-lootshelf): loot chests and merchant shelves that players can take from, buy from and sell to without owning them, with a receipt for every trade.
+- [Open Roll 5e: Open Server](https://github.com/Txpple/fvtt-mod-openserver): for hosted worlds: clears the startup pause so players can play before the GM arrives, and gives any user a landing scene of their own.
+- [Open Roll 5e: Party Stash](https://github.com/Txpple/fvtt-mod-partystash): makes a dnd5e Group actor's inventory a working party stash: drags move instead of copying, coin moves through a dialog, and every transfer posts a receipt.
+- [Open Roll 5e: Soundscape](https://github.com/Txpple/fvtt-mod-soundscape): background sound for scenes: random one-shots with silence between them, seamless crossfaded loops, day and night gating, and quiet during combat.
 
 ## Contributing
 

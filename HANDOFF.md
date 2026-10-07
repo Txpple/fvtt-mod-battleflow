@@ -1,7 +1,7 @@
 # HANDOFF.md — RETIRED 2026-10-02 (the three splat books built; v2.14.0 = Ravenloft, released)
 
 > **What this is:** the pick-up point for a session that starts cold. It is retired when what it hands over is done.
-> Nothing is handed over. **Wait for the user's go.** A ruling in chat is not a go. Rapid dev mode stands (no walkthroughs).
+> Nothing is handed over. **Wait for the user's go.** A ruling in chat is not a go. **Rapid dev mode is OVER** (the user, 2026-10-02): walks are back on the table.
 > **Between campaigns: no prod deploys** (the user, 2026-10-02) — prod runs v2.13.0 and stays there until a campaign is on.
 
 ## Where things stand

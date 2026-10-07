@@ -1,8 +1,8 @@
 {
   "id": "fvtt-mod-battleflow",
-  "title": "Battle Flow",
-  "description": "All-in-one combat automation for dnd5e (2024 rules). A hit rolls its damage and applies it through the system's own resistance math, with a per-target receipt and one-click revert on every card. A reaction that could change the outcome pauses the chain and asks the player, with the rule from the book and a timer. Saves, concentration, auras, cover, feats, fighting styles, masteries, maneuvers and metamagic are all in. Zero dependencies, no sockets, no patching: clients coordinate by reading the same chat log.",
-  "version": "2.14.0",
+  "title": "Open Roll 5e: Battle Flow",
+  "description": "Combat automation for dnd5e (2024 rules): a hit rolls and applies its own damage with a receipt and a one-click revert, a reaction that could change the outcome pauses the chain and asks the player with the rule from the book and a timer, saves roll for every target, and concentration, auras, cover, feats, fighting styles, masteries, maneuvers and metamagic are all in. Reads the Player's Handbook, Dungeon Master's Guide, Monster Manual, Heroes of Faerûn, Arcana Unleashed and Ravenloft: The Horrors Within. Zero dependencies, no sockets, no patching: clients coordinate by reading the same chat log.",
+  "version": "2.15.0",
   "authors": [
     {
       "name": "Matthew Sippel"
@@ -35,7 +35,7 @@
   },
   "url": "https://github.com/Txpple/fvtt-mod-battleflow",
   "manifest": "https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json",
-  "download": "https://github.com/Txpple/fvtt-mod-battleflow/releases/download/v2.14.0/fvtt-mod-battleflow.zip",
+  "download": "https://github.com/Txpple/fvtt-mod-battleflow/releases/download/v2.15.0/fvtt-mod-battleflow.zip",
   "readme": "https://github.com/Txpple/fvtt-mod-battleflow#readme",
   "license": "MIT"
 }
