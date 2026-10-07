@@ -252,10 +252,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await sleep(300);
       return { attackMsg, roll: rolls?.[0] ?? null, chip: chip ?? null, fumble: !!rolls?.[0]?.isFumble };
     };
+    // ⚠ Vex lands on a HIT: two plain swings both missed one run in five (2026-10-07). Up to six, with Advantage.
     const ensureVexed = async () => {
-      let r = await swing('vex');
-      if (!r.chip) r = await swing('vex');
-      return r.chip;
+      for (let i = 0; i < 6; i++) {
+        const r = await swing('vex', { advantage: true });
+        if (r.chip) return r.chip;
+      }
+      return null;
     };
     /**
      * The click the card's Attack BUTTON makes: an event inside the usage card's element and nothing
