@@ -549,7 +549,7 @@ actually used). A mark's placer is found by walking up to the nearest Actor whic
 the origin names (at 5.3.x a concentrating caster's mark named the concentration effect), and
 concentration is never a gate — the dependent cascade deletes the mark when it breaks. ⚠ A copy
 the TRAY applies still carries the stale item: the reader copes, the platform's clock does not (a
-platform gap — Vendor Fixes territory (Misc Patches until 2026-09-25), or a one-time sweep of the 207 templates; neither done).
+platform gap — Errata 5e territory, or a one-time sweep of the 207 templates; neither done).
 Pinned by smoke-riders §9 (the tray's shape) and §10 (a real cast through the applier).
 
 ### 6.0's moved-key table follows ONE hop — Roving's +10 read "3510" (2026-09-23)

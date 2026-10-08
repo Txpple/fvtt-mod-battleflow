@@ -14,7 +14,7 @@ export const COVERS = [
 ];
 
 const SECTIONS = {
-  1: 'Necrotic Shroud: no placement — the area lands on the token by itself; its save asks the hostile beside it and NOT the ally; the form chip marks the Aasimar; the failed save\'s Frightened ends at the end of the Aasimar\'s next turn (VF-002, when Vendor Fixes is on); a hit then carries +PB NECROTIC',
+  1: 'Necrotic Shroud: no placement — the area lands on the token by itself; its save asks the hostile beside it and NOT the ally; the form chip marks the Aasimar; the failed save\'s Frightened ends at the end of the Aasimar\'s next turn (Errata 5e E-002, when Errata 5e is on); a hit then carries +PB NECROTIC',
   2: 'Inner Radiance: the use places no area and rolls no damage; Searing Radiance lands on the Aasimar with 10 ft Bright / 20 ft Dim on its token, and the 10-ft ring stands on it, announced',
   3: 'a spell with no attack roll (Sacred Flame): once its damage lands, its card offers +PB radiant to ONE damaged target; the pick lands on its own card with a receipt',
   4: 'the pulse: the Aasimar\'s turn ends in combat — every creature within 10 ft, the ally included, takes PB radiant on one card with receipts; the Aasimar does not',
@@ -247,14 +247,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         `chip=${chip?.name} duration=${JSON.stringify(chip?._source?.duration)}`);
       const frightened = await waitFor(() => victim.effects.find(e => (e.name === 'Necrotic Shroud') && e.statuses.has('frightened')) ?? null, 15000);
       realDice();
-      const vf = game.modules.get('fvtt-mod-vendorfixes');
-      const vfOn = !!vf?.active && !!game.settings.settings.get('fvtt-mod-vendorfixes.necroticShroudClock') && game.settings.get('fvtt-mod-vendorfixes', 'necroticShroudClock');
-      if (vfOn) {
-        ok('1e. the failed save frightens — and (VF-002) until the end of the Aasimar\'s next turn: expiry sourceEnd',
+      // Errata 5e has no settings: the module enabled means every fix is on, E-002 among them.
+      const errataOn = !!game.modules.get('fvtt-mod-errata5e')?.active;
+      if (errataOn) {
+        ok('1e. the failed save frightens — and (Errata 5e E-002) until the end of the Aasimar\'s next turn: expiry sourceEnd',
           !!frightened && (frightened._source.duration?.expiry === 'sourceEnd'), `effect=${frightened?.name} duration=${JSON.stringify(frightened?._source?.duration)}`);
       } else {
-        ok('1e. the failed save frightens (Vendor Fixes VF-002 is off or absent here — the clock is the pack\'s)', !!frightened,
-          `vendorfixes active=${vf?.active} duration=${JSON.stringify(frightened?._source?.duration)}`);
+        ok('1e. the failed save frightens (Errata 5e is off or absent here — the clock is the pack\'s)', !!frightened,
+          `errata5e active=${errataOn} duration=${JSON.stringify(frightened?._source?.duration)}`);
       }
       const dmg = await swing();
       const r = revRider(dmg);

@@ -1512,7 +1512,7 @@ export const EMANATIONS = Object.freeze({
     caveat: "the pack's effect carries the Advantage on saves (the save gate says so) and the attack gate reads attackers' Disadvantage off it (Effect Sources — Holy Protection); the Fiend/Undead save on a melee hit is the table's",
     rule: Object.freeze({ item: "Holy Aura", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplHolyAura00" }),
     from: "Cleric spell, level 8 (Concentration, 1 minute)" }),
-  // The pack's spell has no area (Vendor Fixes VF-003 gives it the 30-foot Emanation).
+  // The pack's spell has no area (Errata 5e E-003 gives it the 30-foot Emanation).
   "Pass without Trace": Object.freeze({ kind: "spell", reach: "helpful", range: null, effect: "Concealed", incapacitated: false,
     caveat: "the pack's effect carries the +10 to Stealth; \"leave no tracks\" is the table's",
     rule: Object.freeze({ item: "Pass without Trace", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPasswithou" }),

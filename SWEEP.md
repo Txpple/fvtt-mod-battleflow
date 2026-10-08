@@ -313,7 +313,7 @@ ITEM (`system.uses`, the activity consumes `itemUses`); none carries activity us
     2026-09-25** in the walk (RULINGS *The Aasimar walk*): the pulse is an `EMANATIONS` feature
     row (`while`, `reach: "all"`, `pulse`), not a new kind; the extra is a `CLOCK_RIDERS` row
     (`amount`, `transformed`, `forms`, `spells`). Necrotic Shroud's 60-second Frightened is fixed
-    in Vendor Fixes VF-002, never here.
+    in Errata 5e E-002, never here.
 - ~~**HELD:** **Relentless Endurance**~~ — **BUILT 2026-09-25** in the Orc walk (with Death Ward): the
   DROP_TO_ONE table, `drop-to-one.js` at `dnd5e.preApplyDamage`. Slice B's kill moment adds Undead
   Fortitude and the monster Relentless trait as rows there.

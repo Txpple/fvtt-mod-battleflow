@@ -686,8 +686,8 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
   `ally` the user's side. Necrotic Shroud (`enemy`; *"creatures other than your allies"*) no longer
   asks the Aasimar's friends beside it.
 - **Necrotic Shroud's Frightened lasts until the end of the Aasimar's next turn** — a PACK defect
-  (60 seconds), fixed in **Vendor Fixes VF-002** (user: *"put the fix in the vendor fixes sister
-  repo"*), never here: the copy's clock becomes the system's `sourceEnd`. Battle Flow depends on it
+  (60 seconds), fixed in **Errata 5e E-002** (the sister module; user, then of its predecessor:
+  *"put the fix in the vendor fixes sister repo"*), never here: the copy's clock becomes the system's `sourceEnd`. Battle Flow depends on it
   (the register's Dependents).
 - **Inner Radiance pulses** (user: *"inner radiance needs to pulse - you can probably shape it like
   spirit guardians in part"*). An `EMANATIONS` feature row with three new fields: `while` (it
@@ -700,7 +700,7 @@ Celestial Revelation cases in `tests/decide-clock.test.js` / `tests/decide-emana
 - **No damage at the transform** (user: *"No damage at transform"*): the pack models the pulse as
   damage on use; the use is the transformation alone — no area placed, the system's follow-up roll
   off, and the bare-damage machine (`damage-casts.js`) steps aside for a pulse form. The pulse is
-  the damage. (Built here, not in Vendor Fixes: the pulse reads the pack's own damage part.)
+  the damage. (Built here, not in Errata 5e: the pulse reads the pack's own damage part.)
 - **Token lights** (user: *"add the bright/dim light settings … edit the Light spell so it adds light
   emission to a token target as well"*): a new table, `TOKEN_LIGHTS`, and machine,
   `token-lights.js`; the Token Lights list. Foundry 14 applies an effect change keyed `token.*` to
@@ -737,7 +737,7 @@ on the user's word. The full battery proved them on 2026-09-26.
   created, so the sense lives and dies with the effect.
 - **Pass without Trace** (user: *"an emanation similar to the paladin one, but grants +10
   stealth"*): an `EMANATIONS` row (spell, helpful, the pack's Concealed effect). The pack's spell
-  carries no area — **Vendor Fixes VF-003** gives it the 30-foot Emanation.
+  carries no area — **Errata 5e E-003** gives it the 30-foot Emanation.
 - **Tinker** (user: *"just give a buff called tiny clockwork device ... the rest is played at
   table"*; reworked: *"a popup to create the clockwork with x/3 remaining ... to max 3"*): a new
   table, `CARD_CHIPS`, and the Card Chips list — the Rock Gnome's Prestidigitation cast asks
