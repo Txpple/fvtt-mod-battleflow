@@ -486,9 +486,10 @@ ruling each); `aggregateDamageTerms` for a per-type receipt breakdown;
   tests geometry itself.
 - **The cast's render floor and the region's `createRegion` land in the same beat** — the refresh
   latch queues ONE re-offer behind a refresh in flight, or the cast's demand stays empty.
-- **The PHB pack's Half Speed (`system.attributes.movement.speed` ×0.5) leaves an NPC's speed at
-  30** — the platform's prepare order overwrites `movement.speed` from `speeds.walk`; still so on
-  6.0.3 (smoke-emanations §6c). The pack's / the platform's, not ours (BACKLOG).
+- **The PHB pack's Half Speed (`system.attributes.movement.speed` ×0.5) left an NPC's speed at
+  30 on dnd5e 6.0.0 to 6.0.5** — the one-hop moved-key table (below, *6.0's moved-key table*);
+  6.0.3 measured it (smoke-emanations §6c). **dnd5e 6.0.6 fixed it**: 30 → 15 with nothing in
+  between (2026-10-08). The pack's / the platform's, never ours (BACKLOG).
 - **`ChatMessage5e#renderHTML` sets `html.hidden` BEFORE `dnd5e.renderChatMessage` fires** — a
   render hook can read it as "the hidden copy of a summarized roll"; a popout (`options.canClose`)
   is never hidden. **Core carries `hidden` over on a re-render** (`ChatLog#rerenderMessage`), so
@@ -557,10 +558,13 @@ Pinned by smoke-riders §9 (the tray's shape) and §10 (a real cast through the 
 moved twice (`movement.speed` → `movement.walk` → `movement.speeds.walk`). The PHB's Roving adds
 10 to `movement.speed`; one hop lands it on `movement.walk`, no longer a number field — an
 in-memory 35-foot ranger read walk, climb and swim **3510**; the chain followed, 45. A platform
-fix, so Misc Patches' `shim-chains.js` points each entry at the end of its chain at `setup`
-(smoke-shim-chains 5/5), enabled on prod since 2026-09-23 (v1.1.0). 6.0.5 still ships the one-hop
-table. Moved 2026-09-25 to Vendor Fixes (a sister module) as **VF-001**, unchanged;
-its register lists this module as a dependent (Half Speed), and Misc Patches is retired.
+gap, never ours: the sister module Errata 5e carried the fix as **E-001** (each entry pointed at
+the end of its chain at `setup`), listing this module as a dependent for Half Speed.
+**dnd5e 6.0.6 (2026-10-06) fixed it upstream**: `movement.speed` now points straight at
+`movement.speeds.walk`, so the table has no chain. Measured 2026-10-08 with E-001's code removed:
+an old-key +10 on a 30 ft walker reads 40, the PHB's Roving 40 with climb and swim to match, and
+Half Speed 30 → 15. Errata 5e retired E-001 in 1.2.0 and requires dnd5e 6.0.6 since 1.2.1; on
+6.0.0 to 6.0.5 the 3510 is back.
 
 ### 6.0.4 and 6.0.5, read against the module — nothing on our paths (2026-09-23)
 
@@ -576,6 +580,23 @@ The 6.0.3 → 6.0.5 diff is 48 files, most of them scroll packs, read file by fi
 - **Scrolls carry `flags.dnd5e.spellLevel`** — new data; the volley and cast paths read the cast
   level off the card and the item, unchanged.
 - **Hooks:** `check-hook-dispatch --regen`: 0 added, 0 removed.
+
+### 6.0.6, read against the module — nothing on our paths (2026-10-08)
+
+The 6.0.5 → 6.0.6 diff is 16 files, no pack changed, read file by file:
+- **The moved-key table** (`movement.speed` now straight to `movement.speeds.walk`) — the
+  platform gap above is closed; Half Speed reads 15 on a 30 ft NPC. The module writes no movement.
+- **The chat card's Consume button** (`#consumeResource` → `_prepareConsumeResourceUsageConfig`)
+  — a refactor; the module never consumes through the card.
+- **Enchantment riders** (no create operation when there are no riders) — `effect-riders.js` reads
+  a rider's `dependentOn`, which is unchanged.
+- **Skill and tool `bonuses.check` shim, the attack label's `Roll.create`, ItemChoice's spell-list
+  restriction, the unlinked token's delta update, the exhaustion migration, the `/heal` flavor,
+  the falling token** — none on the module's paths (`heal-on-hit.js`'s `falling` is its own map).
+- **Anchors:** `check-surfaces --regen` all ok; **hooks:** `check-hook-dispatch --regen` 0 added,
+  0 removed. `verified` moved to 6.0.6.
+- **The battery:** 49/49 suites, 2019/2019 checks, settings clean, hook coverage 65/65 names
+  (411/411 registrations), 89m 38s, on the local sandbox (Foundry 14.368, dnd5e 6.0.6).
 
 ### "Creatures of your choice" in an area: the pack flags half of them (2026-09-24, a play session's Slow)
 

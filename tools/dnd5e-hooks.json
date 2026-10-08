@@ -1,7 +1,7 @@
 {
   "$comment": "GENERATED — do not hand-edit. node tools/check-hook-dispatch.mjs --regen",
   "system": "dnd5e",
-  "version": "6.0.5",
+  "version": "6.0.6",
   "source": "dnd5e.mjs: Hooks.call*/callAll names, literal and templated (expanded), UNION @memberof hookEvents JSDoc; `call` is the Hooks.call subset",
   "extracted": {
     "callSites": 122,
