@@ -176,14 +176,9 @@ Three MCP servers for [Claude Code](https://claude.com/claude-code) complete the
 - [fvtt-mcp-imagegen](https://github.com/Txpple/fvtt-mcp-imagegen): makes the art with Google's Gemini image models: icons, tokens, props, portraits, illustrations and battlemap restyles, grounded in what the world already shows.
 - [fvtt-mcp-sessionscribe](https://github.com/Txpple/fvtt-mcp-sessionscribe): turns a session's Discord recording and Foundry chat log into its record. Its end-to-end `session-scribe` skill drives the server from the Craig link to a speaker-labelled transcript, a fully illustrated player recap, combat statistics, GM notes and a party snapshot.
 
-How they fit together is mapped in [fvtt-suite-openroll5e](https://github.com/Txpple/fvtt-suite-openroll5e).
+Issues are welcome on every repo in the family; pull requests are not accepted, since each is one
+author's design for one table, shared because it might suit yours. How they fit together is mapped in [fvtt-suite-openroll5e](https://github.com/Txpple/fvtt-suite-openroll5e).
 <!-- /openroll5e:family -->
-
-## Contributing
-
-This is one author's design for how a 2024 fight should run, built for one table and shared
-because it might suit yours. It is public so you can read it and use it. Issues and pull
-requests are not accepted.
 
 ## License
 
