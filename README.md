@@ -1,15 +1,15 @@
 # Open Roll 5e: Battle Flow
 
-Battle Flow is a combat automation module for D&D 5e (2024 rules) on Foundry VTT. It is one
-module with no dependencies beyond the dnd5e system.
+[![verify](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/verify.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/verify.yml)
+[![release](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/release.yml/badge.svg)](https://github.com/Txpple/fvtt-mod-battleflow/actions/workflows/release.yml)
 
-It exists to help new players keep track of the rule details of 5e: weapon mastery reminders
-and automation, maneuvers, reactions, and the other small rules that are easy to forget. It also
-takes routine steps off experienced players.
-
-What it does: when an attack hits, the damage rolls and applies. When a spell demands a save,
-everyone rolls. When a reaction could change the outcome, the player gets a popup with a timer.
-Every automatic action leaves a receipt with a one-click revert.
+A Foundry VTT module for the dnd5e system that automates combat under the D&D 5e 2024 rules. When
+an attack hits, the damage rolls and applies. When a spell demands a save, everyone rolls. When a
+reaction could change the outcome, the player gets a popup with a timer. Every automatic action
+leaves a receipt with a one-click revert. It exists to help new players keep track of the rule
+details of 5e (weapon masteries, maneuvers, reactions, the small rules that are easy to forget)
+and to take routine steps off experienced players. It is one module with no dependencies beyond
+the system.
 
 ## Status
 
@@ -28,21 +28,36 @@ the table, are what remains before 3.0.
 Nothing is finished until it has been played. What is in works; what is not in yet is simply left
 to the table, the way vanilla dnd5e does.
 
-## Requirements
+## How it works
 
-- Foundry VTT 14
+- **Zero dependencies, no patching.** Public hooks and document writes only. The chat log is the
+  state: every client reads the same one, so there is nothing in memory to fall out of sync and
+  a reload loses nothing.
+- **Canon only.** Every number, die and DC is read from the content the compendia ship. The
+  module never stores an amount and never homebrews. When content is wrong, fix the content.
+- **Automate outcomes, never decisions.** If the rules settle it, the module does it. If a
+  person gets a say, a person is asked, with a default and a clock.
+- **The system stays underneath.** The card buttons the module takes over are hidden so there
+  is one path; the system's damage tray, refund and revert stay.
+- **Combat Plus and FX Studio are separate modules on purpose.** Battle Flow resolves the fight;
+  Combat Plus does the chores around it and FX Studio plays the pictures. Each detects the others
+  and none requires another, so a dnd5e update can never take all three down.
+
+## Installation
+
+Paste the manifest URL into Foundry's *Install Module* dialog:
+
+```
+https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json
+```
+
+- Foundry VTT 14.
 - dnd5e 6.x (2024 rules). v1.42.0 is the last release for dnd5e 5.3.x.
 - No other modules. No libWrapper, no socketlib, no DAE.
 - The free 2024 rules that ship with dnd5e are enough. The premium Player's Handbook, Dungeon
   Master's Guide and Monster Manual unlock everything the free rules leave out; Heroes of Faerûn,
   Arcana Unleashed and Ravenloft: The Horrors Within are read when installed.
 - A GM must be logged in. The GM's client is the one that applies damage and effects.
-
-Install with the manifest URL:
-
-```
-https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.json
-```
 
 ## What it does
 
@@ -67,7 +82,7 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   target's AC on its own, and the card says so. Sharpshooter and Spell Sniper take it off.
 - **Auras work.** A Paladin's Aura of Protection follows the token; allies get the bonus
   walking in and lose it walking out. Spirit Guardians and friends do the same with their saves,
-  and so do the areas you place and drag — Moonbeam, Cloudkill, Cloud of Daggers.
+  and so do the areas you place and drag: Moonbeam, Cloudkill, Cloud of Daggers.
 - **Sanctuary and Mirror Image play themselves.** Whoever targets a warded creature saves first,
   and a failed save turns the attack aside before it rolls. A hit on a mirrored creature rolls a
   d6 per duplicate off the token; a 3 or higher and a duplicate takes it.
@@ -105,6 +120,8 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 
 ## Settings
 
+*Game Settings → Configure Settings → Open Roll 5e: Battle Flow.*
+
 | Setting | Scope | What it does |
 | --- | --- | --- |
 | Decision Timer Seconds | world | How long every question waits. 0 waits forever. A required roll rolls itself when time is up; an optional offer passes. |
@@ -120,18 +137,6 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 
 Every feature is always on. There is no per-feature switch. A table that wants one wants midi.
 
-## How it is built
-
-- **Zero dependencies, no patching.** Public hooks and document writes only. The chat log is the
-  state: every client reads the same one, so there is nothing in memory to fall out of sync and
-  a reload loses nothing.
-- **Canon only.** Every number, die and DC is read from the content the compendia ship. The
-  module never stores an amount and never homebrews. When content is wrong, fix the content.
-- **Automate outcomes, never decisions.** If the rules settle it, the module does it. If a
-  person gets a say, a person is asked, with a default and a clock.
-- **The system stays underneath.** The card buttons the module takes over are hidden so there
-  is one path; the system's damage tray, refund and revert stay.
-
 ## Documentation
 
 - [DESIGN.md](DESIGN.md): what the module is for and what it refuses. Start here.
@@ -141,23 +146,38 @@ Every feature is always on. There is no per-feature switch. A table that wants o
 - [BACKLOG.md](BACKLOG.md): known and deliberately not scheduled.
 - [SWEEP.md](SWEEP.md): the 2024 content sorted by mechanism.
 
-Dev tooling is in [tools/](tools/README.md) and ships in nothing. `npm run verify` runs the
-static checks and unit tests in seconds; the live battery runs against a real Foundry world.
+## Development
 
-## Sister modules
+There is no build step: the module is plain ES modules loaded straight from `scripts/`. Dev
+tooling is in [tools/](tools/README.md) and ships in nothing. `npm run verify` runs the static
+checks and unit tests in seconds; the live battery runs against a real Foundry world. The
+`verify` workflow runs the offline gate on every push, and the `release` workflow builds and
+publishes the GitHub release, zip and manifest together, from a `vX.Y.Z` tag.
 
-Battle Flow is one of the Open Roll 5e modules for Foundry VTT. Each installs and works on its own
-and none needs another; together they cover the table from the fog of war to the loot. The rest of
-the family:
+<!-- openroll5e:family -->
+## Part of Open Roll 5e
+
+Battle Flow is one of the Open Roll 5e modules for Foundry VTT, a suite built for one D&D 5e table and
+shared. Each module installs and works on its own and none needs another; together they cover the
+table from the fog of war to the loot. The other modules:
 
 - [Open Roll 5e: Autoexplore](https://github.com/Txpple/fvtt-mod-autoexplore): lets a scene start fully explored, so the whole map shows through the fog of war while tokens still need line of sight.
-- [Open Roll 5e: Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus): automates the chores of running a fight: combat music, an initiative gate, an out-of-turn movement block, defeated marking at 0 HP and turn alerts. Battle Flow does combat resolution; Combat Plus does combat UX. They are separate so a dnd5e update can never take both down.
+- [Open Roll 5e: Combat Plus](https://github.com/Txpple/fvtt-mod-combatplus): automates the chores of running a fight: combat music, an initiative gate, an out-of-turn movement block, defeated marking at 0 HP and turn alerts.
 - [Open Roll 5e: Errata](https://github.com/Txpple/fvtt-mod-errata5e): corrects, in memory, bugs in the premium D&D 2024 books, the dnd5e system and Foundry itself, each fix held until the vendor ships its own.
-- [Open Roll 5e: FX Studio](https://github.com/Txpple/fvtt-mod-fxstudio): plays visual and sound effects from what actually happened at the table, through Sequencer with JB2A and PSFX; with Battle Flow installed it also plays on the outcomes Battle Flow resolves.
+- [Open Roll 5e: FX Studio](https://github.com/Txpple/fvtt-mod-fxstudio): visual and sound effects for dnd5e, played from what actually happened at the table, with about a thousand stock FX and a window for authoring your own.
 - [Open Roll 5e: Loot Shelf](https://github.com/Txpple/fvtt-mod-lootshelf): loot chests and merchant shelves that players can take from, buy from and sell to without owning them, with a receipt for every trade.
 - [Open Roll 5e: Open Server](https://github.com/Txpple/fvtt-mod-openserver): for hosted worlds: clears the startup pause so players can play before the GM arrives, and gives any user a landing scene of their own.
 - [Open Roll 5e: Party Stash](https://github.com/Txpple/fvtt-mod-partystash): makes a dnd5e Group actor's inventory a working party stash: drags move instead of copying, coin moves through a dialog, and every transfer posts a receipt.
 - [Open Roll 5e: Soundscape](https://github.com/Txpple/fvtt-mod-soundscape): background sound for scenes: random one-shots with silence between them, seamless crossfaded loops, day and night gating, and quiet during combat.
+
+Three MCP servers for [Claude Code](https://claude.com/claude-code) complete the suite:
+
+- [fvtt-mcp-dnd5e](https://github.com/Txpple/fvtt-mcp-dnd5e): builds D&D 5e content in a live Foundry world from Claude Code: a stat block becomes a complete NPC, a map image a walled and lit scene, an adventure its journals, tables and handouts.
+- [fvtt-mcp-imagegen](https://github.com/Txpple/fvtt-mcp-imagegen): makes the art with Google's Gemini image models: icons, tokens, props, portraits, illustrations and battlemap restyles, grounded in what the world already shows.
+- [fvtt-mcp-sessionscribe](https://github.com/Txpple/fvtt-mcp-sessionscribe): turns a session's Discord recording and Foundry chat log into its record: a speaker-labelled transcript, a player recap, a combat report and GM notes.
+
+How they fit together is mapped in [fvtt-suite-openroll5e](https://github.com/Txpple/fvtt-suite-openroll5e).
+<!-- /openroll5e:family -->
 
 ## Contributing
 
@@ -167,4 +187,4 @@ requests are not accepted.
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
