@@ -7,7 +7,7 @@ import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
 import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
 import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
   riderEntries, riderUpgradeEntries } from "./decide/registry.js";
-import { listenOnce } from "./dispatch.js";
+import { listen, listenOnce } from "./dispatch.js";
 
 /**
  * Put dnd5e's Visibility keys where the two settings say. The active GM only (players cannot write
@@ -28,6 +28,9 @@ async function syncVisibility() {
 }
 
 listenOnce("ready", "settings", syncVisibility);
+// ⚠ At `ready` the joining user is not always flagged active yet, so `activeGM` can miss this client:
+// the sync runs again when this client's own activity lands (seen on prod).
+listen("userConnected", "settings", (user, active) => { if ( active && user.isSelf ) void syncVisibility(); });
 
 listenOnce("init", "settings", () => {
   game.settings.register(MODULE_ID, S.decisionTimer, {
