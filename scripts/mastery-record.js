@@ -80,8 +80,19 @@ export function recordOf(actor) {
   return { allowance, chosen, weapons, ...recordState({ allowance, chosen, unproficient }) };
 }
 
-/** The party's characters: the primary party's members, else the player-owned characters. */
-const partyActors = () => game.actors.filter(a => (a.type === "character") && isPartyMember(a.uuid));
+/**
+ * The party's characters: the primary party group's members when the world has one, else every
+ * player-owned character. ⚠ The group first, on purpose: a world with a party set has sheets that are
+ * player-owned and not in it (a retired PC, a test fixture), and the fill must not write those.
+ */
+function partyActors() {
+  const party = game.actors?.party;
+  if ( party ) {
+    const ids = new Set((party.system?.members ?? []).map(m => m.actor?.id ?? m.actor).filter(Boolean));
+    return game.actors.filter(a => (a.type === "character") && ids.has(a.id));
+  }
+  return game.actors.filter(a => (a.type === "character") && isPartyMember(a.uuid));
+}
 
 /* --- the fill ----------------------------------------------------------------------------------- */
 

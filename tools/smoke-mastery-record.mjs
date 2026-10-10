@@ -225,6 +225,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (want(4)) {
       await asPartyMember();
       await setList(['longsword']);
+      // The view reads the PRIMARY party group when the world has one: lend the fixture a seat for the section.
+      const primary = game.actors.party ?? null;
+      const seated = !!primary && !(primary.system?.members ?? []).some(m => (m.actor?.id ?? m.actor) === fighter.id);
+      if (seated) await primary.system.addMember(fighter);
       const group = await Actor.create({ name: 'BF Test Party (mastery)', type: 'group' });
       made.push(group);
       const sheet = await group.sheet.render({ force: true });
@@ -238,6 +242,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const text = view.element?.textContent ?? '';
       ok('4b. the view lists the Fighter against its allowance: 4, longsword chosen, 3 open', /BF Test Fighter/.test(text) && /3 open/.test(text), `text=${text.replace(/\s+/g, ' ').slice(0, 240)}`);
       try { await view.close(); } catch { /* gone */ }
+      if (seated) await primary.system.removeMember(fighter.id);
       await setList([]);
     }
 

@@ -3143,7 +3143,10 @@ advancement step has an empty set: no mastery ever fires, and nothing says so. T
    `masteryOptions` hold more than the weapon's own, the machine stamps `masteryPick` on the attack and asks the attacker —
    Sap (the weapon's), Push, Slow, or Pass — on the house timer, the weapon's own as the AFK fallback; the answer then runs the
    hit's mastery exactly as a dialog pick would (`smoke-classes` §49). Without Tactical Master nothing changes.
-8. **Party member** is the module's existing word (`isPartyMember`: the primary party's members, else a player-owned character);
+8. **The party is the primary party group** when the world has one — the fill and the party view read its members and nothing
+   else (a retired PC or a test fixture that is player-owned and not in the group is never written; the battery of 2026-10-10
+   found the fill writing the suites' fixtures at every client load). Without a group, the module's existing word applies
+   (`isPartyMember`: a player-owned character). The line and the rest ask keep `isPartyMember` (a player's own sheet is theirs);
    the placeholder sheets with no class read "no mastery" and are never written.
 
 | Row | Where | What it does |
