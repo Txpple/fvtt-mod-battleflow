@@ -139,7 +139,7 @@
       <div class="eyebrow">Prototype · issue #1 · summons</div>
       <h1>The player casts and places. The GM's client makes the creature.</h1>
     </div>
-    <p>Six moments of one evening, each with the options to rule on in the right column. Nothing here needs the player to hold Create Token or Create Actor; the orange card is the record the active GM's client reacts to.</p>
+    <p>Eight moments of one evening, each with the options to rule on in the right column. Nothing here needs the player to hold Create Token or Create Actor; the orange card is the record the active GM's client reacts to.</p>
   </header>
 
   <div class="scenes">
@@ -147,6 +147,8 @@
       <button type="button" data-scene="dragon" aria-pressed="true">Sorcerer · Summon Dragon (5th)</button>
       <button type="button" data-scene="familiar">Wizard · Find Familiar (CR 0 pick)</button>
       <button type="button" data-scene="objects">Bard · Animate Objects (the budget)</button>
+      <button type="button" data-scene="spirits">The nine Summon spells · the form pick</button>
+      <button type="button" data-scene="conjure">Druid · Conjure Animals (no form)</button>
     </div>
     <div class="grp"><span>After the card</span>
       <button type="button" data-scene="place">Place, then the GM's client lands it</button>
@@ -174,10 +176,10 @@
     tier2: "relay"      // relay: lights and illusions take the relay with no form | system: stay the system's
   };
   const TOGGLES = [
-    { key: "form", label: "Where the questions are asked", opts: [["one", "A · one popup, then the card"], ["card", "B · the system's dialog, chips on the card"]] },
+    { key: "form", label: "Where the questions are asked", ruled: "A", opts: [["one", "A · one popup, then the card"], ["card", "B · the system's dialog, chips on the card"]] },
     { key: "picker", label: "How a form is picked", opts: [["cards", "A · art cards"], ["list", "B · compact rows"]] },
-    { key: "seat", label: "The creature's seat in the tracker", opts: [["after", "A · its own slot after the caster"], ["turn", "B · on the caster's turn, a reminder"]] },
-    { key: "tier2", label: "Lights, illusions, Mage Hand", opts: [["relay", "A · the relay, no form"], ["system", "B · stay the system's"]] }
+    { key: "seat", label: "The creature's seat in the tracker", ruled: "A", opts: [["after", "A · its own slot after the caster"], ["turn", "B · on the caster's turn, a reminder"]] },
+    { key: "tier2", label: "Lights, illusions, Mage Hand", ruled: "A", opts: [["relay", "A · the relay, no form"], ["system", "B · stay the system's"]] }
   ];
 
   // ---------- data from the packs (offline dump, 2026-10-01) ----------
@@ -192,8 +194,49 @@
   ];
   const OBJECTS = [["Tiny", 1, "+8 · 1d4+4 · AC 18, 20 HP"], ["Small", 1, "+6 · 1d8+2 · AC 16, 25 HP"], ["Medium", 1, "+5 · 2d6+1 · AC 13, 40 HP"], ["Large", 2, "+6 · 2d10+2 · AC 10, 50 HP"], ["Huge", 3, "+8 · 2d12+4 · AC 10, 80 HP"]];
 
+
+  // ---------- the nine Summon spells' forms (dnd-players-handbook.actors, read 2026-10-10) ----------
+  // [name, size · speed, the attack, the trait, art gradient ×2, base HP]. HP grows 10 per slot above the base; AC = base + the spell's level.
+  const SUMMONS = {
+    beast: { spell: "Summon Beast", lvl: 2, caster: "Ranger", slot: "2nd", ac: 11, forms: [
+      ["Air", "Small · 30 ft, fly 60", "Rend ×½lvl · 1d8 + 4 + lvl piercing", "Flyby", "#5a6a8a", "#1e2436", 20],
+      ["Land", "Small · 30 ft", "Rend ×½lvl · 1d8 + 4 + lvl piercing", "Pack Tactics", "#6a5a3a", "#2a2216", 30],
+      ["Water", "Small · 30 ft, swim 30", "Rend ×½lvl · 1d8 + 4 + lvl piercing", "Pack Tactics · breathes water", "#3a6a7a", "#16282e", 30]] },
+    fey: { spell: "Summon Fey", lvl: 3, caster: "Warlock", slot: "3rd", ac: 12, forms: [
+      ["Fuming", "Small · 30 ft, fly 30", "Fey Blade ×½lvl · 2d6 + 3 + lvl force", "Fey Step: teleport, Advantage on the next attack", "#8a3a3a", "#36161a", 30],
+      ["Mirthful", "Small · 30 ft, fly 30", "Fey Blade ×½lvl · 2d6 + 3 + lvl force", "Fey Step: teleport, Wis save or Charmed", "#7a5a8a", "#2e2236", 30],
+      ["Tricksy", "Small · 30 ft, fly 30", "Fey Blade ×½lvl · 2d6 + 3 + lvl force", "Fey Step: teleport, a 10-ft cube of Darkness", "#3a3a5a", "#16162a", 30]] },
+    undead: { spell: "Summon Undead", lvl: 3, caster: "Wizard", slot: "3rd", ac: 11, forms: [
+      ["Ghostly", "Medium · 30 ft, fly 40", "Deathly Touch ×½lvl · 1d8 + 3 + lvl necrotic, Frightened", "Incorporeal Passage", "#4a6a7a", "#1a2a30", 30],
+      ["Putrid", "Medium · 30 ft", "Rotting Claw ×½lvl · 1d6 + 3 + lvl slashing, Paralyzed if Poisoned", "Festering Aura: Con save or Poisoned (5 ft)", "#5a7a3a", "#22301a", 30],
+      ["Skeletal", "Medium · 30 ft", "Grave Bolt ×½lvl · 2d4 + 3 + lvl necrotic, range 150", "—", "#7a7a6a", "#2e2e26", 20]] },
+    aberration: { spell: "Summon Aberration", lvl: 4, caster: "Warlock", slot: "4th", ac: 11, forms: [
+      ["Beholderkin", "Medium · 30 ft, fly 30", "Eye Ray ×½lvl · 1d8 + 3 + lvl psychic, range 150", "—", "#7a4a6a", "#301a2a", 40],
+      ["Mind Flayer", "Medium · 30 ft", "Psychic Slam ×½lvl · 1d8 + 3 + lvl psychic", "Whispering Aura: Wis save or 2d6 psychic (5 ft), each turn", "#5a4a8a", "#221a36", 40],
+      ["Slaad", "Medium · 30 ft", "Claw ×½lvl · 1d10 + 3 + lvl slashing, no healing until its next turn", "Regeneration 5", "#6a7a3a", "#262e16", 40]] },
+    construct: { spell: "Summon Construct", lvl: 4, caster: "Wizard", slot: "4th", ac: 13, forms: [
+      ["Clay", "Medium · 30 ft", "Slam ×½lvl · 1d8 + 4 + lvl bludgeoning", "Berserk Lashing: a Slam back at whoever hurt it (reaction)", "#8a5a3a", "#36221a", 40],
+      ["Metal", "Medium · 30 ft", "Slam ×½lvl · 1d8 + 4 + lvl bludgeoning", "Heated Body: 1d10 fire to a melee hitter or grappler", "#7a7a7a", "#2a2a2a", 40],
+      ["Stone", "Medium · 30 ft", "Slam ×½lvl · 1d8 + 4 + lvl bludgeoning", "Stony Lethargy: Wis save or half Speed, no Opportunity Attacks (10 ft)", "#5a5a6a", "#1e1e26", 40]] },
+    elemental: { spell: "Summon Elemental", lvl: 4, caster: "Druid", slot: "4th", ac: 11, forms: [
+      ["Air", "Medium · 40 ft, fly 40", "Slam ×½lvl · 1d10 + 4 + lvl lightning", "Amorphous Form", "#6a8a9a", "#22323a", 50],
+      ["Earth", "Medium · 40 ft", "Slam ×½lvl · 1d10 + 4 + lvl bludgeoning", "—", "#7a6a4a", "#2e261a", 50],
+      ["Fire", "Medium · 40 ft", "Slam ×½lvl · 1d10 + 4 + lvl fire", "Amorphous Form", "#a05a2a", "#3a2012", 50],
+      ["Water", "Medium · 40 ft, swim 40", "Slam ×½lvl · 1d10 + 4 + lvl cold", "Amorphous Form", "#3a6a9a", "#16283a", 50]] },
+    celestial: { spell: "Summon Celestial", lvl: 5, caster: "Cleric", slot: "5th", ac: 11, forms: [
+      ["Avenger", "Large · 30 ft, fly 40", "Radiant Bow ×½lvl · 2d6 + 2 + lvl radiant, range 600", "Healing Touch 1/day: 2d8 + lvl", "#9a8a4a", "#3a321a", 40],
+      ["Defender", "Large · 30 ft, fly 40", "Radiant Mace ×½lvl · 1d10 + 3 + lvl radiant, 1d10 temp HP to an ally", "Healing Touch 1/day: 2d8 + lvl", "#8a9a6a", "#303a26", 40]] },
+    dragon: { spell: "Summon Dragon", lvl: 5, caster: "Sorcerer", slot: "5th", ac: 14, forms: [
+      ["Draconic Spirit", "Large · 30 ft, fly 60, swim 30", "Rend ×½lvl · 1d6 + 4 + lvl piercing · Breath 2d6 (DC = yours), 30-ft cone", "Shared Resistances · the damage type is the spell's one question", "#8a3a4a", "#36161e", 50]] },
+    fiend: { spell: "Summon Fiend", lvl: 6, caster: "Warlock", slot: "6th", ac: 12, forms: [
+      ["Demon", "Large · 40 ft", "Bite ×½lvl · 1d12 + 3 + lvl necrotic", "Death Throes: 2d10 + lvl fire (10 ft) when it drops · Magic Resistance", "#8a2a2a", "#361212", 50],
+      ["Devil", "Large · 40 ft, fly 60", "Fiery Strike ×½lvl · 2d6 + 3 + lvl fire, reach 5 or range 150", "Devil's Sight · Magic Resistance", "#a04a2a", "#3a1c12", 40],
+      ["Yugoloth", "Large · 40 ft", "Claws ×½lvl · 1d8 + 3 + lvl slashing, then teleport 30", "Magic Resistance", "#5a3a6a", "#22162a", 60]] }
+  };
+  const SUMMON_ORDER = ["beast", "fey", "undead", "aberration", "construct", "elemental", "celestial", "dragon", "fiend"];
+
   // ---------- state per scene ----------
-  const S = { type: null, familiar: null, famType: "fey", objects: { Tiny: 0, Small: 0, Medium: 0, Large: 0, Huge: 0 }, placed: false, landed: false, dismissed: false };
+  const S = { type: null, familiar: null, famType: "fey", spirit: "fey", form: null, objects: { Tiny: 0, Small: 0, Medium: 0, Large: 0, Huge: 0 }, placed: false, landed: false, dismissed: false };
   let scene = "dragon";
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -219,6 +262,19 @@
     const mod = 5, spent = OBJECTS.reduce((n, [sz, c]) => n + S.objects[sz] * c, 0);
     return `<div class="budget">Spellcasting modifier <b>${mod}</b> · objects cost by size · <b>${spent} / ${mod}</b> spent</div>` + OBJECTS.map(([sz, c, s]) =>
       `<div class="count"><input type="number" min="0" id="obj-${sz}" data-obj="${sz}" value="${S.objects[sz]}" aria-label="${sz} objects"><span><b style="color:var(--ink)">${sz}</b> · costs ${c} · ${s}</span></div>`).join("");
+  }
+
+
+  function spiritPick(key) {
+    const sp = SUMMONS[key], lvl = sp.lvl;
+    const hp = (f) => `${f[6]} HP`;
+    if (O.picker === "cards") return `<div class="cards">` + sp.forms.map(f =>
+      `<button type="button" class="card" data-form="${f[0]}" aria-pressed="${S.form === f[0]}" style="--a1:${f[4]};--a2:${f[5]}"><span class="art"></span><span class="tag">AC ${sp.ac + lvl}</span><b>${f[0]}</b><small>${f[1]} · ${hp(f)}</small><small>${f[2]}</small>${f[3] !== "—" ? `<small><i>${f[3]}</i></small>` : ""}</button>`).join("") + `</div>`;
+    return sp.forms.map(f =>
+      `<label class="row ${S.form === f[0] ? "on" : ""}"><input type="radio" name="form" data-form="${f[0]}" ${S.form === f[0] ? "checked" : ""}><span class="nm">${f[0]}<span class="dice">${f[1]}</span></span><span class="cost">AC ${sp.ac + lvl} · ${hp(f)}</span><details><summary>${f[2]}</summary><p>${f[3]}</p></details></label>`).join("");
+  }
+  function spiritTabs() {
+    return `<div class="pick" style="margin-bottom:8px">` + SUMMON_ORDER.map(k => `<button type="button" class="opt" data-spirit="${k}" aria-pressed="${S.spirit === k}">${SUMMONS[k].spell.replace("Summon ", "")} <span class="kbd">${SUMMONS[k].slot}</span></button>`).join("") + `</div>`;
   }
 
   function offer(name, sub, body, primary, enabled, situ) {
@@ -256,9 +312,9 @@
         : card("Corin", "pending", "Summon Dragon", "Draconic Spirit", "Concentration · 1 hour", `<div>Damage type: <span class="chip pick">pick</span> <span class="chip">acid</span><span class="chip">cold</span><span class="chip">fire</span><span class="chip">lightning</span><span class="chip">poison</span></div><div><span class="cardbtn">Summon</span> <span class="kbd">hidden from a player today</span></div>`)
     },
     familiar: {
-      caption: () => "A CR-mode summon (Find Familiar, Wild Companion) gets a gallery of what the rule allows, with the spell's second question beside it. Today it is the full compendium browser.",
+      caption: () => "A CR-mode summon (Find Familiar, Wild Companion) gets a gallery of what the rule allows, with the spell's second question beside it. The pool is every book de-duplicated by name (ruled 2026-10-10). Today it is the full compendium browser.",
       stage: () => tok(300, 220, "pc", "Aster") + offer("Find Familiar", "a CR 0 Beast · then Celestial, Fey or Fiend · 1 hour cast",
-        `<div class="grp-l">The form · PHB appendix, 12 shown of 26 CR 0 beasts</div>${familiarPick()}<div class="grp-l">Its creature type</div><div class="pick">${["celestial", "fey", "fiend"].map(t => `<button type="button" class="opt" data-famtype="${t}" aria-pressed="${S.famType === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>`,
+        `<div class="grp-l">The form · every book, de-duplicated by name (MM, then PHB, then DMG) · 12 shown of 26 CR 0 beasts</div>${familiarPick()}<div class="grp-l">Its creature type</div><div class="pick">${["celestial", "fey", "fiend"].map(t => `<button type="button" class="opt" data-famtype="${t}" aria-pressed="${S.famType === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>`,
         "Place the familiar", !!S.familiar),
       log: () => card("Aster", "pending", "Battle Flow · cast", "Find Familiar", "the card posts once the familiar is placed", "")
     },
@@ -269,6 +325,25 @@
         return tok(300, 220, "pc", "Lio") + offer("Animate Objects", "up to your modifier in objects · Concentration, 1 minute", objectsPick(), n ? `Place ${n} object${n === 1 ? "" : "s"}` : "Place the objects", n > 0 && spent <= mod);
       },
       log: () => card("Lio", "pending", "Battle Flow · cast", "Animate Objects", "the card posts once the objects are placed", "")
+    },
+    spirits: {
+      caption: () => {
+        const sp = SUMMONS[S.spirit];
+        return `${sp.spell}: ${sp.forms.length === 1 ? "one profile, so no form question" : sp.forms.length + " profiles in the pack, one per form; today that pick is a bare select in the system's dialog"}. ${O.picker === "cards" ? "Art cards: the token art, the size and speeds, AC and HP at this slot, the attack, the trait." : "Compact rows: name, size and speeds, AC and HP; the attack and trait fold open per row."} Flip the picker toggle and switch spells to compare; each spell is cast at its lowest slot here.`;
+      },
+      stage: () => {
+        const sp = SUMMONS[S.spirit];
+        return tok(300, 220, "pc", sp.caster) + offer(sp.spell, `${sp.forms.length === 1 ? sp.forms[0][0] : sp.forms.length + " forms"} · ${sp.slot}-level slot · Concentration, 1 hour`,
+          spiritTabs() + `<div class="grp-l">The form · ${sp.forms.length} in the pack</div>` + spiritPick(S.spirit) + (S.spirit === "dragon" ? `<div class="grp-l">The dragon's damage type</div>${typePick()}` : ""),
+          S.form ? `Place the ${S.form.toLowerCase()} spirit` : "Place the spirit", !!S.form && (S.spirit !== "dragon" || !!S.type), "Multiattack: half the spell's level in attacks · to-hit and DC are yours · acts right after you");
+      },
+      log: () => card(SUMMONS[S.spirit].caster, "pending", "Battle Flow · cast", SUMMONS[S.spirit].spell, "the card posts once the spirit is placed", "")
+    },
+    conjure: {
+      caption: () => "Conjure Animals, Conjure Elemental and Conjure Fey (2024) place a 1-HP stand-in for an emanation, not a creature; the pack ships them as object actors and Conjure Animals with the summon prompt off. No form, no question: the relay places and the card posts. Conjure Minor Elementals, Woodland Beings and Celestial place nothing at all and stay the cast slice's.",
+      stage: () => tok(300, 220, "pc", "Thessaly") + tok(400, 180, "sum big ghost", "Spectral Animals") + offer("Conjure Animals", "a Large pack of spectral animals · 3rd-level slot · Concentration, 10 minutes",
+        `<div class="situ">Nothing to pick. The pack's look is yours to describe; the spell's damage (3d10 slashing, Dex save) rides the emanation when a creature enters or starts its turn in it.</div>`, "Place the pack", true),
+      log: () => card("Thessaly", "pending", "Battle Flow · cast", "Conjure Animals", "the card posts once the pack is placed", "")
     },
     place: {
       caption: () => S.landed ? "The GM's client saw the record, imported the spirit with its own permissions, applied the spell-level bonuses, created the token and gave Corin's player ownership. The card is stamped applied; a reload never re-drives it." : "The placement is a canvas preview on the player's own client (no permission needed). The record goes on the card; the orange chip is what the GM's client reacts to.",
@@ -295,7 +370,7 @@
 
   // ---------- side ----------
   function side() {
-    return `<div class="panel"><h3>The options</h3><div class="toggles">${TOGGLES.map(t => `<div class="tg"><span>${t.label}</span><div class="set">${t.opts.map(([v, l]) => `<button type="button" data-opt="${t.key}" data-val="${v}" aria-pressed="${O[t.key] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>
+    return `<div class="panel"><h3>The options</h3><div class="toggles">${TOGGLES.map(t => `<div class="tg"><span>${t.label}${t.ruled ? ` · <b style="color:var(--good)">ruled ${t.ruled}</b>` : " · open"}</span><div class="set">${t.opts.map(([v, l]) => `<button type="button" data-opt="${t.key}" data-val="${v}" aria-pressed="${O[t.key] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>
     <div class="panel q"><h3>What the scene shows</h3><p>${scenes[scene].caption()}</p></div>
     <div class="panel"><h3>Measured, dnd5e 6.0.5</h3><ul>
       <li><b>The wall</b>: Summon needs Create Token on the player and the world's Allow Summoning; a compendium import needs Create Actor. The card's Summon button is hidden without them.</li>
@@ -303,10 +378,16 @@
       <li><b>The platform</b>: a placement preview needs no permission; the GM's client can create tokens and grant ownership. Foundry 14 has User#query, but the house channel is a flag on a message (ARCHITECTURE §3).</li>
     </ul></div>
     <div class="panel fix"><h3>Open for the ruling</h3><ol>
-      <li>Pool for CR-mode picks: the PHB appendix or every book, de-duplicated by name (45 names ship twice or more).</li>
-      <li>Linked companions (Primal Companion, Find Steed): import once and keep, or re-create per cast.</li>
-      <li>Option A or B for each toggle above.</li>
-    </ol></div>`;
+      <li><b>How a form is picked</b>: art cards or compact rows. Walk the nine Summon spells scene with both.</li>
+    </ol></div>
+    <div class="panel"><h3>Ruled 2026-10-10</h3><ul>
+      <li>One popup before the card (A).</li>
+      <li>Pool for CR-mode picks: every book, de-duplicated by name; MM, then PHB, then DMG.</li>
+      <li>A tracker slot right after the caster (A).</li>
+      <li>Linked companions: import once and keep.</li>
+      <li>Lights, illusions, Mage Hand: the relay, no form (A).</li>
+      <li>One gallery shared with Wild Shape.</li>
+    </ul></div>`;
   }
 
   // ---------- render + wiring ----------
@@ -320,10 +401,12 @@
   function wire() {
     document.querySelectorAll("[data-type]").forEach(b => b.addEventListener("click", () => { S.type = b.dataset.type; render(); }));
     document.querySelectorAll("[data-fam]").forEach(b => b.addEventListener("click", () => { S.familiar = b.dataset.fam; render(); }));
+    document.querySelectorAll("[data-spirit]").forEach(b => b.addEventListener("click", () => { S.spirit = b.dataset.spirit; S.form = null; S.type = null; render(); }));
+    document.querySelectorAll("[data-form]").forEach(b => b.addEventListener("click", () => { S.form = b.dataset.form; render(); }));
     document.querySelectorAll("[data-famtype]").forEach(b => b.addEventListener("click", () => { S.famType = b.dataset.famtype; render(); }));
     document.querySelectorAll("[data-obj]").forEach(i => i.addEventListener("change", () => { S.objects[i.dataset.obj] = Math.max(0, +i.value || 0); render(); }));
     document.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => { O[b.dataset.opt] = b.dataset.val; render(); }));
-    const go = $("#go"); if (go) go.addEventListener("click", () => { if (scene === "dragon" || scene === "familiar" || scene === "objects") { scene = "place"; S.landed = false; pressScene(); render(); } });
+    const go = $("#go"); if (go) go.addEventListener("click", () => { if (scene === "dragon" || scene === "familiar" || scene === "objects" || scene === "spirits" || scene === "conjure") { scene = "place"; S.landed = false; pressScene(); render(); } });
     const land = $("#land"); if (land) land.addEventListener("click", () => { S.landed = true; render(); });
     const dis = $("#dismiss"); if (dis) dis.addEventListener("click", () => { S.dismissed = true; render(); });
   }
