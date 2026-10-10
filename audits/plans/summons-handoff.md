@@ -15,11 +15,12 @@ something new*, and RULINGS.md *Weapon Mastery — the record* (the newest machi
 | Linked companions (Primal Companion, Find Steed) | **import once and keep**; a re-cast re-places and refreshes the one world actor |
 | Tier 2 placed objects (lights, illusions, Mage Hand, Unseen Servant, sensors) | **through the relay, placement only** — no form; the player never needs Create Token |
 | The form picker | **one gallery shared with Wild Shape / polymorph**, parameterised by pool and caps (ruled on #2 Q5) |
+| Where the questions are asked | **one popup before the card** (A): the house offer asks every question, then placement, then one complete card posts (ruled 2026-10-10 off the prototype) |
+| How a form is picked | **rows carrying everything** (C, added to the prototype 2026-10-10 at the user's ask): one row per form with the token art, name, size and speeds, the attack line, the trait, AC and HP; nothing folded. Not art cards (A), not compact rows (B). Applies to the shared gallery, so Wild Shape inherits it |
 
-Still open, from the prototype's toggles — rule them off the prototype at the start of the session: *where the
-questions are asked* (A: one popup before the card · B: the system's dialog, chips on the card) and *how a form
-is picked* (A: art cards · B: compact rows). The user rules fast off something clickable; put the two toggles in
-front of them first.
+Nothing is open from the prototype's toggles; all four are ruled (above). **The build is on hold** (the user,
+2026-10-10 evening): another agent is in the sandbox. Before the build, re-measure on dnd5e 6.0.6 (below) and
+check `disconnect-bridge` etiquette with whoever holds the sandbox.
 
 ## The order of work
 

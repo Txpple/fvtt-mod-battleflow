@@ -175,13 +175,13 @@
   // ---------- the options the user rules on; every scene re-renders from them ----------
   const O = {
     form: "one",        // one: one popup before the card | card: the system's dialog, choices as chips on the card
-    picker: "cards",    // cards: art cards | list: compact rows
+    picker: "rich",     // cards: art cards | list: compact rows | rich: rows carrying everything (ruled C)
     seat: "after",      // after: a tracker slot right after the caster | turn: acts on the caster's turn, a reminder
     tier2: "relay"      // relay: lights and illusions take the relay with no form | system: stay the system's
   };
   const TOGGLES = [
     { key: "form", label: "Where the questions are asked", ruled: "A", opts: [["one", "A · one popup, then the card"], ["card", "B · the system's dialog, chips on the card"]] },
-    { key: "picker", label: "How a form is picked", opts: [["cards", "A · art cards"], ["list", "B · compact rows"], ["rich", "C · rows with everything"]] },
+    { key: "picker", label: "How a form is picked", ruled: "C", opts: [["cards", "A · art cards"], ["list", "B · compact rows"], ["rich", "C · rows with everything"]] },
     { key: "seat", label: "The creature's seat in the tracker", ruled: "A", opts: [["after", "A · its own slot after the caster"], ["turn", "B · on the caster's turn, a reminder"]] },
     { key: "tier2", label: "Lights, illusions, Mage Hand", ruled: "A", opts: [["relay", "A · the relay, no form"], ["system", "B · stay the system's"]] }
   ];
@@ -385,11 +385,9 @@
       <li><b>The dragon</b>: Breath Weapon carries all five types; Shared Resistances is five buttons on the spirit's sheet; nothing lands on the caster.</li>
       <li><b>The platform</b>: a placement preview needs no permission; the GM's client can create tokens and grant ownership. Foundry 14 has User#query, but the house channel is a flag on a message (ARCHITECTURE §3).</li>
     </ul></div>
-    <div class="panel fix"><h3>Open for the ruling</h3><ol>
-      <li><b>How a form is picked</b>: art cards, compact rows, or rows carrying everything the card does. Walk the nine Summon spells scene with all three.</li>
-    </ol></div>
     <div class="panel"><h3>Ruled 2026-10-10</h3><ul>
       <li>One popup before the card (A).</li>
+      <li>A form is picked from rows carrying everything the card does (C): art, name, size and speeds, the attack, the trait, AC and HP.</li>
       <li>Pool for CR-mode picks: every book, de-duplicated by name; MM, then PHB, then DMG.</li>
       <li>A tracker slot right after the caster (A).</li>
       <li>Linked companions: import once and keep.</li>
