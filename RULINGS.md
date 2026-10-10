@@ -3096,6 +3096,79 @@ ring is not the Victim); another session's bridge blocks the preflight — retry
 | Cursed Touch | Cursed on a PC, a Long Rest | nothing regained, the rest card's block line |
 | Corrosive Form, Fiendish Blood, Object Slam, Reflective Carapace | a PC's melee hit; slashing damage; a PC inside the mimic's space; a ranged spell attack at the tarrasque | the acid back; the Reaction offered; Advantage in the gate; the spell turned aside on the hold |
 
+## Weapon Mastery — the record (2026-10-10, issue #3)
+
+**The paperwork of Weapon Mastery, kept in dnd5e's own list — one new file (`mastery-record.js` + `decide/mastery-record.js`),
+no new kind, no new table; BUILT and PROVEN (`smoke-mastery-record` §1–§8), walked 2026-10-10 (the five rulings of the walk
+folded in below).** Ruled off `prototypes/weapon-mastery.html` (the four toggles took the A defaults). Measured on the pack first
+(an offline dump of the PHB classes and feats, dnd5e 6.0.6): **the allowance is already data** — each class ships mastery-mode
+Trait advancements (Fighter 3 at 1, +1 at 4, 10 and 16; Barbarian 2 at 1, +1 at 4 and 10; Paladin, Ranger and Rogue 2 at 1;
+the Weapon Master feat +1 at level 0), and the system's eligibility is one read, `weaponProf.mastery.value.has(weapon.baseItem)`,
+before it stamps `system.mastery` on the attack message (the mastery machine's trigger). A character built without the
+advancement step has an empty set: no mastery ever fires, and nothing says so. The calls:
+
+1. **The system's list is the truth; the module keeps it the right length.** Nothing is kept in a module flag. The allowance is
+   the sum of the sheet's mastery-mode Trait advancements at or below their item's level (a feat's level 0 always counts;
+   multiclass adds), so a new class or feat costs no code. Tactical Master's `mastery.bonus` is untouched and never counted
+   (§7 proves it: three bonus kinds, the list and the allowance unchanged, a chosen kind's attack stamped and no line).
+2. **Untracked means auto-fill, not all-on or all-off** (the issue's comment). On the GM's load (the elect) and after a level-up
+   (the owner's client, `dnd5e.advancementManagerComplete`), a party member whose list is shorter than its allowance is topped up
+   from its **equipped, proficient** weapons whose kind has a mastery, in sheet order, one per kind, capped at the open slots;
+   one GM whisper names the picks and what is still open. A full list is never touched. **An over-long list is never trimmed by
+   the fill** (the module cannot know which to drop): it rides the whisper when there is one, the party view flags it, and
+   **the Long Rest puts it right** (call 4).
+3. **The line at the point of use, RAW** (the walk: toggle B). An attack card whose weapon kind has a mastery the wielder has
+   not chosen draws "⟨Weapon⟩: ⟨Mastery⟩ — not mastered by ⟨name⟩ · n of m open — pick at your next Long Rest". No button: a
+   kind is chosen when the feature is gained and changed only at a Long Rest (PHB 2024), so an open slot is filled by the fill
+   or at the rest, never from the card. A kind the system stamped, a weapon with no mastery, a custom weapon with no base kind,
+   and a class with no allowance draw nothing — the line is for a pick gone missing, not a Wizard's staff.
+4. **The Long Rest asks the resting owner** (toggle A; the rest-song's road), and **the popup says what you have first** (the
+   walk: a bare dropdown confused the table): "You have these masteries: …", then **one swap per Long Rest — remove one, add
+   another, or keep them** — one grid: the chosen kinds (green, a box to remove one), the open slots (orange), then the
+   **Available** kinds (the sheet's proficient kinds with a mastery that are not chosen — a kind with no weapon on the sheet
+   stays the trait dialog's), greyed until a slot is free and one pick per free slot (`restList`: open slots filled, then the one
+   swap). Every Long Rest shows the grid, "nothing to change" when it is. **A list over the allowance gets the trim instead of
+   the swap**: "n too many — drop n to continue", OK held until exactly n are ticked (`trimList`). The answer rides the card
+   (`masterySwap`, a player's answer relayed as `masterySwapAnswer`), the elect lands it judged against the list as it stands
+   then (`swapList` / `trimList`), and **the owner acknowledges a confirmation** — "You now have these masteries: …" with the
+   change named and OK (the walk's ruling; `acknowledgeMoment`, the card recalls a dismissed popup). The card answers once.
+5. **The record is visible any time off the Weapon Mastery feature's own card** (the walk: "where can they see what they have?").
+   Every class ships the feature; its card carries "⟨name⟩ has these masteries" with the standing, and opens the same list popup
+   with OK for the owner.
+6. **The party view opens from the group sheet's header controls** (toggle A; Foundry's `getHeaderControlsGroupActorSheet`,
+   GM only): every party member against its allowance — the chosen kinds with their masteries, a chosen kind the sheet shows an
+   unproficient weapon of marked, and the state (none · n open · full · over by n). Read-only; the changes stay the rest's.
+7. **Tactical Master picks at the hit — a bend by choice** (the walk: the dialog's select is easy to miss). dnd5e's own
+   Mastery select in the attack dialog is replaced by a note ("Picked on a hit"); when the hit lands and the wielder's
+   `masteryOptions` hold more than the weapon's own, the machine stamps `masteryPick` on the attack and asks the attacker —
+   Sap (the weapon's), Push, Slow, or Pass — on the house timer, the weapon's own as the AFK fallback; the answer then runs the
+   hit's mastery exactly as a dialog pick would (`smoke-classes` §49). Without Tactical Master nothing changes.
+8. **Party member** is the module's existing word (`isPartyMember`: the primary party's members, else a player-owned character);
+   the placeholder sheets with no class read "no mastery" and are never written.
+
+| Row | Where | What it does |
+| --- | --- | --- |
+| The fill | `mastery-record.js` `fillActors` (`ready` on the elect; `dnd5e.advancementManagerComplete` on the owner) | tops a short list up from equipped weapons; the `masteryFill` whisper to the GM |
+| The line | `dnd5e.renderChatMessage` on an attack card | "not mastered by" + the open count + "pick at your next Long Rest"; nothing to press |
+| The swap / the trim | `dnd5e.restCompleted` (long) → `masterySwap` card → popup → relay → `registerResumable` → the confirmation | one kind out and one in, or the surplus dropped; landed by the elect; a resolve (`choice`); acknowledged by the owner |
+| The record | the Weapon Mastery feature's card | "has these masteries" + the popup with OK |
+| The party view | `getHeaderControlsGroupActorSheet` → `openPartyView` | the table, GM only |
+| Tactical Master's pick | `mastery.js` `resolveHitMastery` → `masteryPick` card → popup → `executeMasteryPick` (the elect) | the mastery chosen at the hit; a resolve (`mastery`) |
+
+**The walk table** (the sandbox's "Mastery Walk" party; Brannoc carries the Weapon Master feat, Kael Tactical Master):
+
+| Step | What you should see |
+| --- | --- |
+| Open the world as the GM | one whisper "Masteries filled": Kael — Longsword (Sap), Longbow (Slow), 2 of 4 still open; Brannoc — Greataxe (Cleave), Handaxe (Vex), 1 of 3 still open (the feat's +1); Orin flagged 3 chosen, 2 allowed, nothing removed; Sera (full) and Tam (no mastery) absent |
+| Party sheet → header ⋮ → Weapon masteries | the rows: Kael 4 / 2 open, Brannoc 3 / 1 open, Sera 2 / full, Orin 2 / over by 1, Tam 0 / no mastery |
+| Kael's sheet → click the Weapon Mastery feature | its card: "Kael has these masteries: Longsword (Sap), Longbow (Slow) · 2 of 4 chosen · 2 open", and the popup with OK |
+| Kael attacks with the Dagger | the line "Dagger: Nick — not mastered by Kael · 2 of 4 open — pick at your next Long Rest", no button |
+| Kael attacks with the Longsword and hits | the dialog shows "Picked on a hit" where the Mastery select was; on the hit the popup "Which mastery?" — Sap (the weapon's) / Push / Slow / Pass; the pick runs (Push's card, Sap's chip…); no "not mastered" line |
+| Sera attacks with the Dagger | the line with "2 of 2 chosen" and no button |
+| Kael takes a Long Rest | "You have these masteries: …", Remove (keep them) / Add; Swap writes the sheet; the confirmation "Swapped Longbow → ⟨kind⟩ · You now have …" with OK; Keep leaves it and still confirms |
+| Orin takes a Long Rest | "1 too many — drop 1 to continue", OK held until one is ticked; the drop lands; the confirmation names it |
+| Tam attacks with the Quarterstaff | no line (a Wizard has no allowance) |
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code

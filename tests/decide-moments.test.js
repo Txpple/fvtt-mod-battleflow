@@ -218,6 +218,18 @@ describe("the moment registry — shape", () => {
         applied: true,
         given: ["A"]
       },
+      masterySwap: {
+        status: "resolved",
+        actorUuid: "Actor.f",
+        actorName: "Fighter",
+        allowance: 4,
+        chosen: [{ base: "longsword", name: "Longsword", mastery: "sap" }],
+        pool: [{ base: "greatsword", name: "Greatsword", mastery: "graze" }],
+        out: "longsword",
+        into: "greatsword",
+        applied: true,
+        outcome: "swapped"
+      },
       rebuke: {
         status: "resolved",
         actorUuid: "Actor.s",
@@ -317,6 +329,19 @@ describe("the moment registry — shape", () => {
             answeredBy: "userW"
           }
         ]
+      },
+      masteryPick: {
+        status: "done",
+        attackerUuid: "Actor.f",
+        stamped: "sap",
+        options: [
+          { key: "sap", label: "Sap" },
+          { key: "push", label: "Push" },
+          { key: "slow", label: "Slow" }
+        ],
+        hits: [{ uuid: "Actor.v", name: "Victim" }],
+        answer: "push",
+        weapon: { name: "Longsword" }
       },
       mastery: {
         status: "done",

@@ -31,6 +31,7 @@ export const ORDER = Object.freeze([
   "auto-damage",        // first on the damage roll: the activity's own roll count before any rider's part
   "hit-riders",         // a rider's part before volleys' dart multiplier copies the base
   "mastery",            // mastery's rows above the maneuver folds', the receipts' and precision's
+  "mastery-record",     // the "not mastered" line right under mastery's rows
   "bash-offer",
   "topple",
   "chip-spend",

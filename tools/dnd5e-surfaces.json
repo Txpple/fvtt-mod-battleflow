@@ -43,6 +43,12 @@
       "proof": "buttons: { template: \"systems/dnd5e/templates/dice/roll-buttons.hbs\"",
       "found": true
     },
+    "dialogMastery": {
+      "where": "dnd5e",
+      "file": "dnd5e.mjs",
+      "proof": "{ key: \"mastery\", label: \"DND5E.WEAPON.Mastery.Label\", options: this.options.masteryOptions }",
+      "found": true
+    },
     "dialogDefault": {
       "where": "dnd5e",
       "file": "templates/dice/roll-buttons.hbs",

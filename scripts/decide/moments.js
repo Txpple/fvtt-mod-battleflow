@@ -277,6 +277,16 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  masterySwap: {
+    events: ["choice"],
+    means: "the long-rest mastery swap was answered and landed — one chosen weapon kind replaced by another on the sheet's own list, or kept (mastery-record.js, issue #3); resolved when `applied`",
+    resolved: (r) => r?.applied ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, ability: "Weapon Mastery", targets: [],
+        details: { outcome: r.outcome ?? null, out: r.out ?? null, into: r.into ?? null, declined: !!r.declined } }
+    }] : []
+  },
+
   rebuke: {
     events: ["hold-answered"],
     means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
@@ -438,6 +448,16 @@ export const MOMENT_RECORDS = Object.freeze({
       actor: r.attackerUuid ?? source(r) ?? ctx.actorUuid, itemName: r.weapon?.name ?? null, ability: r.key ?? null, attackId: ctx.messageId,
       targets: (r.targets ?? []).map(t => row(t)),
       details: { key: r.key ?? null, outcome: r.outcome ?? null, answer: r.answer ?? null, weapon: r.weapon?.name ?? null, timedOut: !!r.timedOut }
+    }) : []
+  },
+
+  masteryPick: {
+    events: ["mastery"],
+    means: "Tactical Master's pick at the hit — which mastery the wielder chose (or passed) before the machine resolved it (mastery.js); resolved when `status` is done",
+    resolved: (r, ctx) => (r?.status === "done") ? whole(["mastery"], {
+      actor: r.attackerUuid ?? source(r) ?? ctx.actorUuid, itemName: r.weapon?.name ?? null, ability: r.answer ?? null, attackId: ctx.messageId,
+      targets: (r.hits ?? []).map(t => row(t)),
+      details: { picked: r.answer ?? null, stamped: r.stamped ?? null, options: (r.options ?? []).map(o => o.key), timedOut: !!r.timedOut }
     }) : []
   },
 
@@ -816,6 +836,8 @@ export const STATE_KEYS = Object.freeze({
   metamagicFree: "a free class-feature tick in the casting window (Psychic Spells) - no spend, no answer; the damage roll's type is the result",
   healPending: "a heal claimed at creation for the elect to apply; the receipt is the resolve",
   masteryNotice: "a mastery reminder — presentation",
+  masteryFill: "the GM's whisper — which kinds the fill wrote into the sheet's mastery list and for whom (issue #3); the sheet's list is the state, the attack the system stamps is the resolve",
+  masterySwapAnswer: "an envelope — a player's swap answer; the fold onto the masterySwap flag, landed by the elect, is the resolve",
   cleaveArm: "Cleave armed for the extra attack; that attack is a real roll with its own card",
   cleaveStripped: "provenance — the armed Cleave's second attack shed its riders",
   timedOut: "the buzzer's mark on a roll it made; the verdict it lands is the resolve",

@@ -47,6 +47,7 @@ export const LAYER_OF = {
   "saves/choices.js": "machines",
   "saves/views.js": "machines",
   "mastery.js": "machines",
+  "mastery-record.js": "machines", // the Weapon Mastery paperwork — the fill, the line, the swap, the party view (issue #3)
   "topple.js": "machines",        // the Topple demand off mastery's card
   "chip-spend.js": "machines",    // the chip spend and the two tidies
   // the maneuver folds, one file per moment
@@ -158,6 +159,7 @@ export const LAYER_OF = {
   "decide/prismatic.js": "decision",      // the ray table: the rays a creature's faces pick, the words, the verdict
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it
   "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands
+  "decide/mastery-record.js": "decision", // the mastery record: the allowance off the advancements, the fill, the state, the missing pick, the swap
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",

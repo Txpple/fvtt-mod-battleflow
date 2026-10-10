@@ -18,6 +18,8 @@ export const SURFACES = Object.freeze({
   /** The button the platform autofocuses. */
   dialogDefault: "button[autofocus]",
   dialogRoll: 'button[data-action="roll"]',
+  /** The attack dialog's Mastery select (dnd5e 6 draws it from `masteryOptions`); the pick moves to the hit. */
+  dialogMastery: 'select[name="mastery"]',
   /** The usage dialog's footer: Dialog5e renders core's generic form footer. */
   dialogFooter: "footer, .form-footer",
   /** The LIVE item's name; a swing's own label is drawn here (hew.js). */
@@ -39,6 +41,7 @@ export const SURFACE_SOURCES = Object.freeze({
   summaryRow: { where: "dnd5e", file: "templates/chat/save-summary.hbs", proof: 'class="icon-row save-summary' },
   dialogConfiguration: { where: "dnd5e", file: "dnd5e.mjs", proof: 'configuration: { template: "systems/dnd5e/templates/dice/roll-configuration.hbs"' },
   dialogButtons: { where: "dnd5e", file: "dnd5e.mjs", proof: 'buttons: { template: "systems/dnd5e/templates/dice/roll-buttons.hbs"' },
+  dialogMastery: { where: "dnd5e", file: "dnd5e.mjs", proof: '{ key: "mastery", label: "DND5E.WEAPON.Mastery.Label", options: this.options.masteryOptions }' },
   dialogDefault: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: "autofocus" },
   dialogRoll: { where: "dnd5e", file: "templates/dice/roll-buttons.hbs", proof: 'data-action="{{ @key }}"' },
   dialogFooter: { where: "dnd5e", file: "dnd5e.mjs", proof: 'class ActivityUsageDialog extends Dialog5e' },

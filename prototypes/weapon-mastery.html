@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Battle Flow Weapon Mastery</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Signika:wght@400;600;700&display=swap">
+<style>
+  /* the house prototype look — scenes along the top, a mock screen (canvas + chat log), the options and rulings down the side. Dark by choice. */
+  :root{
+    color-scheme:dark;
+    --ground:#15171b; --canvas:#1e2126; --panel:#24272d; --panel-2:#2b2f36; --line:#3a3f48;
+    --ink:#e8e3d6; --ink-2:#b5b0a4; --ink-3:#7d7a72;
+    --good:rgb(70,150,95); --bad:rgb(180,70,60); --pending:rgb(222,120,40); --crit:rgb(232,190,50); --neutral:rgb(120,120,120);
+    --good-soft:rgba(70,150,95,.18); --bad-soft:rgba(180,70,60,.18); --pending-soft:rgba(222,120,40,.18); --neutral-soft:rgba(120,120,120,.16);
+    --ward:rgba(120,170,255,.5); --log:#1a1c20; --tok-foe:#6a3a3a; --tok-pc:#3a4a6a;
+    --font:"Signika",system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45}
+  .wrap{max-width:1420px;margin:0 auto;padding-block:22px 40px;padding-inline:16px}
+  header.top{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px}
+  header.top h1{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+  header.top p{margin:0;color:var(--ink-2);max-width:70ch}
+  .eyebrow{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+  .scenes{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
+  .scenes .grp{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .scenes .grp > span{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);width:150px;flex:0 0 auto}
+  .scenes button{font:inherit;font-size:12.5px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer}
+  .scenes button[aria-pressed="true"]{background:var(--pending-soft);border-color:var(--pending);color:var(--ink)}
+  .scenes button:focus-visible,.btn:focus-visible,.opt:focus-visible,.cardbtn:focus-visible{outline:2px solid var(--pending);outline-offset:2px}
+  .studio{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+  @media (max-width:1100px){.studio{grid-template-columns:minmax(0,1fr)}}
+  .screen{position:relative;min-height:560px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--canvas);display:grid;grid-template-columns:minmax(0,1fr) 300px}
+  @media (max-width:760px){.screen{grid-template-columns:minmax(0,1fr)}}
+  .stage{position:relative;min-height:460px;min-width:0}
+  .map{position:absolute;inset:0;
+    background-image:radial-gradient(ellipse at 30% 40%,rgba(90,110,80,.22),transparent 55%),radial-gradient(ellipse at 70% 70%,rgba(120,90,60,.18),transparent 50%),
+      linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    background-size:auto,auto,50px 50px,50px 50px}
+  .chatlog{position:relative;border-left:1px solid var(--line);background:var(--log);padding:10px;display:flex;flex-direction:column;gap:8px;overflow:auto;max-height:560px;min-width:0}
+  @media (max-width:760px){.chatlog{border-left:0;border-top:1px solid var(--line)}}
+  .chatlog .ey-log{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+  .caption{position:absolute;left:12px;right:12px;bottom:10px;font-size:12px;color:var(--ink-2);background:rgba(0,0,0,.45);border:1px solid var(--line);border-radius:4px;padding:6px 8px}
+  .tok{position:absolute;width:50px;height:50px;border-radius:50%;border:3px solid var(--bad);background:var(--tok-foe);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--ink)}
+  .tok.pc{border-color:var(--good);background:var(--tok-pc)}
+  .tok .nm{position:absolute;top:54px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:10.5px;font-weight:600;color:var(--ink);text-shadow:0 1px 2px #000}
+  @keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.offer,.msg,.sheet{animation:none}}
+  /* the popup, the house offer shape */
+  .offer{position:absolute;left:24px;top:22px;width:440px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px;animation:rise .18s ease-out}
+  .offer .title{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .offer .title i{width:10px;height:10px;border-radius:50%;background:var(--pending);display:inline-block}
+  .offer .title .x{margin-left:auto;color:var(--ink-3)}
+  .offer .body{padding:10px;max-height:470px;overflow:auto}
+  .grp-l{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:10px 0 5px}
+  .grp-l:first-child{margin-top:0}
+  .row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px 10px;align-items:center;padding:7px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);margin-bottom:5px;cursor:pointer}
+  .row.on{border-color:var(--pending);background:var(--pending-soft)}
+  .row.dim{opacity:.5;cursor:default}
+  .row input{margin:0}
+  .row .nm{font-weight:600;color:var(--ink)} .row .nm .dice{font-weight:400;color:var(--ink-2);margin-left:6px}
+  .row .cost{font-size:11px;color:var(--ink-2);text-align:right}
+  .pick{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px}
+  .opt{font:inherit;font-size:12px;padding:4px 9px;border-radius:14px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .opt[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .opt[disabled]{opacity:.4;cursor:default}
+  .btnrow{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .btn{font:inherit;font-size:12.5px;padding:6px 12px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);cursor:pointer}
+  .btn.primary{background:var(--pending);border-color:var(--pending);color:#111} .btn[disabled]{opacity:.45;cursor:default}
+  .btnrow .hint{margin-left:auto;font-size:11px;color:var(--ink-3)}
+  /* chat — bfCard's shape */
+  .msg{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:7px 8px;font-size:12px;color:var(--ink-2);animation:rise .18s ease-out}
+  .msg .spk{font-size:11px;color:var(--ink-3);margin-bottom:4px}
+  .msg .spk .w{color:var(--crit);margin-left:4px}
+  .bf{border-left:3px solid var(--neutral);border-radius:3px;padding:6px 8px;background:rgba(0,0,0,.14)}
+  .bf.pending{border-left-color:var(--pending)} .bf.good{border-left-color:var(--good)} .bf.bad{border-left-color:var(--bad)} .bf.ward{border-left-color:#7aa6ff}
+  .bf .e{font-size:10px;letter-spacing:.08em;text-transform:uppercase;opacity:.65}
+  .bf .t{font-weight:700;font-size:14px;color:var(--ink);line-height:1.2}
+  .bf .s{font-size:11px;opacity:.75}
+  .bf .l{margin-top:4px;font-size:12px;line-height:1.5} .bf .l div{margin-top:2px} .bf b{color:var(--ink)}
+  .bf + .bf{margin-top:6px}
+  .chip{display:inline-block;font-size:10px;letter-spacing:.05em;text-transform:uppercase;padding:1px 6px;border-radius:3px;border:1px solid var(--line);color:var(--ink-2);background:var(--neutral-soft);margin-right:4px;white-space:nowrap}
+  .chip.pick{border-color:var(--pending);color:var(--pending);background:var(--pending-soft);cursor:pointer}
+  .chip.good{border-color:rgba(70,150,95,.6);color:#8fd0a2;background:var(--good-soft)}
+  .chip.bad{border-color:rgba(180,70,60,.6);color:#e79a90;background:var(--bad-soft)}
+  .chip.wait{border-color:rgba(232,190,50,.5);color:var(--crit)}
+  .chip.fill{border-style:dashed}
+  .cardbtn{display:inline-block;font:inherit;font-size:11.5px;padding:3px 9px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);margin-top:5px;cursor:pointer}
+  .dice{font-family:ui-monospace,monospace;font-size:11px;color:var(--ink-2)}
+  /* the party sheet (the group actor) with the header button */
+  .sheet{position:absolute;left:24px;top:22px;width:560px;max-width:calc(100% - 48px);background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 12px 40px rgba(0,0,0,.55);font-size:13px;animation:rise .18s ease-out}
+  .sheet .title{display:flex;align-items:center;gap:8px;padding:7px 10px;border-bottom:1px solid var(--line);font-weight:600}
+  .sheet .title .hb{font:inherit;font-size:11px;padding:2px 8px;border-radius:3px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .sheet .title .hb.on{border-color:var(--pending);color:var(--pending);background:var(--pending-soft)}
+  .sheet .title .x{margin-left:auto;color:var(--ink-3)}
+  .sheet .body{padding:10px}
+  table.party{width:100%;border-collapse:collapse;font-size:12px}
+  table.party th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:4px 6px;border-bottom:1px solid var(--line)}
+  table.party td{padding:6px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top}
+  table.party td b{color:var(--ink)}
+  table.party tr.flag td:first-child{border-left:3px solid var(--bad);padding-left:5px}
+  table.party tr.ok td:first-child{border-left:3px solid var(--good);padding-left:5px}
+  table.party tr.open td:first-child{border-left:3px solid var(--pending);padding-left:5px}
+  table.party .cnt{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .members{display:flex;gap:10px;flex-wrap:wrap}
+  .member{display:flex;gap:8px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:4px;background:var(--panel-2);min-width:150px}
+  .member .pt{width:30px;height:30px;border-radius:50%;background:var(--tok-pc);border:2px solid var(--good)}
+  .member b{display:block;font-size:12.5px} .member small{color:var(--ink-2);font-size:11px}
+  /* side */
+  .side{display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px}
+  .panel h3{margin:0 0 6px;font-size:13px;font-weight:600}
+  .panel p,.panel li{font-size:12.5px;color:var(--ink-2);margin:0}
+  .panel ol,.panel ul{padding-left:18px;margin:0;display:flex;flex-direction:column;gap:6px}
+  .panel li b,.panel p b{color:var(--ink);font-weight:600}
+  .q{border-left:3px solid var(--pending)} .fix{border-left:3px solid var(--bad)}
+  .toggles{display:flex;flex-direction:column;gap:8px}
+  .tg{display:flex;flex-direction:column;gap:4px}
+  .tg span{font-size:11px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}
+  .tg .set{display:flex;gap:4px;flex-wrap:wrap}
+  .tg button{font:inherit;font-size:12px;padding:4px 9px;border-radius:4px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink-2);cursor:pointer}
+  .tg button[aria-pressed="true"]{border-color:var(--pending);background:var(--pending-soft);color:var(--ink)}
+  .kbd{font-size:11px;color:var(--ink-3)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Prototype · issue #3 · weapon mastery</div>
+      <h1>The paperwork lives in the module. The system's list stays the truth.</h1>
+    </div>
+    <p>Four moments, each with the options to rule on in the right column. Everything writes to dnd5e's own <code>weaponProf.mastery.value</code>; the module keeps that list the right length, says so when it isn't, and offers the long-rest swap.</p>
+  </header>
+
+  <div class="scenes">
+    <div class="grp"><span>Keeping the list</span>
+      <button type="button" data-scene="fill" aria-pressed="true">GM load · the fill</button>
+      <button type="button" data-scene="party">The party view</button>
+      <button type="button" data-scene="record">The Weapon Mastery feature's card</button>
+    </div>
+    <div class="grp"><span>At the table</span>
+      <button type="button" data-scene="attack">An attack with an unmastered weapon</button>
+      <button type="button" data-scene="rest">Long rest · the swap</button>
+    </div>
+  </div>
+
+  <div class="studio">
+    <div class="screen">
+      <div class="stage"><div class="map"></div><div id="stage"></div><div class="caption" id="caption"></div></div>
+      <div class="chatlog"><div class="ey-log">Chat log</div><div id="log"></div></div>
+    </div>
+    <aside class="side" id="side"></aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- the options the user rules on; every scene re-renders from them ----------
+  const O = {
+    fill: "load",      // load: the fill runs on the GM's load and on a level change | attack: at the first attack with an unmastered weapon
+    notice: "line",    // ruled B (RAW): the line only — a pick is the Long Rest's
+    swap: "owner",     // owner: the resting owner is asked after the long rest | gm: the GM, from the party view
+    view: "sheet"      // sheet: a button in the party sheet's header | card: a button on the GM's fill card
+  };
+  const TOGGLES = [
+    { key: "fill", label: "When the fill runs", opts: [["load", "A · GM load + level change"], ["attack", "B · the first unmastered attack"]] },
+    { key: "notice", label: "The line on the attack card", opts: [["offer", "A · offers Master it while a slot is open"], ["line", "B · the line only"]] },
+    { key: "swap", label: "The long-rest swap", opts: [["owner", "A · asks the resting owner"], ["gm", "B · the GM, from the party view"]] },
+    { key: "view", label: "Where the party view opens", opts: [["sheet", "A · the party sheet's header"], ["card", "B · the GM's fill card"]] }
+  ];
+
+  // ---------- data from the packs (offline dump, 2026-10-10, PHB classes + feats) ----------
+  // allowance: the class's mastery-mode Trait advancements at or below its level, plus the Weapon Master feat.
+  const MASTERY = { longsword: "Sap", longbow: "Slow", greataxe: "Cleave", handaxe: "Vex", javelin: "Slow", rapier: "Vex", shortbow: "Vex", dagger: "Nick",
+    warhammer: "Push", mace: "Sap", quarterstaff: "Topple", shortsword: "Vex", greatsword: "Graze", scimitar: "Nick", battleaxe: "Topple", maul: "Topple" };
+  const cap = s => s[0].toUpperCase() + s.slice(1);
+  const PARTY = [
+    { name: "Kael", cls: "Fighter 5", allow: 4, chosen: [], equipped: ["longsword", "longbow"], carried: ["dagger"], prof: "sim + mar" },
+    { name: "Brannoc", cls: "Barbarian 3", allow: 2, chosen: [], equipped: ["greataxe", "handaxe"], carried: ["javelin"], prof: "sim + mar" },
+    { name: "Sera", cls: "Rogue 4", allow: 2, chosen: ["rapier", "shortbow"], equipped: ["rapier", "shortbow"], carried: ["dagger"], prof: "sim + rapier, shortsword, longsword, hand crossbow" },
+    { name: "Orin", cls: "Paladin 2", allow: 2, chosen: ["warhammer", "longsword", "mace"], equipped: ["warhammer"], carried: ["javelin"], prof: "sim + mar" },
+    { name: "Tam", cls: "Wizard 4", allow: 0, chosen: [], equipped: ["quarterstaff"], carried: [], prof: "sim" }
+  ];
+  const fillFor = pc => {
+    if (pc.chosen.length >= pc.allow) return [];
+    return pc.equipped.filter(w => MASTERY[w] && !pc.chosen.includes(w)).slice(0, pc.allow - pc.chosen.length);
+  };
+  const after = pc => [...pc.chosen, ...fillFor(pc)];
+  const state = pc => {
+    const n = after(pc).length;
+    if (!pc.allow) return ["none", "no mastery"];
+    if (n > pc.allow) return ["flag", `over by ${n - pc.allow}`];
+    if (n < pc.allow) return ["open", `${pc.allow - n} open`];
+    return ["ok", "full"];
+  };
+  const kind = w => `<b>${cap(w)}</b> <span class="dice">${MASTERY[w] ?? "—"}</span>`;
+
+  // ---------- state per scene ----------
+  const S = { attacker: "Sera", mastered: false, rester: "Kael", swapOut: null, swapIn: null, swapped: false, dropped: null, confirmed: false, viewOpen: false };
+  let scene = "fill";
+  const $ = (sel, root = document) => root.querySelector(sel);
+
+  // ---------- the pieces ----------
+  const tok = (x, y, cls, label) => `<div class="tok ${cls}" style="left:${x}px;top:${y}px">${label.slice(0, 2)}<span class="nm">${label}</span></div>`;
+  const partyTokens = () => tok(120, 150, "pc", "Kael") + tok(200, 230, "pc", "Brannoc") + tok(290, 160, "pc", "Sera") + tok(360, 250, "pc", "Orin") + tok(450, 170, "pc", "Tam");
+  function titleBar(name) { return `<div class="title"><i></i>${name}<span class="x">✕</span></div>`; }
+  function card(speaker, cls, eyebrow, title, sub, lines, extra = "", whisper = false) {
+    return `<div class="msg"><div class="spk">${speaker}${whisper ? `<span class="w">· whispered to the GM</span>` : ""}</div><div class="bf ${cls}"><div class="e">${eyebrow}</div><div class="t">${title}</div>${sub ? `<div class="s">${sub}</div>` : ""}${lines ? `<div class="l">${lines}</div>` : ""}${extra}</div></div>`;
+  }
+
+  // the GM's fill card: one card, one line per character the fill touched
+  function fillCard() {
+    const touched = PARTY.filter(pc => fillFor(pc).length);
+    const lines = touched.map(pc => {
+      const picks = fillFor(pc), [, st] = state(pc);
+      return `<div><b>${pc.name}</b> · ${pc.cls} · ${picks.map(w => `${cap(w)} (${MASTERY[w]})`).join(", ")} from what is equipped${st === "full" ? "" : ` · <span class="chip wait">${st}</span>`}</div>`;
+    }).join("");
+    const flags = PARTY.filter(pc => state(pc)[0] === "flag").map(pc => `<div><b>${pc.name}</b> · ${pc.cls} · ${after(pc).length} chosen, ${pc.allow} allowed · <span class="chip bad">over by ${after(pc).length - pc.allow}</span> the sheet's list is longer than the class allows; nothing was removed</div>`).join("");
+    const btn = O.view === "card" ? `<div><button type="button" class="cardbtn" id="openview">Party masteries</button></div>` : "";
+    return card("Battle Flow", "pending", "Battle Flow · weapon mastery", "Masteries filled", `${touched.length} of ${PARTY.length} characters had fewer picks than their class allows`, lines + flags, btn, true);
+  }
+
+  // the party view: the group sheet with the header button, or the same table in a popup from the card
+  function partyTable() {
+    return `<table class="party"><thead><tr><th>Character</th><th>Allows</th><th>Chosen</th><th>State</th></tr></thead><tbody>` + PARTY.map(pc => {
+      const [st, label] = state(pc), picks = fillFor(pc);
+      const chips = after(pc).map(w => `<span class="chip ${picks.includes(w) ? "fill" : ""}" title="${picks.includes(w) ? "filled by the module" : "chosen on the sheet"}">${cap(w)} · ${MASTERY[w]}</span>`).join("") || `<span class="kbd">—</span>`;
+      const stchip = st === "flag" ? `<span class="chip bad">${label}</span>` : st === "open" ? `<span class="chip wait">${label}</span>` : st === "ok" ? `<span class="chip good">${label}</span>` : `<span class="chip">${label}</span>`;
+      const swap = O.swap === "gm" && pc.allow ? ` <span class="chip pick">swap</span>` : "";
+      return `<tr class="${st}"><td><b>${pc.name}</b><br><span class="kbd">${pc.cls}</span></td><td class="cnt">${pc.allow}</td><td>${chips}</td><td>${stchip}${swap}</td></tr>`;
+    }).join("") + `</tbody></table><div class="kbd" style="margin-top:6px">dashed · filled by the module from equipped weapons · solid · chosen on the sheet · a chosen kind outside the character's proficiencies would read <span class="chip bad">not proficient</span></div>`;
+  }
+  function partySheet() {
+    return `<div class="sheet"><div class="title">The Company of the Ash Road <span class="kbd">· Group</span>
+        <button type="button" class="hb ${S.viewOpen ? "on" : ""}" id="openview">Masteries</button><span class="x">✕</span></div>
+      <div class="body">${S.viewOpen ? partyTable() : `<div class="members">${PARTY.map(pc => `<div class="member"><div class="pt"></div><div><b>${pc.name}</b><small>${pc.cls}</small></div></div>`).join("")}</div><div class="kbd" style="margin-top:8px">the group sheet as dnd5e draws it; the Masteries button is the module's</div>`}</div></div>`;
+  }
+  function partyPopup() {
+    return `<div class="offer" style="width:560px">${titleBar("Battle Flow · party masteries")}<div class="body">${partyTable()}</div></div>`;
+  }
+
+  // the attack card's line
+  function attackCard() {
+    const pc = PARTY.find(p => p.name === S.attacker), [st] = state(pc);
+    const open = pc.allow - after(pc).length;
+    const line = S.mastered
+      ? `<div><span class="chip good">Mastered</span> Dagger (Nick) added to ${pc.name}'s masteries · ${after(pc).length + 1} of ${pc.allow}</div>`
+      : `<div><span class="chip wait">not mastered</span> <b>Dagger: Nick</b> — ${pc.name} has not chosen daggers${open > 0 ? ` · ${open} of ${pc.allow} open` : st === "none" ? " · the class has no Weapon Mastery" : ` · ${pc.allow} of ${pc.allow} chosen`}${O.notice === "offer" && open > 0 ? ` <button type="button" class="cardbtn" id="master" style="margin-top:0">Master it</button>` : ""}</div>`;
+    return card(pc.name, "neutral", "Attack · Dagger", "17 to hit · hits Ghast", "1d4 + 3 piercing", line);
+  }
+
+  // the long-rest swap, the house offer shape (the rest-song's road): what you have first, then the one swap — or the trim
+  const haveLine = pc => `<div class="situ"><b>You have these masteries:</b> ${after(pc).map(w => `${cap(w)} (${MASTERY[w]})`).join(", ") || "none yet"} · ${after(pc).length} of ${pc.allow} chosen</div>`;
+  function swapOffer() {
+    const pc = PARTY.find(p => p.name === S.rester), have = after(pc), over = have.length - pc.allow;
+    if (over > 0) {
+      const ticked = S.dropped ? 1 : 0;
+      return `<div class="offer">${titleBar("Battle Flow · the long rest")}<div class="body">
+        <div class="head"><div class="img"></div><div><h2>${pc.name} — ${over} too many</h2><div class="sub">your class allows ${pc.allow} · the list is put right at the Long Rest</div></div></div>
+        ${haveLine(pc)}
+        <div class="grp-l">Drop ${over} to continue</div>
+        ${have.map(w => `<label class="row ${S.dropped === w ? "on" : ""}"><input type="checkbox" data-drop="${w}" ${S.dropped === w ? "checked" : ""}><span class="nm">${cap(w)}<span class="dice">${MASTERY[w]}</span></span><span class="cost">chosen</span></label>`).join("")}
+        <div class="btnrow"><button type="button" class="btn primary" id="doswap" ${ticked === over ? "" : "disabled"}>OK</button><span class="hint">${ticked === over ? "the drop lands on the sheet" : `tick exactly ${over}`}</span></div>
+      </div></div>`;
+    }
+    const pool = ["greatsword", "battleaxe", "maul", "shortsword", "scimitar", "dagger", "handaxe", "javelin", "mace", "quarterstaff"].filter(w => !have.includes(w));
+    return `<div class="offer">${titleBar("Battle Flow · the long rest")}<div class="body">
+      <div class="head"><div class="img"></div><div><h2>Swap a mastery?</h2><div class="sub">${pc.name} · ${pc.cls} · one swap per Long Rest</div></div></div>
+      ${haveLine(pc)}
+      <div class="grp-l">One swap per Long Rest — remove one, add another, or keep them</div>
+      <div class="pick"><span class="kbd" style="align-self:center">Remove</span>${[["", "— keep them —"], ...have.map(w => [w, `${cap(w)} · ${MASTERY[w]}`])].map(([w, l]) => `<button type="button" class="opt" data-out="${w}" aria-pressed="${(S.swapOut ?? "") === w}">${l}</button>`).join("")}</div>
+      <div class="pick"><span class="kbd" style="align-self:center">Add</span>${pool.map(w => `<button type="button" class="opt" data-in="${w}" aria-pressed="${S.swapIn === w}" ${S.swapOut ? "" : "disabled"}>${cap(w)} · ${MASTERY[w]}</button>`).join("")}</div>
+      <div class="btnrow"><button type="button" class="btn primary" id="doswap" ${S.swapOut && S.swapIn ? "" : "disabled"}>Swap</button><button type="button" class="btn" id="keep">Keep them</button><span class="hint">the kinds to add are the ones on your sheet you are proficient with</span></div>
+    </div></div>`;
+  }
+  // the confirmation after the landing: what you now have, what changed, OK
+  function confirmOffer() {
+    const pc = PARTY.find(p => p.name === S.rester);
+    let now = after(pc), change = "Kept";
+    if (S.dropped) { now = now.filter(w => w !== S.dropped); change = `Dropped ${cap(S.dropped)}`; }
+    else if (S.swapOut && S.swapIn) { now = now.map(w => w === S.swapOut ? S.swapIn : w); change = `Swapped ${cap(S.swapOut)} → ${cap(S.swapIn)}`; }
+    return `<div class="offer">${titleBar("Battle Flow · weapon mastery")}<div class="body">
+      <div class="head"><div class="img"></div><div><h2>${change}</h2><div class="sub">${pc.name} · ${now.length} of ${pc.allow} chosen</div></div></div>
+      <div class="situ"><b>You now have these masteries:</b> ${now.map(w => `${cap(w)} (${MASTERY[w]})`).join(", ")}</div>
+      <div class="btnrow"><button type="button" class="btn primary" id="confirm">OK</button><span class="hint">acknowledged on the card</span></div>
+    </div></div>`;
+  }
+  // the record off the Weapon Mastery feature's card: what you have, OK
+  function recordOffer(pc) {
+    return `<div class="offer">${titleBar("Battle Flow · weapon mastery")}<div class="body">
+      <div class="head"><div class="img"></div><div><h2>You have these masteries</h2><div class="sub">${pc.name} · ${after(pc).length} of ${pc.allow} chosen${state(pc)[0] === "open" ? ` · ${pc.allow - after(pc).length} open` : ""}</div></div></div>
+      <div class="situ">${after(pc).map(w => `<b>${cap(w)}</b> (${MASTERY[w]})`).join(", ") || "none yet"}</div>
+      <div class="kbd">One swap is offered after each Long Rest; the sheet's Weapon Proficiencies dialog edits the list by hand.</div>
+      <div class="btnrow"><button type="button" class="btn primary" id="confirm">OK</button></div>
+    </div></div>`;
+  }
+
+  // ---------- scenes ----------
+  const scenes = {
+    fill: {
+      caption: () => O.fill === "load"
+        ? "The GM's client loads: for every party member whose chosen kinds are fewer than the class allows, the module fills from equipped weapons (capped at the allowance), writes the system's list, and whispers one card. A level change re-runs it; a full list is never touched."
+        : "Nothing runs on load. The first attack with a weapon whose kind is not chosen triggers the fill for that character alone; the whisper lands then. Masteries stay silent until someone swings.",
+      stage: () => partyTokens() + (O.fill === "load" && S.viewOpen && O.view === "card" ? partyPopup() : ""),
+      log: () => O.fill === "load" ? fillCard() : card("Battle Flow", "neutral", "Battle Flow · weapon mastery", "Nothing to do yet", "the fill runs at the first unmastered attack", "")
+    },
+    party: {
+      caption: () => O.view === "sheet"
+        ? "The party view is a button in the group sheet's header (dnd5e's primary party). Every member against the allowance: dashed chips are the module's fills, solid ones the sheet's own picks, and the state column flags open slots and an over-long list."
+        : "The party view opens from the GM's fill card (and from the combat roster card). Same table, in the house popup; nothing is added to a dnd5e sheet.",
+      stage: () => partyTokens() + (O.view === "sheet" ? partySheet() : (S.viewOpen ? partyPopup() : "")),
+      log: () => O.view === "sheet" ? card("Battle Flow", "neutral", "Battle Flow · weapon mastery", "The party view", "opens from the party sheet", "") : fillCard()
+    },
+    attack: {
+      caption: () => S.attacker === "Sera"
+        ? "Sera's list is full (Rapier, Shortbow). She stabs with a dagger: the system stamps no mastery, so Nick never fires. The card says why instead of staying silent. No offer: there is no slot to give."
+        : "Kael has two open slots. His dagger attack carries the same line, and with option A the card offers Master it: one press writes Dagger into the system's list, and the next dagger attack fires Nick.",
+      stage: () => tok(300, 220, "pc", S.attacker) + tok(380, 150, "", "Ghast") + `<div class="caption" style="bottom:auto;top:16px;left:auto;right:12px;width:220px"><b>Who attacks</b><div class="pick" style="margin-top:6px">${["Sera", "Kael"].map(n => `<button type="button" class="opt" data-att="${n}" aria-pressed="${S.attacker === n}">${n}</button>`).join("")}</div></div>`,
+      log: () => attackCard()
+    },
+    rest: {
+      caption: () => S.rester === "Orin"
+        ? "Orin's list is longer than Paladin 2 allows (3 of 2). The Long Rest puts it right before anything else: drop down to the allowance, OK held until the count matches; the landing is confirmed with what he now has."
+        : O.swap === "owner"
+          ? "After a Long Rest the resting owner is asked once (the rest-song's road): the list they have first, then one swap — remove one, add another — or keep them. The answer writes the sheet, and a confirmation names what they now have, with OK."
+          : "No popup for the player. The swap is the GM's, from the party view's row; the player asks at the table. Fewer popups, more GM paperwork.",
+      stage: () => tok(300, 220, "pc", S.rester) + `<div class="caption" style="bottom:auto;top:16px;left:auto;right:12px;width:220px"><b>Who rests</b><div class="pick" style="margin-top:6px">${["Kael", "Orin"].map(n => `<button type="button" class="opt" data-rest="${n}" aria-pressed="${S.rester === n}">${n}</button>`).join("")}</div></div>`
+        + ((O.swap === "owner" || S.rester === "Orin") ? (S.confirmed ? "" : S.swapped ? confirmOffer() : swapOffer()) : ""),
+      log: () => card(S.rester, "neutral", "Long Rest", `${S.rester} takes a long rest`, "hit points restored", "") +
+        (S.swapped ? card("Battle Flow", "good", "Battle Flow · weapon mastery", S.dropped ? `Dropped ${cap(S.dropped)}` : (S.swapOut && S.swapIn) ? `Swapped ${cap(S.swapOut)} → ${cap(S.swapIn)}` : "Kept", `${S.rester} · ${S.confirmed ? "acknowledged" : "waiting for OK"}`, "", S.confirmed ? "" : `<div><span class="cardbtn">OK</span></div>`)
+          : card("Battle Flow", "pending", "Battle Flow · weapon mastery", S.rester === "Orin" ? "Orin — 1 too many masteries" : "Kael — swap a mastery?", S.rester === "Orin" ? "the list is put right at the Long Rest" : "one swap after a Long Rest", `<div><span class="chip wait">waiting for ${S.rester}'s player</span></div>`))
+    },
+    record: {
+      caption: () => "Between rests, the list is one click away: the sheet's own Weapon Mastery class feature (every class ships one) posts its card, the module adds what the character has, and the owner gets the same list in a popup with OK.",
+      stage: () => tok(300, 220, "pc", "Kael") + recordOffer(PARTY.find(p => p.name === "Kael")),
+      log: () => card("Kael", "neutral", "Weapon Mastery", "Weapon Mastery", "Fighter · class feature", `<div>Your training with weapons allows you to use the mastery properties of two kinds of Simple or Martial weapons of your choice…</div>`) +
+        card("Battle Flow", "neutral", "Battle Flow · weapon mastery", "Kael has these masteries", "2 of 4 chosen · 2 open", `<div><b>Longsword</b> (Sap), <b>Longbow</b> (Slow)</div><div><span class="cardbtn">Show</span></div>`)
+    }
+  };
+
+  // ---------- side ----------
+  function side() {
+    return `<div class="panel"><h3>The options</h3><div class="toggles">${TOGGLES.map(t => `<div class="tg"><span>${t.label}</span><div class="set">${t.opts.map(([v, l]) => `<button type="button" data-opt="${t.key}" data-val="${v}" aria-pressed="${O[t.key] === v}">${l}</button>`).join("")}</div></div>`).join("")}</div></div>
+    <div class="panel q"><h3>What the scene shows</h3><p>${scenes[scene].caption()}</p></div>
+    <div class="panel"><h3>Measured, dnd5e 6.0.6 + PHB</h3><ul>
+      <li><b>The allowance is data.</b> Each class carries mastery-mode Trait advancements: Barbarian 2 at 1, +1 at 4 and 10; Fighter 3 at 1, +1 at 4, 10 and 16; Paladin, Ranger, Rogue 2 at 1; the Weapon Master feat +1. The module sums them at the class level; no table of its own.</li>
+      <li><b>The truth is one field.</b> <code>weaponProf.mastery.value</code> (a set of base-weapon keys). dnd5e offers a mastery only when the wielder's set has the weapon's base kind, then stamps it on the attack message, which the mastery machine reads. Tactical Master's extras ride <code>mastery.bonus</code>, untouched.</li>
+      <li><b>Today's gap.</b> A character built without the advancement step has an empty set: no mastery ever fires, and nothing says so.</li>
+    </ul></div>
+    <div class="panel fix"><h3>Open for the ruling</h3><ol>
+      <li>A or B for each toggle above.</li>
+      <li>Ruled 2026-10-10 on the walk: the list first in every popup, the Long Rest trims an over-long list, a confirmation with OK after a change, the record off the feature's card.</li>
+      <li>The fill's pick order when more weapons are equipped than slots: main hand first, then the rest by sheet order?</li>
+    </ol></div>`;
+  }
+
+  // ---------- render + wiring ----------
+  function render() {
+    $("#stage").innerHTML = scenes[scene].stage();
+    $("#caption").textContent = scenes[scene].caption();
+    $("#log").innerHTML = scenes[scene].log();
+    $("#side").innerHTML = side();
+    wire();
+  }
+  function wire() {
+    document.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => { O[b.dataset.opt] = b.dataset.val; S.viewOpen = false; render(); }));
+    document.querySelectorAll("[data-att]").forEach(b => b.addEventListener("click", () => { S.attacker = b.dataset.att; S.mastered = false; render(); }));
+    document.querySelectorAll("[data-out]").forEach(b => b.addEventListener("click", () => { S.swapOut = b.dataset.out || null; if (!S.swapOut) S.swapIn = null; render(); }));
+    document.querySelectorAll("[data-drop]").forEach(i => i.addEventListener("change", () => { S.dropped = i.checked ? i.dataset.drop : null; render(); }));
+    document.querySelectorAll("[data-rest]").forEach(b => b.addEventListener("click", () => { S.rester = b.dataset.rest; S.swapOut = null; S.swapIn = null; S.dropped = null; S.swapped = false; S.confirmed = false; render(); }));
+    const c = $("#confirm"); if (c) c.addEventListener("click", () => { S.confirmed = true; render(); });
+    document.querySelectorAll("[data-in]").forEach(b => b.addEventListener("click", () => { S.swapIn = b.dataset.in; render(); }));
+    const m = $("#master"); if (m) m.addEventListener("click", () => { S.mastered = true; render(); });
+    const v = $("#openview"); if (v) v.addEventListener("click", () => { S.viewOpen = !S.viewOpen; render(); });
+    const sw = $("#doswap"); if (sw) sw.addEventListener("click", () => { S.swapped = true; render(); });
+    const k = $("#keep"); if (k) k.addEventListener("click", () => { S.swapOut = null; S.swapIn = null; S.swapped = true; render(); });
+  }
+  function pressScene() { document.querySelectorAll("[data-scene]").forEach(x => x.setAttribute("aria-pressed", String(x.dataset.scene === scene))); }
+  document.querySelectorAll("[data-scene]").forEach(b => b.addEventListener("click", () => { scene = b.dataset.scene; S.viewOpen = scene === "party" && O.view === "sheet"; S.swapped = false; S.confirmed = false; S.dropped = null; pressScene(); render(); }));
+  S.viewOpen = false;
+  render();
+})();
+</script>
+</body>
+</html>

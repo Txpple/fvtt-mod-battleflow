@@ -3559,14 +3559,21 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           faces([[19, 20], [19, 20], [3, 6], [3, 6]]);
           const wa = attackOf(pcAttacker, w);
           const usage = await wa.use({ subsequentActions: false }, { configure: false }, {});
-          const rolls = await wa.rollAttack({ mastery: 'push' }, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
+          const rolls = await wa.rollAttack({}, { configure: false }, usage?.message?.id ? { data: { 'system.origin': usage.message.id } } : {});
           const msg = rolls?.[0]?.parent ?? null;
-          ok('49b. rolled with the mastery swapped to Push: the attack message carries mastery "push"', msg?.system?.mastery === 'push', `mastery=${msg?.system?.mastery}`);
+          ok('49b. rolled without a dialog: the attack message carries the weapon\'s own mastery (sap) — the pick waits for the hit', msg?.system?.mastery === 'sap', `mastery=${msg?.system?.mastery}`);
           const offer = await waitFor(() => offerApp(before), 4000);
           if (offer) await a1Roll(msg, offer); else await a1Damage(msg);
+          const pick = await waitFor(() => (msg?.getFlag(MOD, 'masteryPick')?.status === 'pending') ? msg.getFlag(MOD, 'masteryPick') : null, 8000);
+          ok('49c. THE BEND (the walk of 2026-10-10): the hit stamps masteryPick on the attack — the three options, the weapon\'s own as the stamped fallback, the victim among the hits; no mastery resolved yet',
+            !!pick && ['push', 'sap', 'slow'].every(k => (pick.options ?? []).some(o => o.key === k)) && (pick.stamped === 'sap') && (pick.hits ?? []).some(h => h.uuid === victim.uuid) && !msg.getFlag(MOD, 'mastery'),
+            `pick=${JSON.stringify(pick && { options: pick.options?.map(o => o.key), stamped: pick.stamped, hits: pick.hits?.length })}`);
+          const pickPopup = await waitFor(() => popups().find(app => /Tactical Master/.test(app.element?.textContent ?? '')) ?? null, 4000);
+          ok('49d. the pick popup opened for the answerer: Sap (the weapon\'s), Push, Slow and Pass', !!pickPopup && ['sap', 'push', 'slow', 'pass'].every(a => !!pickPopup.element.querySelector(`button[data-action="${a}"]`)), `popup=${!!pickPopup}`);
+          await game.modules.get(MOD).api.mastery.answerMasteryPick(msg, 'push');
           const ask = await waitFor(() => (msg?.getFlag(MOD, 'mastery')?.key === 'push') ? msg.getFlag(MOD, 'mastery') : null, 8000);
-          ok('49c. the module\'s mastery machine resolves the PICK: the Push ask stamped on the attack (not the weapon\'s own)',
-            (ask?.key === 'push'), `mastery=${JSON.stringify(ask && { key: ask.key, status: ask.status })} setting=${game.settings.get(MOD, 'masteryAsk')}`);
+          ok('49e. the answer runs the machine with Push: the Push ask stamped on the attack (not the weapon\'s own), the pick done',
+            (ask?.key === 'push') && (msg.getFlag(MOD, 'masteryPick')?.status === 'done'), `mastery=${JSON.stringify(ask && { key: ask.key, status: ask.status })} pick=${msg.getFlag(MOD, 'masteryPick')?.status} setting=${game.settings.get(MOD, 'masteryAsk')}`);
         }
       } finally {
         await closeA1(); await closeOffers(); await hgClose(/Push|Mastery/); await dropVictimFx();

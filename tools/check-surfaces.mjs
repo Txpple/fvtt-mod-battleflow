@@ -46,6 +46,7 @@ const FRAGMENTS = {
   dialogButtons: ['data-application-part="buttons"'],
   dialogDefault: ["button[autofocus]"],
   dialogRoll: ['data-action="roll"'],
+  dialogMastery: ['select[name="mastery"]'],
   dialogFooter: [".form-footer"],
   cardHeaderTitle: [".name-stacked .title"],
   cardHeader: [".card-header"],

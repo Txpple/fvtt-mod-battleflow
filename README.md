@@ -75,6 +75,12 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   module can read that changes it: a condition, a feat, a fighting style, cover, an ally beside
   the target. Riders like Sneak Attack, Hunter's Mark and weapon masteries ride the damage as
   ticked boxes.
+- **Weapon Mastery's paperwork lives here.** The sheet's own mastery list stays the truth; the
+  module keeps it the right length. A character with fewer chosen kinds than the class allows
+  gets the gap filled from equipped weapons when the GM loads (one whisper says what was picked),
+  an attack with a kind nobody chose says so on the card and offers to master it while a slot is
+  open, a Long Rest offers the one swap the rule allows, and the party sheet's header has the
+  GM's view of everyone against their allowance.
 - **Cover is measured for you.** Select your token and hover another: a Cover section at the
   top of its card says No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total, and what is in
   the way. It uses the 2024 DMG grid method, lines from a corner of your space to the corners of

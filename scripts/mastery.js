@@ -9,7 +9,7 @@ import { effectRecord, joinEffectReceipt, takenOf } from "./decide/receipt.js";
 import { MASTERY_KINDS, MASTERY_NATIVE, MASTERY_RULES } from "./decide/registry.js";
 import { CHIP_FLAG, chipClock, chipIsDead } from "./decide/chips.js";
 import { chipData, chitStampOf, hitTargets, masteryLabel, placeOf, turnPlace } from "./shared.js";
-import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, esc } from "./decide/present.js";
+import { popupKey, bfCard, holdBarHTML, momentBarHTML, ruleLine, foldedRuleHTML, esc } from "./decide/present.js";
 import { livePopups, openMomentPopup, momentButton, scheduleBarSync, shownMoments, acknowledgeMoment, momentAcknowledged, armAskTimer, disarmAskTimer, registerOfferPart } from "./ui.js";
 import { applyDamagesWithReceipt } from "./auto-apply.js";
 import { messageActivity } from "./effect-riders.js";
@@ -24,6 +24,11 @@ import { listen } from "./dispatch.js";
 
 /** Masteries already warned about — once per session, not once per swing. */
 const warnedMasteries = new Set();
+
+listen("ready", "mastery", () => {
+  const mod = game.modules.get(MODULE_ID);
+  if ( mod ) mod.api = Object.assign(mod.api ?? {}, { mastery: { answerMasteryPick } });
+});
 
 /** The authored payout effects. Nothing ships these — the system's masteries are labels. */
 const MASTERY_EFFECTS = {
@@ -61,13 +66,25 @@ function dealtFor(damageMessage, uuid) {
   return damageMessage?.rolls?.reduce((n, r) => n + r.total, 0) ?? 0;
 }
 
-/** Route a hit's mastery to its payout or its ask. Runs on the elect, after application. */
-export async function resolveHitMastery(damageMessage, attackMessage, hits) {
+/**
+ * Route a hit's mastery to its payout or its ask. Runs on the elect, after application. With
+ * Tactical Master on the wielder the pick is asked here, at the hit (RULINGS *Weapon Mastery — the
+ * record*, the bend): the stamped key waits for `masteryPick`, and `picked` is the answer's road back.
+ */
+export async function resolveHitMastery(damageMessage, attackMessage, hits, { picked = null } = {}) {
   try {
-    const key = masteryOf(attackMessage);
-    if ( !key ) return;
+    const stamped = masteryOf(attackMessage);
     const ctx = masteryContext(attackMessage);
     if ( !ctx ) return;
+    if ( !picked && stamped ) {
+      const options = tacticalOptions(ctx);
+      if ( options && !attackMessage.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ) {
+        await stampMasteryPick(attackMessage, damageMessage, ctx, options, stamped, hits);
+        return;
+      }
+    }
+    const key = picked ?? stamped;
+    if ( !key ) return;
 
     // The dead are skipped — except for Cleave, where a kill is exactly when it matters.
     const struck = [];
@@ -452,6 +469,99 @@ listen("dnd5e.preRollDamage", "mastery", (config, _dialog, message) => {
   }
 });
 
+/* --- Tactical Master: the pick at the hit --------------------------------------------------------- */
+
+const MASTERY_PICK_FLAG = "masteryPick";
+const pickTimers = new Map();
+
+/** The wielder's choices on this weapon beyond its own mastery (dnd5e's `masteryOptions`), or null. */
+function tacticalOptions(ctx) {
+  const options = ctx.weapon?.system?.masteryOptions;
+  if ( !Array.isArray(options) || (options.length < 2) ) return null;
+  return options.map(o => ({ key: o.value, label: masteryLabel(o.value) }));
+}
+
+async function stampMasteryPick(attackMessage, damageMessage, ctx, options, stamped, hits) {
+  const window = decisionWindow();
+  await attackMessage.setFlag(MODULE_ID, MASTERY_PICK_FLAG, {
+    status: "pending", options, stamped,
+    weapon: { name: ctx.weapon.name, img: ctx.weapon.img },
+    attackerUuid: ctx.attacker.uuid,
+    damageMessageId: damageMessage?.id ?? null,
+    hits: hits.map(t => ({ uuid: t.uuid, name: t.name })),
+    ...statContext(ctx.attacker.uuid),
+    ...(window ? { window, deadline: Date.now() + (window * 1000) } : {})
+  });
+  armPickTimer(attackMessage);
+}
+
+/** One answer, first writer wins; the decider owns the attack message. `pass` takes no mastery. */
+export async function answerMasteryPick(message, key, { timedOut = false } = {}) {
+  const p = foundry.utils.deepClone(message.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ?? {});
+  if ( (p.status !== "pending") || p.answer ) return;
+  if ( (key !== "pass") && !(p.options ?? []).some(o => o.key === key) ) return;
+  p.answer = key;
+  p.answeredAt = Date.now();
+  if ( timedOut ) p.timedOut = true;
+  await message.setFlag(MODULE_ID, MASTERY_PICK_FLAG, p);
+}
+
+const pickExecutions = new Set();
+
+/** The elect claims the answer and runs the hit's mastery as if the dialog had picked it. */
+async function executeMasteryPick(message) {
+  if ( pickExecutions.has(message.id) ) return;
+  pickExecutions.add(message.id);
+  try {
+    const p = foundry.utils.deepClone(message.getFlag(MODULE_ID, MASTERY_PICK_FLAG) ?? {});
+    if ( (p.status !== "pending") || !p.answer ) return;
+    p.status = "done";
+    disarmPickTimer(message.id);
+    await message.setFlag(MODULE_ID, MASTERY_PICK_FLAG, p);
+    if ( p.answer === "pass" ) return;
+    const damageMessage = p.damageMessageId ? game.messages.get(p.damageMessageId) : null;
+    await resolveHitMastery(damageMessage, message, p.hits ?? [], { picked: p.answer });
+  } finally {
+    pickExecutions.delete(message.id);
+  }
+}
+
+/** Expiry takes the stamped mastery — the weapon's own, or what the dialog chose. */
+const armPickTimer = message =>
+  armAskTimer(pickTimers, message, MASTERY_PICK_FLAG, live => answerMasteryPick(live, live.getFlag(MODULE_ID, MASTERY_PICK_FLAG)?.stamped ?? "pass", { timedOut: true }));
+const disarmPickTimer = messageId => disarmAskTimer(pickTimers, messageId);
+
+/** The pick popup: one button per mastery (the weapon's own first), and Pass. */
+async function showMasteryPickPopup(message, p) {
+  const attacker = resolveUuid(p.attackerUuid);
+  const buttons = (p.options ?? []).map(o => ({
+    action: o.key, label: o.label, default: o.key === p.stamped,
+    callback: () => answerMasteryPick(message, o.key)
+  }));
+  buttons.push({ action: "pass", label: "Pass", callback: () => answerMasteryPick(message, "pass") });
+  await openMomentPopup(message, MASTERY_PICK_FLAG, attacker, {
+    title: `Tactical Master — ${p.weapon?.name ?? ""}`, icon: "fa-solid fa-medal", width: 440,
+    content: bfCard({
+      img: p.weapon?.img, eyebrow: "Weapon Mastery — Tactical Master", tone: "pending",
+      title: "The hit landed: which mastery?",
+      subtitle: `${attacker?.name ?? "The attacker"} — ${p.weapon?.name ?? "weapon"}`,
+      lines: [`Against: ${esc((p.hits ?? []).map(t => t.name).join(", "))}`, ...(p.options ?? []).map(o => `<div style="margin-top:0.25rem;"><b>${esc(o.label)}</b>${(o.key === p.stamped) ? " <span style=\"opacity:0.7;\">· the weapon's own</span>" : ""}${foldedRuleHTML(MASTERY_RULES[o.key])}</div>`)]
+    }) + holdBarHTML(p),
+    buttons
+  });
+}
+
+// The dialog's own Mastery select goes, replaced by a note: the pick is asked on the hit.
+listen("renderRollConfigurationDialog", "mastery", (_app, element) => {
+  const select = element?.querySelector?.(SURFACES.dialogMastery);
+  if ( !select || (select.options?.length < 2) ) return;
+  const group = select.closest(SURFACES.formGroup) ?? select;
+  const note = document.createElement("div");
+  note.className = "battleflow-mastery-note";
+  note.innerHTML = bfCard({ eyebrow: "Weapon Mastery — Tactical Master", tone: "neutral", title: "Picked on a hit", subtitle: "Sap, Push or Slow — the popup asks when the attack lands." });
+  group.replaceWith(note);
+});
+
 // The ask: stamp → row → popup → answer → execute.
 
 const masteryTimers = new Map();
@@ -506,6 +616,12 @@ async function executeMasteryAnswer(message) {
 
 // The answer channel: every client closes an answered popup; the elect executes.
 listen("updateChatMessage", "mastery", message => {
+  const p = message.getFlag(MODULE_ID, MASTERY_PICK_FLAG);
+  if ( p ) {
+    const dialog = livePopups.get(popupKey(message.id, MASTERY_PICK_FLAG));
+    if ( dialog && ((p.status !== "pending") || p.answer) ) void dialog.close();
+    if ( drivesMomentFor(p?.attackerUuid) && (p.status === "pending") && p.answer ) void executeMasteryPick(message);
+  }
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
     const dialog = livePopups.get(popupKey(message.id, "mastery"));
@@ -522,6 +638,7 @@ listen("updateChatMessage", "mastery", message => {
 // The shown-latches ride ui.js's one delete-sweep; only this machine's clock disarms here.
 listen("deleteChatMessage", "mastery", message => {
   disarmMasteryTimer(message.id);
+  disarmPickTimer(message.id);
 });
 
 /** Expiry answers Pass — the AFK fallback for a decision nobody made. */
@@ -552,6 +669,30 @@ async function showMasteryPopup(message, m) {
 
 // The card rows: the ask, the notice and the strip's receipt. Stateless.
 listen("dnd5e.renderChatMessage", "mastery", (message, html) => {
+  const p = message.getFlag(MODULE_ID, MASTERY_PICK_FLAG);
+  if ( p ) {
+    const row = document.createElement("div");
+    row.className = "battleflow-mastery-pick";
+    const pending = p.status === "pending";
+    row.innerHTML = bfCard({
+      img: p.weapon?.img, eyebrow: "Weapon Mastery — Tactical Master",
+      tone: pending ? "pending" : "neutral",
+      title: pending ? "Which mastery?" : (p.answer === "pass") ? "No mastery" : `${masteryLabel(p.answer)} chosen`,
+      subtitle: `${p.weapon?.name ?? ""} — ${(p.hits ?? []).map(t => t.name).join(", ")}${p.timedOut ? " · the timer took the weapon's own" : ""}`
+    }) + (pending ? holdBarHTML(p) : "");
+    html.querySelector(SURFACES.messageContent)?.appendChild(row);
+    if ( pending ) {
+      scheduleBarSync(row);
+      armPickTimer(message);
+      if ( p.answer && drivesMomentFor(p?.attackerUuid) ) void executeMasteryPick(message);
+      const attacker = resolveUuid(p.attackerUuid);
+      if ( canAnswerFor(attacker) && !p.answer ) {
+        const shownKey = popupKey(message.id, MASTERY_PICK_FLAG);
+        if ( !shownMoments.has(shownKey) ) { shownMoments.add(shownKey); void showMasteryPickPopup(message, p); }
+        row.appendChild(momentButton("Answer", () => { void showMasteryPickPopup(message, message.getFlag(MODULE_ID, MASTERY_PICK_FLAG)); }, { margin: "0.25rem 0 0" }));
+      }
+    }
+  }
   const m = message.getFlag(MODULE_ID, "mastery");
   if ( m ) {
     const row = document.createElement("div");
