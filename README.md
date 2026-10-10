@@ -105,7 +105,7 @@ against midi-qol.
 | | Battle Flow | midi-qol stack |
 | --- | --- | --- |
 | Install | one module | midi + DAE + premades + their dependencies |
-| Settings | ten | hundreds |
+| Settings | twelve | hundreds |
 | Homebrew hooks, macros, custom flags | none | extensive |
 | Coverage | the official 2024 books, growing | nearly everything, if you set it up |
 | Surviving a dnd5e update | public hooks only, nothing patched | waits for each module to catch up |
@@ -131,6 +131,8 @@ list. The full list and the reasons are in [DESIGN.md §4](DESIGN.md).
 | Hold Shows the Math | world | A held reaction shows the attack total against AC, or (rules as written) only that you were hit. |
 | Optional Masteries | world | Ask before Slow, Topple, Push and Graze, or take them automatically. |
 | Resource Use Notices | world | Flash a notice when a player spends a limited-use ability. |
+| Roll Results Players See | world | What the public cards show players: results, AC and DC (the default), results only, nothing, or leave it to dnd5e. Overrides dnd5e's Visibility menu. |
+| Bloodied Shows on Every Token | world | The Bloodied marker on enemies too (the default), or friendly tokens only. Overrides dnd5e's Visibility menu. |
 | Roll Your Own Damage | client | Ask before rolling your damage instead of rolling it for you. |
 | Effect Bar | client | The buff and debuff strip above the hotbar. |
 | Effect Cards on Hover and Alt | client | Effect cards beside any token you point at. |

@@ -14,6 +14,8 @@ export const S = {
   holdReveal: "holdReveal",
   masteryAsk: "masteryAsk",
   resourceNotices: "resourceNotices",
+  rollResults: "rollResults",           // owns dnd5e's attack and challenge visibility
+  bloodiedAll: "bloodiedAll",           // owns dnd5e's bloodied visibility
   playerRollDamage: "playerRollDamage", // client
   effectBar: "effectBar",               // client: the effect view's bar above the hotbar
   effectHover: "effectHover"            // client: the effect view's hover card and held key

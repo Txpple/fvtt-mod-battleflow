@@ -98,7 +98,7 @@ Combat should move. Every design choice is weighed against whether it makes the 
   Heroes of Faerûn, Ravenloft). The work is no longer paced by what the table meets next — it is
   paced by the books. **The one caveat: when the table needs something for itself, that jumps the
   queue.** Dogfooding stays the proof (a walk before a release), never the pacing.
-- **Batteries included: every machine is always on**, and a DM gets a few configs (ten settings,
+- **Batteries included: every machine is always on**, and a DM gets a few configs (twelve settings,
   RULINGS *The settings*). A table that wants to configure everything wants midi. The shipped
   defaults are the registrations in `scripts/settings.js`; `tools/verify-settings.mjs` reads them.
 - **Every feature must be individually deletable** the day the system ships it natively. Being

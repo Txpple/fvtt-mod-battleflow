@@ -1328,8 +1328,9 @@ The user, 2026-09-27, ruling the draft list: *"this is fine for now"*, and agree
 calls. The vision behind it (DESIGN, the refactor's rulings of 2026-09-27): batteries included, a few configs for DMs;
 midi is the alternative for a table that wants to configure everything.
 
-- **Ten settings.** For the DM: Decision Timer, Dramatic Beat, Players Roll Their Own Saves,
-  Concentration Checks Are Public, Hold Shows the Math, Optional Masteries, Resource Use Notices.
+- **Ten settings** (twelve since *Open roll by default*). For the DM: Decision Timer, Dramatic Beat,
+  Players Roll Their Own Saves, Concentration Checks Are Public, Hold Shows the Math, Optional
+  Masteries, Resource Use Notices.
   For each player: Roll Your Own Damage, Effect Bar, Effect Cards on Hover and Alt.
 - **Every machine is always on**: the resolver, applying damage, requiring a target, the hidden card
   buttons, the reaction hold, the riders, emanations, volleys, casts, saves, concentration and
@@ -1348,6 +1349,20 @@ midi is the alternative for a table that wants to configure everything.
 - **The content tables are the only list** (the refactor's rulings, 2026-09-27): no
   per-world list and no per-row switch. Prod's saved lists all equalled the shipped defaults, so no
   house row was lost.
+
+## Open roll by default (2026-10-09, issue #4)
+
+The user's issue #4: install one thing and play, with every number on the table.
+
+- **Two more settings, twelve in all.** Roll Results Players See (results, AC and DC by default;
+  results only; hide all; leave it to dnd5e) and Bloodied Shows on Every Token (on by default).
+  Both override dnd5e's Visibility menu, written by the active GM on load and on change, only where
+  a key differs.
+- **Bloodied off is dnd5e's `player`, never `none`**: `none` also stops dnd5e tracking the status.
+  The automation (Bloodied Fury, Harvest Undead, Bloodthirst, heal-on-hit) reads Hit Points either way.
+- **Hold Shows the Math is separate**: it governs the reaction popup for the one player deciding,
+  not the public card.
+- `concealItemDescriptions` is out of scope: it is not about combat results.
 
 ## The rule fold reads the book (2026-09-27, off the prototype *The rule fold*)
 

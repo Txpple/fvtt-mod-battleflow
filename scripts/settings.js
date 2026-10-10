@@ -1,11 +1,33 @@
 /**
- * Battle Flow — the ten settings (ARCHITECTURE §8): seven world configs for the DM, three per-client
- * preferences. Everything else is the module itself and always on.
+ * Battle Flow — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
+ * preferences. Everything else is the module itself and always on. Two of the nine own dnd5e's
+ * Visibility menu, so a fresh world plays with the results on the table (issue #4).
  */
-import { MODULE_ID, S } from "./core.js";
+import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
+import { ROLL_RESULTS, bloodiedFor, visibilityWrites } from "./decide/visibility.js";
 import { KIND_SETS, interruptEntries, blockEntries, maneuverFoldEntries, d20FoldEntries,
   riderEntries, riderUpgradeEntries } from "./decide/registry.js";
 import { listenOnce } from "./dispatch.js";
+
+/**
+ * Put dnd5e's Visibility keys where the two settings say. The active GM only (players cannot write
+ * world settings), and only a key that differs, so neither a load nor an onChange loops.
+ */
+async function syncVisibility() {
+  if ( !isActiveGM() ) return;
+  const want = { ...ROLL_RESULTS[setting(S.rollResults)] ?? {}, ...bloodiedFor(setting(S.bloodiedAll)) };
+  const have = {};
+  for ( const key of Object.keys(want) ) {
+    if ( game.settings.settings.has(`dnd5e.${key}`) ) have[key] = game.settings.get("dnd5e", key);
+    else console.warn(`${TITLE} | dnd5e has no ${key} setting; its visibility is left alone.`);
+  }
+  for ( const [key, value] of visibilityWrites(want, have) ) {
+    try { await game.settings.set("dnd5e", key, value); }
+    catch(err) { console.warn(`${TITLE} | Could not set dnd5e's ${key}.`, err); }
+  }
+}
+
+listenOnce("ready", "settings", syncVisibility);
 
 listenOnce("init", "settings", () => {
   game.settings.register(MODULE_ID, S.decisionTimer, {
@@ -52,6 +74,26 @@ listenOnce("init", "settings", () => {
     name: "Resource Use Notices",
     hint: "When a player character spends a limited-use ability (Second Wind, a superiority die, Channel Divinity, a magic item's daily cast), a notice flashes on every screen: who used what, and how many uses remain. The usage card keeps the same line. Expendables with no recovery and spell slots stay quiet; NPC abilities never announce.",
     scope: "world", config: true, type: Boolean, default: true
+  });
+
+  game.settings.register(MODULE_ID, S.rollResults, {
+    name: "Roll Results Players See",
+    hint: "What the public attack and save cards show players: hit or miss and the target's AC, success or failure and the DC. This overrides dnd5e's Visibility settings; choose \"Leave it to dnd5e\" to manage them there yourself. Hold Shows the Math is separate: a player offered a reaction still sees the number to beat on the popup.",
+    scope: "world", config: true, type: String, default: "open",
+    choices: {
+      open: "Open roll: results, AC and DC",
+      results: "Results only (hide AC and DC)",
+      hidden: "Hide all",
+      dnd5e: "Leave it to dnd5e"
+    },
+    onChange: syncVisibility
+  });
+
+  game.settings.register(MODULE_ID, S.bloodiedAll, {
+    name: "Bloodied Shows on Every Token",
+    hint: "On: the Bloodied marker shows on every token, enemies included, since abilities trigger on it. Off: friendly tokens only, dnd5e's own default. This overrides dnd5e's Visibility settings. The automation reads Hit Points either way.",
+    scope: "world", config: true, type: Boolean, default: true,
+    onChange: syncVisibility
   });
 
   // ⚠ Per-CLIENT and ON by default, or every new login starts wrong. Covers all three damage paths.

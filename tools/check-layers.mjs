@@ -136,6 +136,7 @@ export const LAYER_OF = {
   "decide/cast-riders.js": "decision",      // whose spell, a slot cast, the surge's outcome and line, a divided hand-out
   "decide/initiative-grants.js": "decision", // the Initiative grant due, its card line
   "decide/ward-pools.js": "decision",        // the ward's take, the HP split after it, the refill
+  "decide/visibility.js": "decision",       // the two Visibility settings: a choice and the dnd5e keys it writes
   "decide/registry.js": "decision",
   "decide/verdict.js": "decision",
   "decide/eligible.js": "decision",

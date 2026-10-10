@@ -937,8 +937,12 @@ dedupe on.
 
 ## 8. The settings surface
 
-Ten settings (RULINGS *The settings*): seven world configs for the DM, three per-client
-preferences. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
+Twelve settings (RULINGS *The settings*, *Open roll by default*): nine world configs for the DM,
+three per-client preferences. Two of the nine, Roll Results Players See and Bloodied Shows on Every
+Token, own dnd5e's Visibility menu (`attackRollVisibility`, `challengeVisibility`, `bloodied`): the
+active GM writes the mapped values ([decide/visibility.js](scripts/decide/visibility.js)) on `ready`
+and on change, and only a key that differs, because dnd5e's own default hides every attack result
+while Battle Flow's receipt has already announced the damage. `npm run registry` checks that `S` in [core.js](scripts/core.js) and the registrations
 in [settings.js](scripts/settings.js) agree. `tools/verify-settings.mjs` reads the
 shipped defaults from the registrations themselves, so there is no second copy to keep in step. A Foundry default applies only where a setting has never been
 written, so a default flip never touches an existing world.
@@ -954,7 +958,9 @@ written, so a default flip never touches an existing world.
 4. **A per-client setting nobody knows to look for must not start wrong** — by the TABLE's
    normal: Roll Your Own Damage ships ON because this table's players press their own damage; the
    buzzer makes ON safe.
-5. **The suites' retired keys** are translated in the page by `tools/harness.mjs`
+5. **A setting may own a dnd5e setting** only through a public `game.settings.set`, written by the
+   active GM and only when it differs; "Leave it to dnd5e" hands it back.
+6. **The suites' retired keys** are translated in the page by `tools/harness.mjs`
    (`retireSettings`): the timers are the Decision Timer, the concentration mode is Players Roll
    Their Own Saves, and a switch that is now always on is a no-op.
 
