@@ -3,7 +3,8 @@
 Written 2026-10-10 at the end of the mastery-record session (issue #3). Open the Claude Code session in
 `fvtt-mod-battleflow`. Read, in order: this file, `audits/plans/summons-handoff.md` (the relay and the gallery
 this issue reuses, and the gate lessons — not repeated here), the issue
-(`gh issue view 2 --repo Txpple/fvtt-mod-battleflow --json body -q .body`), `prototypes/wild-shape.html`, and
+(`gh issue view 2 --repo Txpple/fvtt-mod-battleflow --json body -q .body`), `prototypes/wild-shape-picker.html` (the
+ruled picker) and `prototypes/wild-shape.html` (the five scenes around it), and
 RULINGS.md *Weapon Mastery — the record* (the long-rest swap machine the known-form swap reuses).
 
 ## The rulings already given (2026-10-10)
@@ -15,15 +16,20 @@ RULINGS.md *Weapon Mastery — the record* (the long-rest swap machine the known
 | One picker for Wild Shape and the summons' CR-mode picks | **one gallery for both**, parameterised by pool and caps |
 | Moon druid's Improved Circle Forms (L6) | **measure before ruling** — read the pack's item on 6.0.6 and bring the finding to the user |
 
-**Still open — Known Forms (Q1).** The user asked for the rule explained before ruling. The explanation given:
-2024 Wild Shape knows four Beast forms at level 2; one known form may be replaced after each Long Rest; a use
-picks one of the *known* forms, inside the level's pool (CR ¼ / no fly before 8, and so on). dnd5e models none of
-it (the chooser is the whole compendium browser). The two shapes offered: **Enforce** (four slots on the Wild
-Shape item, the gallery shows only those, an empty slot opens the gallery, the long-rest swap offers one
-replacement through the same machine as the mastery swap — RAW) or **Pinned favourites** (four pins over an open
-gallery, zero paperwork, not RAW). The recommendation given was Enforce, matching the masteries stance; the user
-has not answered. **Ask first thing**, with the prototype open, and also the two prototype toggles not yet ruled
-(*how a form is picked*: art cards / compact rows / today's browser; *Known Forms*: enforced / pinned).
+**Ruled 2026-10-10 evening, off `prototypes/wild-shape-picker.html`** (the Wild Shape picker drawn in the summons'
+ruled row C; its toggles stay switchable for comparison):
+
+| Question | Ruling |
+| --- | --- |
+| Known Forms | **enforced (A, RAW)**: four slots as a flag on the Wild Shape item; the use offers those four rows; one swap per Long Rest through the rest-completed road (the mastery swap's shape: card → popup → relay → elect landing → confirmation popup with OK, and "Keep as you are" a real answer); an empty slot is filled from the pool at the use itself, in the same popup |
+| The locked pool at the use | **a count and a link** under the four ("29 more in the pool at CR ¼ or lower · locked until a Long Rest · show them"), not greyed rows; the link opens the pool to browse ahead |
+| The row's right column | **CR · size · book** for a CR-mode pool (Wild Shape, Circle Forms, Polymorph, the summons' Find Familiar / Wild Companion); the summons' profile picks keep AC · HP. A parameter of the shared gallery |
+| How a form is picked | inherited from summons: **rows carrying everything** (C) in **one popup before the card** (A); search and the speed pills (swim / climb / burrow, fly from level 8) inside the offer above the list; "answer first" as the disabled hint; the primary button names the form ("Become the wolf") |
+| Last used | marked on its row; kept |
+| The record | the known forms open read-only off the Wild Shape item's card, the mastery record's shape, with the next cap rise named |
+
+Nothing is open from the prototype. **The build has not started** (the user, 2026-10-10 evening: "we are not working yet,
+just locking decisions"); it waits on the summons relay and gallery, or starts them here per *The order of work*.
 
 What the mastery walk showed about the user's taste, which applies here: they want **a confirmation popup with OK
 after a change** (what you now have, what changed), a **"you have these" list before any choice** (a bare
@@ -43,7 +49,7 @@ you are starting first anyway, build the relay and the gallery here exactly as t
 2. **The gallery** — the shared picker with the Wild Shape rule rows: CR cap from the druid's level (¼ to 5, ½ at
    6, 1 at 8; Moon `floor(druid/3)`), no fly before 8, beast only; Animal Shapes' size band; Polymorph's cap from
    the target (`max(level, cr)`) — the issue's "blank cap" data gap judged from the sheet (DESIGN R1).
-3. **Known Forms** — per the ruling above; the long-rest swap through the rest-completed road (`scripts/
+3. **Known Forms** — enforced, per the ruling above; the long-rest swap through the rest-completed road (`scripts/
    mastery-record.js` `dnd5e.restCompleted` → card → popup → `answerSwap` relay → `registerResumable` landing →
    confirmation popup with OK is the exact shape to copy).
 4. **The relay** — the pick and the transform settings on the use's card; the elect calls
