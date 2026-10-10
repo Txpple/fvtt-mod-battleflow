@@ -17,6 +17,7 @@ something new*, and RULINGS.md *Weapon Mastery — the record* (the newest machi
 | The form picker | **one gallery shared with Wild Shape / polymorph**, parameterised by pool and caps (ruled on #2 Q5) |
 | Where the questions are asked | **one popup before the card** (A): the house offer asks every question, then placement, then one complete card posts (ruled 2026-10-10 off the prototype) |
 | How a form is picked | **rows carrying everything** (C, added to the prototype 2026-10-10 at the user's ask): one row per form with the token art, name, size and speeds, the attack line, the trait, AC and HP; nothing folded. Not art cards (A), not compact rows (B). Applies to the shared gallery, so Wild Shape inherits it |
+| The shared gallery's right column | **a parameter beside pool and caps**: a profile pick (the Summon spells) shows AC · HP; a CR-mode pool (Find Familiar, Wild Companion, Wild Shape) shows CR · size · book (ruled on #2, 2026-10-10; Wild Shape's picker prototype is `prototypes/wild-shape-picker.html`) |
 
 Nothing is open from the prototype's toggles; all four are ruled (above). **The build is on hold** (the user,
 2026-10-10 evening): another agent is in the sandbox. Before the build, re-measure on dnd5e 6.0.6 (below) and
