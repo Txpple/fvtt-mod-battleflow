@@ -21,10 +21,11 @@ async function syncVisibility() {
     if ( game.settings.settings.has(`dnd5e.${key}`) ) have[key] = game.settings.get("dnd5e", key);
     else console.warn(`${TITLE} | dnd5e has no ${key} setting; its visibility is left alone.`);
   }
-  for ( const [key, value] of visibilityWrites(want, have) ) {
-    try { await game.settings.set("dnd5e", key, value); }
-    catch(err) { console.warn(`${TITLE} | Could not set dnd5e's ${key}.`, err); }
-  }
+  // All at once, not one after another: on a GM load a world-setting write takes seconds to settle
+  // while the client is still busy, and three in a row left keys queued long after ready (issue #5).
+  await Promise.all(visibilityWrites(want, have).map(([key, value]) =>
+    game.settings.set("dnd5e", key, value)
+      .catch(err => console.warn(`${TITLE} | Could not set dnd5e's ${key}.`, err))));
 }
 
 listenOnce("ready", "settings", syncVisibility);
