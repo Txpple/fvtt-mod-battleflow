@@ -81,6 +81,12 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   an attack with a kind nobody chose says so on the card and offers to master it while a slot is
   open, a Long Rest offers the one swap the rule allows, and the party sheet's header has the
   GM's view of everyone against their allowance.
+- **Summoning works for players.** A summon spell asks everything in one window off its card: the
+  form from the book's own profiles (art, speeds, attacks, AC and HP on each row), the spell's own
+  question (Summon Dragon's damage type), or the creature from every book's beasts for Find
+  Familiar. The player places the creature on the map; the GM's client creates it, gives the
+  player ownership, seats it right after the caster in the tracker, and ties it to the spell's
+  concentration. No Create Token, no Create Actor, no Allow Summoning setting. Dismiss is a button.
 - **Cover is measured for you.** Select your token and hover another: a Cover section at the
   top of its card says No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total, and what is in
   the way. It uses the 2024 DMG grid method, lines from a corner of your space to the corners of

@@ -3172,6 +3172,79 @@ advancement step has an empty set: no mastery ever fires, and nothing says so. T
 | Orin takes a Long Rest | "1 too many — drop 1 to continue", OK held until one is ticked; the drop lands; the confirmation names it |
 | Tam attacks with the Quarterstaff | no line (a Wizard has no allowance) |
 
+## Summons (2026-10-10, issue #1)
+
+**The player casts and places; the active GM's client makes the creature — one new machine (`summons.js` +
+`decide/summons.js`), one shared service (`gallery.js` + `decide/gallery.js`, the picker Wild Shape reuses), one table
+(`SUMMON_CHOICES`), no new kind, no setting; BUILT against the static gates and the unit suite, the live suite
+(`smoke-summons` §1–§6) written and NOT YET RUN.** Ruled off `prototypes/summons.html` on 2026-10-10 (all four toggles).
+Measured on dnd5e 6.0.6 before the build: `SummonActivity#canSummon` is `TOKEN_CREATE && (isGM || allowSummoning)` on the
+PLAYER's client and the card's Summon button is hidden without it; `fetchExisting` imports the spirit and throws without
+`ACTOR_CREATE`; `getChanges`, `getPlacement` and `getTokenData` are public instance methods and
+`dnd5e.canvas.TokenPlacement.place` a public static — a canvas preview with `create: false`, no permission; the summon registry
+tracks a creature off `flags.dnd5e.summon.origin` in `prepareDerivedData` and untracks on delete, so nothing is registered by hand;
+a document carrying `flags.dnd5e.dependentOn = <effect uuid>` is tracked as that effect's dependent. The calls:
+
+1. **The system places nothing.** `dnd5e.preUseActivity` on a summon activity with a profile the cast may use sets
+   `usageConfig.create.summons = false` (the precedent is `token-lights.js`). dnd5e's Allow Summoning setting and the player's
+   Create Token / Create Actor permissions become irrelevant to a Battle Flow table.
+2. **One popup, off the card** (toggle A). The caster's client stamps the `summon` record (`asked`) on its own cast card at
+   `dnd5e.postUseActivity` — the profiles the level allows, each with the creature's art, AC, HP, speeds, attacks and traits read
+   off the compendium; the spell's own choice when a `SUMMON_CHOICES` row names one; the concentration effect; the scene — and the
+   card's render opens the popup for the caster (`openMomentPopup`, the one answer gate; a dismissed popup is recalled by the card's
+   "Place the creature"). The card posts a beat before the popup because the popup anchors to it and a reload re-opens it from the
+   flag; the player answers once, in one window, before any creature exists — the ruling's substance.
+3. **The form rows carry everything** (toggle C): the radio, the token art, the name over size · speeds · the attacks with their
+   dice and the traits, AC and HP on the right (a profile pick) or CR · size · book (a pool pick). One profile asks no form; a
+   `cr`-mode profile (Find Familiar, Wild Companion) asks the shared gallery — every visible Actor pack's index at the profile's cap
+   and types, one row per name with the Monster Manual's copy first, then the PHB's, then the DMG's (`BOOK_ORDER`), a search box.
+4. **Place, then record.** "Place" runs the system's own preview (`TokenPlacement.place`, the count rolled off the profile's
+   formula on the caster's roll data) and folds the squares into the record (`placedAnswer`: the profile must be one of the
+   record's, the choice one of the row's options, the pool pick present when needed, every placement a square). Cancelling on the map
+   leaves the card `asked`.
+5. **The elect lands it** (`registerResumable("summon")`, claimed inside `queueFlagWrite` as the mastery swap is): fetch or
+   import the creature with its own permissions (`fetchExisting`, the origin stamped so a re-cast finds the one world copy — linked
+   companions import once and keep); dnd5e's own `getChanges` for the profile, per token; the tokens created on the record's scene
+   with `flags.dnd5e.dependentOn` the concentration effect's uuid, so concentration's end takes them; `dnd5e.postSummon` fired for
+   whoever listens; the caster's owners (level 3) granted OWNER on the world actor; **a seat right after the caster** (toggle A): a
+   combatant on the caster's Initiative less 0.01 when the caster is in the started combat; `applied` stamped with what landed. No GM
+   online: the card says "no GM online — it lands when a GM connects" and the first GM render drives it (DESIGN §4, no degraded mode).
+   A failure stamps `failed` with the reason and "place it by hand".
+6. **The dragon is a table row.** `SUMMON_CHOICES["Summon Dragon"]`: the popup asks the damage type (acid · cold · fire ·
+   lightning · poison); the elect narrows the spirit's Breath Weapon parts to the one type on the token's delta
+   (`narrowedActivities`) and lands "Shared Resistance (⟨type⟩)" on the caster — one ADD on the resistance trait, dependent on the
+   concentration effect, receipted on the cast card (`effectReceipt`) so a revert takes it off. A future spirit with an at-cast
+   choice is one more row.
+7. **Dismiss** is a button on the landed card for the caster or a GM; the elect deletes the tokens it made and the resistance effect
+   and stamps `dismissed`. The effect-view bar's Dismiss and the clock beside the creature are the sandbox pass's.
+8. **Tier 2 placed objects** (lights, illusions, Mage Hand, Unseen Servant, sensors; toggle A) ride the same relay: one profile, no
+   choice, so the popup is "Nothing to pick: place it" and the elect creates the object. Nothing names them; a summon activity with
+   a profile is a summon.
+
+| Row | Where | What it does |
+| --- | --- | --- |
+| The intercept | `summons.js` `dnd5e.preUseActivity` | `create.summons = false` on every summon activity with a profile |
+| The record | `dnd5e.postUseActivity` → `summon` flag `asked` | the profiles with art and lines, the choice, the concentration, the scene |
+| The popup | `dnd5e.renderChatMessage` → `showSummonPopup` | the form (rows C), the pool (the shared gallery), the choice; Place runs the preview and folds `placed` |
+| The landing | `registerResumable("summon")` → `landSummon` (the elect) | fetch/import, `getChanges`, the narrowed breath, the tokens as concentration dependents, `postSummon`, ownership, the seat, the resistance; a resolve (`cast`) |
+| Dismiss | the landed card → `askDismiss` → the same resumable → `dismissSummon` | the tokens and the resistance deleted by the elect |
+| The gallery | `gallery.js` `poolFromPacks` / `formRowHTML` / `poolListHTML` / `previewPlacement` over `decide/gallery.js` `galleryRows` | the picker both summons and Wild Shape route through |
+
+**The walk table** (to run on the sandbox once it is free; the Sorcerer fixture lent the PHB's Summon Beast and Summon Dragon):
+
+| Step | What you should see |
+| --- | --- |
+| A player casts Summon Beast (2nd) | the cast card, no token from the system; the popup "The form · 3 in the pack" with Air / Land / Water rows (art, "Small · 30 ft, fly 60 · Rend · 1d8 + 4 piercing", Flyby; AC 11 · 20 HP), Place |
+| Place → one square | the preview on the map; the card "Bestial Land Spirit — placed · waiting for the GM's client" |
+| The GM's client | the token lands beside the caster, named Bestial Land Spirit, `flags.dnd5e.summon.level` 2; the card "landed by the GM's client · ⟨caster⟩'s players own it", Dismiss; the player can move it |
+| In a started combat | the creature's combatant right after the caster's at Initiative − 0.01 |
+| Summon Dragon (5th) | one row (the Draconic Spirit) and the pills acid / cold / fire / lightning / poison; Place held until a type is picked |
+| fire, placed, landed | the spirit's Breath Weapon rolls fire alone; "Shared Resistance (Fire)" on the caster's sheet and in the effect receipt |
+| End concentration | the token and the resistance go with it |
+| Find Familiar | the gallery: the CR 0 beasts of every book, one Owl (the MM's), search by name; the second question (Celestial / Fey / Fiend) is a follow-up row |
+| No GM online | the card "no GM online — it lands when a GM connects"; the GM connects, it lands once |
+| Dismiss | the token gone, the resistance ended, the card "dismissed" |
+
 ## Rulings the code carried
 
 The code built these as ruled, but RULINGS never recorded them; they lived only in code

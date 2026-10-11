@@ -23,6 +23,22 @@ Nothing is open from the prototype's toggles; all four are ruled (above). **The 
 2026-10-10 evening): another agent is in the sandbox. Before the build, re-measure on dnd5e 6.0.6 (below) and
 check `disconnect-bridge` etiquette with whoever holds the sandbox.
 
+## Where the build stands (2026-10-10, late)
+
+**Built on `feat/summons`** (the worktree `.claude/worktrees/summons`, off bbc8883): `scripts/summons.js`,
+`scripts/decide/summons.js`, the shared gallery `scripts/gallery.js` + `scripts/decide/gallery.js`, `SUMMON_CHOICES`,
+the `summon` resolve row, `tools/smoke-summons.mjs` (§1–§6), the RULINGS section *Summons*. `npm run verify`'s static gates
+and the 1347 unit tests are green; **the live suite has never run** — the sandbox was another session's. The Wild Shape session
+(its own worktree) imports the gallery by name; merge summons first, Wild Shape rebases.
+
+**The sandbox pass, in order:** deploy the branch's files to the local box, run `node tools/smoke-summons.mjs`, then the walk
+table in RULINGS *Summons* by hand (the placement preview is a canvas interaction the suite bypasses through `placedAnswer`).
+Watch for: whether `activity.getTokenData` accepts a plain placement object on the elect (it deletes `placement.prototypeToken`
+and merges the rest); whether `flags.dnd5e.dependentOn` on a TOKEN is honoured by the dependents registry on the concentration
+effect's delete (the transform activity sets it on effects; a token may need the effect's own dependent tracking instead); the
+seat's sort in the tracker; `Roll.safeEval` on a profile's `cr` formula; the `summon` row's position in the moments gate's
+table. Then the effect-view bar's Dismiss and the clock, and a two-client section.
+
 ## The order of work
 
 Summons comes **before** Wild Shape (the user's order: masteries → summons → wild shape). Wild Shape reuses this
