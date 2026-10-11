@@ -99,7 +99,8 @@ export function summonRecord({ sourceUuid, sourceName, itemUuid, itemName, activ
 /**
  * The popup's answer folded into an `asked` record, judged: the profile is one of the record's, the
  * choice one of the row's options when a row stands, the pool pick present when the profile needs one,
- * every placement a square. The patch to write, or null when the answer is not one the form allows.
+ * every placement a square. The patch to write, or null when the answer is not one the form allows. The
+ * record's `choice` stays the row's key; the answer to it lands as `picked`.
  * @param {object} record
  * @param {{ profileId: string|null, pick?: { uuid: string, name: string, img?: string|null }|null, choice?: string|null,
  *   placements: Array<{ x: number, y: number, elevation?: number, rotation?: number, level?: string|null }>,
@@ -113,19 +114,19 @@ export function placedAnswer(record, answer, table) {
   if ( !profile ) return null;
   const needsPool = !profile.uuid && (profile.cr !== null);
   if ( needsPool && !answer?.pick?.uuid ) return null;
-  let choice = null;
+  let picked = null;
   if ( record.choice ) {
     const row = table?.[record.choice];
     if ( !row?.options?.includes(answer?.choice ?? "") ) return null;
-    choice = answer.choice;
+    picked = answer.choice;
   }
   const placements = (answer?.placements ?? []).filter(p => Number.isFinite(Number(p?.x)) && Number.isFinite(Number(p?.y)))
     .map(p => ({ x: Number(p.x), y: Number(p.y), elevation: Number(p.elevation) || 0, rotation: Number(p.rotation) || 0, level: p.level ?? null }));
   if ( !placements.length ) return null;
   return {
-    status: "placed", profileId: profile.id, profileName: profile.name || answer?.pick?.name || "",
-    summonUuid: profile.uuid ?? answer?.pick?.uuid ?? null, summonName: answer?.pick?.name ?? profile.name ?? "",
-    choice, placements, count: Math.max(1, Number(answer?.count) || placements.length),
+    status: "placed", profileId: profile.id, profileName: profile.name || profile.label || answer?.pick?.name || "",
+    summonUuid: profile.uuid ?? answer?.pick?.uuid ?? null, summonName: answer?.pick?.name || profile.label || profile.name || "",
+    picked, placements, count: Math.max(1, Number(answer?.count) || placements.length),
     sceneId: answer?.sceneId ?? record.sceneId ?? null,
     creatureSize: answer?.creatureSize ?? null, creatureType: answer?.creatureType ?? null,
     placedAt: Date.now()

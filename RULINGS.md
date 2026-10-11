@@ -3183,7 +3183,8 @@ PLAYER's client and the card's Summon button is hidden without it; `fetchExistin
 `ACTOR_CREATE`; `getChanges`, `getPlacement` and `getTokenData` are public instance methods and
 `dnd5e.canvas.TokenPlacement.place` a public static — a canvas preview with `create: false`, no permission; the summon registry
 tracks a creature off `flags.dnd5e.summon.origin` in `prepareDerivedData` and untracks on delete, so nothing is registered by hand;
-a document carrying `flags.dnd5e.dependentOn = <effect uuid>` is tracked as that effect's dependent. The calls:
+`flags.dnd5e.dependentOn` is honoured on effects, activities, items and actors, **never on a token**, and the summon activity ties
+nothing to the concentration effect (measured live 2026-10-10: a flagged token outlived its concentration). The calls:
 
 1. **The system places nothing.** `dnd5e.preUseActivity` on a summon activity with a profile the cast may use sets
    `usageConfig.create.summons = false` (the precedent is `token-lights.js`). dnd5e's Allow Summoning setting and the player's
@@ -3204,8 +3205,9 @@ a document carrying `flags.dnd5e.dependentOn = <effect uuid>` is tracked as that
    leaves the card `asked`.
 5. **The elect lands it** (`registerResumable("summon")`, claimed inside `queueFlagWrite` as the mastery swap is): fetch or
    import the creature with its own permissions (`fetchExisting`, the origin stamped so a re-cast finds the one world copy — linked
-   companions import once and keep); dnd5e's own `getChanges` for the profile, per token; the tokens created on the record's scene
-   with `flags.dnd5e.dependentOn` the concentration effect's uuid, so concentration's end takes them; `dnd5e.postSummon` fired for
+   companions import once and keep); dnd5e's own `getChanges` for the profile, per token; the tokens created on the record's scene;
+   **concentration's end takes them** — the elect, on the concentration effect's delete, asks the dismissal of every landed record
+   naming it (call 7); `dnd5e.postSummon` fired for
    whoever listens; the caster's owners (level 3) granted OWNER on the world actor; **a seat right after the caster** (toggle A): a
    combatant on the caster's Initiative less 0.01 when the caster is in the started combat; `applied` stamped with what landed. No GM
    online: the card says "no GM online — it lands when a GM connects" and the first GM render drives it (DESIGN §4, no degraded mode).
@@ -3226,8 +3228,8 @@ a document carrying `flags.dnd5e.dependentOn = <effect uuid>` is tracked as that
 | The intercept | `summons.js` `dnd5e.preUseActivity` | `create.summons = false` on every summon activity with a profile |
 | The record | `dnd5e.postUseActivity` → `summon` flag `asked` | the profiles with art and lines, the choice, the concentration, the scene |
 | The popup | `dnd5e.renderChatMessage` → `showSummonPopup` | the form (rows C), the pool (the shared gallery), the choice; Place runs the preview and folds `placed` |
-| The landing | `registerResumable("summon")` → `landSummon` (the elect) | fetch/import, `getChanges`, the narrowed breath, the tokens as concentration dependents, `postSummon`, ownership, the seat, the resistance; a resolve (`cast`) |
-| Dismiss | the landed card → `askDismiss` → the same resumable → `dismissSummon` | the tokens and the resistance deleted by the elect |
+| The landing | `registerResumable("summon")` → `landSummon` (the elect) | fetch/import, `getChanges`, the narrowed breath, the tokens, `postSummon`, ownership, the seat, the resistance; a resolve (`cast`) |
+| Dismiss | the landed card, or the concentration effect's delete (`deleteActiveEffect` on the elect) → `askDismiss` → the same resumable → `dismissSummon` | the tokens and the resistance deleted by the elect |
 | The gallery | `gallery.js` `poolFromPacks` / `formRowHTML` / `poolListHTML` / `previewPlacement` over `decide/gallery.js` `galleryRows` | the picker both summons and Wild Shape route through |
 
 **The walk table** (to run on the sandbox once it is free; the Sorcerer fixture lent the PHB's Summon Beast and Summon Dragon):

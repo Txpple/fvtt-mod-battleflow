@@ -34,9 +34,7 @@ and the 1347 unit tests are green; **the live suite has never run** — the sand
 **The sandbox pass, in order:** deploy the branch's files to the local box, run `node tools/smoke-summons.mjs`, then the walk
 table in RULINGS *Summons* by hand (the placement preview is a canvas interaction the suite bypasses through `placedAnswer`).
 Watch for: whether `activity.getTokenData` accepts a plain placement object on the elect (it deletes `placement.prototypeToken`
-and merges the rest); whether `flags.dnd5e.dependentOn` on a TOKEN is honoured by the dependents registry on the concentration
-effect's delete (the transform activity sets it on effects; a token may need the effect's own dependent tracking instead); the
-seat's sort in the tracker; `Roll.safeEval` on a profile's `cr` formula; the `summon` row's position in the moments gate's
+and merges the rest); the seat's sort in the tracker; `Roll.safeEval` on a profile's `cr` formula; the `summon` row's position in the moments gate's
 table. Then the effect-view bar's Dismiss and the clock, and a two-client section.
 
 ## The order of work

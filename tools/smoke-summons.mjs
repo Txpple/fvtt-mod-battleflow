@@ -128,7 +128,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         if (tok) madeTokens.push(tok.id);
         for (const a of importedSpirits()) if (!madeActors.includes(a)) madeActors.push(a);
         ok('§2 the elect landed one token', landed?.outcome === 'landed' && !!tok, JSON.stringify({ outcome: landed?.outcome, failure: landed?.failure }));
-        ok('§2 it is the Land spirit at the spell\'s level', /Land/.test(tok?.name ?? '') && (tok?.actor?.getFlag('dnd5e', 'summon')?.level === 2), `${tok?.name} level=${tok?.actor?.getFlag('dnd5e', 'summon')?.level}`);
+        // ⚠ The PHB names all three forms' prototype tokens "Bestial Spirit": the form is the actor's name.
+        const base = game.actors.get(tok?.actorId ?? '');
+        const source = base?._stats?.compendiumSource ?? '';
+        ok('§2 it is the Land spirit at the spell\'s level', /BestialLan/.test(source) && (tok?.actor?.getFlag('dnd5e', 'summon')?.level === 2), `${base?.name} from ${source} level=${tok?.actor?.getFlag('dnd5e', 'summon')?.level}`);
         const row = await waitFor(() => document.querySelector(`[data-message-id="${message.id}"] .battleflow-summon`), 6000);
         ok('§2 the card says landed', /landed by the GM/.test(row?.textContent ?? ''), (row?.textContent ?? '').trim().slice(0, 120));
         if (want(5)) {
@@ -165,7 +168,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const effect = caster.effects.find(e => /Shared Resistance/.test(e.name));
       const conc = caster.effects.get(message.system?.concentration);
       ok('§3 the resistance stands on the caster, dependent on concentration', !!effect && (effect.getFlag('dnd5e', 'dependentOn') === conc?.uuid) && effect.changes.some(c => c.key === 'system.traits.dr.value' && c.value === 'fire'), JSON.stringify({ effect: effect?.name, dep: effect?.getFlag('dnd5e', 'dependentOn'), conc: conc?.uuid }));
-      if (conc) { await conc.delete(); await sleep(500); ok('§3 ending concentration takes the token and the resistance with it', !canvas.scene.tokens.get(tok?.id) && !caster.effects.get(effect?.id), ''); }
+      if (conc) {
+        await conc.delete();
+        const gone = await waitFor(() => (!canvas.scene.tokens.get(tok?.id) && !caster.effects.get(effect?.id)) ? true : null, 15000);
+        ok('§3 ending concentration takes the token and the resistance with it', !!gone, `token=${!!canvas.scene.tokens.get(tok?.id)} resistance=${!!caster.effects.get(effect?.id)} dismissed=${!!message.getFlag(MOD, 'summon')?.dismissed}`);
+      }
     }
     if (want(6)) {
       const { poolFromPacks } = await import('/modules/fvtt-mod-battleflow/scripts/gallery.js');

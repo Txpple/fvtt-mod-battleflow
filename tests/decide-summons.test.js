@@ -151,7 +151,7 @@ describe("summonRecord and placedAnswer — the record and the answer folded in"
       status: "placed",
       profileId: "drg",
       summonUuid: "Compendium.phb.actors.Actor.drg",
-      choice: "fire",
+      picked: "fire",
       count: 1,
       sceneId: "scene1"
     });

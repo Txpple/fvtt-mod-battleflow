@@ -7,10 +7,10 @@
  * popup off the cast card (the form rows ruled C, RULINGS *Summons*; the shared gallery is gallery.js),
  * runs the placement preview (no permission needed) and writes the record on its own card; the elect
  * fetches or imports the creature with its own permissions, applies dnd5e's own profile changes, narrows
- * the dragon's breath, creates the tokens as dependents of the concentration effect, seats them right
+ * the dragon's breath, creates the tokens, seats them right
  * after the caster, grants the caster's players ownership, lands the shared resistance on the caster, and
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
- * elect made.
+ * elect made, and the concentration effect's end asks it.
  */
 import { MODULE_ID, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
@@ -224,14 +224,14 @@ async function landSummon(message) {
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
-      const narrowed = (row && flag.choice) ? narrowingUpdate(actor, row, flag.choice) : null;
+      const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
+        // ⚠ A token delta's item entry is merged as nested data; a dotted key would be stored as a literal key.
+        const nested = foundry.utils.expandObject(narrowed);
         const have = changes.actorUpdates.items.find(i => i._id === narrowed._id);
-        if ( have ) Object.assign(have, narrowed); else changes.actorUpdates.items.push(narrowed);
+        if ( have ) foundry.utils.mergeObject(have, nested); else changes.actorUpdates.items.push(nested);
       }
-      const data = await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates });
-      if ( concentration ) foundry.utils.setProperty(data, "flags.dnd5e.dependentOn", concentration.uuid);
-      tokensData.push(data);
+      tokensData.push(await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates }));
     }
     const created = await scene.createEmbeddedDocuments("Token", tokensData, { dnd5e: { autoRollNPCHP: "no" } });
     for ( const t of created ) landed.push({ tokenId: t.id, sceneId: scene.id, actorUuid: t.actor?.uuid ?? null, name: t.name });
@@ -246,9 +246,9 @@ async function landSummon(message) {
       await combat.createEmbeddedDocuments("Combatant", created.map(t => ({ tokenId: t.id, sceneId: scene.id, actorId: t.actorId, initiative })));
     }
     // The shared resistance on the caster, for the spell's life.
-    if ( row?.resist && flag.choice ) {
-      const label = CONFIG.DND5E?.damageTypes?.[flag.choice]?.label ?? flag.choice;
-      const data = resistanceEffectData({ type: flag.choice, name: `${row.resist} (${label})`, img: activity.item.img, origin: activity.item.uuid, description: row.says ?? "" });
+    if ( row?.resist && flag.picked ) {
+      const label = CONFIG.DND5E?.damageTypes?.[flag.picked]?.label ?? flag.picked;
+      const data = resistanceEffectData({ type: flag.picked, name: `${row.resist} (${label})`, img: activity.item.img, origin: activity.item.uuid, description: row.says ?? "" });
       data.duration = concentration ? { ...(concentration._source?.duration ?? {}) } : (activity.duration?.getEffectData?.() ?? {});
       if ( concentration ) foundry.utils.setProperty(data, "flags.dnd5e.dependentOn", concentration.uuid);
       const [effect] = await caster.createEmbeddedDocuments("ActiveEffect", [data]);
@@ -317,6 +317,21 @@ async function askDismiss(message) {
   });
 }
 
+// Concentration's end ends the summon. ⚠ dnd5e tracks dependents on effects, activities, items and actors,
+// never on a token, and its summon activity ties nothing to the concentration effect: the elect asks the
+// dismissal of every landed record that names the effect (the resistance cascades on its own).
+listen("deleteActiveEffect", "summons", effect => {
+  try {
+    if ( !isActiveGM() || !(effect?.parent instanceof Actor) || !effect.statuses?.has?.("concentrating") ) return;
+    const casterUuid = effect.parent.uuid;
+    for ( const message of game.messages.contents ) {
+      const f = message.getFlag(MODULE_ID, SUMMON_FLAG);
+      if ( !f?.applied || f.dismissAsked || (f.concentrationId !== effect.id) || (f.sourceUuid !== casterUuid) ) continue;
+      void askDismiss(message).catch(err => console.warn(`${TITLE} | Could not dismiss the summon with its concentration — delete the token by hand.`, err));
+    }
+  } catch(err) { console.warn(`${TITLE} | Could not end the summon with its concentration — delete the token by hand.`, err); }
+});
+
 /* --- the card says it (R5) --------------------------------------------------------------------------- */
 
 function drawSummon(message, html, flag) {
@@ -344,7 +359,7 @@ function drawSummon(message, html, flag) {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "bad", title: `${what} — could not be landed`, subtitle: `${flag.failure ?? "see the console"} · place it by hand` });
   } else {
     row.innerHTML = bfCard({ eyebrow: "Summon", tone: "good", title: `${names.join(", ") || what} — landed by the GM's client`,
-      subtitle: [flag.choice, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null, `${flag.sourceName}'s players own it`].filter(Boolean).join(" · ") });
+      subtitle: [flag.picked, flag.resistance ? `${flag.resistance.effectName} on ${flag.sourceName}` : null, `${flag.sourceName}'s players own it`].filter(Boolean).join(" · ") });
     if ( (mine || game.user.isGM) && !flag.dismissAsked ) row.appendChild(momentButton("Dismiss", () => { void askDismiss(message); }, { margin: "0.25rem 0 0" }));
     else if ( flag.dismissAsked ) row.appendChild(Object.assign(document.createElement("em"), { textContent: "dismissing…" }));
   }

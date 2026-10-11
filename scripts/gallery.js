@@ -47,7 +47,7 @@ export function summaryOf(actor) {
     const attack = acts.find(a => a.type === "attack");
     if ( attack ) {
       const parts = (attack.damage?.parts ?? []).map(p => p.custom?.enabled ? p.custom.formula
-        : `${p.number ?? 1}d${p.denomination ?? 6}${p.bonus ? ` + ${p.bonus}` : ""} ${(p.types ?? []).join("/")}`.trim());
+        : `${p.number ?? 1}d${p.denomination ?? 6}${p.bonus ? ` + ${p.bonus}` : ""} ${[...(p.types ?? [])].join("/")}`.trim());   // ⚠ prepared types are a Set
       attacks.push(`${item.name}${parts.length ? ` · ${parts.join(", ")}` : ""}`);
     } else if ( (item.type === "feat") && !acts.length ) traits.push(item.name);
   }

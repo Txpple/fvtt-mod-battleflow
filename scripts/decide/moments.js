@@ -295,7 +295,7 @@ export const MOMENT_RECORDS = Object.freeze({
       facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
         ability: r.itemName ?? null,
         targets: (r.landed ?? []).map(l => ({ uuid: l.actorUuid ?? null, name: l.name ?? null })),
-        details: { outcome: r.outcome ?? null, profile: r.profileName ?? null, summon: r.summonName ?? null, choice: r.choice ?? null,
+        details: { outcome: r.outcome ?? null, profile: r.profileName ?? null, summon: r.summonName ?? null, row: r.choice ?? null, picked: r.picked ?? null,
           count: r.count ?? null, level: r.level ?? null, dismissed: !!r.dismissed } }
     }] : []
   },
