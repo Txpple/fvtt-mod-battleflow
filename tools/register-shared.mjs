@@ -34,6 +34,7 @@ export const WHERE = {
   DAMAGE_SAVES: ["damage-casts.js", "Damage casts"],
   DROP_TO_ONE: ["drop-to-one.js", "The species walk, continued"],
   TOKEN_LIGHTS: ["token-lights.js", "The species walk, continued"],
+  SUMMON_CHOICES: ["summons.js", "Summons"],
   TOKEN_SIZES: ["effect-riders.js", "The species walk, continued"],
   SPENT_AREAS: ["saves/areas.js", "Rulings the code carried · Save demands and their areas"],
   CHOSEN_AREAS: ["saves/demand.js", "Spells that choose their targets"],

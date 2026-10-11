@@ -4047,6 +4047,23 @@ export const KIND_LISTS = Object.freeze({
 
 /* THE READERS: fresh copies, so no caller can edit a table. A membership reader is every row of its
  * table, as `{ kind }` lower-cased. */
+/**
+ * SUMMON CHOICES (summons.js, issue #1): the question a summon spell's own text asks at the cast that
+ * dnd5e's profile select cannot hold, and what the answer lands. `item` the spell (the key when
+ * absent); `ask` the question's label; `options` the answers (damage-type keys); `narrow` the summoned
+ * creature's item whose damage parts are narrowed to the one type; `resist` the name of the resistance
+ * effect landed on the caster for the spell's life (null for none); `says` the book's sentence the effect carries. The Draconic Spirit ships every
+ * breath type on one part and five "Shared Resistance" buttons on its own sheet.
+ */
+export const SUMMON_CHOICES = Object.freeze({
+  "Summon Dragon": Object.freeze({
+    ask: "The dragon's damage type", options: Object.freeze(["acid", "cold", "fire", "lightning", "poison"]),
+    narrow: "Breath Weapon", resist: "Shared Resistance",
+    says: "The spirit's Breath Weapon deals the chosen type; while it is within 10 feet, the caster has Resistance to that type.",
+    rule: Object.freeze({ item: "Summon Dragon", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplSummonDrag" })
+  })
+});
+
 const copies = rows => rows.map(r => ({ ...r }));
 const everyRow = names => [...new Set(names)].map(n => ({ kind: String(n).toLowerCase() }));
 
@@ -4092,6 +4109,7 @@ export const restGrantEntries = () => everyRow(Object.keys(REST_GRANTS));
 export const tokenSizeEntries = () => everyRow(Object.keys(TOKEN_SIZES));
 export const tokenSenseEntries = () => everyRow(Object.keys(TOKEN_SENSES));
 export const tokenLightEntries = () => everyRow(Object.keys(TOKEN_LIGHTS));
+export const summonChoiceEntries = () => everyRow(Object.keys(SUMMON_CHOICES));
 export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));
 export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES));
 export const effectChoiceEntries = () => everyRow(Object.keys(EFFECT_CHOICES));

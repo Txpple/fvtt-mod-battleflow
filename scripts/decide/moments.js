@@ -287,6 +287,19 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  summon: {
+    events: ["cast"],
+    means: "a summon the module drove was landed by the elect — the creature(s) created from the caster's placement, the spell's own choice applied, ownership granted (summons.js, issue #1); resolved when `applied`",
+    resolved: (r, ctx) => r?.applied ? [{
+      marker: "message", events: ["cast"],
+      facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
+        ability: r.itemName ?? null,
+        targets: (r.landed ?? []).map(l => ({ uuid: l.actorUuid ?? null, name: l.name ?? null })),
+        details: { outcome: r.outcome ?? null, profile: r.profileName ?? null, summon: r.summonName ?? null, choice: r.choice ?? null,
+          count: r.count ?? null, level: r.level ?? null, dismissed: !!r.dismissed } }
+    }] : []
+  },
+
   rebuke: {
     events: ["hold-answered"],
     means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",

@@ -23,6 +23,7 @@ import "./auto-apply.js";
 import "./effect-riders.js";
 import "./mastery.js";
 import "./mastery-record.js";
+import "./summons.js";
 import "./topple.js";
 import "./chip-spend.js";
 import "./wards.js";

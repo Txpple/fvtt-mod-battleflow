@@ -169,6 +169,7 @@ const WORLD_WRITERS = {
   "cast-riders.js": "the surge's line is state (castRider) — the table posts its own card and Tides of Chaos is the sheet's use; Inspiring Smite's hand-out is the rest song's record (restSong)",   // Persistent Rage, Uncanny Metabolism (its heal receipted on the card)
   "heal-rerolls.js": ["healReroll"],   // Healer's 1s rerolled on a healing roll
   "kit-tend.js": ["kitTend"],   // Healer's Battle Medic on the kit's use, landed by the elect
+  "summons.js": ["summon", "effectReceipt"],   // the creature landed by the elect; the shared resistance receipted on the cast card
   "mastery-record.js": ["masterySwap"],   // the Long Rest's change landed by the elect; the fill's writes are state on the sheet's own list (masteryFill)
   "ward-pools.js": "Arcane Ward's hit points are its feature's own uses: the take lands in the damage receipt the applier writes (its pop rides the bearer's damage update, wardAbsorb), the cast's line is state (wardRefill)",
   "damage-rules.js": ["grappleDamage"],   // Unarmed Fighting's turn-start damage; the faces are bookkeeping, the damage numbers ride the roll's own config (fightingStyle: state)

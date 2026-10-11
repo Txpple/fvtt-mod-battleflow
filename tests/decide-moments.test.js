@@ -230,6 +230,29 @@ describe("the moment registry — shape", () => {
         applied: true,
         outcome: "swapped"
       },
+      summon: {
+        status: "placed",
+        sourceUuid: "Actor.c",
+        sourceName: "Corin",
+        itemUuid: "Actor.c.Item.sd",
+        itemName: "Summon Dragon",
+        activityUuid: "Actor.c.Item.sd.Activity.a",
+        level: 5,
+        profileName: "Draconic Spirit",
+        summonName: "Draconic Spirit",
+        choice: "fire",
+        count: 1,
+        applied: true,
+        outcome: "landed",
+        landed: [
+          {
+            tokenId: "t1",
+            sceneId: "s1",
+            actorUuid: "Scene.s1.Token.t1.Actor.x",
+            name: "Draconic Spirit"
+          }
+        ]
+      },
       rebuke: {
         status: "resolved",
         actorUuid: "Actor.s",
