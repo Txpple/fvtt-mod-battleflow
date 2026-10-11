@@ -151,9 +151,19 @@ released, `/api/status` back to zero users.
 **One-off jobs** go through `job.mjs` instead of a throwaway script: `-e "<the body of an async
 function>"` or a file holding one, run in the GM client's page with `arg` (`--arg '<json>'`) and
 `log(...)`, the result printed as JSON, every guard above included. `--read-only` passes the preflight
-beside the MCP bridge for a probe that asserts nothing. Where a job's minutes go, measured on the
-idle sandbox (2026-10-10): launch + join + preflight 6 s; 40 items in one `createEmbeddedDocuments`
-79 ms; the same ten at a time, sequentially, four times that per item. Batch the writes.
+beside the MCP bridge for a probe that asserts nothing.
+
+**Where a job's seconds go** is measured, not guessed: `probe-timing.mjs` (issue #10) connects,
+takes a census (hook counts, document counts, whether the module is on) and times the shapes a job
+is made of — compendium reads, one actor, 84 items in one call and one at a time, updates, chat, a
+token — then deletes what it made; `--json` appends the row, `--beside --as bridge` joins beside a
+running suite with no lock and no preflight. The sandbox's usual cost (2026-10-10, 16 cores, Foundry
+14.369, dnd5e 6.0.6): the whole probe in 8–10 s; connect 4–6 s of that; 84 items in one
+`createEmbeddedDocuments` under 220 ms; ten single-item creates 0.7–1.0 s (four times the per-item
+cost of the batch: batch the writes). Measured the same in every state tried — the module off, a dirty
+world (40 combats, 3000 messages), a second GM idle or running a suite, four idle bridge browsers —
+so a job that takes minutes is the job's own shape or the machine's state, and the first move is to
+run the probe and compare its row with these.
 
 ### The battery
 
