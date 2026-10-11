@@ -55,6 +55,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
 
   const caster = game.actors.getName('BF Test Sorcerer');
   if (!caster) return { fatal: 'missing fixture: BF Test Sorcerer — run tools/fixture-suite.mjs' };
+  // ⚠ The range is VIEWED first (every other suite does): a fresh client's canvas is the world's
+  // active scene, and in the battery that is not the range — this suite went FATAL at
+  // "the Sorcerer has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
+  const range = game.scenes.getName('Battle Flow Test Range');
+  if (!range) return { fatal: 'missing fixture: scene Battle Flow Test Range — run tools/fixture-suite.mjs' };
+  if (canvas.scene?.id !== range.id) await range.view();
+  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
   const lent = [];

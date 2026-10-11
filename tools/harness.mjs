@@ -468,8 +468,18 @@ export function report({ tag, out, plan = null }) {
   return failures;
 }
 
-/** Report, hang up, and carry the verdict out as the exit code. */
+/**
+ * Report, hang up, and carry the verdict out as the exit code. ⚠ A FATAL hangs up too: `report`
+ * exits on a fatal before any teardown, which left every scene's `noCover` flag set after the two
+ * FATAL suites of the 2026-10-11 battery (the settings check read DRIFTED for a harness reason).
+ */
 export async function finish({ tag, out, plan = null, f = null }) {
+  if (out?.fatal) {
+    console.error(`\n[${tag}] FATAL: ${out.fatal}`);
+    for (const r of out.results ?? []) console.log(`  ${r.pass ? "PASS" : "FAIL"} ${r.name}`);
+    await f?.disconnect?.();
+    process.exit(2);
+  }
   const failures = report({ tag, out, plan });
   await f?.disconnect?.();
   process.exit(failures ? 1 : 0);

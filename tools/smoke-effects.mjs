@@ -66,6 +66,48 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const momentsOf = (event, since = 0) => moments.filter(p => (p.event === event) && (p.at >= since));
   const plain = p => { try { return JSON.stringify(p) === JSON.stringify(JSON.parse(JSON.stringify(p))); } catch { return false; } };
   const suiteStart = Date.now();
+  // ⚠ THE DIAGNOSTIC smoke-shields carries, kept here permanently (issue #9: one moving red per
+  // battery on 14.369, §7 then §2, never alone — the next one must place itself): every console
+  // error WITH ITS STACK, the page's own uncaught errors and rejections, and every ActiveEffect
+  // delete with its caller, so an `ActiveEffect "<id>" does not exist!` walks back to the delete
+  // that lost the race. Printed as `console:` lines in the log at teardown.
+  const errors = [];
+  const origError = console.error;
+  const describe = a => (a instanceof Error) ? (a.stack || a.message) : String(a);
+  console.error = (...args) => { errors.push(`E +${Date.now() - suiteStart}ms ` + args.map(describe).join(' ').slice(0, 1500)); origError(...args); };
+  const onWindowError = ev => errors.push(`window +${Date.now() - suiteStart}ms ` + describe(ev.error ?? ev.message).slice(0, 1500));
+  const onRejection = ev => errors.push(`rejection +${Date.now() - suiteStart}ms ` + describe(ev.reason).slice(0, 1500));
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('unhandledrejection', onRejection);
+  const deletes = new Map();   // effect id → [{ name, parent, stack, at }]
+  const recordDelete = (docs, stack) => { for (const d of docs) { const list = deletes.get(d.id) ?? []; list.push({ name: d.name, parent: d.parent?.name, stack, at: Date.now() - suiteStart }); deletes.set(d.id, list); } };
+  const origDeleteDocs = ActiveEffect.deleteDocuments;
+  const origDelete = ActiveEffect.prototype.delete;
+  ActiveEffect.deleteDocuments = function(ids = [], operation = {}) {
+    const parent = operation?.parent;
+    const docs = (parent ? ids.map(id => parent.effects?.get?.(id) ?? { id, name: '?' }) : ids.map(id => ({ id, name: '?' })));
+    recordDelete(docs, new Error().stack);
+    return origDeleteDocs.call(this, ids, operation);
+  };
+  ActiveEffect.prototype.delete = function(operation = {}) { recordDelete([this], new Error().stack); return origDelete.call(this, operation); };
+  const explainErrors = () => {
+    for (const e of errors.slice()) {
+      const id = /ActiveEffect "([^"]+)" does not exist/.exec(e)?.[1];
+      if (!id) continue;
+      const list = deletes.get(id);
+      if (!list) { errors.push(`  ↳ ${id}: no delete of it was issued by THIS page (another client's, or the system's own)`); continue; }
+      for (const d of list) errors.push(`  ↳ ${id} "${d.name}" on ${d.parent} deleted at +${d.at}ms by:\n${(d.stack ?? '').split('\n').slice(1, 9).join('\n')}`);
+    }
+  };
+  const uninstallDiagnostic = () => {
+    console.error = origError;
+    window.removeEventListener('error', onWindowError);
+    window.removeEventListener('unhandledrejection', onRejection);
+    ActiveEffect.deleteDocuments = origDeleteDocs;
+    ActiveEffect.prototype.delete = origDelete;
+    explainErrors();
+    for (const e of errors) log.push('console: ' + e);
+  };
 
   const mod = game.modules.get(MOD);
   if (!mod?.active) return { fatal: `module active=${mod?.active}` };
@@ -101,6 +143,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // ⚠ SETTINGS FIRST, in their own guard: a later cleanup error must never leave suite settings on.
     try { for (const [k, v] of Object.entries(prior)) await set(k, v); }
     catch (err) { log.push(`TEARDOWN settings ERROR: ${err?.message}`); }
+    try { uninstallDiagnostic(); } catch (err) { log.push(`TEARDOWN diagnostic ERROR: ${err?.message}`); }
     try {
       // ⚠ Batched deletes per collection: a synthetic actor rebuilds its collections from the delta
       // on every write, so a one-at-a-time loop deletes already-dropped documents.

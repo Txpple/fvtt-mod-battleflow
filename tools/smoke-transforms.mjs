@@ -59,6 +59,14 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   if (!druid) return { fatal: 'missing fixture: BF Test Druid — run tools/fixture-suite.mjs' };
   const wildShape = druid.items.find(i => (i.type === 'feat') && (i.name === 'Wild Shape'));
   if (!wildShape) return { fatal: 'BF Test Druid has no Wild Shape — run tools/fixture-suite.mjs' };
+  // ⚠ The range is VIEWED first (every other suite does): a fresh client's canvas is the world's
+  // active scene, and in the battery that is not the range — this suite went FATAL at
+  // "the Druid has no token on the scene" in the overnight battery of 2026-10-11 while green alone.
+  const range = game.scenes.getName('Battle Flow Test Range');
+  if (!range) return { fatal: 'missing fixture: scene Battle Flow Test Range — run tools/fixture-suite.mjs' };
+  if (canvas.scene?.id !== range.id) await range.view();
+  for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range.id); i++) await sleep(250);
+  if (canvas.scene?.id !== range.id) return { fatal: 'the canvas never readied on the test range' };
   const druidToken = canvas.scene.tokens.find(t => t.actor?.id === druid.id) ?? null;
   if (!druidToken) return { fatal: 'the Druid has no token on the scene — run tools/fixture-suite.mjs' };
   const sorcerer = game.actors.getName('BF Test Sorcerer');
@@ -97,10 +105,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const asKnown = r => ({ uuid: r.uuid, name: r.name, img: r.img ?? null });
   const useTransform = async item => {
     const activity = item.system.activities.getByType('transform')[0];
+    // ⚠ A fresh use every time: Wild Shape has two uses, §1 and §7 spend them, and §2 then used
+    // with none left — no card, a null message, the suite throwing at its own answer (the
+    // 2026-10-11 overnight battery and the re-run after it: 7/8). A spell spends a slot, not a use.
+    if ((item.type === 'feat') && item.system.uses?.max) await item.update({ 'system.uses.spent': 0 });
     const before = [...foundry.applications.instances.values()].length;
     const result = await activity.use({}, { configure: false }, { create: true });
     const message = result?.message instanceof ChatMessage ? result.message : null;
-    if (message) madeMessages.push(message);
+    if (!message) throw new Error(`the use of ${item.name} posted no card (uses ${item.system.uses?.spent ?? '-'}/${item.system.uses?.max ?? '-'}, slots ${JSON.stringify(item.actor?.system.spells?.spell4 ?? null)})`);
+    madeMessages.push(message);
     const flag = await waitFor(() => (message?.getFlag(MOD, 'transform')?.status === 'asked' || message?.getFlag(MOD, 'transform')?.status === 'picked') ? message.getFlag(MOD, 'transform') : null, 6000);
     const browser = [...foundry.applications.instances.values()].slice(before).find(a => /CompendiumBrowser/.test(a.constructor?.name ?? ''));
     if (browser) { try { await browser.close(); } catch { /* gone */ } }

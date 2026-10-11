@@ -210,10 +210,17 @@ if (want('3')) {
       const usageId = results?.message?.id ?? null;
       if (!usageId) return { ok: false, why: 'no usage message id' };
 
-      const rolls = await activity.rollAttack(
-        { advantage: true },
-        { configure: false },
-        { data: { 'system.origin': usageId } });
+      // ⚠ The d20 is PINNED to a 19 for the forced hit: neither a fumble nor a crit. The old "only a
+      // 1-in-400 double fumble misses" failed twice in three runs on 2026-10-11, which is not 1-in-400.
+      const realPRNG = CONFIG.Dice.randomUniform;
+      CONFIG.Dice.randomUniform = () => 0.925;
+      let rolls;
+      try {
+        rolls = await activity.rollAttack(
+          { advantage: true },
+          { configure: false },
+          { data: { 'system.origin': usageId } });
+      } finally { CONFIG.Dice.randomUniform = realPRNG; }
       if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
       const attackTotal = rolls[0].total;
       // A 1-in-400 double fumble still misses; it rides in the failure detail to read as a flake.
@@ -286,8 +293,13 @@ if (want('3b')) {
         const results = await activity.use({ subsequentActions: false }, { configure: false }, {});
         const usageId = results?.message?.id ?? null;
         if (!usageId) return { ok: false, why: 'no usage message id' };
-        const rolls = await activity.rollAttack({ advantage: true }, { configure: false },
-          { data: { 'system.origin': usageId } });
+        const realPRNG = CONFIG.Dice.randomUniform;
+        CONFIG.Dice.randomUniform = () => 0.925; // a 19 on every die (see §3b out of combat)
+        let rolls;
+        try {
+          rolls = await activity.rollAttack({ advantage: true }, { configure: false },
+            { data: { 'system.origin': usageId } });
+        } finally { CONFIG.Dice.randomUniform = realPRNG; }
         if (!rolls?.length) return { ok: false, why: 'attack roll produced no rolls' };
         let damageMsg = null;
         for (let i = 0; i < 40 && !damageMsg; i++) {
