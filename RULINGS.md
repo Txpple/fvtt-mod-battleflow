@@ -3253,7 +3253,7 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 
 **Wild Shape, Circle Forms and the polymorph spells, as one machine (`transforms.js` + `decide/transforms.js`, the
 `TRANSFORMS` table; the shared gallery is summons' `gallery.js`); DRAFTED in a worktree off the summons branch,
-every static gate and the unit suite green, the live suite (`smoke-transforms`, §1–§7) written and NOT RUN.** Ruled
+every static gate and the unit suite green, the live suite (`smoke-transforms`, §1–§8) written and NOT RUN.** Ruled
 off `prototypes/wild-shape.html` and `prototypes/wild-shape-picker.html` (2026-10-10: the known forms enforced, the
 locked pool a count and a link, the right column CR · size · book, the row and the one popup inherited from summons;
 earlier the same day: the Monster Manual's copy first, the caster picks and the GM may override, one gallery for

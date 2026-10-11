@@ -30,7 +30,7 @@ ruled row C; its toggles stay switchable for comparison):
 
 Nothing is open from the prototype. **DRAFTED 2026-10-11 on `feat/wild-shape`** (the worktree
 `.claude/worktrees/wild-shape`, branched off `feat/summons` at 309b55e so the shared gallery is in it): every static
-gate and the unit suite green; `tools/smoke-transforms.mjs` (§1–§7) written and **not run** — the sandbox was
+gate and the unit suite green; `tools/smoke-transforms.mjs` (§1–§8) written and **not run** — the sandbox was
 another session's. RULINGS *Wild Shape and the polymorph spells* holds the calls, the measured 6.0.6 facts and the
 walk to run. Merge order: `feat/summons` first, then this branch (it already sits on top of it; the pins moved to
 141 source files). What the draft changed from the plan below, measured on the 2024 text: **no excess damage carries

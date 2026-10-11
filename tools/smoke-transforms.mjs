@@ -13,7 +13,7 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'transforms.js'    // §1 the intercept and the record, §2 the landing and the clock, §3 Revert, §4 0 HP ends it, §5 Polymorph on a target and the temp HP, §6 the Long Rest swap, §7 an open slot learned at the use
+  'transforms.js'    // §1 the intercept and the record, §2 the landing and the clock, §3 Revert, §4 0 HP ends it, §5 Polymorph on a target and the temp HP, §6 the Long Rest swap, §7 an open slot learned at the use, §8 Concentration's end
 ];
 
 const SECTIONS = {
@@ -23,9 +23,10 @@ const SECTIONS = {
   4: 'ZERO: the Wolf form at 0 Hit Points reverts on its own (the row\'s `zero`), the record ended "dropped to 0 Hit Points"',
   5: 'POLYMORPH: the Sorcerer\'s Polymorph transform activity used at the targeted Dummy records the Dummy (cap from its CR) and lands it as a Giant Frog with the beast\'s HP as temp HP; the temp HP taken to 0 ends the form',
   6: 'THE REST: a Long Rest posts the formSwap ask; the swap lands Wolf → Brown Bear on the item\'s known forms with the confirmation; the open slots are filled from the answer',
-  7: 'THE OPEN SLOT: with three known forms, a pick from the pool is learned into the fourth slot at the use and the card says so'
+  7: 'THE OPEN SLOT: with three known forms, a pick from the pool is learned into the fourth slot at the use and the card says so',
+  8: 'CONCENTRATION: with the Sorcerer concentrating on Polymorph, the Dummy\'s form effect depends on that effect; ending Concentration takes the form effect with it (dnd5e\'s dependents registry) and the Dummy reverts, the record ended "Concentration ended"'
 };
-const DEPENDS = { 3: [2], 4: [2], 7: [1] };
+const DEPENDS = { 3: [2], 4: [2], 7: [1], 8: [5] };
 
 const { plan, pulled } = sectionPlan(SECTIONS, DEPENDS);
 const f = await connectSuite({ tag: 'transforms', watchdogMs: 300_000 });
@@ -225,6 +226,26 @@ const out = await f.evaluate(async ({ sections, titles }) => {
             if (end) madeMessages.push(end);
           }
           await revertAll();
+          if (want(8)) {
+            // The spell's Concentration is its save activity's; the transform activity is a second use on the same item.
+            const concActivity = [...spell.system.activities].find(a => a.duration?.concentration) ?? null;
+            const conc = concActivity ? await sorcerer.beginConcentrating(concActivity) : null;
+            if (!conc) skips.push('§8 — the PHB Polymorph carries no Concentration activity this box can begin');
+            else {
+              game.user.updateTokenTargets([dummyToken.id]);
+              const again = await useTransform(spell);
+              game.user.updateTokenTargets([]);
+              await answer(again.message, asKnown(frog));
+              const formEffect = formEffectOn(dummyToken.actor);
+              ok('§8 the form effect depends on the caster\'s Concentration', !!formEffect && (formEffect.getFlag('dnd5e', 'dependentOn') === conc.uuid), JSON.stringify({ effect: formEffect?.name, dep: formEffect?.getFlag('dnd5e', 'dependentOn'), conc: conc.uuid }));
+              await conc.delete();
+              const ended = await waitFor(() => again.message.getFlag(MOD, 'transform')?.ended ? again.message.getFlag(MOD, 'transform') : null, 15000);
+              ok('§8 ending Concentration ends the form: the Dummy reverted, the record ended by Concentration', ended?.ended?.word === 'concentration' && !dummyToken.actor?.isPolymorphed, JSON.stringify({ ended: ended?.ended, still: dummyToken.actor?.isPolymorphed }));
+              const end = await waitFor(() => game.messages.contents.find(m => m.getFlag(MOD, 'formEnd')?.messageId === again.message.id) ?? null, 6000);
+              if (end) madeMessages.push(end);
+              await revertAll();
+            }
+          }
         }
       }
     }
