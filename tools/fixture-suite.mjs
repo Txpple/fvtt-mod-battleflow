@@ -294,7 +294,11 @@ const out = await f.evaluate(async ({ playerName }) => {
       { name: "BF Test Goliath", classes: [["Fighter", 5]], feats: ["Stone's Endurance", "Fire's Burn"], gear: ["Greataxe"],
         abilities: { str: 16, con: 16 }, hp: 52, x: 300, y: 200 },
       { name: "BF Test Halfling", classes: [["Rogue", 3]], feats: ["Brave", "Lucky", "Savage Attacker"], gear: ["Shortsword"],
-        abilities: { dex: 16, con: 12 }, hp: 24, x: 500, y: 200 }
+        abilities: { dex: 16, con: 12 }, hp: 24, x: 500, y: 200 },
+      // The transforms suite: a Druid 2 with the PHB's Wild Shape (two uses, the CR ¼ band, no fliers). Its
+      // known forms are the suite's to set. ⚠ Top-right corner, clear of every aura and the play area.
+      { name: "BF Test Druid", classes: [["Druid", 2]], feats: ["Wild Shape"], gear: ["Quarterstaff"], spellcasting: "wis",
+        abilities: { wis: 16, con: 14, dex: 12, str: 10, int: 10, cha: 8 }, hp: 17, x: 1700, y: 200 }
     ];
     const built = [];
     for (const spec of BUILT) {

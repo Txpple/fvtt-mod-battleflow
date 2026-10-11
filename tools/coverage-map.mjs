@@ -58,6 +58,7 @@ export const ORDER = [
   { name: "smoke-clock", note: "the clock riders — Dreadful Strike once per turn with its uses, Assassinate on round one, the list as the switch" },
   // Beside smoke-sneak and smoke-clock: the same seam (preRollDamage) on the built fighter fixture.
   { name: "smoke-summons", note: "summons — the system's placement switched off, the popup off the cast card, the placement recorded, the elect landing the creature with ownership and the seat, the dragon's breath narrowed and the shared resistance, Dismiss" },
+  { name: "smoke-transforms", note: "Wild Shape and the polymorph spells — the chooser switched off at the use, the record with the known forms, the pick folded, the elect transforming with the preset and clocking the form, the ends (Revert, 0 HP, the temp HP gone), the Long Rest's known-form swap" },
   { name: "smoke-mastery-record", note: "the mastery record — the fill from equipped weapons, the not-mastered line and Master it, the long-rest swap, the party view's door" },
   { name: "smoke-hitmenu", note: "the hit menu — the Battle Master's maneuvers on the damage offer: one pick, the die rides, the pool spent, the save through the machine, the sweep at a second creature" },
   // The same seam from the DEFENDER's side (the shields), and a bare damage cast's dice (Heat Metal).

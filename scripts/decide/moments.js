@@ -300,6 +300,29 @@ export const MOMENT_RECORDS = Object.freeze({
     }] : []
   },
 
+  transform: {
+    events: ["use", "cast"],
+    means: "a transform the module drove was landed by the elect — the creature(s) turned into the picked form with dnd5e's own transformInto, a learned Known Form written, the form effect clocked (transforms.js, issue #2); a feature publishes use, a spell cast; resolved when `applied`",
+    resolved: (r, ctx) => r?.applied ? [{
+      marker: "message", events: [(r.itemType === "spell") ? "cast" : "use"],
+      facts: { actor: r.sourceUuid ?? null, item: r.itemUuid ?? ctx.itemUuid ?? null, activity: r.activityUuid ?? ctx.activityUuid ?? null,
+        ability: r.itemName ?? null,
+        targets: (r.landed ?? []).map(l => ({ uuid: l.originalUuid ?? l.actorUuid ?? null, name: l.name ?? null })),
+        details: { outcome: r.outcome ?? null, key: r.key ?? null, form: r.pick?.name ?? null, formUuid: r.pick?.uuid ?? null,
+          learned: r.learned?.name ?? null, self: !!r.self, ended: r.ended?.word ?? null } }
+    }] : []
+  },
+
+  formSwap: {
+    events: ["choice"],
+    means: "the Long Rest's known-form change was answered and landed — a Known Form replaced by another, open slots filled, or kept (transforms.js, issue #2); resolved when `applied`",
+    resolved: (r) => r?.applied ? [{
+      marker: "message", events: ["choice"],
+      facts: { actor: r.actorUuid ?? null, item: r.itemUuid ?? null, ability: r.itemName ?? null, targets: [],
+        details: { outcome: r.outcome ?? null, out: r.out ?? null, into: r.into?.name ?? null, adds: (r.adds ?? []).map(a => a?.name ?? null), declined: !!r.declined } }
+    }] : []
+  },
+
   rebuke: {
     events: ["hold-answered"],
     means: "a rebuke's offer — a Reaction to taking damage, aimed at its dealer — was answered, used or passed (rebukes.js); one resolve per offer",
@@ -851,6 +874,11 @@ export const STATE_KEYS = Object.freeze({
   masteryNotice: "a mastery reminder — presentation",
   masteryFill: "the GM's whisper — which kinds the fill wrote into the sheet's mastery list and for whom (issue #3); the sheet's list is the state, the attack the system stamps is the resolve",
   masterySwapAnswer: "an envelope — a player's swap answer; the fold onto the masterySwap flag, landed by the elect, is the resolve",
+  formSwapAnswer: "an envelope — a player's known-form answer; the fold onto the formSwap flag, landed by the elect, is the resolve",
+  form: "an ActiveEffect field — the form effect's tie to its transform record (the card, the original creature, the row); its removal ends the form",
+  knownForms: "an Item field — the Known Forms a Wild Shape item holds (uuid, name, art); the transform record (a form learned at the use) and the formSwap record (the Long Rest's change) are the resolves",
+  lastForm: "an Item field — the form last taken through the item, marked on its row at the next use; presentation",
+  formEnd: "the card a form's end posts (transforms.js) — the clock, Concentration, Incapacitated, 0 Hit Points, the Temporary Hit Points gone, or a revert; the `ended` stamp on the transform record is the resolve",
   cleaveArm: "Cleave armed for the extra attack; that attack is a real roll with its own card",
   cleaveStripped: "provenance — the armed Cleave's second attack shed its riders",
   timedOut: "the buzzer's mark on a roll it made; the verdict it lands is the resolve",

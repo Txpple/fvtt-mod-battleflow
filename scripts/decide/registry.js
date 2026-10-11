@@ -4064,6 +4064,68 @@ export const SUMMON_CHOICES = Object.freeze({
   })
 });
 
+/**
+ * TRANSFORMS (transforms.js, issue #2): a transform activity the module takes off the system's hands — the
+ * form picked from the shared gallery in one popup, the elect transforming with dnd5e's own presets, the
+ * form ended when the rules say. `self` the one using it is the one transformed (else the targeted creatures);
+ * `known` the Known Forms slots on the item (a number), or the row whose item holds them (Circle Forms
+ * spends Wild Shape's); `ends` what ends the form beyond its clock — `incapacitated` (the condition lands),
+ * `zero` (Hit Points reach 0), `noTemp` (the Temporary Hit Points the form gave are gone); `clock` where
+ * the form's clock comes from — `activity` (the activity's duration), `concentration` (the caster's
+ * Concentration on the item), null for none. The presets are the system's and never re-implemented
+ * (RULINGS *Wild Shape and the polymorph spells*).
+ */
+export const TRANSFORMS = Object.freeze({
+  "Wild Shape": Object.freeze({ self: true, known: 4, ends: Object.freeze(["incapacitated", "zero"]), clock: "activity",
+    rule: Object.freeze({ item: "Wild Shape", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdWildShape0" }),
+    from: "Druid 2" }),
+  "Circle Forms": Object.freeze({ self: true, known: "Wild Shape", ends: Object.freeze(["incapacitated", "zero"]), clock: "activity",
+    rule: Object.freeze({ item: "Circle Forms", uuid: "Compendium.dnd-players-handbook.classes.Item.phbdrdCircleForm" }),
+    from: "Druid — Circle of the Moon 3" }),
+  "Polymorph": Object.freeze({ self: false, ends: Object.freeze(["noTemp"]), clock: "concentration",
+    caveat: "the Wisdom save is the spell's own demand; the caster transforms whoever is targeted at the Transform activity's use",
+    rule: Object.freeze({ item: "Polymorph", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplPolymorph0" }),
+    from: "PHB level 4 (Concentration, 1 hour)" }),
+  "Animal Shapes": Object.freeze({ self: false, ends: Object.freeze(["noTemp"]), clock: "concentration",
+    caveat: "one form for every target at a use; a different form per target is a second use on fewer targets",
+    rule: Object.freeze({ item: "Animal Shapes", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplAnimalShap" }),
+    from: "PHB level 8 (Concentration, 24 hours)" }),
+  "True Polymorph": Object.freeze({ self: false, ends: Object.freeze(["noTemp"]), clock: "concentration",
+    caveat: "a creature into an object, and the permanence after the full duration, are the table's",
+    rule: Object.freeze({ item: "True Polymorph", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplTruePolymo" }),
+    from: "PHB level 9 (Concentration, 1 hour)" }),
+  "Shapechange": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "concentration",
+    caveat: "\"a sort of creature you have seen\" and the ban on Constructs and Undead are the table's",
+    rule: Object.freeze({ item: "Shapechange", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplShapechang" }),
+    from: "PHB level 9 (Concentration, 1 hour)" }),
+  "Boon of Fluid Forms": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Boon of Fluid Forms", uuid: "Compendium.dnd-heroes-faerun.options.Item.hofBoonofFluidFo", benefit: "Shapechanger" }),
+    from: "Epic Boon (Heroes of Faerûn)" }),
+  "Shape-Shifter": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "concentration",
+    caveat: "the modified Polymorph's own benefits are the pack's settings on the activity",
+    rule: Object.freeze({ item: "Shape-Shifter", uuid: "Compendium.dnd-arcana-unleashed.subclasses.Item.aunShapeshifter0" }),
+    from: "Wizard — Transmuter 6 (Arcana Unleashed)" }),
+  "Necklace of the Beastly Familiar (Fire Opal)": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Necklace of the Beastly Familiar (Fire Opal)", uuid: "Compendium.dnd-arcana-unleashed.items.Item.FoJxaTGKckzk5Hof", benefit: "Beast Transformation" }),
+    from: "Arcana Unleashed magic item" }),
+  "Necklace of the Beastly Familiar (Azurite)": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Necklace of the Beastly Familiar (Azurite)", uuid: "Compendium.dnd-arcana-unleashed.items.Item.aunNecklaceoftdK", benefit: "Beast Transformation" }),
+    from: "Arcana Unleashed magic item" }),
+  "Necklace of the Beastly Familiar (Zircon)": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Necklace of the Beastly Familiar (Zircon)", uuid: "Compendium.dnd-arcana-unleashed.items.Item.b4VSkPIvvpUTAqmU", benefit: "Beast Transformation" }),
+    from: "Arcana Unleashed magic item" }),
+  "Necklace of the Beastly Familiar (Topaz)": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Necklace of the Beastly Familiar (Topaz)", uuid: "Compendium.dnd-arcana-unleashed.items.Item.habvW1Bz6tFFTM0e", benefit: "Beast Transformation" }),
+    from: "Arcana Unleashed magic item" }),
+  "Necklace of the Beastly Familiar (Chrysoprase)": Object.freeze({ self: true, ends: Object.freeze(["noTemp"]), clock: "activity",
+    rule: Object.freeze({ item: "Necklace of the Beastly Familiar (Chrysoprase)", uuid: "Compendium.dnd-arcana-unleashed.items.Item.uxpeCtn6FLwAL9Gf", benefit: "Beast Transformation" }),
+    from: "Arcana Unleashed magic item" }),
+  "Harkon's Bite": Object.freeze({ self: true, ends: Object.freeze([]), clock: null,
+    caveat: "the curse's trigger and the werewolf's turn are the table's; the module only lands the fixed form",
+    rule: Object.freeze({ item: "Harkon's Bite", uuid: "Compendium.dnd-ravenloft-horrors-within.items.Item.rhwHarkonsBite2Q" }),
+    from: "Ravenloft cursed item" })
+});
+
 const copies = rows => rows.map(r => ({ ...r }));
 const everyRow = names => [...new Set(names)].map(n => ({ kind: String(n).toLowerCase() }));
 
@@ -4110,6 +4172,7 @@ export const tokenSizeEntries = () => everyRow(Object.keys(TOKEN_SIZES));
 export const tokenSenseEntries = () => everyRow(Object.keys(TOKEN_SENSES));
 export const tokenLightEntries = () => everyRow(Object.keys(TOKEN_LIGHTS));
 export const summonChoiceEntries = () => everyRow(Object.keys(SUMMON_CHOICES));
+export const transformEntries = () => everyRow(Object.keys(TRANSFORMS));
 export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));
 export const superiorityUseEntries = () => everyRow(Object.keys(SUPERIORITY_USES));
 export const effectChoiceEntries = () => everyRow(Object.keys(EFFECT_CHOICES));

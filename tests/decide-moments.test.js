@@ -254,6 +254,37 @@ describe("the moment registry — shape", () => {
           }
         ]
       },
+      transform: {
+        status: "picked",
+        key: "Wild Shape",
+        sourceUuid: "Actor.d",
+        sourceName: "Tamsin",
+        itemUuid: "Actor.d.Item.ws",
+        itemName: "Wild Shape",
+        itemType: "feat",
+        activityUuid: "Actor.d.Item.ws.Activity.a",
+        self: true,
+        targets: [{ uuid: "Actor.d", name: "Tamsin" }],
+        pick: { uuid: "Compendium.mm.actors.Actor.wolf", name: "Wolf", img: null },
+        applied: true,
+        outcome: "landed",
+        landed: [{ actorUuid: "Actor.w", originalUuid: "Actor.d", name: "Tamsin (Wolf)" }]
+      },
+      formSwap: {
+        status: "resolved",
+        key: "Wild Shape",
+        actorUuid: "Actor.d",
+        actorName: "Tamsin",
+        itemUuid: "Actor.d.Item.ws",
+        itemName: "Wild Shape",
+        slots: 4,
+        known: [{ uuid: "Compendium.mm.actors.Actor.wolf", name: "Wolf" }],
+        out: "Compendium.mm.actors.Actor.wolf",
+        into: { uuid: "Compendium.mm.actors.Actor.bear", name: "Brown Bear" },
+        adds: [],
+        applied: true,
+        outcome: "changed"
+      },
       rebuke: {
         status: "resolved",
         actorUuid: "Actor.s",

@@ -28,8 +28,17 @@ ruled row C; its toggles stay switchable for comparison):
 | Last used | marked on its row; kept |
 | The record | the known forms open read-only off the Wild Shape item's card, the mastery record's shape, with the next cap rise named |
 
-Nothing is open from the prototype. **The build has not started** (the user, 2026-10-10 evening: "we are not working yet,
-just locking decisions"); it waits on the summons relay and gallery, or starts them here per *The order of work*.
+Nothing is open from the prototype. **DRAFTED 2026-10-11 on `feat/wild-shape`** (the worktree
+`.claude/worktrees/wild-shape`, branched off `feat/summons` at 309b55e so the shared gallery is in it): every static
+gate and the unit suite green; `tools/smoke-transforms.mjs` (§1–§7) written and **not run** — the sandbox was
+another session's. RULINGS *Wild Shape and the polymorph spells* holds the calls, the measured 6.0.6 facts and the
+walk to run. Merge order: `feat/summons` first, then this branch (it already sits on top of it; the pins moved to
+141 source files). What the draft changed from the plan below, measured on the 2024 text: **no excess damage carries
+over** — Wild Shape keeps the Hit Points (the form ends on Incapacitated, 0 HP, the hours, another use) and Polymorph
+ends when its Temporary Hit Points are gone; the `DROP_TO_ONE` revert row is not built. Still to do after the live
+suite: the walk on the sandbox, Improved Circle Forms measured (the pack's item: resistance and the AC floor the
+preset already carries?), and the summons session's gallery once merged may need `poolRight` to read the book's
+short label (today the pack's full label).
 
 What the mastery walk showed about the user's taste, which applies here: they want **a confirmation popup with OK
 after a change** (what you now have, what changed), a **"you have these" list before any choice** (a bare

@@ -49,6 +49,7 @@ export const LAYER_OF = {
   "mastery.js": "machines",
   "mastery-record.js": "machines", // the Weapon Mastery paperwork — the fill, the line, the swap, the party view (issue #3)
   "summons.js": "machines",        // summons — the one popup off the cast card, the placement, the elect's landing, Dismiss (issue #1)
+  "transforms.js": "machines",     // Wild Shape and the polymorph spells — the chooser switched off, the one popup, the elect's transform, the form's end, the Long Rest swap (issue #2)
   "topple.js": "machines",        // the Topple demand off mastery's card
   "chip-spend.js": "machines",    // the chip spend and the two tidies
   // the maneuver folds, one file per moment
@@ -164,6 +165,7 @@ export const LAYER_OF = {
   "decide/mastery-record.js": "decision", // the mastery record: the allowance off the advancements, the fill, the state, the missing pick, the swap
   "decide/summons.js": "decision",        // summons: the form rows off the profiles, the record and its answer, the narrowed breath, the shared resistance, the owners
   "decide/gallery.js": "decision",        // the shared gallery: the rows a pool allows, one per name, the preferred book first
+  "decide/transforms.js": "decision",     // transforms: the pool rule off a profile, the Known Forms arithmetic, the record and its answer, the form effect, what ends a form
   "decide/hit-menu.js": "decision",
   "decide/shields.js": "decision",
   "decide/choices.js": "decision",

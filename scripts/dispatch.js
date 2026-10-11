@@ -75,6 +75,7 @@ export const ORDER = Object.freeze([
   "concentration",
   "cast",
   "summons",            // the summon's row under the cast's; its record is stamped at the use, landed by the elect
+  "transforms",         // the form's row under the use's; the chooser switched off at the use, landed by the elect
   "volleys",            // the volley row above the saves rows; its multiplier after every rider's part
   "saves/demand",
   "saves/areas",
@@ -101,6 +102,7 @@ export const VETOABLE = Object.freeze([
   "preCreateActiveEffect",
   "preCreateRegionBehavior",
   "dnd5e.preUseActivity",
+  "dnd5e.preActivityConsumption",
   "dnd5e.postUseActivity",
   "dnd5e.preApplyDamage",
   "dnd5e.preCalculateDamage",

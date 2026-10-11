@@ -37,6 +37,9 @@ done at all stay in DESIGN §8; this is what IS done, differently from the page.
 | **Stone's Endurance**: "when you take damage" (any damage) | ASKED in one popup, and on the click the damage lands reduced by the roll (user, 2026-09-25: "the popup for stones endurance should show up, and if hte person rolls, then the damage is auto reduced"): an attack hit asks at the hit (the hold); every other damage the MODULE applies is held at its applier until the answer (`damage-holds.js`); damage applied with the card's OWN buttons or typed on a sheet is reduced by hand | only the module's own applier can make a number wait: the card's buttons call `Actor#applyDamage` straight, and `dnd5e.preApplyDamage` is synchronous — no popup can be answered inside it (`auto-apply.js` `registerDamageClaim`) | 2026-09-24; widened 2026-09-25 |
 | **Powerful Build**: Advantage on "any ability check you make to end the Grappled condition" | while the Goliath IS Grappled, its Athletics and Acrobatics checks have Advantage, whatever they are for | nothing tells an escape check from any other check the module meets (`EFFECT_BENDS` `checksWhen`); the bearer's status and the escape's two skills are the facts it can read | 2026-09-25 |
 | **Storm's Thunder, Hellish Rebuke, Fount of Moonlight, Retaliation, Sword of Answering** — a Reaction when a creature damages you | offered only when the damage names its dealer: the card it came from (any application with an originating card — the module's, or the card's own buttons); an HP typed on a sheet offers nothing | `dnd5e.applyDamage` knows the dealer only through `originatingMessage`; a sheet edit carries none (`rebukes.js`) | 2026-09-25 |
+| **Polymorph**: "the target must succeed on a Wisdom saving throw or shape-shift" | the spell's save is its own demand card; the transform activity's use transforms whoever is targeted at that use, save or no save — the caster targets the ones who failed | the save activity and the transform activity are two uses on two cards, and nothing on the transform's card names the save's verdict (`transforms.js`, RULINGS *Wild Shape and the polymorph spells*) | 2026-10-11 |
+| **Animal Shapes**: "you can choose a different form for each target" | one form for every creature targeted at a use; a second form is a second use (the Follow Up Transformations activity) on fewer targets | the one popup asks one form; a form per target is a picker per row the ruled gallery does not draw | 2026-10-11 |
+| **Polymorph on an enemy**: the GM may override the caster's pick "before the elect transforms" (the ruling) | the GM changes the form from the card AFTER the landing — the creature reverts and takes the new form | a hold before every transform would be a required GM click on every Wild Shape (N4); the change after costs the GM one click only when wanted | 2026-10-11 |
 | **Trip Attack and Hill's Tumble on one hit** (the rules allow a maneuver and the boon together) | one hit-menu pick per hit; a clock rider (Fire's Burn, Frost's Chill) still rides beside any pick | the pick is ONE record (`hitPick` → `hitManeuver`), so a second pick would be dropped in silence (`decide/hit-menu.js` `hitPick`); the array shape is BACKLOG's | 2026-09-24 |
 | **Undead Fortitude**: "unless the damage is Radiant or from a Critical Hit" | the exemption is read off the damage card (its rolls' types, the crit off its rolls or the attack it answers); damage with no card the module can read — typed on a sheet, applied by a macro — COUNTS the row and the save rolls | the seam (`dnd5e.preApplyDamage`) knows the type and the crit only through `originatingMessage`; the gate never guesses an exemption (DESIGN R1) | 2026-09-28 |
 | **Death Throes**: "each creature in a 30-foot Emanation" | every creature WITH Hit Points within the Emanation is asked; a creature at 0 is not | the dead-target gate: a demand on a 0-HP creature starves the machine (`saves/demand.js`); the corpse's reach is measured edge to edge from the token's squares (`geometry.js` `creaturesWithin`) | 2026-09-28 |
@@ -3246,6 +3249,99 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 | Find Familiar | the gallery: the CR 0 beasts of every book, one Owl (the MM's), search by name; the second question (Celestial / Fey / Fiend) is a follow-up row |
 | No GM online | the card "no GM online — it lands when a GM connects"; the GM connects, it lands once |
 | Dismiss | the token gone, the resistance ended, the card "dismissed" |
+## Wild Shape and the polymorph spells (2026-10-11, issue #2)
+
+**Wild Shape, Circle Forms and the polymorph spells, as one machine (`transforms.js` + `decide/transforms.js`, the
+`TRANSFORMS` table; the shared gallery is summons' `gallery.js`); DRAFTED in a worktree off the summons branch,
+every static gate and the unit suite green, the live suite (`smoke-transforms`, §1–§7) written and NOT RUN.** Ruled
+off `prototypes/wild-shape.html` and `prototypes/wild-shape-picker.html` (2026-10-10: the known forms enforced, the
+locked pool a count and a link, the right column CR · size · book, the row and the one popup inherited from summons;
+earlier the same day: the Monster Manual's copy first, the caster picks and the GM may override, one gallery for
+both issues, Improved Circle Forms measured before ruling). Measured on dnd5e 6.0.6 and the six books' packs first
+(an offline dump of every transform activity, thirty of them):
+
+- **The activity.** `cr` mode opens the whole compendium browser INSIDE the use (`_finalizeUsage` → `queryActor`,
+  before the card exists); the card's Transform button calls `transformInto` on the targeted tokens and is hidden
+  from a user without Create Actor or with Allow Transformation off. The presets are right and reused as they are
+  (`wildshape`: HP, class, feats, mental scores, languages and type kept, saves and skills merged, the Moon's AC floor
+  `(13 + Wis) × sign(moon levels)` and `max(druid, moon × 3)` temp HP; `polymorph`: HP and type kept, the form's HP
+  as temp HP). The pack's bands: Wild Shape CR ¼ with `fly` on dnd5e's NEGATIVE movement filter to level 5, CR ½
+  to 7, CR 1 and fliers from 8; Circle Forms `floor(druid / 3)` with the same fly rule; Polymorph's cap BLANK (its
+  text: the target's CR, else its level); Animal Shapes CR 4 and Tiny to Large; Shapechange `max(level, cr)` over
+  twelve types; True Polymorph blank and CR 9 for an object; Boon of Fluid Forms CR 10 over three types; the
+  Necklaces and Harkon's Bite a fixed creature each.
+- **The 2024 text keeps the Hit Points.** Wild Shape: "a number of hours equal to half your Druid level, or until you
+  use Wild Shape again, have the Incapacitated condition, or die" — nothing about 0 HP of a separate pool, no excess
+  carried over (that is the 2014 rule the prototype's last scene drew; **dropped**). Polymorph: the form's HP as
+  Temporary Hit Points, "the spell ends early on the target if it has no Temporary Hit Points"; Shapechange, Animal
+  Shapes, True Polymorph and the boon the same shape.
+
+The calls:
+
+1. **The chooser is switched off, the use is the system's.** `dnd5e.preActivityConsumption` (after the dialog's
+   profile select has spoken, before the card) hands the system a sentinel profile id, so `_finalizeUsage` finds no
+   profile and opens no browser; the real profile is stashed per use and the record stamped at `postUseActivity`.
+   The dialog, the consumption (Wild Shape's uses, Circle Forms' use of them) and the card stay dnd5e's; the card's
+   Transform button was already dropped at birth (polish.js). A `form`-mode activity (Arcanist's Bestiary) and an
+   unlisted transform stay the system's entirely.
+2. **One popup off the card, the ruled row.** The known forms first (each described off its creature: art, AC, HP,
+   speeds, attacks, traits; CR · size · book on the right; the last one taken marked), then the pool. With the four
+   slots full the pool is a line and a link ("29 more forms in the pool at CR ¼ or lower · locked until a Long
+   Rest · show them") whose rows cannot be picked; with a slot open the pool is open and **the pick is learned into
+   the slot at the use** (the record carries `learn`; the elect writes the item before it transforms). A row with
+   no slots (every spell) sees the whole pool at the rule. "Become the form" / "Transform"; "answer first" when
+   nothing is picked. A fixed-form activity (the Necklaces, Harkon's Bite) asks nothing: the record is born picked.
+3. **The elect transforms.** `registerResumable("transform")`: the active GM's client claims the picked record,
+   reverts a standing form of ours first ("until you use Wild Shape again"), calls `actor.transformInto(source,
+   activity.settings)` — the activity's own preset or custom settings, never re-implemented — on the creature(s) the
+   record names (the user for a `self` row; the targets snapshot on the card for the spells), and lands a **form
+   effect** on what came out: "Wild Shape — Wolf", clocked from the activity's duration (the hours) or a copy of the
+   caster's Concentration effect's duration with `dependentOn` pointing at it (the spells), tied to the record. The
+   player owns the copy (`transformInto` copies the ownership); nobody needs Create Actor or Allow Transformation.
+   No GM online: the card holds and says so.
+4. **The form ends when the rules say, and only the elect reverts.** The form effect is the lever: its deletion
+   (Revert on the bar's fold, a hand, Concentration's end taking its dependent) reverts through dnd5e's own
+   `revertOriginalForm`; its expiry (Foundry's `duration.expired` mark on the GM client) the same; **Incapacitated**
+   landing on the creature (`ends: incapacitated`), **0 Hit Points** (`zero`) and **no Temporary Hit Points left**
+   (`noTemp`) read off the creature's own updates, each only when the row names it. A **Revert** button on the card
+   (the owner, or a GM) asks the elect. Every end stamps `ended` on the record and posts a form-end card naming why.
+   Nothing carries excess damage anywhere (the 2024 text).
+5. **Known Forms, enforced (RAW).** Four slots as a flag on the Wild Shape item (Circle Forms spends them: `known:
+   "Wild Shape"`), the use offers those four, an open slot is filled at the use (call 2), and **the Long Rest offers
+   the one swap** through the mastery record's road: the resting owner's card, the popup "You know these forms" (a
+   box per known form, the pool at the rule below, one pick per free slot, Keep them a real answer), the answer on
+   the card (a player's relayed as `formSwapAnswer`), the elect landing it on the item judged against the list as it
+   stands (`restKnownList`), and **the owner acknowledging a confirmation** — "You now know these forms" with OK.
+   Nothing on the system side holds a known form; a world without the module loses nothing but the list.
+6. **Polymorph on a target: the caster picks, the GM may change it.** The transform activity's use records whoever
+   is targeted then, with the cap read off the first target (CR, else level); the elect transforms them with the
+   caster's pick. **The GM's override is a second pick off the card after the landing** ("Change the form": the
+   creature reverts and takes the new form), not a hold before it — a required GM click before every transform would
+   break N4. The Wisdom save stays the spell's own demand on its own card; the module does not tie the two.
+7. **No new kind, no new setting.** One table (`TRANSFORMS`, fourteen rows: Wild Shape, Circle Forms, Polymorph,
+   Animal Shapes, True Polymorph, Shapechange, Boon of Fluid Forms, Shape-Shifter, the five Necklaces, Harkon's
+   Bite), two records (`transform`: a feature publishes `use`, a spell `cast`; `formSwap`: `choice`), the shared
+   gallery's right column a parameter (`poolRight` for a CR-mode pool; summons' profile picks keep AC · HP).
+
+| Row | Where | What it does |
+| --- | --- | --- |
+| The intercept | `dnd5e.preUseActivity` → `dnd5e.preActivityConsumption` | the real profile stashed, the sentinel handed to the system; no browser |
+| The record | `dnd5e.postUseActivity` → `transform` flag `asked` (or `picked` for a fixed form) | the band with its cap evaluated, the targets, the known forms, the slots, the last form |
+| The popup | `dnd5e.renderChatMessage` → `showFormPopup` | the known forms, the pool (open or locked), the pick folded by `pickedAnswer` |
+| The landing | `registerResumable("transform")` → `landTransform` | `transformInto` with the activity's settings; the learned form written; the form effect clocked |
+| The ends | `updateActiveEffect` (expired) · `deleteActiveEffect` · `updateActor` (hp, temp) · `createActiveEffect` (Incapacitated) → `revertForm` | `revertOriginalForm`, `ended` on the record, the form-end card |
+| Revert / Change | the card's buttons → `revertAsked` / `changeAsked` → the resumable | the elect reverts, or reverts and re-lands the GM's pick |
+| The Long Rest | `dnd5e.restCompleted` (long) → `formSwap` card → popup → `answerFormSwap` → `landFormSwap` → the confirmation | one swap or the open slots filled, on the item's flag; acknowledged by the owner |
+
+**Bends, in the register above:** the Polymorph save untied from the transform; Animal Shapes one form per use; the
+GM's override after the landing.
+
+**The walk to run** (the sandbox; a Druid 2 built by `fixture-suite` as "BF Test Druid"): use Wild Shape with four
+known forms → the popup with the four rows and the locked line; Become the Wolf → the token is the Wolf, the bar
+shows "Wild Shape — Wolf · 1 h" with Revert on its fold, the card "Tamsin is now a Wolf"; Revert on the card → the
+form-end card; use again with three known → the pool open, the pick learned, the card saying so; the Wolf to 0 HP →
+it reverts on its own; a Long Rest → "You know these forms", the swap, the confirmation with OK; the Sorcerer's
+Polymorph transform activity at a targeted Dummy → a Giant Frog, its temp HP to 0 → it reverts.
 
 ## Rulings the code carried
 

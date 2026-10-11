@@ -87,6 +87,13 @@ https://github.com/Txpple/fvtt-mod-battleflow/releases/latest/download/module.js
   Familiar. The player places the creature on the map; the GM's client creates it, gives the
   player ownership, seats it right after the caster in the tracker, and ties it to the spell's
   concentration. No Create Token, no Create Actor, no Allow Summoning setting. Dismiss is a button.
+- **Wild Shape and Polymorph without the compendium browser.** Using Wild Shape opens one popup
+  with your four known forms as rows (art, AC, HP, speeds, attacks), the rest of the pool a line
+  away; a Druid short of four learns a form at the use, and a Long Rest offers the one swap. The
+  GM's client does the transforming with dnd5e's own presets, so no player needs Create Actor.
+  The form has a clock on the bar with Revert on it, and ends on its own when the rule says:
+  the hours, Incapacitated or 0 Hit Points for Wild Shape, the Temporary Hit Points gone or
+  Concentration ended for Polymorph and its kin.
 - **Cover is measured for you.** Select your token and hover another: a Cover section at the
   top of its card says No Cover, Half (+2 AC), Three-Quarters (+5 AC) or Total, and what is in
   the way. It uses the 2024 DMG grid method, lines from a corner of your space to the corners of

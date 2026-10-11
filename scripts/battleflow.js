@@ -24,6 +24,7 @@ import "./effect-riders.js";
 import "./mastery.js";
 import "./mastery-record.js";
 import "./summons.js";
+import "./transforms.js";
 import "./topple.js";
 import "./chip-spend.js";
 import "./wards.js";
