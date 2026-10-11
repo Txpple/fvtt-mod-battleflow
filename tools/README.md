@@ -25,7 +25,13 @@ node tools/fixture-suite.mjs               # once, before any suite run by hand
 node tools/smoke-saves.mjs                 # one suite, against the local sandbox (BF_HOST picks another preset)
 node tools/smoke-saves.mjs --list          # its sections, without connecting
 node tools/smoke-saves.mjs --section 8     # just §8 (plus anything §8 depends on)
+node tools/job.mjs -e "return game.actors.size"   # a one-off look at the world through the harness, no script file
 ```
+
+**Flags are strict** (`tools/args.mjs`, 2026-10-10, issue #11): every live tool refuses an argument it
+does not know, prints its header and exits 2 *before connecting*, and answers `--help`. `node
+tools/battery.mjs --help` once started the full battery, because an unknown flag was ignored and the
+default is everything.
 
 **Every suite is section-filterable.** `--list` prints the table; `--section 3,5` runs a subset
 and stamps its summary **`⚠ PARTIAL RUN`**, so a filtered green can never be mistaken for a
@@ -131,6 +137,24 @@ the buzzer's second roll landed after the GM rejoined, looking exactly like a re
 second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
 Why the sole-GM preflight cannot do this: NOTES §5.
 
+⚠ **A slow run and a hung run must not look the same** (2026-10-10, issue #12: a harness script
+outlived its 400 s watchdog by an hour, and another printed nothing for five minutes). The harness
+now prints a heartbeat every 30 s while an `evaluate` is in flight — how long it has run, the world's
+message count, and whether the page still answered a concurrent peek within 5 s (a page that does
+not answer is the hang). The watchdog names the phase it fired in (`connecting`, `preflight`, `the
+run: evaluate #7`, `teardown`), **kills the headless browser and its renderers** (`killChildProcesses`:
+Playwright's own exit hook did not), and exits 3; any other exit with the browser still open runs the
+same kill, and a `dispose()` that does not settle in 10 s ends the same way. Proven by a script whose
+evaluate holds a promise forever: exit 3 at the watchdog, no `chrome-headless-shell` left, the lock
+released, `/api/status` back to zero users.
+
+**One-off jobs** go through `job.mjs` instead of a throwaway script: `-e "<the body of an async
+function>"` or a file holding one, run in the GM client's page with `arg` (`--arg '<json>'`) and
+`log(...)`, the result printed as JSON, every guard above included. `--read-only` passes the preflight
+beside the MCP bridge for a probe that asserts nothing. Where a job's minutes go, measured on the
+idle sandbox (2026-10-10): launch + join + preflight 6 s; 40 items in one `createEmbeddedDocuments`
+79 ms; the same ten at a time, sequentially, four times that per item. Batch the writes.
+
 ### The battery
 
 | Flag | Effect |
@@ -177,7 +201,7 @@ registry file is walked UP the import graph (the layer check's own edge reader) 
 that import it; a changed suite selects itself and a changed seed the suites that need it; docs,
 `tests/` and `package.json` run nothing. ⚠ **A spine change is the full battery, honestly** —
 core, spine, services and entry files (`check-layers.mjs`'s tiers, never a hand list), a
-`decide/` file the walk finds the spine importing, `harness.mjs` / `target.mjs` / `battery.mjs` /
+`decide/` file the walk finds the spine importing, `harness.mjs` / `args.mjs` / `target.mjs` / `battery.mjs` /
 `coverage-map.mjs`, and `module.json` (the manifest the platform loads). Those are imported by
 nearly every machine; there is no smaller set that tests them, and the plan says which file made
 it full. `check-coverage-map.mjs` checks the map **both ways** in `npm run verify`, so a

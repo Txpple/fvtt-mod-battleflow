@@ -31,7 +31,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { strictArgs, usageOf } from "./args.mjs";
 import { ORDER, planFor, rowsFor, rowsFrom } from "./coverage-map.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -82,8 +82,9 @@ function changedFiles(base) {
 }
 
 const lifted = liftTail(process.argv.slice(2));
-const { values, positionals } = parseArgs({
-  args: lifted.rest,
+// ⚠ STRICT (#11): `--help` once ran the whole battery, because an unknown flag was ignored and the
+// default is everything. Now it prints the header above; anything unknown exits 2 before connecting.
+const { values, positionals } = strictArgs({
   options: {
     from: { type: "string" },
     snapshot: { type: "boolean" },
@@ -91,8 +92,10 @@ const { values, positionals } = parseArgs({
     list: { type: "boolean" },
     section: { type: "string" }
   },
+  usage: usageOf(fileURLToPath(import.meta.url)),
+  argv: lifted.rest,
   allowPositionals: true,
-  strict: false
+  script: "battery.mjs"
 });
 
 const byChange = lifted.changed || lifted.files;

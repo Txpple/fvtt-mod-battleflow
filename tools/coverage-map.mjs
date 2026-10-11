@@ -305,8 +305,8 @@ function walkUp(start, ctx) {
   return { machines, spine };
 }
 
-/** The tools whose change moves EVERY suite: the harness, the target, the battery and this map. */
-const SELECTOR_TOOLS = new Set(["harness.mjs", "target.mjs", "battery.mjs", "coverage-map.mjs"]);
+/** The tools whose change moves EVERY suite: the harness, its flag parser, the target, the battery and this map. */
+const SELECTOR_TOOLS = new Set(["harness.mjs", "args.mjs", "target.mjs", "battery.mjs", "coverage-map.mjs"]);
 
 /**
  * Pull every selected row's needs, recursively: a need is the NEAREST row of that name above the

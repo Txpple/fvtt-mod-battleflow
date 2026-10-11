@@ -5,13 +5,18 @@
  * needs travels as DATA on the evaluate argument (`sectionArg`).
  * `--section 3[,5]` runs those sections plus their dependencies; `--list` prints the table.
  * Setup and teardown always run. ⚠ A filtered run's summary is stamped PARTIAL.
+ * ⚠ Flags are STRICT (#11): an argument a suite does not know prints the usage and exits 2 before
+ * anything connects, because `--help` once started a full battery against the world.
+ * The watchdog names the phase it fired in, kills the headless browser and exits 3 (#12); a
+ * heartbeat every 30 s says a long `evaluate` is alive and whether the page still answers.
  */
+import { spawnSync } from "node:child_process";
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
 import { Foundry, loadEnv } from "fvtt-mcp-dnd5e/client";
+import { strictArgs } from "./args.mjs";
 import { foundryConfig, preflightSoleGM } from "./target.mjs";
 
 const REPO = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -45,13 +50,18 @@ export function expandSections(requested, depends = {}) {
 /**
  * Read `--section` / `--list` against a suite's `{ id: "title" }` table (STRING ids).
  * Returns `{ plan, pulled }`: plan null = run everything; pulled = sections a dependency dragged in.
+ * ⚠ Strict: any other argument refuses the run (see `strictArgs`).
  */
 export function sectionPlan(table, depends = {}, argv = process.argv.slice(2)) {
-  const { values } = parseArgs({
-    args: argv,
+  const script = basename(process.argv[1] ?? "suite.mjs");
+  const usage = `usage: node tools/${script} [--section <id>[,<id>…]] [--list]\n`
+    + "  --section   run these sections (what they depend on is pulled in); the summary is stamped PARTIAL\n"
+    + "  --list      print the section table and exit\n"
+    + "  --help      this text\n"
+    + "Any other argument is refused before the suite connects: a typo must never run a suite against the world.";
+  const { values } = strictArgs({
     options: { section: { type: "string" }, list: { type: "boolean" } },
-    allowPositionals: true,
-    strict: false
+    usage, argv, script
   });
   if (values.list) {
     console.log("Sections:");
@@ -184,24 +194,69 @@ export async function dumpHookLedger(tag, f) {
 /** How long a teardown may take before it is abandoned to process exit. */
 const DISPOSE_CEILING_MS = 10_000;
 
+/** How long one teardown step (the cover flags, the ledger dump) may take before the next runs. */
+const TEARDOWN_STEP_CEILING_MS = 20_000;
+
+/** A promise raced against a ceiling: `{ settled, value }`; the loser is left running, named. */
+async function withCeiling(promise, ms) {
+  let settled = false;
+  let value;
+  let timer;
+  await Promise.race([
+    promise.then(v => { settled = true; value = v; }),
+    new Promise(r => { timer = setTimeout(r, ms); })
+  ]);
+  clearTimeout(timer);
+  return { settled, value };
+}
+
+/**
+ * End every process this one spawned: the headless browser (a direct child of this node) and its
+ * renderers. For a watchdog or a hung dispose that cannot wait for `browser.close()`. ⚠ Playwright's
+ * own exit hook did not do this on 2026-10-10: a chrome-headless-shell outlived its script by an
+ * hour and kept the sandbox's GM seat (#12). Synchronous, so it works inside an exit path.
+ */
+export function killChildProcesses(tag) {
+  const pid = String(process.pid);
+  const list = r => (r.stdout ?? "").split(/\s+/).filter(k => /^\d+$/.test(k));
+  try {
+    let kids;
+    if (process.platform === "win32") {
+      kids = list(spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command",
+        `Get-CimInstance Win32_Process -Filter "ParentProcessId=${pid}" | Select-Object -ExpandProperty ProcessId`],
+      { encoding: "utf8", timeout: 20_000 }));
+      for (const k of kids) spawnSync("taskkill", ["/PID", k, "/T", "/F"], { stdio: "ignore", timeout: 20_000 });
+    } else {
+      kids = list(spawnSync("pgrep", ["-P", pid], { encoding: "utf8", timeout: 5_000 }));
+      for (const k of kids) {
+        spawnSync("pkill", ["-9", "-P", k], { stdio: "ignore", timeout: 5_000 });
+        try { process.kill(Number(k), "SIGKILL"); } catch { /* already gone */ }
+      }
+    }
+    if (kids.length) console.error(`[${tag}] killed ${kids.length} child process tree(s): pid ${kids.join(", ")}`);
+    return kids.length;
+  } catch (err) {
+    console.error(`[${tag}] could not kill child processes — ${err.message}`);
+    return -1;
+  }
+}
+
 /**
  * `Foundry#dispose()` raced against a ceiling. ⚠ Never awaited bare: the watchdog hard-aborts
- * (exit 3), so a hanging dispose would turn a green run into an abort; after the ceiling it is
- * left to process exit.
+ * (exit 3), so a hanging dispose would turn a green run into an abort; after the ceiling the
+ * browser is KILLED (#12: a close that never settles used to leave a chrome holding the seat).
  */
 export async function disposeSafely(f, tag) {
   const dispose = f?.dispose?.bind(f);
   if (!dispose) return;
-  let settled = false;
-  await Promise.race([
-    dispose().then(() => { settled = true; })
-      .catch(err => { settled = true; console.warn(`[${tag}] dispose() failed — ${err.message}`); }),
-    new Promise(r => { setTimeout(r, DISPOSE_CEILING_MS); })
-  ]);
+  const { settled } = await withCeiling(
+    dispose().catch(err => { console.warn(`[${tag}] dispose() failed — ${err.message}`); }),
+    DISPOSE_CEILING_MS);
   if (!settled) {
-    console.warn(`[${tag}] dispose() did not finish in ${DISPOSE_CEILING_MS / 1000}s — `
-      + "abandoning it to process exit (which is what used to happen every time)");
+    console.warn(`[${tag}] dispose() did not finish in ${DISPOSE_CEILING_MS / 1000}s — killing the browser`);
+    killChildProcesses(tag);
   }
+  if (f) f.__bfDisposed = true;
 }
 
 /** In the page: translate the retired settings' reads and writes (see connectSuite). */
@@ -247,21 +302,75 @@ function retireSettings() {
   return "installed";
 }
 
+/** The heartbeat interval while an `evaluate` is in flight (#12: a slow run must look alive). */
+const HEARTBEAT_MS = 30_000;
+
 /**
  * Connect, preflight, arm the watchdog; returns the live `Foundry`. `watchdogMs` is per-suite
  * (measured wall clocks differ widely). ⚠ Armed BEFORE `connect()`: a launch that never
- * finishes is the hang it exists to break.
+ * finishes is the hang it exists to break. When it fires it names the PHASE (connecting,
+ * preflight, `evaluate #n`, teardown), kills the browser and exits 3 — whatever is pending.
+ * While an `evaluate` runs longer than `heartbeatMs` a line every `heartbeatMs` says so, with the
+ * world's message count and whether the page answered a concurrent peek within 5 s: a slow run
+ * and a hung one no longer look the same.
  */
-export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv() }) {
+export async function connectSuite({ tag, watchdogMs, requireElect = true, allowBridge = false, env = loadEnv(), heartbeatMs = HEARTBEAT_MS }) {
   takeSuiteLock(tag);
+  const started = Date.now();
+  const elapsed = () => Math.round((Date.now() - started) / 1000);
+  let stage = "connecting";
+  let phase = stage;
+  let f = null;
   setTimeout(() => {
-    console.error(`[${tag}] WATCHDOG ${Math.round(watchdogMs / 1000)}s — hard abort`);
+    console.error(`[${tag}] WATCHDOG ${Math.round(watchdogMs / 1000)}s — hard abort while ${phase} (${elapsed()}s in)`);
+    killChildProcesses(tag);
+    if (f) f.__bfDisposed = true; // the exit sweep below has nothing left to do
     process.exit(3);
   }, watchdogMs);
-  const f = new Foundry(foundryConfig(env));
+  // ⚠ Whatever ends this process (an uncaught throw, `finish`, the watchdog) must not leave a
+  // browser behind holding the GM seat: the kill is skipped only after a clean dispose.
+  process.on("exit", () => { if (f && !f.__bfDisposed) killChildProcesses(tag); });
+  f = new Foundry(foundryConfig(env));
   console.log(`[${tag}] connecting…`);
   await f.connect();
+
+  // The phase and the heartbeat ride every `evaluate` from here on (the peek uses the raw seam).
+  const evaluate = f.evaluate.bind(f);
+  let calls = 0;
+  let inflight = null;
+  f.evaluate = async (fn, arg) => {
+    const n = ++calls;
+    inflight = { n, since: Date.now() };
+    phase = `${stage}: evaluate #${n}`;
+    try { return await evaluate(fn, arg); }
+    finally { if (inflight?.n === n) { inflight = null; phase = `${stage}: between evaluates (after #${n})`; } }
+  };
+  // Ticks every 5 s and prints once the evaluate has run `heartbeatMs`, then every `heartbeatMs`.
+  let lastBeat = 0;
+  const beat = setInterval(async () => {
+    if (!inflight) return;
+    const now = Date.now();
+    if ((now - inflight.since < heartbeatMs) || (now - lastBeat < heartbeatMs)) return;
+    lastBeat = now;
+    const secs = Math.round((now - inflight.since) / 1000);
+    let pulse;
+    let peekTimer;
+    try {
+      const w = await Promise.race([
+        evaluate(() => ({ messages: game.messages.size, combat: game.combat ? `round ${game.combat.round} turn ${game.combat.turn}` : "none" }), null),
+        new Promise((_, reject) => { peekTimer = setTimeout(() => reject(new Error("no answer in 5 s")), 5_000); })
+      ]);
+      pulse = `the page answers: ${w.messages} messages, combat ${w.combat}`;
+    } catch (err) {
+      pulse = `⚠ the page did not answer (${err.message})`;
+    } finally { clearTimeout(peekTimer); }
+    console.log(`[${tag}] … ${phase} still running after ${secs}s — ${pulse}`);
+  }, Math.min(heartbeatMs, 5_000));
+  beat.unref();
+
+  stage = "preflight";
   await preflightSoleGM(f, { requireElect, allowBridge, env });
+  stage = "baseline";
 
   /**
    * ⚠ Client-scoped baseline: verify-settings pins WORLD keys only and the tester is a fresh
@@ -299,20 +408,27 @@ export async function connectSuite({ tag, watchdogMs, requireElect = true, allow
   if (moments !== "installed") console.warn(`[${tag}] moment ledger not armed (${moments})`);
 
   // One teardown under both names: suites call `disconnect`, `dispose` is the real one.
+  // ⚠ Each step under a ceiling: a page that stopped answering must not hold the teardown
+  // (and so the lock and the seat) past the browser kill at the end.
   let hungUp = false;
   const teardown = async () => {
     if (hungUp) return;
     hungUp = true;
+    stage = "teardown";
     if ( coverScenes.length ) {
-      await f.evaluate(async ids => Scene.updateDocuments(ids.filter(id => game.scenes.has(id)).map(_id => ({ _id, "flags.fvtt-mod-battleflow.-=noCover": null }))), coverScenes)
+      const clear = f.evaluate(async ids => Scene.updateDocuments(ids.filter(id => game.scenes.has(id)).map(_id => ({ _id, "flags.fvtt-mod-battleflow.-=noCover": null }))), coverScenes)
         .catch(e => console.warn(`[${tag}] the scenes' noCover flags not cleared (${e.message}) — run verify-settings --fix`));
+      const { settled } = await withCeiling(clear, TEARDOWN_STEP_CEILING_MS);
+      if (!settled) console.warn(`[${tag}] the noCover clear did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — run verify-settings --fix`);
     }
-    await dumpHookLedger(tag, f);
+    const { settled } = await withCeiling(dumpHookLedger(tag, f), TEARDOWN_STEP_CEILING_MS);
+    if (!settled) console.warn(`[${tag}] the hook ledger dump did not finish in ${TEARDOWN_STEP_CEILING_MS / 1000}s — not written`);
     await disposeSafely(f, tag);
   };
   f.disconnect = teardown;
   f.dispose = teardown;
 
+  stage = "the run";
   console.log(`[${tag}] connected`);
   return f;
 }

@@ -14,14 +14,17 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from 'node:util';
 import { Foundry, loadEnv } from 'fvtt-mcp-dnd5e/client';
+import { strictArgs, usageOf } from './args.mjs';
 import { foundryConfig } from './target.mjs';
 import { disposeSafely } from './harness.mjs';
 
-const { values } = parseArgs({ options: {
-  fix: { type: 'boolean' }, snapshot: { type: 'string' }, against: { type: 'string' }
-}, strict: false });
+// ⚠ Strict (#11): a mistyped flag prints the header above and runs nothing.
+const { values } = strictArgs({
+  options: { fix: { type: 'boolean' }, snapshot: { type: 'string' }, against: { type: 'string' } },
+  usage: usageOf(fileURLToPath(import.meta.url)),
+  script: 'verify-settings.mjs'
+});
 const FIX = !!values.fix;
 const LOCAL = join(dirname(fileURLToPath(import.meta.url)), 'settings.local.json');
 const env = loadEnv();
