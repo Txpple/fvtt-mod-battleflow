@@ -116,6 +116,17 @@ caller, and walks an `ActiveEffect "…" does not exist!` id back to the delete 
 and its shield assertions print which DAMAGE MESSAGE each card claims, which is what exposed an old
 card being re-judged. Give a flaking suite those before bisecting sections.
 
+⚠ **A faster platform turns a poll into a lie** (Foundry 14.369 / dnd5e 6.0.6, 2026-10-10, suite
+issue #8: three suites red with the module unchanged). Three shapes, one lesson each:
+a popup found through `foundry.applications.instances` must be filtered by `app.rendered`
+(`ApplicationV2#close` keeps a closing window registered and on the page until its close transition settles, up to 1 s
+in a headless page — `smoke-clock` clicked the previous offer's spent Roll
+button); a status SEQUENCE is read off the writes through an `updateChatMessage` ledger, never by
+polling a flag (`smoke-maneuvers` B4a2 saw `pending` first once the promotion came 65 ms after the
+hit); and a suite that drives a roll the module is offering must ANSWER the offer, because the
+offer's buzzer rolls anyway when nobody presses Roll (`smoke-nogm` rolled past its damage offer, and
+the buzzer's second roll landed after the GM rejoined, looking exactly like a rejoin re-pay).
+
 ⚠ **One at a time is enforced, not remembered.** Suites take a pid lockfile in `harness.mjs`: a
 second one refuses and names the first; a stale lock (the holder died) is taken over and reported.
 Why the sole-GM preflight cannot do this: NOTES §5.

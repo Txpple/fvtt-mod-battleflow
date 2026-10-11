@@ -503,16 +503,19 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       await healFull();
       await set('masteryAsk', 'auto');
       await setMastery('topple');
+      await acFlat(1); // §1 pins it for the run; a §7-only run must pin it itself (AC 18 missed on a 14, 2026-10-10)
       {
         if (victim.statuses?.has?.('prone')) await victim.toggleStatusEffect('prone', { active: false });
-        const before = game.messages.size;
+        // ⚠ An id-set watermark, not an index: a message deleted under the run (a relay whisper folding)
+        // shifts `contents` and an index slice loses the newest card (the 2026-10-10 battery, suite issue #8).
+        const before = new Set(game.messages.contents.map(m => m.id));
         const { attackMsg, roll } = await attack(pcAttack());
         // vs AC 1 with advantage only a double nat-1 misses, and a miss pays no Topple: report a skip.
         if (roll?.isFumble) {
           skip('topple: nat-1 fumble missed outright (flake, 1/400) — hit path not exercised');
         } else {
         await waitDamage(attackMsg._source.system?.origin, { flag: 'receipt' });
-        const card = await waitFor(() => game.messages.contents.slice(before).find(m => m.getFlag(MOD, 'topple')));
+        const card = await waitFor(() => game.messages.contents.find(m => !before.has(m.id) && m.getFlag(MOD, 'topple')), 15000);
         const dc = 8 + (pc.system.attributes?.prof ?? 0)
           + (pc.system.abilities?.[pcAttack().ability || 'str']?.mod ?? 0);
         ok('7. Topple (auto) posts the save card with the computed DC in the enricher',

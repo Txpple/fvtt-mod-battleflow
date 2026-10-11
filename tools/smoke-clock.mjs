@@ -177,8 +177,15 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     const attackOf = item => item.system.activities.find(a => a.type === 'attack');
     const damageFor = originId => game.messages.contents.find(m => (m.type === 'damage')
       && (m._source.system?.origin === originId));
-    const offerEl = () => [...foundry.applications.instances.values()].map(a => a.element)
-      .find(el => (el?.innerHTML ?? '').includes('Damage — your roll')) ?? null;
+    // ⚠ RENDERED offers only (`app.rendered`, never `isConnected`): ApplicationV2#close keeps a closing
+    // window registered AND on the page while its close transition runs (up to 1 s in a headless page,
+    // where transitionend never fires). On Foundry 14.369 the next attack resolves inside that second, so
+    // the previous roll's offer was found first and its spent Roll button clicked again (2c and 3a red,
+    // 2026-10-10, suite issue #8).
+    const offerEls = () => [...foundry.applications.instances.values()]
+      .filter(a => a.rendered && a.element && (a.element.innerHTML ?? '').includes('Damage — your roll'))
+      .map(a => a.element);
+    const offerEl = () => offerEls()[0] ?? null;
     const rollDialog = () => [...foundry.applications.instances.values()]
       .find(app => /RollConfigurationDialog/.test(app.constructor?.name ?? '') && app.rendered && app.element) ?? null;
     const textOf = el => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -293,7 +300,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const box2 = offer2?.querySelector('input[name="bf-rider"][value="dread-ambusher"]');
       box2?.click();
       await sleep(50);
-      offer2?.querySelector('button[data-action="roll"]')?.click();
+      const rollBtn2 = offer2?.querySelector('button[data-action="roll"]');
+      rollBtn2?.click();
       const dmg2 = await waitFor(() => { const d = damageFor(originId2); return d?.getFlag(MOD, 'receipt') ? d : null; }, 12000);
       await sleep(400);
       ok('2c. unticked: the rider is declined — nothing rides, no use spent, no line on the card',

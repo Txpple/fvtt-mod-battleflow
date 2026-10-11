@@ -180,8 +180,27 @@ try {
     }
     if (!hitLanded) return { error: 'could not land a hit in 8 attempts', madeWeapon };
 
-    const dmg = activity.damage ? await activity.rollDamage({}, { configure: false },
-      { data: { 'system.origin': attackMsg.id } }).catch(() => null) : null;
+    // ⚠ ANSWER THE OFFER, never roll past it. Battle Flow opens the player's damage offer on the hit,
+    // and its buzzer rolls the damage when nobody presses Roll (dismissal is not a veto). A programmatic
+    // rollDamage beside an open offer leaves that buzzer armed: on Foundry 14.369 the run reached
+    // §rejoin before it fired, and the GM, by then connected, paid the buzzer's second roll — a Sap
+    // chip and a second notice that looked like a rejoin re-pay (2026-10-10, suite issue #8).
+    const liveOffer = () => [...foundry.applications.instances.values()]
+      .find(a => a.rendered && a.element && (a.element.innerHTML ?? '').includes('Damage — your roll'))?.element ?? null;
+    const damageOf = () => game.messages.contents.find(m => !before.has(m.id) && (m.type === 'damage')
+      && ((m.getFlag(modId, 'attackFor') === attackMsg.id) || (m._source.system?.origin === attackMsg.id)
+        || (m._source.system?.origin === attackMsg._source.system?.origin))) ?? null;
+    let dmg = null;
+    const offer = await until(liveOffer, 6_000);
+    if (offer) {
+      offer.querySelector('button[data-action="roll"]')?.click();
+      log.push('answered the damage offer (Roll)');
+      dmg = await until(damageOf, 12_000);
+    } else if (activity.damage) {
+      log.push('no damage offer opened — rolled the damage programmatically');
+      dmg = (await activity.rollDamage({}, { configure: false },
+        { data: { 'system.origin': attackMsg.id } }).catch(() => null))?.[0]?.parent ?? null;
+    }
 
     const notice = await until(() => game.messages.contents
       .filter(m => !before.has(m.id))
@@ -210,7 +229,7 @@ try {
       weaponUuid: weapon.uuid,
       beforeIds: [...before],
       attackId: attackMsg?.id ?? null,
-      damageId: dmg?.[0]?.parent?.id ?? null,
+      damageId: dmg?.id ?? null,
       noticeId: notice?.id ?? null,
       noticeKey: notice?.getFlag(modId, 'masteryNotice')?.key ?? null,
       noticeWindow: notice?.getFlag(modId, 'masteryNotice')?.window ?? null,
@@ -551,7 +570,7 @@ try {
 
   // ------------------------------------------------------- §rejoin: the GM comes back
   if (want('rejoin')) {
-    console.log('[nogm] GM joining to test the rejoin case…');
+    console.log(`[nogm] GM joining to test the rejoin case… (t=${Date.now()})`);
     // ⚠ Hold the rejoin against the count just BEFORE the GM connects: §spent's swings post their
     // own notices, some late.
     const preRejoin = await player.evaluate(({ modId, beforeIds }) => {
@@ -562,7 +581,7 @@ try {
     await gm.connect();
     // Give the GM's client time to render the log and run every resume path it owns.
     await new Promise(r => setTimeout(r, 6000));
-    const after = await gm.evaluate(async ({ modId, noticeId, beforeIds }) => {
+    const after = await gm.evaluate(async ({ modId, noticeId, beforeIds, attackId, damageId }) => {
       const before = new Set(beforeIds);
       const notice = game.messages.get(noticeId);
       const notices = game.messages.contents
@@ -573,11 +592,21 @@ try {
       const tok = scene?.tokens.find(t => t.actorId === victim?.id);
       const chips = (tok?.actor?.effects ?? [])
         .filter(e => e.getFlag(modId, 'mastery') === 'sap').length;
+      // Diagnostics: the flags the resume paths judged, on the run's attack and damage messages.
+      const flagsOf = id => { const m = game.messages.get(id); return m ? { type: m.type, flags: m.flags?.[modId] ?? null } : null; };
+      const lateNotices = game.messages.contents
+        .filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap'))
+        .map(m => ({ id: m.id, author: m.author?.name ?? null, ts: m.timestamp }));
       return {
         activeGM: game.users.activeGM?.name ?? null,
-        noticeStillThere: !!notice, sapNotices: notices, chips
+        noticeStillThere: !!notice, sapNotices: notices, chips,
+        diag: { now: Date.now(), attack: flagsOf(attackId), damage: flagsOf(damageId), notices: lateNotices,
+          chips: (tok?.actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'sap')
+            .map(e => ({ id: e.id, origin: e.origin, created: e._stats?.createdTime, by: game.users.get(e._stats?.lastModifiedBy)?.name ?? e._stats?.lastModifiedBy, flags: e.flags?.[modId] })),
+          receipts: game.messages.contents.filter(m => !before.has(m.id) && m.getFlag(modId, 'effectReceipt')).map(m => ({ id: m.id, type: m.type, receipt: m.getFlag(modId, 'effectReceipt') })) }
       };
-    }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds });
+    }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds, attackId: hit.attackId, damageId: hit.damageId });
+    console.log(`[nogm] rejoin diag: ${JSON.stringify(after.diag)}`);
 
     ok('§rejoin a GM really did reconnect', !!after.activeGM, `activeGM=${after.activeGM}`);
     // ⚠ THE DOUBLE-PAYOUT GUARD: the GM's render-resume paths must recognise finished work.

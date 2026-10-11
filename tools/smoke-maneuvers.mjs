@@ -822,13 +822,23 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           { animate: false });
         await sleep(500);
         let offer = null, atkMsg = null, queuedFirst = null, dmgAtPromotion = null;
+        // ⚠ The statuses are read off the WRITES, not polled: on Foundry 14.369 / dnd5e 6.0.6 the
+        // damage lands ~25 ms after the attack and the promotion ~40 ms after that, so a 200 ms poll
+        // saw `pending` first and called the sequence broken (2026-10-10, suite issue #8).
+        const statusLedger = new Map(); // attack message id → every bashOffer status written, in order
+        const ledgerHook = Hooks.on('updateChatMessage', (m, changed) => {
+          const status = changed?.flags?.[MOD]?.bashOffer?.status;
+          if (!status) return;
+          if (!statusLedger.has(m.id)) statusLedger.set(m.id, []);
+          statusLedger.get(m.id).push(status);
+        });
         for (let i = 0; i < 6 && !offer; i++) {
           const { msg } = await attack(pcAttackAct(), victimToken);
           atkMsg = msg;
           // The hit stamps the offer QUEUED; it goes pending (clock starts) once the damage lands.
           const stamped = await until(() => msg?.getFlag(MOD, 'bashOffer'), 4000);
           if (stamped) {
-            queuedFirst = stamped.status;
+            queuedFirst = statusLedger.get(msg.id)?.[0] ?? stamped.status;
             offer = await until(() => {
               const b = msg?.getFlag(MOD, 'bashOffer');
               return (b?.status === 'pending') ? b : null;
@@ -838,6 +848,8 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           }
           if (!offer) log.push(`B4: attempt ${i + 1} produced no offer (miss/fumble) — retrying`);
         }
+        Hooks.off('updateChatMessage', ledgerHook);
+        const statusesWritten = JSON.stringify(statusLedger.get(atkMsg?.id) ?? null);
         ok('B4a. a melee weapon HIT by the listed carrier stamps the bash offer ((g))',
           (offer?.status === 'pending') && ((offer?.targets ?? []).length === 1),
           `offer=${!!offer} targets=${offer?.targets?.length}`);
@@ -845,7 +857,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         ok('B4a2. THE SEQUENCE — stamped queued at the hit, pending only after the damage landed, promoted after it',
           (queuedFirst === 'queued') && Number.isFinite(dmgAtPromotion) && Number.isFinite(offer?.promotedAt)
             && (offer.promotedAt >= dmgAtPromotion) && (offer.promotedAt > (atkMsg?.timestamp ?? 0)),
-          `first=${queuedFirst} damageAt=${dmgAtPromotion} promotedAt=${offer?.promotedAt} attackAt=${atkMsg?.timestamp}`);
+          `first=${queuedFirst} written=${statusesWritten} damageAt=${dmgAtPromotion} promotedAt=${offer?.promotedAt} attackAt=${atkMsg?.timestamp}`);
         const popup = await until(() => dialogsWith('— bash')[0], 6000);
         ok('B4b. the offer popup carries Use/Pass',
           !!popup && !!popup.querySelector('button[data-action="use"]')
