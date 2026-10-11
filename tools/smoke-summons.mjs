@@ -73,7 +73,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
       for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
       for (const m of madeMessages) { if (game.messages.get(m.id)) await m.delete(); }
-      if (game.combat && game.combat.getFlag(MOD, 'suiteSummons')) await game.combat.delete();
+      if (game.combat?.getFlag(MOD, 'suiteSummons')) await game.combat.delete();
     } catch (err) { log.push(`TEARDOWN ERROR: ${err?.message}`); }
   };
 
