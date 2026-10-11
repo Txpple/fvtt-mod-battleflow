@@ -28,14 +28,17 @@ check `disconnect-bridge` etiquette with whoever holds the sandbox.
 **Built on `feat/summons`** (the worktree `.claude/worktrees/summons`, off bbc8883): `scripts/summons.js`,
 `scripts/decide/summons.js`, the shared gallery `scripts/gallery.js` + `scripts/decide/gallery.js`, `SUMMON_CHOICES`,
 the `summon` resolve row, `tools/smoke-summons.mjs` (§1–§6), the RULINGS section *Summons*. `npm run verify`'s static gates
-and the 1347 unit tests are green; **the live suite has never run** — the sandbox was another session's. The Wild Shape session
-(its own worktree) imports the gallery by name; merge summons first, Wild Shape rebases.
+and the 1347 unit tests are green; **`smoke-summons` is 14/14 live** (374ebf2; the first run's four failures are fixed there:
+the answer now lands as `picked`, the narrowed breath is nested data, prepared damage types are a Set, and concentration's end
+is the module's own listener because dnd5e never tracks a token as a dependent). The Wild Shape session (its own worktree,
+`feat/wild-shape`, one commit on top of this branch) imports the gallery by name; merge summons first, Wild Shape fast-forwards.
 
-**The sandbox pass, in order:** deploy the branch's files to the local box, run `node tools/smoke-summons.mjs`, then the walk
-table in RULINGS *Summons* by hand (the placement preview is a canvas interaction the suite bypasses through `placedAnswer`).
-Watch for: whether `activity.getTokenData` accepts a plain placement object on the elect (it deletes `placement.prototypeToken`
-and merges the rest); the seat's sort in the tracker; `Roll.safeEval` on a profile's `cr` formula; the `summon` row's position in the moments gate's
-table. Then the effect-view bar's Dismiss and the clock, and a two-client section.
+**Still owed before the merge:** the full battery overnight (a partial run on 2026-10-10 passed every suite it reached, 13 of
+about 48, then was stopped by hand), and the walk table in RULINGS *Summons* with the user. The sandbox holds this branch's
+files and a walk actor, "Summons Walk — Every Summon" (Wizard 20, all 127 summon items the six books carry: 50 spells, 24
+features, 53 items), owned by Open Player 1, on the active "Summons Walk" scene. Watch on the walk: the placement preview by
+hand (the suite bypasses it through `placedAnswer`), the Tier 2 objects, the cr-mode pools, the class companions, and the
+effect-view bar's Dismiss and clock.
 
 ## The order of work
 
