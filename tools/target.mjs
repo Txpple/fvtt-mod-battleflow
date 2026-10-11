@@ -7,9 +7,26 @@
  *   BF_HOST=<an MCP host preset> node tools/verify-settings.mjs   → another instance, deliberately (the
  *   settings check after a deploy). No instance is named here: the presets live in the MCP repo's .env.
  */
-import { foundryConfig as clientConfig } from 'fvtt-mcp-dnd5e/client';
+import { describeHolder, foundryConfig as clientConfig, listHolders } from 'fvtt-mcp-dnd5e/client';
 
 const host = () => process.env.BF_HOST || 'local';
+
+/** Who holds the bridge seat: this machine's seat records first, then the marker on its User document. */
+function holderLines(bridgeUser, marker, env) {
+  const lines = [];
+  try {
+    const cfg = clientConfig(env, host(), 'bridge');
+    const here = listHolders(cfg.serverUrl, cfg.user).filter(h => !h.self);
+    if (here.length) lines.push(`Held on this machine by ${here.map(describeHolder).join('; ')}.`);
+  } catch { /* no env, or no records */ }
+  if (marker) {
+    lines.push(`"${bridgeUser}"'s User document says: pid ${marker.pid} on ${marker.host} — ${marker.label} — since ${marker.since}.`);
+  }
+  if (!lines.length) {
+    lines.push('No seat record on this machine and no marker on its User document: a bridge older than MCP 4.4.0, or one on another machine.');
+  }
+  return lines.join(' ');
+}
 
 /** Resolve the Foundry connection config: the sandbox unless BF_HOST names another preset. */
 export function foundryConfig(env) {
@@ -39,7 +56,10 @@ export function playerConfig(env) {
  * somewhere this client cannot see.
  * `{ requireElect: false }` for a read-only probe; with `{ allowBridge: true }` for one that asserts nothing.
  * ⚠ The bridge identity is held by EVERY open Claude session's MCP server, and `disconnect-bridge`
- * logs out only the calling one: when the other GM is the bridge, the message names another session.
+ * logs out only the calling one: when the other GM is the bridge, the message NAMES THE HOLDER —
+ * the seat record the bridge leaves on this machine (MCP 4.4.0 and later, `listHolders`) and the marker it
+ * writes on its User document (`flags.world.fvttMcpBridge`: pid, session, since) — and the cure:
+ * `disconnect-bridge { all: true }` from any session, which ends every other holder's browser.
  */
 export async function preflightSoleGM(f, { requireElect = true, allowBridge = false, env = null } = {}) {
   const bridgeUser = env?.FOUNDRY_USER ?? env?.LOCAL_FOUNDRY_USER ?? null;
@@ -48,6 +68,8 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
     elect: game.users.activeGM?.name ?? null,
     isSelf: game.users.activeGM?.isSelf ?? false,
     gms: game.users.filter(u => u.active && u.isGM).map(u => u.name),
+    markers: Object.fromEntries(game.users.filter(u => u.active && u.isGM && u.flags?.world?.fvttMcpBridge)
+      .map(u => [u.name, u.flags.world.fvttMcpBridge])),
   }), null);
   const others = who.gms.filter(n => n !== who.self);
   const onlyTheBridge = others.length === 1 && others[0] === bridgeUser;
@@ -58,9 +80,10 @@ export async function preflightSoleGM(f, { requireElect = true, allowBridge = fa
   if (who.gms.length > 1) {
     const why = onlyTheBridge
       ? `The other GM is the MCP bridge "${bridgeUser}", which every open Claude session's MCP server `
-        + 'joins as: disconnect-bridge here logs out only THIS session\'s browser, so if it is still '
-        + 'connected another Claude session holds it — run disconnect-bridge in that session (or close '
-        + 'it), then re-run. A read-only probe may pass { requireElect: false, allowBridge: true }.'
+        + `joins as. ${holderLines(bridgeUser, who.markers[bridgeUser], env)} `
+        + 'disconnect-bridge { all: true } from any session ends every other holder\'s browser on this '
+        + 'machine (their servers reconnect on their next call); then re-run. A read-only probe may pass '
+        + '{ requireElect: false, allowBridge: true }.'
       : 'Disconnect the MCP bridge (disconnect-bridge) and close any GM window, then re-run. (Same '
         + 'account twice still counts twice: the elect is per-USER, so both pass isActiveGM and they '
         + 'fight over every application.)';

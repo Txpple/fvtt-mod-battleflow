@@ -1396,7 +1396,11 @@ only with the world otherwise empty.
 session's (the bridge identity) joined the sandbox mid-battery and the preflight refused every suite
 after it (two GM-capable clients). The run was BLOCKED, not red — read the refusal line before the
 counts. `disconnect-bridge` logs out only the calling session's; the cure was ending the other
-session's MCP server processes.
+session's MCP server processes. **Since 2026-10-10 (MCP 4.4.0 and later) the bridge leaves a seat
+record** — a file per process on the machine and `flags.world.fvttMcpBridge` on its User document —
+so the preflight's refusal names the holder (pid, Claude Code session, since), `disconnect-bridge
+{ all: true }` from any session ends every other holder's browser, and a bridge idle for 20 minutes
+logs itself out (`FOUNDRY_IDLE_LOGOUT_MIN`). The process table is no longer the way to find it.
 
 **How the elect is picked.** Core's `Users#activeGM` picks the **highest-role** active GM; id breaks
 ties only between equal roles. The human GM is role 4 and both assistant accounts role 3, so **the
