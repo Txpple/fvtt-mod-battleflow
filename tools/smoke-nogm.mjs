@@ -408,6 +408,8 @@ try {
           return { usageId, attacksBefore };
         };
         const lastAttack = () => game.messages.contents.filter(m => m.type === 'attack').pop() ?? null;
+        const liveOffer = () => [...foundry.applications.instances.values()]
+          .find(a => a.rendered && a.element && (a.element.innerHTML ?? '').includes('Damage — your roll'))?.element ?? null;
 
         // Swing 1: the gate lists the Vex; press Advantage; the spend is RECORDED and the chip stays.
         const first = await buttonSwing();
@@ -421,6 +423,15 @@ try {
         const system1 = systemOpen();
         log.push(`swing 1: gate=${!!gate1} system=${system1} record=${JSON.stringify(record)} chipStillThere=${chipStillThere}`
           + ` attackMsg=${!!msg1} dialogs=${[...foundry.applications.instances.values()].filter(a => /Dialog/.test(a.constructor?.name ?? '')).map(a => a.constructor.name).join('|')}`);
+        // ⚠ ANSWER SWING 1'S DAMAGE OFFER (issue #9, 2026-10-11 battery): a hit opens the player's offer,
+        // and closeAll closes only the roll dialogs, so its buzzer stayed armed. Its deadline fell after
+        // §rejoin's GM connected, the buzzer rolled a fresh damage, and the GM rightly paid it: a Sapped
+        // chip and a second notice read as a rejoin re-pay. #8's fix answered §runs' offer, not this one.
+        const offer1 = await until(liveOffer, 3000);
+        if (offer1) {
+          offer1.querySelector('button[data-action="roll"]')?.click();
+          log.push('swing 1 hit: answered its damage offer (Roll), so no buzzer is left armed for §rejoin');
+        }
         await closeAll();
 
         // Swing 2: the same chip must NOT be offered again — nothing else bends, so the SYSTEM's own dialog opens.
@@ -573,10 +584,28 @@ try {
     console.log(`[nogm] GM joining to test the rejoin case… (t=${Date.now()})`);
     // ⚠ Hold the rejoin against the count just BEFORE the GM connects: §spent's swings post their
     // own notices, some late.
-    const preRejoin = await player.evaluate(({ modId, beforeIds }) => {
+    // ⚠ And NO OFFER LEFT ARMED on the player page (issue #9): an unanswered damage offer's buzzer rolls
+    // fresh damage at its deadline, and with the GM back that roll is rightly paid — which this section
+    // would misread as a re-pay. Answer any still open, let the log go quiet, then count.
+    const preRejoin = await player.evaluate(async ({ modId, beforeIds }) => {
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
       const before = new Set(beforeIds);
-      return game.messages.contents.filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length;
-    }, { modId: MOD, beforeIds: hit.beforeIds });
+      const open = [...foundry.applications.instances.values()]
+        .filter(a => a.rendered && a.element && (a.element.innerHTML ?? '').includes('Damage — your roll'));
+      for (const a of open) a.element.querySelector('button[data-action="roll"]')?.click();
+      if (open.length) {
+        const t0 = Date.now(); let last = game.messages.size, quietSince = Date.now();
+        while ((Date.now() - t0 < 10_000) && (Date.now() - quietSince < 1500)) {
+          await sleep(200);
+          if (game.messages.size !== last) { last = game.messages.size; quietSince = Date.now(); }
+        }
+      }
+      return { answered: open.length,
+        count: game.messages.contents.filter(m => !before.has(m.id) && (m.getFlag(modId, 'masteryNotice')?.key === 'sap')).length };
+    }, { modId: MOD, beforeIds: hit.beforeIds }).then(r => {
+      if (r.answered) console.log(`[nogm] answered ${r.answered} damage offer(s) still open before the rejoin`);
+      return r.count;
+    });
     gm = new Foundry(foundryConfig(env));
     await gm.connect();
     // Give the GM's client time to render the log and run every resume path it owns.
@@ -603,7 +632,9 @@ try {
         diag: { now: Date.now(), attack: flagsOf(attackId), damage: flagsOf(damageId), notices: lateNotices,
           chips: (tok?.actor?.effects ?? []).filter(e => e.getFlag(modId, 'mastery') === 'sap')
             .map(e => ({ id: e.id, origin: e.origin, created: e._stats?.createdTime, by: game.users.get(e._stats?.lastModifiedBy)?.name ?? e._stats?.lastModifiedBy, flags: e.flags?.[modId] })),
-          receipts: game.messages.contents.filter(m => !before.has(m.id) && m.getFlag(modId, 'effectReceipt')).map(m => ({ id: m.id, type: m.type, receipt: m.getFlag(modId, 'effectReceipt') })) }
+          receipts: game.messages.contents.filter(m => !before.has(m.id) && m.getFlag(modId, 'effectReceipt')).map(m => ({ id: m.id, type: m.type,
+            author: m.author?.name ?? null, ts: m.timestamp, attackFor: m.getFlag(modId, 'attackFor') ?? m._source.system?.origin ?? null,
+            receipt: m.getFlag(modId, 'effectReceipt') })) }
       };
     }, { modId: MOD, noticeId: hit.noticeId, beforeIds: hit.beforeIds, attackId: hit.attackId, damageId: hit.damageId });
     console.log(`[nogm] rejoin diag: ${JSON.stringify(after.diag)}`);

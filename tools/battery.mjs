@@ -256,8 +256,10 @@ for (const suite of plan) {
   const { code, body } = run(suite.name, (suite.name === sectionFor) ? ["--section", values.section] : [],
     suite.file);
   const secs = ((Date.now() - t0) / 1000).toFixed(0);
-  const verdict = suite.reset ? "swept" : verdictOf(body);
-  const bad = !suite.reset && (code !== 0);
+  // ⚠ A seed or sweep is judged by its exit code too (issue #9, 2026-10-11): `fixture-suite` died
+  // halfway on a double-deleted Bloodied, printed "swept", and probe-effect-view ran on what it left.
+  const verdict = suite.reset ? ((code === 0) ? "swept" : `FAILED (exit ${code}) — the seed did not finish`) : verdictOf(body);
+  const bad = code !== 0;
   if (bad) failed++;
   results.push({ name: suite.name, code, secs, verdict, bad });
   console.log(`${bad ? "FAILED" : "ok"} (${secs}s) — ${verdict}`);

@@ -54,8 +54,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const ok = (name, pass, detail = '') => results.push({ name, pass, detail });
   const skip = why => skips.push(why);
   // The section gate (tools/harness.mjs): the closure is serialized, so plan and titles arrive as DATA.
+  // When each section opened (issue #9): the `console:` lines' +ms stamps are placed against it.
+  const marks = [];
   const want = id => {
-    if (!sections || sections.includes(String(id))) return true;
+    if (!sections || sections.includes(String(id))) {
+      marks.push(`§${id} +${Date.now() - suiteStart}ms`);
+      return true;
+    }
     skips.push(`§${id} ${titles?.[id] ?? ''}`);
     return false;
   };
@@ -106,6 +111,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     ActiveEffect.deleteDocuments = origDeleteDocs;
     ActiveEffect.prototype.delete = origDelete;
     explainErrors();
+    if (marks.length) log.push('console: sections ' + marks.join(', '));
     for (const e of errors) log.push('console: ' + e);
   };
 
@@ -327,6 +333,34 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       if (chips.length) await victim.deleteEmbeddedDocuments('ActiveEffect', chips.map(e => e.id));
     };
     // The id-set watermark; shared by §§14–16, so it lives outside the section gates.
+    // ⚠ Issue #9: a hit whose mastery payout never arrived. resolveHitMastery returns SILENTLY on a
+    // dead target, a Tactical Master pick, a missing context or another client holding the elect, so
+    // the failure line carries every one of those facts, read the moment the wait gave up.
+    const why = (attackMsg, since) => {
+      const origin = attackMsg?._source?.system?.origin ?? attackMsg?.id ?? null;
+      const dmg = game.messages.contents.find(x => (x.type === 'damage') && (x._source.system?.origin === origin));
+      const entry = dmg?.getFlag(MOD, 'receipt')?.targets?.find(t => t.uuid === victim.uuid);
+      const roll = attackMsg?.rolls?.[0];
+      const hp = victim.system.attributes.hp;
+      const lostChips = [...deletes.entries()].flatMap(([id, list]) => list.filter(d => d.at >= since - suiteStart)
+        .map(d => `${d.name}(${id}) +${d.at}ms`));
+      return JSON.stringify({
+        at: `+${Date.now() - suiteStart}ms`, attackAt: `+${since - suiteStart}ms`,
+        hp: `${hp.value}/${hp.max} temp ${hp.temp ?? 0}`,
+        attack: { total: roll?.total ?? null, crit: roll?.isCritical ?? null, fumble: roll?.isFumble ?? null,
+          mastery: attackMsg?.system?.mastery ?? null, pick: attackMsg?.getFlag?.(MOD, 'masteryPick') ?? null },
+        damage: dmg ? { id: dmg.id, total: dmg.rolls?.reduce((n, r) => n + r.total, 0) ?? null,
+          receipt: !!dmg.getFlag(MOD, 'receipt'), taken: entry?.taken ?? null, delta: entry?.delta ?? null,
+          effectReceipt: dmg.getFlag(MOD, 'effectReceipt')?.targets?.map(t => t.effects?.map(e => e.name)) ?? null } : null,
+        me: game.user.name, activeGM: game.users.activeGM?.name ?? null,
+        combat: game.combat ? `${game.combat.id} started=${game.combat.started} r${game.combat.round}t${game.combat.turn}` : null, combats: game.combats.size, worldTime: game.time.worldTime,
+        active: game.users.filter(u => u.active).map(u => `${u.name}(${u.role})`),
+        statuses: [...(victim.statuses ?? [])],
+        chips: victim.effects.filter(e => e.getFlag(MOD, 'mastery')).map(e => `${e.getFlag(MOD, 'mastery')}:${e.disabled ? 'off' : 'on'}:${e.origin === pc.items.get(blade.id)?.uuid ? 'blade' : e.origin}`),
+        moments: moments.filter(p => p.at >= since).map(p => `${p.event}/${p.kind}`),
+        deleted: lostChips
+      });
+    };
     const snap14 = () => new Set(game.messages.contents.map(m => m.id));
     const fresh14 = before => game.messages.contents.filter(m => !before.has(m.id));
     const until14 = async (fn, ms = 8000) => {
@@ -369,11 +403,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // Its own mastery, not a leftover from an earlier section or suite.
       await setMastery('vex');
       {
+        const t2 = Date.now();
         const { attackMsg, roll } = await attack(pcAttack());
         const vexed = await waitFor(() => victim.effects.find(e => (e.getFlag(MOD, 'mastery') === 'vex') && !e.disabled), 12_000);
         ok('2. Vex (auto): damage dealt ⇒ Vexed chip with the weapon as origin',
           !!vexed && (vexed.origin === pc.items.get(blade.id).uuid),
-          `vexed=${!!vexed} origin=${vexed?.origin} fumble=${roll?.isFumble}`);
+          `vexed=${!!vexed} origin=${vexed?.origin} fumble=${roll?.isFumble}${vexed ? '' : ` why=${why(attackMsg, t2)}`}`);
         // The chip proves the payout ran, so the receipt hunt starts after it.
         const dmg = await waitDamage(attackMsg._source.system?.origin, { flag: 'effectReceipt' });
         const receipt = dmg?.getFlag(MOD, 'effectReceipt');
@@ -431,9 +466,12 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       {
         // ⚠ RETRY UNTIL IT LANDS: two hits are needed and a miss leaves no Sap chip, so count=0 would
         // be a d20, not a stacking bug. No damage message IS the miss (damage drives only on a hit).
+        let last4 = null;
         const hit = async () => {
           for ( let i = 0; i < 4; i++ ) {
+            const t4 = Date.now();
             const r = await attack(pcAttack());
+            last4 = { msg: r.attackMsg, at: t4 };
             const dmg = await waitDamage(r.attackMsg?._source.system?.origin,
               { flag: 'receipt' });
             if (dmg) return true;
@@ -445,7 +483,9 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           victim.effects.find(e => e.getFlag(MOD, 'mastery') === 'sap'))) && (await hit());
         if (!landed) {
           // ⚠ Skip out loud: four misses with advantage is a fixture problem, not mastery.js.
-          skip('4: four swings with advantage never landed — that is the fixture, not the code');
+          // ⚠ Issue #9 (2026-10-11 battery): this fired with NO "swing missed" line, so a hit landed with
+          // its receipt and the Sap chip never came. Print why, so the skip is evidence, not a shrug.
+          skip(`4: no hit-then-Sap pair landed (a miss logs "the swing missed" above; none means the chip never came) why=${why(last4?.msg, last4?.at ?? Date.now())}`);
         } else {
           await sleep(1000);
           const saps = victim.effects.filter(e => (e.getFlag(MOD, 'mastery') === 'sap') && !e.disabled);
@@ -552,6 +592,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         // ⚠ An id-set watermark, not an index: a message deleted under the run (a relay whisper folding)
         // shifts `contents` and an index slice loses the newest card (the 2026-10-10 battery, suite issue #8).
         const before = new Set(game.messages.contents.map(m => m.id));
+        const t7 = Date.now();
         const { attackMsg, roll } = await attack(pcAttack());
         // vs AC 1 with advantage only a double nat-1 misses, and a miss pays no Topple: report a skip.
         if (roll?.isFumble) {
@@ -563,7 +604,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
           + (pc.system.abilities?.[pcAttack().ability || 'str']?.mod ?? 0);
         ok('7. Topple (auto) posts the save card with the computed DC in the enricher',
           !!card && card.content.includes(`dc=${dc}`) && card.content.includes('ability=con'),
-          `dc expected ${dc}; content has: ${card?.content?.match(/\[\[\/save[^\]]*\]\]/)?.[0] ?? 'no enricher'}`);
+          `dc expected ${dc}; content has: ${card?.content?.match(/\[\[\/save[^\]]*\]\]/)?.[0] ?? 'no enricher'}${card ? '' : ` why=${why(attackMsg, t7)}`}`);
 
         // The GM prone button, found by label: the [[/save]] enricher renders its own clickable element.
         const button = await waitFor(() =>

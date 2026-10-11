@@ -151,11 +151,15 @@ const out = await f.evaluate(async ({ playerName }) => {
       if ((cur.attributes?.hp?.max !== 50) || (cur.attributes?.hp?.value !== 50) || (cur.attributes?.hp?.temp ?? 0)) Object.assign(reset, { "system.attributes.hp.max": 50, "system.attributes.hp.value": 50, "system.attributes.hp.temp": 0 });
       for (const ab of ["con", "dex", "wis"]) if (cur.abilities?.[ab]?.save?.roll?.bonus) reset[`system.abilities.${ab}.save.roll.bonus`] = "";
       if (((cur.resources?.legres?.max ?? 0) !== 3) || (cur.resources?.legres?.spent ?? 0)) Object.assign(reset, { "system.resources.legres.max": 3, "system.resources.legres.spent": 0 });
+      // ⚠ EFFECTS FIRST, THEN THE HEAL (issue #9, 2026-10-11): healing a Bloodied creature makes dnd5e
+      // delete its Bloodied effect from inside the update hook, AFTER `update()` has resolved, so a
+      // blanket delete issued next races the system's and one of them throws "ActiveEffect
+      // "dnd5ebloodied000" does not exist!". Cleared first, the heal finds no Bloodied to remove.
+      const stale = monster.effects.map(e => e.id);
+      if (stale.length) { await monster.deleteEmbeddedDocuments("ActiveEffect", stale); log.push("cleared BF Test Monster's play-state effects"); }
       if (Object.keys(reset).length) { await monster.update(reset); log.push("BF Test Monster: reset to its statblock"); }
       const lentTraits = monster.items.filter(i => i.type === "feat");
       if (lentTraits.length) { await monster.deleteEmbeddedDocuments("Item", lentTraits.map(i => i.id)); log.push(`took back BF Test Monster's lent traits (${lentTraits.map(i => i.name).join(", ")})`); }
-      const stale = monster.effects.map(e => e.id);
-      if (stale.length) { await monster.deleteEmbeddedDocuments("ActiveEffect", stale); log.push("cleared BF Test Monster's play-state effects"); }
     }
 
     // --- the player-owned PC attacker: the NPC's own attack item, so the sides differ ONLY in
