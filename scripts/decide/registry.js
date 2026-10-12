@@ -4134,12 +4134,14 @@ export const SUMMON_SINGLES = Object.freeze({
  * forever), and casting the spell again while it stands opens a menu instead of the cast — put it away
  * or call it back, dismiss it forever, or cast for a new form (which takes the old one's place: in its
  * space, or in the pocket). `noun` the effect's word; `pocket` it can wait in a pocket dimension,
- * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence.
+ * `recallFt` the reach of its return (an unoccupied space, no sight needed); `says` the book's sentence;
+ * `brief` the cast menu's one line under the creature (the spell's full text is a click away on its card).
  * Primal Companion, Vestige Companion and Find Steed join when their text is ruled.
  */
 export const COMPANIONS = Object.freeze({
   "Find Familiar": Object.freeze({
     noun: "Familiar", pocket: true, recallFt: 30,
+    brief: "A Magic action puts it away into its pocket dimension or calls it back within 30 ft; casting the spell again gives it a new form.",
     says: "As a Magic action, you can temporarily dismiss the familiar to a pocket dimension. Alternatively, you can dismiss it forever. As a Magic action while it is temporarily dismissed, you can cause it to reappear in an unoccupied space within 30 feet of you.",
     rule: Object.freeze({ item: "Find Familiar", uuid: "Compendium.dnd-players-handbook.spells.Item.phbsplFindFamili" })
   })

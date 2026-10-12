@@ -192,6 +192,22 @@ async function showSummonPopup(message) {
 
 /* --- the elect lands it ---------------------------------------------------------------------------- */
 
+/** The caster's token on a scene, or null. */
+const casterTokenOn = (caster, scene) => scene?.tokens?.find(t => t.actor?.uuid === caster?.uuid || t.actorId === caster?.id) ?? null;
+
+/**
+ * A summoned token shown like the rest of the table: the caster's nameplate and bar visibility (always,
+ * when the caster has no token here), and its Hit Points on the first bar.
+ */
+function tableLook(casterTok, data) {
+  const ALWAYS = CONST.TOKEN_DISPLAY_MODES.ALWAYS;
+  return {
+    displayName: casterTok?.displayName ?? ALWAYS,
+    displayBars: casterTok?.displayBars ?? ALWAYS,
+    bar1: { ...(data.bar1 ?? {}), attribute: data.bar1?.attribute || "attributes.hp" }
+  };
+}
+
 /** The concentration effect the cast opened on the caster, or null. */
 const concentrationOf = (caster, flag) => flag.concentrationId ? (caster?.effects?.get(flag.concentrationId) ?? null) : null;
 
@@ -242,7 +258,10 @@ async function landSummon(message) {
         const have = changes.actorUpdates.items.find(i => i._id === narrowed._id);
         if ( have ) foundry.utils.mergeObject(have, nested); else changes.actorUpdates.items.push(nested);
       }
-      tokensData.push(await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates }));
+      const data = await activity.getTokenData({ actor, placement: { ...placement }, tokenUpdates: changes.tokenUpdates, actorUpdates: changes.actorUpdates });
+      // shown like the table: the caster's nameplate and bar visibility, the HP bar
+      Object.assign(data, tableLook(casterTokenOn(caster, scene), data));
+      tokensData.push(data);
     }
     // a new form for a companion waiting in the pocket waits there too: the token is kept, not drawn
     const created = flag.intoPocket ? [] : await scene.createEmbeddedDocuments("Token", tokensData, { dnd5e: { autoRollNPCHP: "no" } });
@@ -479,7 +498,7 @@ async function showCompanionMenu(message, activity) {
   await openPicker(message, "companionMenu", caster, {
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
     card: { eyebrow: row.noun, title: creature.label, subtitle: [flag.companion.type, where].filter(Boolean).join(" · ") },
-    sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { rule: row.rule }],
+    sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { note: row.brief ?? "" }],
     buttons: [
       ...companionMenu(state, row).map((kind, i) => ({ action: kind, label: MENU[kind].label, default: i === 0,
         submit: () => { if ( !needsGM(row) ) void Promise.resolve(act[kind]()).catch(err => console.error(`${TITLE} | The ${lower(row.noun)} could not ${kind}.`, err)); } })),
@@ -612,7 +631,7 @@ async function confirmCompanionEnd(effect, message) {
   const noun = lower(row?.noun ?? "companion");
   const yes = await foundry.applications.api.DialogV2.confirm({
     window: { title: `Dismiss ${noun}?` },
-    content: `<p>Dismiss ${noun}? This will remove them forever.</p><p>If you wish to place it in your pocket dimension, press ${esc(flag?.itemName ?? "the spell")}.</p>`,
+    content: `<p>Dismiss ${noun}? This will remove them forever.</p><p>More options available by pressing ${flag?.itemName ? `${esc(flag.itemName)} spell` : "the spell"}.</p>`,
     rejectClose: false
   });
   if ( !yes ) return;

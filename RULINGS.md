@@ -3352,8 +3352,8 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
 12. **Companions** (`COMPANIONS`, Find Familiar first; Primal Companion, Vestige Companion and Find Steed join when their
    text is ruled). A summon that stays until dismissed:
    - **The effect.** "Familiar: Owl (Fey)" on its owner for as long as it stands, on the table or in the pocket ("· in
-     the pocket"); a marker, no changes. Removing it asks "Dismiss familiar? This will remove them forever. If you wish
-     to place it in your pocket dimension, press Find Familiar."; yes dismisses it forever, no keeps it
+     the pocket"); a marker, no changes. Removing it asks "Dismiss familiar? This will remove them forever. More options
+     available by pressing Find Familiar spell."; yes dismisses it forever, no keeps it
      (`preDeleteActiveEffect`, a veto; the elect's own removal carries `companionEnd`).
    - **The cast menu.** Casting the spell while one stands opens a menu instead of the cast, no slot spent: on the
      table Put it away · Dismiss forever · Summon; in the pocket Call it back · Dismiss forever · Summon. Summon is the
