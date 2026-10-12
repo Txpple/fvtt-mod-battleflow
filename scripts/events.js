@@ -17,9 +17,8 @@ export const MOMENT_CONTRACT = Object.freeze({
   version: 2,
   events: MOMENT_WORDS,
   kinds: MOMENT_KINDS,
-  // 3.0.0 publishes each under both prefixes, the new first; the battleflow.* pair (formerly Battle Flow)
-  // goes in the next minor (core.js `publish`).
-  hooks: Object.freeze(["bythebooks.moment", "bythebooks.<event>", "battleflow.moment", "battleflow.<event>"])
+  // The new prefix only since 3.1.0; 3.0.x also fired the battleflow.* pair (core.js `publish`).
+  hooks: Object.freeze(["bythebooks.moment", "bythebooks.<event>"])
 });
 
 const uuidOf = x => (typeof x === "string") ? x : (x?.uuid ?? null);

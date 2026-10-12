@@ -126,10 +126,9 @@ describe("the refcount — decision 1, and the one a modal sequence needs", () =
     holds.raiseHold(uuid, { reason: "window-2" });
     restore();
     expect(seen.filter(h => h.name === "bythebooks.holdOpened")).toHaveLength(1);
-    // 3.0.0 double-emits under the old prefix, after the new one (core.js `publish`).
+    // The new prefix only since 3.1.0 (#14); 3.0.x also fired `battleflow.holdOpened` (core.js `publish`).
     expect(seen.map(h => h.name).filter(name => name.endsWith(".holdOpened"))).toEqual([
-      "bythebooks.holdOpened",
-      "battleflow.holdOpened"
+      "bythebooks.holdOpened"
     ]);
     holds.releaseHold(uuid, null);
   });

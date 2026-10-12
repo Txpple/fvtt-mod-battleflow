@@ -24,8 +24,9 @@ it does changed. Foundry cannot rename a package in place, so a world on 2.x ins
 from the manifest URL below, then in *Manage Modules* enables By the Books **and** disables Battle
 Flow in the same pass, saves and reloads. The active GM's first load moves the settings, standing
 effects and other data to the new name and reports what moved. If both are left enabled, By the
-Books does nothing and shows the GM a permanent warning, since two copies would apply damage twice. Old chat cards keep working, and 3.0.0 still emits the old `battleflow.*` hooks
-beside the new `bythebooks.*` ones for one release so other modules can move on their own schedule.
+Books does nothing and shows the GM a permanent warning, since two copies would apply damage twice. Old chat cards keep working. The public hooks are `bythebooks.*`; 3.0.x also
+fired them under their old `battleflow.*` names, and 3.1.0 stopped, so a macro or module listening
+for `battleflow.*` should listen for `bythebooks.*` instead.
 
 ## Status
 

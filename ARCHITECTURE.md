@@ -910,10 +910,11 @@ payload, at the point the moment resolved.
 **The names follow the package id** (3.0.0): `bythebooks.moment`, `bythebooks.<event>`,
 `bythebooks.armorBlock`, `bythebooks.styleDice`, `bythebooks.holdOpened`,
 `bythebooks.castReleased`, `bythebooks.areaAskAnswered` and `bythebooks.deferredUsageCard`, all
-fired through core.js's one `publish(name, …args)`. **3.0.0 fires each a second time under its old
-`battleflow.*` name** (the module was Battle Flow until 2.17.0), so a reader (FX Studio's
-`readers/bythebooks.js`) moves on its own schedule; the old emit is dropped in the next minor
-release. The internal `fvtt-mod-bythebooks.effectViewChanged` follows the id.
+fired through core.js's one `publish(name, …args)`. 3.0.x fired each a second time under its old
+`battleflow.*` name (the module was Battle Flow until 2.17.0), so a reader could move on its own
+schedule; **3.1.0 fires the new names only** (issue #14), FX Studio having moved in 0.9.0 (its
+`readers/bythebooks.js` keeps listening to `battleflow.moment` for a table still on 2.x). The
+internal `fvtt-mod-bythebooks.effectViewChanged` follows the id.
 
 **The user's ruling: every resolve publishes, through a gate, so nothing is missed as the module
 grows; what plays is FX Studio's manager's call.** By §4 law 3 a resolve IS a record landing on a

@@ -10,15 +10,14 @@ export const LEGACY_ID = "fvtt-mod-battleflow";
 export const TITLE = "By the Books";
 
 /**
- * Publish one of the module's public hooks (`bythebooks.<name>`).
- * 3.0.0 double-emits for one release so readers (FX Studio) move on their own schedule; the
- * battleflow.* emit goes in the next minor.
+ * Publish one of the module's public hooks (`bythebooks.<name>`). 3.0.x also fired each under its
+ * Battle Flow name (`battleflow.<name>`) so readers could move on their own schedule; 3.1.0 stopped
+ * (issue #14), once FX Studio 0.9.0 listened to the new names.
  * @param {string} name  the hook's name after the prefix
  * @param {...any} args
  */
 export function publish(name, ...args) {
   Hooks.callAll(`bythebooks.${name}`, ...args);
-  Hooks.callAll(`battleflow.${name}`, ...args);
 }
 
 /**

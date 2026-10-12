@@ -58,16 +58,11 @@ describe("publishMoment — the contract", () => {
     ]);
     expect(events.MOMENT_CONTRACT.kinds).toContain("hitManeuver");
     expect(events.MOMENT_CONTRACT.kinds).toContain("receipt");
-    expect([...events.MOMENT_CONTRACT.hooks]).toEqual([
-      "bythebooks.moment",
-      "bythebooks.<event>",
-      "battleflow.moment",
-      "battleflow.<event>"
-    ]);
+    expect([...events.MOMENT_CONTRACT.hooks]).toEqual(["bythebooks.moment", "bythebooks.<event>"]);
     expect(Object.isFrozen(events.MOMENT_CONTRACT)).toBe(true);
   });
 
-  it("fires bythebooks.moment and then bythebooks.<event>, each double-emitted under battleflow.* (3.0.0), with ONE payload", () => {
+  it("fires bythebooks.moment and then bythebooks.<event>, each once and never under battleflow.* (3.1.0, #14), with ONE payload", () => {
     const w = watchHooks();
     try {
       const payload = events.publishMoment("sneak", {
@@ -78,12 +73,7 @@ describe("publishMoment — the contract", () => {
         targets: [{ uuid: "Actor.goblin", name: "Goblin", hit: true }],
         details: { formula: "6d6", picks: ["trip"] }
       });
-      expect(w.seen.map(s => s.name)).toEqual([
-        "bythebooks.moment",
-        "battleflow.moment",
-        "bythebooks.sneak",
-        "battleflow.sneak"
-      ]);
+      expect(w.seen.map(s => s.name)).toEqual(["bythebooks.moment", "bythebooks.sneak"]);
       for (const s of w.seen) expect(s.data).toBe(payload);
     } finally {
       w.restore();
@@ -305,15 +295,10 @@ describe("the gate — observeMessage", () => {
         ability: "Trip Attack",
         attackId: "a1"
       });
-      expect(w.seen.map(s => s.name)).toEqual([
-        "bythebooks.moment",
-        "battleflow.moment",
-        "bythebooks.maneuver",
-        "battleflow.maneuver"
-      ]);
+      expect(w.seen.map(s => s.name)).toEqual(["bythebooks.moment", "bythebooks.maneuver"]);
       // the same message observed again (an update marking `done`) publishes nothing more
       expect(events.observeMessage(msg, "gm")).toEqual([]);
-      expect(w.seen.length).toBe(4);
+      expect(w.seen.length).toBe(2);
     } finally {
       w.restore();
     }
@@ -432,7 +417,8 @@ describe("the gate — observeMessage", () => {
       out = events.observeMessage(msg, "gm");
       expect(out.map(p => [p.event, p.marker])).toEqual([["save", "Actor.g2"]]);
       expect(events.observeMessage(msg, "gm")).toEqual([]);
-      expect(w.seen.length).toBe(8);
+      // two resolves, each `bythebooks.moment` + `bythebooks.save` (no battleflow.* twins since 3.1.0)
+      expect(w.seen.length).toBe(4);
     } finally {
       w.restore();
     }
