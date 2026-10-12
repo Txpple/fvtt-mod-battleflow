@@ -81,6 +81,11 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       { name: "Bless", img: "icons/svg/upgrade.svg", duration: { seconds: 60 }, changes: [] },
       { name: "Prone", img: "icons/svg/falling.svg", statuses: ["prone"], changes: [] }
     ]);
+    // ⚠ By NAME, never by index: the created documents do not come back in the order asked for. In 5
+    // of 14 runs (2026-10-10..12) Prone came first, §4 deleted Prone instead of Bless and §4/§6/§6c
+    // went red together; the actor's own effect order showed the same flip every time.
+    const madeBless = made.find(e => e.name === "Bless");
+    const madeProne = made.find(e => e.name === "Prone");
     // An applied, clockless effect, always the run's own: a real cast at the table is clocked (an
     // empty clock takes the spell's), so reusing his would test play state, not the class.
     seeded = await vanguard.createEmbeddedDocuments("ActiveEffect", [
@@ -165,7 +170,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     // Delete Bless, the chip leaves.
     if ( want(4) ) {
       await hold(4);
-      await vanguard.deleteEmbeddedDocuments("ActiveEffect", [made[0].id]);
+      await vanguard.deleteEmbeddedDocuments("ActiveEffect", [madeBless.id]);
       const gone = await until(() => { const b = document.getElementById("bf-effect-view-bar"); const names = b ? [...b.querySelectorAll(".bf-ev-chip .nm")].map(n => n.textContent) : []; return names.includes("Bless") ? null : names; }, 3000);
       ok("4. the bar redraws when an effect is deleted", Array.isArray(gone) && !gone.includes("Bless") && gone.includes("Prone"), `chips=${JSON.stringify(gone)}`);
     }
@@ -184,7 +189,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         !!fold && foldActions.length === 1 && foldActions[0] === "remove",
         `actions=${JSON.stringify(foldActions)} proneChip=${!!proneChip} chips=${JSON.stringify([...(barEl()?.querySelectorAll(".bf-ev-chip .nm") ?? [])].map(n => n.textContent))}`);
       fold?.querySelector('button[data-action="remove"]')?.click();
-      const proneGone = await until(() => vanguard.effects.get(made[1].id) ? null : true, 4000);
+      const proneGone = await until(() => vanguard.effects.get(madeProne.id) ? null : true, 4000);
       ok("6c. Remove deletes the effect, and the bar redraws without it",
         proneGone === true && !!(await until(() => chipNamed("Prone") ? null : true, 3000)), "");
       chipNamed("Temporary HP")?.click();
