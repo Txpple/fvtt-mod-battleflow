@@ -151,8 +151,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
         JSON.stringify({ status: flag?.status, profile: flag?.profile, slots: flag?.slots, known: flag?.known?.map(k => k.name) }));
       ok('§1 the record aims at the druid alone', flag?.self === true && flag.targets?.length === 1 && flag.targets[0].uuid === druid.uuid, JSON.stringify(flag?.targets));
       const popup = await waitFor(() => dialogs().find(a => /Your known forms/.test(a.element?.textContent ?? '')) ?? null, 6000);
-      ok('§1 the popup: the known forms as rows, the pool locked behind its line', !!popup && (popup.element.querySelectorAll('input[name="bf-form-pick"]').length === 4) && /more forms in the pool/.test(popup.element.textContent),
-        `popup=${!!popup} picks=${popup?.element?.querySelectorAll('input[name="bf-form-pick"]').length} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
+      // ⚠ The one picker draws a locked pool's rows too, folded under its line with their picks disabled:
+      // the known forms are the ENABLED picks, and nothing under the line can be ticked.
+      const picks = popup ? [...popup.element.querySelectorAll('input[name="bf-form-pick"]')] : [];
+      const enabled = picks.filter(i => !i.disabled).length;
+      const lockedRows = popup ? [...popup.element.querySelectorAll('details input[name="bf-form-pick"]')] : [];
+      ok('§1 the popup: the known forms as rows, the pool locked behind its line', !!popup && (enabled === 4) && lockedRows.length > 0 && lockedRows.every(i => i.disabled) && /more forms in the pool/.test(popup.element.textContent),
+        `popup=${!!popup} enabled=${enabled} locked=${lockedRows.length} lockedAllDisabled=${lockedRows.every(i => i.disabled)} text=${popup?.element?.textContent?.replace(/\s+/g, ' ').slice(0, 200)}`);
       if (popup) { try { await popup.close(); } catch { /* gone */ } }
       if (want(7)) {
         // three known: the fourth is learned at the use
