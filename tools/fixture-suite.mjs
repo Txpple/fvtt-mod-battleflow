@@ -452,8 +452,8 @@ const out = await f.evaluate(async ({ playerName }) => {
     const attackerToken = await ensureToken(attacker, 900, false);
     const victimToken = await ensureToken(victim, 1100, false);
     await ensureToken(monster, 1300, true);
-    // The Dummy stands on the range unlinked: smoke-d20-folds' foe and smoke-transforms §5's Polymorph target.
-    await ensureToken(dummy, 1100, false, 1200);
+    // The Dummy stands on the range unlinked, alone at the east edge (smoke-volleys keeps (900-1200, 1400) clear): smoke-d20-folds' foe and smoke-transforms §5's Polymorph target.
+    await ensureToken(dummy, 1900, false, 600);
     for (const { actor, x, y } of built) await ensureToken(actor, x, true, y);
 
     // Full HP on the token actors: at 0, "applied 0" and "already empty" look the same.

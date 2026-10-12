@@ -147,7 +147,7 @@ const out = await f.evaluate(async () => {
   let foeToken = range?.tokens.find(t => (t.actorId === dummy?.id) && !t.actorLink) ?? null;
   if (range && dummy && !foeToken) {
     [foeToken] = await range.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(dummy.prototypeToken.toObject(),
-      { x: 1100, y: 1200, actorId: dummy.id, actorLink: false, flags: { "fvtt-mod-bythebooks": { fixtureHome: true } } }, { inplace: false })]);
+      { x: 1900, y: 600, actorId: dummy.id, actorLink: false, flags: { "fvtt-mod-bythebooks": { fixtureHome: true } } }, { inplace: false })]);
     log.push("placed an unlinked BTB Test Dummy on the range, the d20-fold suite's foe");
   }
   if (foeToken) {
