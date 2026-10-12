@@ -26,8 +26,9 @@ export function lightRowKey(table, { itemName, activityName }, listed) {
 }
 
 /**
- * The changes that carry a row's light. Foundry's `dim` is the OUTER radius.
- * @param {{ bright: number, dim: number }} row
+ * The changes that carry a row's light. Foundry's `dim` is the OUTER radius; `angle` is written only
+ * for a row that has one, so a row without it leaves the token's own cone.
+ * @param {{ bright: number, dim: number, angle?: number }} row
  * @returns {Array<{ key: string, type: string, value: number, phase: string }>}
  */
 export function lightChanges(row) {
@@ -35,10 +36,117 @@ export function lightChanges(row) {
   const dim = Math.max(bright, Number(row?.dim) || 0);
   // D1 — a row with no light (Elder Champion) lands its effect alone: never a 0 written over the token's own light.
   if ( !bright && !dim ) return [];
-  return [
+  const out = [
     { key: "token.light.bright", type: "override", value: bright, phase: "initial" },
     { key: "token.light.dim", type: "override", value: dim, phase: "initial" }
   ];
+  const angle = Number(row?.angle);
+  if ( (angle > 0) && (angle < 360) ) out.push({ key: "token.light.angle", type: "override", value: angle, phase: "initial" });
+  return out;
+}
+
+/* --- GEAR LIGHTS (registry GEAR_LIGHTS) ------------------------------------------------------------ */
+
+/** The lit state every gear row has; a second state is named by its key in the row's `states`. */
+export const GEAR_LIT = "lit";
+
+/**
+ * The gear-light row an item answers to: its identifier or its name against the row's key and aliases.
+ * @param {Record<string, {item?: readonly string[]}>} table
+ * @param {{ name?: string|null, identifier?: string|null }} item
+ * @param {Set<string>} listed   lower-cased row names
+ * @param {(name: string) => string} identifierOf
+ * @returns {string|null}  the row key
+ */
+export function gearLightRow(table, { name, identifier }, listed, identifierOf) {
+  const n = String(name ?? "").toLowerCase();
+  const id = String(identifier ?? "");
+  if ( !n && !id ) return null;
+  for ( const [key, row] of Object.entries(table ?? {}) ) {
+    if ( !listed?.has?.(key.toLowerCase()) ) continue;
+    const names = [key, ...(row.item ?? [])];
+    if ( names.some(x => (String(x).toLowerCase() === n) || (id && (identifierOf(x) === id))) ) return key;
+  }
+  return null;
+}
+
+/**
+ * The light one state of a gear row sheds: the lit state is the row's own, a second state its entry.
+ * @param {{ bright: number, dim: number, angle?: number, states?: Record<string, {bright: number, dim: number}> }} row
+ * @param {string} state
+ * @returns {{ bright: number, dim: number, angle?: number }|null}
+ */
+export function gearLightOf(row, state) {
+  if ( !row ) return null;
+  const base = { bright: row.bright, dim: row.dim, ...(row.angle ? { angle: row.angle } : {}) };
+  if ( state === GEAR_LIT ) return base;
+  const s = row.states?.[state];
+  return s ? { ...base, bright: s.bright, dim: s.dim } : null;
+}
+
+/**
+ * The popup's buttons for a gear row, unlit or lit in a state.
+ * @param {{ label?: string, switchTo?: string, states?: Record<string, {label?: string, switchTo?: string}> }} row
+ * @param {string|null} litState  the state it is lit in, or null when unlit
+ * @returns {Array<{ press: "light"|"out"|"switch", state?: string, label: string }>}
+ */
+export function gearButtons(row, litState) {
+  const states = [GEAR_LIT, ...Object.keys(row?.states ?? {})];
+  const word = s => (s === GEAR_LIT) ? row?.label : row?.states?.[s]?.label;
+  const switchWord = s => (s === GEAR_LIT) ? row?.switchTo : row?.states?.[s]?.switchTo;
+  if ( !litState ) {
+    if ( states.length === 1 ) return [{ press: "light", state: GEAR_LIT, label: "Light" }];
+    return states.map(s => ({ press: "light", state: s, label: `Light — ${word(s) ?? s}` }));
+  }
+  /** @type {Array<{ press: "light"|"out"|"switch", state?: string, label: string }>} */
+  const out = [{ press: "out", label: "Put out" }];
+  for ( const s of states ) if ( s !== litState ) out.push({ press: "switch", state: s, label: switchWord(s) ?? `Switch to ${word(s) ?? s}` });
+  return out;
+}
+
+/**
+ * What one press does to the bearer's gear lights.
+ * @param {{ lit: {id: string, state: string}|null, others?: string[] }} now
+ *   `lit` this item's standing effect; `others` the ids of the bearer's OTHER gear-light effects
+ * @param {{ press: "light"|"out"|"switch", state?: string }} press
+ * @returns {{ op: "create"|"delete"|"update"|"none", state?: string, putOut: string[] }}
+ *   `putOut` the other gear lights to delete first: one gear light per character
+ */
+export function gearToggle({ lit, others = [] }, press) {
+  if ( press?.press === "out" ) return lit ? { op: "delete", putOut: [] } : { op: "none", putOut: [] };
+  const state = press?.state ?? GEAR_LIT;
+  if ( (press?.press !== "light") && (press?.press !== "switch") ) return { op: "none", putOut: [] };
+  if ( lit ) return (lit.state === state) ? { op: "none", putOut: [] } : { op: "update", state, putOut: [] };
+  return { op: "create", state, putOut: [...others] };
+}
+
+/**
+ * A light in the receipt's words: "20 ft Bright, 20 ft more Dim", "5 ft Dim", "a 53° cone".
+ * @param {{ bright: number, dim: number, angle?: number }|null} light
+ * @returns {string}
+ */
+export function gearLightWords(light) {
+  if ( !light ) return "";
+  const bright = Number(light.bright) || 0;
+  const dim = Math.max(bright, Number(light.dim) || 0);
+  const radius = bright ? `${bright} ft Bright, ${dim - bright} ft more Dim` : `${dim} ft Dim`;
+  return light.angle ? `${radius}, in a ${Math.round(light.angle)}° cone` : radius;
+}
+
+/**
+ * The receipt card's title for one press.
+ * @param {{ actor: string, item: string, op: "create"|"delete"|"update", row?: {states?: Record<string, {switchTo?: string}>, switchTo?: string}|null,
+ *   state?: string, light?: {bright: number, dim: number, angle?: number}|null, reason?: string|null }} said
+ * @returns {string}
+ */
+export function gearCardTitle({ actor, item, op, row = null, state = GEAR_LIT, light = null, reason = null }) {
+  if ( op === "delete" ) return reason ? `${actor}'s ${item} goes out (${reason})` : `${actor} puts out the ${item}`;
+  if ( op === "update" ) {
+    const words = (state === GEAR_LIT) ? row?.switchTo : row?.states?.[state]?.switchTo;
+    const verb = words ? words.replace(/^(\w)/, c => c.toLowerCase()).replace(/^(lower|raise)/, "$1s") : "switches";
+    return `${actor} ${verb}: ${gearLightWords(light)}`;
+  }
+  return `${actor} lights the ${item}: ${gearLightWords(light)}`;
 }
 
 /**

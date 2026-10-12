@@ -20,14 +20,17 @@ export const livePopups = new Map();
 const popupSlots = new Map();       // popup key → staircase slot
 let cascadeAnchor = null;           // {left, top} the staircase grows from; dies with the pile
 
-/** Render and lifecycle-manage a decision popup; a failed render leaves the card to answer from. */
+/**
+ * Render and lifecycle-manage a decision popup; a failed render leaves the card to answer from.
+ * `message` null: a popup before any card (the gear light's toggle), with no row to redraw.
+ */
 export async function openManagedPopup(key, message, dialog) {
   const close = dialog.close.bind(dialog);
   dialog.close = async (...args) => {
     livePopups.delete(key);
     popupSlots.delete(key);
     if ( !popupSlots.size ) cascadeAnchor = null;
-    void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
+    if ( message ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
     return close(...args);
   };
   // ARCHITECTURE.md §5 law 7: z-order is rank, then causal order.
@@ -52,7 +55,7 @@ export async function openManagedPopup(key, message, dialog) {
     }
     scheduleBarSync(dialog.element);
     // The row redraws to defer to the popup.
-    void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
+    if ( message ) void Promise.resolve(ui.chat?.updateMessage?.(message)).catch(() => { /* row refreshes next render */ });
   } catch(err) {
     livePopups.delete(key);
     popupSlots.delete(key);

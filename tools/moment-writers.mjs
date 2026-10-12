@@ -182,6 +182,7 @@ const WORLD_WRITERS = {
   "advantage-buys.js": ["poolSpend"],   // Lucky's Advantage bought at the gate: the use spent by hand, recorded on the roll's message
   "clock-riders.js": ["clockRiders", "poolSpend", "spellRiderCard", "receipt"],
   "token-lights.js": ["effectReceipt"],
+  "gear-lights.js": ["effectReceipt"],
   "command.js": ["commandRide"],
   "superiority-uses.js": ["superiorityUse", "superiorityRide", "baitSwitch", "effectReceipt"],
   "precision.js": ["precision"],

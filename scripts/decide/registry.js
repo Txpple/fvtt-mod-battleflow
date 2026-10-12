@@ -1950,6 +1950,38 @@ export const TOKEN_LIGHTS = Object.freeze({
 
 
 /**
+ * GEAR THAT SHEDS LIGHT (gear-lights.js): using the item opens a light toggle instead of its activity,
+ * and the light rides an effect on the item's owner, as TOKEN_LIGHTS' does. Nothing is consumed and
+ * nothing expires by the clock; a Long Rest puts it out (RULINGS *Gear lights*).
+ * ⚠ A Foundry light's `dim` is the OUTER radius: dim = bright + "an additional".
+ *   item      the names the item answers to besides the key: the 2014 names starting equipment hands out
+ *   angle     the emission cone in degrees (absent: all round); a 5e cone is as wide as it is long
+ *   label     the lit state's name on the popup, when the row has a second state
+ *   states    the second states by key: `{ bright, dim, label, switchTo }` — `switchTo` the button that moves
+ *             into it; the lit state's own `switchTo` moves back
+ */
+export const GEAR_LIGHTS = Object.freeze({
+  "Candle": Object.freeze({ item: Object.freeze([]), bright: 5, dim: 10,
+    rule: Object.freeze({ item: "Candle", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagCandle00000" }),
+    from: "PHB adventuring gear (1 hour)" }),
+  "Torch": Object.freeze({ item: Object.freeze([]), bright: 20, dim: 40,
+    rule: Object.freeze({ item: "Torch", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagTorch000000" }),
+    from: "PHB adventuring gear (1 hour)" }),
+  "Lamp": Object.freeze({ item: Object.freeze([]), bright: 15, dim: 45,
+    rule: Object.freeze({ item: "Lamp", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLamp0000000" }),
+    from: "PHB adventuring gear (6 hours on a flask of Oil)" }),
+  "Lantern, Hooded": Object.freeze({ item: Object.freeze(["Hooded Lantern"]), bright: 30, dim: 60,
+    label: "hood up", switchTo: "Raise the hood",
+    states: Object.freeze({ hoodDown: Object.freeze({ bright: 0, dim: 5, label: "hood down", switchTo: "Lower the hood" }) }),
+    rule: Object.freeze({ item: "Lantern, Hooded", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLanternHood" }),
+    from: "PHB adventuring gear (6 hours on a flask of Oil)" }),
+  "Lantern, Bullseye": Object.freeze({ item: Object.freeze(["Bullseye Lantern"]), bright: 60, dim: 120, angle: 53.13,
+    rule: Object.freeze({ item: "Lantern, Bullseye", uuid: "Compendium.dnd-players-handbook.equipment.Item.phbagLanternBull" }),
+    from: "PHB adventuring gear (6 hours on a flask of Oil)" })
+});
+
+
+/**
  * TOKEN_LIGHTS' sibling for senses (`sight` and `detectionModes`; a `sight.visionMode` override inflates
  * the mode's defaults), added to the PACK's effect as it is created. `vision` a CONFIG.Canvas.visionModes
  * key; `detect` { mode, range }; `range` the sight range in feet; `effect` its name when not the row key.
@@ -4171,6 +4203,7 @@ export const restGrantEntries = () => everyRow(Object.keys(REST_GRANTS));
 export const tokenSizeEntries = () => everyRow(Object.keys(TOKEN_SIZES));
 export const tokenSenseEntries = () => everyRow(Object.keys(TOKEN_SENSES));
 export const tokenLightEntries = () => everyRow(Object.keys(TOKEN_LIGHTS));
+export const gearLightEntries = () => everyRow(Object.keys(GEAR_LIGHTS));
 export const summonChoiceEntries = () => everyRow(Object.keys(SUMMON_CHOICES));
 export const transformEntries = () => everyRow(Object.keys(TRANSFORMS));
 export const damageSaveEntries = () => everyRow(Object.keys(DAMAGE_SAVES));

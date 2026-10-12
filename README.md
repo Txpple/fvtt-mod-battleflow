@@ -127,6 +127,14 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   of Fire burns on the side you pick, Spike Growth charges for every 5 feet walked through it,
   and Magic Circle and Forcecage say so when a creature crosses their line. Every PHB spell is
   accounted for in [the register](audits/spells-register.md).
+- **Lights follow the token.** A use whose text sheds light puts it on the token for as long as
+  it lasts: the Light cantrip on any token you target (casting it again puts the old one out), an
+  Aasimar's Inner Radiance, Corona of Light, Holy Nimbus, Sacred Weapon. Torches and lanterns are a
+  switch: using a Candle, Torch, Lamp or Lantern, from the sheet or the hotbar, opens a small popup
+  with **Light** and **Put out** (the Hooded Lantern also raises and lowers its hood), and the
+  light shines from your token at the book's radius. One at a time: lighting a second puts the
+  first out. To put one out, use the item again, or delete its effect, or press ✕ Revert on its
+  card. Nothing burns down and nothing is used up (rule of cool); a Long Rest puts them out.
 - **Concentration is kept honest.** A failed check ends the spell. Incapacitated drops it.
 - **Everything announces itself.** Spent slots, used reactions, effects landing and expiring, a
   crit against a paralyzed creature. Each is a line on a card so nothing is a mystery.

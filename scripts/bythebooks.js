@@ -76,6 +76,7 @@ import "./emanations.js";
 import "./repeat-saves.js";
 import "./turn-grants.js";
 import "./token-lights.js";
+import "./gear-lights.js";
 import "./receipts.js";
 import "./resources.js";
 import "./stats.js";

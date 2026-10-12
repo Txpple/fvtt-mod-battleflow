@@ -17,6 +17,7 @@ export const ORDER = Object.freeze([
   "rule-text",
   "holds",
   "events",
+  "gear-lights",        // its use veto ahead of every reader of a use, polish's no-target veto too: a gear light's use never happens
   "polish",
   "ui",                 // the damage-offer bar, the relay and the resumables run ahead of every row
   "effect-riders",
@@ -103,6 +104,7 @@ export const VETOABLE = Object.freeze([
   "preCreateActiveEffect",
   "preCreateRegionBehavior",
   "dnd5e.preUseActivity",
+  "dnd5e.preDisplayCard",
   "dnd5e.preActivityConsumption",
   "dnd5e.postUseActivity",
   "dnd5e.preApplyDamage",

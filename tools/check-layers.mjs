@@ -95,6 +95,7 @@ export const LAYER_OF = {
   "repeat-saves.js": "machines",   // a landed effect's save repeated — the bearer's turn end, damage, its own action
   "turn-grants.js": "machines",    // a landed effect's turn-start grant rolled again — Heroism's temp HP
   "wards.js": "machines",          // a standing ward makes whoever targets its bearer save first — Sanctuary
+  "gear-lights.js": "machines",    // using a light-source item toggles its light on the bearer — Torch, Lantern
   "token-lights.js": "machines",   // a use that sheds light carries it on an effect — Inner Radiance, Light
   "hit-menu.js": "machines",
   "damage-shields.js": "machines",

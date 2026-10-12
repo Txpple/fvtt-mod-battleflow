@@ -34,6 +34,7 @@ export const WHERE = {
   DAMAGE_SAVES: ["damage-casts.js", "Damage casts"],
   DROP_TO_ONE: ["drop-to-one.js", "The species walk, continued"],
   TOKEN_LIGHTS: ["token-lights.js", "The species walk, continued"],
+  GEAR_LIGHTS: ["gear-lights.js", "Gear lights"],
   SUMMON_CHOICES: ["summons.js", "Summons"],
   TRANSFORMS: ["transforms.js", "Wild Shape and the polymorph spells"],
   TOKEN_SIZES: ["effect-riders.js", "The species walk, continued"],

@@ -123,6 +123,45 @@ as its code.**
 | **Stroke of Luck** on an attack: "you can turn the roll into a 20" — the roll counts as 20; the page never says a 20 was rolled, so by the letter no Critical Hit | the 20 IS a Critical Hit: the miss hits whatever the AC and the damage crit-doubles, the resolve card "now hits — a Critical Hit" (`decide/verdict.js` the `twenty` replace, `auto-damage.js` `critFor` reads the crit through the folds) | a Rogue of 20 who burns the feature on a miss deserves the fireworks (the user, 2026-10-01: *"20 is a crit, make it rule of cool"*) | 2026-10-01 |
 | **Inspiring Smite**: the Temporary Hit Points "divided among the chosen creatures however you like" | asked in a popup; when its timer runs out the whole amount goes to the paladin and the Channel Divinity is spent (`askHandOut` `distribute`, `rest-grants.js`) | the smite's gift is never lost to a slow answer (the plan's pre-listed bend, stage A7) | 2026-09-29 |
 | **Relentless**: "once per turn, when you use a maneuver, you can roll 1d8 and use the number rolled instead of expending a Superiority Die" | the d8 stands in only when NO Superiority Dice are left; with dice left the module spends one | an ask on every maneuver would double the popups for a trade nobody takes with dice in hand (the noise gate, Q2); the user may overrule | 2026-09-30 |
+| **Candles, Torches, Lamps and Lanterns**: a Candle or Torch burns for 1 hour, a Lamp or Lantern for 6 hours on a flask of Oil; a Torch is used up | using the item toggles its light on the bearer's token; nothing is consumed and nothing expires by the clock; it stays lit until put out or a Long Rest (`gear-lights.js`, `GEAR_LIGHTS`; *Gear lights*) | no light bookkeeping; the table lights a torch and forgets about it (the user, 2026-10-11) | 2026-10-12 |
+
+## Gear lights (2026-10-12)
+
+**A Candle, Torch, Lamp or Lantern is a light switch** (issue #7, ruled by the user 2026-10-11:
+items only, a toggle popup, the Hooded Lantern's hood, the light on the character, nothing
+tracked). `scripts/gear-lights.js`, the table `GEAR_LIGHTS` beside `TOKEN_LIGHTS`, the pure half in
+`scripts/decide/token-lights.js`. It replaces the third-party Torch module at our tables.
+
+- **The use is the toggle and nothing else.** From the sheet, from a hotbar item macro, or through
+  the Torch's own Attack, the item's use opens one popup on the client that used it: the item, the
+  book's line, and the presses. No activity runs, no usage card is posted, nothing is consumed. The
+  Torch's improvised-weapon Attack is never offered (decided: the toggle is the item's only use).
+- **The presses.** Unlit: **Light**. Lit: **Put out**. The **Hooded Lantern** is the one item with a
+  second state: unlit it offers *Light — hood up* (30 ft Bright, 30 more Dim) and *Light — hood
+  down* (5 ft Dim); lit, *Put out* and the hood (*Lower the hood* / *Raise the hood*). The ✕ does
+  nothing.
+- **The light is on the character.** An effect on the item's owner, named for the item ("Torch
+  (lit)"), its origin the item, carrying `token.light.*` changes and no clock. Its presence is the
+  light being on: deleting it by hand is the same as Put out, and so is ✕ Revert on the card.
+- **One gear light per character.** Lighting a second item puts the first out, and the card says
+  so; a Token Lights light (the Light cantrip, Corona of Light) stands beside it untouched.
+- **The Long Rest puts every gear light out** (the user, 2026-10-11), one card each: "<Actor>'s
+  Torch goes out (Long Rest)". A Short Rest changes nothing. The resting client does it: dnd5e
+  fires the rest's hook on that client alone, so there is one writer without an elect.
+- **An item that leaves the sheet takes its light** (dropped, handed over, moved to a party stash);
+  the elect deletes it, no card.
+- **Nothing is tracked**: the rule-of-cool row in *Bent by choice — the rule of cool*.
+
+| Item | Answers to | Bright | Dim (outer) | Second state |
+| --- | --- | --- | --- | --- |
+| Candle | Candle | 5 | 10 | |
+| Torch | Torch | 20 | 40 | |
+| Lamp | Lamp | 15 | 45 | |
+| Lantern, Hooded | Hooded Lantern (2014) | 30 | 60 | hood down: 0 / 5 |
+| Lantern, Bullseye | Bullseye Lantern (2014) | 60 | 120 | the 60-ft cone as a 53.13° light (a 5e cone is as wide as it is long; the user may overrule) |
+
+An item answers by its identifier or its name, so a world copy or a homebrew item of the same name
+counts; a magic lantern (Lantern of Revealing) does not.
 
 ## The effect view (2026-09-15; the aura row 2026-09-15; the panel 2026-09-18)
 
