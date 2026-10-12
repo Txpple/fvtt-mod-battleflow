@@ -11,7 +11,7 @@
  * Incapacitated, 0 Hit Points, the Temporary Hit Points gone. The Long Rest offers the one known-form
  * swap through the mastery record's road (RULINGS *Wild Shape and the polymorph spells*).
  */
-import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, isActiveGM, queueFlagWrite, canAnswerFor, answersHere, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid, featureNamed } from "./lookup.js";
 import { TRANSFORMS, transformEntries, listedNames, tableIndex } from "./decide/registry.js";
 import { poolRuleOf, capOfTarget, knownSlotsOf, knownHolderOf, knownState, learnedList, restKnownList, transformRecord,
@@ -119,6 +119,7 @@ async function stampRecord(activity, usageConfig, message, row) {
     known, slots: knownSlotsOf(TRANSFORMS, row.key), lastForm: readFlag(holder, LAST_FORM_FLAG) ?? null,
     concentrationId: message.system?.concentration || null, sceneId: tok?.parent?.id ?? canvas.scene?.id ?? null
   });
+  record.askedBy = game.user.id;   // the caster's own screen answers: a GM using it for a player's character included
   await message.setFlag(MODULE_ID, TRANSFORM_FLAG, { ...record, ...statContext(actor.uuid) });
 }
 
@@ -212,7 +213,7 @@ async function showFormPopup(message) {
   const row = TRANSFORMS[flag.key];
   const who = flag.self ? "you" : flag.targets.map(t => t.name).join(", ");
   if ( row?.rule ) sections.push({ rule: row.rule });
-  await openPicker(message, TRANSFORM_FLAG, user, {
+  await openPicker(message, TRANSFORM_FLAG, user, { by: flag.askedBy ?? null,
     title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-paw", width: 500,
     card: { eyebrow: "Transform", title: flag.itemName, subtitle: [capLabel, flag.self ? null : `on ${who}`].filter(Boolean).join(" · ") },
     sections, needs: [{ field: "bf-form-pick", why: "pick a form first" }],
@@ -516,7 +517,7 @@ function drawTransform(message, html, flag) {
   const row = document.createElement("div");
   row.className = "bythebooks-transform";
   const user = resolveUuid(flag.sourceUuid);
-  const mine = canAnswerFor(user);
+  const mine = answersHere(flag.askedBy, user);
   const who = flag.self ? flag.sourceName : (flag.targets ?? []).map(t => t.name).join(", ");
   const form = flag.pick?.name ?? "the form";
   if ( flag.status === "asked" ) {

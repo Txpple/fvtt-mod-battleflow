@@ -9,7 +9,7 @@
  * Step's way, RULINGS *Summons*), a canvas overlay that needs no permission, so a player places what
  * the elect will create.
  */
-import { TITLE } from "./core.js";
+import { TITLE, answersHere } from "./core.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { openMomentPopup } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
@@ -234,18 +234,20 @@ function wirePicker(root, sections) {
  * @param {string} [spec.icon]
  * @param {number} [spec.width]
  * @param {boolean} [spec.gate]
+ * @param {string|null} [spec.by]         who started it (a User id): their screen answers (core.js answersHere)
  * @param {{ eyebrow: string, tone?: string, title: string, subtitle?: string }} spec.card
  * @param {Array<object>} spec.sections   see `sectionHTML`
  * @param {Array<{ field: string, why: string }>} [spec.needs]   in the order the popup reads
  * @param {Array<{ action: string, label: string, default?: boolean, checks?: boolean, submit?: (picks: { one: (field: string) => string|null, all: (field: string) => string[], form: HTMLFormElement|null }) => void }>} spec.buttons
  */
-export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, card, sections, needs = [], buttons }) {
+export async function openPicker(message, key, subject, { title, icon = "fa-solid fa-paw", width = 500, gate = true, by = null, card, sections, needs = [], buttons }) {
+  if ( by && !answersHere(by, subject) ) return null;
   const missing = form => {
     const picks = readPicks(form);
     return needs.find(n => !picks.one(n.field))?.why ?? null;
   };
   const dialog = await openMomentPopup(message, key, subject, {
-    title, icon, width, gate,
+    title, icon, width, gate: by ? false : gate,
     content: bfCard({ eyebrow: card.eyebrow, tone: card.tone ?? "pending", title: card.title, subtitle: card.subtitle ?? "", lines: sections.map(sectionHTML) }),
     buttons: buttons.map(b => ({ action: b.action, label: b.label, default: !!b.default,
       callback: (_event, button) => {

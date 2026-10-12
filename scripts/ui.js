@@ -3,7 +3,8 @@
  * moment clocks, and the relay / rescue / demand / resumable / withhold registries.
  * ⚠ Imports NO machine (ARCHITECTURE §7).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, isActiveGM, deadlineIsLive, canAnswerFor, keepsMessage, queueFlagWrite, DICE_WAIT_SECONDS,
+  LEAD_FLAG, WINDOW_ID } from "./core.js";
 import { TONE, popupKey, bfCard, momentBarHTML, holdBarHTML, nextCascadeSlot, cascadePosition,
   pileBackToFront, rescuePaneHTML, rescueRowsHTML } from "./decide/present.js";
 import { pendingDemands, resolveDemand } from "./decide/demand.js";
@@ -789,6 +790,27 @@ function resume(message, cause) {
       .finally(() => resuming.delete(key));
   }
 }
+
+// THE LEADING WINDOW (core.js `leadsWindow`). A GM with the game open in two windows is two clients;
+// the window loaded or focused last leads and the others stand down, so a consequence lands once. Taking
+// the lead resumes what the last leader left pending; closing the leader hands the lead back (the flag
+// cleared, so whichever window is left leads), and a window that lost it takes it again on focus.
+const claimLead = () => {
+  try {
+    if ( !game.user?.isGM || (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] === WINDOW_ID) ) return;
+    void game.user.setFlag(MODULE_ID, LEAD_FLAG, WINDOW_ID)
+      .then(() => { for ( const message of game.messages.contents.slice(-60) ) resume(message, "lead"); })
+      .catch(err => console.warn(`${TITLE} | This window could not take the lead.`, err));
+  } catch(err) { console.warn(`${TITLE} | This window could not take the lead.`, err); }
+};
+listen("ready", "ui", () => {
+  claimLead();
+  window.addEventListener("focus", claimLead);
+  document.addEventListener("visibilitychange", () => { if ( document.visibilityState === "visible" ) claimLead(); });
+  window.addEventListener("beforeunload", () => {
+    if ( game.user?.isGM && (game.user.flags?.[MODULE_ID]?.[LEAD_FLAG] === WINDOW_ID) ) void game.user.unsetFlag(MODULE_ID, LEAD_FLAG).catch(() => {});
+  });
+});
 
 listen("createChatMessage", "ui", message => resume(message, "create"));
 listen("updateChatMessage", "ui", message => resume(message, "update"));

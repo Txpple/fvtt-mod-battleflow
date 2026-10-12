@@ -3376,7 +3376,11 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
    - **Only the standing companion's own effect asks before it goes**; a stray copy or a gone companion's effect is
      removed as usual, a dismissal removes every effect naming its card, and a landing clears any before making its one
      (a landing on the sandbox left two, the second orphaned and unremovable).
-13. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
+13. **The caster's screen answers** (the user: a GM casting Find Familiar for Open Player 1's character got no popup;
+   it went to the player's screen). A summon's and a transform's popup, and the companion menu, open for the user
+   who cast it while they are connected (`askedBy`, core.js `answersHere`); the owning player only when the caster
+   has left. **Two windows, one GM** land once: the leading window (ARCHITECTURE *The leading window*).
+14. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
    keep, nothing is stripped or noted.
 
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)

@@ -3,7 +3,7 @@
  * the create / update / delete watchers with their resume floors. index.js is the only public face.
  */
 import { readFlag, rollerUserFor,
-  drivesMomentFor, canAnswerFor, savesRollThemselves } from "../core.js";
+  drivesMomentFor, canAnswerFor, savesRollThemselves, leadsWindow } from "../core.js";
 import { resolveUuid } from "../lookup.js";
 import { verdictTail, verdictText } from "../decide/verdict.js";
 import { popupKey, holdBarHTML, momentBarHTML, esc } from "../decide/present.js";
@@ -202,7 +202,7 @@ listen("dnd5e.renderChatMessage", "saves/views", (message, html) => {
       const shownKey = popupKey(message.id, `save:${t.uuid}`);
       // Rolled automatically: the elected roller rolls once, no popup and no button.
       if ( savesRollThemselves() ) {
-        if ( (actor instanceof Actor) && (rollerUserFor(actor)?.isSelf ?? false) && !shownMoments.has(shownKey) ) {
+        if ( (actor instanceof Actor) && (rollerUserFor(actor)?.isSelf ?? false) && leadsWindow() && !shownMoments.has(shownKey) ) {
           shownMoments.add(shownKey);
           void rollSaveItself(message, t.uuid);
         }

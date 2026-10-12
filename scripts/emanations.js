@@ -114,7 +114,7 @@ listenOnce("init", "emanations", () => {
 /** Region events reach every client; the active GM acts. With no GM, the mover's client says so once per event. */
 function gmHandles(event) {
   if ( isPassive() ) return false;   // the old package still runs: its own copy handles the region (scripts/dispatch.js)
-  if ( game.users.activeGM?.isSelf ) return true;
+  if ( isActiveGM() ) return true;
   if ( !game.users.activeGM && event?.user?.isSelf ) void whisperNoGM("an emanation's effect", "The aura stands on the map; apply its effect by hand.");
   return false;
 }

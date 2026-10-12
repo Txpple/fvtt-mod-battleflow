@@ -199,6 +199,17 @@ carry them, so they keep the old short form.
    from the same message (a reroll moving applied damage) FOLDS into the entry, `prior` kept
    (`joinDamageReceipt`), so one revert undoes the whole story.
 
+### The leading window — one client per user, not per user name
+
+A GM with the game open in two windows is two clients, and `game.users.activeGM.isSelf` is true in both:
+every consequence the elect lands would land twice (found 2026-10-12: two familiars and two effects from one
+summon). So `isActiveGM()` and the flow elect also ask `leadsWindow()` (core.js): each window has an id, and
+the GM's User carries the leading window's id (`leadWindow`), claimed on load and on focus (ui.js), cleared on
+close; the window taking the lead resumes what was left pending. No flag, the window leads (one window, as
+before). A popup a user STARTED (a summon, a transform cast from a sheet) answers on that user's screen
+(`answersHere(askedBy, actor)`), not on the owning player's: a GM casting for a player's character answers
+it; with that user gone, `canAnswerFor` decides as before.
+
 ### The flow elect — presentation runs without a GM, consequence does not
 
 **User ruling (2026-09-01): the popups all run without a GM; the effects that need GM

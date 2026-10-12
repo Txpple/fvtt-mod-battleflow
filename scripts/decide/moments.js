@@ -877,6 +877,7 @@ export const STATE_KEYS = Object.freeze({
   metamagicType: "the type Transmuted Spell set on the damage roll; the metamagic record on the card is the resolve",
   companion: "an ActiveEffect flag on a companion's OWNER — the message id of the summon card it names (summons.js); the effect is a marker, the card's record holds the companion",
   companionEnd: "a delete option, not a flag — the elect's own removal of a companion's effect, which the owner's removal prompt lets pass (summons.js)",
+  leadWindow: "a User flag on a GM — the id of the window that leads when the game is open in two (core.js leadsWindow); claimed on load and focus, cleared on close",
   wardPool: "an ActiveEffect flag on the WARDED creature — an effect ward's hit points (Bastion of Law, B4: `{ feature, left, max }`), lowered as damage lands, the effect gone at 0; the wardAbsorb record on the bearer's update is the resolve",
   healSelf: "a card — a `self` heal-reroll row's own healing (Blessed Healer, B4) after the owner's slot-cast heal landed on another creature; the receipt on the same card is the resolve",
   wardAbsorb: "an actor field — the ward's take on its bearer's damage update, for the pop on every client; the receipt is the resolve",

@@ -14,7 +14,7 @@
  * stamps `applied`. With no GM online the card holds and says so (DESIGN §4). Dismiss deletes what the
  * elect made, and the concentration effect's end asks it.
  */
-import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, canAnswerFor, statContext } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, activeCombatFor, isActiveGM, queueFlagWrite, answersHere, statContext } from "./core.js";
 import { cardActivity, lower, resolveUuid } from "./lookup.js";
 import { COMPANIONS, SUMMON_CHOICES, summonChoiceEntries, summonOwnInitiativeEntries, summonSingleEntries, listedNames } from "./decide/registry.js";
 import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAnswer, narrowedActivities, resistanceEffectData,
@@ -76,6 +76,7 @@ async function stampRecord(activity, message) {
   // a companion standing: the new form takes its place (its square, or the pocket)
   const was = companionOf(activity.item.name) ? currentCompanion(summonRecords(), actor.uuid, activity.item.name) : null;
   if ( was && game.messages.get(was) ) record.replaces = replacesOf(game.messages.get(was));
+  record.askedBy = game.user.id;   // the caster's own screen answers: a GM casting for a player's character included
   await message.setFlag(MODULE_ID, SUMMON_FLAG, { ...record, ...statContext(actor.uuid) });
 }
 
@@ -156,7 +157,7 @@ async function showSummonPopup(message) {
     choiceRow ? { field: "bf-summon-choice", why: `pick ${lower(choiceRow.ask)} first` } : null
   ].filter(Boolean);
   await openPicker(message, SUMMON_FLAG, caster, {
-    title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 480,
+    title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 480, by: flag.askedBy ?? null,
     card: { eyebrow: "Summon", title: flag.itemName, subtitle: flag.level ? `level ${flag.level}` : "" },
     sections, needs: asked,
     buttons: [
@@ -476,7 +477,7 @@ async function showCompanionMenu(message, activity) {
     summon: () => { castThrough.add(activity.uuid); return activity.use(); }
   };
   await openPicker(message, "companionMenu", caster, {
-    title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440,
+    title: `${flag.itemName} — ${flag.sourceName}`, icon: "fa-solid fa-spaghetti-monster-flying", width: 440, by: game.user.id,
     card: { eyebrow: row.noun, title: creature.label, subtitle: [flag.companion.type, where].filter(Boolean).join(" · ") },
     sections: [{ rows: [{ value: flag.summonUuid, ...creature }] }, { rule: row.rule }],
     buttons: [
@@ -666,7 +667,7 @@ function drawSummon(message, html, flag) {
   const row = document.createElement("div");
   row.className = "bythebooks-summon";
   const caster = resolveUuid(flag.sourceUuid);
-  const mine = canAnswerFor(caster);
+  const mine = answersHere(flag.askedBy, caster);
   if ( flag.status === "asked" ) {
     if ( !mine ) return;
     const shownKey = popupKey(message.id, SUMMON_FLAG);

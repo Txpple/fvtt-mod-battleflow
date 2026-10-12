@@ -4,7 +4,7 @@
  * failure presses `endConcentration`, whose `dependentOn` cascade strips every riding effect.
  * ⚠ dnd5e never ends concentration at 0 HP or on Incapacitated; this machine does (no save).
  */
-import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
+import { MODULE_ID, readFlag, TITLE, S, setting, rollerUserFor, leadsWindow, canAnswerFor, drivesMomentFor, canApplyTo, whisperNoGM, statContext, decisionWindow, savesRollThemselves } from "./core.js";
 import { cardItem, featureNamed, lower, resolveUuid, wieldedNamed } from "./lookup.js";
 import { rollConfigFor } from "./shared.js";
 import { concentrationExemptEntries, damageRuleEntries, listedNames } from "./decide/registry.js";
@@ -474,7 +474,7 @@ async function autoRollConcentration(askMessage) {
   const ask = readFlag(askMessage, "concentration");
   const actor = await fromUuid(ask?.actorUuid ?? "");
   if ( !(actor instanceof Actor) ) return;
-  if ( !(rollerUserFor(actor)?.isSelf ?? false) ) return;
+  if ( !(rollerUserFor(actor)?.isSelf ?? false) || !leadsWindow() ) return;
   await rollConcentrationAnswer(askMessage);
 }
 

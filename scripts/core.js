@@ -72,8 +72,21 @@ export const DICE_WAIT_SECONDS = 4;
 /** Seconds a cast reaction's AC change is given to land before the attack is re-tested. */
 export const HOLD_SETTLE_SECONDS = 8;
 
-/** Exactly one client may perform world-visible applications: the active GM's. */
-export const isActiveGM = () => game.users.activeGM?.isSelf ?? false;
+/**
+ * THE LEADING WINDOW. One user may have the game open in two windows, and each is a client: both would
+ * see `activeGM.isSelf` and both would land every consequence (two familiars, every damage twice). This
+ * window's id, and the flag on its User naming the window that leads (the one loaded or focused last; ui.js
+ * claims it). No flag: this window leads.
+ */
+export const WINDOW_ID = Math.random().toString(36).slice(2, 14);   // no Foundry at import: the tools load this file
+export const LEAD_FLAG = "leadWindow";
+export const leadsWindow = () => {
+  const lead = game.user?.flags?.[MODULE_ID]?.[LEAD_FLAG] ?? null;
+  return !lead || (lead === WINDOW_ID);
+};
+
+/** Exactly one client may perform world-visible applications: the active GM's, in its leading window. */
+export const isActiveGM = () => (game.users.activeGM?.isSelf ?? false) && leadsWindow();
 
 /** Whose client auto-rolls for this actor: the first active non-GM owner by id, else the active GM. */
 export const rollerUserFor = actor => game.users
@@ -86,7 +99,7 @@ export const rollerUserFor = actor => game.users
 const flowElectFor = actor =>
   game.users.activeGM ?? (actor ? rollerUserFor(actor) : undefined);
 
-const isFlowElectFor = actor => flowElectFor(actor)?.isSelf ?? false;
+const isFlowElectFor = actor => (flowElectFor(actor)?.isSelf ?? false) && leadsWindow();
 
 /** Does THIS client drive a moment whose subject is `subjectUuid`? */
 export function drivesMomentFor(subjectUuid) {
@@ -126,10 +139,23 @@ export function canAnswerFor(actor) {
   return false;
 }
 
+/**
+ * Does THIS client answer a moment its user started (a summon or a transform cast from a sheet)? The
+ * user who cast it, in their leading window, while they are connected — a GM casting for a player's
+ * character answers on the GM's screen; with that user gone, whoever `canAnswerFor` the actor.
+ * @param {string|null|undefined} userId   who started it (a User id)
+ * @param {Actor|null} actor
+ */
+export function answersHere(userId, actor) {
+  const by = userId ? game.users.get(userId) : null;
+  if ( by?.active ) return by.isSelf && leadsWindow();
+  return canAnswerFor(actor);
+}
+
 /** Does THIS client drive the continuation? The roller, or the active GM when they are offline. */
 export function isContinuingClient(hold) {
   const owner = game.users.get(hold?.continuedBy);
-  return owner?.active ? owner.isSelf : isActiveGM();
+  return owner?.active ? (owner.isSelf && leadsWindow()) : isActiveGM();
 }
 
 /** Does THIS client keep a card — its author while connected, else the active GM? ONE client answers yes. */
