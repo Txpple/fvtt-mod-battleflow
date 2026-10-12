@@ -69,6 +69,10 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const range = game.scenes.getName("By the Books Test Range");
   if (range && (canvas.scene?.id !== range.id)) await range.view();
   for (let i = 0; i < 40 && !(canvas.ready && canvas.scene?.id === range?.id); i++) await sleep(250);
+  // The foe fixture-d20-folds places: the range's unlinked BTB Test Dummy, else any unlinked fixture NPC.
+  const foeOn = scene => scene?.tokens?.find(t => (t.actor?.name === "BTB Test Dummy") && !t.actorLink)
+    ?? scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink && /^BTB Test /.test(t.actor.name ?? "")) ?? null;
+  const where = () => `canvas=${canvas.scene?.name ?? "none"} ready=${!!canvas.ready} npcs=${(range?.tokens ?? []).filter(t => t.actor?.type === "npc").map(t => `${t.name}${t.actorLink ? "(linked)" : ""}`).join(",") || "none"}`;
 
   try {
     const fighter = game.actors.getName("BTB Test Fighter");
@@ -155,13 +159,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
     if (has(3)) {
       // Drives the whole chain: spend → reroll → re-verdict → damage (the fixture grants a Longsword).
       const scene = range;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
+      const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!placed || !act) {
         skips.push("section 3: needs an NPC token on the active scene and the fighter's "
-          + `Longsword (token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+          + `Longsword (token=${!!placed} weapon=${!!act}; ${where()}) — run tools/fixture-d20-folds.mjs`);
       } else {
         const foe = foeToken.actor;
         ok("an NPC target is available to attack", true, foe.name);
@@ -389,7 +393,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // precision 6 → composed 19 HITS, un-composed 16 misses. The two must straddle the AC.
       // ⚠ Fold first, then precision: the only order that can break.
       const scene = range;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
+      const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
@@ -397,7 +401,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const superiority = fighter.items.find(i => i.name === "Combat Superiority");
       if (!placed || !act || !maneuver || !superiority) {
         skips.push("section 6: needs an NPC token, the Longsword, and the Battle Master kit "
-          + `(token=${!!placed} weapon=${!!act} maneuver=${!!maneuver} pool=${!!superiority})`
+          + `(token=${!!placed} weapon=${!!act} maneuver=${!!maneuver} pool=${!!superiority}; ${where()})`
           + " — run tools/fixture-d20-folds.mjs");
       } else {
         const foe = foeToken.actor;
@@ -633,7 +637,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // ⚠ THE BAND: attack +5, d20 5 → 10, bardic 3, AC 30: right 13, wrong 16 — both miss on purpose
       // (the verdict is not under test). AC 30 also keeps precision's hopeless gate shut.
       const scene = range;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
+      const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!foeToken || !act) {
@@ -789,13 +793,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       //   (a) the clock ran out;
       //   (b) a spend fixed the roll — a click would spend a real die on a target already hit.
       const scene = range;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
+      const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!placed || !act) {
         skips.push("section 8: needs an NPC token and the fighter's Longsword "
-          + `(token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+          + `(token=${!!placed} weapon=${!!act}; ${where()}) — run tools/fixture-d20-folds.mjs`);
       } else {
         const foe = foeToken.actor;
         const realPRNG = CONFIG.Dice.randomUniform;
@@ -933,13 +937,13 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       // click can be in flight when the window closes, and crash-resume calls the resolver directly.
       // Asserts the OUTCOME (the die is still there), not which guard caught it.
       const scene = range;
-      const foeToken = scene?.tokens?.find(t => t.actor && (t.actor.type === "npc") && !t.actorLink);   // UNLINKED: a linked foe collapses two tokens onto one actor
+      const foeToken = foeOn(scene);   // UNLINKED: a linked foe collapses two tokens onto one actor
       const placed = foeToken ? canvas.tokens.get(foeToken.id) : null;
       const sword = fighter.items.find(i => i.name === "Longsword");
       const act = sword?.system.activities?.find(a => a.type === "attack");
       if (!placed || !act) {
         skips.push("section 9: needs an NPC token and the fighter's Longsword "
-          + `(token=${!!placed} weapon=${!!act}) — run tools/fixture-d20-folds.mjs`);
+          + `(token=${!!placed} weapon=${!!act}; ${where()}) — run tools/fixture-d20-folds.mjs`);
       } else {
         const foe = foeToken.actor;
         const realPRNG = CONFIG.Dice.randomUniform;

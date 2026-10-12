@@ -137,22 +137,30 @@ const out = await f.evaluate(async () => {
     ? (await new Roll(precisionActivity.roll.formula, fighter.getRollData()).evaluate()).formula
     : null;
 
-  // ⚠ Restore the target: the suite's applied damage leaves the foe at 0 HP (and Graze then skips
-  // a dead target). Heal it and clear any forced AC; sections pin their own.
-  // ⚠ The test range's goblin only — never the first NPC on the world's active scene (2026-10-07).
-  const foeToken = game.scenes.getName("By the Books Test Range")?.tokens.find(t => t.actor && (t.actor.type === "npc")
-    && /^BTB Test /.test(t.actor.name ?? ""));
+  // ⚠ The suite's foe is ITS OWN: an UNLINKED token of BTB Test Dummy on the test range, placed here when
+  // missing. Earlier suites in the battery remove the range's unlinked goblins (by d20-folds only the
+  // linked Monster was left), and smoke-d20-folds §3 and §6–§9 skipped as green. Never the world's
+  // active scene. Healed, with any forced AC cleared: the suite's damage leaves it hurt and sections
+  // pin their own AC.
+  const range = game.scenes.getName("By the Books Test Range");
+  const dummy = game.actors.getName("BTB Test Dummy");
+  let foeToken = range?.tokens.find(t => (t.actorId === dummy?.id) && !t.actorLink) ?? null;
+  if (range && dummy && !foeToken) {
+    [foeToken] = await range.createEmbeddedDocuments("Token", [foundry.utils.mergeObject(dummy.prototypeToken.toObject(),
+      { x: 1100, y: 1200, actorId: dummy.id, actorLink: false, flags: { "fvtt-mod-bythebooks": { fixtureHome: true } } }, { inplace: false })]);
+    log.push("placed an unlinked BTB Test Dummy on the range, the d20-fold suite's foe");
+  }
   if (foeToken) {
     const foe = foeToken.actor;
     const src = foe.system._source.attributes.ac;
-    if ((src.calc === "flat") || (foe.system.attributes.hp.value < foe.system.attributes.hp.max)) {
+    if ((src.override !== null && src.override !== undefined) || (src.calc === "flat") || (foe.system.attributes.hp.value < foe.system.attributes.hp.max)) {
       await foe.update({
         "system.attributes.ac.override": null,
         "system.attributes.hp.value": foe.system.attributes.hp.max
       });
       log.push(`restored ${foeToken.name}: full HP, default AC`);
     }
-  }
+  } else log.push("⚠ no foe on the range: BTB Test Dummy or the range is missing — run tools/fixture-suite.mjs");
 
   // Prove the cross-actor read the module will perform.
   const originItem = await fromUuid(effect.origin);
