@@ -1,6 +1,7 @@
 /**
  * By the Books — the twelve settings (ARCHITECTURE §8): nine world configs for the DM, three per-client
- * preferences. Everything else is the module itself and always on. Two of the nine own dnd5e's
+ * preferences; and one table kept out of the list, the summon art, edited in its own window
+ * (summon-art.js). Everything else is the module itself and always on. Two of the nine own dnd5e's
  * Visibility menu, so a fresh world plays with the results on the table (issue #4).
  */
 import { MODULE_ID, S, TITLE, isActiveGM, setting } from "./core.js";
@@ -119,6 +120,13 @@ listenOnce("init", "settings", () => {
     name: "Effect Cards on Hover and Alt",
     hint: "Point at any token to see its buffs and debuffs beside it; hold Alt (Foundry's highlight key) to see every creature's list at once. Your client only.",
     scope: "client", config: true, type: Boolean, default: true
+  });
+
+  // Not in the list: the Summon Art window (summon-art.js) is its one editor, behind a button.
+  game.settings.register(MODULE_ID, S.summonArt, {
+    name: "Summon Art",
+    hint: "A token and a portrait per summoned creature, by spell then creature name.",
+    scope: "world", config: false, type: Object, default: {}
   });
 
   // Registries READ-ONLY for the suites (ARCHITECTURE §6), as live readers. ⚠ `volleyRegistry` is

@@ -1009,7 +1009,9 @@ dedupe on.
 ## 8. The settings surface
 
 Twelve settings (RULINGS *The settings*, *Open roll by default*): nine world configs for the DM,
-three per-client preferences. Two of the nine, Roll Results Players See and Bloodied Shows on Every
+three per-client preferences. One more world key is kept out of the list: `summonArt`, the table's own
+token and portrait per summoned creature, edited only in its window behind a settings button
+([summon-art.js](scripts/summon-art.js), RULINGS *Summons* call 15). Two of the nine, Roll Results Players See and Bloodied Shows on Every
 Token, own dnd5e's Visibility menu (`attackRollVisibility`, `challengeVisibility`, `bloodied`): the
 active GM writes the mapped values ([decide/visibility.js](scripts/decide/visibility.js)) on `ready`
 and on change, and only a key that differs, because dnd5e's own default hides every attack result

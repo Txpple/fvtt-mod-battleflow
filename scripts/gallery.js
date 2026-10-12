@@ -7,13 +7,15 @@
  * creatures read once a session for the rows; the filter is decide/gallery.js.
  * The placement lives here too: `pickSpots` is the range ring and the spot the player clicks (Misty
  * Step's way, RULINGS *Summons*), a canvas overlay that needs no permission, so a player places what
- * the elect will create.
+ * the elect will create. The table's own art for a summoned creature (`summonArt`, the Summon Art
+ * window's table) is read here, so the row, the ghost and the landing show the same picture.
  */
-import { TITLE, answersHere } from "./core.js";
+import { S, TITLE, answersHere, setting } from "./core.js";
 import { bfCard, esc, ruleLine } from "./decide/present.js";
 import { openMomentPopup } from "./ui.js";
 import { galleryRows, crLabel } from "./decide/gallery.js";
 import { footprintsOverlap, spotVerdict } from "./decide/summons.js";
+import { artFor } from "./decide/summon-art.js";
 
 const ART = 44;
 
@@ -59,6 +61,25 @@ export async function poolFromPacks(rule = {}) {
     }
   }
   return describePool(galleryRows(rows, rule));
+}
+
+/**
+ * The pool a `cr`-mode profile picks from: the cap evaluated, the profile's types.
+ * @param {{ cr?: string|number|null, types?: string[]|null }} profile
+ */
+export function poolRuleOf(profile) {
+  const cap = ((profile.cr === null) || (profile.cr === undefined) || (profile.cr === "")) ? null : Number(Roll.safeEval?.(profile.cr) ?? profile.cr);
+  return { crMax: Number.isFinite(cap) ? cap : null, types: profile.types?.length ? [...profile.types] : null };
+}
+
+/**
+ * The table's own art for a creature a spell summons (the Summon Art window), each path null when unset.
+ * @param {string|null|undefined} spell
+ * @param {string|null|undefined} creature
+ * @returns {{ token: string|null, portrait: string|null }}
+ */
+export function summonArt(spell, creature) {
+  try { return artFor(setting(S.summonArt), spell, creature); } catch { return { token: null, portrait: null }; }
 }
 
 /** A creature's lines for a row: AC, HP, CR, size, speeds, its attacks with their dice, its senses and traits; blank when unknown. */
@@ -149,6 +170,12 @@ function rowHTML(row, { field, multi = false }) {
     <span style="text-align:right;font-size:var(--font-size-11,11px);white-space:nowrap;">${rightOf(s, row.tags ?? [])}</span>
   </label>`;
 }
+
+/**
+ * A creature row shown, not asked (no pick): the Summon Art window's list wears the picker's own row.
+ * @param {{ label: string, img?: string|null, summary?: object, tags?: string[] }} row
+ */
+export const listRowHTML = row => rowHTML({ value: "", ...row }, {});
 
 const headHTML = head => head ? `<div style="margin-top:0.5rem;"><b>${esc(head)}</b></div>` : "";
 
@@ -294,11 +321,12 @@ async function ghostSprite(src, w, h) {
  * caster's centre and the space's (the best a canvas can say for "a space you can see"), unoccupied by
  * a token the player can see. No caster on this scene: no ring and no sight check. Nothing is created
  * here; the elect makes the creature at the squares. Empty when cancelled.
- * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string, seen?: boolean }} facts
- *   `seen` false drops the sight check (a familiar called back needs only an unoccupied space in reach)
+ * @param {{ originToken: TokenDocument|null, actorUuid: string, count: number, rangeFt: number|null, label: string, seen?: boolean, img?: string|null }} facts
+ *   `seen` false drops the sight check (a familiar called back needs only an unoccupied space in reach);
+ *   `img` the ghost's art when the table sets its own (`summonArt`), else the creature's token art
  * @returns {Promise<Array<{ x: number, y: number, elevation: number, rotation: number, level: string|null }>>}
  */
-export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true }) {
+export async function pickSpots({ originToken, actorUuid, count, rangeFt, label, seen = true, img = null }) {
   if ( !canvas?.ready ) throw new Error("the canvas is not ready");
   const actor = await fromUuid(actorUuid);
   const proto = actor?.prototypeToken;
@@ -323,7 +351,7 @@ export async function pickSpots({ originToken, actorUuid, count, rangeFt, label,
   const ghost = new PIXI.Container();
   const frame = new PIXI.Graphics();
   ghost.addChild(frame);
-  const sprite = await ghostSprite(proto.texture?.src ?? actor.img ?? null, w, h);
+  const sprite = await ghostSprite(img ?? proto.texture?.src ?? actor.img ?? null, w, h);
   if ( sprite ) ghost.addChild(sprite);
   ghost.visible = false;
   const layer = canvas.controls;

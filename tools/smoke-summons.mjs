@@ -3,8 +3,8 @@
 // dnd5e's own profile changes, the caster's players owning it, the seat after the caster, the dragon's
 // breath narrowed and the shared resistance on the caster, and Dismiss.
 //
-// Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Summon Beast and Summon Dragon
-// for the sections that need them; the cards it posts, the tokens the elect creates, the imported
+// Fixtures: BTB Test Sorcerer (tools/fixture-suite.mjs) is lent the PHB's Summon Beast, Summon Dragon and
+// Find Familiar for the sections that need them; the summon art table is set for §7 and put back; the cards it posts, the tokens the elect creates, the imported
 // spirits and the resistance effect are torn down. The placement preview is a canvas interaction, so
 // the suite answers the record directly through the module's api and the pure fold, never the popup.
 //
@@ -13,7 +13,8 @@ import { announcePlan, connectSuite, finish, sectionArg, sectionPlan } from './h
 
 // THE COVERAGE MAP (tools/coverage-map.mjs) — ⚠ NEVER import a suite; the map is parsed.
 export const COVERS = [
-  'summons.js'    // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's)
+  'summons.js',   // §1 the intercept and the record, §2 the landing, §3 the dragon, §4 Dismiss, §5 the seat, §6 the pool it picks from (gallery.js is a service: the battery's)
+  'summon-art.js' // §7 the Summon Art window lists the familiar's pool, and the table's art lands on the familiar
 ];
 
 const SECTIONS = {
@@ -22,7 +23,8 @@ const SECTIONS = {
   3: 'THE DRAGON: Summon Dragon answered with fire lands a Draconic Spirit whose Breath Weapon carries fire alone, and a "Shared Resistance (Fire)" effect on the caster dependent on the concentration effect',
   4: 'DISMISS: the Dismiss ask deletes the landed token and the resistance effect; the card says dismissed',
   5: 'THE SEAT: with the caster in a started combat at Initiative 15, the landed creature joins at 14.99 right after it',
-  6: 'THE POOL: the pack index pool at CR 0, beasts only, holds Owl once (the MM copy), sorted by CR then name'
+  6: 'THE POOL: the pack index pool at CR 0, beasts only, holds Owl once (the MM copy), sorted by CR then name',
+  7: 'SUMMON ART: the Summon Art window lists the Owl for Find Familiar; with the Owl given a token and a portrait in the table, a Find Familiar landed as an Owl wears the token, the portrait and the token on its companion effect'
 };
 const DEPENDS = { 3: [1], 4: [2], 5: [2] };
 
@@ -66,6 +68,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
   const casterToken = canvas.scene.tokens.find(t => t.actor?.id === caster.id) ?? null;
   if (!casterToken) return { fatal: 'the Sorcerer has no token on the scene — run tools/fixture-suite.mjs' };
   const lent = [];
+  let artBefore;
   const madeTokens = [];
   const madeActors = [];
   const madeMessages = [];
@@ -77,6 +80,7 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const tokens = madeTokens.filter(id => canvas.scene.tokens.get(id));
       if (tokens.length) await canvas.scene.deleteEmbeddedDocuments('Token', tokens);
       for (const e of caster.effects.filter(e => /Shared Resistance|Summon/.test(e.name))) { try { await e.delete(); } catch { /* gone */ } }
+      if (artBefore !== undefined) await game.settings.set(MOD, 'summonArt', artBefore);
       const live = lent.filter(id => caster.items.get(id));
       if (live.length) await caster.deleteEmbeddedDocuments('Item', live);
       for (const a of madeActors) { if (game.actors.get(a.id)) await a.delete(); }
@@ -188,6 +192,44 @@ const out = await f.evaluate(async ({ sections, titles }) => {
       const owls = rows.filter(r => r.name === 'Owl');
       ok('§6 the pool holds Owl once, the MM copy', owls.length === 1 && /dnd-monster-manual/.test(owls[0]?.pack ?? ''), JSON.stringify(owls.map(o => o.pack)));
       ok('§6 sorted by CR then name', rows.every((r, i) => !i || (rows[i - 1].cr < r.cr) || ((rows[i - 1].cr === r.cr) && (rows[i - 1].name.localeCompare(r.name) <= 0))), `${rows.length} rows`);
+    }
+    if (want(7)) {
+      // The window: opened from its settings button, its Owl row drawn.
+      const menu = game.settings.menus.get(`${MOD}.summonArtMenu`);
+      const win = menu ? new menu.type() : null;
+      if (win) await win.render(true);
+      const owlRow = await waitFor(() => win?.element?.querySelector('[data-bf-art-row="owl"]'), 20000);
+      ok('§7 the window lists the Owl for Find Familiar', !!owlRow, `menu=${!!menu} rows=${win?.element?.querySelectorAll('[data-bf-art-row]').length ?? 0}`);
+      if (win) await win.close();
+      // The landing: the table's art for the Owl, then a familiar cast and answered as an Owl (Fey).
+      const TOKEN = 'icons/svg/mystery-man.svg';
+      const PORTRAIT = 'icons/svg/cowled.svg';
+      artBefore = foundry.utils.deepClone(game.settings.get(MOD, 'summonArt') ?? {});
+      await game.settings.set(MOD, 'summonArt', { ...artBefore, 'find familiar': { owl: { token: TOKEN, portrait: PORTRAIT } } });
+      const familiar = await lend('Find Familiar');
+      const { message, flag } = await castSummon(familiar);
+      const { placedAnswer } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/summons.js');
+      const { SUMMON_CHOICES } = await import('/modules/fvtt-mod-bythebooks/scripts/decide/registry.js');
+      const { poolFromPacks } = await import('/modules/fvtt-mod-bythebooks/scripts/gallery.js');
+      const owl = (await poolFromPacks({ crMax: 0, types: ['beast'] })).find(r => r.name === 'Owl');
+      const grid = canvas.scene.grid.size;
+      const patch = (flag && owl) ? placedAnswer(flag, { profileId: flag.profiles[0]?.id ?? null, pick: { uuid: owl.uuid, name: owl.name }, count: 1, sceneId: canvas.scene.id,
+        creatureType: (flag.creatureTypes ?? []).includes('fey') ? 'fey' : (flag.creatureTypes?.[0] ?? null),
+        placements: [{ x: casterToken.x, y: casterToken.y + grid * 2, elevation: casterToken.elevation ?? 0, rotation: 0 }] }, SUMMON_CHOICES) : null;
+      if (patch) await message.setFlag(MOD, 'summon', { ...flag, ...patch });
+      const landed = patch ? await waitFor(() => message.getFlag(MOD, 'summon')?.applied ? message.getFlag(MOD, 'summon') : null, 20000) : null;
+      const tok = landedToken(landed);
+      if (tok) madeTokens.push(tok.id);
+      for (const a of game.actors.filter(a => a.getFlag('dnd5e', 'isAutoImported') && a.name === 'Owl')) if (!madeActors.includes(a)) madeActors.push(a);
+      ok('§7 the familiar landed as an Owl', landed?.outcome === 'landed' && !!tok, JSON.stringify({ patch: !!patch, owl: !!owl, outcome: landed?.outcome, failure: landed?.failure }));
+      ok('§7 it wears the table token', tok?.texture?.src === TOKEN, `texture=${tok?.texture?.src}`);
+      ok('§7 its sheet wears the table portrait', tok?.actor?.img === PORTRAIT, `img=${tok?.actor?.img}`);
+      const effect = caster.effects.find(e => e.getFlag(MOD, 'companion') === message.id);
+      ok('§7 the companion effect wears the token', effect?.img === TOKEN, `effect=${effect?.name} img=${effect?.img}`);
+      if (landed) {
+        await api.askDismiss(message);
+        await waitFor(() => message.getFlag(MOD, 'summon')?.dismissed ? true : null, 15000);
+      }
     }
   } catch (err) {
     results.push({ name: 'suite threw', pass: false, detail: `${err?.message}\n${err?.stack}` });

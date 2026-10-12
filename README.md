@@ -40,7 +40,7 @@ walks, playing each rule at the table, are what remains.
 | The Dungeon Master's Guide: the crit riders and the enchanted weapons | Summons and Wild Shape ([#1](https://github.com/Txpple/fvtt-mod-bythebooks/issues/1), [#2](https://github.com/Txpple/fvtt-mod-bythebooks/issues/2)) |
 | The Monster Manual: Magic Resistance, Undead Fortitude, Regeneration, the auras, the reactions | The epic boons |
 | Heroes of Faerûn, Arcana Unleashed, Ravenloft: The Horrors Within | |
-| Twelve settings (nine for the world, three per player); every feature always on | |
+| Twelve settings (nine for the world, three per player) and the Summon Art window; every feature always on | |
 
 Nothing is finished until it has been played. What is in works; what is not in yet is simply left
 to the table, the way vanilla dnd5e does.
@@ -104,6 +104,8 @@ https://github.com/Txpple/fvtt-mod-bythebooks/releases/latest/download/module.js
   Familiar. The player places the creature on the map; the GM's client creates it, gives the
   player ownership, seats it right after the caster in the tracker, and ties it to the spell's
   concentration. No Create Token, no Create Actor, no Allow Summoning setting. Dismiss is a button.
+  **Summon Art** (a button in the module's settings) gives each creature your own token and
+  portrait, Find Familiar first; a folder of files named after the creatures fills it in one click.
 - **Wild Shape and Polymorph without the compendium browser.** Using Wild Shape opens one popup
   with your four known forms as rows (art, AC, HP, speeds, attacks), the rest of the pool a line
   away; a Druid short of four learns a form at the use, and a Long Rest offers the one swap. The

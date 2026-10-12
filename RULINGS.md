@@ -3382,6 +3382,21 @@ nothing to the concentration effect (measured live 2026-10-10: a flagged token o
    has left. **Two windows, one GM** land once: the leading window (ARCHITECTURE *The leading window*).
 14. **The familiar keeps the form's statistics and items**, its attacks included; "it can't attack" is the table's to
    keep, nothing is stripped or noted.
+15. **The table's own art** (the user, 2026-10-12: "a button on the settings screen that opens up a different window,
+   otherwise too much clutter"; Find Familiar first). One world setting kept out of the list (`summonArt`), edited
+   in its own window behind a settings button (`summon-art.js`, GM only): a spell select, then one row per creature
+   the spell can summon (the picker's own row; for Find Familiar the gallery's pool, every book, one per name), each
+   with a **Token** and a **Portrait** path, a file picker and a clear. Three calls, ruled:
+   - **By creature name**, across books (`decide/summon-art.js` `artKey`): an Owl from any book wears the same art.
+   - **Read when it lands.** A familiar standing keeps its art until it is summoned again; saving the window
+     writes nothing to a token.
+   - **A folder fills the blanks**: `owl.webp` the Owl's token, `owl-portrait.webp` its portrait (`fileStem`:
+     lower case, other characters a dash). A field set by hand is kept.
+   The art is read where it shows (gallery.js `summonArt`): the picker's rows, the placement ghost, and the landing,
+   which folds it into dnd5e's own changes (`artChanges`: the token's texture, the portrait as the actor's image in
+   the token's delta). The compendium and the world copy keep the book's art; the companion effect's icon and the
+   pocket's snapshot follow the token. `ART_SPELLS` names the spells the window covers; the Summon spells and Wild
+   Shape's forms join as rows.
 
 ## Wild Shape and the polymorph spells (2026-10-11, issue #2)
 

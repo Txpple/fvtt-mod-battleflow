@@ -55,7 +55,8 @@ export const S = {
   bloodiedAll: "bloodiedAll",           // owns dnd5e's bloodied visibility
   playerRollDamage: "playerRollDamage", // client
   effectBar: "effectBar",               // client: the effect view's bar above the hotbar
-  effectHover: "effectHover"            // client: the effect view's hover card and held key
+  effectHover: "effectHover",           // client: the effect view's hover card and held key
+  summonArt: "summonArt"                // world, hidden: the summon art window's table (summon-art.js)
 };
 
 export const setting = key => game.settings.get(MODULE_ID, key);

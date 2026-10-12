@@ -21,9 +21,10 @@ import { profileRows, choiceRowKey, formNeeds, poolPicks, summonRecord, placedAn
   ownershipGrant, seatInitiative, rangeFeet, replacedSummons, companionEffectName, currentCompanion, companionMenu, companionAsk,
   carriedItemIds } from "./decide/summons.js";
 import { bfCard, esc, popupKey } from "./decide/present.js";
+import { artChanges } from "./decide/summon-art.js";
 import { concentrationIdOf } from "./decide/card.js";
 import { effectRecord, joinEffectReceipt } from "./decide/receipt.js";
-import { describeCreature, openPicker, pickSpots, poolFromPacks } from "./gallery.js";
+import { describeCreature, openPicker, pickSpots, poolFromPacks, poolRuleOf, summonArt } from "./gallery.js";
 import { momentButton, registerResumable, shownMoments } from "./ui.js";
 import { SURFACES } from "./surfaces.js";
 import { listen } from "./dispatch.js";
@@ -93,12 +94,6 @@ listen("dnd5e.postUseActivity", "summons", (activity, _usageConfig, results) => 
 
 /* --- the one popup: the form, the choice, the pool, then the placement ---------------------------- */
 
-/** The pool a `cr`-mode profile picks from: the cap evaluated, the profile's types. */
-function poolRuleOf(profile) {
-  const cap = profile.cr === null ? null : Number(Roll.safeEval?.(profile.cr) ?? profile.cr);
-  return { crMax: Number.isFinite(cap) ? cap : null, types: profile.types?.length ? profile.types : null };
-}
-
 /** The caster's token document on the record's scene, for the preview's origin and elevation. */
 function casterToken(flag) {
   const actor = resolveUuid(flag.sourceUuid);
@@ -134,9 +129,11 @@ async function showSummonPopup(message) {
   const sizes = flag.creatureSizes ?? [];
   const needs = formNeeds({ profiles: flag.profiles, choice: flag.choice, mode: flag.mode, creatureTypes: types, creatureSizes: sizes });
   const poolProfile = flag.profiles.find(p => poolPicks(p, flag.mode)) ?? null;
-  const pool = (needs.pool && poolProfile) ? await poolFromPacks(poolRuleOf(poolProfile)) : [];
+  // the table's own token art over the compendium's (the Summon Art window), on the rows and the ghost alike
+  const tokenArt = (name, img) => summonArt(flag.itemName, name).token ?? img ?? null;
+  const pool = ((needs.pool && poolProfile) ? await poolFromPacks(poolRuleOf(poolProfile)) : []).map(r => ({ ...r, img: tokenArt(r.name, r.img) }));
   const choiceRow = needs.choice ? SUMMON_CHOICES[flag.choice] : null;
-  const profileRow = (p, checked) => ({ value: p.id, label: p.label || p.name, img: p.img ?? null, summary: p.summary, checked });
+  const profileRow = (p, checked) => ({ value: p.id, label: p.label || p.name, img: tokenArt(p.label || p.name, p.img), summary: p.summary, checked });
   const sections = [];
   if ( needs.profile ) sections.push({ head: "The form", field: "bf-summon-profile", rows: flag.profiles.map((p, i) => profileRow(p, i === 0)) });
   else if ( (flag.profiles.length === 1) && !needs.pool ) sections.push({ field: "bf-summon-profile", rows: [profileRow(flag.profiles[0], true)] });
@@ -173,7 +170,8 @@ async function showSummonPopup(message) {
             const inPlace = (replacing?.state === "present") && replacing.placement;
             const intoPocket = replacing?.state === "pocket";
             const placements = inPlace ? [replacing.placement] : intoPocket ? [{ x: 0, y: 0, elevation: 0, rotation: 0 }] : await pickSpots({ originToken: casterToken(flag), actorUuid: usePool ? pickRow.uuid : profile.uuid, count,
-              rangeFt: flag.rangeFt ?? null, label: usePool ? pickRow.name : (profile.label || profile.name || "the creature") });
+              rangeFt: flag.rangeFt ?? null, label: usePool ? pickRow.name : (profile.label || profile.name || "the creature"),
+              img: usePool ? pickRow.img : tokenArt(profile.label || profile.name, null) });
             if ( !placements.length ) return;   // cancelled on the map: the card's button recalls the popup
             await answerPlacement(message, flag, { profileId: profile.id, pick: pickRow ? { uuid: pickRow.uuid, name: pickRow.name, img: pickRow.img } : null,
               choice: picks.one("bf-summon-choice"), placements, count, intoPocket,
@@ -248,9 +246,13 @@ async function landSummon(message) {
     const row = flag.choice ? SUMMON_CHOICES[flag.choice] : null;
     const concentration = concentrationOf(caster, flag);
     const tokensData = [];
+    // the table's own art (the Summon Art window), read now: a creature landed earlier keeps what it had
+    const art = artChanges(summonArt(flag.itemName, flag.summonName || actor.name));
     for ( const placement of flag.placements ?? [] ) {
       // dnd5e's own changes for the profile, per token (a formula may be dice).
       const changes = await activity.getChanges(actor, profile, options);
+      foundry.utils.mergeObject(changes.tokenUpdates, art.tokenUpdates);
+      Object.assign(changes.actorUpdates, art.actorUpdates);
       const narrowed = (row && flag.picked) ? narrowingUpdate(actor, row, flag.picked) : null;
       if ( narrowed ) {
         // ⚠ A token delta's item entry is merged as nested data; a dotted key would be stored as a literal key.
@@ -483,13 +485,15 @@ async function showCompanionMenu(message, activity) {
   if ( !flag?.companion || !row || !caster ) return;
   const state = flag.companion.state;
   const creature = await describeCreature(flag.summonUuid, { label: flag.companion.name || flag.summonName });
+  // the art it wears, on the table or in the pocket, over the compendium's
+  creature.img = liveToken(flag)?.texture?.src ?? flag.companion.snapshot?.texture?.src ?? creature.img;
   const where = (state === "pocket") ? "in its pocket dimension" : "on the table";
   const act = {
     away: () => askCompanion(message, { kind: "away" }),
     recall: async () => {
       const origin = caster.getActiveTokens?.(false, true)?.find(t => t.parent?.id === canvas.scene?.id) ?? null;
       const [placement] = await pickSpots({ originToken: origin, actorUuid: flag.summonUuid, count: 1, rangeFt: row.recallFt ?? null,
-        label: flag.companion.name || flag.summonName, seen: false });
+        label: flag.companion.name || flag.summonName, seen: false, img: flag.companion.snapshot?.texture?.src ?? null });
       if ( placement ) await askCompanion(message, { kind: "recall", placement: { ...placement, sceneId: canvas.scene?.id ?? null } });
     },
     dismiss: () => askDismiss(message),

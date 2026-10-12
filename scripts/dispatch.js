@@ -76,6 +76,7 @@ export const ORDER = Object.freeze([
   "bystanders",         // a bystander's bend on a save or a check, below the roller's own folds
   "concentration",
   "cast",
+  "summon-art",         // the Summon Art window's settings button, registered at init
   "summons",            // the summon's row under the cast's; its record is stamped at the use, landed by the elect
   "transforms",         // the form's row under the use's; the chooser switched off at the use, landed by the elect
   "volleys",            // the volley row above the saves rows; its multiplier after every rider's part

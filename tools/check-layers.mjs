@@ -48,6 +48,7 @@ export const LAYER_OF = {
   "saves/views.js": "machines",
   "mastery.js": "machines",
   "mastery-record.js": "machines", // the Weapon Mastery paperwork — the fill, the line, the swap, the party view (issue #3)
+  "summon-art.js": "machines",     // the Summon Art window — a table's own token and portrait per summoned creature, behind a settings button (issue #1)
   "summons.js": "machines",        // summons — the one popup off the cast card, the placement, the elect's landing, Dismiss (issue #1)
   "transforms.js": "machines",     // Wild Shape and the polymorph spells — the chooser switched off, the one popup, the elect's transform, the form's end, the Long Rest swap (issue #2)
   "topple.js": "machines",        // the Topple demand off mastery's card
@@ -165,6 +166,7 @@ export const LAYER_OF = {
   "decide/token-lights.js": "decision",   // which use sheds a token light, and the changes that carry it
   "decide/rest-grants.js": "decision",    // the rest grants given to allies: temp HP that does not stack, where a Chef's meal stands
   "decide/mastery-record.js": "decision", // the mastery record: the allowance off the advancements, the fill, the state, the missing pick, the swap
+  "decide/summon-art.js": "decision",     // summon art: the name keys, the lookup, a folder's files matched by name, the stored table
   "decide/summons.js": "decision",        // summons: the form rows off the profiles, the record and its answer, the narrowed breath, the shared resistance, the owners
   "decide/gallery.js": "decision",        // the shared gallery: the rows a pool allows, one per name, the preferred book first
   "decide/transforms.js": "decision",     // transforms: the pool rule off a profile, the Known Forms arithmetic, the record and its answer, the form effect, what ends a form
